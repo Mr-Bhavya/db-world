@@ -1,0 +1,9 @@
+# Server Config
+Server:
+  port: 9090
+
+#MongoDB
+spring:
+  data:
+    mongodb:
+      uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/mern_app_db?retryWrites=true&w=majority
