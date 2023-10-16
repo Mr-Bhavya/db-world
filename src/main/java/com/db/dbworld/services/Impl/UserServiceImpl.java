@@ -5,6 +5,7 @@ import com.db.dbworld.entities.UserEntity;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.UserDto;
 import com.db.dbworld.services.UserService;
+import com.db.dbworld.utils.DbWorldConstants;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,20 @@ public class UserServiceImpl implements UserService {
         return modelMapper.map(createdUser, UserDto.class);
     }
 
+    /**
+     * @param userDto
+     * @return
+     */
+    @Override
+    public UserDto registerUser(UserDto userDto) {
+        //set user role to viewer
+        userDto.setUserRole(DbWorldConstants.VIEWER);
+
+        UserEntity userEntity = modelMapper.map(userDto, UserEntity.class);
+        UserEntity createdUser = this.userRepository.save(userEntity);
+        return modelMapper.map(createdUser, UserDto.class);
+    }
+
     @Override
     public List<UserDto> getAllUsers() {
         List<UserEntity> userEntityList = this.userRepository.findAll();
@@ -42,7 +57,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto getUserByEmail(String email) {
-        return null;
+        UserEntity userEntity = this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("user", "email", email));
+        return this.modelMapper.map(userEntity, UserDto.class);
     }
 
     @Override

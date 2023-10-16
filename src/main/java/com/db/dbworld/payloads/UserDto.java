@@ -33,6 +33,7 @@ public class UserDto {
     @NotEmpty
     @Size(max=10)
     private String password;
+    private String userRole;
     private UserEntity.UserAppData userAppData;
     private List<UserEntity.UserCredential> userCredential;
 

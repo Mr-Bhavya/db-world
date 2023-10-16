@@ -10,6 +10,8 @@ public interface UserService {
 
     UserDto createUser(UserDto userDto);
 
+    UserDto registerUser(UserDto userDto);
+
     UserDto getUserById(String id);
 
     UserDto updateUser(UserDto userDto, String userId);

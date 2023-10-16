@@ -5,10 +5,13 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.http.HttpStatus;
 
+import java.util.Date;
+
 @Getter
 @Setter
 @AllArgsConstructor
 public class ApiResponse {
+    private String timestamp = new Date(System.currentTimeMillis()).toString();
     private HttpStatus httpStatus;
     private int httpStatusCode;
     private boolean success;
