@@ -36,11 +36,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        //Authorization
-        String bearerToken = request.getHeader("Authorization");
-        //Bearer 2352345235sdfrsfgsdfsdf
         String username = null;
         String token = null;
+
+        //Authorization
+        String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer")) {
             //looking good
             token = bearerToken.substring(7);
@@ -48,13 +48,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 username = this.jwtHelper.getUsernameFromToken(token);
             } catch (IllegalArgumentException e) {
                 logger.error("Illegal Argument while fetching the username !!");
-//                throw new TokenAuthenticationException(e.getMessage());
             } catch (ExpiredJwtException e) {
                 logger.error("Given jwt token is expired !!");
-//                throw new TokenAuthenticationException(e.getMessage());
             } catch (MalformedJwtException e) {
                 logger.error("Some changed has done in token !! Invalid Token");
-//                throw new TokenAuthenticationException("Some changed has done in token !! Invalid Token");
             } catch (Exception e) {
                 logger.error(e.getMessage());
             }

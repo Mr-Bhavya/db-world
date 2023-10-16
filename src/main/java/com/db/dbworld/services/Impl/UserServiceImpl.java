@@ -7,6 +7,7 @@ import com.db.dbworld.payloads.UserDto;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import org.modelmapper.ModelMapper;
+import org.modelmapper.TypeMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -52,7 +53,25 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDto getUserById(String userId) {
         UserEntity userEntity = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User", "userid", userId));
-        return this.modelMapper.map(userEntity, UserDto.class);
+
+        //TODO
+        TypeMap<UserEntity, UserDto> propertyMap = this.modelMapper.typeMap(UserEntity.class, UserDto.class);
+        propertyMap.addMappings(mapping -> mapping.skip(UserDto::setUserRole));
+        propertyMap.addMappings(mapping -> mapping.skip(UserDto::setUserCredential));
+        propertyMap.addMappings(mapping -> mapping.map(
+                UserEntity::getUserAppData,
+                (userDto, o) -> {
+                    System.out.println(o.toString());
+                    UserEntity userEntityObj = (UserEntity) o;
+                    userEntityObj.getUserAppData().setLoginDetails(null);
+                    userDto.setUserAppData(userEntityObj.getUserAppData());
+                })
+        );
+
+        UserDto userDto = new UserDto();
+        propertyMap.map(userEntity, userDto);
+
+        return userDto;
     }
 
     @Override
