@@ -14,4 +14,4 @@ spring:
 jwt:
   token:
     validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
-    secret: afafasfafafasfasfasfafacasdasfasxASFACASDFACASDFASFASFDAFASFASDAADSCSDFADCVSGCFVADXCcadwavfsfarvf
+    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45

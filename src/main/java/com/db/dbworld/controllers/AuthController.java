@@ -1,11 +1,11 @@
 package com.db.dbworld.controllers;
 
 import com.db.dbworld.payloads.ApiResponse;
-import com.db.dbworld.payloads.JwtRequest;
-import com.db.dbworld.payloads.JwtResponse;
+import com.db.dbworld.payloads.LoginRequest;
 import com.db.dbworld.payloads.UserDto;
 import com.db.dbworld.security.JwtHelper;
 import com.db.dbworld.services.UserService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,25 +37,22 @@ public class AuthController {
     @Autowired
     private UserService userService;
 
-    private Logger logger = LoggerFactory.getLogger(AuthController.class);
+    private final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     @PostMapping("/register")
-    public ResponseEntity<JwtResponse> registerNewUser(@RequestBody UserDto userDto) {
-
-        return null;
+    public ApiResponse registerNewUser(@Valid @RequestBody UserDto userDto) {
+        UserDto newUserDto = this.userService.registerUser(userDto);
+        return new ApiResponse(HttpStatus.CREATED, true, newUserDto);
     }
 
 
     @PostMapping("/login")
-    public ApiResponse login(@RequestBody JwtRequest request) {
+    public ApiResponse login(@Valid @RequestBody LoginRequest loginRequest) {
 
-        this.doAuthenticate(request.getEmail(), request.getPassword());
+        this.doAuthenticate(loginRequest.getEmail(), loginRequest.getPassword());
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
+        UserDetails userDetails = this.userDetailsService.loadUserByUsername(loginRequest.getEmail());
         String token = this.helper.generateToken(userDetails.getUsername());
-
-//        JwtResponse response = JwtResponse.builder().token(token)
-//                .user(userDetails).build();
 
         Map<String, Object> jwtResponse = new HashMap<>();
         jwtResponse.put("token", token);

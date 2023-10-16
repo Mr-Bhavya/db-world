@@ -5,6 +5,7 @@ import jakarta.validation.constraints.*;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.util.List;
 
@@ -20,6 +21,7 @@ public class UserDto {
     private String lastName;
     private String age;
     @NotEmpty
+//    @DateTimeFormat()
     private String dob;
     @NotEmpty
     private String gender;
