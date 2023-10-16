@@ -1,11 +1,17 @@
 package com.db.dbworld.entities;
 
+import com.db.dbworld.utils.DbWorldConstants;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 @Getter
@@ -22,6 +28,7 @@ public class UserEntity {
     private Long mobileNo;
     private String email;
     private String password;
+    private String userRole;
     private UserAppData userAppData;
     private List<UserCredential> userCredential;
 

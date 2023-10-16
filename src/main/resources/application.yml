@@ -7,3 +7,11 @@ spring:
   data:
     mongodb:
       uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/mern_app_db?retryWrites=true&w=majority
+  jpa:
+    show-sql: true
+
+#Security
+jwt:
+  token:
+    validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
+    secret: afafasfafafasfasfasfafacasdasfasxASFACASDFACASDFASFASFDAFASFASDAADSCSDFADCVSGCFVADXCcadwavfsfarvf
