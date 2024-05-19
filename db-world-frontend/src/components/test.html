@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        .container {
+            position: relative;
+            font-family: Arial;
+            /* background-image: url("https://www.themoviedb.org/t/p/w533_and_h300_bestv2/7ajHGIAYNMiIzejy1LJWdPrcAx8.jpg");
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-attachment: fixed; */
+            /* background: rgba(0, 0, 0, 1); */
+            /* box-shadow: 0.5rem 0.5rem 0.5rem 0.5rem black; */
+        }
+
+        /* .back_image {
+            box-shadow: 0.5rem 0.5rem 0.5rem 0.5rem black;
+        } */
+
+
+
+        .container .content {
+            position: absolute;
+            top: 0%;
+            left: 3%;
+            background: rgb(0, 0, 0);
+            /* Fallback color */
+            background: rgba(0, 0, 0, 0.5);
+            /* Black background with 0.5 opacity */
+            color: #f1f1f1;
+            width: 26.5%;
+            /* padding: 20px; */
+        }
+
+        .container .text-block {
+            position: absolute;
+            top: 0%;
+            left: 30%;
+            /* background-color: black; */
+            color: white;
+            height: 100%;
+            /* width: 25%; */
+            /* margin: 3%; */
+            /* padding-left: 20px;
+            padding-right: 20px; */
+            background: rgba(0, 0, 0, 0.5);
+            /* box-shadow: 0.5rem 0.5rem 0.5rem 0.5rem black; */
+            /* float: left; */
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Image Text Blocks</h2>
+
+    <div className="container">
+        <img className="back_image"
+            src="https://www.themoviedb.org/t/p/w533_and_h300_bestv2/7ajHGIAYNMiIzejy1LJWdPrcAx8.jpg" alt="Nature"
+            style="
+        width:70%; 
+        height: 50%;
+        margin-left: 30%;
+        box-shadow: 0.5rem 0.5rem 0.5rem 0.5rem black;
+        /* opacity:rgba(0, 0, 0, 0.5); */
+        filter:blur(5px);
+        ">
+        <!-- <div className="text-block">
+            <img style="width: 100%;"
+                src="https://www.themoviedb.org/t/p/w300_and_h450_bestv2/wdE6ewaKZHr62bLqCn7A2DiGShm.jpg" />
+            <h4>Whatch Movie</h4>
+        </div> -->
+        <div className="content">
+            <img style="width: 100%;"
+                src="https://www.themoviedb.org/t/p/w300_and_h450_bestv2/wdE6ewaKZHr62bLqCn7A2DiGShm.jpg" />
+            <!-- <h4>Whatch Movie</h4> -->
+        </div>
+        <div className="text-block">
+            <div>
+                <div className="text-center">
+                    <p style="
+                        font-size: 200%;
+                    ">Red Notice (2021)</p>
+                </div>
+            </div>
+            <h4>Whatch Movie</h4>
+            
+            <p>Lorem ipsum dolor sit amet, an his etiam torquatos. Tollit soleat phaedrum te duo, eum cu recteque
+                expetendis neglegentur. Cu mentitum maiestatis persequeris pro, pri ponderum tractatos ei.</p>
+
+        </div>
+
+    </div>
+
+
+</body>
+
+</html>
