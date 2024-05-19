@@ -1,0 +1,60 @@
+# Server Config
+Server:
+  port: 9000
+
+spring:
+  #mongoDB
+  data:
+    mongodb:
+#      uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/db_world?retryWrites=true&w=majority
+      host: localhost
+      port: 27017
+      database: db_world
+#      username: admin
+#      password: dbworld_admin
+      auto-index-creation: true
+  jpa:
+    show-sql: true
+  mvc:
+    converters:
+      preferred-json-mapper: gson
+  gson:
+    enable-complex-map-key-serialization: true
+
+  #live server
+  devtools:
+    livereload:
+      enable: false
+      port: 35720
+
+#Swagger
+springdoc:
+  api-docs:
+    path: /api/dbworld-api-doc
+  swagger-ui:
+#    operationsSorter: method
+    path: /dbworld-api-doc.html
+
+#Security
+jwt:
+  token:
+    validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
+    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
+
+
+tmdbApiKey: 30061af77dba3722bbe14a2691055544
+
+tmdb:
+  api:
+    key: 30061af77dba3722bbe14a2691055544
+
+
+#https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos
+#https://api.themoviedb.org/3/movie/721048?api_key=30061af77dba3722bbe14a2691055544&append_to_response=videos
+#https://api.themoviedb.org/3/tv/123377?api_key=30061af77dba3722bbe14a2691055544&append_to_response=videos,images,credits
+#https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos
+
+
+#https://api.themoviedb.org/3/movie/721048/watch/providers?api_key=30061af77dba3722bbe14a2691055544
+#https://api.themoviedb.org/3/tv/123377/watch/providers?api_key=30061af77dba3722bbe14a2691055544
+#https://api.themoviedb.org/3/search/tv?api_key=TMDB_API_KEY&query=SERACH_TEXT&year=YEAR
