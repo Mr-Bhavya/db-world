@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
-import { ToastContainer, toast } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Authentication from "../Authentication";
 import Constants from "../Constants";
 
 function TicTacToe() {
@@ -220,17 +218,7 @@ function TicTacToe() {
     return (
         <div className="card text-dark mx-3 my-3" style={{ background: "rgba(255,255,255,0.9)" }}>
             {decisionStr}
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={true}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
+            {Constants.TOAST_CONTAINER}
         </div>
     )
 }

@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import LoadingSpinner from './LoadingSpinner';
 import Authentication from './Authentication';
 import Constants from './Constants';
 import db_world_icon from '../images/db_world_teal.svg';
-import CommonServices from './CommonServices';
 import { getUserRole } from './ApiServices';
 
 

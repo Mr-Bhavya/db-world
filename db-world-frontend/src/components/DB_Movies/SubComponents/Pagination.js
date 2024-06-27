@@ -1,49 +1,46 @@
-import React, { useEffect } from 'react';
-import { displayDbCinemaRecordsList, filterSelection, moviePageNumber, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_s, reloadMovies, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_s } from '../../../redux/action/allActions';
-import Constants from '../../Constants';
-import { useDispatch, useSelector } from 'react-redux';
-import { useLocation, useNavigate } from 'react-router-dom';
-import displayDbCinemaRecordsReducer from '../../../redux/reducer/displayDbCinemaRecordsReducer';
+import React from 'react';
+import { moviePageNumber, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from '../../../redux/action/allActions';
+import { useDispatch } from 'react-redux';
 
 function Pagination(props) {
 
-    const location = useLocation();
     const { filter } = props;
     var { totalPage, disPageNumber } = props.page;
     var totalPageArray = [];
     for (let i = 1; i <= totalPage; i++) {
         totalPageArray.push(i);
     }
-    var moviePageNumberList = useSelector(state => state.moviePageNumberReducer)
-    const seriesPageNumberList = useSelector(state => state.seriesPageNumberReducer)
+    // var moviePageNumberList = useSelector(state => state.moviePageNumberReducer)
+    // const seriesPageNumberList = useSelector(state => state.seriesPageNumberReducer)
     const dispatch = useDispatch();
-    const navigate = useNavigate();
-    let route = ""
 
 
     async function pageUpdate(n) {
 
         if (filter.catagory === "movie") {
-            console.log("nmb", n);
             if (filter.movieIndustry === "all") {
-                moviePageNumberList.all = n;
+                // moviePageNumberList.all = n;
                 dispatch(moviePageNumber(n))
             }
             else if (filter.movieIndustry === "bollywood") {
-                moviePageNumberList.bollywood = n;
+                // moviePageNumberList.bollywood = n;
                 dispatch(moviePageNumber_b(n))
             }
             else if (filter.movieIndustry === "hollywood") {
-                moviePageNumberList.hollywood = n;
+                // moviePageNumberList.hollywood = n;
                 dispatch(moviePageNumber_h(n))
             }
             else if (filter.movieIndustry === "south") {
-                moviePageNumberList.south = n;
+                // moviePageNumberList.south = n;
                 dispatch(moviePageNumber_s(n))
             }
             else if (filter.movieIndustry === "gujarati") {
-                moviePageNumberList.gujarati = n;
+                // moviePageNumberList.gujarati = n;
                 dispatch(moviePageNumber_g(n))
+            }
+            else if (filter.movieIndustry === "korean") {
+                // moviePageNumberList.korean = n;
+                dispatch(moviePageNumber_k(n))
             }
             // navigate(`${Constants.DB_MOVIES_ROUTE}?catagory=movie&movieIndustry=${filter.movieIndustry}&page=${n + 1}`)
         }
@@ -62,6 +59,9 @@ function Pagination(props) {
             }
             else if (filter.seriesIndustry === "gujarati") {
                 dispatch(seriesPageNumber_g(n))
+            }
+            else if (filter.seriesIndustry === "korean") {
+                dispatch(seriesPageNumber_k(n))
             }
             // navigate(`${Constants.DB_MOVIES_ROUTE}?catagory=series&seriesIndustry=${filter.seriesIndustry}&page=${n + 1}`)
         }

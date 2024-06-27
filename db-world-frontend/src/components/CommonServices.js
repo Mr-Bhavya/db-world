@@ -1,4 +1,3 @@
-import axios from "axios";
 import Constants from "./Constants";
 
 const getTimeDateFromTimeStamp = (timestamp, timezone) => {
@@ -109,10 +108,14 @@ const handleCopy = (text) => {
         element.select();
         document.execCommand("copy");
         document.body.removeChild(element);
-        alert('📋 Coppied to clipboard!');
     } catch (e) {
         alert(e)
     }
+}
+
+const getCurrentUser = () => {
+    let user = JSON.parse(localStorage.getItem('user'));
+    return typeof (user) !== "undefined" ? user : null;
 }
 
 const isValidUrl = (url) => {
@@ -169,5 +172,6 @@ export default {
     convertTobytes,
     valiadteToken,
     modifySearchQuery,
-    handleCopy
+    handleCopy,
+    getCurrentUser
 }

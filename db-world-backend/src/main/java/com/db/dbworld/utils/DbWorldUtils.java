@@ -2,6 +2,9 @@ package com.db.dbworld.utils;
 
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.RequestPayloads;
+import com.db.dbworld.security.JwtHelper;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +28,9 @@ public class DbWorldUtils {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtHelper jwtHelper;
 
     private String encodePassword(String password) {
         return passwordEncoder.encode(password);
@@ -116,6 +122,27 @@ public class DbWorldUtils {
                 log.error("Failed to delete file/folder: {}, Error: {}", path, e.getMessage());
             }
         }
+    }
+
+    public String getUserFromToken(String token){
+        String username = null;
+        String errorMessage = null;
+        try {
+            username = this.jwtHelper.getUsernameFromToken(token);
+        } catch (IllegalArgumentException e) {
+            errorMessage = "Illegal Argument while fetching the username !!";
+        } catch (ExpiredJwtException e) {
+            errorMessage = "Given jwt token is expired !!";
+        } catch (MalformedJwtException e) {
+            errorMessage = "Some changed has done in token !! Invalid Token";
+        } catch (Exception e) {
+            errorMessage = e.getMessage();
+        }
+
+        if(errorMessage != null){
+            throw new DbWorldException(HttpStatus.UNAUTHORIZED, errorMessage);
+        }
+        return username;
     }
 
 }

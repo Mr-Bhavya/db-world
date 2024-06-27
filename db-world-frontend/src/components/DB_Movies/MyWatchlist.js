@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Button from 'react-bootstrap/Button';
-import ButtonGroup from 'react-bootstrap/ButtonGroup';
-import ButtonToolbar from 'react-bootstrap/ButtonToolbar';
 import SingleMovie from "./SingleMovie";
 import { useSelector, useDispatch } from "react-redux";
 import LoadingSpinner from "../LoadingSpinner";
-import { reloadMovies, seriesPageNumber, filterSelection, seriesPageNumber_b, seriesPageNumber_h, seriesPageNumber_s, seriesPageNumber_g } from '../../redux/action/allActions'
 import { useNavigate } from "react-router-dom";
 import Constants from "../Constants";
 import { loadMyWatchlist } from "../ApiServices";
 
 function MyWatchlist(props) {
-    const dispatch = useDispatch();
     const [movieList, setMovieList] = useState([])
     const reload = useSelector(state => state.reloadMoviesReducer)
     const [loading, setLoading] = useState(false);

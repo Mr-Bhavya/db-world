@@ -1,15 +1,12 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router";
 import { Link } from "react-router-dom"
 import { reloadMovies } from "../../redux/action/allActions"
 import Constants from "../Constants";
 import LoadingSpinner from "../LoadingSpinner";
-import likeIcon from "../../images/like.gif";
-import watchMovie from "../../images/WatchMovie.png";
 import LikeIcon from "./SubComponents/LikeIcon";
 import WatchlistIcon from "./SubComponents/WatchlistIcon";
-import WatchedIcon from "./SubComponents/WatchedIcon";
 import { deleteDbCinemaRecord } from "../ApiServices";
 
 function SingleMovie(props) {
@@ -397,7 +394,7 @@ function SingleMovie(props) {
 
                                         /* Movie Delete Button */
                                         < div className="col-2">
-                                            <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ id: movie.recordId, type: movie.type })}>🗑</button>
+                                            <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, type: movie.type })}>🗑</button>
                                         </div> : ""
                                 }
 

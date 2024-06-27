@@ -81,7 +81,7 @@ public class DBCinemaController {
         String bearerToken = request.getHeader("Authorization");
         String token = bearerToken.substring(7);
         ResponsePayloads.PaginationRecords recordsByPagination = dbCinemaRecordsService
-                .getRecordsByPagination(recordType, pageNumber, pageSize, languages, jwtHelper.getUsernameFromToken(token));
+                .getRecordsByPagination(recordType, pageNumber, pageSize, languages, dbWorldUtils.getUserFromToken(token));
         return new ApiResponse(HttpStatus.OK, true, recordsByPagination);
     }
 

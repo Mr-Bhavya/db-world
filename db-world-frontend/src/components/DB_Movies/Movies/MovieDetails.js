@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import LoadingSpinner from "../../LoadingSpinner";
 import Constants from "../../Constants";

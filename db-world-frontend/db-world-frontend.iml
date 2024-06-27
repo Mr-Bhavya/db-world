@@ -8,8 +8,8 @@
       <sourceFolder url="file://$MODULE_DIR$/src/main/resources/archetype-resources/src/test/java" isTestSource="false" packagePrefix="$org.example" />
       <sourceFolder url="file://$MODULE_DIR$/target/classes/archetype-resources/src/main/java" isTestSource="false" packagePrefix="$org.example" />
       <sourceFolder url="file://$MODULE_DIR$/target/classes/archetype-resources/src/test/java" isTestSource="false" packagePrefix="$org.example" />
-      <excludeFolder url="file://$MODULE_DIR$/build" />
       <excludeFolder url="file://$MODULE_DIR$/node" />
+      <excludeFolder url="file://$MODULE_DIR$/build" />
     </content>
   </component>
 </module>

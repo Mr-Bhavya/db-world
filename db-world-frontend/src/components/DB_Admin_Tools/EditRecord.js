@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { ToastContainer, toast } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import Authentication from "../Authentication";
 import Constants from "../Constants";
 import queryString from "query-string";
-import CommonServices from "../CommonServices";
 import { UpdateDbCinemaRecord, getUserRole } from "../ApiServices";
 
 function EditRecord() {
@@ -31,7 +30,7 @@ function EditRecord() {
     const checkUserRole = async (userId) => {
 
         let roleRes = await getUserRole(userId);
-        if(roleRes.httpStatusCode === 200){
+        if (roleRes.httpStatusCode === 200) {
             SetUserRole(roleRes.data.role.name);
             if (roleRes.data.role.name !== Constants.OWNER_USER_ROLE && roleRes.data.role.name !== Constants.ADMIN_USER_ROLE) {
                 alert("You don't have admin rights.")
@@ -51,7 +50,7 @@ function EditRecord() {
                     navigate(Constants.REDIRECT(Constants.DB_MOVIES_ROUTE));
                 }
             }
-        }else if(roleRes.httpStatusCode === 401){
+        } else if (roleRes.httpStatusCode === 401) {
             navigate(Constants.LOGIN_ROUTE, { replace: true });
         }
 
@@ -103,7 +102,11 @@ function EditRecord() {
 
 
     const onChangeHandler = (e) => {
-        setInputFields({ ...inputFields, [e.target.name]: e.target.value })
+        if (e.target.name === 'showOnTop') {
+            console.log(e.target.name, !inputFields.showOnTop)
+            setInputFields({ ...inputFields, [e.target.name]: !inputFields.showOnTop })
+        } else
+            setInputFields({ ...inputFields, [e.target.name]: e.target.value })
         // setOnSubmit(false)
     }
 
@@ -169,8 +172,8 @@ function EditRecord() {
         setSubmitLoader(true)
         try {
 
-            const { recordId, type, name, tmdbId } = inputFields;
-            let updateRecordRes = await UpdateDbCinemaRecord(recordId, type, name, tmdbId);
+            const { recordId, type, name, tmdbId, showOnTop } = inputFields;
+            let updateRecordRes = await UpdateDbCinemaRecord(recordId, { type, name, tmdbId, showOnTop });
             if (updateRecordRes.httpStatusCode === 200) {
                 toast.success("Record edited Sucesssfully.", {
                     onClose: () => navigate(Constants.DB_MOVIES_ROUTE),
@@ -189,38 +192,6 @@ function EditRecord() {
                 toast.error(updateRecordRes.message)
                 setSubmitLoader(false);
             }
-
-            // const { id, type, filmIndustry, name, quality, size, sizeFormat, downloadLink, tmdbData } = inputFields;
-
-            // const res1 = await fetch("/api/media/edit/record", {
-            //     method: "PUT",
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //         Accept: 'application/json'
-            //     },
-            //     credentials: "include",
-            //     body: JSON.stringify({ id, type, filmIndustry, name, quality, size, sizeFormat, downloadLink, tmdbData })
-            // })
-
-            // const data = await res1.json();
-            // if (res1.status == 200) {
-            //     toast.success("Record edited Sucesssfully.", {
-            //         onClose: () => navigate(Constants.DB_MOVIES_ROUTE),
-            //         autoClose: 1000
-            //     });
-            //     setSubmitLoader(false);
-            // } else if (res1.status === 401) {
-            //     toast.error(data.errorMessage + Constants.RE_LOGIN, {
-            //         onClose: async () => {
-            //             navigate(await Constants.REDIRECT());
-            //         },
-            //         autoClose: 1000
-            //     })
-            // }
-            // else {
-            //     toast.error(data.errorMessages)
-            //     setSubmitLoader(false);
-            // }
         } catch (err) {
             console.log(err);
             toast.error("Failed to edit record.")
@@ -235,7 +206,7 @@ function EditRecord() {
                 background: "rgba(255 ,255 ,255, 0.9)",
             }}
         >
-            <h1 className="card-title text-center mx-5 my-2 border-bottom border-5 border-dark"> UPDATE MOVIE </h1>
+            <h1 className="card-title text-center mx-5 my-2 border-bottom border-5 border-dark"> UPDATE RECORD </h1>
             {
                 loader
                 &&
@@ -260,73 +231,28 @@ function EditRecord() {
                                 <label htmlFor="floatingSelect">Choose type</label>
                             </div>
                         </div>
-                        {/* <div className="col-md">
-                            <div className="form-floating mb-2">
-                                <select className="form-select" id="floatingSelect" defaultValue="" onChange={onChangeHandler} name="filmIndustry" value={inputFields.filmIndustry} aria-label="Floating label select example">
-                                    <option value="" disabled={true}>Open this select menu</option>
-                                    <option value="Bollywood">Bollywood</option>
-                                    <option value="Gujarati">Gujarati</option>
-                                    <option value="South">South</option>
-                                    <option value="Hollywood">Hollywood</option>
-                                </select>
-                                <label htmlFor="floatingSelect">Choose Film Industry</label>
-                            </div>
-                        </div> */}
                         <div className="col-md ">
                             <div className="form-floating mb-2">
-                                <input type="text" className="form-control" id="floatingInput" onChange={onChangeHandler} name="name" value={inputFields.name} placeholder="Movie/Series Name" />
-                                <label htmlFor="floatingInput">Recordovie Name</label>
+                                <input type="text" className="form-control" id="name" onChange={onChangeHandler} name="name" value={inputFields.name} placeholder="Movie/Series Name" />
+                                <label htmlFor="floatingInput">Record Name</label>
                             </div>
                         </div>
-
-
                     </div>
                     <div className="row g-2 mx-2 my-1">
                         <div className="col-md ">
                             <div className="form-floating mb-2">
-                                <input type="number" className="form-control" id="floatingInput" onChange={onChangeHandler} name="year" value={inputFields.year} placeholder="Movie/Series Year" />
+                                <input type="number" className="form-control" id="year" onChange={onChangeHandler} name="year" value={inputFields.year} placeholder="Movie/Series Year" />
                                 <label htmlFor="floatingInput">Year</label>
                             </div>
                         </div>
-
-                        {/* <div className="col-md">
-                            <div className="form-floating mb-2">
-                                <select className="form-select" id="floatingSelect" defaultValue="" onChange={onChangeHandler} name="quality" value={inputFields.quality} aria-label="Floating label select example">
-                                    <option value="" disabled={true}>Open this select menu</option>
-                                    <option value="720p">720p</option>
-                                    <option value="1080p">1080p</option>
-                                    <option value="1080p - HDR">1080p - HDR</option>
-                                    <option value="1440p - 2K">1440p - 2K</option>
-                                    <option value="2160p - 4K">2160p - 4K</option>
-                                    <option value="2160p - 4K HDR">2160p - 4K HDR</option>
-                                </select>
-                                <label htmlFor="floatingSelect">Quality</label>
-                            </div>
+                        <div className="form-check form-switch m-1">
+                            <input type="checkbox" className="form-check-input" id="showOnTop" role="switch" onChange={onChangeHandler} name="showOnTop"
+                                value={inputFields.showOnTop}
+                                checked={inputFields.showOnTop} />
+                            <label class="form-check-label" htmlFor="showOnTop">Show On Top</label>
                         </div>
-                        <div className="col-md">
-                            <div className="form-floating mb-2">
-                                <input type="text" className="form-control" onChange={onChangeHandler} name="size" value={inputFields.size} id="floatingInput" placeholder="Movie Size" />
-                                <label htmlFor="floatingPassword">Size</label>
-                            </div>
-                        </div> */}
                     </div>
                     <div className="row g-2 mx-2 my-1">
-                        {/* <div className="col-md">
-                            <div className="form-floating mb-2">
-                                <select className="form-select" id="floatingSelect" defaultValue="GB" onChange={onChangeHandler} name="sizeFormat" value={inputFields.sizeFormat} aria-label="Floating label select example">
-                                    <option value="" disabled={true}>Open this select menu</option>
-                                    <option value="MB">MB</option>
-                                    <option value="GB">GB</option>
-                                </select>
-                                <label htmlFor="floatingSelect">Choose Formate</label>
-                            </div>
-                        </div>
-                        <div className="col-md">
-                            <div className="form-floating mb-2">
-                                <input type="link" className="form-control" id="floatingInput" onChange={onChangeHandler} name="downloadLink" value={inputFields.downloadLink} placeholder="Download Link / Index Link" />
-                                <label htmlFor="floatingPassword">Download Link</label>
-                            </div>
-                        </div> */}
                         <div>
                             {onSubmit &&
                                 <div className="col-md">
@@ -384,17 +310,7 @@ function EditRecord() {
                     </div>
                 </div>
             }
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={true}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
+            {Constants.TOAST_CONTAINER}
         </div >
     )
 

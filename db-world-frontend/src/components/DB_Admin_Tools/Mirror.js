@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast, ToastContainer } from 'react-toastify';
+import { toast } from 'react-toastify';
 import Constants from '../Constants';
 import { mirror } from '../ApiServices';
 
@@ -25,14 +25,14 @@ function Mirror() {
                 setSubmitLoader(true);
 
                 const mirrorRes = await mirror({
-                    url:link,
+                    url: link,
                     username,
                     password,
-                    fileName:title,
-                    isRename:rename,
-                    isUrlProtected:linkPasswordProtect,
-                    isExtract:extract,
-                    extractPassword:zipPassword
+                    fileName: title,
+                    isRename: rename,
+                    isUrlProtected: linkPasswordProtect,
+                    isExtract: extract,
+                    extractPassword: zipPassword
                 });
                 if (mirrorRes.httpStatusCode === 200) {
                     toast.success(mirrorRes.message);
@@ -47,42 +47,6 @@ function Mirror() {
                 else {
                     toast.error(mirrorRes.message);
                 }
-
-                // const res = await fetch(Constants.MIRROR_API, {
-                //     method: "POST",
-                //     headers: {
-                //         Accept: "application/json",
-                //         "Content-Type": "application/json",
-                //     },
-                //     credentials: "include",
-                //     body: JSON.stringify({
-                //         url: link,
-                //         linkPasswordProtect,
-                //         zipPasswordProtect,
-                //         extract,
-                //         username,
-                //         password,
-                //         zipPassword,
-                //         rename,
-                //         title
-                //     })
-                // })
-                // // console.log(res);
-                // const data = await res.json();
-                // console.log(data);
-                // if (res.status === 200) {
-                //     toast.success(data.result);
-                // }
-                // else if (res.status === 401) {
-                //     toast.error(data.errorMessage + Constants.RE_LOGIN, {
-                //         onClose: async () => {
-                //             navigate(await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + "#active=download"));
-                //         },
-                //         autoClose: 1000
-                //     })
-                // } else {
-                //     toast.error(data.errorMessage || data.error);
-                // }
                 setSubmitLoader(false);
             }
             else {
@@ -97,7 +61,7 @@ function Mirror() {
 
 
     return (
-        <div className="card mx-3 my-3"
+        <div className="card my-1"
             style={{
                 border: "2px solid",
                 background: "rgba(255 ,255 ,255, 0.9)",
@@ -298,18 +262,7 @@ function Mirror() {
                 }
                 <hr />
             </div>
-
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={true}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
+            {Constants.TOAST_CONTAINER}
         </div >
     )
 

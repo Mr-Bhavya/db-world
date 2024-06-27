@@ -1,6 +1,8 @@
 # Server Config
 Server:
   port: 9090
+  jetty:
+    idle-timeout: 60000 # 60 seconds
 
 #MongoDB
 spring:
@@ -20,6 +22,9 @@ spring:
       preferred-json-mapper: gson
   gson:
     enable-complex-map-key-serialization: true
+  servlet:
+    multipart:
+      enabled: true
 
 #Swagger
 springdoc:

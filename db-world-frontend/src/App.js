@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 // import './App.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import MovieHome from './components/DB_Movies/MovieHome';
 import Login from './components/Login';
 import LogOut from './components/LogOut';
 import Registration from './components/DB_Users/registration';
 import Weather from './components/DB_Weather/weather';
 import TicTacToe from './components/DB_Games/TicTacToe';
-import SearchInDrive from './components/DB_Movies/Search/SearchInDrive';
 import SeriesDetails from './components/DB_Movies/Series/SeriesDetails';
 import Home from './components/Home';
 // import { useSelector } from 'react-redux';
@@ -98,7 +97,6 @@ function App() {
         <Route path="/search" element={<Search />} />
         <Route path={Constants.ADD_RECORD_ROUTE} element={<AddRecord />} />
         <Route path={Constants.DB_ADMIN_TOOLS_ROUTE} element={<AdminTools />} />
-        <Route path="/searchInDrive" element={<SearchInDrive />} />
         <Route path={Constants.EDIT_RECORD_ROUTE} element={<EditRecord />} />
         <Route path={Constants.DB_MOVIE_DETIALS_ROUTE} element={!matches && <MovieDetails /> || <MovieDetailsDesktop />} />
         <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<SeriesDetails />} />

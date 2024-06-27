@@ -14,6 +14,7 @@ public class DBCinemaRecordsDto {
     private String type;
     private Date lastModifiedTime;
     private long tmdbId;
+    private boolean showOnTop;
     private ArrayList<String> watchListBy;
     private ArrayList<String> likedBy;
     private ArrayList<String> disLikeBy;

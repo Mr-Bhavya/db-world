@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Card } from 'react-bootstrap';
-import { useSelector } from 'react-redux';
 import Constants from '../Constants';
-import { getAllUserRoles, recordsUpdateStatus, updateRecordsWithLatest, updateUserRoleService } from '../ApiServices';
-import { useNavigate } from 'react-router-dom';
+import { recordsUpdateStatus, updateRecordsWithLatest } from '../ApiServices';
 import { toast } from 'react-toastify';
 import AddRecord from './AddRecord';
 
@@ -50,7 +47,7 @@ const Records = ({ userRole }) => {
     return (
         <div className="bg-transparent pb-5">
             <div>
-                <div className='mx-3'>
+                <div>
                     <select className="form-select form-select-lg my-1"
                         aria-label=".form-select-lg example"
                         onChange={(e) => setSelection(e.target.value)}

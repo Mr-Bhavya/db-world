@@ -27,14 +27,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -71,27 +74,32 @@ public class UtilsServiceImpl implements UtilsService {
                 .baseUrl(mirrorStatus.getFileUrl())
                 .build();
         Flux<DataBuffer> flux = webClient.get()
+//                .uri(mirrorStatus.getFileUrl())
+                .headers(httpHeaders -> httpHeaders.set("Host", mirrorStatus.getFileUrl().split("/")[2]))
                 .exchangeToFlux(response -> {
-                    long contentLength = response.headers().contentLength().orElse(-1);
+                    long contentLength = response.headers().contentLength().orElse(0);
                     this.statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
                             0, contentLength, mirrorStatus.getFileSize()
                     ));
                     return response.bodyToFlux(DataBuffer.class);
-                });
+                })
+                .takeUntil(dataBuffer -> statusService.getStatusById(mirrorStatus.getId()).isCancelled());
 
         try {
             FileOutputStream fileOutputStream = new FileOutputStream(file);
-            DataBufferUtils.write(flux, getOutputStream(fileOutputStream, mirrorStatus))
-                    .takeUntil(dataBuffer -> mirrorStatus.isCancelled())
+            OutputStream outputStream = getOutputStream(fileOutputStream, mirrorStatus);
+            DataBufferUtils.write(flux, outputStream)
+                    .takeUntil(dataBuffer -> statusService.getStatusById(mirrorStatus.getId()).isCancelled())
                     .doOnComplete(() -> log.info("Download Completed for file: {}", mirrorStatus.getFileName()))
                     .doOnError(throwable -> this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), throwable.getMessage()))
                     .doFinally((signalType) -> {
                         try {
                             fileOutputStream.close();
+                            outputStream.close();
                         } catch (IOException e) {
                             log.error(e.getMessage());
                         }
-                        postDownloadTasks(mirrorStatus);
+                        postDownloadTasks(mirrorStatus.getId());
                     })
                     .subscribe(DataBufferUtils.releaseConsumer());
         } catch (Exception ex) {
@@ -156,7 +164,7 @@ public class UtilsServiceImpl implements UtilsService {
                 this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
             } else {
                 this.statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
-                        torrentSessionState.getDownloaded(),
+                        mirrorStatus.getFileSize() - torrentSessionState.getLeft(),
                         torrentSessionState.getLeft(),
                         mirrorStatus.getFileSize()
                 ));
@@ -188,13 +196,14 @@ public class UtilsServiceImpl implements UtilsService {
 
             @Override
             public void close() throws IOException {
+                fileOutputStream.close();
                 super.close();
             }
         };
     }
 
-    private void postDownloadTasks(MirrorStatus mirrorStatus) {
-
+    private void postDownloadTasks(String statusId) {
+        MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
         try {
             if (mirrorStatus.isCancelled()) {
                 Files.delete(Path.of(mirrorStatus.getTempFilePath()));
@@ -276,19 +285,19 @@ public class UtilsServiceImpl implements UtilsService {
 
             InputStream inputStream = process.getInputStream();
             String inputString = new String(inputStream.readAllBytes());
-            if(inputString == null || inputString.isEmpty() || inputString.isBlank() || inputString.equals("null") || inputString.equals("null\n")){
+            if (inputString == null || inputString.isEmpty() || inputString.isBlank() || inputString.equals("null") || inputString.equals("null\n")) {
                 String errorString = new String(process.getErrorStream().readAllBytes());
-                if(errorString != null && !errorString.isBlank() && !errorString.isEmpty()){
+                if (errorString != null && !errorString.isBlank() && !errorString.isEmpty()) {
                     throw new DbWorldException(errorString);
                 }
-            }else{
+            } else {
                 jsonInfoObj = new Gson().fromJson(inputString.replace("null\n", ""), JsonObject.class);
             }
             process.waitFor();
             if (jsonInfoObj == null || jsonInfoObj.isEmpty() || jsonInfoObj.isJsonNull()) {
                 throw new DbWorldException("Not able to fetch details from given url: " + url);
             }
-        } catch (IOException | InterruptedException  e) {
+        } catch (IOException | InterruptedException e) {
             throw new DbWorldException(e.getMessage());
         }
         log.info("Process is completed and info fetched with exit code: {}", process.exitValue());
@@ -300,7 +309,7 @@ public class UtilsServiceImpl implements UtilsService {
     public void downloadYtFile(MirrorStatus mirrorStatus) {
         statusService.addNewStatus(mirrorStatus);
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder(getYtCommand(mirrorStatus.getFileUrl(), PROCESS_DOWNLOAD,mirrorStatus.getId()));
+            ProcessBuilder processBuilder = new ProcessBuilder(getYtCommand(mirrorStatus.getFileUrl(), PROCESS_DOWNLOAD, mirrorStatus.getId()));
             Process process = processBuilder.start();
             new Thread(() -> {
                 BufferedReader reader = null;
@@ -363,24 +372,34 @@ public class UtilsServiceImpl implements UtilsService {
         }
     }
 
+    @Override
+    public void deleteTempFiles() {
+        File[] listFiles = new File(DbWorldConstants.TEMP_DOWNLOAD_PATH).listFiles();
+        if(listFiles.length != 0){
+            Arrays.stream(listFiles).forEach(file -> {
+                dbWorldUtils.deleteFile(file.getAbsolutePath());
+            });
+        }
+    }
+
     private String getYtOutputFileName(MirrorStatus mirrorStatus) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(getYtCommand(mirrorStatus.getFileUrl(), PROCESS_FILENAME, mirrorStatus.getId()));
         Process process = pb.start();
 
-        String fileName = new String(process.getInputStream().readAllBytes()).replace("null\n","").replace("\n","");
+        String fileName = new String(process.getInputStream().readAllBytes()).replace("null\n", "").replace("\n", "");
         String error = new String(process.getErrorStream().readAllBytes());
         process.waitFor();
         int exitValue = process.exitValue();
-        if(exitValue == 2){
+        if (exitValue == 2) {
             throw new DbWorldException(error);
         }
         log.info("Filename is fetched successfully. Fetched filename: {}", fileName);
         return fileName;
     }
 
-    private List<String> getYtCommand(String url, String process, String statusId){
+    private List<String> getYtCommand(String url, String process, String statusId) {
         String[] cmd = null;
-        if(process.equals(PROCESS_AUDIO)){
+        if (process.equals(PROCESS_AUDIO)) {
             MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
             cmd = new String[]{
                     DbWorldConstants.YTDLP_EXE_PATH,
@@ -415,7 +434,7 @@ public class UtilsServiceImpl implements UtilsService {
                     "-o",
                     String.format("%s.%%(ext)s", mirrorStatus.getTempFilePath())
             };
-        } else if(process.equals(PROCESS_INFO)){
+        } else if (process.equals(PROCESS_INFO)) {
             cmd = new String[]{
                     DbWorldConstants.YTDLP_EXE_PATH,
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
@@ -431,16 +450,18 @@ public class UtilsServiceImpl implements UtilsService {
     }
 
     @Override
-    public HttpHeaders getHeaders(String url) {
+    public HttpHeaders getHeaders(String httpUrl) {
         try {
-            return WebClient.builder()
-                    .baseUrl(url).build().head()
-                    .acceptCharset(StandardCharsets.UTF_8).retrieve()
-                    .toBodilessEntity().map(voidResponseEntity -> voidResponseEntity.getHeaders())
-                    .cast(HttpHeaders.class).blockOptional().get();
-        } catch (Exception ex) {
-            log.error(ex);
-            throw new DbWorldException(ex.getMessage());
+            RestTemplate restTemplate = new RestTemplate();
+            return restTemplate.execute(httpUrl, HttpMethod.HEAD,
+                    request -> request.getHeaders().set("Host", httpUrl.split("/")[2]),
+                    response -> response.getHeaders());
+        } catch (WebClientResponseException ex) {
+            log.error(ex.getMessage());
+            return ex.getHeaders();
+        } catch (ResourceAccessException ex){
+            log.error(ex.getMessage());
+            return null;
         }
     }
 

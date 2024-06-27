@@ -1,22 +1,29 @@
 import React, { useEffect, useState } from "react";
 import { ListGroup, ListGroupItem, Spinner } from "react-bootstrap";
-import { getStreamMediaList } from "../../ApiServices";
+import { getStreamMediaList, getUserRole } from "../../ApiServices";
 import File from "./File";
+import CommonServices from "../../CommonServices";
+import Constants from "../../Constants";
+import { Navigate } from "react-router-dom";
 
 
-function FileList() {
+function FileList(props) {
+
+    const {userRole} = props;
 
     const [files, setFiles] = useState([]);
     const [requestData, setRequestData] = useState({
         filePath: '', ftp: false
     })
     const [loader, setLoader] = useState(true);
+    // const [userRole, setUserRole] = useState(null);
 
     const getList = async () => {
         setLoader(true);
-        let response = await getStreamMediaList(requestData.filePath);
+        let response = await getStreamMediaList(encodeURIComponent(requestData.filePath));
         if (response.httpStatusCode === 200) {
             setFiles(response.data);
+            // await checkUserRole();
         }
         setLoader(false)
     }
@@ -39,7 +46,7 @@ function FileList() {
                                         <span className="btn" onClick={() => {
                                             setRequestData({ filePath: folder.filePath, ftp: folder.isFTP });
                                         }}>📂 {folder.fileName}</span>
-                                        
+
                                     </ListGroupItem>
                                 )
                             })
@@ -61,7 +68,7 @@ function FileList() {
                                 return (
                                     file.isFile &&
                                     <ListGroupItem className="overflow-auto mx-3">
-                                        <File file={file} />
+                                        <File file={file} userRole={userRole} />
                                     </ListGroupItem>
                                 )
                             })
@@ -80,7 +87,6 @@ function FileList() {
                     () => {
                         // if (bodyData.filePath !== "D:/Bhavya/Videos" && bodyData.filePath !== "D:/Bhavya/Videos/" && bodyData.filePath !== "F:/Movies" && bodyData.filePath !== "F:/Movies/") {
                         let tempPath = requestData.filePath.split("/").slice(0, -1).join("/");
-                        console.log(tempPath);
                         setRequestData({
                             filePath: tempPath,
                             ftp: tempPath === "" || tempPath == null ? false : requestData.ftp
@@ -95,15 +101,15 @@ function FileList() {
             <hr />
             {
                 loader ?
-                <div className="d-flex justify-content-center" >
-                    <Spinner animation="border" variant="danger" />
-                </div>
-                :
-                <div>
-                    {folder()}
-                    <hr />
-                    {file()}
-                </div>
+                    <div className="d-flex justify-content-center" >
+                        <Spinner animation="border" variant="danger" />
+                    </div>
+                    :
+                    <div>
+                        {folder()}
+                        <hr />
+                        {file()}
+                    </div>
             }
 
         </div>

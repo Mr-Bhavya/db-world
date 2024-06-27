@@ -26,7 +26,7 @@ const UserRole = ({ userData }) => {
                 setLoader(false);
             }
         } else {
-            toast.danger("Problem in fetching roles.")
+            toast.error("Problem in fetching roles.")
         }
     }
 

@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Card, CardGroup, Col, Form, Row, Table } from 'react-bootstrap';
+import { Button, Card, Col, Form, Row, Table } from 'react-bootstrap';
 import { useDispatch, useSelector } from 'react-redux';
 import CommonServices from '../CommonServices';
 import Constants from '../Constants';
 import { ToastContainer, toast } from 'react-toastify';
-import EditProfile from '../DB_Users/EditProfile';
 import { updateUserDetails } from '../ApiServices';
 import { findAllUsers } from '../../redux/action/allActions';
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Constants from "../../Constants";
 import LoadingSpinner from "../../LoadingSpinner";
 import { getRecordDetailsbyId } from "../../ApiServices";
