@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { toast, ToastContainer } from 'react-toastify';
+import { toast, } from 'react-toastify';
 import Authentication from '../Authentication';
 import CommonServices from '../CommonServices';
 import Constants from '../Constants';
@@ -12,8 +12,6 @@ function AddPassword() {
     const [userData, setUserData] = useState({});
     const [submitLoader, setSubmitLoader] = useState(false);
     const [isValidUrl, setIsValidUrl] = useState(true);
-    let hidePasswordIcon = "https://img.icons8.com/material-rounded/24/null/hide.png";
-    let visiblePasswordIcon = "https://img.icons8.com/material-rounded/24/null/visible.png";
 
     const [inputField, setInputField] = useState({
         url: '',
@@ -183,17 +181,7 @@ function AddPassword() {
                     </div>
                 </div>
             </div>
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={true}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
+            {Constants.TOAST_CONTAINER}
         </div>
     )
 }

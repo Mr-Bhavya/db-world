@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { toast, ToastContainer } from 'react-toastify';
+import { ToastContainer, toast, } from 'react-toastify';
 import Authentication from '../Authentication';
 import Constants from '../Constants';
-import JSONView from 'react-json-view'
 import CommonServices from '../CommonServices';
 import { v1 as uuidv1 } from 'uuid';
 import { deleteCredentialByCredentialId, getCredential, updateCredential } from '../ApiServices';

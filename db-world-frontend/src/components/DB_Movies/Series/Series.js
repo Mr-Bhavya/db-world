@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Button from 'react-bootstrap/Button';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
@@ -197,7 +196,9 @@ function Series(props) {
                         <div className="tab-pane fade show active" id="all">
                             {/* {content} */}
                             <div className={`row row-cols-1 row-cols-md-${displayCol()} g-4`}>
-                                {movieList.map(movie => {
+                                {movieList.sort(
+                                    (a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1)))
+                                    .map(movie => {
                                     return (
                                         <SingleMovie
                                             movie={movie}

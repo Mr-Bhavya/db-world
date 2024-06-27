@@ -74,7 +74,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     private Map<String, Long> updateRecordsStatus = new HashMap<>();
 
-    public boolean isRecordsUpdateRunning=false;
+    public boolean isRecordsUpdateRunning = false;
 
     @Override
     public DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record) {
@@ -111,6 +111,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             Update update = new Update();
             update.set("name", movieTmdbDataDto.getTitle());
             update.set("tmdbId", movieTmdbDataDto.getId());
+            update.set("showOnTop", record.isShowOnTop());
             DBCinemaRecordsEntity dbCinemaRecordsEntity = mongoOperations.findAndModify(
                     new Query(Criteria.where("recordId").is(recordId)), update,
                     new FindAndModifyOptions().returnNew(true), DBCinemaRecordsEntity.class);
@@ -130,6 +131,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             Update update = new Update();
             update.set("name", seriesTmdbDataDto.getTitle());
             update.set("tmdbId", seriesTmdbDataDto.getId());
+            update.set("showOnTop", record.isShowOnTop());
             DBCinemaRecordsEntity dbCinemaRecordsEntity = mongoOperations.findAndModify(
                     new Query(Criteria.where("recordId").is(recordId)), update,
                     new FindAndModifyOptions().returnNew(true), DBCinemaRecordsEntity.class);
@@ -220,6 +222,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
         Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("dbCinemaRecordId").descending());
         Query query = new Query();
+//        query.addCriteria(Criteria.where("showOnTop").in(true));
         if (!languages.equalsIgnoreCase("all")) {
             query.addCriteria(Criteria.where("original_language").in(Arrays.stream(languages.split(",")).toList()));
         }
@@ -231,6 +234,19 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
             Query dbCinemaRecordsQuery = new Query(Criteria.where("tmdbId").in(tmdbIds)).with(Sort.by("recordId").descending());
             List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class);
+
+            //add code to show updated records on top
+            List<Criteria> showOnTopCriteria = new ArrayList<>();
+            showOnTopCriteria.add(Criteria.where("showOnTop").in(true));
+            showOnTopCriteria.add(Criteria.where("tmdbId").nin(tmdbIds));
+            if (!languages.equalsIgnoreCase("all"))
+                showOnTopCriteria.add(Criteria.where("original_language").in(Arrays.stream(languages.split(",")).toList()));
+            dbCinemaRecordsQuery = new Query(new Criteria().andOperator(showOnTopCriteria)).with(Sort.by("recordId").descending());
+            List<DBCinemaRecordsEntity> showOnTopRecords = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class)
+                    .stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)).toList();
+            movieTmdbDataEntities.addAll(movieTmdbDataRepository.findAllById(showOnTopRecords.stream()
+                    .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList()));
+            dbCinemaRecordsEntities.addAll(showOnTopRecords);
 
             dbCinemaRecordPage = new PageImpl<>(dbCinemaRecordsEntities, pageable, totalElement);
 
@@ -251,6 +267,18 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
             Query dbCinemaRecordsQuery = new Query(Criteria.where("tmdbId").in(tmdbIds)).with(Sort.by("recordId").descending());
             List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class);
+
+            //add code to show updated records on top
+            dbCinemaRecordsQuery = new Query(new Criteria().andOperator(
+                    Criteria.where("showOnTop").in(true),
+                    Criteria.where("tmdbId").nin(tmdbIds),
+                    !languages.equalsIgnoreCase("all") ?
+                            Criteria.where("original_language").in(Arrays.stream(languages.split(",")).toList()) : new Criteria())
+            ).with(Sort.by("recordId").descending());
+            List<DBCinemaRecordsEntity> showOnTopRecords = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class)
+                    .stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)).toList();
+            seriesTmdbDataEntities.addAll(seriesTmdbDataRepository.findAllById(showOnTopRecords.stream().map(DBCinemaRecordsEntity::getTmdbId).toList()));
+            dbCinemaRecordsEntities.addAll(showOnTopRecords);
 
             dbCinemaRecordPage = new PageImpl<>(dbCinemaRecordsEntities, pageable, totalElement);
 
@@ -478,25 +506,23 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         UserDto.UserAppData userAppData = this.userService.getUserAppDataByUserId(userId);
         ArrayList<String> userWatchListedRecordLists = userAppData.getCinemaRecord().getWatchList();
         List<DBCinemaRecordsEntity> dbCinemaRecordsEntityList = dbCinemaRecordsRepository.findAllById(userWatchListedRecordLists);
+        List<MovieTmdbDataEntity> movieTmdbDataEntities = movieTmdbDataRepository.findAllById(
+                dbCinemaRecordsEntityList.stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE))
+                        .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList()
+        );
+        List<SeriesTmdbDataEntity> seriesTmdbDataEntities = seriesTmdbDataRepository.findAllById(
+                dbCinemaRecordsEntityList.stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES))
+                        .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList()
+        );
         return dbCinemaRecordsEntityList.stream().map(dbCinemaRecordsEntity -> {
                     DBCinemaRecordsDto dbCinemaRecordsDto = this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class);
                     if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-                        dbCinemaRecordsDto.setTmdbData(getTMDBDetailsForMovieById(
-                                        new RequestPayloads.AddRecord(
-                                                dbCinemaRecordsEntity.getName(),
-                                                dbCinemaRecordsEntity.getTmdbId(),
-                                                dbCinemaRecordsEntity.getType()
-                                        )
-                                )
+                        dbCinemaRecordsDto.setTmdbData(
+                                movieTmdbDataEntities.stream().filter(movieTmdbDataEntity -> movieTmdbDataEntity.getId() == dbCinemaRecordsEntity.getTmdbId()).findFirst().get()
                         );
                     } else if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-                        dbCinemaRecordsDto.setTmdbData(getTMDBDetailsForSeriesById(
-                                        new RequestPayloads.AddRecord(
-                                                dbCinemaRecordsEntity.getName(),
-                                                dbCinemaRecordsEntity.getTmdbId(),
-                                                dbCinemaRecordsEntity.getType()
-                                        )
-                                )
+                        dbCinemaRecordsDto.setTmdbData(
+                                seriesTmdbDataEntities.stream().filter(seriesTmdbDataEntity -> seriesTmdbDataEntity.getId() == dbCinemaRecordsEntity.getTmdbId()).findFirst().get()
                         );
                     }
                     return dbCinemaRecordsDto;
@@ -507,41 +533,40 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Async
     @Override
     public void updateTmdbWithLatest() {
-        if(this.isRecordsUpdateRunning){
+        if (this.isRecordsUpdateRunning) {
             log.info("Process is already running on server.");
             throw new DbWorldException("Process is already running on server.");
-        }else{
-            this.isRecordsUpdateRunning=true;
+        } else {
+            this.isRecordsUpdateRunning = true;
             AtomicLong pass = new AtomicLong();
             AtomicLong fail = new AtomicLong();
             List<DBCinemaRecordsDto> dbCinemaRecordsDtos = this.getRecords();
             this.updateRecordsStatus.put("total", dbCinemaRecordsDtos.stream().count());
-            this.updateRecordsStatus.put("pass",0L);
-            this.updateRecordsStatus.put("fail",0L);
+            this.updateRecordsStatus.put("pass", 0L);
+            this.updateRecordsStatus.put("fail", 0L);
             dbCinemaRecordsDtos.stream().forEach(dbCinemaRecordsDto -> {
                 try {
                     this.updateRecord(dbCinemaRecordsDto.getRecordId(),
-                            new RequestPayloads.AddRecord(dbCinemaRecordsDto.getName(), dbCinemaRecordsDto.getTmdbId(), dbCinemaRecordsDto.getType()));
+                            new RequestPayloads.AddRecord(dbCinemaRecordsDto.getName(), dbCinemaRecordsDto.getTmdbId(), dbCinemaRecordsDto.getType(), dbCinemaRecordsDto.isShowOnTop()));
                     pass.getAndIncrement();
-                    this.updateRecordsStatus.put("pass",pass.longValue());
-                }
-                catch (Exception ex){
+                    this.updateRecordsStatus.put("pass", pass.longValue());
+                } catch (Exception ex) {
                     fail.getAndIncrement();
-                    this.updateRecordsStatus.put("fail",fail.longValue());
+                    this.updateRecordsStatus.put("fail", fail.longValue());
                     log.error("Record [TMDB Id = {}, name = {}] is failed. Error: {}", dbCinemaRecordsDto.getTmdbId(), dbCinemaRecordsDto.getName(), ex.getMessage());
                 }
             });
-            this.isRecordsUpdateRunning=false;
+            this.isRecordsUpdateRunning = false;
         }
     }
 
     @Override
-    public Map<String, Long> getStatusOfRecordsUpdate(){
+    public Map<String, Long> getStatusOfRecordsUpdate() {
         return this.updateRecordsStatus;
     }
 
     @Override
-    public boolean isRecordsUpdateRunning(){
+    public boolean isRecordsUpdateRunning() {
         return this.isRecordsUpdateRunning;
     }
 

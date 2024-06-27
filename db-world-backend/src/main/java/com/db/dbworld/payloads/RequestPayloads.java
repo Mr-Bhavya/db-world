@@ -16,6 +16,7 @@ public class RequestPayloads {
         private long tmdbId;
         @NotEmpty(message = "should not be empty or null")
         private String type;
+        private boolean showOnTop;
     }
 
     @Data

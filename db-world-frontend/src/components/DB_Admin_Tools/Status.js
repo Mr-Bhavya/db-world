@@ -1,55 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast, ToastContainer } from 'react-toastify';
+import { toast, } from 'react-toastify';
 import Constants from '../Constants';
-import LoadingSpinner from '../LoadingSpinner';
-import { cancelledMirror, deleteMirror, mirrorStatus } from '../ApiServices';
+import { cancelledMirror, deleteMirror } from '../ApiServices';
 
 function Status() {
 
     const [status, setStatus] = useState([])
-    const [loading, setLoading] = useState(false);
-    const [liveUpdate, setLiveUpdate] = useState(false);
-    const [intervalNumber, setIntervalNumber] = useState();
     const navigate = useNavigate();
-
-    const getStatus = async () => {
-        // setLoading(true);
-        try {
-            const statusRes = await mirrorStatus();
-            if (statusRes.httpStatusCode === 200) {
-                setStatus(statusRes.data);
-                setLoading(false)
-            } else if (statusRes.httpStatusCode === 401) {
-                toast.error(statusRes.message + Constants.RE_LOGIN, {
-                    onClose: async () => {
-                        navigate(await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + "#active=status"));
-                    },
-                    autoClose: 500
-                })
-            }
-            else {
-                toast.error(statusRes.message);
-            }
-        } catch (err) {
-            console.log(err);
-        }
-    }
+    const ws = useRef(null);
+    var tempStatus;
 
     useEffect(() => {
-        if (liveUpdate) {
-            let interval = setInterval(async () => {
-                setIntervalNumber(interval);
-                await getStatus();
-            }, 6000);
+        ws.current = new WebSocket("/api/utils/status")
+        ws.current.onopen = () => {
+            console.log("websocket Connection open for status")
+            ws.current.send("");
+        };
+        ws.current.onmessage = (event) => {
+            tempStatus = JSON.parse(event.data);
+            setStatus(tempStatus);
         }
-        else {
-            clearInterval(intervalNumber);
+        ws.current.onclose = () => {
+            console.log("websocket connection close for status")
         }
-    }, [liveUpdate])
 
-    useEffect(() => {
-        getStatus();
+        return () => {
+            if (ws.current) {
+                ws.current.close();
+            }
+        };
     }, [])
 
 
@@ -57,17 +37,17 @@ function Status() {
 
         try {
             const deleteRes = await deleteMirror(id);
-            if(deleteRes.httpStatusCode === 200){
+            if (deleteRes.httpStatusCode === 200) {
                 toast.success(deleteRes.message);
-                getStatus()
-            }else if (deleteRes.httpStatusCode === 401) {
+                // getStatus()
+            } else if (deleteRes.httpStatusCode === 401) {
                 toast.error(deleteRes.message + Constants.RE_LOGIN, {
                     onClose: async () => {
                         navigate(await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + "#active=status"));
                     },
                     autoClose: 1000
                 })
-            }else{
+            } else {
                 toast.error(deleteRes.message);
             }
         } catch (err) {
@@ -82,7 +62,7 @@ function Status() {
         const cancelleRes = await cancelledMirror(statusId);
         if (cancelleRes.httpStatusCode === 200) {
             toast.success(cancelleRes.message);
-            getStatus();
+            // getStatus();
         } else if (cancelleRes.httpStatusCode === 401) {
             toast.error(cancelleRes.message + Constants.RE_LOGIN, {
                 onClose: async () => {
@@ -127,10 +107,9 @@ function Status() {
         <div className="card bg-transparent">
 
             {
-                !loading &&
                 <div>
 
-                    <div className="row mx-3 my-3">
+                    {/* <div className="row mx-3 my-3">
                         <div className="col-6 form-check form-switch d-flex">
                             <input className="form-check-input" type="checkbox" id="flexSwitchCheckDefault"
                                 onClick={() => setLiveUpdate(!liveUpdate)}
@@ -142,12 +121,10 @@ function Status() {
                                 onClick={() => getStatus()}
                             >Refresh Status</button>
                         </div>
-                    </div>
+                    </div> */}
 
                     {
-                        status.length === 0 ?
-                            <h4 className='text-warning text-center my-5'>Currently no task is running.</h4>
-                            :
+                        status && status.length && status.length > 0 ?
                             status.map((stats, key) => {
                                 return (
                                     <div className="card mx-3 my-3">
@@ -201,95 +178,95 @@ function Status() {
                                                 </div>
 
                                                 {/* {
-                                                    
+                                                
 
-                                                    stats.isDownload &&
-                                                    <div>
-                                                        <p><b>Status : </b>{stats?.status}</p>
-                                                        <p><b>Message : </b>{stats?.message}</p>
-                                                        <p>
-                                                            <div className="row">
-                                                                <div className="col-4 col-md-2">
-                                                                    <b>Process : </b>
-                                                                </div>
-                                                                <div className="col-8 col-md-4">
-                                                                    <div className="progress" style={{ width: "70%" }}>
-                                                                        <div className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
-                                                                            aria-valuemin="0"
-                                                                            aria-valuenow={stats.downloadState.percentage ? parseFloat(stats.downloadState.percentage).toFixed(2) : getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)}
-                                                                            aria-valuemax="100"
-                                                                            style={{ width: stats.downloadState.percentage ? `${parseFloat(stats.downloadState.percentage).toFixed(2)}%` : `${getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)}%` }}
-                                                                        >
-                                                                            <b>{stats.downloadState.percentage ? parseFloat(stats.downloadState.percentage).toFixed(2) : getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)} % </b>
-                                                                        </div>
+                                                stats.isDownload &&
+                                                <div>
+                                                    <p><b>Status : </b>{stats?.status}</p>
+                                                    <p><b>Message : </b>{stats?.message}</p>
+                                                    <p>
+                                                        <div className="row">
+                                                            <div className="col-4 col-md-2">
+                                                                <b>Process : </b>
+                                                            </div>
+                                                            <div className="col-8 col-md-4">
+                                                                <div className="progress" style={{ width: "70%" }}>
+                                                                    <div className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
+                                                                        aria-valuemin="0"
+                                                                        aria-valuenow={stats.downloadState.percentage ? parseFloat(stats.downloadState.percentage).toFixed(2) : getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)}
+                                                                        aria-valuemax="100"
+                                                                        style={{ width: stats.downloadState.percentage ? `${parseFloat(stats.downloadState.percentage).toFixed(2)}%` : `${getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)}%` }}
+                                                                    >
+                                                                        <b>{stats.downloadState.percentage ? parseFloat(stats.downloadState.percentage).toFixed(2) : getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)} % </b>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                        </p>
-                                                        <p><b>Downloaded Size : </b>{bytesToReadbleFormat(stats.downloadState.downloadFileSize)}</p>
-                                                        <p><b>Remaining Size : </b>{bytesToReadbleFormat(stats.downloadState.remaining)}</p>
-                                                        {stats.downloadState.speed && <p><b>Current Speed : </b>{bytesToReadbleFormat(stats.downloadState.speed)}/s</p>}
-                                                        {stats.downloadState.eta && <p><b>ETA : </b>{stats.downloadState.eta}</p>}
-                                                        {stats.downloadState && stats.downloadState.totalFileSize && <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p>}
-                                                        {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                    </div>
-                                                }
-                                                {
-                                                    stats.isUpload &&
+                                                        </div>
+                                                    </p>
+                                                    <p><b>Downloaded Size : </b>{bytesToReadbleFormat(stats.downloadState.downloadFileSize)}</p>
+                                                    <p><b>Remaining Size : </b>{bytesToReadbleFormat(stats.downloadState.remaining)}</p>
+                                                    {stats.downloadState.speed && <p><b>Current Speed : </b>{bytesToReadbleFormat(stats.downloadState.speed)}/s</p>}
+                                                    {stats.downloadState.eta && <p><b>ETA : </b>{stats.downloadState.eta}</p>}
+                                                    {stats.downloadState && stats.downloadState.totalFileSize && <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p>}
+                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
+                                                </div>
+                                            }
+                                            {
+                                                stats.isUpload &&
+                                                <div>
+                                                    <p><b>Status : </b>{stats.status}</p>
+                                                    {stats.uploadState && <p><b>Uploading State : </b>{stats.uploadState}</p>}
+                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
+                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
+                                                </div>
+                                            }
+                                            {
+                                                stats.isExtract &&
+                                                <div>
+                                                    <p><b>Status : </b>{stats.status}</p>
+                                                    <p><b>Extract Method : </b>{stats.extractMethod}</p>
+                                                    <p><b>Message : </b>{stats.message}</p>
+                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
+                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
+                                                </div>
+                                            }
+                                            {
+                                                stats.isFailed &&
+                                                <div>
+                                                    <p><b>Status : </b>{stats.status}</p>
+                                                    <p><b>Message : </b>{stats.message}</p>
+                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
+                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
+                                                </div>
+                                            }
+                                            {
+                                                stats.isComplete &&
+                                                <div>
+                                                    <p><b>Status : </b>{stats.status}</p>
+                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
+                                                    {stats.isExtract && <p><b>Extract Method : </b>{stats.extractMethod}</p>}
+                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
+                                                    <p><b>Drive Link : </b><a href={stats.driveLink}>link</a></p>
+                                                    <p><b>Download Link : </b><a href={stats.downloadLink}>link</a></p>
+                                                </div>
+                                            }
+                                            {
+                                                (!stats.isDownload && !stats.isUpload && !stats.isExtract && !stats.isComplete && !stats.isFailed) ?
                                                     <div>
                                                         <p><b>Status : </b>{stats.status}</p>
+                                                        <p><b>Message : </b>{stats.message}</p>
                                                         {stats.uploadState && <p><b>Uploading State : </b>{stats.uploadState}</p>}
                                                         {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
                                                         {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
                                                     </div>
-                                                }
-                                                {
-                                                    stats.isExtract &&
-                                                    <div>
-                                                        <p><b>Status : </b>{stats.status}</p>
-                                                        <p><b>Extract Method : </b>{stats.extractMethod}</p>
-                                                        <p><b>Message : </b>{stats.message}</p>
-                                                        {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                        {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                    </div>
-                                                }
-                                                {
-                                                    stats.isFailed &&
-                                                    <div>
-                                                        <p><b>Status : </b>{stats.status}</p>
-                                                        <p><b>Message : </b>{stats.message}</p>
-                                                        {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                        {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                    </div>
-                                                }
-                                                {
-                                                    stats.isComplete &&
-                                                    <div>
-                                                        <p><b>Status : </b>{stats.status}</p>
-                                                        {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                        {stats.isExtract && <p><b>Extract Method : </b>{stats.extractMethod}</p>}
-                                                        {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                        <p><b>Drive Link : </b><a href={stats.driveLink}>link</a></p>
-                                                        <p><b>Download Link : </b><a href={stats.downloadLink}>link</a></p>
-                                                    </div>
-                                                }
-                                                {
-                                                    (!stats.isDownload && !stats.isUpload && !stats.isExtract && !stats.isComplete && !stats.isFailed) ?
-                                                        <div>
-                                                            <p><b>Status : </b>{stats.status}</p>
-                                                            <p><b>Message : </b>{stats.message}</p>
-                                                            {stats.uploadState && <p><b>Uploading State : </b>{stats.uploadState}</p>}
-                                                            {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                            {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                        </div>
-                                                        : ""
-                                                } */}
+                                                    : ""
+                                            } */}
                                             </blockquote>
                                         </div>
                                         <div className="card-footer">
                                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                                 <button class="btn btn-warning me-md-2" type="button"
-                                                onClick={()=>cancelleTask(stats.id)}
+                                                    onClick={() => cancelleTask(stats.id)}
                                                 >Cancelle Task 🚮</button>
                                                 {/* <button class="btn btn-primary" type="button">Button</button> */}
                                             </div>
@@ -297,24 +274,13 @@ function Status() {
                                     </div>
                                 )
                             })
+
+                            : <h4 className='text-warning text-center my-5'>Currently no task is running.</h4>
+
                     }
                 </div>
-                ||
-                <LoadingSpinner />
             }
-
-
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={true}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
+            {Constants.TOAST_CONTAINER}
         </div>
     )
 

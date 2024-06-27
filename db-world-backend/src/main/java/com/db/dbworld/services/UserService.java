@@ -30,7 +30,7 @@ public interface UserService {
 
     UserDto.UserRole addUpdateUserRoleByUserId(String userId, UserDto.UserRole role);
 
-    UserDto.UserRole getRoleByUserId(String userId);
+    UserDto.UserRole getRoleByUserId(String userId, String tokenUserName);
 
     UserDto updateRoleByUserId(String userId);
 

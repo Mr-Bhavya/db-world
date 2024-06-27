@@ -1,6 +1,8 @@
 # Server Config
 Server:
   port: 9000
+  jetty:
+    idle-timeout: 60000 # 60 seconds
 
 spring:
   #mongoDB
@@ -20,7 +22,9 @@ spring:
       preferred-json-mapper: gson
   gson:
     enable-complex-map-key-serialization: true
-
+  servlet:
+    multipart:
+      enabled: true
   #live server
   devtools:
     livereload:

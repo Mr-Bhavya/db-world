@@ -22,6 +22,7 @@
                 <RegexFilter regex=".*(Unexpected error).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(Listener invocation failed).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(handleException /api/stream/download).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(handleException /api/stream/watch).*" onMatch="DENY" onMismatch="NEUTRAL"/>
 
                 <!-- This filter accepts info, warn, error, fatal and denies debug/trace -->
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
@@ -34,15 +35,15 @@
             </Filters>
         </Console>
 
-        <RollingFile name="File-DEBUG" fileName="logs/dbworld-debug.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-debug-%d{MM-dd-yyyy}.log.gz"
-                     ignoreExceptions="false">
-            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
-            <TimeBasedTriggeringPolicy/>
-            <Filters>
-                <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
-                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
-        </RollingFile>
+<!--        <RollingFile name="File-DEBUG" fileName="logs/dbworld-debug.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-debug-%d{MM-dd-yyyy}.log.gz"-->
+<!--                     ignoreExceptions="false">-->
+<!--            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>-->
+<!--            <TimeBasedTriggeringPolicy/>-->
+<!--            <Filters>-->
+<!--                <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>-->
+<!--                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>-->
+<!--            </Filters>-->
+<!--        </RollingFile>-->
 
         <RollingFile name="File-INFO" fileName="logs/dbworld-info.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-info-%d{MM-dd-yyyy}.log.gz"
                      ignoreExceptions="false">
@@ -85,6 +86,7 @@
                 <RegexFilter regex=".*(Unexpected error).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(Listener invocation failed).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(handleException /api/stream/download).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(handleException /api/stream/watch).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
         </RollingFile>
@@ -97,7 +99,7 @@
             <AppenderRef ref="File-INFO"/>
             <AppenderRef ref="File-WARN"/>
             <AppenderRef ref="File-ERROR"/>
-            <AppenderRef ref="File-DEBUG"/>
+<!--            <AppenderRef ref="File-DEBUG"/>-->
             <AppenderRef ref="File-INFO-Main"/>
         </Root>
     </Loggers>

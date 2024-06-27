@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
-import { Link } from "react-router-dom";
-import { ToastContainer, toast } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Authentication from "../Authentication";
 import Constants from "../Constants";
-import CommonServices from "../CommonServices";
 import { AddDbCinemaRecord } from "../ApiServices";
 
 function AddRecord(props) {
 
-    console.log(props)
     const userRole = props.userRole;
     const navigate = useNavigate();
     const TMDB_API_KEY = Constants.TMDB_API_KEY;
@@ -118,7 +114,6 @@ function AddRecord(props) {
         try {
             const { name, year, type, tmdbId } = inputFields;
             let addRecordRes = await AddDbCinemaRecord(name, type, tmdbId);
-            console.log(addRecordRes)
             if (addRecordRes.httpStatusCode === 201) {
                 toast.success("Record added, RecordId - " + addRecordRes.data.recordId);
             } else if (addRecordRes.httpStatusCode === 401) {
@@ -138,7 +133,7 @@ function AddRecord(props) {
     }
 
     return (
-        <div className="card mx-3 my-3"
+        <div className="card my-1"
             style={{
                 border: "2px solid",
                 background: "rgba(255 ,255 ,255, 0.9)",
@@ -246,17 +241,7 @@ function AddRecord(props) {
                     }
                 </div>
             </div>
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={true}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
+            {Constants.TOAST_CONTAINER}
         </div >
     )
 

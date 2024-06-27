@@ -1,30 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import JSONView from 'react-json-view'
-import CommonServices from '../CommonServices';
+import React, { useEffect, useRef, useState } from 'react';
 import Constants from '../Constants';
-import { applicationLogsApi } from '../ApiServices';
 
 const ApplicationLogs = () => {
 
   const [logs, setLogs] = useState([]);
   const [loder, setLoder] = useState(true);
-
-  async function getApplicationLogs() {
-    setLoder(true);
-    let logsRes = await applicationLogsApi();
-    if (logsRes.httpStatusCode === 200) {
-      setLogs(logsRes.data);
-    }
-    else {
-      setLogs(logsRes.message);
-    }
-    setLoder(false);
-  }
+  const ws = useRef(null);
+  var tempLogs;
 
   useEffect(() => {
-    getApplicationLogs();
-  }, [])
+      ws.current = new WebSocket("/api/utils/logs")
+      ws.current.onopen = () => {
+          console.log("websocket Connection open for application logs")
+          ws.current.send("");
+      };
+      ws.current.onmessage = (event) => {
+          tempLogs = JSON.parse(event.data);
+          setLogs(tempLogs.data);
+          setLoder(false);
+      }
+      ws.current.onclose = () => {
+          console.log("websocket connection close for application logs")
+      }
 
+      return () => {
+          if (ws.current) {
+              ws.current.close();
+          }
+      };
+  }, []);
 
   return (
     <div>
@@ -32,15 +36,7 @@ const ApplicationLogs = () => {
         loder && Constants.LOADER
         ||
         <div>
-          <div className='row my-1'>
-            <div className='col-8'></div>
-            <div className='col-4 justify-content-end d-flex'>
-              <button className='btn btn-primary'
-                onClick={getApplicationLogs}
-              >Refresh</button>
-            </div>
-          </div>
-          <div className='border border-dark rounded' style={{ height: "80vh", overflowX: "auto" }}>
+          <div className='border border-dark rounded m-1' style={{ height: "80vh", overflowX: "auto" }}>
             <p className='m-1' style={{ display: "flex", flexWrap: "nowrap", height: "100%", width: "150%", whiteSpace: "pre" }}
             >
               {logs.length && logs.length > 0 ? logs.map(element => element).join("\n") : "No log found."}

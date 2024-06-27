@@ -8,6 +8,8 @@ import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.modelmapper.ModelMapper;
@@ -33,6 +35,10 @@ public class UserController {
     private UserService userService;
     @Autowired
     private ModelMapper modelMapper;
+
+    @Autowired
+    private DbWorldUtils dbWorldUtils;
+
     @GetMapping("/")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse getAllUsers() {
@@ -82,8 +88,12 @@ public class UserController {
 
     @GetMapping("/{userId}/role")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse getUserRole(@PathVariable(value = "userId") String userId) {
-        UserDto.UserRole userRole = this.userService.getRoleByUserId(userId);
+    public ApiResponse getUserRole(@PathVariable(value = "userId") String userId,
+                                   HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        String token = bearerToken.substring(7);
+        String username = this.dbWorldUtils.getUserFromToken(token);
+        UserDto.UserRole userRole = this.userService.getRoleByUserId(userId, username);
         Map<String, Object> response = new HashMap<>();
         response.put("userId", userId);
         response.put("role", userRole);

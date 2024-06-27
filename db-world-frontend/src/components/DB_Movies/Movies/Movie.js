@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import Button from 'react-bootstrap/Button';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import ButtonToolbar from 'react-bootstrap/ButtonToolbar';
 import SingleMovie from '../SingleMovie';
 import LoadingSpinner from '../../LoadingSpinner';
-import { reloadMovies, moviePageNumber, filterSelection, moviePageNumber_b, moviePageNumber_h, moviePageNumber_s, moviePageNumber_g } from '../../../redux/action/allActions'
+import { filterSelection } from '../../../redux/action/allActions'
 import { useNavigate } from "react-router-dom";
 import Constants from "../../Constants";
 import { loadDbCinemaRecords } from "../../ApiServices";
@@ -13,7 +13,7 @@ import Pagination from "../SubComponents/Pagination";
 
 function Movie(props) {
     const dispatch = useDispatch();
-    const [movieList, setMovieList] = useState(require('../../../movieList.json'))
+    const [movieList, setMovieList] = useState([])
     const [loading, setLoading] = useState(true);
     const userData = props.userData;
     const userRole = props.userRole;
@@ -74,7 +74,7 @@ function Movie(props) {
         <>
             <div className="mb-3 p-1" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px" }}>
                 <ButtonToolbar aria-label="Toolbar with button groups" className="m-1" style={{ overflowX: "auto", flexWrap: "nowrap", textWrap: "nowrap" }}>
-                    <ButtonGroup className="mx-2" aria-label="First group">
+                    <ButtonGroup className="mx-2" aria-label="all">
                         <Button
                             variant={filter.movieIndustry === "all" ? "dark" : "outline-secondary"}
                             href="#all"
@@ -91,7 +91,7 @@ function Movie(props) {
                             }
                         >All</Button>
                     </ButtonGroup>
-                    <ButtonGroup className="mx-2" aria-label="Second group">
+                    <ButtonGroup className="mx-2" aria-label="bollywood">
                         <Button
                             variant={filter.movieIndustry === "bollywood" ? "dark" : "outline-secondary"}
                             href="#bollywood"
@@ -110,7 +110,7 @@ function Movie(props) {
                             Bollywood
                         </Button>
                     </ButtonGroup>
-                    <ButtonGroup className="mx-2" aria-label="Third group">
+                    <ButtonGroup className="mx-2" aria-label="hollywood">
                         <Button
                             variant={filter.movieIndustry === "hollywood" ? "dark" : "outline-secondary"}
                             href="#hollywood"
@@ -129,7 +129,7 @@ function Movie(props) {
                             Hollywood
                         </Button>
                     </ButtonGroup>
-                    <ButtonGroup className="mx-2" aria-label="Third group">
+                    <ButtonGroup className="mx-2" aria-label="korean">
                         <Button
                             variant={filter.movieIndustry === "korean" ? "dark" : "outline-secondary"}
                             href="#korean"
@@ -148,7 +148,7 @@ function Movie(props) {
                             K-Drama
                         </Button>
                     </ButtonGroup>
-                    <ButtonGroup className="mx-2" aria-label="Third group">
+                    <ButtonGroup className="mx-2" aria-label="south">
                         <Button
                             variant={filter.movieIndustry === "south" ? "dark" : "outline-secondary"}
                             href="#south"
@@ -167,7 +167,7 @@ function Movie(props) {
                             South
                         </Button>
                     </ButtonGroup>
-                    <ButtonGroup className="mx-2" aria-label="Third group">
+                    <ButtonGroup className="mx-2" aria-label="gujarati">
                         <Button
                             variant={filter.movieIndustry === "gujarati" ? "dark" : "outline-secondary"}
                             href="#gujarati"
@@ -195,7 +195,7 @@ function Movie(props) {
                         <div className="tab-pane fade show active" id="all">
                             {/* {content} */}
                             <div className={`row row-cols-1 row-cols-md-${displayCol()} g-4`}>
-                                {movieList.map((movie) => {
+                                {movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie) => {
                                     return (
                                         <SingleMovie
                                             movie={movie}

@@ -258,9 +258,6 @@ function MovieHome() {
                                 <div className={navLinkActive === "stream" ? "tab-pane active" : "tab-pane"} id="search">
                                     {navLinkActive === "stream" && <Stream userRole={userRole} />}
                                 </div>
-                                {/* <div className={navLinkActive === "index" ? "tab-pane active" : "tab-pane"} id="search">
-                                    {navLinkActive === "index" && <DbMoviesIndex />}
-                                </div> */}
                             </div>
 
                             <ToastContainer

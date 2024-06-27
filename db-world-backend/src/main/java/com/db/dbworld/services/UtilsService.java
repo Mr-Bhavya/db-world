@@ -10,11 +10,6 @@ public interface UtilsService {
     void extract(String sourcePath, String targetPath, String password);
     JsonObject getInfoYtFile(String url);
     void downloadYtFile(MirrorStatus mirrorStatus);
-
-//    void updateMirrorStatus(MirrorStatus mirrorStatus);
-//    MirrorStatus getMirrorStatus(String id);
-//    void deleteMirrorStatus(String id);
-//    Map<String, MirrorStatus> getAllMirrorStatus();
-
+    void deleteTempFiles();
     HttpHeaders getHeaders(String url);
 }

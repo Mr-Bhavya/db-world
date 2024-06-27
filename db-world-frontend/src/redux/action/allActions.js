@@ -24,13 +24,6 @@ export const searchQuery = (query) => {
     }
 }
 
-export const searchInDriveQuery = (query) => {
-    return{
-        type:"SEARCH_IN_DRIVE",
-        searchInDriveQuery:query
-    }
-}
-
 export const searchList = (list) => {
     return{
         type:"SEARCH_LIST",
@@ -86,6 +79,13 @@ export const moviePageNumber_g = (pageNumber) => {
     }
 }
 
+export const moviePageNumber_k = (pageNumber) => {
+    return{
+        type:"MOVIEPAGENUMBER_K",
+        pageNumber
+    }
+}
+
 export const seriesPageNumber = (pageNumber) => {
     return{
         type:"SERIESPAGENUMBER",
@@ -117,6 +117,13 @@ export const seriesPageNumber_s = (pageNumber) => {
 export const seriesPageNumber_g = (pageNumber) => {
     return{
         type:"SERIESPAGENUMBER_G",
+        pageNumber
+    }
+}
+
+export const seriesPageNumber_k = (pageNumber) => {
+    return{
+        type:"SERIESPAGENUMBER_K",
         pageNumber
     }
 }

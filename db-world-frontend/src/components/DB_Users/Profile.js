@@ -3,7 +3,6 @@ import userProfile from '../../images/UserProfile.png';
 import { useNavigate } from 'react-router-dom';
 import Authentication from '../Authentication';
 import Constants from '../Constants';
-import CommonServices from '../CommonServices';
 import { getUserDetailByUserId } from '../ApiServices';
 
 function Profile(props) {

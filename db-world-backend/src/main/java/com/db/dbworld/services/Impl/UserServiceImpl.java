@@ -33,6 +33,7 @@ import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.IllegalBlockSizeException;
@@ -147,9 +148,9 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto updateUser(UserDto userDto, String userId) {
-        UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User", "userid", userId));
-
-        Query query = new Query(Criteria.where("userId").is(userId));
+        if(!this.userRepository.existsById(userId)){
+            throw new ResourceNotFoundException("User", "userid", userId);
+        }
 
         HashMap<String, Object> map = new HashMap<>();
         map.put("firstName", userDto.getFirstName());
@@ -157,12 +158,10 @@ public class UserServiceImpl implements UserService {
         map.put("dob", userDto.getDob());
         map.put("gender", userDto.getGender());
         map.put("mobileNo", userDto.getMobileNo());
-        map.put("password", userDto.getPasswordManager());
+        map.put("password", userDto.getPassword());
 
-        UserEntity updatedUserEntity = mongoOperations.findAndModify(query, dbWorldUtils.createMongoDbUpdateObject(map), new FindAndModifyOptions().returnNew(true), UserEntity.class);
-
+        UserEntity updatedUserEntity = mongoOperations.findAndModify(new Query(Criteria.where("userId").is(userId)), dbWorldUtils.createMongoDbUpdateObject(map), new FindAndModifyOptions().returnNew(true), UserEntity.class);
         userDto = this.modelMapper.map(updatedUserEntity, UserDto.class);
-
         return userDto;
     }
 
@@ -202,14 +201,19 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto.UserRole getRoleByUserId(String userId) {
+    public UserDto.UserRole getRoleByUserId(String userId, String tokenUserName) {
         Query query = new Query();
         query.addCriteria(Criteria.where("userId").is(userId));
-        query.fields().include("userId", "userRole");
+        query.fields().include("userId","email", "userRole");
         UserEntity userEntity = mongoOperations.findOne(query, UserEntity.class);
         if (userEntity == null)
             throw new ResourceNotFoundException("user", "userId", userId);
-        return modelMapper.map(userEntity, UserDto.class).getUserRole();
+        else{
+            if(userEntity.getEmail().equalsIgnoreCase(tokenUserName)){
+                return modelMapper.map(userEntity, UserDto.class).getUserRole();
+            }else
+                throw new DbWorldException(HttpStatus.BAD_REQUEST, "User role and token username is different. UserRole is not fetch by different user");
+        }
     }
 
     @Override

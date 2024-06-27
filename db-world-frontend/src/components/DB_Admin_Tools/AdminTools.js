@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import SearchInDrive from '../DB_Movies/Search/SearchInDrive';
 import Status from './Status';
 import Authentication from '../Authentication';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -10,12 +9,10 @@ import Tab from 'react-bootstrap/Tab';
 import Tabs from 'react-bootstrap/Tabs';
 import SystemInfo from './SystemInfo';
 import DownloadStuf from './DownloadStuf';
-import CommonServices from '../CommonServices';
-import AddRecord from './AddRecord';
 import UserRole from './UserRole';
 import { useDispatch } from 'react-redux';
 import { findAllUsers } from '../../redux/action/allActions';
-import { findAllUsersService, getAllUsers, getUserRole } from '../ApiServices';
+import { getAllUsers, getUserRole } from '../ApiServices';
 import UsersData from './UsersData';
 import { Form } from 'react-bootstrap';
 import ApplicationLogs from './ApplicationLogs';
@@ -24,7 +21,6 @@ import Records from './Records';
 function AdminTools() {
 
     const dispatch = useDispatch();
-    const [freeMemoryLoder, setFreeMemoryLoder] = useState(false);
     const [loader, setLoader] = useState(true);
     const [mainLoader, setMainLoader] = useState(true)
     const [userData, setUserData] = useState({});
@@ -37,6 +33,10 @@ function AdminTools() {
     const tabActiveClassName = 'nav-pills btn-sm bg-dark text-white rounded-3 m-2'
     const tabClassName = 'nav-pills btn-sm bg-white border-1 border-dark rounded-3 text-dark m-2'
 
+    const navigateToLogin = async () => {
+        navigate(await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + `${location.hash.length !== 0 ? "#active=" + queryString.parse(location.hash).active : ""}`), { replace: true });
+    }
+
     const checkUserRole = async (userId) => {
 
         let roleRes = await getUserRole(userId);
@@ -44,7 +44,7 @@ function AdminTools() {
             setUserRole(roleRes.data.role.name);
             if (roleRes.data.role.name !== Constants.OWNER_USER_ROLE && roleRes.data.role.name !== Constants.ADMIN_USER_ROLE) {
                 alert("You don't have admin rights.")
-                navigate(Constants.DB_WORLD_HOME_ROUTE);
+                navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
             }
             else {
                 if (location.hash.length !== 0) {
@@ -54,7 +54,7 @@ function AdminTools() {
 
             }
         } else if (roleRes.httpStatusCode === 401 || roleRes.httpStatusCode === 403) {
-            navigate(Constants.DB_ADMIN_TOOLS_ROUTE, { replace: true });
+            await navigateToLogin();
         }
     }
 
@@ -72,22 +72,16 @@ function AdminTools() {
         let usersRes = await getAllUsers();
         if (usersRes.httpStatusCode === 200) {
             dispatch(findAllUsers(usersRes.data))
+        } else if (usersRes.httpStatusCode === 401 || usersRes.httpStatusCode === 403) {
+            await navigateToLogin();
         }
         setHasKey();
         setMainLoader(false);
     }
 
     useEffect(() => {
-        CommonServices.valiadteToken().then(async isValidToken => {
-            let redirectUrl = await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + `${location.hash.length !== 0 ? "#active=" + queryString.parse(location.hash).active : ""}`)
-            let authenticationRes = Authentication({ redirectTo: redirectUrl });
-            if (authenticationRes.login) {
-                postProcessAfterAuthenticatiion(authenticationRes)
-            } else navigate(authenticationRes.redirectUrl, { replace: true });
-
-        }).catch(err => {
-            console.log(err);
-        });
+        let authenticationRes = Authentication();
+        authenticationRes.login ? postProcessAfterAuthenticatiion(authenticationRes) : navigateToLogin();
     }, [])
 
     useEffect(() => {
@@ -100,25 +94,7 @@ function AdminTools() {
             {
                 mainLoader ? Constants.LOADER :
                     <div>
-                        <ul className="nav nav-pills mb-3 bg-light" role="tablist">
-
-                            <li className="nav-item mx-2 my-1">
-                                {
-                                    !freeMemoryLoder ?
-                                        <button
-                                            className="btn btn-outline-dark"
-                                        >
-                                            Free Memory
-                                        </button>
-                                        :
-                                        <button className="btn btn-dark" type="button" disabled>
-                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                            &nbsp;&nbsp;&nbsp;Processing ...
-                                        </button>
-                                }
-                            </li>
-                        </ul>
-
+                        
                         <div className=''>
                             <Tabs
                                 defaultActiveKey="Download"
@@ -154,9 +130,6 @@ function AdminTools() {
                                 <Tab className='m-1' eventKey="logs" title="Logs" tabClassName={key === 'logs' ? tabActiveClassName : tabClassName}>
                                     {loader ? Constants.LOADER : key === 'logs' && <ApplicationLogs userRole={userRole} />}
                                 </Tab>
-                                {/* <Tab className='m-3' eventKey="search" title="Search" tabClassName={key === 'search' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'search' && <SearchInDrive userRole={userRole} />}
-                                </Tab> */}
                                 <Tab className='m-3' eventKey="download" title="Download" tabClassName={key === 'download' ? tabActiveClassName : tabClassName}>
                                     {loader ? Constants.LOADER : key === 'download' && <DownloadStuf />}
                                 </Tab>
@@ -169,10 +142,7 @@ function AdminTools() {
                             </Tabs>
                         </div>
                     </div>
-
             }
-
-
         </div>
     )
 

@@ -1,7 +1,5 @@
 import axios from 'axios'
 
-// const JWT_TOKEN = 
-
 export const login = async (email, password) => {
     let response = await fetch("/api/auth/login", {
         method: "POST",
@@ -106,7 +104,7 @@ export const AddDbCinemaRecord = async (name, type, tmdbId) => {
     return await response.json();
 }
 
-export const UpdateDbCinemaRecord = async (recordId, type, name, tmdbId) => {
+export const UpdateDbCinemaRecord = async (recordId, body) => {
     let response = await fetch(`/api/cinema/record/${recordId}`, {
         method: "PUT",
         headers: {
@@ -114,7 +112,7 @@ export const UpdateDbCinemaRecord = async (recordId, type, name, tmdbId) => {
             Accept: 'application/json',
             Authorization: 'Bearer ' + localStorage.getItem("token")
         },
-        body: JSON.stringify({ name, type, tmdbId })
+        body: JSON.stringify(body)
     })
     return await response.json();
 }
@@ -146,7 +144,7 @@ export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList)
     }    
     else if (industry === "korean" ) {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
-        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.hollywood}&languages=ko`
+        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.korean}&languages=ko`
     }
     else if (industry === "south" ) {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.south}`
@@ -446,3 +444,39 @@ export const ytDownload = async (body) => {
     return await response.json();
 }
 
+export const renameStreamFile = async (fileId, body) => {
+    let response = await fetch(`/api/stream/file/${fileId}`, {
+        method: "PUT",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        },
+        body
+    });
+    return await response.json();
+}
+
+export const deleteStreamFile = async (fileId) => {
+    let response = await fetch(`/api/stream/file/${fileId}`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
+export const deleteTempFile = async () => {
+    let response = await fetch(`/api/utils/tempFiles`, {
+        method: "DELETE",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}

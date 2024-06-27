@@ -8,11 +8,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public interface StreamService {
 
-    ResponseEntity<InputStreamResource> getStreamResource(Path path, final String range);
-    ResponseEntity<InputStreamResource> getDownloadResource(Path path, String range);
+    CompletableFuture<ResponseEntity<InputStreamResource>> getStreamResource(Path path, final String range);
+    CompletableFuture<ResponseEntity<InputStreamResource>> getDownloadResource(Path path, String range);
     List<HashMap<String, Object>> getList(String path);
     ArrayList<File> getListRecursive(Path dir);
     HashMap<String, Object> createDetails(Path path);

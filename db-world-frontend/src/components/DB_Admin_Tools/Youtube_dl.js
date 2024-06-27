@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router";
-import { ToastContainer, toast } from 'react-toastify';
+import { toast } from 'react-toastify';
 import Constants from "../Constants";
 import Button from 'react-bootstrap/Button';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
@@ -21,7 +21,6 @@ function Youtube_dl() {
     const [rename, setRename] = useState(false);
     const [title, setTitle] = useState("")
     const [totalSize, setTotalSize] = useState(0);
-    const [method, setMethod] = useState("function");
     const TYPE_VIDEO = "video";
     const TYPE_AUDIO = "audio";
 
@@ -219,24 +218,13 @@ function Youtube_dl() {
 
 
     return (
-        <div className="card mx-3 my-3"
+        <div className="card my-1"
             style={{
                 border: "2px solid",
                 background: "rgba(255 ,255 ,255, 0.9)",
             }}
         >
             <h1 className="card-title text-center mx-3 my-2 border-bottom border-5 border-dark"> Youtube Downloader </h1>
-
-            <div className="col-6 mx-3">
-                <select className="form-select"
-                    aria-label="select ytdlp method"
-                    onChange={(e) => setMethod(e.target.value)}
-                >
-                    <option selected>Select Method</option>
-                    <option selected={method === "function" ? true : false} value="function">Using ytDlpWrap Method</option>
-                    <option selected={method === "command" ? true : false} value="command">Using Command Method</option>
-                </select>
-            </div>
 
             <div className="row g-2 mx-2 my-1">
                 <div className="col-md">
@@ -447,17 +435,7 @@ function Youtube_dl() {
                         </div>
                     </div>
             }
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={true}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
+            {Constants.TOAST_CONTAINER}
         </div >
     )
 

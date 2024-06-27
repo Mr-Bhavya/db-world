@@ -45,11 +45,18 @@ public class UtilsController {
     private StatusService statusService;
 
 
-    @GetMapping(value = "/logs")
+//    @GetMapping(value = "/logs")
+//    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+//    public ApiResponse getLogs() {
+//        List logs = dbWorldUtils.readFileInList(DbWorldConstants.LOGS_FILE_PATH);
+//        return new ApiResponse(HttpStatus.OK, true, "Info Logs", logs);
+//    }
+
+    @DeleteMapping(value = "/tempFiles")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse getLogs() {
-        List logs = dbWorldUtils.readFileInList(DbWorldConstants.LOGS_FILE_PATH);
-        return new ApiResponse(HttpStatus.OK, true, "Info Logs", logs);
+    public ApiResponse deleteTempFiles() {
+        utilsService.deleteTempFiles();
+        return new ApiResponse<>(HttpStatus.OK, true, "Temporary files are deleted.");
     }
 
     @RequestMapping(value = "/mirror", method = RequestMethod.POST)
@@ -66,15 +73,17 @@ public class UtilsController {
             String fileName = null;
             if (mirror.isRename()) {
                 fileName = mirror.getFileName();
-            } else if (headers.getContentDisposition() != null && headers.getContentDisposition().getFilename() != null) {
+            } else if (headers != null && headers.getContentDisposition() != null && headers.getContentDisposition().getFilename() != null) {
                 fileName = dbWorldUtils.decodeFileName(headers.getContentDisposition().getFilename());
+            } else if (headers == null) {
+                throw new DbWorldException("Not able to read headers from given url, Please send file name also.");
             } else {
                 throw new DbWorldException("Not able to get filename from url. Please send file name also.");
             }
             mirrorStatus = new MirrorStatus(
                     mirror.getUrl(),
                     fileName,
-                    headers.getContentLength(),
+                    headers == null ? 0 : headers.getContentLength(),
                     mirror.isExtract()
             );
             log.info("Download file: '{}' from url: '{}'.", mirrorStatus.getFileName(), mirrorStatus.getFileUrl());

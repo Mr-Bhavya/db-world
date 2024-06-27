@@ -42,8 +42,10 @@ public class DbWorldConstants {
     public static final String TMDB_SERIES_PROVIDER_URL = "https://api.themoviedb.org/3/tv/"+REPLACE_ID_STRING+"/watch/providers?api_key="+TMDB_API_KEY;
     public static final String TMDB_SEARCH_MOVIE_PROVIDER_URL = "https://api.themoviedb.org/3/search/movie?api_key="+TMDB_API_KEY+"&query="+ REPLACE_QUERY_STRING; //&year=YEAR
     public static final String TMDB_SEARCH_SERIES_PROVIDER_URL = "https://api.themoviedb.org/3/search/movie?api_key="+TMDB_API_KEY+"&query="+ REPLACE_QUERY_STRING;
+    public static final String TEMP_DOWNLOAD_PATH = "./Download/";
     public static final String LOGS_FILE_PATH = "./logs/dbworld.log";
     public static final String STREAM_HOME_PATH = "D:/Bhavya/Videos";
+    public static final String EXTERNAL_STREAM_HOME_PATH = "F:/Movies";
     public static final String TORRENT_DOWNLOAD_HOME_PATH = "D:/Bhavya/Videos/Torrent Download";
     public static final String HS_COOKIES_PATH = "D:\\Bhavya\\StartUp_Scripts\\Deployed\\cookies\\HS_COOKIES.txt";
     public static final String YTDLP_EXE_PATH = "C:/YTDLP/yt-dlp.exe";

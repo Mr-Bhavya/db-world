@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import JSONView from 'react-json-view'
 import CommonServices from '../CommonServices';
 import { systemInfo } from '../ApiServices';
 import { toast } from 'react-toastify';
 import { Doughnut } from 'react-chartjs-2';
-import Chart from 'chart.js/auto';
 import { Table } from 'react-bootstrap';
+import {Chart, ArcElement} from 'chart.js'
+Chart.register(ArcElement);
 
 const SystemInfo = () => {
 

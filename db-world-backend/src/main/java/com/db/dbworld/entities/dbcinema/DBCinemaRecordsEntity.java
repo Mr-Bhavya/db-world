@@ -21,6 +21,7 @@ public class DBCinemaRecordsEntity {
 //    private Date lastModifiedTime;
     @Indexed(unique = true)
     private long tmdbId;
+    private boolean showOnTop;
     private ArrayList<String> watchListBy;
     private ArrayList<String> likedBy;
     private ArrayList<String> disLikeBy;
