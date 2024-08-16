@@ -40,8 +40,8 @@ const UsersData = () => {
 
     const onUpdateUserDetails = async (updatedUser) => {
         updatedUser = { ...updatedUser, ...editUserBody }
-        console.log(updatedUser);
-        let updateUserRes = await updateUserDetails(updatedUser);
+        let {userId, email, firstName, lastName, mobileNo, dob, gender, password} = updatedUser;
+        let updateUserRes = await updateUserDetails({userId, email, firstName, lastName, mobileNo, dob, gender, password});
         if (updateUserRes.httpStatusCode === 200) {
             toast.success("User updated.")
 
@@ -53,9 +53,9 @@ const UsersData = () => {
             })))
         }
         else if (updateUserRes.httpStatusCode === 401) {
-            // toast.success("User updated.")
+            // toast.error(updateUserRes.message);
         } else {
-            toast.danger(updateUserRes.message);
+            toast.error(updateUserRes.message);
         }
     }
 
@@ -127,12 +127,17 @@ const UsersData = () => {
                                                 label="Male"
                                                 name="gender"
                                                 id="male"
+                                                value="male"
+                                                defaultChecked = {user.gender.toLowerCase() === "male"}
+
                                             />
                                             <Form.Check
                                                 type="radio"
                                                 label="Female"
                                                 name="gender"
                                                 id="female"
+                                                value="female"
+                                                defaultChecked = {user.gender.toLowerCase() === "female"}
                                             />
                                         </Col>
                                     </Form.Group>

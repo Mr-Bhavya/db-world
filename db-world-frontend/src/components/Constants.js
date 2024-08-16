@@ -1,6 +1,6 @@
 import { ToastContainer } from "react-toastify";
+import { v1 as uuidv1 } from 'uuid';
 
-const TMDB_API_KEY = "30061af77dba3722bbe14a2691055544";
 const RE_LOGIN = " Please Relogin";
 const ADD_RECORD_API = "/api/media/add/record";
 const ADD_USER_API = "/api/auth/add";
@@ -55,7 +55,15 @@ const LOADER = <div className="col-md-12">
     </div>
 </div>
 
+const BUTTON_LOADER = (buttonColor, diaplayText) => {
+    return (<button className={`btn btn-${buttonColor} btn-sm`} type="button" disabled>
+        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        &nbsp;&nbsp;&nbsp;&nbsp; {diaplayText + "..."}
+    </button>)
+}
+
 const TOAST_CONTAINER = <ToastContainer
+    // containerId={`toast_` + uuidv1()}
     position="top-right"
     autoClose={5000}
     hideProgressBar={false}
@@ -66,8 +74,8 @@ const TOAST_CONTAINER = <ToastContainer
     draggable
     pauseOnHover
 />
+
 export default {
-    TMDB_API_KEY,
     RE_LOGIN,
     ADD_RECORD_API,
     ADD_USER_API,
@@ -109,6 +117,7 @@ export default {
     KIB, MIB, GIB,
     REDIRECT,
     LOADER,
+    BUTTON_LOADER,
     TOAST_CONTAINER,
     RECORD_TYPE_SERIES,
     RECORD_TYPE_MOVIE

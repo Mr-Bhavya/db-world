@@ -39,7 +39,7 @@ const ApplicationLogs = () => {
           <div className='border border-dark rounded m-1' style={{ height: "80vh", overflowX: "auto" }}>
             <p className='m-1' style={{ display: "flex", flexWrap: "nowrap", height: "100%", width: "150%", whiteSpace: "pre" }}
             >
-              {logs.length && logs.length > 0 ? logs.map(element => element).join("\n") : "No log found."}
+              {logs.length && logs.length > 0 ? logs.reverse().map(element => element).join("\n") : "No log found."}
             </p>
           </div>
         </div>

@@ -38,24 +38,8 @@ function AdminTools() {
     }
 
     const checkUserRole = async (userId) => {
-
         let roleRes = await getUserRole(userId);
-        if (roleRes.httpStatusCode === 200) {
-            setUserRole(roleRes.data.role.name);
-            if (roleRes.data.role.name !== Constants.OWNER_USER_ROLE && roleRes.data.role.name !== Constants.ADMIN_USER_ROLE) {
-                alert("You don't have admin rights.")
-                navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-            }
-            else {
-                if (location.hash.length !== 0) {
-                    let hash = queryString.parse(location.hash);
-                    setKey(hash.active)
-                }
-
-            }
-        } else if (roleRes.httpStatusCode === 401 || roleRes.httpStatusCode === 403) {
-            await navigateToLogin();
-        }
+        return {httpStatusCode: roleRes.httpStatusCode, role: roleRes?.data?.role?.name };        
     }
 
     const setHasKey = () => {
@@ -68,15 +52,26 @@ function AdminTools() {
 
     const postProcessAfterAuthenticatiion = async (authenticationRes) => {
         setUserData(authenticationRes.user);
-        await checkUserRole(authenticationRes.user.userId);
-        let usersRes = await getAllUsers();
-        if (usersRes.httpStatusCode === 200) {
-            dispatch(findAllUsers(usersRes.data))
-        } else if (usersRes.httpStatusCode === 401 || usersRes.httpStatusCode === 403) {
+        let roleRes = await checkUserRole(authenticationRes.user.userId);
+        if (roleRes.httpStatusCode == 200 && (roleRes.role == Constants.OWNER_USER_ROLE || roleRes.role == Constants.ADMIN_USER_ROLE)) {
+            setUserRole(roleRes.role)
+            let usersRes = await getAllUsers();
+            if (usersRes.httpStatusCode === 200) {
+                dispatch(findAllUsers(usersRes.data))
+            } else if (usersRes.httpStatusCode === 401) {
+                await navigateToLogin();
+            } else if (usersRes.httpStatusCode === 403) {
+                alert("You don't have admin rights.")
+                navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
+            }
+            setHasKey();
+            setMainLoader(false);
+        }else if(roleRes.httpStatusCode == 401 || roleRes.httpStatusCode == 403){
             await navigateToLogin();
+        }else {
+            alert("You don't have admin rights.")
+            navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
         }
-        setHasKey();
-        setMainLoader(false);
     }
 
     useEffect(() => {
@@ -94,7 +89,6 @@ function AdminTools() {
             {
                 mainLoader ? Constants.LOADER :
                     <div>
-                        
                         <div className=''>
                             <Tabs
                                 defaultActiveKey="Download"

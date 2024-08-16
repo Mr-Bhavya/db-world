@@ -29,7 +29,6 @@ function MovieDetailsDesktop() {
     const { id, watch } = parseQuery(location.search);
     const [movieData, setMovieData] = useState("");
     const [loader, setLoader] = useState(true);
-    const TMDB_API_KEY = "30061af77dba3722bbe14a2691055544";
     const [cast, setCast] = useState([]);
     const [crew, setCrew] = useState([]);
     const [provider, setProvider] = useState({

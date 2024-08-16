@@ -33,7 +33,7 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
         private Resource index = new ClassPathResource("/public/index.html");
         private Resource html_404 = new ClassPathResource("/public/404.html");
         private Resource html_502 = new ClassPathResource("/public/502.html");
-        private List<String> handledExtensions = Arrays.asList("html", "js", "json", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico");
+        private List<String> handledExtensions = Arrays.asList("html", "js", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico", "json");
         private List<String> ignoredPaths = Arrays.asList("api");
 
         @Override

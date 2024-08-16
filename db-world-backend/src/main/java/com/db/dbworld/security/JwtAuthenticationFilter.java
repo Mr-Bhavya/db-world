@@ -58,7 +58,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
                 Boolean isTokenValidate = this.jwtHelper.validateToken(token, userDetails);
-                log.info("User '{}' is accessing [Path:'{}'|Query:'{}'|Method:'{}'], Token Validate :  {}", userDetails.getUsername(), request.getRequestURI(), request.getQueryString(), request.getMethod(), isTokenValidate);
+                extractRequest(request, isTokenValidate, userDetails.getUsername());
                 if (isTokenValidate) {
                     //set the authentication
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails, userDetails.getPassword(), userDetails.getAuthorities());
@@ -66,8 +66,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             }
+        }else{
+            if(!request.getRequestURI().contains("/favicon.ico") && !request.getRequestURI().contains("/logo")
+                    && !request.getRequestURI().contains("/js/bootstrap.min.js") && !request.getRequestURI().contains("/DB_World_teal_circle.png")
+                    && !request.getRequestURI().contains("/manifest.json") && !request.getRequestURI().contains("/db-world/DB_World_teal_circle.png")
+                    && !request.getRequestURI().contains("/db-world/db-password-manager/DB_World_teal_circle.png'") && !request.getRequestURI().contains("/static/css/")
+                    && !request.getRequestURI().contains("/static/js/") && !request.getRequestURI().contains("/static/media/")
+                    && !request.getRequestURI().contains("/js/bootstrap.min.js") && !request.getRequestURI().contains("/js/bootstrap.min.js")){
+                extractRequest(request, false, null);
+            }
 
         }
         filterChain.doFilter(request, response);
     }
+
+    private void extractRequest(HttpServletRequest request, boolean isTokenValidate, String user) {
+        String message = "\r\n---------------------------------------\r\n";
+//        message += "Time: [" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy, hh:mm:ss a")) + "]; ";
+        message += isTokenValidate ? "** " + user + " ** & " : "User ";
+//        message += "User-Agent: [" + request.getHeader("User-Agent") + "] ";
+        message += "is accessing API: [" + request.getRequestURL() + " | Query = " + request.getQueryString() + " | Method = "+ request.getMethod();
+        message += "] " + "from frontend url: [" + request.getHeader("Referer") + "]. ";
+//        message += "and from remote: [" + request.getRemoteHost()+":"+request.getRemotePort() + "]; ";
+        message += "Token Validate: " + isTokenValidate + "; ";
+        message += "\r\n---------------------------------------";
+        log.info(message);
+//        System.out.println(message);
+    }
+
 }

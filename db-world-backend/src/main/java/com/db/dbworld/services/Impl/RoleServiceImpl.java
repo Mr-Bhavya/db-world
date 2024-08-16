@@ -8,6 +8,7 @@ import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.RoleService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Configurable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -57,8 +58,12 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public UserDto.UserRole getRoleById(String roleId) {
-        UserRoleEntity userRoleEntity = this.userRoleRepository.findById(roleId)
-                .orElseThrow(()->new ResourceNotFoundException("UserRole", "roleId", roleId));
+//        UserRoleEntity userRoleEntity = this.userRoleRepository.findById(roleId)
+//                .orElseThrow(()->new ResourceNotFoundException("UserRole", "roleId", roleId));
+        UserRoleEntity userRoleEntity = mongoOperations.findOne(new Query(Criteria.where("id").is(roleId)),UserRoleEntity.class);
+        if(userRoleEntity == null){
+            throw new ResourceNotFoundException("UserRole", "roleId", roleId);
+        }
         return this.modelMapper.map(userRoleEntity, UserDto.UserRole.class);
     }
 

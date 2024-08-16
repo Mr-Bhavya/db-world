@@ -32,10 +32,6 @@ public class DbWorldUtils {
     @Autowired
     private JwtHelper jwtHelper;
 
-    private String encodePassword(String password) {
-        return passwordEncoder.encode(password);
-    }
-
     public byte[] serialize(Object obj) throws IOException {
         try (
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -75,6 +71,11 @@ public class DbWorldUtils {
     public String getTMDBRecordDetailsUrl(RequestPayloads.AddRecord record) {
         return (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? DbWorldConstants.TMDB_MOVIE_DETAILS_URL : DbWorldConstants.TMDB_SERIES_DETAILS_URL).
                 replace(DbWorldConstants.REPLACE_ID_STRING, Long.toString(record.getTmdbId()));
+    }
+
+    public String getTMDBByQueryUrl(String recordType, String query, int year) {
+        return (recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? DbWorldConstants.TMDB_SEARCH_MOVIE_PROVIDER_URL : DbWorldConstants.TMDB_SEARCH_SERIES_PROVIDER_URL).
+                replace(DbWorldConstants.REPLACE_QUERY_STRING, query).replace(DbWorldConstants.REPLACE_YEAR_STRING, year == 0 ? "" : String.valueOf(year) );
     }
 
     public String getTMDBRecordProviderUrl(RequestPayloads.AddRecord record) {

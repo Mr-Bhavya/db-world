@@ -45,7 +45,7 @@ const UserRole = ({ userData }) => {
         } else {
             toast.error(updateRoleRes.message);
         }
-        setSubmitLoader(true);
+        setSubmitLoader(false);
     }
 
 

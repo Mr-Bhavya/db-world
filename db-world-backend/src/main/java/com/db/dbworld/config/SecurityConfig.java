@@ -1,5 +1,6 @@
 package com.db.dbworld.config;
 
+import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.security.JwtAuthenticationFilter;
 import com.db.dbworld.security.TokenAuthenticationHandler;
 import com.db.dbworld.utils.DbWorldConstants;
@@ -19,7 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-public class SecurityConfig  {
+public class SecurityConfig {
     @Autowired
     private TokenAuthenticationHandler.JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     @Autowired
@@ -34,22 +35,23 @@ public class SecurityConfig  {
     private PasswordEncoder passwordEncoder;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
 
-        return http.csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(
-                        authorizationManagerRequestMatcherRegistry ->
-                                authorizationManagerRequestMatcherRegistry
-                                        .requestMatchers(DbWorldConstants.PUBLIC_APIS).permitAll()
-                                        .requestMatchers(DbWorldConstants.AUTHENTICATED_APIS)
-                                        .authenticated())
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-                .exceptionHandling(ex -> ex.accessDeniedHandler(jwtAccessDeniedHandler))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
-//                .headers( httpSecurityHeadersConfigurer -> httpSecurityHeadersConfigurer
-//                        .httpStrictTransportSecurity(hstsConfig -> hstsConfig.disable()))
-                .build();
+        try {
+            return http.csrf(csrf -> csrf.disable())
+                    .authorizeHttpRequests(
+                            authorizationManagerRequestMatcherRegistry ->
+                                    authorizationManagerRequestMatcherRegistry
+                                            .requestMatchers(DbWorldConstants.PUBLIC_APIS).permitAll()
+                                            .anyRequest().authenticated())
+                    .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+                    .exceptionHandling(ex -> ex.accessDeniedHandler(jwtAccessDeniedHandler))
+                    .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                    .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
+                    .build();
+        } catch (Exception e) {
+            throw new DbWorldException(e.getMessage());
+        }
     }
 
     @Bean

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Button, Modal } from "react-bootstrap";
+import { Button, Modal, ToastContainer } from "react-bootstrap";
 import CommonServices from "../../CommonServices";
 import Constants from "../../Constants";
 import { deleteStreamFile, renameStreamFile } from "../../ApiServices";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { v1 as uuidv1 } from 'uuid';
 
 
 function File(props) {
@@ -17,6 +18,9 @@ function File(props) {
     const [newName, setNewName] = useState(file.fileName);
     const [onRename, setOnRename] = useState(false);
     const navigate = useNavigate();
+    const [isDeleted, setIsDeleted] = useState(false);
+    const [deleteLoader, setDeleteLoader] = useState(false);
+    const [renameLoader, setRenameLoader] = useState(false);
 
     const playVideo = (file) => {
         let tempUrl = window.location.origin + "/api/stream/watch/" + file.fileId + "?t=" + localStorage.getItem("token");
@@ -36,29 +40,36 @@ function File(props) {
     };
 
     const renameFile = async () => {
+        setRenameLoader(true);
         let renameRes = await renameStreamFile(file.fileId, newName);
         if (renameRes.httpStatusCode === 200) {
             file.fileName = newName
             setOnRename(false);
-        } else if(renameRes.httpStatusCode === 401 || renameRes.httpStatusCode === 403){
-            navigate(await Constants.REDIRECT(Constants.DB_MOVIES_ROUTE ), { replace: true });
-        }else{
+        } else if (renameRes.httpStatusCode === 401 || renameRes.httpStatusCode === 403) {
+            navigate(await Constants.REDIRECT(Constants.DB_MOVIES_ROUTE), { replace: true });
+        } else {
             toast.error(renameRes.message);
         }
+        setRenameLoader(false);
     }
 
     const deleteFile = async () => {
+        setDeleteLoader(true)
         let deleteFileRes = await deleteStreamFile(file.fileId);
         if (deleteFileRes.httpStatusCode === 200) {
             setDeleteModel(false);
-        } else if(deleteFileRes.httpStatusCode === 401 || deleteFileRes.httpStatusCode === 403){
-            navigate(await Constants.REDIRECT(Constants.DB_MOVIES_ROUTE ), { replace: true });
-        }else{
+            setIsDeleted(true);
+            toast.success(deleteFileRes.message);
+        } else if (deleteFileRes.httpStatusCode === 401 || deleteFileRes.httpStatusCode === 403) {
+            navigate(await Constants.REDIRECT(Constants.DB_MOVIES_ROUTE), { replace: true });
+        } else {
             toast.error(deleteFileRes.message);
         }
+        setDeleteLoader(false)
     }
 
     return (
+        isDeleted ||
         <div className="m-1" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px" }}>
             <span>📃
 
@@ -72,14 +83,13 @@ function File(props) {
                         <>&nbsp;
                             {
                                 onRename ?
-                                    <span className="btn btn-outline-success btn-sm" onClick={renameFile}>Done</span>
+                                    renameLoader ? Constants.BUTTON_LOADER("dark", "Renaming") : <span className="btn btn-outline-success btn-sm" onClick={renameFile}>Done</span>
                                     :
                                     <span className="btn btn-outline-dark btn-sm" onClick={() => setOnRename(true)}>🖋️ Rename</span>
                             }
                             &nbsp;<span className="btn btn-outline-danger btn-sm" onClick={() => setDeleteModel(true)}>🚮 Delete</span>
                         </>
                         : ""
-
                 }
 
             </span>
@@ -137,14 +147,33 @@ function File(props) {
                     <p>Are you Sure that you want to delete this file ?</p>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="danger" onClick={deleteFile}>
-                        Yes !!
-                    </Button>
+                    {
+                        deleteLoader ?
+                            Constants.BUTTON_LOADER("danger", "Deleteing")
+                            :
+                            <Button variant="danger" onClick={deleteFile}>
+                                Yes !!
+                            </Button>
+                    }
                     <Button variant="secondary" onClick={() => setDeleteModel(false)}>
                         Close
                     </Button>
                 </Modal.Footer>
             </Modal>
+
+            <ToastContainer
+                containerId={`toast_` + uuidv1()}
+                position="top-right"
+                autoClose={5000}
+                hideProgressBar={false}
+                newestOnTop={true}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+            />
+            {/* {Constants.TOAST_CONTAINER} */}
 
         </div>
     )

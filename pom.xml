@@ -10,7 +10,8 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.1.5-SNAPSHOT</version>
+        <version>3.3.1</version>
+<!--        <version>3.1.5-SNAPSHOT</version>-->
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
@@ -25,6 +26,27 @@
 
     <build>
         <finalName>db-world</finalName>
+        <plugins>
+            <plugin>
+                <artifactId>maven-clean-plugin</artifactId>
+                <configuration>
+                    <filesets>
+                        <fileset>
+                            <directory>${basedir}/db-world-backend/src/main/resources/public</directory>
+                        </fileset>
+                        <fileset>
+                            <directory>${basedir}/db-world-frontend/build</directory>
+                        </fileset>
+                        <fileset>
+                            <directory>${basedir}</directory>
+                            <includes>
+                                <include>db-world.war</include>
+                            </includes>
+                        </fileset>
+                    </filesets>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 
 </project>

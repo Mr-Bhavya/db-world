@@ -72,12 +72,11 @@ public class UserDto {
         private byte[] ivParameterSpec;
     }
 
-    @Data
+    @Getter
+    @Setter
     public static class UserRole {
-
         @NotEmpty
         private String id;
-
         @NotEmpty
         private String name;
     }

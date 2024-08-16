@@ -169,6 +169,15 @@ public class DBCinemaController {
         return new ApiResponse(HttpStatus.OK, true, "Task (Record update with tmdb) is running.", dbCinemaRecordsService.getStatusOfRecordsUpdate());
     }
 
+    @GetMapping("/tmdb/{recordType}/search")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse searchTmdbByQuery(@PathVariable @NotEmpty String recordType,
+                                         @RequestParam @NotEmpty String q,
+                                         @RequestParam(defaultValue = "0", required = false ) int year){
+        List tmdbSearchList = dbCinemaRecordsService.getTmdbByQuery(recordType, q, year);
+        return new ApiResponse<>(HttpStatus.OK, true, tmdbSearchList);
+    }
+
 //    @GetMapping(value = "/tmdb")
 //    public ApiResponse getTMDBDetailsById(@RequestBody RequestPayloads.AddRecords record) {
 //        MovieTmdbDataDto movieTmdbDataDto = dbCinemaRecordsService.getTMDBDetailsForRecordById(record);

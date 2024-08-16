@@ -11,7 +11,7 @@ public class TmdbApiException extends RuntimeException {
     private long tmdbId;
     private HttpStatusCode httpStatusCode;
 
-    public TmdbApiException(long tmdbId, String message, HttpStatusCode httpStatusCode) {
+    public TmdbApiException(Long tmdbId, String message, HttpStatusCode httpStatusCode) {
         super(String.format("TMDB ID - %s, Error: %s", tmdbId, message));
         this.tmdbId = tmdbId;
         this.httpStatusCode = httpStatusCode;

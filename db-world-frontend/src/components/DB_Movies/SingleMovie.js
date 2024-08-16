@@ -8,6 +8,7 @@ import LoadingSpinner from "../LoadingSpinner";
 import LikeIcon from "./SubComponents/LikeIcon";
 import WatchlistIcon from "./SubComponents/WatchlistIcon";
 import { deleteDbCinemaRecord } from "../ApiServices";
+import { toast } from "react-toastify";
 
 function SingleMovie(props) {
     const movie = props.movie;
@@ -17,8 +18,8 @@ function SingleMovie(props) {
     const [deleteRecord, setDeleteRecord] = useState();
     const [setTrailer, setSetTrailer] = useState(false);
     const [loader, setLoader] = useState(false);
-    var deleteModelTargetSrc = "#deleteMovieId" + id;
-    var deleteModelTargetDes = "deleteMovieId" + id;
+    var deleteModelTargetSrc = "#deleteMovieId" + movie.recordId;
+    var deleteModelTargetDes = "deleteMovieId" + movie.recordId;
     var trailerModelTargetDes = "trailerMovieId" + new Date();
     var trailerModelTargetSrc = "#" + trailerModelTargetDes;
     const navigate = useNavigate();
@@ -107,22 +108,22 @@ function SingleMovie(props) {
             release_date.reverse();
             release_date = release_date.join("/");
         }
+        movie.tmdbData.release_date = release_date;
     }
 
     async function onDelete() {
         try {
-            // console.log(deleteRecord)
-
-            let deleteRes = await deleteDbCinemaRecord(deleteRecord.recordId)
+            let deleteRes = await deleteDbCinemaRecord(movie.recordId)
             if (deleteRes.httpStatusCode === 200) {
-                alert("Deleted Successfully.")
+                // alert("Deleted Successfully.")
                 dispatch(reloadMovies());
+                toast.error(deleteRes.message)
             } else if (deleteRes.httpStatusCode === 401) {
                 alert(deleteRes.message + Constants.RE_LOGIN)
                 navigate(await Constants.REDIRECT());
             }
             else {
-                alert(deleteRes.message);
+                toast.error(deleteRes.message);
             }
         } catch (err) {
             console.log(err);
@@ -172,7 +173,7 @@ function SingleMovie(props) {
 
                                         /* Movie Delete Button */
                                         < div className="col-2">
-                                            <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, type: movie.type })}>🗑</button>
+                                            <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, name: movie.name, type: movie.type })}>🗑</button>
                                         </div> : ""
                                 }
 
@@ -207,7 +208,11 @@ function SingleMovie(props) {
                                             <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
                                         <div className="modal-body">
-                                            You want to delete this movie?
+                                            <b>You want to delete this record?</b>
+                                            <br />
+                                            Record Id: {movie?.recordId}<br />
+                                            Record Name: {movie?.name}<br />
+                                            Record Type: {movie?.type}
                                         </div>
                                         <div className="modal-footer">
                                             <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -394,7 +399,7 @@ function SingleMovie(props) {
 
                                         /* Movie Delete Button */
                                         < div className="col-2">
-                                            <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, type: movie.type })}>🗑</button>
+                                            <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, name: movie.name, type: movie.type })}>🗑</button>
                                         </div> : ""
                                 }
 
@@ -420,6 +425,7 @@ function SingleMovie(props) {
     return (
         <div className="" style={{ marginTop: "1%" }}>
             {singleMovie}
+            {Constants.TOAST_CONTAINER}
         </div>
     )
 }
