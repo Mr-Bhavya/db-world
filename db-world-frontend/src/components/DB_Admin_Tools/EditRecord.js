@@ -6,20 +6,13 @@ import { useLocation } from "react-router-dom";
 import Authentication from "../Authentication";
 import Constants from "../Constants";
 import queryString from "query-string";
-import { UpdateDbCinemaRecord, getUserRole } from "../ApiServices";
+import { UpdateDbCinemaRecord, getUserRole, searchTmdbByQuery } from "../ApiServices";
 
 function EditRecord() {
 
-    const addMovieStyle = {
-        margin: "2% 10% 2% 10%",
-        border: "2px solid",
-        background: "rgba(255 ,255 ,255, 0.9)",
-        padding: "2%",
-    }
     const navigate = useNavigate();
     const location = useLocation();
-    const TMDB_API_KEY = "30061af77dba3722bbe14a2691055544"
-    const [selectMovie, setSelectMovie] = useState([]);
+    const [selectRecord, setSelectRecord] = useState([]);
     const [tmdbLoader, setTmdbLoader] = useState(false);
     const [submitLoader, setSubmitLoader] = useState(false);
     const [onSubmit, setOnSubmit] = useState(false);
@@ -53,36 +46,6 @@ function EditRecord() {
         } else if (roleRes.httpStatusCode === 401) {
             navigate(Constants.LOGIN_ROUTE, { replace: true });
         }
-
-        // let response = await CommonServices.userRole(_id);
-        // if (response.statusCode === 200) {
-        //     SetUserRole(response.userRole);
-        //     if (response.userRole !== Constants.OWNER_USER_ROLE && response.userRole !== Constants.ADMIN_USER_ROLE) {
-        //         alert("You don't have admin rights.")
-        //         navigate(Constants.DB_WORLD_HOME_ROUTE);
-        //     } else {
-        //         if (location.state && location.state !== null) {
-        //             setInputFields(location.state)
-        //             setLoader(false);
-        //         } else {
-        //             if (location.search && location.search.length > 0) {
-        //                 let query = queryString.parse(location.search);
-        //                 if (query && query._id) {
-        //                     getRecord(query._id);
-        //                 }
-        //             }
-        //             toast.warning("problem to fetch details");
-        //             navigate(Constants.REDIRECT(Constants.DB_MOVIES_ROUTE));
-        //         }
-        //     }
-        // }
-        // else if (response.statusCode === 401) {
-        //     navigate(Constants.REDIRECT(Constants.DB_MOVIES_ROUTE), { replace: true });
-        // }
-        // else {
-        //     alert("unable to fetch user role, viewing page as normal user :)")
-        //     navigate(Constants.DB_WORLD_HOME_ROUTE)
-        // }
     }
 
     useEffect(() => {
@@ -102,67 +65,36 @@ function EditRecord() {
 
 
     const onChangeHandler = (e) => {
+        console.log(e.target.name, e.target.value);
         if (e.target.name === 'showOnTop') {
             console.log(e.target.name, !inputFields.showOnTop)
             setInputFields({ ...inputFields, [e.target.name]: !inputFields.showOnTop })
-        } else
-            setInputFields({ ...inputFields, [e.target.name]: e.target.value })
-        // setOnSubmit(false)
-    }
-
-    const onTMDBIDChange = async (e) => {
-        // setInputFields({ ...inputFields, [e.target.name]: e.target.value })
-        // console.log(e.target.value);
-        setTmdbLoader(true);
-        if (inputFields.type === "Movie" || inputFields.type === "Series") {
-            const res = await fetch(`https://api.themoviedb.org/3/${inputFields.type === "Movie" ? "movie" : "tv"}/${e.target.value}?api_key=${TMDB_API_KEY}&append_to_response=videos&language=en,hi,te,tm`, {
-                method: "GET",
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json'
-                }
-            })
-            const data = await res.json();
-            if (res.status === 200) {
-                setInputFields({ ...inputFields, tmdbData: data, name: inputFields.type === "Movie" ? data.title : data.name })
-            }
         } else {
-            toast.warning("please Fill required field")
+            setInputFields({ ...inputFields, [e.target.name]: e.target.value })
+            if (e.target.name != "tmdbId") {
+                setSelectRecord(null)
+                setOnSubmit(false);
+            }
         }
-        setTmdbLoader(false)
+        // setOnSubmit(false)
     }
 
     const getTMDBList = async () => {
         setTmdbLoader(true);
-        setSelectMovie([]);
-        console.log(inputFields)
-        var res = ""
-        if (inputFields.type.toLocaleLowerCase() === ("Movie").toLocaleLowerCase() || inputFields.type.toLocaleLowerCase() === ("Series").toLocaleLowerCase()) {
-            let api = `https://api.themoviedb.org/3/search/` +
-                `${inputFields.type.toLocaleLowerCase() === ("Movie").toLocaleLowerCase() ? "movie" : "tv"}` + "?api_key=" + TMDB_API_KEY +
-                "&query=" + inputFields.name + `${inputFields.year ? "&year=" + inputFields.year : ""}`;
-            res = await fetch(api,
-                {
-                    method: "GET",
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json'
-                    }
-                })
-        }
-        else {
-            toast.warning("please select movie catagory first.")
-        }
-        if (res.status === 200) {
-            const data = await res.json();
-            setOnSubmit(true);
-            if (res.status === 200) {
-                setSelectMovie(data.results);
+        setSelectRecord([]);
+        if (inputFields.type.toLocaleLowerCase() === "movie" || inputFields.type.toLocaleLowerCase() === "series") {
+            console.log(inputFields);
+            let seachTmdbRes = await searchTmdbByQuery(inputFields.type.toLocaleLowerCase(), inputFields.name, inputFields.year);
+            if (seachTmdbRes.httpStatusCode === 200) {
+                setSelectRecord(seachTmdbRes.data);
+                setOnSubmit(true);
+            } else if (seachTmdbRes.httpStatusCode === 401) {
+                navigate(await Constants.REDIRECT(Constants.ADD_RECORD_ROUTE))
+            } else {
+                toast.error(seachTmdbRes.message);
             }
-            else {
-                toast.warning("please fill movie name");
-                setOnSubmit(false);
-            }
+        } else {
+            toast.warning("please select record type first.")
         }
         setTmdbLoader(false);
     }
@@ -223,12 +155,12 @@ function EditRecord() {
                         <div className="col-md">
                             <div className="form-floating mb-2">
                                 <select className="form-select" id="floatingSelect" defaultValue="" onChange={onChangeHandler} name="type"
-                                    value={inputFields.type} aria-label="Floating label select example" disabled>
+                                    value={inputFields.type.toLocaleLowerCase()} aria-label="Floating label select example" disabled>
                                     <option value="" disabled={true}>Open this select menu</option>
-                                    <option value="Movie">Movie</option>
-                                    <option value="Series">Series</option>
+                                    <option value="movie">Movie</option>
+                                    <option value="series">Series</option>
                                 </select>
-                                <label htmlFor="floatingSelect">Choose type</label>
+                                <label htmlFor="floatingSelect">Choose Record type</label>
                             </div>
                         </div>
                         <div className="col-md ">
@@ -257,18 +189,17 @@ function EditRecord() {
                             {onSubmit &&
                                 <div className="col-md">
                                     <div className="form-floating mb-2">
-                                        <select className="form-select" id="floatingSelect" name="tmdbId" defaultValue="" onChange={onChangeHandler} aria-label="Floating label select example">
+                                        <select className="form-select" id="tmdbId" name="tmdbId" defaultValue="" onChange={onChangeHandler} aria-label="Floating label select example">
                                             <option value="" disabled={true}>Open this select menu</option>
                                             {
-                                                selectMovie.map(ele => {
+                                                selectRecord?.map(ele => {
                                                     return <option value={ele.id}>
-                                                        {inputFields.type.toLocaleLowerCase() === ("Movie").toLocaleLowerCase() && ele.title || ele.name} &nbsp;| &nbsp;
-                                                        {inputFields.type.toLocaleLowerCase() === ("Movie").toLocaleLowerCase() && ele.release_date || ele.first_air_date}
+                                                        {ele.title} &nbsp; | &nbsp; {ele.originalTitle} &nbsp; | &nbsp; {ele.releaseDate}
                                                     </option>
                                                 })
                                             }
                                         </select>
-                                        <label htmlFor="floatingSelect">TMDB ID Select</label>
+                                        <label htmlFor="tmdbId">TMDB ID Select</label>
                                     </div>
                                 </div>
                             }

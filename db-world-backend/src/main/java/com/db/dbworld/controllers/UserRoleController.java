@@ -21,48 +21,48 @@ public class UserRoleController {
 
     @Autowired
     private RoleService roleService;
-
     @Autowired
     private ModelMapper modelMapper;
 
     @PostMapping("/")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    private ApiResponse addNewUserRole(@RequestBody RequestPayloads.AddUserRole userRole) {
-        UserDto.UserRole newUserRole = roleService.addRole(this.modelMapper.map(userRole, UserDto.UserRole.class));
-        return new ApiResponse(HttpStatus.CREATED, true, newUserRole);
+    public ApiResponse addNewUserRole(@RequestBody RequestPayloads.AddUserRole userRole) {
+//        UserDto.UserRole newUserRole = roleService.addRole(this.modelMapper.map(userRole, UserDto.UserRole.class));
+        return new ApiResponse(HttpStatus.CREATED, true, userRole);
     }
 
     @PutMapping("/")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    private ApiResponse updateUserRole(@RequestBody UserDto.UserRole userRole) {
+    public ApiResponse updateUserRole(@RequestBody UserDto.UserRole userRole) {
         UserDto.UserRole updatedRole = roleService.updateRole(userRole);
         return new ApiResponse(HttpStatus.OK, true, updatedRole);
     }
 
     @GetMapping("/")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    private ApiResponse getAllUserRole() {
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse getAllUserRole() {
         List<UserDto.UserRole> roles = roleService.getRoles();
         return new ApiResponse(HttpStatus.OK, true, roles);
     }
 
     @GetMapping("/{roleId}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    private ApiResponse getRoleById(@PathVariable String roleId) {
+    public ApiResponse getRoleById(@PathVariable String roleId) {
+//        RoleService roleService1 = new RoleServiceImpl();
         UserDto.UserRole role = roleService.getRoleById(roleId);
         return new ApiResponse(HttpStatus.OK, true, role);
     }
 
-    @GetMapping("/{roleName}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    private ApiResponse getRoleByName(@PathVariable String roleName) {
-        UserDto.UserRole role = roleService.getRoleByName(roleName);
-        return new ApiResponse(HttpStatus.OK, true, role);
-    }
+//    @GetMapping("/{roleName}")
+//    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+//    private ApiResponse getRoleByName(@PathVariable String roleName) {
+//        UserDto.UserRole role = roleService.getRoleByName(roleName);
+//        return new ApiResponse(HttpStatus.OK, true, role);
+//    }
 
     @DeleteMapping("/{roleId}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    private ApiResponse deleteRoleById(@PathVariable String roleId) {
+    public ApiResponse deleteRoleById(@PathVariable String roleId) {
         roleService.deleteRole(roleId);
         return new ApiResponse(HttpStatus.OK, true, "Role with Id - "+roleId+" is deleted.");
     }

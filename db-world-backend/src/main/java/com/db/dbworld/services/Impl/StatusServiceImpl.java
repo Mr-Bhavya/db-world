@@ -46,6 +46,13 @@ public class StatusServiceImpl implements StatusService {
     }
 
     @Override
+    public void updateStatusMessage(String id, String message) {
+        MirrorStatus mirrorStatus = getStatusById(id);
+        mirrorStatus.setMessage(message);
+        updateStatus(mirrorStatus);
+    }
+
+    @Override
     public void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus downloadStatus) {
         MirrorStatus mirrorStatus = getStatusById(id);
         mirrorStatus.setCurrentStatus("Downloading...");
@@ -76,6 +83,7 @@ public class StatusServiceImpl implements StatusService {
         mirrorStatus.setCurrentStatus("Failed ❌");
         mirrorStatus.setFailed(true);
         mirrorStatus.setCompleted(true);
+        mirrorStatus.setMessage(message);
         updateStatus(mirrorStatus);
         log.info("Task '{}' is failed. Filename: {}, Error Message: {}", mirrorStatus.getId(), mirrorStatus.getFileName(), message);
     }

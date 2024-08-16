@@ -17,8 +17,8 @@ function AddPassword() {
         url: '',
         username: '',
         password: '',
-        pin: '',
-        discription: ''
+        pin: null,
+        discription: null
     });
 
     const onFieldChange = (e) => {
@@ -72,8 +72,8 @@ function AddPassword() {
     const onSubmit = async (e) => {
         setSubmitLoader(true);
         e.preventDefault();
-        let { url, username, password, pin, discription } = inputField;
-
+        let { url, username, password} = inputField;
+        inputField.pin = inputField.pin == "" ? null : inputField.pin;
         if (!isvalidateInputField()) {
             toast.warning("One or more filels are incorrect");
         } else if (!url || !username || !password) {

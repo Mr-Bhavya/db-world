@@ -1,4 +1,5 @@
 import Constants from "./Constants";
+import { addUser } from "../redux/action/allActions";
 
 const getTimeDateFromTimeStamp = (timestamp, timezone) => {
 
@@ -126,6 +127,20 @@ const isValidUrl = (url) => {
     }
 }
 
+const removeUserFromLocal = () => {
+    // Local Storage
+    localStorage.setItem('login',false);
+    localStorage.setItem('user', null);
+    localStorage.setItem('token', null);
+}
+
+const setUserInLocal = (user, token) => {
+    // Local Storage
+    localStorage.setItem('login',true);
+    localStorage.setItem('user', user);
+    localStorage.setItem('token', token);
+}
+
 const JSONToHTMLTable = (props) => {
     const { data, style } = props
     return (
@@ -173,5 +188,7 @@ export default {
     valiadteToken,
     modifySearchQuery,
     handleCopy,
-    getCurrentUser
+    getCurrentUser,
+    removeUserFromLocal,
+    setUserInLocal
 }

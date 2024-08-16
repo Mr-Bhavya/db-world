@@ -4,19 +4,16 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Authentication from "../Authentication";
 import Constants from "../Constants";
-import { AddDbCinemaRecord } from "../ApiServices";
+import { AddDbCinemaRecord, searchTmdbByQuery } from "../ApiServices";
 
 function AddRecord(props) {
 
     const userRole = props.userRole;
     const navigate = useNavigate();
-    const TMDB_API_KEY = Constants.TMDB_API_KEY;
-    const [selectMovie, setSelectMovie] = useState([]);
+    const [selectRecord, setSelectRecord] = useState([]);
     const [tmdbLoader, setTmdbLoader] = useState(false);
     const [submitLoader, setSubmitLoader] = useState(false);
     const [onSubmit, setOnSubmit] = useState(false);
-    // const [userRole, SetUserRole] = useState();
-    // const [loader, setLoader] = useState(true);
     const [inputFields, setInputFields] = useState({
         type: "",
         filmIndustry: "",
@@ -33,8 +30,8 @@ function AddRecord(props) {
         let authenticationRes = Authentication({ redirectTo: Constants.ADD_RECORD_ROUTE });
         if (!authenticationRes.login) {
             navigate(authenticationRes.redirectUrl, { replace: true });
-        }else{
-            if(userRole !== Constants.OWNER_USER_ROLE && userRole !== Constants.ADMIN_USER_ROLE){
+        } else {
+            if (userRole !== Constants.OWNER_USER_ROLE && userRole !== Constants.ADMIN_USER_ROLE) {
                 alert("don't have valid role");
             }
         }
@@ -43,67 +40,27 @@ function AddRecord(props) {
 
     const onChangeHandler = (e) => {
         setInputFields({ ...inputFields, [e.target.name]: e.target.value })
-        // e.target.name !== "name" && setOnSubmit(false)
-    }
-
-    const onTMDBIDChange = async (e) => {
-        setTmdbLoader(true);
-        if (inputFields.category === "Movie" || inputFields.category === "Series") {
-            const res = await fetch(`https://api.themoviedb.org/3/${inputFields.category === "Movie" ? "movie" : "tv"}/${e.target.value}?api_key=${TMDB_API_KEY}&append_to_response=videos&language=en,hi,te,tm`, {
-                method: "GET",
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json'
-                }
-            })
-            const data = await res.json();
-            if (res.status === 200) {
-                setInputFields({ ...inputFields, tmdbData: data, name: inputFields.category === "Movie" ? data.title : data.name })
-            }
-            else if (res.status === 401) {
-                toast.error(data.errorMessage + Constants.RE_LOGIN, {
-                    onClose: async () => {
-                        navigate(await Constants.REDIRECT(Constants.ADD_RECORED_REDIRECT));
-                    },
-                    autoClose: 1000
-                })
-            }
-        } else {
-            toast.warning("please Fill required field")
+        if (e.target.name != "tmdbId") {
+            setSelectRecord(null)
+            setOnSubmit(false);
         }
-        setTmdbLoader(false)
     }
 
     const getTMDBList = async () => {
         setTmdbLoader(true);
-        setSelectMovie([]);
-        var res = ""
+        setSelectRecord([]);
         if (inputFields.type === "Movie" || inputFields.type === "Series") {
-            let api = `https://api.themoviedb.org/3/search/` +
-                `${inputFields.type === "Movie" ? "movie" : "tv"}` + "?api_key=" + TMDB_API_KEY +
-                "&query=" + inputFields.name + `${inputFields.year ? "&year=" + inputFields.year : ""}`;
-            res = await fetch(api,
-                {
-                    method: "GET",
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json'
-                    }
-                })
-        }
-        else {
+            let seachTmdbRes = await searchTmdbByQuery(inputFields.type.toLocaleLowerCase(), inputFields.name, inputFields.year);
+            if (seachTmdbRes.httpStatusCode === 200) {
+                setSelectRecord(seachTmdbRes.data);
+                setOnSubmit(true);
+            } else if (seachTmdbRes.httpStatusCode === 401) {
+                navigate(await Constants.REDIRECT(Constants.ADD_RECORD_ROUTE))
+            } else {
+                toast.error(seachTmdbRes.message);
+            }
+        } else {
             toast.warning("please select movie catagory first.")
-        }
-        if (res.status === 200) {
-            const data = await res.json();
-            setOnSubmit(true);
-            if (res.status === 200) {
-                setSelectMovie(data.results);
-            }
-            else {
-                toast.warning("please fill movie name");
-                setOnSubmit(false);
-            }
         }
         setTmdbLoader(false);
     }
@@ -190,18 +147,17 @@ function AddRecord(props) {
                 {onSubmit &&
                     <div className="col-md">
                         <div className="form-floating mb-2">
-                            <select className="form-select" id="floatingSelect" defaultValue="" onChange={onChangeHandler} name="tmdbId" aria-label="Floating label select example">
+                            <select className="form-select" id="tmdbId" defaultValue="" onChange={onChangeHandler} name="tmdbId" aria-label="Floating label select example">
                                 <option value="" disabled={false}>Open this select menu</option>
                                 {
-                                    selectMovie.map((ele, index) => {
+                                    selectRecord?.map((ele, index) => {
                                         return <option value={ele.id}>
-                                            {inputFields.type === "Movie" && ele.title || ele.name} &nbsp;| &nbsp;
-                                            {inputFields.type === "Movie" && ele.release_date || ele.first_air_date}
+                                            {ele.title} &nbsp; | &nbsp; {ele.originalTitle} &nbsp; | &nbsp; {ele.releaseDate}
                                         </option>
                                     })
                                 }
                             </select>
-                            <label htmlFor="floatingSelect">TMDB ID Select</label>
+                            <label htmlFor="tmdbId">TMDB ID Select</label>
                         </div>
                     </div>
                 }

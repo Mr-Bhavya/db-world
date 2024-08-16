@@ -21,6 +21,7 @@ import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lombok.extern.log4j.Log4j2;
@@ -159,16 +160,21 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         dbCinemaRecordsRepository.deleteById(recordId);
 
         //delete from users userAppdata
-        dbCinemaRecordsEntity.getLikedBy().stream().forEach(userId -> {
-            UserDto.UserAppData userAppData = userService.getUserAppDataByUserId(userId);
-            userAppData.getCinemaRecord().setLike((ArrayList<String>) userAppData.getCinemaRecord().getLike().stream().filter(tempRecordId -> !tempRecordId.equalsIgnoreCase(recordId)).toList());
-            userService.updateUserAppDataByUserId(userId, userAppData);
-        });
-        dbCinemaRecordsEntity.getWatchListBy().stream().forEach(userId -> {
-            UserDto.UserAppData userAppData = userService.getUserAppDataByUserId(userId);
-            userAppData.getCinemaRecord().setWatchList((ArrayList<String>) userAppData.getCinemaRecord().getWatchList().stream().filter(tempRecordId -> !tempRecordId.equalsIgnoreCase(recordId)).toList());
-            userService.updateUserAppDataByUserId(userId, userAppData);
-        });
+        if (dbCinemaRecordsEntity.getLikedBy() != null) {
+            dbCinemaRecordsEntity.getLikedBy().stream().forEach(userId -> {
+                UserDto.UserAppData userAppData = userService.getUserAppDataByUserId(userId);
+                userAppData.getCinemaRecord().setLike(userAppData.getCinemaRecord().getLike().stream().filter(tempRecordId -> !tempRecordId.equalsIgnoreCase(recordId)).collect(Collectors.toCollection(ArrayList::new)));
+                userService.updateUserAppDataByUserId(userId, userAppData);
+            });
+        }
+
+        if (dbCinemaRecordsEntity.getWatchListBy() != null) {
+            dbCinemaRecordsEntity.getWatchListBy().stream().forEach(userId -> {
+                UserDto.UserAppData userAppData = userService.getUserAppDataByUserId(userId);
+                userAppData.getCinemaRecord().setWatchList(userAppData.getCinemaRecord().getWatchList().stream().filter(tempRecordId -> !tempRecordId.equalsIgnoreCase(recordId)).collect(Collectors.toCollection(ArrayList::new)));
+                userService.updateUserAppDataByUserId(userId, userAppData);
+            });
+        }
     }
 
     @Override
@@ -359,6 +365,34 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         }).toList();
 
         return dbCinemaRecordsDtos;
+    }
+
+    @Override
+    public List getTmdbByQuery(String recordType, String query, int year) {
+        ResponseEntity<String> response = null;
+        List tmdbSearchList = new ArrayList<>();
+        try {
+            response = restTemplate.getForEntity(dbWorldUtils.getTMDBByQueryUrl(recordType, query, year), String.class);
+            String tmdbRecords = response.getBody();
+            JsonObject tmdbRecordsJson = new Gson().fromJson(tmdbRecords, JsonObject.class);
+            if (tmdbRecordsJson.getAsJsonPrimitive("total_results").getAsInt() != 0) {
+                JsonArray tmdbArray = tmdbRecordsJson.getAsJsonArray("results");
+                tmdbArray.forEach(jsonElement -> {
+                    JsonObject jsonObject = jsonElement.getAsJsonObject();
+                    HashMap<String, Object> hashMap = new HashMap<>();
+                    hashMap.put("id", jsonObject.get("id"));
+                    hashMap.put("title", jsonObject.get(recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? "title" : "name"));
+                    hashMap.put("originalTitle", jsonObject.get(recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? "original_title" : "original_name"));
+                    hashMap.put("releaseDate", jsonObject.get(recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? "release_date" : "first_air_date"));
+                    hashMap.put("overview", jsonObject.get("overview"));
+                    tmdbSearchList.add(hashMap);
+                });
+            }
+        } catch (HttpClientErrorException | HttpServerErrorException ex) {
+            ResponsePayloads.TmdbFilerResponse tmdbFilerResponse = new Gson().fromJson(ex.getResponseBodyAsString(), ResponsePayloads.TmdbFilerResponse.class);
+            throw new TmdbApiException(null, tmdbFilerResponse.getStatus_message(), ex.getStatusCode());
+        }
+        return tmdbSearchList;
     }
 
     @Override
@@ -585,7 +619,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             recordProviderResponse = restTemplate.getForEntity(dbWorldUtils.getTMDBRecordProviderUrl(record), String.class);
         } catch (HttpClientErrorException | HttpServerErrorException ex) {
             ResponsePayloads.TmdbFilerResponse tmdbFilerResponse = new Gson().fromJson(ex.getResponseBodyAsString(), ResponsePayloads.TmdbFilerResponse.class);
-            System.out.println("Error while getting tmdb provider details. Error: " + tmdbFilerResponse.getStatus_message());
+            log.error("Error while getting tmdb provider details. Error: {}", tmdbFilerResponse.getStatus_message());
         }
 
         return modifyTmdbJson(recordDetailsResponse.getBody(), recordProviderResponse == null ? null : recordProviderResponse.getBody(), record.getType());

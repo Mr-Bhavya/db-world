@@ -5,7 +5,7 @@ import Authentication from '../Authentication';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import { v1 as uuidv1 } from 'uuid';
-import { deleteCredentialByCredentialId, getCredential, updateCredential } from '../ApiServices';
+import { deleteCredentialByCredentialId, deleteHostById, getCredential, updateCredential } from '../ApiServices';
 
 function ViewPassword() {
 
@@ -52,6 +52,7 @@ function ViewPassword() {
         e.preventDefault();
         setUpdateLoader(true);
         let { credentialId, hostId, host, username, password, pin, description } = formCredential;
+        pin = pin == "" ? null : pin;
         console.log(formCredential);
         let updateCredentialRes = await updateCredential(userData.userId, credentialId, { url: host, username, password, pin, description })
         if (updateCredentialRes.httpStatusCode === 200) {
@@ -132,19 +133,16 @@ function ViewPassword() {
     const onDeleteHost = async (hostId) => {
         setDeleteHostLoader(true);
         try {
-            let response = await fetch(`${Constants.DELETE_HOST_API}?userId=${userData._id}&hostId=${hostId}`, {
-                method: "DELETE"
-            })
-            let data = await response.json();
-            if (response.status === 200) {
-                toast.success(data.result);
-                getUserCredentials(userData._id);
+            let deleteHostRes = await deleteHostById(userData.userId, hostId);
+            if (deleteHostRes.httpStatusCode === 200) {
+                toast.success(deleteHostRes.message);
+                getUserCredentials(userData.userId);
             }
-            else if (response.status === 401) {
-                navigate(Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
+            else if (deleteHostRes.status === 401) {
+                navigate(await Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
             }
             else {
-                toast.error(data.errorMessages);
+                toast.error(deleteHostRes.message);
             }
         }
         catch (err) {
@@ -375,7 +373,7 @@ function ViewPassword() {
                                                                                 <div className="card card-body">
                                                                                     <p><b>username:</b> {username}</p>
                                                                                     <p><b>password:</b> {password}</p>
-                                                                                    {pin !== null && pin !== "" ? <p><b>pin:</b> {pin}</p> : ""}
+                                                                                    {pin !== null && pin !== "" && pin !== 0 ? <p><b>pin:</b> {pin}</p> : ""}
                                                                                     {description !== null && description !== "" ? <p><b>description:</b> {description}</p> : ""}
                                                                                 </div>
                                                                                 <div className="card-footer">
@@ -421,6 +419,7 @@ function ViewPassword() {
                         </div>
                     }
 
+                    {Constants.TOAST_CONTAINER}
                     {/* <CommonServices.JSONToHTMLTable data={credentials} /> */}
                 </div>
 

@@ -12,8 +12,8 @@ spring:
       host: localhost
       port: 27017
       database: db_world
-#      username: admin
-#      password: dbworld_admin
+#      username: dbworld_admin
+#      password: BD@pi
       auto-index-creation: true
   jpa:
     show-sql: true
@@ -51,6 +51,19 @@ tmdbApiKey: 30061af77dba3722bbe14a2691055544
 tmdb:
   api:
     key: 30061af77dba3722bbe14a2691055544
+
+dbworld:
+  paths:
+    tempDownloadPath: download/
+    logFilePath: logs/dbworld.log
+    streamHomePath: D:/Bhavya/Videos
+    externalStreamHomePath: F:/Bhavya/Videos
+    torrentDownloadPath: "D:/Bhavya/Videos/Torrent Download"
+    ytdlpPath: C:/YTDLP/yt-dlp.exe
+    hsCookiesPath: D:\\Bhavya\\StartUp_Scripts\\Deployed\\cookies\\HS_COOKIES.txt
+
+#logging:
+#  config: C:\Users\Bhavya\Documents\Workspace\db-world\db-world-backend\src\main\resources\log4j2-local.xml
 
 
 #https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos

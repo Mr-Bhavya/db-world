@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { Link, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import LoadingSpinner from './LoadingSpinner';
 import Authentication from './Authentication';
 import Constants from './Constants';
 import db_world_icon from '../images/db_world_teal.svg';
 import { getUserRole } from './ApiServices';
+import { addUser } from '../redux/action/allActions';
+import CommonServices from './CommonServices';
 
 
 function Header() {
-    const [userData, setUserData] = useState({});
-    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const dispatch = useDispatch();
     const location = useLocation();
     const [loader, setLoader] = useState(false);
     const [login, setLogin] = useState(false);
@@ -96,7 +98,8 @@ function Header() {
             SetUserRole(roleRes.data.role.name);
         } else if (roleRes.httpStatusCode === 401) {
             setLogin(false)
-            // navigate(Constants.LOGIN_ROUTE, { replace: true });
+            dispatch(addUser(null));
+            CommonServices.removeUserFromLocal();
         }
     }
 
@@ -113,7 +116,7 @@ function Header() {
 
     var user = "";
 
-    if (userReducer) {
+    if (login && userReducer) {
         user = <>
             <div className="collapse navbar-collapse" id="navbarSupportedContent">
                 <ul className="navbar-nav me-auto mb-2 mb-lg-0">
@@ -141,7 +144,7 @@ function Header() {
                 <ul className="nav navbar-nav navbar-right me-5">
                     <li className="nav-item dropdown me-5">
                         <Link className="nav-link dropdown-toggle" to={Constants.USER_PROFILE_ROUTE} id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            👱‍♂️ {userData.name}
+                            👱‍♂️ {userData?.name}
                         </Link>
                         <ul className="dropdown-menu" aria-labelledby="navbarDropdown">
                             <li><Link className="dropdown-item" to={Constants.USER_PROFILE_ROUTE}>My Profile</Link></li>

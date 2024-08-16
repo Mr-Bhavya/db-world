@@ -8,9 +8,13 @@ Server:
 spring:
   data:
     mongodb:
-      host: localhost
+#      uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/db_world?retryWrites=true&w=majority
+      host: dbworldpi
       port: 27017
+      authentication-database: admin
       database: db_world
+      username: dbworld_admin
+      password: BD@pi
       auto-index-creation: true
   jpa:
     show-sql: true
@@ -45,3 +49,17 @@ tmdbApiKey: 30061af77dba3722bbe14a2691055544
 tmdb:
   api:
     key: 30061af77dba3722bbe14a2691055544
+
+dbworld:
+  paths:
+    tempDownloadPath: /home/dbworld_admin/ext_hdisk/dbworld/download/
+    logFilePath: /home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld.log
+    log4j2LogPath: /home/dbworld_admin/ext_hdisk/dbworld/logs/
+    streamHomePath: /home/dbworld_admin/ext_hdisk/videos
+    externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
+    torrentDownloadPath: /home/dbworld_admin/ext_hdisk/videos/Torrent Download
+    ytdlpPath: /home/dbworld_admin/ext_hdisk/dbworld/yt-dlp
+    hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
+
+logging:
+  config: classpath:log4j2.xml

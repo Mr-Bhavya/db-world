@@ -29,7 +29,7 @@ export const findAllUsersService = async () => {
 }
 
 export const getAllUsers = async () => {
-    let response = await fetch("/api/user/",{
+    let response = await fetch("/api/user/", {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -38,7 +38,7 @@ export const getAllUsers = async () => {
 }
 
 export const getUserRole = async (userId) => {
-    let response = await fetch(`/api/user/${userId}/role`,{
+    let response = await fetch(`/api/user/${userId}/role`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -47,7 +47,7 @@ export const getUserRole = async (userId) => {
 }
 
 export const getAllUserRoles = async () => {
-    let response = await fetch("/api/role/",{
+    let response = await fetch("/api/role/", {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -56,7 +56,7 @@ export const getAllUserRoles = async () => {
 }
 
 export const getUserDetailByUserId = async (userId) => {
-    let response = await fetch(`/api/user/${userId}`,{
+    let response = await fetch(`/api/user/${userId}`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -90,6 +90,17 @@ export const updateUserRoleService = async (doer_id, userId, role) => {
     return await response.json();
 }
 
+export const searchTmdbByQuery = async (recordType, query, year) => {
+    let response = await fetch(`/api/cinema/tmdb/${recordType}/search?q=${query}${!year || typeof(year)=="undefined" || year == "" ? "" : "&year="+year}`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
 
 export const AddDbCinemaRecord = async (name, type, tmdbId) => {
     let response = await fetch("/api/cinema/record", {
@@ -130,27 +141,27 @@ export const deleteDbCinemaRecord = async (recordId) => {
 export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList) => {
 
     var api = "";
-    if (industry === "all" ) {
+    if (industry === "all") {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.all}`
         api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.all}&languages=all`
     }
-    else if (industry === "bollywood" ) {
+    else if (industry === "bollywood") {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.bollywood}`
         api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.bollywood}&languages=hi`
     }
-    else if (industry === "hollywood" ) {
+    else if (industry === "hollywood") {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
         api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.hollywood}&languages=en`
-    }    
-    else if (industry === "korean" ) {
+    }
+    else if (industry === "korean") {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
         api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.korean}&languages=ko`
     }
-    else if (industry === "south" ) {
+    else if (industry === "south") {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.south}`
         api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.south}&languages=ta,te,ml,kn`
     }
-    else if (industry === "gujarati" ) {
+    else if (industry === "gujarati") {
         // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.gujarati}`
         api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
     }
@@ -167,7 +178,7 @@ export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList)
 }
 
 export const loadMyWatchlist = async (userId) => {
-    const response = await fetch('/api/cinema/watchlist?userId='+userId, {
+    const response = await fetch('/api/cinema/watchlist?userId=' + userId, {
         method: "GET",
         credentials: "include",
         headers: {
@@ -178,7 +189,7 @@ export const loadMyWatchlist = async (userId) => {
 }
 
 export const searchRecord = async (query) => {
-    let response = await fetch(`/api/cinema/record/search?q=${query}`,{
+    let response = await fetch(`/api/cinema/record/search?q=${query}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -188,7 +199,7 @@ export const searchRecord = async (query) => {
 }
 
 export const searchStreamFile = async (query) => {
-    let response = await fetch(`/api/stream/search?q=${query}`,{
+    let response = await fetch(`/api/stream/search?q=${query}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -316,6 +327,16 @@ export const getCredential = async (userId) => {
 
 export const deleteCredentialByCredentialId = async (userId, pmId, credentialId) => {
     let response = await fetch(`/api/user/${userId}/credential/${credentialId}?pmId=${pmId}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
+export const deleteHostById = async (userId, pmId) => {
+    let response = await fetch(`/api/user/${userId}/pm/${pmId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -459,7 +480,7 @@ export const renameStreamFile = async (fileId, body) => {
 
 export const deleteStreamFile = async (fileId) => {
     let response = await fetch(`/api/stream/file/${fileId}`, {
-        method: "GET",
+        method: "DELETE",
         headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',

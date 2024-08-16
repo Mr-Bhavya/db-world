@@ -137,7 +137,7 @@ public class UserController {
             @Valid @RequestBody RequestPayloads.AddCredential addCredential
     ) {
         try {
-            String host = new URL(addCredential.getUrl()).getHost();
+            String host = new URL(addCredential.getUrl().toLowerCase()).getHost(); //lower case is required otherwise it differ the IV and give problem to decode.
             Credential credential = this.modelMapper.map(addCredential, Credential.class);
             credential.setId(new Date().getTime());
             userService.addCredential(userId, host, credential);
@@ -182,6 +182,16 @@ public class UserController {
     ) {
         userService.deleteCredential(userId, pmId, credentialId);
         return new ApiResponse(HttpStatus.OK, true, "Credential is deleted.");
+    }
+
+    @DeleteMapping("/{userId}/pm/{pmId}") // Delete Host by ID
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    public ApiResponse deletePasswordManagerById(
+            @Valid @NotNull @PathVariable String userId,
+            @Valid @NotNull @PathVariable String pmId
+    ) {
+//        userService.deleteCredential(userId, pmId, credentialId);
+        return new ApiResponse(HttpStatus.OK, true, "Feature is in development. It will live shortly.");
     }
 
 }

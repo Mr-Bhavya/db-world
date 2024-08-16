@@ -81,7 +81,7 @@ function Search(props) {
                                         isSearchRecordResDone && isSearchStreamResDone ?
                                             <div>
                                                 {streamList.map(
-                                                    file => <File file={file} />
+                                                    file => <File file={file} userRole={userRole} />
                                                 )}
                                                 {
                                                     searchMovieList.length == 0 && streamList.length == 0 &&

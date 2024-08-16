@@ -17,7 +17,7 @@
     <properties>
         <java.version>17</java.version>
         <bt.version>1.10</bt.version>
-        <jakarta-servlet.version>5.0.0</jakarta-servlet.version>
+        <jakarta-servlet.version>6.0.0</jakarta-servlet.version>
     </properties>
 
     <dependencies>
@@ -93,6 +93,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jetty</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.tomcat.embed</groupId>
+                    <artifactId>tomcat-embed-el</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
@@ -179,9 +185,8 @@
 
         <!-- Web flux anf reactor core for Downloading  -->
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-webflux</artifactId>
-            <version>6.1.5</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
         <dependency>
             <groupId>io.projectreactor</groupId>
@@ -192,11 +197,6 @@
         <dependency>
             <groupId>net.sf.sevenzipjbinding</groupId>
             <artifactId>sevenzipjbinding</artifactId>
-            <version>16.02-2.01</version>
-        </dependency>
-        <dependency>
-            <groupId>net.sf.sevenzipjbinding</groupId>
-            <artifactId>sevenzipjbinding-all-platforms</artifactId>
             <version>16.02-2.01</version>
         </dependency>
 
@@ -237,10 +237,10 @@
                 <enabled>false</enabled>
             </releases>
         </repository>
-        <!--        <repository>-->
-        <!--            <id>jitpack.io</id>-->
-        <!--            <url>https://jitpack.io</url>-->
-        <!--        </repository>-->
+        <repository>
+            <id>gitlab-maven</id>
+            <url>https://gitlab.com/api/v4/projects/59936705/packages/maven</url>
+        </repository>
     </repositories>
 
     <pluginRepositories>
@@ -282,16 +282,6 @@
                     <outputDirectory>${basedir}/../</outputDirectory>
                 </configuration>
             </plugin>
-            <!--<plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-war-plugin</artifactId>
-                <configuration>
-                    <packagingExcludes>
-                        WEB-INF/lib/lombok.jar
-                    </packagingExcludes>
-                    <outputDirectory>${basedir}/../</outputDirectory>
-                </configuration>
-            </plugin>-->
         </plugins>
     </build>
 
@@ -309,6 +299,12 @@
             <id>prod</id>
             <properties>
                 <env>prod</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>prod_laptop</id>
+            <properties>
+                <env>prod_laptop</env>
             </properties>
         </profile>
     </profiles>

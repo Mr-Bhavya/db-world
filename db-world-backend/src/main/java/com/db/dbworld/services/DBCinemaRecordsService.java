@@ -26,6 +26,8 @@ public interface DBCinemaRecordsService {
 
     List<DBCinemaRecordsDto> searchRecordByKeyword(String keyword);
 
+    List getTmdbByQuery(String recordType, String query, int year);
+
     MovieTmdbDataDto getTMDBDetailsForMovieById(RequestPayloads.AddRecord record);
 
     SeriesTmdbDataDto getTMDBDetailsForSeriesById(RequestPayloads.AddRecord record);

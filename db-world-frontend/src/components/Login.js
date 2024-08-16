@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router';
 import { useLocation } from 'react-router-dom';
-import { addUser, userLogin, userLogout } from '../redux/action/allActions';
+import { addUser } from '../redux/action/allActions';
 import loginImage from '../images/login.jpg';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Constants from './Constants';
 import { login } from './ApiServices';
+import CommonServices from './CommonServices';
 
 function Login() {
 
@@ -71,11 +72,7 @@ function Login() {
                     const loginRes = await login(email, password);
                     if (loginRes.httpStatusCode === 200) {
                         dispatch(addUser(loginRes.data.user));
-                        // Local Storage
-                        localStorage.setItem('login', true);
-                        localStorage.setItem('user', JSON.stringify(loginRes.data.user));
-                        localStorage.setItem('token', loginRes.data.token);
-
+                        CommonServices.setUserInLocal(JSON.stringify(loginRes.data.user), loginRes.data.token);
                         toast.success("Login Successfull.", {
                             onClose: () => {
                                 //redirect

@@ -82,13 +82,14 @@ public class StreamServiceImpl implements StreamService {
             httpStatusCode = HttpStatus.PARTIAL_CONTENT;
         }
         return CompletableFuture.completedFuture(ResponseEntity.status(httpStatusCode)
-                .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
-                .header(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES)
-                .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize - rangeStart))
-                .header(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path))
-                .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
-                .body(readResource(path, rangeStart)));
+//                    .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
+                    .header(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES)
+                    .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+//                    .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize - rangeStart))
+                    .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize))
+                    .header(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path))
+                    .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
+                    .body(readResource(path, rangeStart)));
     }
 
     @Override
@@ -99,7 +100,7 @@ public class StreamServiceImpl implements StreamService {
         try {
             if (path == null || path.equals("")) {
                 list.addAll(Files.list(normalPath).toList());
-                if(Files.exists(externalDiskPath))
+                if (Files.exists(externalDiskPath))
                     list.addAll(Files.list(externalDiskPath).toList());
                 else
                     log.warn("External Disk Stream Path is ignored.");
@@ -108,7 +109,7 @@ public class StreamServiceImpl implements StreamService {
                     list.addAll(Files.list(normalPath).toList());
                 } else if (Files.exists(externalDiskPath)) {
                     list.addAll(Files.list(externalDiskPath).toList());
-                }else{
+                } else {
                     list.addAll(Files.list(Path.of(DbWorldConstants.STREAM_HOME_PATH)).toList());
                 }
             }

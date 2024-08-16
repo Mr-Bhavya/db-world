@@ -18,6 +18,8 @@ public interface StatusService {
 
     void updateMirrorStatusWithFileSize(String id, Long fileSize);
 
+    void updateStatusMessage(String id, String message);
+
     void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus downloadStatus);
 
     void updateMirrorStatusWithExtracting(String id);

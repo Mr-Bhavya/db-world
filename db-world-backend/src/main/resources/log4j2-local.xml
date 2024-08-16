@@ -9,7 +9,7 @@
             %d{dd/MM/yyyy HH:mm:ss.SSS a}{IST}{ISO8601} [%-5level] %C{2.}.%M(line:%L): %msg%n%throwable
         </Property>
         <property name="LOG_FILE_PATH">
-            /home/dbworld_admin/ext_hdisk/dbworld/logs/
+            logs/
         </property>
     </Properties>
 
@@ -48,7 +48,7 @@
 <!--            </Filters>-->
 <!--        </RollingFile>-->
 
-        <RollingFile name="File-INFO" fileName="${LOG_FILE_PATH}dbworld-info.log" filePattern="${LOG_FILE_PATH}%d{MM-dd-yyyy}/dbworld-info-%d{MM-dd-yyyy}.log.gz"
+        <RollingFile name="File-INFO" fileName="${LOG_FILE_PATH}dbworld-info.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-info-%d{MM-dd-yyyy}.log.gz"
                      ignoreExceptions="false">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <TimeBasedTriggeringPolicy/>
@@ -60,14 +60,14 @@
         </RollingFile>
 
 
-        <RollingFile name="File-ERROR" fileName="${LOG_FILE_PATH}dbworld-error.log" filePattern="${LOG_FILE_PATH}%d{MM-dd-yyyy}/dbworld-error-%d{MM-dd-yyyy}.log.gz"
+        <RollingFile name="File-ERROR" fileName="${LOG_FILE_PATH}dbworld-error.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-error-%d{MM-dd-yyyy}.log.gz"
                      ignoreExceptions="false">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <TimeBasedTriggeringPolicy/>
             <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
         </RollingFile>
 
-        <RollingFile name="File-WARN" fileName="${LOG_FILE_PATH}dbworld-warn.log" filePattern="${LOG_FILE_PATH}%d{MM-dd-yyyy}/dbworld-warn-%d{MM-dd-yyyy}.log.gz"
+        <RollingFile name="File-WARN" fileName="${LOG_FILE_PATH}dbworld-warn.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-warn-%d{MM-dd-yyyy}.log.gz"
                      ignoreExceptions="false">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <TimeBasedTriggeringPolicy/>
@@ -78,7 +78,7 @@
             </Filters>
         </RollingFile>
 
-        <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" filePattern="${LOG_FILE_PATH}%d{MM-dd-yyyy}/dbworld-%d{MM-dd-yyyy}.log.gz"
+        <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-%d{MM-dd-yyyy}.log.gz"
                      ignoreExceptions="true" target="SYSTEM_OUT">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <TimeBasedTriggeringPolicy/>

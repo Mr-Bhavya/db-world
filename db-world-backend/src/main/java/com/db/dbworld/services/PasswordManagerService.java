@@ -86,7 +86,7 @@ public class PasswordManagerService {
                                  InvalidAlgorithmParameterException | NoSuchAlgorithmException |
                                  InvalidKeyException | ClassNotFoundException | BadPaddingException | IOException |
                                  InvalidKeySpecException e) {
-                            throw new RuntimeException(e);
+                            throw new DbWorldException(e.getLocalizedMessage());
                         }
                         return credential;
                     }).toList();

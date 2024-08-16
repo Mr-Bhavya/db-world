@@ -144,7 +144,7 @@ function Status() {
                                                     <p><b>Status : </b>{stats?.currentStatus}</p>
 
                                                     {
-                                                        stats?.completed ||
+                                                        !stats?.completed && stats?.currentStatus.toLocaleLowerCase().includes("download") ?
                                                         <>
                                                             <p>
                                                                 <div className="row">
@@ -169,11 +169,10 @@ function Status() {
                                                             <p><b>Remaining Size : </b>{bytesToReadbleFormat(stats.downloadStatus?.fileRemaining)}</p>
                                                             {/* {stats.downloadStatus?.speed && <p><b>Current Speed : </b>{bytesToReadbleFormat(stats.downloadStatus?.speed)}/s</p>} */}
                                                             {/* {stats.downloadStatus?.eta && <p><b>ETA : </b>{stats.downloadStatus?.eta}</p>} */}
-                                                        </>
-
+                                                        </> : ""
                                                     }
-
-                                                    {stats.downloadStatus && stats.downloadStatus?.totalFileSize && <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadStatus?.totalFileSize)}</p>}
+                                                    {stats.message && stats.message != null ? <p><b>Message : </b>{stats?.message?.replace("\n\n", "<br>==>")?.replace("\n", "<br>=>")}</p> : ""}
+                                                    {stats.downloadStatus && stats.downloadStatus?.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadStatus?.totalFileSize)}</p> : ""}
                                                     {stats.fileUrl && <p><b>Source Link : </b><a href={stats.fileUrl}>link</a></p>}
                                                 </div>
 
@@ -263,14 +262,17 @@ function Status() {
                                             } */}
                                             </blockquote>
                                         </div>
-                                        <div className="card-footer">
-                                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                                <button class="btn btn-warning me-md-2" type="button"
-                                                    onClick={() => cancelleTask(stats.id)}
-                                                >Cancelle Task 🚮</button>
-                                                {/* <button class="btn btn-primary" type="button">Button</button> */}
+                                        {
+                                            stats?.cancelled || stats?.completed || <div className="card-footer">
+                                                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                                    <button class="btn btn-warning me-md-2" type="button"
+                                                        onClick={() => cancelleTask(stats.id)}
+                                                    >Cancelle Task 🚮</button>
+                                                    {/* <button class="btn btn-primary" type="button">Button</button> */}
+                                                </div>
                                             </div>
-                                        </div>
+                                        }
+
                                     </div>
                                 )
                             })

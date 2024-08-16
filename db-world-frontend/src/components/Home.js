@@ -39,6 +39,12 @@ const Home = () => {
         image: "https://img.icons8.com/external-others-inmotus-design/500/null/external-Tic-Tac-Toe-round-icons-others-inmotus-design-7.png",
         title: "DB Games",
         route: Constants.DB_GAMES_ROUTE,
+    },
+    {
+        id: "db-admin-tools",
+        image: "https://img.icons8.com/?size=600&id=110480&format=png&color=000000",
+        title: "DB Admin Tools",
+        route: Constants.DB_ADMIN_TOOLS_ROUTE,
     }
     ]);
 
@@ -66,7 +72,7 @@ const Home = () => {
             <h1 className="alert-heading text-center"><u>Welcome To DB World</u></h1>
             <hr />
 
-            <Row xs={2} md={4} className="g-3 m-1">
+            <Row xs={2} md={5} className="g-3 m-1">
                 {cardDetails.map((card, idx) => (
                     <Col
                         id={card.id}

@@ -40,6 +40,7 @@ public class MirrorStatus {
     private boolean cancelled = false;
     private boolean success = false;
     private boolean completed = false;
+    private String message;
 
     public MirrorStatus(String fileUrl, String fileName, Long fileSize, boolean extract) {
         this.id = String.valueOf(new Date().getTime());
@@ -50,7 +51,7 @@ public class MirrorStatus {
         this.fileName = fileName;
         this.fileSize = fileSize;
         this.filePath = DbWorldConstants.STREAM_HOME_PATH + "/" + fileName;
-        this.tempFilePath = "download/" + tempFileName;
+        this.tempFilePath = DbWorldConstants.TEMP_DOWNLOAD_PATH + tempFileName;
         this.extract = extract;
 //        this.statusFilePath = "status/" + timeStamp + ".json";
         try {
@@ -82,7 +83,7 @@ public class MirrorStatus {
         }
         this.fileSize = this.ytdlp.fileSize;
         this.filePath = DbWorldConstants.STREAM_HOME_PATH + "/" + fileName;
-        this.tempFilePath = "download/" + tempFileName;
+        this.tempFilePath = DbWorldConstants.TEMP_DOWNLOAD_PATH + tempFileName;
         this.extract = false;
     }
 
