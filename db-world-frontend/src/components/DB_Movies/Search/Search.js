@@ -6,6 +6,7 @@ import Constants from '../../Constants';
 import { searchRecord, searchStreamFile } from '../../ApiServices';
 import File from '../Stream/File';
 import CommonServices from '../../CommonServices';
+import { Col, Row } from 'react-bootstrap';
 
 function Search(props) {
 
@@ -29,7 +30,6 @@ function Search(props) {
 
     const searchMovie = async () => {
         try {
-            setLoading(true)
             setIsSearchRecordResDone(false)
             setIsSearchStreamResDone(false)
             searchRecord(CommonServices.modifySearchQuery(query)).then(async searchResponse => {
@@ -62,9 +62,16 @@ function Search(props) {
     }
 
     useEffect(() => {
-        if (query != '' && query != null && typeof (query) != 'undefined') {
-            searchMovie();
-        }
+        setLoading(true)
+        const delayDebounceFn = setTimeout(() => {
+            // Send Axios request here
+            if (query != '' && query != null && typeof (query) != 'undefined') {
+                searchMovie();
+            }
+        }, 1000)
+
+        return () => clearTimeout(delayDebounceFn)
+
     }, [query, reload])
 
     return (
@@ -72,7 +79,7 @@ function Search(props) {
 
             <div className='mt-2'>
                 <div>
-                    <div style={{ textAlign: "center", border: "2px solid", padding: "1%", background: "rgba(255 ,255 ,255, 0.9)" }}>
+                    <div style={{ sborder: "2px solid", padding: "1%", background: "rgba(255 ,255 ,255, 0.9)" }}>
                         {
                             query != '' && query != null && typeof (query) != 'undefined' ?
                                 <div>
@@ -98,21 +105,21 @@ function Search(props) {
                     </div>
                     {
                         isSearchRecordResDone && isSearchStreamResDone &&
-                        <div className="row row-cols-1 row-cols-md-4 g-4 my-2">
+                        <Row xs={12} md={"auto"} className="m-1">
                             {
-                                searchMovieList.map((movie, index) => {
-                                    return (
+                                searchMovieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
+                                    <Col xs="12" key={idx} className='p-0'>
                                         <SingleMovie
                                             movie={movie}
                                             userData={userData}
-                                            key={movie.id}
-                                            id={index}
+                                            id={movie.id}
                                             userRole={userRole}
                                         />
-                                    )
-                                })
+                                    </Col>
+                                ))
                             }
-                        </div>
+                        </Row>
+
                     }
                 </div>
             </div>

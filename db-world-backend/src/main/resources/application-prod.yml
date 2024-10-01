@@ -16,6 +16,13 @@ spring:
       username: dbworld_admin
       password: BD@pi
       auto-index-creation: true
+      config:
+        enabled: true
+        write:
+          writeConcern:
+            isMajority: true
+          timeout:
+            milliseconds: 100000
   jpa:
     show-sql: true
   devtools:
@@ -58,7 +65,8 @@ dbworld:
     streamHomePath: /home/dbworld_admin/ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
     torrentDownloadPath: /home/dbworld_admin/ext_hdisk/videos/Torrent Download
-    ytdlpPath: /home/dbworld_admin/ext_hdisk/dbworld/yt-dlp
+    #ytdlpPath: /home/dbworld_admin/ext_hdisk/dbworld/yt-dlp
+    ytdlpPath: /usr/bin/yt-dlp
     hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
 
 logging:

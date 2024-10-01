@@ -53,7 +53,6 @@ function ViewPassword() {
         setUpdateLoader(true);
         let { credentialId, hostId, host, username, password, pin, description } = formCredential;
         pin = pin == "" ? null : pin;
-        console.log(formCredential);
         let updateCredentialRes = await updateCredential(userData.userId, credentialId, { url: host, username, password, pin, description })
         if (updateCredentialRes.httpStatusCode === 200) {
             toast.success(updateCredentialRes.message);
@@ -363,7 +362,6 @@ function ViewPassword() {
                                                                     let editModelId = 'edit_' + uuidv1();
                                                                     let deleteModelId = 'delete_' + uuidv1();
                                                                     let credentialId = id;
-                                                                    console.log(description);
                                                                     return (
                                                                         <li className="list-group-item">
                                                                             <button className="btn btn-outline-dark btn-sm" type="button" data-bs-toggle="collapse" data-bs-target={`#${collapseId}`} aria-expanded="false" aria-controls={`${collapseId}`}>

@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import Constants from "../../Constants";
 import { loadDbCinemaRecords } from "../../ApiServices";
 import Pagination from "../SubComponents/Pagination";
+import { Col, Row } from "react-bootstrap";
 
 function Series(props) {
     const dispatch = useDispatch();
@@ -44,9 +45,9 @@ function Series(props) {
 
     const displayCol = () => {
         let displayCol = "4";
-        if(windowSize[0] > 1100 && windowSize[0] < 1500){
+        if (windowSize[0] > 1250 && windowSize[0] < 1550) {
             displayCol = "3";
-        }else if(windowSize[0] > 767 && windowSize[0] < 1200){
+        } else if (windowSize[0] > 767 && windowSize[0] < 1250) {
             displayCol = "2";
         }
         return displayCol;
@@ -75,7 +76,7 @@ function Series(props) {
 
     return (
         <>
-            <div className="mb-3 p-1" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px" }}>
+            <div className="mb-3 p-1 border rounded" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)"}}>
                 <ButtonToolbar aria-label="Toolbar with button groups" className="m-1" style={{ overflowX: "auto", flexWrap: "nowrap", textWrap: "nowrap" }}>
                     <ButtonGroup className="mx-2" aria-label="First group">
                         <Button
@@ -192,9 +193,23 @@ function Series(props) {
 
             {!loading &&
                 <>
-                    <div className="tab-content" id="myTabContent">
+                    <Row xs={12} md={displayCol()} className="m-1 p-0">
+                        {
+                            movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
+                                <Col xs="12" key={idx} className="p-0" >
+                                    <SingleMovie
+                                        movie={movie}
+                                        userData={userData}
+                                        id={movie.id}
+                                        userRole={userRole}
+                                    />
+                                </Col>
+                            ))
+                        }
+                    </Row>
+
+                    {/* <div className="tab-content" id="myTabContent">
                         <div className="tab-pane fade show active" id="all">
-                            {/* {content} */}
                             <div className={`row row-cols-1 row-cols-md-${displayCol()} g-4`}>
                                 {movieList.sort(
                                     (a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1)))
@@ -211,7 +226,7 @@ function Series(props) {
                                 }
                             </div>
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="mx-5" >
                         <Pagination filter={filter} page={{ totalPage, disPageNumber }} />

@@ -6,8 +6,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-import java.util.Locale;
-
 @EnableAsync
 @SpringBootApplication
 @OpenAPIDefinition(info = @Info(title = "DB-WORLD APIS", version = "1.0", description = ""))

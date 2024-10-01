@@ -3,6 +3,7 @@ package com.db.dbworld.exceptions;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.core.convert.ConverterNotFoundException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -113,6 +114,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageConversionException.class)
     public ResponseEntity<ApiResponse> httpMessageConversionExceptionHandler(HttpMessageConversionException ex ) {
         ApiResponse apiResponse = new ApiResponse(HttpStatus.BAD_REQUEST, false, ex.getMessage());
+        return new ResponseEntity<>(apiResponse, getJsonContentTypeHeader(), apiResponse.getHttpStatus());
+    }
+
+    @ExceptionHandler(DataAccessResourceFailureException.class)
+    public ResponseEntity<ApiResponse> dataAccessResourceFailureExceptionHandler(DuplicateResourceException ex){
+        ApiResponse apiResponse = new ApiResponse(HttpStatus.INTERNAL_SERVER_ERROR, false, ex.getMessage());
         return new ResponseEntity<>(apiResponse, getJsonContentTypeHeader(), apiResponse.getHttpStatus());
     }
 

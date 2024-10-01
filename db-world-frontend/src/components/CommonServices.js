@@ -34,8 +34,8 @@ const getPercentage = (actual, total) => {
 
 const bytesToReadbleFormat = (bytes) => {
 
-    if (typeof (bytes) === null || typeof (bytes) === "undefined") {
-        return null;
+    if (bytes == null || typeof (bytes) === "undefined") {
+        return {value: null, suffix: null};
     }
 
     if (typeof (bytes) === "string") {
@@ -58,7 +58,7 @@ const bytesToReadbleFormat = (bytes) => {
     else if (megabytes > 1024) {
         return { value: parseFloat(gigabytes).toFixed(2), suffix: "GB" }
     } else {
-        return null;
+        return {value: null, suffix: null};
     }
 }
 

@@ -29,6 +29,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/user")
 @EnableMethodSecurity(prePostEnabled = true)
+@CrossOrigin
 public class UserController {
 
     @Autowired

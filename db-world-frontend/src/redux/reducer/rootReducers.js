@@ -9,6 +9,7 @@ import moviePageNumberReducer from "./moviePageNumberReducer";
 import filterSelectionReducer from "./filerSelectionReducer";
 import seriesPageNumberReducer from "./seriesPageNumberReducer";
 import displayDbCinemaRecordsReducer from "./displayDbCinemaRecordsReducer";
+import downloadProgressReducer from "./downloadProgressReducer";
 
 const rootReducers = combineReducers ({
     loginReducer,
@@ -20,6 +21,7 @@ const rootReducers = combineReducers ({
     filterSelectionReducer,
     moviePageNumberReducer,
     seriesPageNumberReducer,
+    downloadProgressReducer,
     displayDbCinemaRecordsReducer,
 });
 

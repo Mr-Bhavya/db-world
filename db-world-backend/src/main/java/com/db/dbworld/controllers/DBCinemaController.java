@@ -25,6 +25,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/cinema")
 @EnableMethodSecurity(prePostEnabled = true)
+@CrossOrigin
 public class DBCinemaController {
 
     @Autowired

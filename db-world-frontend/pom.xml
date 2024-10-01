@@ -72,7 +72,7 @@
                         </goals>
                         <phase>compile</phase>
                         <configuration>
-                            <arguments>run build</arguments>
+                            <arguments>run build:production</arguments>
                         </configuration>
                     </execution>
                 </executions>

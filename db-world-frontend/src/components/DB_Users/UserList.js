@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import 'ag-grid-community/styles//ag-grid.css';
-import 'ag-grid-community/styles//ag-theme-alpine.css';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
 
 import BtnCellRenderer from './BtnCellRenderer.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,8 @@ import { toast } from 'react-toastify';
 import Constants from '../Constants.js';
 import AG_GRID_MODEL from './AG_GRID_MODEL.js';
 import { useDispatch, useSelector } from 'react-redux';
-import { findAllUsersService, getAllUsers } from '../ApiServices.js';
+import { deleteUser, findAllUsersService, getAllUsers } from '../ApiServices.js';
+import { findAllUsers } from '../../redux/action/allActions.js';
 
 const UserList = () => {
 
@@ -19,55 +20,31 @@ const UserList = () => {
   const [columnDefs, setColumnDefs] = useState([]);
   const [gridApi, setGridApi] = useState();
   const [gridColumnApi, setGridColumnApi] = useState();
-  const [_id, set_id] = useState("");
+  const [userId, setUserId] = useState("");
   const userData = useSelector(state => state.userReducer.users);
   var keys;
 
-  const deleteUser = async (_id) => {
-    let deleteUserRes = await fetch(`${Constants.DELETE_USER_API}?_id=${_id}`, {
-      method: "DELETE",
-      headers: {
-        "content-type": "application/json"
-      }
-    })
-    if (deleteUserRes && deleteUserRes.status && deleteUserRes.status == 200) {
-      toast.success("User deleted.")
-    } else {
-      const data = await deleteUserRes.json();
-      toast.error(data.errorMessages);
-    }
-  }
-
   const onBtnClicked = async (event, cellData) => {
     if (event === 'delete') {
-      console.log(cellData.data._id, "is deleted");
-      set_id(cellData.data._id);
-      await deleteUser(cellData.data._id);
-      let response = await getAllUsers();
-      dispatch(response.data);
-      await setAgGridData(response.data);
+      let deleteUserRes = await deleteUser(cellData.data.userId);
+      if (deleteUserRes.httpStatusCode === 200) {
+        toast.success("User Deleted");
+        dispatch(findAllUsers(userData.filter( user => user.userId != cellData.data.userId)));
+      } else if (deleteUserRes.httpStatusCode === 401) {
+        // 
+      } else {
+        toast.error(deleteUserRes?.message || deleteUserRes?.error);
+      }
     }
   }
 
-  const setAgGridData = async (data) => {
-    // keys = Object.keys(data[0]);
-    // keys.unshift("no");
+  const setAgGridData = (data) => {
     setRowData(data.map((row, index) => {
       return {
         ...row,
         ["no"]: index + 1
       }
     }))
-    // setColumnDefs(keys.map((key) => {
-    //   return {
-    //     field: key,
-    //     colId: key,
-    //     filter: true,
-    //     resizable: true,
-    //     width: key === "no" ? 70 : "",
-    //     pinned: key === "no" ? "left" : "",
-    //   }
-    // }))
 
     setColumnDefs(AG_GRID_MODEL.columnDefs.map(column => {
       if (column.field === "action") {
@@ -88,49 +65,36 @@ const UserList = () => {
         }
       }
     }))
-
-    // setColumnDefs(columnDefs => [...columnDefs, {
-    //   field: "Action",
-    //   headerName: "Action",
-    //   minWidth: 150,
-    //   cellRenderer: BtnCellRenderer,
-    //   cellRendererParams: {
-    //     clicked: onBtnClicked,
-    //   },
-    //   editable: false,
-    //   colId: "action"
-    // }])
   }
 
-  const onGridReady = async (params) => {
+  const onGridReady = (params) => {
     setGridApi(params.api);
     setGridColumnApi(params.columnApi);
     setAgGridData(userData);
-    // await loadList();
-    // params.api.sizeColumnsToFit()
     params.columnApi.autoSizeColumns(keys, false)
   };
 
+  useEffect(()=>{
+    setAgGridData(userData);
+  }, [userData])
+
 
   return (
-    <div className='my-3' style={{ width: '100%',  }}>
+    <div className='my-3' style={{ width: '100%', }}>
       <div
         id="myGrid"
         style={{
           height: '70vh',
-          // height: '70vh',
-          // width: '80%',
         }}
         className="ag-theme-alpine m-1"
       >
         <AgGridReact
           columnDefs={columnDefs}
-          // defaultColDef={this.state.defaultColDef}
-          // frameworkComponents={this.state.frameworkComponents}
           onGridReady={onGridReady}
           rowData={rowData}
         />
       </div>
+      {Constants.TOAST_CONTAINER}
     </div>
   );
 }
