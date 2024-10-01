@@ -7,8 +7,6 @@ import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { v1 as uuidv1 } from 'uuid';
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
-import { Http } from "@capacitor-community/http";
-import { Directory } from "@capacitor/filesystem";
 import DownloadFileAndroid from "./DownloadFileAndroid";
 import { Browser } from "@capacitor/browser";
 import { useDispatch, useSelector } from "react-redux";
