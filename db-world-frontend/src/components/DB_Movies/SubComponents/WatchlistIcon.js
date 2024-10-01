@@ -46,26 +46,26 @@ function WatchlistIcon(props) {
                     isAddedToWatchList ?
                         <button className='btn btn-sm' onClick={() => onUnWatchList()} >
                             <img src="https://img.icons8.com/material-rounded/96/checked--v1.png"
-                                style={{ width: "2rem" }}
+                                style={{ width: "1.5rem" }}
                                 title="Added to watchlist" alt="Added to watchlist"
                             />
                             <br />
-                            <span style={{ fontSize: "0.8rem" }}>
+                            <b style={{ fontSize: "0.6rem" }}>
                                 {/* Remove<br /> */}
                                 ➖ Watchlist
-                            </span>
+                            </b>
                         </button>
                         :
                         <button className='btn btn-sm' onClick={() => onWatchList()}>
                             <img src="https://img.icons8.com/ios/96/add--v1.png"
-                                style={{ width: "2rem" }}
+                                style={{ width: "1.5rem" }}
                                 title="Add to watchlist" alt="Add to watchlist"
                             />
                             <br />
-                            <span style={{ fontSize: "0.8rem" }}>
+                            <b style={{ fontSize: "0.6rem" }}>
                                 {/* Add to<br /> */}
                                 ➕ Watchlist
-                            </span>
+                            </b>
                         </button>
             }
         </>

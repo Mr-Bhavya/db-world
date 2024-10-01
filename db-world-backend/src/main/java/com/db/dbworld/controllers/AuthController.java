@@ -28,6 +28,7 @@ import java.util.List;
 @Log4j2
 @RestController
 @RequestMapping("/api/auth")
+@CrossOrigin
 public class AuthController {
 
     @Autowired

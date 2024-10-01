@@ -71,11 +71,21 @@ function MovieHome() {
         }
     }, [])
 
+    useEffect(()=>{
+        const delayDebounceFn = setTimeout(() => {
+            // Send Axios request here
+          }, 3000)
+      
+          return () => clearTimeout(delayDebounceFn)
+    }, [query])
+
 
     const onSearchChange = (e) => {
         e.preventDefault();
-        dispatch(searchQuery(searchFieldValue));
-        setIsSearchInputEnable(false);
+        dispatch(searchQuery(e.target.value))
+        setSearchFieldValue(e.target.value)
+        // dispatch(searchQuery(searchFieldValue));
+        // setIsSearchInputEnable(false);
     }
 
     let searchInput =
@@ -83,12 +93,12 @@ function MovieHome() {
             <div class="input-group">
                 <input className="form-control"
                     value={searchFieldValue}
-                    defaultValue={query}
+                    defaultValue={searchFieldValue}
                     type="search"
                     placeholder="search movies or series"
                     // aria-label=""
                     autoFocus
-                    onChange={(e) => setSearchFieldValue(e.target.value)}
+                    onChange={onSearchChange}
                     style={{ width: "3rem", height: "2rem", }}
                 />
                 <span class="btn btn-outline-secondary btn-sm" onClick={onSearchChange}>🔍</span>
@@ -113,15 +123,15 @@ function MovieHome() {
                                     }} > 🔝 </h1>
                                 </div>}
                         </div>
-                        <div style={{ margin: "1%" }}>
+                        <div >
 
-                            <div className="alert alert-dark" style={{ background: "rgba(255 ,255 ,255, 0.9)" }} role="alert">
+                            <div className="border rounded m-1 p-1" style={{ background: "rgba(255 ,255 ,255, 0.9)" }} role="alert">
 
                                 {
                                     isSerachInputEnable && searchInput
                                     ||
                                     <div style={{ display: "inline" }}>
-                                        <b className="alert-heading">Movies / TV Series</b>
+                                        <b className="">Movies / TV Series</b>
                                         <a
                                             className={"btn btn-outline-secondary btn-sm"}
                                             href="#search" data-toggle="tab"
@@ -143,7 +153,7 @@ function MovieHome() {
                                 }
                             </div>
 
-                            <ul className="nav nav-pills mb-3" role="tablist" style={{ background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px", overflow: "auto", flexWrap: "nowrap", textWrap:"nowrap" }} >
+                            <ul className="nav nav-pills border rounded m-1" role="tablist" style={{ background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px", overflowY: "auto", flexWrap: "nowrap", textWrap:"nowrap" }} >
                                 <li className="nav-item mx-2 my-1">
                                     <button
                                         className={navLinkActive === "movie" ? "btn btn-dark" : "btn btn-outline-secondary"}
@@ -214,63 +224,33 @@ function MovieHome() {
                                     </a>
                                 </li>
 
-                                {/* <li className="nav-item mx-2 my-1">
-                                    <a
-                                        className={navLinkActive === "index" ? "btn btn-dark" : "btn btn-outline-secondary"}
-                                        href="#index" data-toggle="tab"
-                                        onClick={() => {
-                                            setIsSearchInputEnable(false);
-                                            setnavLinkActive("index")
-                                            dispatch(filterSelection({
-                                                ...filter, catagory: "index"
-                                            }))
-                                        }
-                                        }
-                                    >
-                                        Index
-                                    </a>
-                                </li> */}
-
                             </ul>
 
-                            <div className="tab-content">
-                                {
-                                    navLinkActive === "movie"
-                                }
-                                <div className={navLinkActive === "movie" ? "tab-pane active" : "tab-pane"} id="movie">
+                            <div className="tab-content ">
+                                <div className={`${navLinkActive === "movie" ? "tab-pane active" : "tab-pane"} m-1`} id="movie">
                                     {
                                         navLinkActive === "movie" ? <Movie userData={userData} userRole={userRole} /> : ""
                                     }
                                 </div>
-                                <div className={navLinkActive === "series" ? "tab-pane active" : "tab-pane"} id="series">
+                                <div className={`${navLinkActive === "series" ? "tab-pane active" : "tab-pane"} m-1`} id="series">
                                     {
                                         navLinkActive === "series" ? <Series userData={userData} userRole={userRole} /> : ""
                                     }
                                 </div>
-                                <div className={navLinkActive === "watchlist" ? "tab-pane active" : "tab-pane"} id="watchlist">
+                                <div className={`${navLinkActive === "watchlist" ? "tab-pane active" : "tab-pane"} m-1`} id="watchlist">
                                     {
                                         navLinkActive === "watchlist" ? <MyWatchlist userData={userData} userRole={userRole} /> : ""
                                     }
                                 </div>
-                                <div className={navLinkActive === "search" ? "tab-pane active" : "tab-pane"} id="search">
+                                <div className={`${navLinkActive === "search" ? "tab-pane active" : "tab-pane"} m-1`} id="search">
                                     {navLinkActive === "search" && <Search userRole={userRole} />}
                                 </div>
-                                <div className={navLinkActive === "stream" ? "tab-pane active" : "tab-pane"} id="search">
+                                <div className={`${navLinkActive === "stream" ? "tab-pane active" : "tab-pane"} m-1`} id="search">
                                     {navLinkActive === "stream" && <Stream userRole={userRole} />}
                                 </div>
                             </div>
 
-                            <ToastContainer
-                                position="top-right"
-                                autoClose={5000}
-                                hideProgressBar={false}
-                                newestOnTop={true}
-                                closeOnClick
-                                rtl={false}
-                                pauseOnFocusLoss
-                                draggable
-                                pauseOnHover
-                            />
+                            {Constants.TOAST_CONTAINER}
                         </div >
                     </div>
             }

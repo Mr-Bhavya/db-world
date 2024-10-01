@@ -148,3 +148,16 @@ export const findAllUsers = (users) => {
         users
     }
 }
+
+export const updateDownloadStatus = (downloadFileStatus) => {
+    return {
+        type: "UPDATE_DOWNLOAD_PROGRESS",
+        downloadFileStatus
+    }
+}
+
+export const getDownloadStatus = () => {
+    return {
+        type: "GET_DOWNLOAD_PROGRESS"
+    }
+}

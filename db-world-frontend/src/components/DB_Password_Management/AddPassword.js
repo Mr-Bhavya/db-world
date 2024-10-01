@@ -18,7 +18,7 @@ function AddPassword() {
         username: '',
         password: '',
         pin: null,
-        discription: null
+        description: null
     });
 
     const onFieldChange = (e) => {
@@ -158,9 +158,9 @@ function AddPassword() {
                                 </div>
                             </div>
                             <div className="form-group row mb-2">
-                                <label htmlFor="discription" className="col-sm-2 col-form-label">Small Discription</label>
+                                <label htmlFor="description" className="col-sm-2 col-form-label">Small description</label>
                                 <div className="col-sm-5">
-                                    <input type="text" className="form-control" id="discription" placeholder="Any Discription if you want to add" value={inputField.discription} onChange={onFieldChange} />
+                                    <input type="text" className="form-control" id="description" placeholder="Any description if you want to add" value={inputField.description} onChange={onFieldChange} />
                                 </div>
                             </div>
                             <div className="form-group row">

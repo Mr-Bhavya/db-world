@@ -7,7 +7,7 @@ import Profile_Admin from "../DB_Admin_Tools/Profile_Admin";
 
 const BtnCellRenderer = (props) => {
 
-  let _id = props.data._id;
+
 
   const [show, setShow] = useState(false);
   const [deleteModelShow, setDeleteModelShow] = useState(false);
@@ -69,7 +69,7 @@ const BtnCellRenderer = (props) => {
         </Modal.Footer>
       </Modal>
 
-      <Modal show={deleteModelShow} onHide={() => handleClose("viewModelShow")}>
+      <Modal show={deleteModelShow} onHide={() => handleClose("deleteModelShow")}>
         <Modal.Header closeButton>
           <Modal.Title>Delete User Conformation</Modal.Title>
         </Modal.Header>

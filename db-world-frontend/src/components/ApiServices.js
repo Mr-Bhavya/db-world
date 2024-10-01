@@ -1,7 +1,8 @@
 import axios from 'axios'
+const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
 
 export const login = async (email, password) => {
-    let response = await fetch("/api/auth/login", {
+    let response = await fetch(REACT_APP_BASEURL + "/api/auth/login", {
         method: "POST",
         headers: {
             "content-type": "application/json",
@@ -12,11 +13,10 @@ export const login = async (email, password) => {
 }
 
 export const register = async (user) => {
-    const response = await fetch("/api/auth/register", {
+    const response = await fetch(REACT_APP_BASEURL + "/api/auth/register", {
         method: "POST",
         headers: {
-            "content-type": "application/json",
-            Authorization: 'Bearer ' + localStorage.getItem("token")
+            "content-type": "application/json"
         }, body: JSON.stringify(user)
     })
     return response.json();
@@ -24,12 +24,22 @@ export const register = async (user) => {
 
 export const findAllUsersService = async () => {
     // return await axios.get(Constants.FIND_ALL_USERS_API)
-    return await axios.get("/api/user");
+    return await axios.get(REACT_APP_BASEURL + "/api/user");
 
 }
 
+export const deleteUser = async (userId) => {
+    const response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}`,{
+        method: "DELETE",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
 export const getAllUsers = async () => {
-    let response = await fetch("/api/user/", {
+    let response = await fetch(REACT_APP_BASEURL + "/api/user/", {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -38,7 +48,7 @@ export const getAllUsers = async () => {
 }
 
 export const getUserRole = async (userId) => {
-    let response = await fetch(`/api/user/${userId}/role`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/role`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -47,7 +57,7 @@ export const getUserRole = async (userId) => {
 }
 
 export const getAllUserRoles = async () => {
-    let response = await fetch("/api/role/", {
+    let response = await fetch(REACT_APP_BASEURL + "/api/role/", {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -56,7 +66,7 @@ export const getAllUserRoles = async () => {
 }
 
 export const getUserDetailByUserId = async (userId) => {
-    let response = await fetch(`/api/user/${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -65,7 +75,7 @@ export const getUserDetailByUserId = async (userId) => {
 }
 
 export const updateUserDetails = async (user) => {
-    let response = await fetch(`/api/user/${user.userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${user.userId}`, {
         method: "PUT",
         headers: {
             'Content-Type': 'application/json',
@@ -78,7 +88,7 @@ export const updateUserDetails = async (user) => {
 }
 
 export const updateUserRoleService = async (doer_id, userId, role) => {
-    let response = await fetch(`/api/user/${userId}/role`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/role`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -91,7 +101,7 @@ export const updateUserRoleService = async (doer_id, userId, role) => {
 }
 
 export const searchTmdbByQuery = async (recordType, query, year) => {
-    let response = await fetch(`/api/cinema/tmdb/${recordType}/search?q=${query}${!year || typeof(year)=="undefined" || year == "" ? "" : "&year="+year}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/tmdb/${recordType}/search?q=${query}${!year || typeof(year)=="undefined" || year == "" ? "" : "&year="+year}`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -103,7 +113,7 @@ export const searchTmdbByQuery = async (recordType, query, year) => {
 }
 
 export const AddDbCinemaRecord = async (name, type, tmdbId) => {
-    let response = await fetch("/api/cinema/record", {
+    let response = await fetch(REACT_APP_BASEURL + "/api/cinema/record", {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -116,7 +126,7 @@ export const AddDbCinemaRecord = async (name, type, tmdbId) => {
 }
 
 export const UpdateDbCinemaRecord = async (recordId, body) => {
-    let response = await fetch(`/api/cinema/record/${recordId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}`, {
         method: "PUT",
         headers: {
             'Content-Type': 'application/json',
@@ -129,7 +139,7 @@ export const UpdateDbCinemaRecord = async (recordId, body) => {
 }
 
 export const deleteDbCinemaRecord = async (recordId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -142,28 +152,28 @@ export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList)
 
     var api = "";
     if (industry === "all") {
-        // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.all}`
-        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.all}&languages=all`
+        // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.all}`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.all}&languages=all`
     }
     else if (industry === "bollywood") {
-        // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.bollywood}`
-        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.bollywood}&languages=hi`
+        // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.bollywood}`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.bollywood}&languages=hi`
     }
     else if (industry === "hollywood") {
-        // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
-        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.hollywood}&languages=en`
+        // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.hollywood}&languages=en`
     }
     else if (industry === "korean") {
-        // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
-        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.korean}&languages=ko`
+        // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.korean}&languages=ko`
     }
     else if (industry === "south") {
-        // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.south}`
-        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.south}&languages=ta,te,ml,kn`
+        // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.south}`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.south}&languages=ta,te,ml,kn`
     }
     else if (industry === "gujarati") {
-        // api = `/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.gujarati}`
-        api = `/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
+        // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.gujarati}`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
     }
 
     const response = await fetch(api, {
@@ -178,7 +188,7 @@ export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList)
 }
 
 export const loadMyWatchlist = async (userId) => {
-    const response = await fetch('/api/cinema/watchlist?userId=' + userId, {
+    const response = await fetch(`${REACT_APP_BASEURL}/api/cinema/watchlist?userId=${userId}`, {
         method: "GET",
         credentials: "include",
         headers: {
@@ -189,7 +199,7 @@ export const loadMyWatchlist = async (userId) => {
 }
 
 export const searchRecord = async (query) => {
-    let response = await fetch(`/api/cinema/record/search?q=${query}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/search?q=${query}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -199,7 +209,7 @@ export const searchRecord = async (query) => {
 }
 
 export const searchStreamFile = async (query) => {
-    let response = await fetch(`/api/stream/search?q=${query}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/search?q=${query}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -210,7 +220,7 @@ export const searchStreamFile = async (query) => {
 
 
 export const likeRecord = async (recordId, userId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}/like?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/like?userId=${userId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -220,7 +230,7 @@ export const likeRecord = async (recordId, userId) => {
 }
 
 export const unLikeRecord = async (recordId, userId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}/unlike?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unlike?userId=${userId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -230,7 +240,7 @@ export const unLikeRecord = async (recordId, userId) => {
 }
 
 export const watchlistRecord = async (recordId, userId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}/watchlist?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/watchlist?userId=${userId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -240,7 +250,7 @@ export const watchlistRecord = async (recordId, userId) => {
 }
 
 export const removeWatchlistRecord = async (recordId, userId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}/unwatchlist?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatchlist?userId=${userId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -250,7 +260,7 @@ export const removeWatchlistRecord = async (recordId, userId) => {
 }
 
 export const watchedRecord = async (recordId, userId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}/watched?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/watched?userId=${userId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -260,7 +270,7 @@ export const watchedRecord = async (recordId, userId) => {
 }
 
 export const unWatchedRecord = async (recordId, userId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}/unwatched?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatched?userId=${userId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -270,7 +280,7 @@ export const unWatchedRecord = async (recordId, userId) => {
 }
 
 export const getRecordDetailsbyId = async (recordId) => {
-    let response = await fetch(`/api/cinema/record/${recordId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -280,7 +290,7 @@ export const getRecordDetailsbyId = async (recordId) => {
 }
 
 export const getStreamMediaList = async (path) => {
-    let response = await fetch(`/api/stream/list?path=${path}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/list?path=${path}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -290,7 +300,7 @@ export const getStreamMediaList = async (path) => {
 }
 
 export const addCredential = async (userId, credential) => {
-    let response = await fetch(`/api/user/${userId}/credential`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -303,7 +313,7 @@ export const addCredential = async (userId, credential) => {
 }
 
 export const updateCredential = async (userId, credentialId, credential) => {
-    let response = await fetch(`/api/user/${userId}/credential/${credentialId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential/${credentialId}`, {
         method: "PUT",
         headers: {
             'Content-Type': 'application/json',
@@ -316,7 +326,7 @@ export const updateCredential = async (userId, credentialId, credential) => {
 }
 
 export const getCredential = async (userId) => {
-    let response = await fetch(`/api/user/${userId}/credential`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -326,7 +336,7 @@ export const getCredential = async (userId) => {
 }
 
 export const deleteCredentialByCredentialId = async (userId, pmId, credentialId) => {
-    let response = await fetch(`/api/user/${userId}/credential/${credentialId}?pmId=${pmId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential/${credentialId}?pmId=${pmId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -336,7 +346,7 @@ export const deleteCredentialByCredentialId = async (userId, pmId, credentialId)
 }
 
 export const deleteHostById = async (userId, pmId) => {
-    let response = await fetch(`/api/user/${userId}/pm/${pmId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/pm/${pmId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -346,7 +356,7 @@ export const deleteHostById = async (userId, pmId) => {
 }
 
 export const applicationLogsApi = async () => {
-    let response = await fetch(`/api/utils/logs`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/logs`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -356,7 +366,7 @@ export const applicationLogsApi = async () => {
 }
 
 export const mirror = async (body) => {
-    let response = await fetch(`/api/utils/mirror`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/mirror`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -369,7 +379,7 @@ export const mirror = async (body) => {
 }
 
 export const cancelledMirror = async (statusId) => {
-    let response = await fetch(`/api/utils/mirror/${statusId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/mirror/${statusId}`, {
         method: "DELETE",
         headers: {
             'Content-Type': 'application/json',
@@ -381,7 +391,7 @@ export const cancelledMirror = async (statusId) => {
 }
 
 export const mirrorStatus = async () => {
-    let response = await fetch(`/api/utils/mirror/status`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/mirror/status`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -393,7 +403,7 @@ export const mirrorStatus = async () => {
 }
 
 export const deleteMirror = async (statusId) => {
-    let response = await fetch(`/api/utils/mirror/status/${statusId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/mirror/status/${statusId}`, {
         method: "DELETE",
         headers: {
             'Content-Type': 'application/json',
@@ -405,7 +415,7 @@ export const deleteMirror = async (statusId) => {
 }
 
 export const updateRecordsWithLatest = async () => {
-    let response = await fetch(`/api/cinema/records/update`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/records/update`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -417,7 +427,7 @@ export const updateRecordsWithLatest = async () => {
 }
 
 export const recordsUpdateStatus = async () => {
-    let response = await fetch(`/api/cinema/records/update/status`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/records/update/status`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -429,7 +439,7 @@ export const recordsUpdateStatus = async () => {
 }
 
 export const systemInfo = async () => {
-    let response = await fetch(`/api/utils/system-info`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/system-info`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -441,7 +451,7 @@ export const systemInfo = async () => {
 }
 
 export const ytInfo = async (url) => {
-    let response = await fetch(`/api/utils/yt/info?url=${url}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/yt/info?url=${url}`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -453,7 +463,7 @@ export const ytInfo = async (url) => {
 }
 
 export const ytDownload = async (body) => {
-    let response = await fetch(`/api/utils/yt/download`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/yt/download`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -466,7 +476,7 @@ export const ytDownload = async (body) => {
 }
 
 export const renameStreamFile = async (fileId, body) => {
-    let response = await fetch(`/api/stream/file/${fileId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/file/${fileId}`, {
         method: "PUT",
         headers: {
             'Content-Type': 'application/json',
@@ -479,7 +489,7 @@ export const renameStreamFile = async (fileId, body) => {
 }
 
 export const deleteStreamFile = async (fileId) => {
-    let response = await fetch(`/api/stream/file/${fileId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/file/${fileId}`, {
         method: "DELETE",
         headers: {
             'Content-Type': 'application/json',
@@ -491,7 +501,7 @@ export const deleteStreamFile = async (fileId) => {
 }
 
 export const deleteTempFile = async () => {
-    let response = await fetch(`/api/utils/tempFiles`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/utils/tempFiles`, {
         method: "DELETE",
         headers: {
             'Content-Type': 'application/json',

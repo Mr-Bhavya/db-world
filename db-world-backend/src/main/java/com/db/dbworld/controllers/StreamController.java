@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/stream")
 @EnableMethodSecurity(prePostEnabled = true)
+@CrossOrigin
 public class StreamController {
 
     @Autowired

@@ -48,20 +48,24 @@ function LikeIcon(props) {
                     isLiked ?
                         <button className='btn btn-sm' onClick={() => onUnLike()} >
                             <img src="https://img.icons8.com/fluency-systems-filled/96/facebook-like.png"
-                                style={{ width: "2rem" }}
+                                style={{ width: "1.5rem" }}
                                 alt="movie liked" title="Liked movies"
                             />
                             <br />
-                            Like
+                            <b style={{ fontSize: "0.6rem" }}>
+                                Unlike
+                            </b>
                         </button>
 
                         :
                         <button className='btn btn-sm' onClick={() => onLike()} >
-                            <img src={likeIcon} style={{ width: "2rem" }}
+                            <img src={likeIcon} style={{ width: "1.5rem" }}
                                 title="Like movies" alt="Like movies"
                             />
                             <br />
-                            Like
+                            <b style={{ fontSize: "0.6rem" }}>
+                                Like
+                            </b>
                         </button>
             }
         </>

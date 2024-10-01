@@ -6,13 +6,14 @@ import { cancelledMirror, deleteMirror } from '../ApiServices';
 
 function Status() {
 
+    const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
     const [status, setStatus] = useState([])
     const navigate = useNavigate();
     const ws = useRef(null);
     var tempStatus;
 
     useEffect(() => {
-        ws.current = new WebSocket("/api/utils/status")
+        ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/status`)
         ws.current.onopen = () => {
             console.log("websocket Connection open for status")
             ws.current.send("");

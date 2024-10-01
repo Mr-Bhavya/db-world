@@ -161,6 +161,7 @@ function Registration() {
       if (!firstNameError && !lastNameError && !genderError && !dobError && !mobileNoError && !emailError && !passwordError && !agreeCheckBoxError) {
 
         let registerRes = await register({ firstName, lastName, gender, dob, mobileNo, email, password })
+        console.log(registerRes);
         if (registerRes.httpStatusCode === 201 || registerRes.httpStatusCode === 200) {
           toast.success("Registration Successfull. You will be navigate to login page.", {
             onClose: async () => navigate(await Constants.REDIRECT()),
@@ -171,14 +172,8 @@ function Registration() {
             onClose: async () => navigate(await Constants.REDIRECT(Constants.REGISTER_REDIRECT)),
             autoClose: 1000
           });
-        // } else if (registerRes.httpStatusCode === 422) {
-        //   toast.error("User already exists with this email.");
-        // } else if (registerRes.httpStatusCode === 400) {
-        //   toast.warning("Please fill all the fields.");
-        // } else if (registerRes.httpStatusCode === 500) {
-        //   toast.error("Failed Registration. Problem from server side.")
         } else {
-          toast.error(registerRes.message)
+          toast.error(registerRes?.message || registerRes?.error)
         }
       }
       else {
@@ -310,18 +305,7 @@ function Registration() {
         </div>
       </div>
     </form>
-    <ToastContainer
-      position="top-center"
-      autoClose={5000}
-      hideProgressBar={false}
-      newestOnTop={true}
-      closeOnClick
-      rtl={false}
-      pauseOnFocusLoss
-      draggable
-      pauseOnHover
-      isLoading={true}
-    />
+    {Constants.TOAST_CONTAINER}
   </div>
   )
 }

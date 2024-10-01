@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Col, Form, Row, Table } from 'react-bootstrap';
+import { Button, Card, CardGroup, Col, Form, Row, Table } from 'react-bootstrap';
 import { useDispatch, useSelector } from 'react-redux';
 import CommonServices from '../CommonServices';
 import Constants from '../Constants';
 import { ToastContainer, toast } from 'react-toastify';
-import { updateUserDetails } from '../ApiServices';
+import { deleteUser, updateUserDetails } from '../ApiServices';
 import { findAllUsers } from '../../redux/action/allActions';
 
 const UsersData = () => {
@@ -40,11 +40,10 @@ const UsersData = () => {
 
     const onUpdateUserDetails = async (updatedUser) => {
         updatedUser = { ...updatedUser, ...editUserBody }
-        let {userId, email, firstName, lastName, mobileNo, dob, gender, password} = updatedUser;
-        let updateUserRes = await updateUserDetails({userId, email, firstName, lastName, mobileNo, dob, gender, password});
+        let { userId, email, firstName, lastName, mobileNo, dob, gender, password } = updatedUser;
+        let updateUserRes = await updateUserDetails({ userId, email, firstName, lastName, mobileNo, dob, gender, password });
         if (updateUserRes.httpStatusCode === 200) {
             toast.success("User updated.")
-
             dispatch(findAllUsers(users.map(user => {
                 if (user.userId === updatedUser.userId) {
                     user = updatedUser
@@ -66,99 +65,95 @@ const UsersData = () => {
         )
     }, [users, searchQuery])
 
-    const editUserModel = (editModelId) => {
+    const editUserModel = (user, editModelId) => {
+        return (
+            <div className="modal fade" id={editModelId} tabIndex="-1" role="dialog" aria-labelledby={`${editModelId}Label`} aria-hidden="true">
+                <div className="modal-dialog modal-lg">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h5 className="modal-title" id={editModelId}>Update {user.firstName} Information</h5>
+                            <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" onClick={() => setEditUserBody({})}></button>
+                        </div>
+                        <div className="modal-body">
+                            <Form>
 
-        let user = users.filter(({ userId }) => userId === expandUser);
-        if (user && user.length && user.length === 1) {
-            user = user[0];
-            return (
-                <div className={`modal fade`} id={editModelId} tabindex="-1" aria-labelledby={editModelId} aria-hidden="true">
-                    <div className="modal-dialog modal-lg">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <h5 className="modal-title" id={editModelId}>Update {user.firstName} Information</h5>
-                                <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" onClick={() => setEditUserBody({})}></button>
-                            </div>
-                            <div className="modal-body">
-                                <Form>
+                                <Form.Group as={Row} className="mb-3" controlId="email">
+                                    <Form.Label column sm={2}>Email</Form.Label>
+                                    <Col sm={10}>
+                                        <Form.Control type="email" defaultValue={user.email} plaintext disabled readOnly />
+                                    </Col>
+                                </Form.Group>
 
-                                    <Form.Group as={Row} className="mb-3" controlId="email">
-                                        <Form.Label column sm={2}>Email</Form.Label>
-                                        <Col sm={10}>
-                                            <Form.Control type="email" defaultValue={user.email} plaintext disabled readOnly />
-                                        </Col>
-                                    </Form.Group>
+                                <Form.Group as={Row} className="mb-3" controlId="firstName">
+                                    <Form.Label column sm={2}>First Name</Form.Label>
+                                    <Col sm={10}>
+                                        <Form.Control type="text" placeholder={user.firstName}
+                                            value={editUserBody.firstName}
+                                            onChange={onChangeData} />
+                                    </Col>
+                                </Form.Group>
 
-                                    <Form.Group as={Row} className="mb-3" controlId="firstName">
-                                        <Form.Label column sm={2}>First Name</Form.Label>
-                                        <Col sm={10}>
-                                            <Form.Control type="text" placeholder={user.firstName}
-                                                value={editUserBody.firstName}
-                                                onChange={onChangeData} />
-                                        </Col>
-                                    </Form.Group>
+                                <Form.Group as={Row} className="mb-3" controlId="lastName">
+                                    <Form.Label column sm={2}>Last Name</Form.Label>
+                                    <Col sm={10}>
+                                        <Form.Control type="text" placeholder={user.lastName} value={editUserBody.lastName} onChange={onChangeData} />
+                                    </Col>
+                                </Form.Group>
 
-                                    <Form.Group as={Row} className="mb-3" controlId="lastName">
-                                        <Form.Label column sm={2}>Last Name</Form.Label>
-                                        <Col sm={10}>
-                                            <Form.Control type="text" placeholder={user.lastName} value={editUserBody.lastName} onChange={onChangeData} />
-                                        </Col>
-                                    </Form.Group>
+                                <Form.Group as={Row} className="mb-3" controlId="mobileNo">
+                                    <Form.Label column sm={2}>Contact Number</Form.Label>
+                                    <Col sm={10}>
+                                        <Form.Control type="text" placeholder={user.mobileNo} value={editUserBody.mobileNo} onChange={onChangeData} />
+                                    </Col>
+                                </Form.Group>
 
-                                    <Form.Group as={Row} className="mb-3" controlId="mobileNo">
-                                        <Form.Label column sm={2}>Contact Number</Form.Label>
-                                        <Col sm={10}>
-                                            <Form.Control type="text" placeholder={user.mobileNo} value={editUserBody.mobileNo} onChange={onChangeData} />
-                                        </Col>
-                                    </Form.Group>
+                                <Form.Group as={Row} className="mb-3" controlId="dob">
+                                    <Form.Label column sm={2}>DOB</Form.Label>
+                                    <Col sm={10}>
+                                        <Form.Control type="date" placeholder={user.dob} value={editUserBody.dob} onChange={onChangeData} />
+                                    </Col>
+                                </Form.Group>
 
-                                    <Form.Group as={Row} className="mb-3" controlId="dob">
-                                        <Form.Label column sm={2}>DOB</Form.Label>
-                                        <Col sm={10}>
-                                            <Form.Control type="date" placeholder={user.dob} value={editUserBody.dob} onChange={onChangeData} />
-                                        </Col>
-                                    </Form.Group>
+                                <Form.Group as={Row} className="mb-3" controlId="gender">
+                                    <Form.Label column sm={2}>Gender</Form.Label >
+                                    <Col sm={10}>
+                                        <Form.Check
+                                            type="radio"
+                                            label="Male"
+                                            name="gender"
+                                            id="male"
+                                            value="male"
+                                            defaultChecked={user.gender.toLowerCase() === "male"}
 
-                                    <Form.Group as={Row} className="mb-3" controlId="gender">
-                                        <Form.Label column sm={2}>Gender</Form.Label >
-                                        <Col sm={10}>
-                                            <Form.Check
-                                                type="radio"
-                                                label="Male"
-                                                name="gender"
-                                                id="male"
-                                                value="male"
-                                                defaultChecked = {user.gender.toLowerCase() === "male"}
+                                        />
+                                        <Form.Check
+                                            type="radio"
+                                            label="Female"
+                                            name="gender"
+                                            id="female"
+                                            value="female"
+                                            defaultChecked={user.gender.toLowerCase() === "female"}
+                                        />
+                                    </Col>
+                                </Form.Group>
 
-                                            />
-                                            <Form.Check
-                                                type="radio"
-                                                label="Female"
-                                                name="gender"
-                                                id="female"
-                                                value="female"
-                                                defaultChecked = {user.gender.toLowerCase() === "female"}
-                                            />
-                                        </Col>
-                                    </Form.Group>
+                                <Form.Group as={Row} className="mb-3" controlId="password">
+                                    <Form.Label column sm={2}>Site Password</Form.Label>
+                                    <Col sm={10}>
+                                        <Form.Control type="text" placeholder={user.password} value={editUserBody.password} onChange={onChangeData} />
+                                    </Col>
+                                </Form.Group>
 
-                                    <Form.Group as={Row} className="mb-3" controlId="password">
-                                        <Form.Label column sm={2}>Site Password</Form.Label>
-                                        <Col sm={10}>
-                                            <Form.Control type="text" placeholder={user.password} value={editUserBody.password} onChange={onChangeData} />
-                                        </Col>
-                                    </Form.Group>
-
-                                </Form>
-                            </div>
-                            <div className="modal-footer">
-                                <Button type="submit" className="btn btn-primary btn-sm "
-                                    onClick={() => onUpdateUserDetails(user)}
-                                >Update Details</Button>
-                                <button type="button" className="btn btn-secondary btn-sm " data-bs-dismiss="modal"
-                                    onClick={() => setEditUserBody({})}
-                                >Close</button>
-                                {/* {
+                            </Form>
+                        </div>
+                        <div className="modal-footer">
+                            <Button type="submit" className="btn btn-primary btn-sm "
+                                onClick={() => onUpdateUserDetails(user)}
+                            >Update Details</Button>
+                            <button type="button" className="btn btn-secondary btn-sm " data-bs-dismiss="modal"
+                                onClick={() => setEditUserBody({})}
+                            >Close</button>
+                            {/* {
                                     updateLoader &&
                                     <button className="btn btn-danger btn-sm" type="button" disabled>
                                         <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -167,29 +162,25 @@ const UsersData = () => {
                                     ||
                                     <button type="button" className="btn btn-danger btn-sm" onClick={onUpdateCredential}>Update</button>
                                 } */}
-                            </div>
                         </div>
                     </div>
-                    <ToastContainer
-                        containerId={`toast_`}
-                        position="top-right"
-                        autoClose={1000}
-                        hideProgressBar={false}
-                        newestOnTop={true}
-                        closeOnClick
-                        rtl={false}
-                        pauseOnFocusLoss
-                        draggable
-                        pauseOnHover
-                    />
                 </div>
-            )
-        }
-        else {
-            return "No User Found."
-        }
 
+            </div>
+        )
+    }
 
+    const deleteCurrentUser = async (user) => {
+        toast.warning("Puser pocessed for delete")
+        let deleteUserRes = await deleteUser(user.userId);
+        if (deleteUserRes.httpStatusCode === 200) {
+            toast.success("User Deleted");
+            dispatch(findAllUsers(userData.filter(userdata => userdata.userId != user.userId)));
+        } else if (deleteUserRes.httpStatusCode === 401) {
+            // 
+        } else {
+            toast.error(deleteUserRes?.message || deleteUserRes?.error);
+        }
     }
 
     return (
@@ -205,13 +196,13 @@ const UsersData = () => {
                         </nav>
 
 
-                        <Row xs={1} md={expandUser === null ? 3 : 3} className="g-4">
+                        <CardGroup>
                             {userData.map((user, idx) => {
                                 return (
                                     <Col key={idx}>
 
                                         <div className="accordion" id="user_info">
-                                            <Card>
+                                            <Card className='m-1'>
                                                 <Card.Header id={`heading${user.userId}`}>
                                                     <div className="position-relative">
                                                         <button className="position-absolute top-0 end-0 btn btn-link collapsed p-0"
@@ -235,26 +226,27 @@ const UsersData = () => {
                                                     </div>
                                                 </Card.Header>
                                                 {
-                                                    expandUser === user.userId ? "" : <Card.Body>
-                                                        <Card.Text>
-                                                            <Table responsive="sm">
-                                                                <tbody>
-                                                                    <tr>
-                                                                        <th>id:</th>
-                                                                        <td>{user.userId}</td>
-                                                                    </tr>
-                                                                    <tr>
-                                                                        <th>Email:</th>
-                                                                        <td>{user.email}</td>
-                                                                    </tr>
-                                                                    <tr>
-                                                                        <th>Contact No:</th>
-                                                                        <td>{user.mobileNo}</td>
-                                                                    </tr>
-                                                                </tbody>
-                                                            </Table>
-                                                        </Card.Text>
-                                                    </Card.Body>
+                                                    expandUser === user.userId ? "" :
+                                                        <Card.Body>
+                                                            <Card.Text>
+                                                                <Table responsive="sm">
+                                                                    <tbody>
+                                                                        <tr>
+                                                                            <th>id:</th>
+                                                                            <td>{user.userId}</td>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <th>Email:</th>
+                                                                            <td>{user.email}</td>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <th>Contact No:</th>
+                                                                            <td>{user.mobileNo}</td>
+                                                                        </tr>
+                                                                    </tbody>
+                                                                </Table>
+                                                            </Card.Text>
+                                                        </Card.Body>
                                                 }
 
 
@@ -341,13 +333,31 @@ const UsersData = () => {
                                                             </Card.Body>
                                                             <Card.Footer>
                                                                 <div className="btn-toolbar justify-content-end">
-                                                                    <button className="btn btn-warning btn-sm mx-2" type="button" data-bs-toggle="modal" data-bs-target={`#editModel${user.userId}`}
+                                                                    <button className="btn btn-warning btn-sm mx-2" type="button" data-bs-toggle="modal" data-bs-target={`#editModal_${user.userId}`}
                                                                         onClick={() => setEditUserBody(user)}
                                                                     >Edit</button>
-                                                                    <button className="btn btn-danger btn-sm mx-2" type="button" data-bs-toggle="modal" data-bs-target={`#deleteModel${user.userId}`}
+                                                                    <button className="btn btn-danger btn-sm mx-2" type="button" data-bs-toggle="modal" data-bs-target={`#deleteModel_${user.userId}`}
                                                                     >Delete</button>
 
-                                                                    {editUserModel(`editModel${user.userId}`)}
+                                                                    {editUserModel(user, `editModal_${user.userId}`)}
+
+                                                                    <div class="modal fade" id={`deleteModel_${user.userId}`} tabindex="-1" aria-labelledby={`deleteModel_${user.userId}Label`} aria-hidden="true">
+                                                                        <div class="modal-dialog">
+                                                                            <div class="modal-content">
+                                                                                <div class="modal-header">
+                                                                                    <h1 class="modal-title fs-5" id={`deleteModel_${user.userId}`}>Delete User Conformation</h1>
+                                                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                                </div>
+                                                                                <div class="modal-body">
+                                                                                    Do you want to delete <b>{user.email}</b> user from database ?
+                                                                                </div>
+                                                                                <div class="modal-footer">
+                                                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                                                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal" onClick={() => deleteCurrentUser(user)}>Yes, Delete !</button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
 
                                                                 </div>
                                                             </Card.Footer>
@@ -361,10 +371,11 @@ const UsersData = () => {
                             })
 
                             }
-                        </Row>
+                        </CardGroup>
                     </div>
             }
-
+            
+            {Constants.TOAST_CONTAINER}
 
         </div >
     )

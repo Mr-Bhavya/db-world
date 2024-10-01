@@ -6,6 +6,8 @@ import LoadingSpinner from "../LoadingSpinner";
 import { useNavigate } from "react-router-dom";
 import Constants from "../Constants";
 import { loadMyWatchlist } from "../ApiServices";
+import { toast } from "react-toastify";
+import { Col, Row } from "react-bootstrap";
 
 function MyWatchlist(props) {
     const [movieList, setMovieList] = useState([])
@@ -38,9 +40,9 @@ function MyWatchlist(props) {
 
     const displayCol = () => {
         let displayCol = "4";
-        if(windowSize[0] > 1100 && windowSize[0] < 1500){
+        if (windowSize[0] > 1250 && windowSize[0] < 1550) {
             displayCol = "3";
-        }else if(windowSize[0] > 767 && windowSize[0] < 1200){
+        } else if (windowSize[0] > 767 && windowSize[0] < 1250) {
             displayCol = "2";
         }
         return displayCol;
@@ -51,13 +53,16 @@ function MyWatchlist(props) {
         const response = await loadMyWatchlist(userData.userId);
         if (response && response.httpStatusCode === 200) {
             let watchlistRecord = response.data
-            setMovieList(watchlistRecord?.reverse())
-            // setDisPageNumber(parseInt(response.data.pageNumber) + 1);
-            // setTotalPage(parseInt(parseInt(response.data.totalElements) / parseInt(response.data.pageSize))+1);
+            if(watchlistRecord.size == 0){
+                toast.warning("You don't have any watchlisted record.")
+            }else{
+                setMovieList(watchlistRecord?.reverse())
+            }
             setLoading(false);
-        } else {
-            alert(response.message);
+        } else if(response.httpStatusCode === 401 ) {
             navigate(`${Constants.LOGIN_ROUTE}?redirectTo=${Constants.DB_MOVIES_ROUTE}`, { replace: true });
+        } else {
+            toast.error(response.message)
         }
 
 
@@ -73,31 +78,24 @@ function MyWatchlist(props) {
 
             {!loading &&
                 <>
-                    <div className="tab-content" id="myTabContent">
-                        <div className="tab-pane fade show active" id="all">
-                            {/* {content} */}
-                            <div className={`row row-cols-1 row-cols-md-${displayCol()} g-4`}>
-                                {movieList.map(movie => {
-                                    return (
-                                        <SingleMovie
-                                            movie={movie}
-                                            userData={userData}
-                                            id={movie.id}
-                                            userRole={userRole}
-                                        />
-                                    )
-                                })
-                                }
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* <div className="mx-5" >
-                        <Pagination filter={filter} page={{ totalPage, disPageNumber }} />
-                    </div> */}
+                    <Row xs={12} md={displayCol()} className="m-1">
+                        {
+                            movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
+                                <Col xs="12" key={idx} className="p-0">
+                                    <SingleMovie
+                                        movie={movie}
+                                        userData={userData}
+                                        id={movie.id}
+                                        userRole={userRole}
+                                    />
+                                </Col>
+                            ))
+                        }
+                    </Row>
                 </>
             }
             {loading && <LoadingSpinner />}
+            {Constants.TOAST_CONTAINER}
 
         </>
     )

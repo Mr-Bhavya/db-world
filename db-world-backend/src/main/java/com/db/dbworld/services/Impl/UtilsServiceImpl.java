@@ -414,9 +414,9 @@ public class UtilsServiceImpl implements UtilsService {
                         statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                     }
                 } catch (IOException | InterruptedException e) {
-                    log.error("exit code : {}, Error: {}", process.exitValue(), e.getMessage());
-                    statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.getMessage());
-                    throw new DbWorldException(e.getMessage());
+                    log.error("exit code : {}, Error: {}", process.exitValue(), e);
+                    statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.toString());
+                    throw new DbWorldException(e.toString());
                 } finally {
                     if (reader != null) {
                         try {

@@ -17,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/role")
 @EnableMethodSecurity(prePostEnabled = true)
+@CrossOrigin
 public class UserRoleController {
 
     @Autowired

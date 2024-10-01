@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 @Log4j2
 @RequestMapping(value = "/api/utils")
 @EnableMethodSecurity(prePostEnabled = true)
+@CrossOrigin
 public class UtilsController {
 
     @Autowired

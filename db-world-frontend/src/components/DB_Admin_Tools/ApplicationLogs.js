@@ -3,13 +3,14 @@ import Constants from '../Constants';
 
 const ApplicationLogs = () => {
 
+  const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
   const [logs, setLogs] = useState([]);
   const [loder, setLoder] = useState(true);
   const ws = useRef(null);
   var tempLogs;
 
   useEffect(() => {
-      ws.current = new WebSocket("/api/utils/logs")
+      ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/logs`)
       ws.current.onopen = () => {
           console.log("websocket Connection open for application logs")
           ws.current.send("");

@@ -9,6 +9,7 @@ import LikeIcon from "./SubComponents/LikeIcon";
 import WatchlistIcon from "./SubComponents/WatchlistIcon";
 import { deleteDbCinemaRecord } from "../ApiServices";
 import { toast } from "react-toastify";
+import { Card, Col, Container, Row } from "react-bootstrap";
 
 function SingleMovie(props) {
     const movie = props.movie;
@@ -49,9 +50,9 @@ function SingleMovie(props) {
         trailerModelTargetSrc = "#trailerMovieId" + movie.tmdbData.id;
         trailerModelTargetDes = "trailerMovieId" + movie.tmdbData.id;
 
-        var ratting = ""
+        var ratting = null
         if (movie.tmdbData.vote_average / 2 >= 0 && movie.tmdbData.vote_average / 2 < 0.5) {
-            ratting = "🚫"
+            ratting = <img style={{ width: "1.5rem" }} src="https://img.icons8.com/?size=100&id=tj8r6ld19VuU&format=png&color=000000"></img>
         }
         else if (movie.tmdbData.vote_average / 2 >= 0.5 && movie.tmdbData.vote_average / 2 <= 1.5) {
             ratting = "⭐"
@@ -145,103 +146,97 @@ function SingleMovie(props) {
 
     if (movie.tmdbData) {
         singleMovie =
-            <div className="col d-flex align-items-stretch my-3" >
+            <Card className="m-1"
+                style={{ background: "rgba(255 ,255 ,255, 0.6)", maxHeight: "20rem" }}
+            // style={{ background: "rgba(255 ,255 ,255, 0.6)" }} 
+            // style={{ background: "rgba(255 ,255 ,255, 0.6)" }}
+            >
+                {movie.tmdbData.backdrop_path && <div >
+                    <img src={`https://image.tmdb.org/t/p/w500${movie.tmdbData.backdrop_path}`} alt={movie.name}
+                        style={{ height: "100%", width: "100%", position: "absolute", zIndex: "-1" }}
+                    />
+                </div> || ""}
+                <Card.Header>
+                    <div className="mx-1">
+                        <div className="row">
 
-                {/* Movie Home Card */}
-                <div className="card w-100" style={{ background: "rgba(255 ,255 ,255, 0.6)", height: "19rem", }}
-                >
-                    <div className="d-flex align-items-stretch" >
-
-                        {movie.tmdbData.backdrop_path && <div >
-                            <img src={`https://image.tmdb.org/t/p/w500${movie.tmdbData.backdrop_path}`} alt={movie.name}
-                                style={{ height: "100%", width: "100%", position: "absolute", zIndex: "-1" }}
-                            />
-                        </div> || ""}
-
-                        <div className="container mx-1 mt-1">
-                            <div className="row">
-
-                                {/* Movie Name */}
-                                <div className="col mt-2">
-                                    <h6 className="table-responsive mb-0">
-                                        {movie.name}
-                                    </h6>
-                                </div>
-
-                                {
-                                    userRole === Constants.ADMIN_USER_ROLE || userRole === Constants.OWNER_USER_ROLE ?
-
-                                        /* Movie Delete Button */
-                                        < div className="col-2">
-                                            <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, name: movie.name, type: movie.type })}>🗑</button>
-                                        </div> : ""
-                                }
-
-                                {
-                                    userRole === Constants.ADMIN_USER_ROLE || userRole === Constants.OWNER_USER_ROLE ?
-
-                                        /* Movie Edit Button */
-                                        <div className="col-2 ">
-                                            <Link type="button" className="btn btn-success btn-sm"
-                                                to={Constants.EDIT_RECORD_ROUTE + "?_id=" + movie.recordId}
-                                                state={movie}
-                                            >📝</Link>
-                                        </div> : ""
-                                }
-
-                                {
-                                    newlyAdded(movie.recordId) ? <div>
-                                        <span className="position-absolute top-0 end-0 translate-middle-y badge rounded-pill bg-primary">
-                                            New
-                                            <span className="visually-hidden">newly added</span>
-                                        </span>
-                                    </div> : ""
-                                }
+                            {/* Movie Name */}
+                            <div className="col mt-2">
+                                <h6 className="table-responsive mb-0">
+                                    {movie.name}
+                                </h6>
                             </div>
 
-                            {/* Delete Movie Model */}
-                            <div className="modal fade" id={deleteModelTargetDes} tabIndex="-1" aria-labelledby={deleteModelTargetDes} aria-hidden="true">
-                                <div className="modal-dialog">
-                                    <div className="modal-content">
-                                        <div className="modal-header">
-                                            <h5 className="modal-title" id={deleteModelTargetDes}>Conform Delete ?</h5>
-                                            <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div className="modal-body">
-                                            <b>You want to delete this record?</b>
-                                            <br />
-                                            Record Id: {movie?.recordId}<br />
-                                            Record Name: {movie?.name}<br />
-                                            Record Type: {movie?.type}
-                                        </div>
-                                        <div className="modal-footer">
-                                            <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                            <button type="button" className="btn btn-danger" data-bs-dismiss="modal" onClick={() => onDelete()} >
-                                                Yes, Delete it!
-                                            </button>
-                                        </div>
+                            {
+                                userRole === Constants.ADMIN_USER_ROLE || userRole === Constants.OWNER_USER_ROLE ?
+
+                                    /* Movie Delete Button */
+                                    < div className="col-2">
+                                        <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, name: movie.name, type: movie.type })}>🗑</button>
+                                    </div> : ""
+                            }
+
+                            {
+                                userRole === Constants.ADMIN_USER_ROLE || userRole === Constants.OWNER_USER_ROLE ?
+
+                                    /* Movie Edit Button */
+                                    <div className="col-2 ">
+                                        <Link type="button" className="btn btn-success btn-sm"
+                                            to={Constants.EDIT_RECORD_ROUTE + "?_id=" + movie.recordId}
+                                            state={movie}
+                                        >📝</Link>
+                                    </div> : ""
+                            }
+
+                            {
+                                newlyAdded(movie.recordId) ? <div>
+                                    <span className="position-absolute top-0 end-0 translate-middle-y badge rounded-pill bg-primary">
+                                        New
+                                        <span className="visually-hidden">newly added</span>
+                                    </span>
+                                </div> : ""
+                            }
+                        </div>
+
+                        {/* Delete Movie Model */}
+                        <div className="modal fade" id={deleteModelTargetDes} tabIndex="-1" aria-labelledby={deleteModelTargetDes} aria-hidden="true">
+                            <div className="modal-dialog">
+                                <div className="modal-content">
+                                    <div className="modal-header">
+                                        <h5 className="modal-title" id={deleteModelTargetDes}>Conform Delete ?</h5>
+                                        <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div className="modal-body">
+                                        <b>You want to delete this record?</b>
+                                        <br />
+                                        Record Id: {movie?.recordId}<br />
+                                        Record Name: {movie?.name}<br />
+                                        Record Type: {movie?.type}
+                                    </div>
+                                    <div className="modal-footer">
+                                        <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                        <button type="button" className="btn btn-danger" data-bs-dismiss="modal" onClick={() => onDelete()} >
+                                            Yes, Delete it!
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <hr />
-
-
-                    <div className="table-responsive">
-                        <div className="d-flex align-items-stretch mx-3">
-
-                            {/* Movie Image */}
-                            <div className="flex-shrink-0"
-                                style={{ cursor: "pointer" }}
-                                onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
-                            >
-                                <img src={`https://image.tmdb.org/t/p/w500${movie.tmdbData.poster_path}`} alt={movie.name}
-                                    style={{ width: "130px", height: "200px", float: "left", display: "inline-block" }}
-                                />
-                                <div>
-                                    <div className="btn btn-secondary-dark btn-sm border-top border-dark w-100  m-0 p-0" style={{ display: "inline-block" }}
+                </Card.Header>
+                <Card.Body style={{ overflowY: "auto" }}>
+                {/* <Container> */}
+                    <Row className="justify-content-md-start">
+                        {/* Movie Image */}
+                        <Col xs={5}
+                            style={{ cursor: "pointer" }}
+                            onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
+                        >
+                            <img src={`https://image.tmdb.org/t/p/w500${movie.tmdbData.poster_path}`} alt={movie.name}
+                            style={{ maxHeight: "12rem", maxWidth:"10rem", width:"100%", height:"auto"}}
+                            />
+                            <div>
+                                    <div className="btn btn-secondary-dark btn-sm border-top border-dark w-100 m-0 p-0" style={{ display: "inline-block", maxWidth:"10rem" }}
                                         onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
                                     >
 
@@ -255,20 +250,20 @@ function SingleMovie(props) {
                                     </div>
                                 </div>
 
-                            </div>
-
+                        </Col>
+                        <Col xs={7}>
                             {/* Movie Details */}
-                            <div className="d-grid gap-0 d-md-flex-row mx-3">
-                                <span><b>Release: </b>
+                            {/* <div className="d-grid gap-0 d-md-flex-row ms-3"> */}
+                                <p className="m-0 p-0"><b>Release: </b>
                                     {movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? movie.tmdbData.release_date : movie.tmdbData.first_air_date}
-                                </span>
+                                </p>
                                 {
                                     movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ?
-                                        <span><b>Runtime: </b> {Math.floor(movie.tmdbData.runtime / 60) + "h " + movie.tmdbData.runtime % 60 + "m"} </span>
+                                        <p className="m-0 p-0"><b>Runtime: </b> {Math.floor(movie.tmdbData.runtime / 60) + "h " + movie.tmdbData.runtime % 60 + "m"} </p>
                                         :
-                                        <span><b>No. Of Seasons: </b>{movie.tmdbData.number_of_seasons}</span>
+                                        <p className="m-0 p-0"><b>No. Of Seasons: </b>{movie.tmdbData.number_of_seasons}</p>
                                 }
-                                <span> <b>Geners: </b>
+                                <p className="m-0 p-0"> <b>Geners: </b>
                                     {
                                         movie.tmdbData.genres.map(ele => {
                                             count++;
@@ -282,8 +277,8 @@ function SingleMovie(props) {
                                             }
                                         })
                                     }
-                                </span>
-                                <span className="card-text"><b style={{ fontWeight: "bold" }}>Ratting: </b> {ratting}</span>
+                                </p>
+                                {ratting != null ? <p className="m-0 p-0 card-text"><b style={{ fontWeight: "bold" }}>Ratting: </b> {ratting}</p> : ""}
                                 <div className="">
 
                                     <LikeIcon
@@ -309,6 +304,7 @@ function SingleMovie(props) {
                                 <div>
                                     <span>
                                         <img type="button" src="https://img.icons8.com/color/48/000000/youtube-play.png"
+                                            style={{ width: "2.5rem" }}
                                             data-bs-toggle="modal"
                                             data-bs-target={trailerModelTargetSrc}
                                             data-placement="top" title="Watch Trailer On Youtube"
@@ -316,7 +312,7 @@ function SingleMovie(props) {
                                         />
                                         {movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE && <a href={`https://www.imdb.com/title/${movie.tmdbData.imdb_id}`} target="_blank" >
                                             <img type="button" src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg"
-                                                style={{ width: "3.5rem" }}
+                                                style={{ width: "2.5rem" }}
                                                 data-placement="top" title="IMDB Link"
                                             />
                                         </a>}
@@ -329,7 +325,7 @@ function SingleMovie(props) {
                                 </div>
 
 
-                            </div>
+                            {/* </div> */}
 
                             {/* youtube trailer modal */}
                             <div className="modal fade" id={trailerModelTargetDes} tabIndex="-1" aria-labelledby={trailerModelTargetDes} aria-hidden="true">
@@ -368,12 +364,12 @@ function SingleMovie(props) {
                                     }
                                 </div>}
                             </div>
-                        </div>
-                    </div>
-                    {/* <hr /> */}
-
-                </div>
-            </div >
+                        </Col>
+                    </Row>
+                    {/* </Container> */}
+                </Card.Body>
+                {/* <hr /> */}
+            </Card>
     }
 
     else {
@@ -384,7 +380,7 @@ function SingleMovie(props) {
                 <div className="card w-100 my-1" style={{ background: "rgba(255 ,255 ,255, 0.6)", height: "22rem", }}>
                     <div className="d-flex align-items-stretch" >
 
-                        <div className="container mx-1 mt-1">
+                        <div className="container mx-1">
                             <div className="row">
 
                                 {/* Movie Name */}
@@ -418,15 +414,16 @@ function SingleMovie(props) {
                         </div>
                     </div>
                 </div>
+                {Constants.TOAST_CONTAINER}
             </div>
 
     }
 
     return (
-        <div className="" style={{ marginTop: "1%" }}>
-            {singleMovie}
-            {Constants.TOAST_CONTAINER}
-        </div>
+        singleMovie
+        // <div className="" style={{ marginTop: "1%" }}>
+
+        // </div>
     )
 }
 

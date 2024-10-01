@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import Constants from "../../Constants";
 import { loadDbCinemaRecords } from "../../ApiServices";
 import Pagination from "../SubComponents/Pagination";
+import { CardGroup, Col, Container, Row } from "react-bootstrap";
 
 function Movie(props) {
     const dispatch = useDispatch();
@@ -43,9 +44,9 @@ function Movie(props) {
 
     const displayCol = () => {
         let displayCol = "4";
-        if (windowSize[0] > 1100 && windowSize[0] < 1500) {
+        if (windowSize[0] > 1250 && windowSize[0] < 1550) {
             displayCol = "3";
-        } else if (windowSize[0] > 767 && windowSize[0] < 1200) {
+        } else if (windowSize[0] > 767 && windowSize[0] < 1250) {
             displayCol = "2";
         }
         return displayCol;
@@ -57,7 +58,7 @@ function Movie(props) {
         if (response && response.httpStatusCode === 200) {
             setMovieList(response.data.records)
             setDisPageNumber(parseInt(response.data.pageNumber) + 1);
-            setTotalPage(parseInt(parseInt(response.data.totalElements) / parseInt(response.data.pageSize))+1);
+            setTotalPage(parseInt(parseInt(response.data.totalElements) / parseInt(response.data.pageSize)) + 1);
             setLoading(false);
         } else {
             // alert(response.message);
@@ -72,7 +73,7 @@ function Movie(props) {
 
     return (
         <>
-            <div className="mb-3 p-1" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px" }}>
+            <div className="border rounded" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)"}}>
                 <ButtonToolbar aria-label="Toolbar with button groups" className="m-1" style={{ overflowX: "auto", flexWrap: "nowrap", textWrap: "nowrap" }}>
                     <ButtonGroup className="mx-2" aria-label="all">
                         <Button
@@ -191,24 +192,20 @@ function Movie(props) {
 
             {!loading &&
                 <>
-                    <div className="tab-content" id="myTabContent">
-                        <div className="tab-pane fade show active" id="all">
-                            {/* {content} */}
-                            <div className={`row row-cols-1 row-cols-md-${displayCol()} g-4`}>
-                                {movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie) => {
-                                    return (
-                                        <SingleMovie
-                                            movie={movie}
-                                            userData={userData}
-                                            id={movie.id}
-                                            userRole={userRole}
-                                        />
-                                    )
-                                })
-                                }
-                            </div>
-                        </div>
-                    </div>
+                    <Row xs={12} md={displayCol()} className="m-1 p-0">
+                        {
+                            movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
+                                <Col xs="12" key={idx} className="p-0" >
+                                    <SingleMovie
+                                        movie={movie}
+                                        userData={userData}
+                                        id={movie.id}
+                                        userRole={userRole}
+                                    />
+                                </Col>
+                            ))
+                        }
+                    </Row>
 
                     <div className="mx-5" >
                         <Pagination filter={filter} page={{ totalPage, disPageNumber }} />
