@@ -71,7 +71,7 @@ const UserList = () => {
     setGridApi(params.api);
     setGridColumnApi(params.columnApi);
     setAgGridData(userData);
-    params.columnApi.autoSizeColumns(keys, false)
+    // params.columnApi.autoSizeColumns(keys, false)
   };
 
   useEffect(()=>{
