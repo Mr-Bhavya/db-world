@@ -32,3 +32,20 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Logs ###
+/logs/
+
+### utils ###
+/db-world-backend/download/
+/db-world-backend/status/
+/db-world-backend/logs/
+/db-world-backend/target/
+/db-world-frontend/target/
+/db-world-frontend/node_modules/
+/db-world-frontend/build/
+/db-world-frontend/node/
+/download/
+/status/
+/logs/
+/db-world-backend/src/main/resources/public/

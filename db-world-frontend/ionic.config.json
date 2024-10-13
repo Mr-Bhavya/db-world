@@ -1,0 +1,7 @@
+{
+    "name": "Db-World",
+    "integrations": {
+      "capacitor": {}
+    },
+    "type": "react"
+  }

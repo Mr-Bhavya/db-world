@@ -1,0 +1,1481 @@
+[
+  {
+    "_id": "6169071dd068dff4a874c801",
+    "firstName": "DB",
+    "lastName": "Movies",
+    "dob": "1999-06-30",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 8980184608,
+    "email": "dbmovies0@gmail.com",
+    "password": "1234",
+    "userRole": "owner",
+    "loginNo": 2057,
+    "userCredential": [
+      {
+        "host": "db-world.in",
+        "credentials": "U2FsdGVkX18eXlak1ZmDcFABPctpwgXhPEMsLekxCX7JWhX+8q2y+TYxRN0H9m11ckPGAKYoFYTVJa6AaVvnR4ODFwJNmoMNBmTD42AfEAZRVCKEfY0Ee4E6GsBVBoI+s/AtJeNhPfyAzQ79a0a48Q==",
+        "_id": "63dd0a073b580699b29191f2"
+      },
+      {
+        "host": "mega.nz",
+        "credentials": "U2FsdGVkX1/qKBpHVOATh9IVzHMFAPt0UTWiVynnBGoxyTZTyt3BaVYvqWRk8Ng9ih4Yy4I3hKqdZXWSw5zp5ksplhs15gWk7tGD+Pp56BW9QZbuHYGhBb2lqDzTaeIamF9DKVJbuS7cegT4sFfGzw==",
+        "_id": "63f452f2b70402a087746db7"
+      },
+      {
+        "host": "github.com",
+        "credentials": "U2FsdGVkX19i+qAxZR6LCkfTpYgeHARxcHUd77JzGbZtvio6YtlKrQ5K7EuZgayuF1z1NQcHZW00VlPbrvT0C461To36bP/ZMfOIDDmUioOpGLCawALpUyst/wQSkAGll1DVwA+iTGrqHDsc5enxLb7OpG5Bi+kQ/7mV3FiJ+SnJSUwIinjmaD8Kaqc0d+SsITV9tksLEV9lvsHQzNu1hsKPcdBzK23ccLD9f9Jv5L6pkRMX0BNBFxMMIil/0Tj9YyXrpw0KcswQxcBHYT4RUZGIqt7JQN+T7Er60c9WAYM=",
+        "_id": "63f46aafb70402a087746e58"
+      },
+      {
+        "host": "gitlab.com",
+        "credentials": "U2FsdGVkX19jDEzNt/wDp6VO3oAAckQTeQZBIlLQNSzZsuMNvOrFUEBsqocUVMDjoUY3aMxzBf9N20bgahlHpchO/ZXTppVqJ8QZNXCjmbHQ/TY5C0YFNQzE9jI2UDtMiYD4zXkKMOyTTEcxsFHieGZVHqInCyy6rdy4bLMGUME=",
+        "_id": "63f480a0b70402a087746f17"
+      },
+      {
+        "host": "www.hioxindia.com",
+        "credentials": "U2FsdGVkX189AJfgcHN5YwVlXEbqbXbvMafgVUgUG0QmvtN1MtFhOXUzP9Wv114fmLPCTWkju/a2xD7v26RUubnJ8IQsMSJLteexVSCz9iKwWHsiBtlBv0RuQlnQh2qj5dWd35JUcWNp9HnaeA2J1A==",
+        "_id": "63f74e5057fd31aea119bcd8"
+      },
+      {
+        "host": "dash.cloudflare.com",
+        "credentials": "U2FsdGVkX1/I3vt3xpo4dK90aziIxN/F6QMomcSkAhqbpvVuMWRz3mmuC+ZAa8z92e+Q9Kh5muaEEdmfzwFS3p481uQlPSf5XLvhqkqBGwIHiv2u8wEb7ZAPnqIeaaoEHH8VlVP7xtQI94ppqMcRgA==",
+        "_id": "63f7510d57fd31aea119bd1f"
+      },
+      {
+        "host": "unifiedportal-mem.epfindia.gov.in",
+        "credentials": "U2FsdGVkX19q81cauI9UVe6OS4mJBzKLTgQHQOBAjDkCbnXnmGVjylIUs5GWkDo6yMPuH/P2legHOSr4+iQJDuBkVBVZEjFgWHicVRe67vsNnMBizVqIiUvsx3Hg9nAdO3Gt/XUsNlnt9VfLuzj8Ag==",
+        "_id": "63ff1cc47bd37cfc92378029"
+      },
+      {
+        "host": "google.com",
+        "credentials": "U2FsdGVkX1+34eAZhULcOF8rBhWlqzCQ9enKR1YdRvy9etvuVL4Py5i653VMT27ohaFkWqq5qL4O+xdreBBsjvSmX2d/mJ/QrgIaq2OH0V2Z0m0t3sES24dH/mA1AP0L2t+L+QCNmtFOVEaNCDfC+uVj0ayZh2j5DM+HAJKzc1M=",
+        "_id": "6405fbef6ac4a79e16be4281"
+      },
+      {
+        "host": "netflix.com",
+        "credentials": "U2FsdGVkX1/y+rftrQ5mkd4hexml9BtpvzshwkwIrqvY8Jx8Ooz31PLSXGHStXkQ7ihTSDiGGeBzCcvaRm4e+J9plO0W3qXo/Xfkd/U8Mwn0SmLATqDReE/0Vi6g2lU0erD9J7wWmyK3Fk2vz02m1qXYS0x+gqCZSC9N1sWmUhY=",
+        "_id": "640f1b826ac4a79e16be4773"
+      },
+      {
+        "host": "aws.amazon.com",
+        "credentials": "U2FsdGVkX18LmpltnoJfoeDbSiR+0V50IzIs9yV0iBn97NWyAHbEYWjcjnAdkFJ2qwPm2raIa+5G+f9QfxHx2R1wGk78yQkBvhvpDGeBeJI5Zlpfgwu+7ixbkv7HDm/9zUIusIf/Oc+4vfHrc2QSdg==",
+        "_id": "6412dd52e2fd40d5e6f0fbf6"
+      },
+      {
+        "host": "www.amazon.in",
+        "credentials": "U2FsdGVkX1/IIprpKUCDuuYGMKGtZ1WRp9mZ0mst3i4rpGaqp85KISJuU/z2T8sQzZ8dTVeefgVet5KW8++OCKhhhcFCvQIpAlvUShMg/sseMB4B/1mIWxrUxDHDU+NeDWtSoRIVigssPFvtEtbJyZb4Kp1Gqfs+buyp9p8PG3iUKZe2BaWYLbxjpGD/fvWiZnK0OnX7HjFla5rTQ3OhTdM586gC3JoiXEL0l7INekENDqMVF7cif/PdiWC0xr8/Ddlj+8ubS0mpg7Du/q9lgw==",
+        "_id": "6412de3fe2fd40d5e6f0fd1f"
+      },
+      {
+        "host": "www.themoviedb.org",
+        "credentials": "U2FsdGVkX1+sD5ohNCUno2lU8VxmZJoP7nKnTzy2FMbj0hUI2JGz/4hzwqTPZQmzAdmMzww4k4Yyom6TymBChTvi42ZMyLc033TbpJVJlwZJUOSgP7quff0rFqnac+WRelkCAco0chpaMqRMvRcfUA==",
+        "_id": "641fd0fc6bad256a685ce2ec"
+      },
+      {
+        "host": "netbanking.hdfcbank.com",
+        "credentials": "U2FsdGVkX1/E9mzN1Y7VMwi+jTgWpY0XhWVnKpNQ+UrCcSL8mmqo2iakyq1LYRYzZaqlJGcKkkEYMyNrpX8jVBt+1b6t7bRd72qKfFgebDB3Pl5Ps+bEleSCiY4WrPLFwc/OGF4H0rSVTjuCyrmMCg==",
+        "_id": "642fa70f80f0972317903962"
+      },
+      {
+        "host": "arch.icicipruamc.com",
+        "credentials": "U2FsdGVkX1/Mi4wMSZxeZFgwTnYKBa6eOY4EW6wkL4pnk3l5AV5AP/15liieXJdQi8uxmCuOUkizLaUoSMTHx/qSPq7X4n6uNEXuHMi1BrJaoY3qE6da/+Ds70SWDFnRvry81tjx1142OpYWCxHpHw==",
+        "_id": "64363df5802d8246e1ab1d4c"
+      },
+      {
+        "host": "accenture.com",
+        "credentials": "U2FsdGVkX1+uiAaGW1CTPJZQfxQ6f+MFaTSMjVIqgam4hfSXKFeciZw1y8Mtox0G3T6Mcy/yrBYel08Qvf5Ii+xp2Ub17BwEHfqCi1ia965CV2MDVaGu5gLCBpF/S5ZJfg8zpkkLbtM/PEBD5Ddiendn1YWbxZEBBKEUE/H5eas=",
+        "_id": "64366bcbda22884f2ee77402"
+      },
+      {
+        "host": "epicgames.com",
+        "credentials": "U2FsdGVkX1/xRlXBn2B+BggsV0Tv8J7Ah40sRBcczimJo4Lv3xMMY0VxbqEUrunSoNrOpf7Y3hJY0zFfVosyyk3AxdwEqlK/zBlqSWQ2cby9gvT5djnYDTEsddpLyGwLSMxG7Ix5OakeF/w1lMBlWg==",
+        "_id": "645dff3c484ee20259f26907"
+      },
+      {
+        "host": "rockstargames.com",
+        "credentials": "U2FsdGVkX18kHqmhzGjg2dK/GLLR7/GCzysAOxn4ysZHRlvkTzHguxxFNNMJkmXUkp2KQqiRs1GsjB0u5KUacmlxQO5bCxClLPUNd5woqi9NVM8b4/Z93P44SxKgR056EvEJE9LOpu0GZOLVDWWl5+rPuxEpf/YuH8aM53QWpmo=",
+        "_id": "646072e552304f3a48e70a5f"
+      }
+    ],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "616e5de42771fe8dfad335de",
+    "firstName": "Jainaksh",
+    "lastName": "Dudhia",
+    "age": 17,
+    "gender": "Male",
+    "mobileNo": 8799470557,
+    "email": "jainakshdudhia@gmail.com",
+    "password": "Dj@25$03",
+    "userRole": "owner",
+    "loginNo": 444,
+    "userCredential": [
+      {
+        "host": "myaccount.google.com",
+        "credentials": "U2FsdGVkX1/a0hoeqSkalp9u7O90eRQ960/e7GkKhIe9zgj4AhFYo+JHs74Uo3zrpg8bD0L55Efkf2D6rHT/t3+Y+PZAkCdjAM6zF216zDakVLzHfgUU+9H7KJn5ZaNcGwqAsMaNGB6V8vY1A6drEBGpeoYROUF5TNeMfXDEaKw=",
+        "_id": "640f360f6ac4a79e16be4a99"
+      },
+      {
+        "host": "www.100points.gtu.ac.in",
+        "credentials": "U2FsdGVkX19U1IKM6O7DolUHRbWbTuSfMjhh5pNWKMY6gXsltdZzJ2HVIrLtrdcCTHy1A8swP8hDBycNd8HsOqKh3Qbs4QLBbMQ7sUPnU9AdmyN6Eb83GkApevQrlLtJXBs70tEP1Zw3X8Xi6MKyIQ==",
+        "_id": "64c1338a06ee884e3cdc8ae5"
+      }
+    ],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "617c0c69480d920286599ef3",
+    "firstName": "Dhruvesh",
+    "lastName": "Dudhia",
+    "age": 23,
+    "gender": "Male",
+    "mobileNo": 9687030665,
+    "email": "dhruveshlike11@gmail.com",
+    "password": "lumia535",
+    "loginNo": 846,
+    "userCredential": [],
+    "userLoginDetails": null
+  },
+  {
+    "_id": "617c10fd480d92028659a26d",
+    "firstName": "Rashmi",
+    "lastName": "Dudhia",
+    "age": 44,
+    "gender": "Female",
+    "mobileNo": 8980184620,
+    "email": "rashmidudhia@gmail.com",
+    "password": "14january1977",
+    "loginNo": 218,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "617fe1f1645ecb942094b615",
+    "firstName": "Bhavya",
+    "lastName": "Dudhia",
+    "dob": "2023-07-12",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 8980184608,
+    "email": "dudhia.bhavya@gmail.com",
+    "password": "123",
+    "userRole": "viewer",
+    "loginNo": 17,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "618255886465017930cfefcc",
+    "firstName": "Rahul",
+    "lastName": "Gosai",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 7226813688,
+    "email": "rahulgosai1412@gmail.com",
+    "password": "rahulgosai1412",
+    "loginNo": 155,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1687444861622",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "64945d7d2db1eee644126f24"
+      },
+      {
+        "timeStamp": "1688222614489",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "64a03b96e68bdbf50d99157f"
+      },
+      {
+        "timeStamp": "1688222738465",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "64a03c12e68bdbf50d991600"
+      },
+      {
+        "timeStamp": "1688841819060",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "64a9ae5bfb97e8bee8bfd0a1"
+      },
+      {
+        "timeStamp": "1696354420333",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+        "_id": "651c507415298ed5e7d0e9f7"
+      }
+    ]
+  },
+  {
+    "_id": "61827d4124d602400ed4cc00",
+    "firstName": "Rishi",
+    "lastName": "Saini",
+    "age": 23,
+    "gender": "Male",
+    "mobileNo": 9825822545,
+    "email": "rishi171198@gmail.com",
+    "password": "Rishi1998",
+    "loginNo": 6,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1696336942604",
+        "userAgent": "Mozilla/5.0 (Linux; Android 13; RMX3031) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.172 Mobile Safari/537.36",
+        "_id": "651c0c2e15298ed5e7d0de6b"
+      },
+      {
+        "timeStamp": "1696430787578",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+        "_id": "651d7ac315298ed5e7d0fc52"
+      },
+      {
+        "timeStamp": "1696655643285",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+        "_id": "6520e91b15298ed5e7d15aab"
+      },
+      {
+        "timeStamp": "1696667768343",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+        "_id": "6521187815298ed5e7d1730c"
+      },
+      {
+        "timeStamp": "1696670000774",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+        "_id": "6521213015298ed5e7d17e5b"
+      }
+    ]
+  },
+  {
+    "_id": "6189e6a79ac850d4a87606a0",
+    "firstName": "Nidhi",
+    "lastName": "Modi",
+    "age": 29,
+    "gender": "Female",
+    "mobileNo": 7698488108,
+    "email": "nidhimodi17@gmail.com",
+    "password": "nidhi.1705",
+    "loginNo": 20,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1677345433036",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; SM-M215F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.61 Mobile Safari/537.36",
+        "_id": "63fa42994de5f26fabbf406d"
+      },
+      {
+        "timeStamp": "1678601511423",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; SM-M215F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.61 Mobile Safari/537.36",
+        "_id": "640d6d276ac4a79e16be4370"
+      },
+      {
+        "timeStamp": "1679664656996",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; SM-M215F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.61 Mobile Safari/537.36",
+        "_id": "641da6106bad256a685cd91c"
+      },
+      {
+        "timeStamp": "1680355193070",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; SM-M215F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.61 Mobile Safari/537.36",
+        "_id": "64282f7980f09723179015af"
+      },
+      {
+        "timeStamp": "1680544016401",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; SM-M215F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.61 Mobile Safari/537.36",
+        "_id": "642b111080f09723179022bd"
+      }
+    ]
+  },
+  {
+    "_id": "618d38c84efebd1f6d85f10e",
+    "firstName": "PRASHANT",
+    "lastName": "KANOJIA",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 7359561782,
+    "email": "prashantck1608@gmail.com",
+    "password": "zxcvbnm",
+    "loginNo": 70,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1695389788030",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; HD1901) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36",
+        "_id": "650d985c9d8372604ded1e2a"
+      },
+      {
+        "timeStamp": "1696404314139",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; HD1901) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36",
+        "_id": "651d135a15298ed5e7d0f557"
+      }
+    ]
+  },
+  {
+    "_id": "618d45b14efebd1f6d8635f3",
+    "firstName": "Dipak",
+    "lastName": "Sisara",
+    "age": 21,
+    "gender": "Male",
+    "mobileNo": 9106802433,
+    "email": "Ahir@gmail.com",
+    "password": "dipak1234",
+    "loginNo": 0,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "618e35e1f960a41aee3bb8bc",
+    "firstName": "Jaykishan",
+    "lastName": "Dudhrejiya",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 8866420477,
+    "email": "dudhrejia.jaykishan22@yahoo.com",
+    "password": "abcd#0987",
+    "loginNo": 189,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1699116556395",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+        "_id": "6546760c5ee31edab8d3c8ea"
+      },
+      {
+        "timeStamp": "1700114926675",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "_id": "6555b1ee5ee31edab8d48fc0"
+      },
+      {
+        "timeStamp": "1701712861088",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "_id": "656e13dd5ee31edab8d642a1"
+      },
+      {
+        "timeStamp": "1702118765920",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "_id": "6574456d5ee31edab8d6a208"
+      },
+      {
+        "timeStamp": "1702739329057",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "_id": "657dbd815ee31edab8d715b9"
+      }
+    ]
+  },
+  {
+    "_id": "61960d5c736a40314796a70d",
+    "firstName": "Harsh",
+    "lastName": "Gandhi",
+    "age": 18,
+    "gender": "Male",
+    "mobileNo": 9664599641,
+    "email": "gandhiharsh1907@gmail.com",
+    "password": "harsh1907gandhi",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "619b4150b4d55f4a27fabaa4",
+    "firstName": "Kashyap",
+    "lastName": "Tank",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 9638438980,
+    "email": "tankkashyap52@gmail.com",
+    "password": "Bz648IHZm",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "61b310f7e8a6e92789f70b92",
+    "firstName": "Jemin",
+    "lastName": "Kachhadiya",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 8079784040,
+    "email": "jkachhadiya786@gmail.com",
+    "password": "Jj54321",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "61cc8d145df009252405319d",
+    "firstName": "A",
+    "lastName": "B",
+    "age": 20,
+    "gender": "Male",
+    "mobileNo": 9999999999,
+    "email": "msr123@gmail.com",
+    "password": "12345678",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "61d6dcc2e7f62b7ffebab37f",
+    "firstName": "Nirdesh",
+    "lastName": "modi",
+    "age": 19,
+    "gender": "Male",
+    "mobileNo": 9429904001,
+    "email": "nirdesh.modi123@gmail.com",
+    "password": "nirdesh1432",
+    "loginNo": 3,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "61d87f78d69edfe1cd63703c",
+    "firstName": "Rahul",
+    "lastName": "Gosai",
+    "age": 23,
+    "gender": "Male",
+    "mobileNo": 7226813688,
+    "email": "gosai.rahul.737@ldce.ac.in",
+    "password": "gosairahul",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "61e997df2c54117aa701bbce",
+    "firstName": "Adil",
+    "lastName": "Mansuri",
+    "age": 24,
+    "gender": "Male",
+    "mobileNo": 7284070276,
+    "email": "adilmansuri4705@gmail.com",
+    "password": "Adil#110",
+    "loginNo": 22,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1676448104933",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K6P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "63ec91689cf56246586a9b58"
+      },
+      {
+        "timeStamp": "1676448105927",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K6P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "63ec91699cf56246586a9b5d"
+      },
+      {
+        "timeStamp": "1676633407653",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K6P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "63ef653f33943679c581ae05"
+      },
+      {
+        "timeStamp": "1676633408832",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K6P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "63ef654033943679c581ae0e"
+      },
+      {
+        "timeStamp": "1679468129404",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K6P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36",
+        "_id": "641aa6616bad256a685cd37d"
+      }
+    ]
+  },
+  {
+    "_id": "622cd46fb799fd9fb2228d5e",
+    "firstName": "Sem",
+    "lastName": "Roy",
+    "age": 21,
+    "gender": "Male",
+    "mobileNo": 7778889990,
+    "email": "PPEMEAUGS2XTRGV9R4G@gmail.com",
+    "password": "abc@123",
+    "loginNo": 12,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6231d2306d4b2cd12bdd2fec",
+    "firstName": "Tony",
+    "lastName": "Stark",
+    "age": 25,
+    "gender": "Male",
+    "mobileNo": 9999999999,
+    "email": "Tonystark@gmail.com",
+    "password": "TonyStark",
+    "loginNo": 14,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1676699460218",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; RMX3031) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "63f06744d9e856f439255025"
+      }
+    ]
+  },
+  {
+    "_id": "624ffc71749189bcbae411dd",
+    "firstName": "Herry",
+    "lastName": "Herry",
+    "age": 39,
+    "gender": "Male",
+    "mobileNo": 9182483572,
+    "email": "8265herryherry@gmail.com",
+    "password": "Hgajjar@82",
+    "loginNo": 41,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1681013489886",
+        "userAgent": "Mozilla/5.0 (Linux; Android 13; RMX3370) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "64323af1802d8246e1ab0d70"
+      },
+      {
+        "timeStamp": "1682086430219",
+        "userAgent": "Mozilla/5.0 (Linux; Android 13; RMX3370) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "64429a1ed48ae75f5b1b4e87"
+      },
+      {
+        "timeStamp": "1682774082682",
+        "userAgent": "Mozilla/5.0 (Linux; Android 13; RMX3370) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36",
+        "_id": "644d184260d313e9a33ba034"
+      },
+      {
+        "timeStamp": "1684222087149",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
+        "_id": "6463308763c19d4ffbca8b61"
+      },
+      {
+        "timeStamp": "1687676831399",
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+        "_id": "6497e79f7cdf846032d56a5b"
+      }
+    ]
+  },
+  {
+    "_id": "62878e68b120d72279e75aa4",
+    "firstName": "Dharmesh",
+    "lastName": "Gurjar",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 7383878759,
+    "email": "gurjardharmesh123@gmail.com",
+    "password": "Dharmesh@7889",
+    "loginNo": 17,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6287bb9bb120d72279e75b54",
+    "firstName": "Ashok",
+    "lastName": "Vaniya",
+    "age": 27,
+    "gender": "Male",
+    "mobileNo": 9624416046,
+    "email": "ashokvaniya9740@gmail.com",
+    "password": "p9574856470",
+    "loginNo": 14,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6287bc0ab120d72279e75b61",
+    "firstName": "hitesh",
+    "lastName": "baldaniya",
+    "age": 26,
+    "gender": "Male",
+    "mobileNo": 8866384565,
+    "email": "hiteshbaldaniya9@gmail.com",
+    "password": "hitesh8866",
+    "loginNo": 4,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "628c75e7cdc131623fe3e1c5",
+    "firstName": "hitesh",
+    "lastName": "Jadavbhai",
+    "age": 25,
+    "gender": "Male",
+    "mobileNo": 8866384565,
+    "email": "Hiteshravan5620@gmail.com",
+    "password": "hiteshravan5620",
+    "loginNo": 30,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "629228cb9bdd8cc92215c0d2",
+    "firstName": "Aaaaa",
+    "lastName": "Aaaaaaaaa",
+    "age": 25,
+    "gender": "Male",
+    "mobileNo": 6272882828,
+    "email": "ahir@gmail.com",
+    "password": "1234567890",
+    "loginNo": 2,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62b2d9788c72d6d2c3eb17f6",
+    "firstName": "Anish Rana ",
+    "lastName": "D",
+    "age": 18,
+    "gender": "Male",
+    "mobileNo": 7405843712,
+    "email": "anish.rana512@gmail.com",
+    "password": "7405843712",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62b55b6b1267a25e7644e2e3",
+    "firstName": "ANIL",
+    "lastName": "MOTIANI",
+    "age": 38,
+    "gender": "Male",
+    "mobileNo": 9328327040,
+    "email": "anilm@appareluae.com",
+    "password": "Anil@123",
+    "loginNo": 3,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62b5edb705b5647abb674465",
+    "firstName": "Nirdesh",
+    "lastName": "Modi",
+    "age": 20,
+    "gender": "Male",
+    "mobileNo": 8160325711,
+    "email": "Nirdeshmodi.imba20@gmail.com",
+    "password": "12345",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62b744ce74b11fa5308ba01f",
+    "firstName": "Divyesh ",
+    "lastName": "Usadadiya",
+    "age": 24,
+    "gender": "Male",
+    "mobileNo": 9876543210,
+    "email": "divyesh@gmail.com",
+    "password": "divyesh@gmail.com",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62d0ceb89c6ecc1d2eaf5fbd",
+    "firstName": "Ahir",
+    "lastName": "Vipul",
+    "age": 26,
+    "gender": "Male",
+    "mobileNo": 9687885762,
+    "email": "Ahir7073@gmail.com",
+    "password": "pte2022",
+    "loginNo": 19,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62d4f3625c2203b30e2822e6",
+    "firstName": "Girish",
+    "lastName": "Kalsariya",
+    "age": 24,
+    "gender": "Male",
+    "mobileNo": 6355095105,
+    "email": "giriahir06@gmail.com",
+    "password": "guri@1234",
+    "loginNo": 9,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62d4f4445c2203b30e282305",
+    "firstName": "Girish",
+    "lastName": "Kalsariya",
+    "age": 24,
+    "gender": "Male",
+    "mobileNo": 6355095105,
+    "email": "Girishkalsariya127@gmail.com",
+    "password": "giri@123",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "62d70635a9fe7b9ef7ac4a44",
+    "firstName": "Harshad",
+    "lastName": "Baldaniya",
+    "age": 18,
+    "gender": "Male",
+    "mobileNo": 7203090140,
+    "email": "harshadbaldaniya2154@gmail.com",
+    "password": "jaypingaksh7889",
+    "loginNo": 19,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1676449673618",
+        "userAgent": "Mozilla/5.0 (Linux; Android 11; T81) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "_id": "63ec97899cf56246586a9b6f"
+      },
+      {
+        "timeStamp": "1676457728527",
+        "userAgent": "Mozilla/5.0 (Linux; Android 11; T81) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "_id": "63ecb7009cf56246586a9b91"
+      },
+      {
+        "timeStamp": "1676460123023",
+        "userAgent": "Mozilla/5.0 (Linux; Android 11; T81) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "_id": "63ecc05b9cf56246586a9bab"
+      },
+      {
+        "timeStamp": "1676494834465",
+        "userAgent": "Mozilla/5.0 (Linux; Android 11; T81) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "_id": "63ed47f2b7e507518cbf66bd"
+      },
+      {
+        "timeStamp": "1676935681887",
+        "userAgent": "Mozilla/5.0 (Linux; Android 11; T81) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "_id": "63f40201b70402a087746a90"
+      }
+    ]
+  },
+  {
+    "_id": "62f331b3aa2cfe47897a54a0",
+    "firstName": "Aa",
+    "lastName": "Aa",
+    "age": 23,
+    "gender": "Male",
+    "mobileNo": 1234567890,
+    "email": "12345678@gmail.com",
+    "password": "12345678",
+    "loginNo": 4,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6301ca0e19e97ee20760ecf8",
+    "firstName": "Divy",
+    "lastName": "Patel",
+    "age": 28,
+    "gender": "Male",
+    "mobileNo": 8128084482,
+    "email": "Divypatel591@gmail.com",
+    "password": "divumauli",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6311fda62622dd8afb522d94",
+    "firstName": "Kush",
+    "lastName": "Modi",
+    "age": 18,
+    "gender": "Male",
+    "mobileNo": 9558095280,
+    "email": "kushmodi2004@gmail.com",
+    "password": "2021002170110079",
+    "loginNo": 4,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "63708e596b09fa612ce50d52",
+    "firstName": "Pruthvish ",
+    "lastName": "Dudhia ",
+    "age": 51,
+    "gender": "Male",
+    "mobileNo": 9909837659,
+    "email": "Pruthvishdudhia@gmail.com",
+    "password": "1404",
+    "loginNo": 0,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6379db032b2deaf363403abc",
+    "firstName": "Tushar",
+    "lastName": "Bedse",
+    "age": 28,
+    "gender": "Male",
+    "mobileNo": 8208548253,
+    "email": "tusharbedse25@gmail.com",
+    "password": "8208548253",
+    "loginNo": 3,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1676038426592",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "_id": "63e6511a2bb23be0caaf32ec"
+      },
+      {
+        "timeStamp": "1676823656056",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        "_id": "63f24c6878c6043ca59d36a4"
+      }
+    ]
+  },
+  {
+    "_id": "63973b2ae19e4a336dfe6a6c",
+    "firstName": "Mustafa",
+    "lastName": "Bharmal",
+    "age": 26,
+    "gender": "Male",
+    "mobileNo": 957959434,
+    "email": "mustafabharmal28@gmail.com",
+    "password": "8237225935",
+    "loginNo": 0,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "63a842cf5206fd7c1220e594",
+    "firstName": "Bbbb",
+    "lastName": "Ppppp",
+    "age": 44,
+    "gender": "Male",
+    "mobileNo": 6565657877,
+    "email": "Bbbb@gmail.com",
+    "password": "12345678",
+    "loginNo": 7,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1675530750720",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1",
+        "_id": "63de91feb3be3fe32953f182"
+      },
+      {
+        "timeStamp": "1675787693883",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1",
+        "_id": "63e27dadb736796b97bc9b33"
+      },
+      {
+        "timeStamp": "1676828108251",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1",
+        "_id": "63f25dcc0d7a3b7db82ae960"
+      }
+    ]
+  },
+  {
+    "_id": "63ac227e484185089b6dff6f",
+    "firstName": "Anup",
+    "lastName": "Gajjar",
+    "age": 30,
+    "gender": "Male",
+    "mobileNo": 9723038859,
+    "email": "agfc8859@gmail.com",
+    "password": "Anup@123",
+    "loginNo": 0,
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6405d2746ac4a79e16be405e",
+    "firstName": "Arpit",
+    "lastName": "Goswami",
+    "age": 30,
+    "gender": "Male",
+    "mobileNo": 8000410109,
+    "email": "arpitgoswami8862@gmail.com",
+    "password": "Movies@17",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "642d3fce80f0972317902c31",
+    "firstName": "Saloni",
+    "lastName": "Ingale",
+    "age": 24,
+    "gender": "Female",
+    "mobileNo": 7757809612,
+    "email": "saloniingale01@gmail.com",
+    "password": "Saloni@10",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "64572cd9aa780c74d5591db7",
+    "firstName": "Arpit",
+    "lastName": "Goswami",
+    "age": 30,
+    "gender": "Male",
+    "mobileNo": 8000410109,
+    "email": "Kaleenbhaiya6969@gmail.com",
+    "password": "Movies@17",
+    "loginNo": 2,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1683434736518",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
+        "_id": "64572cf0aa780c74d5591dbb"
+      },
+      {
+        "timeStamp": "1683446014292",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
+        "_id": "645758feaa780c74d5591dcb"
+      },
+      {
+        "timeStamp": "1686734149759",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "648985452db1eee644120c86"
+      }
+    ]
+  },
+  {
+    "_id": "64579fefaa780c74d5591dd6",
+    "firstName": "rishi",
+    "lastName": "saini",
+    "age": 25,
+    "gender": "Male",
+    "mobileNo": 9999999999,
+    "email": "rishi171188@gmail.com",
+    "password": "Rishi@1998",
+    "loginNo": 0,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1683464190617",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36",
+        "_id": "64579ffeaa780c74d5591dd9"
+      }
+    ]
+  },
+  {
+    "_id": "6471b2ee33caa738dea16b4c",
+    "firstName": "Kp",
+    "lastName": "Patel",
+    "age": 19,
+    "gender": "Male",
+    "mobileNo": 7043284552,
+    "email": "kashyapadodariy1499@gmail.com",
+    "password": "kashyap1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6472f5023d0c862c5997e2f0",
+    "firstName": "Rishi",
+    "lastName": "Saini",
+    "age": 25,
+    "gender": "Male",
+    "mobileNo": 9825816489,
+    "email": "rishi@gmail.com",
+    "password": "Rishi@1998",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1685255446751",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36",
+        "_id": "6472f5163d0c862c5997e2f3"
+      },
+      {
+        "timeStamp": "1685255524701",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36",
+        "_id": "6472f5643d0c862c5997e2ff"
+      }
+    ]
+  },
+  {
+    "_id": "6478c603af6b9e3d6046cd9a",
+    "firstName": "trushal",
+    "lastName": "p",
+    "age": 22,
+    "gender": "Male",
+    "mobileNo": 8758682725,
+    "email": "trushal8756@gmail.com",
+    "password": "zxcvbnm",
+    "loginNo": 6,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1685702174475",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "_id": "6479c61eaf6b9e3d6046e101"
+      },
+      {
+        "timeStamp": "1685702359177",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "_id": "6479c6d7af6b9e3d6046e118"
+      },
+      {
+        "timeStamp": "1685771601132",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "_id": "647ad551af6b9e3d6046e2ad"
+      },
+      {
+        "timeStamp": "1685771672730",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "_id": "647ad598af6b9e3d6046e2bf"
+      },
+      {
+        "timeStamp": "1685782602718",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "_id": "647b004aaf6b9e3d6046e539"
+      }
+    ]
+  },
+  {
+    "_id": "6478c656af6b9e3d6046cdb8",
+    "firstName": "Abhishek ",
+    "lastName": "Rakholiya ",
+    "age": 23,
+    "gender": "Male",
+    "mobileNo": 9913695097,
+    "email": "rakholiya085@gmail.com",
+    "password": "Aa@12345",
+    "loginNo": 35,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1690363626345",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:103.0) Gecko/20100101 Firefox/103.0",
+        "_id": "64c0e6ea06ee884e3cdc7e4a"
+      },
+      {
+        "timeStamp": "1690439735333",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:103.0) Gecko/20100101 Firefox/103.0",
+        "_id": "64c2103706ee884e3cdc9b2c"
+      },
+      {
+        "timeStamp": "1691558176128",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:103.0) Gecko/20100101 Firefox/103.0",
+        "_id": "64d32120e6cef4e6d1ef7ed2"
+      },
+      {
+        "timeStamp": "1691986038251",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:103.0) Gecko/20100101 Firefox/103.0",
+        "_id": "64d9a87691fb0e8ced3d5b1f"
+      },
+      {
+        "timeStamp": "1692685027412",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:103.0) Gecko/20100101 Firefox/103.0",
+        "_id": "64e452e348c3d5053120b41b"
+      }
+    ]
+  },
+  {
+    "_id": "64805e7b2db1eee64411ac6b",
+    "firstName": "Chakka",
+    "lastName": "Chakka",
+    "age": 18,
+    "gender": "Male",
+    "mobileNo": 9461066524,
+    "email": "Kartik.agarwal.ka@gmail.com",
+    "password": "tattikhalo",
+    "loginNo": 2,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1686134606248",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "64805f4e2db1eee64411b290"
+      },
+      {
+        "timeStamp": "1686135113991",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "648061492db1eee64411b298"
+      },
+      {
+        "timeStamp": "1686135163445",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+        "_id": "6480617b2db1eee64411b29f"
+      }
+    ]
+  },
+  {
+    "_id": "6481e1c42db1eee64411c60f",
+    "firstName": "ASHU",
+    "lastName": "Tailor",
+    "age": 24,
+    "gender": "Male",
+    "mobileNo": 9772943797,
+    "email": "ashutailor10@gmail.com",
+    "password": "qyczy0-gyxRab-zawfiq",
+    "loginNo": 12,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1686234868190",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
+        "_id": "6481e6f42db1eee64411c6b6"
+      },
+      {
+        "timeStamp": "1686234885299",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
+        "_id": "6481e7052db1eee64411c6cb"
+      },
+      {
+        "timeStamp": "1686235106736",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/114.0.5735.99 Mobile/15E148 Safari/604.1",
+        "_id": "6481e7e22db1eee64411c729"
+      },
+      {
+        "timeStamp": "1686235120507",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/114.0.5735.99 Mobile/15E148 Safari/604.1",
+        "_id": "6481e7f02db1eee64411c742"
+      },
+      {
+        "timeStamp": "1686235150443",
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/114.0.5735.99 Mobile/15E148 Safari/604.1",
+        "_id": "6481e80e2db1eee64411c7a5"
+      }
+    ]
+  },
+  {
+    "_id": "64984e29c266acd5cc7ebf9c",
+    "firstName": "Bhavya",
+    "lastName": "Dudhia",
+    "age": 23,
+    "gender": "Male",
+    "mobileNo": 8980184608,
+    "email": "dudhiabhavya@gmail.com",
+    "password": "asdf",
+    "userRole": "owner",
+    "loginNo": 38,
+    "userCredential": [
+      {
+        "host": "db-world.in",
+        "credentials": "U2FsdGVkX1+5dpq9AlhUpZhOeAmKL2LcFevZDLAs/vWtv7zM0Qmt9i23VLOxRrlZB0vTtWMD9PbXZVRJ99T0IOx8SFBHGXzeq4ky1komYTb17eOBfzEoGpWqw0VwhI28xjXA93krbfSA7GFbHjz3ig==",
+        "_id": "64985f71c266acd5cc7ebfa9"
+      },
+      {
+        "host": "mega.nz",
+        "credentials": "U2FsdGVkX19qIv1m9wgeth/IE6bKIcqXps+S4Ikycou8CAmTUJFnh+Gvb+MnElVTjjx6F0XkBPmErg5Fl3Sc0Td9VAi8DGlG2QDmo2AyaESVNv02HxvOdNOkscAgkHazC+fzhzYEupGAtxdbM0dEWg==",
+        "_id": "64985f89c266acd5cc7ebfaf"
+      },
+      {
+        "host": "github.com",
+        "credentials": "U2FsdGVkX1+mMWNDT8RZzjC7I2+x9+WtXO+Y440A+GMd3m7z0+I6vw0OMiBZ4j01ji+ctGIi9nU/2CPBXF61h0+CeAEYqIPEQDDoUtgUaHeNdM6lslv18srpEGmrZT2SCn/41WFTy0T9iz/K3bFPIsBHRFR+FClI6QV+yr/D7Llx9WxceZBYS7PIoLTCajEIJ/CDm8WUSjUwXur2Anjbv6uGVT+4FfFPVWs6W1e3kZTPmFfOcMefBBrO9qYzGiAmigAzqPr12N9gCWEFyK3pE6nG3Ld6FLFMyPcvs81W45g=",
+        "_id": "64985f9dc266acd5cc7ebfb7"
+      },
+      {
+        "host": "gitlab.com",
+        "credentials": "U2FsdGVkX19cFR6Hz24uZmJZ4yiuy0f6h9zZIBxTCEXe3gHp+x+Im0gUuhe/+C3ML7yh28lpmsFyqMqXcKG3oC5x9Xg70Xhd53t1mvfqm5D/Y4j2VLz/vibIongYHiFT7g31kDbXMTBe279ywiG1BzWt3VMxr0scScBBBvE+rps=",
+        "_id": "64985fd1c266acd5cc7ebfca"
+      },
+      {
+        "host": "www.hioxindia.com",
+        "credentials": "U2FsdGVkX19Fe9vrtNtWuXUpRK63FLU+9IRo2/eZTNZue3WeBGnOJZ6Yp308toj6wGYK1RCAuR9+j+G/sgLU1DnkmMY1c6mMU61tbHmvxcBW1v4+pg1T5oGpUWT2pFNC0eOkGKiLg5k8/kQzQrxxoQ==",
+        "_id": "64986498c266acd5cc7ebfd6"
+      },
+      {
+        "host": "dash.cloudflare.com",
+        "credentials": "U2FsdGVkX18CX9sMvQ4ZM64AAOBEwpEYjatbpE5k4hvGBLA9M6Hp4X6Yx96NqZn9Zr6bqQGASGA2PRVoyXE2+pYFzfYthh78COakZy6pImSGOqk75ucqaAa/8ZW6oZnMY0pLWMEPSR6hmDW6QcDsGQ==",
+        "_id": "649865d3c266acd5cc7ebfe4"
+      },
+      {
+        "host": "unifiedportal-mem.epfindia.gov.in",
+        "credentials": "U2FsdGVkX1+GCym1E0p54PyD6sdEcbmuhuquEJybOGfl88YrGlD7O32Np+iDa6iCxCsCrVa7IIq0xAaQLMPLWmWi/gHif6z1KZtksBUx8wx/qSx2MuBxYGsK4kIIYA7oRejiNs54sSPehHwMt87d+A==",
+        "_id": "649865eec266acd5cc7ebff4"
+      },
+      {
+        "host": "google.com",
+        "credentials": "U2FsdGVkX1/cMY1MOuOA8DTDWgpVwalu51bCPsXJXvW1aA0peP3v5e7qIWUrcpEHBBrQC8hkyy9N2WGHOG2ACqln6KaQ7hqCWWRDGM9wXT8Uw5ifkH46Clqg5qWSLDeUBPF/ICH+sd6xQpl4TsdhN4v5zURyS4yjHQUxNN8Hq2gp4ZwN3a8dx2WN0a12VnqaasLYRAZWOSm6Iiluc9IrjEWGjNplb8SNwbxUo7t6txjhAxZa2oTb9F/lUyt/ediDITGacMmofKxawg3hC045HFM1+/mMEAI1pVI96P1krZE=",
+        "_id": "6498664dc266acd5cc7ec006"
+      },
+      {
+        "host": "netflix.com",
+        "credentials": "U2FsdGVkX197Zhp1BZkomXHDrOb3ItcJBPLOUeIJdBj2YRtohhtKQVn8+R3uNt2S5OFrOpq8wdBIQT1t76JPb3Niyti+U3lPHaJ5oNvjFA9LYDHH2lCZLcTKm8pILLRcWFxAewXC3eXincqtD6iWSUgoZCnq0/csVP/aiAnTcgU=",
+        "_id": "6498666cc266acd5cc7ec01a"
+      },
+      {
+        "host": "eportal.incometax.gov.in",
+        "credentials": "U2FsdGVkX18d8be3Ijh9TqV4sKTYmtkFnEc11FVkGH+E9t1JdKEDhP/181asYGAD99eQOb38UJ+WOc27ThEwZj1yoxNqGfRwfPdFRJ4FkZTomRerRa9Rq7+UfqRy9NYE7M+aB6yDHIXiHV4zilBM0drpgOZJZybYAx5sEngXsPUvdDMOCwoPSC/VPMlNk6F4qewKQ2gJaACloRruUvwVeSUMp9/n8sGKiRihLR56TYYDhkNpv5333uUM6d9oSvvg",
+        "_id": "64abc0670d2ae8a142a0f60f"
+      },
+      {
+        "host": "aws.amazon.com",
+        "credentials": "U2FsdGVkX1/aslu7HeW8KR6oSqDDb8+ern5Vbm9PL2Q6/o8aWOHuaw/IsJcIA0LdwEFj02qs2hESHv38dUr8UYgZzT+ZXPOyBdrEPDMgbIPZNkluiZoeXlZa81CQnwrJketRwCha2MYBEaeFi6achw==",
+        "_id": "64b22cc659e2247169077541"
+      },
+      {
+        "host": "www.amazon.in",
+        "credentials": "U2FsdGVkX18Mz9mA6dyrANoeKbzWdYiUZFMdm6zZE9fiyRXHTRNX2SrdN+6xRMvo0wn9pqC5Izsnb0GcMmIaTsTMD6oaoMSwiQujOefMPcj3zA3uAlt4NmrsUDrLsb6eR/3qzlKWGy3YNzQYB7wjwJpcgALDqYMJ+wTckCBbavLw8nwGY3rXZZtJnka815/JY7PiA6rHlgnokqcyYlo7ZPfeQGCBiszerMoKKqXQ4ruuUqYSKXzHSyW0ALor5oaPa3znGtGqX4SAMM6xO83YhA==",
+        "_id": "64b22cda59e2247169077560"
+      },
+      {
+        "host": "www.themoviedb.org",
+        "credentials": "U2FsdGVkX1+ZxmKdTrr64Z68E0blDFd1sZ+kmXhpdQwQtuxDW7dYoMzDSrtrVGaw8UisDJyaLK4Ze/pSPgMGp3yXl79OU2Q0fChv5j5aozGg9isWB8MnSrs+2PaWGh12MuZxRAyqK8hWFu3nKLSZAA==",
+        "_id": "64b22cfe59e22471690775a1"
+      },
+      {
+        "host": "hdfcbank.com",
+        "credentials": "U2FsdGVkX18p7P5gMKIeL69sK3yMFigsbSnCUyIkZwDpVkzlvkECuMW+XkfUnbr2m/NsHqlvR/ACx3h6Zp0W8XVCXDDR7jxJPetFAyogOxCAEZO3c75MaXvTBgGfuyq5CrKl9FQcSJ+N82LCMQD1Zg==",
+        "_id": "64b22d1e59e22471690775c4"
+      },
+      {
+        "host": "arch.icicipruamc.com",
+        "credentials": "U2FsdGVkX187Y183qFNEVY1PXFAndsEOuQ4wLyGWtET7gyESWnK1fol15gXbVUOIFHJPphnaTpey0QMd4aK0g/HYHSC38YAYkpjx+H+qg00hy8U8lA89+HYbgih+xJhP1kEgJLnlMfLVvaT7CvUyMg==",
+        "_id": "64b22d3859e22471690775e9"
+      },
+      {
+        "host": "accenture.com",
+        "credentials": "U2FsdGVkX19Ab6AWX9DxAAQGS69zGeCluQFwn+1R+TJ6x5fA4Hge/gTDyGh3YBVVn7KALaqGaUpDBP/MuJw2FjNRJ3kVTlKBq9MABg39lt/ZuC3FY1mq5N/JoR+SN4ErsbIt16RG+iKPr/VQdu3vGUmTfWo8IJOBEHkbg47y63o=",
+        "_id": "64b22d5e59e2247169077610"
+      },
+      {
+        "host": "epicgames.com",
+        "credentials": "U2FsdGVkX1+cJ5/flcAqyqnB6YXVcDDNxUvYcm1JSivnwn+LQ0++eeTNjbVTMa/kVZrPf0quQp4uzzDWKGK8jVxD+1IWjvoEWSqLXx4Pao+PMIh5mIY1J/vD81oWYFx4gK00qQlUnUFV04uhEDYQJQ==",
+        "_id": "64b22d7b59e2247169077639"
+      },
+      {
+        "host": "rockstargames.com",
+        "credentials": "U2FsdGVkX192ca27lGsMY3u1dvB+Edr/c+3049iRHUSkbpORajVOLZqE/Ax4GUlVHIt9r+s2gbQNqsKXANxPcgdZkbYKHYg+1EY+munDbyHVm3/GjEoDR/isBogS6pu0uljPFc+D+lKy/BkaoZGqrD3og68zP331HWNq4SFLm1k=",
+        "_id": "64b22d9059e2247169077664"
+      },
+      {
+        "host": "www.getonecard.app",
+        "credentials": "U2FsdGVkX19E3OKwTuuK4bEvYvHR1y0IpO68utpvvhSVoMSF7096+YPgsQ7Q9oDmm7buUmi5MJcl9rlklYj2yQ2aF4+/Re+6G7ZSfNvJ68Z1VoCpBRf+ikBvOQRAsV+qTjBb7jnEHWqEvVKDoNyiXi8furUEhU9sXqb2vJUJfD0=",
+        "_id": "64b764bd59e224716907e27d"
+      },
+      {
+        "host": "linkedin.com",
+        "credentials": "U2FsdGVkX19VykH9XU7+u9KmZDMZ/qYXF9I2B44qU8qYox8PAbKEnPkjSokXXtt54n7tvmMkbb8E70OM8OLiMt7Xp1N8nTG+kxRmfHAlbSoLjELkA64BHjwEqHKhxcwl0xFQKSgFI9N19ehzhGmMbw54tndvhr8zFebQ9oxhbEQ=",
+        "_id": "64bf6d8659e22471690827c3"
+      },
+      {
+        "host": "portal.hdfc.com",
+        "credentials": "U2FsdGVkX18jqFWd0e8c1Ch6bGHQE+J5Jf8WbNw+v6WJDvj+vkJCxELC7a5thUzrOcHKclR/2N2TepgFghRR0bmLwxRkB5N+sa7lJCQfmx+Pzptgq7KLcrqmroEgoRQUIj82JEbOkt8tmMvmXZkYBw==",
+        "_id": "64c5066af3ba5e011444876e"
+      },
+      {
+        "host": "accounts.digitallocker.gov.in",
+        "credentials": "U2FsdGVkX1/rUGlRhLJ95f9HlM3Iu8GUNzGrKJPzds4TzIcRZObuo5sJq2MbgMp7i0T3QZNdZu1sh28GWQsrXvwDYePsB5MBwWb/pKyAQgmvvLT/WGakhTKedYYgKD3y",
+        "_id": "64e77bb850c59f44db870ffb"
+      }
+    ],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1702296741558",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "_id": "6576fca55cd2fbe3abbb25bd"
+      },
+      {
+        "timeStamp": "1702302936510",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "_id": "657714d85ee31edab8d6defc"
+      },
+      {
+        "timeStamp": "1702640041483",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "_id": "657c39a900f603fb67964956"
+      },
+      {
+        "timeStamp": "1703230250827",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "_id": "65853b2ac11a15bf59ecd0b8"
+      },
+      {
+        "timeStamp": "1703480168344",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "_id": "65890b6884142d5575fbd167"
+      }
+    ]
+  },
+  {
+    "_id": "64d6079b91fb0e8ced3d1fe1",
+    "firstName": "Aaaaab",
+    "lastName": "Tbyynmu",
+    "dob": "2023-08-30",
+    "gender": "Male",
+    "mobileNo": 1234567898,
+    "email": "Abcdef",
+    "password": "abcdef",
+    "userRole": "viewer",
+    "loginNo": 2,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1691748267915",
+        "userAgent": "Mozilla/5.0 (Linux; Android 13; RMX3085) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 Mobile Safari/537.36 OPR/76.2.4027.73374",
+        "_id": "64d607ab91fb0e8ced3d1fe4"
+      },
+      {
+        "timeStamp": "1691749419385",
+        "userAgent": "Mozilla/5.0 (Linux; Android 13; RMX3085) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 Mobile Safari/537.36 OPR/76.2.4027.73374",
+        "_id": "64d60c2b91fb0e8ced3d2593"
+      }
+    ]
+  },
+  {
+    "_id": "64d609b391fb0e8ced3d2018",
+    "firstName": "Hehehennenne",
+    "lastName": "Dhhdhsjjsj",
+    "dob": "2023-08-11",
+    "gender": "Male",
+    "mobileNo": 6373773773,
+    "email": "Abcdefg",
+    "password": "abcdefg",
+    "userRole": "viewer",
+    "loginNo": 10,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1698921800837",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K7AI) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36",
+        "_id": "65437d485ee31edab8d3ada0"
+      },
+      {
+        "timeStamp": "1698921888381",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K7AI) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36",
+        "_id": "65437da05ee31edab8d3adb6"
+      },
+      {
+        "timeStamp": "1698925568129",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36",
+        "_id": "65438c005ee31edab8d3adf5"
+      },
+      {
+        "timeStamp": "1699005753671",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K7AI) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36",
+        "_id": "6544c5395ee31edab8d3afe7"
+      },
+      {
+        "timeStamp": "1700131957824",
+        "userAgent": "Mozilla/5.0 (Linux; Android 12; M2101K7AI) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36",
+        "_id": "6555f4755ee31edab8d49535"
+      }
+    ]
+  },
+  {
+    "_id": "6513e11ffade284cdc8603da",
+    "firstName": "Sample",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 898018468,
+    "email": "sampledata@gmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6513e387fade284cdc8603db",
+    "firstName": "Sample",
+    "lastName": "Data",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 898018468,
+    "email": "sampledata@gmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6513e3d5feb28821e42a21c9",
+    "firstName": "Sample",
+    "lastName": "Data",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 898018468,
+    "email": "sampledata@gmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6513e440feb28821e42a21ca",
+    "firstName": "Sample",
+    "lastName": "Data",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 898018468,
+    "email": "sampledatagmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6513e4f8a847a548c82d4a53",
+    "firstName": "",
+    "lastName": "Data",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 898018468,
+    "email": "sampledatagmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6513e568a847a548c82d4a54",
+    "firstName": "",
+    "lastName": "Data",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 898018468,
+    "email": "sampledatagmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6513e8141fa1b966a4185ce1",
+    "firstName": "",
+    "lastName": "Data",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 898018468,
+    "email": "sampledatagmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6513e9435290331b5f05940a",
+    "firstName": "Sample",
+    "lastName": "By Update 1",
+    "dob": "1999-06-03",
+    "gender": "male",
+    "mobileNo": 8980184608,
+    "email": "sampledata@gmail.com",
+    "password": "1234",
+    "userCredential": [],
+    "userLoginDetails": []
+  },
+  {
+    "_id": "6544ce8a5ee31edab8d3b0b7",
+    "firstName": "Test1",
+    "lastName": "Data1",
+    "dob": "1999-11-03",
+    "gender": "Male",
+    "mobileNo": 1234567890,
+    "email": "testdata1@gmail.com",
+    "password": "1234",
+    "userRole": "viewer",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1699008160686",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36",
+        "_id": "6544cea05ee31edab8d3b0ba"
+      }
+    ]
+  },
+  {
+    "_id": "65881b63247faf735d359b59",
+    "firstName": "Kaleen",
+    "lastName": "Bhaiya",
+    "dob": "1992-09-17",
+    "gender": "Male",
+    "mobileNo": 8000410109,
+    "email": "kaleenbhaiya6969@gmail.com",
+    "password": "Movies@17",
+    "userRole": "viewer",
+    "loginNo": 1,
+    "userCredential": [],
+    "userLoginDetails": [
+      {
+        "timeStamp": "1703418741197",
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "_id": "65881b75247faf735d359b5c"
+      }
+    ]
+  }
+]
