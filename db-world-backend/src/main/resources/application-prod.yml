@@ -1,0 +1,73 @@
+# Server Config
+Server:
+  port: 9090
+  jetty:
+    idle-timeout: 60000 # 60 seconds
+
+#MongoDB
+spring:
+  data:
+    mongodb:
+#      uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/db_world?retryWrites=true&w=majority
+      host: dbworldpi
+      port: 27017
+      authentication-database: admin
+      database: db_world
+      username: dbworld_admin
+      password: BD@pi
+      auto-index-creation: true
+      config:
+        enabled: true
+        write:
+          writeConcern:
+            isMajority: true
+          timeout:
+            milliseconds: 100000
+  jpa:
+    show-sql: true
+  devtools:
+    livereload:
+      enable: false
+  mvc:
+    converters:
+      preferred-json-mapper: gson
+  gson:
+    enable-complex-map-key-serialization: true
+  servlet:
+    multipart:
+      enabled: true
+
+#Swagger
+springdoc:
+  api-docs:
+    path: /api/dbworld-api-doc
+  swagger-ui:
+    path: /dbworld-api-doc.html
+
+#Security
+jwt:
+  token:
+    validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
+    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
+
+
+tmdbApiKey: 30061af77dba3722bbe14a2691055544
+
+tmdb:
+  api:
+    key: 30061af77dba3722bbe14a2691055544
+
+dbworld:
+  paths:
+    tempDownloadPath: /home/dbworld_admin/ext_hdisk/dbworld/download/
+    logFilePath: /home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld.log
+    log4j2LogPath: /home/dbworld_admin/ext_hdisk/dbworld/logs/
+    streamHomePath: /home/dbworld_admin/ext_hdisk/videos
+    externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
+    torrentDownloadPath: /home/dbworld_admin/ext_hdisk/videos/Torrent Download
+    #ytdlpPath: /home/dbworld_admin/ext_hdisk/dbworld/yt-dlp
+    ytdlpPath: /usr/bin/yt-dlp
+    hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
+
+logging:
+  config: classpath:log4j2.xml

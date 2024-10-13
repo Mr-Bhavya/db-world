@@ -1,0 +1,110 @@
+<Configuration status="error" monitorInterval="30">
+
+    <Properties>
+        <Property name="CONSOLE_LOG_PATTERN">
+            %style{%d{dd/MM/yyyy|HH:mm:ss.SSS a}{IST}{ISO8601}}{magenta} [%highlight{%-5level}] %style{%C{2.}.%M}{yellow}%style{(line:%L)}{blue}: %msg%n%throwable
+<!--            %style{%msg%n%throwable}{green}-->
+        </Property>
+        <Property name="FILE_LOG_PATTERN">
+            %d{dd/MM/yyyy HH:mm:ss.SSS a}{IST}{ISO8601} [%-5level] %C{2.}.%M(line:%L): %msg%n%throwable
+        </Property>
+        <property name="LOG_FILE_PATH">
+            logs/
+        </property>
+    </Properties>
+
+    <Appenders>
+
+        <Console name="Console-INFO" target="SYSTEM_OUT" follow="true">
+            <PatternLayout pattern="${CONSOLE_LOG_PATTERN}" disableAnsi="false"/>
+            <Filters>
+
+                <RegexFilter regex=".*(Peer collection finished with exception in peer source).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Error when writing message).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Failed to process key).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Unexpected error).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Listener invocation failed).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(handleException /api/stream/download).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(handleException /api/stream/watch).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+
+                <!-- This filter accepts info, warn, error, fatal and denies debug/trace -->
+                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+
+                <!-- Now deny warn, error and fatal messages -->
+<!--                <ThresholdFilter level="WARN" onMatch="DENY" onMismatch="NEUTRAL"/>-->
+
+                <!-- deny error and fatal messages -->
+<!--                <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL" />-->
+            </Filters>
+        </Console>
+
+<!--        <RollingFile name="File-DEBUG" fileName="logs/dbworld-debug.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-debug-%d{MM-dd-yyyy}.log.gz"-->
+<!--                     ignoreExceptions="false">-->
+<!--            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>-->
+<!--            <TimeBasedTriggeringPolicy/>-->
+<!--            <Filters>-->
+<!--                <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>-->
+<!--                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>-->
+<!--            </Filters>-->
+<!--        </RollingFile>-->
+
+        <RollingFile name="File-INFO" fileName="${LOG_FILE_PATH}dbworld-info.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-info-%d{MM-dd-yyyy}.log.gz"
+                     ignoreExceptions="false">
+            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
+            <TimeBasedTriggeringPolicy/>
+            <Filters>
+                <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <ThresholdFilter level="WARN" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+
+        <RollingFile name="File-ERROR" fileName="${LOG_FILE_PATH}dbworld-error.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-error-%d{MM-dd-yyyy}.log.gz"
+                     ignoreExceptions="false">
+            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
+            <TimeBasedTriggeringPolicy/>
+            <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+        </RollingFile>
+
+        <RollingFile name="File-WARN" fileName="${LOG_FILE_PATH}dbworld-warn.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-warn-%d{MM-dd-yyyy}.log.gz"
+                     ignoreExceptions="false">
+            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
+            <TimeBasedTriggeringPolicy/>
+            <Filters>
+                <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+        <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-%d{MM-dd-yyyy}.log.gz"
+                     ignoreExceptions="true" target="SYSTEM_OUT">
+            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
+            <TimeBasedTriggeringPolicy/>
+            <Filters>
+                <RegexFilter regex=".*(Peer collection finished with exception in peer source).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Error when writing message).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Failed to process key).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Unexpected error).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(Listener invocation failed).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(handleException /api/stream/download).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <RegexFilter regex=".*(handleException /api/stream/watch).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+    </Appenders>
+
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="Console-INFO"/>
+            <AppenderRef ref="File-INFO"/>
+            <AppenderRef ref="File-WARN"/>
+            <AppenderRef ref="File-ERROR"/>
+<!--            <AppenderRef ref="File-DEBUG"/>-->
+            <AppenderRef ref="File-INFO-Main"/>
+        </Root>
+    </Loggers>
+
+</Configuration>

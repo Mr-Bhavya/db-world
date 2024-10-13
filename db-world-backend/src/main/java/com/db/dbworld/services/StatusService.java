@@ -1,0 +1,32 @@
+package com.db.dbworld.services;
+
+import com.db.dbworld.payloads.MirrorStatus;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public interface StatusService {
+    Map<String, MirrorStatus> cacheMirrorStatus = new HashMap<>();
+    Map<String, MirrorStatus> getAllStatus();
+    MirrorStatus getStatusById(String id);
+
+    void addNewStatus(MirrorStatus mirrorStatus);
+
+    void deleteStatus(String id);
+
+    void updateStatus(MirrorStatus mirrorStatus);
+
+    void updateMirrorStatusWithFileSize(String id, Long fileSize);
+
+    void updateStatusMessage(String id, String message);
+
+    void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus downloadStatus);
+
+    void updateMirrorStatusWithExtracting(String id);
+
+    void updateMirrorStatusWithSuccess(String id);
+
+    void updateMirrorStatusWithFailed(String id, String message);
+
+    void updateMirrorStatusWithCancelled(String id);
+}

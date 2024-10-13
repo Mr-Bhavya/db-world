@@ -1,0 +1,64 @@
+# Server Config
+Server:
+  port: 9090
+  jetty:
+    idle-timeout: 60000 # 60 seconds
+
+#MongoDB
+spring:
+  data:
+    mongodb:
+      uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/db_world?retryWrites=true&w=majority
+#      host: localhost
+#      port: 27017
+#      authentication-database: admin
+#      database: db_world
+#      username: dbworld_admin
+#      password: BD@pi
+#      auto-index-creation: true
+  jpa:
+    show-sql: true
+  devtools:
+    livereload:
+      enable: false
+  mvc:
+    converters:
+      preferred-json-mapper: gson
+  gson:
+    enable-complex-map-key-serialization: true
+  servlet:
+    multipart:
+      enabled: true
+
+#Swagger
+springdoc:
+  api-docs:
+    path: /api/dbworld-api-doc
+  swagger-ui:
+    path: /dbworld-api-doc.html
+
+#Security
+jwt:
+  token:
+    validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
+    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
+
+
+tmdbApiKey: 30061af77dba3722bbe14a2691055544
+
+tmdb:
+  api:
+    key: 30061af77dba3722bbe14a2691055544
+
+dbworld:
+  paths:
+    tempDownloadPath: download/
+    logFilePath: logs/dbworld.log
+    streamHomePath: D:/Bhavya/Videos
+    externalStreamHomePath: F:/Bhavya/Videos
+    torrentDownloadPath: D:/Bhavya/Videos/Torrent Download
+    ytdlpPath: C:/YTDLP/yt-dlp.exe/yt-dlp
+    hsCookiesPath: D:\\Bhavya\\StartUp_Scripts\\Deployed\\cookies\\HS_COOKIES.txt
+
+logging:
+  config: classpath:log4j2-local.xml
