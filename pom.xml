@@ -4,7 +4,7 @@
     <groupId>com.db</groupId>
     <artifactId>db-world</artifactId>
     <packaging>pom</packaging>
-    <version>${revision}</version>
+    <version>1.0-SNAPSHOT</version>
     <name>db-world</name>
 
     <parent>
