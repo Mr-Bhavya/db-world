@@ -1,8 +1,11 @@
 package com.db.dbworld.payloads;
 
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
+import com.db.dbworld.payloads.pm.CredentialDto;
 import com.db.dbworld.services.Impl.UserDetailImpl;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -33,10 +36,12 @@ public class ResponsePayloads {
     public static class PasswordManagerCredential{
         private String id;
         private String host;
-        private List<Credential> credentials;
+        private List<CredentialDto> credentials;
     }
 
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class PaginationRecords{
         private int pageNumber;
         private int pageSize;

@@ -13,6 +13,7 @@ import { Card, Col, Container, Row } from "react-bootstrap";
 
 function SingleMovie(props) {
     const movie = props.movie;
+    movie["tmdbData"] = movie?.type == Constants.RECORD_TYPE_MOVIE ? movie?.movieTmdb : movie?.seriesTmdb;
     const userData = props.userData;
     const userRole = props.userRole;
     const id = props.id;
@@ -282,12 +283,12 @@ function SingleMovie(props) {
                                 <div className="">
 
                                     <LikeIcon
-                                        isLiked={movie.likedBy !== null && movie.likedBy.includes(userData.userId)}
+                                        isLiked={movie?.isLiked}
                                         recordId={movie.recordId} userId={userData.userId}
                                     />
 
                                     <WatchlistIcon
-                                        isAddedToWatchList={movie.watchListBy !== null && movie.watchListBy.includes(userData.userId)}
+                                        isAddedToWatchList={movie?.isWatchListed}
                                         recordId={movie.recordId} userId={userData.userId}
                                     />
 

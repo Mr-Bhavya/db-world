@@ -4,23 +4,23 @@ Server:
   jetty:
     idle-timeout: 60000 # 60 seconds
 
-#MongoDB
 spring:
-  data:
-    mongodb:
-      uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/db_world?retryWrites=true&w=majority
-#      host: localhost
-#      port: 27017
-#      authentication-database: admin
-#      database: db_world
-#      username: dbworld_admin
-#      password: BD@pi
-#      auto-index-creation: true
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: 12121212
+    url: jdbc:mysql://dbworldpi:3306/db_world?createDatabaseIfNotExist=true&jdbcCompliantTruncation=false
   jpa:
-    show-sql: true
-  devtools:
-    livereload:
-      enable: false
+    show-sql: false
+    generate-ddl: true
+    hibernate:
+      enable_lazy_load_no_trans: true
+      event:
+        merge:
+          entity_copy_observer: allow
+      ddl-auto: update
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
   mvc:
     converters:
       preferred-json-mapper: gson
@@ -29,6 +29,11 @@ spring:
   servlet:
     multipart:
       enabled: true
+  #live server
+  devtools:
+    livereload:
+      enable: false
+      port: 35720
 
 #Swagger
 springdoc:
@@ -43,8 +48,12 @@ jwt:
     validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
     secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
-
-tmdbApiKey: 30061af77dba3722bbe14a2691055544
+# Jasypt Configuration
+jasypt:
+  encryptor:
+    bean: jasyptStringEncryptor
+    algorithm: PBEWithMD5AndDES
+    password: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
 tmdb:
   api:
@@ -57,8 +66,6 @@ dbworld:
     streamHomePath: D:/Bhavya/Videos
     externalStreamHomePath: F:/Bhavya/Videos
     torrentDownloadPath: D:/Bhavya/Videos/Torrent Download
-    ytdlpPath: C:/YTDLP/yt-dlp.exe/yt-dlp
+    ytdlpPath: C:/YTDLP/yt-dlp.exe
     hsCookiesPath: D:\\Bhavya\\StartUp_Scripts\\Deployed\\cookies\\HS_COOKIES.txt
-
-logging:
-  config: classpath:log4j2-local.xml
+    extHDiskPath: /D:/Bhavya

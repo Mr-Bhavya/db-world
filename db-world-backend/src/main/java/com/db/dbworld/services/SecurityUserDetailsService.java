@@ -32,7 +32,8 @@ public class SecurityUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         UserEntity userEntity = this.userRepository.findByEmail(email).orElseThrow(()->new ResourceNotFoundException("User", "email", email));
-        userEntity.setPassword(passwordEncoder.encode(userEntity.getPassword()));
-        return this.modelMapper.map(userEntity, UserDetailImpl.class);
+        UserDetailImpl userDetails = this.modelMapper.map(userEntity, UserDetailImpl.class);
+        userDetails.setPassword(passwordEncoder.encode(userEntity.getPassword()));
+        return userDetails;
     }
 }

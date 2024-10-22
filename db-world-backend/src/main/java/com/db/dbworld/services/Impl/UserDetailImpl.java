@@ -1,7 +1,7 @@
 package com.db.dbworld.services.Impl;
 
+import com.db.dbworld.entities.user.UserRoleEntity;
 import com.db.dbworld.exceptions.DbWorldException;
-import com.db.dbworld.payloads.user.UserDto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,7 +18,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UserDetailImpl implements UserDetails {
-    private String userId;
+    private Long userId;
     private String firstName;
     private String lastName;
     private String age;
@@ -27,7 +27,7 @@ public class UserDetailImpl implements UserDetails {
     private Long mobileNo;
     private String email;
     private String password;
-    private UserDto.UserRole userRole;
+    private UserRoleEntity role;
 
     /**
      * @return
@@ -35,10 +35,10 @@ public class UserDetailImpl implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-        if(userRole == null){
+        if(role == null){
             throw new DbWorldException(HttpStatus.FORBIDDEN, "You don't have any role. first please assign to you role from administrator.");
         }
-        authorities.add(new SimpleGrantedAuthority(userRole.getName()));
+        authorities.add(new SimpleGrantedAuthority(role.getName()));
         return authorities;
     }
 

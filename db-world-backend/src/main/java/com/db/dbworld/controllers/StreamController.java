@@ -4,6 +4,7 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.security.JwtHelper;
 import com.db.dbworld.services.StreamService;
+import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import jakarta.validation.Valid;
@@ -24,9 +25,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 @Log4j2
 @RestController
@@ -41,7 +44,11 @@ public class StreamController {
     private DbWorldUtils dbWorldUtils;
     @Autowired
     private JwtHelper jwtHelper;
-    private Map<Long, String> video_cache = new HashMap<>();
+    @Autowired
+    private UserService userService;
+    
+    
+    private final Map<Long, String> video_cache = new HashMap<>();
     private Map<String, List<String>> download_cache = new HashMap<>();
     private Map<String, List<String>> watch_cache = new HashMap<>();
     public static final String CACHE_TYPE_DOWNLOAD = "CACHE_TYPE_DOWNLOAD";
@@ -49,18 +56,18 @@ public class StreamController {
 
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse getMediaList(@RequestParam(value = "path", defaultValue = "") String path) {
+    public ApiResponse<List<HashMap<String, Object>>> getMediaList(@RequestParam(value = "path", defaultValue = "") String path) {
         List<HashMap<String, Object>> mediaList = null;
         mediaList = streamService.getList(path);
-        return new ApiResponse(HttpStatus.OK, true, mediaList);
+        return new ApiResponse<>(HttpStatus.OK, true, mediaList);
     }
 
     @PutMapping("/file/{fileId}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse renameFile(@PathVariable(value = "fileId") long fileId, @RequestBody String newName){
+    public ApiResponse<String> renameFile(@PathVariable(value = "fileId") long fileId, @RequestBody String newName){
         List<File> files = getStreamableFilesRecursive();
         List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
-        if (filteredFiles.size() == 0) {
+        if (filteredFiles.isEmpty()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "File is not found for ID: "+ fileId +" is not found.");
         }
         try {
@@ -68,27 +75,30 @@ public class StreamController {
         } catch (IOException e) {
             throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
+        if(video_cache.containsKey(fileId)){
+            video_cache.put(fileId, Path.of(filteredFiles.get(0).getParent() + "/"+newName).toString());
+        }
         String[] message = new String[] {"File", filteredFiles.get(0).getAbsolutePath(), "is rename to", filteredFiles.get(0).getParent() + "/"+newName};
-        log.info(Arrays.stream(message).collect(Collectors.joining(" ")));
-        return new ApiResponse<>(HttpStatus.OK, true, Arrays.stream(message).collect(Collectors.joining(" ")));
+        log.info(String.join(" ", message));
+        return new ApiResponse<>(HttpStatus.OK, true, String.join(" ", message));
     }
 
     @DeleteMapping("/file/{fileId}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse deleteFile(@PathVariable(value = "fileId") long fileId){
+    public ApiResponse<String> deleteFile(@PathVariable(value = "fileId") long fileId){
         List<File> files = getStreamableFilesRecursive();
         List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
-        if (filteredFiles.size() == 0) {
+        if (filteredFiles.isEmpty()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "File is not found for ID: "+ fileId +" is not found.");
         }
         dbWorldUtils.deleteFile(filteredFiles.get(0).getAbsolutePath());
         String[] message = new String[] {"File", filteredFiles.get(0).getAbsolutePath(), "is initiate for delete."};
-        log.info(Arrays.stream(message).collect(Collectors.joining(" ")));
-        return new ApiResponse<>(HttpStatus.OK, true, Arrays.stream(message).collect(Collectors.joining(" ")));
+        log.info(String.join(" ", message));
+        return new ApiResponse<>(HttpStatus.OK, true, String.join(" ", message));
     }
 
     @GetMapping(value = "/watch/{fileId}")
-//    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public CompletableFuture<ResponseEntity<InputStreamResource>> watchFileOnline(@RequestHeader(value = "Range", required = false) String rangeHeader,
                                                                @PathVariable(name = "fileId") @Valid @NotNull long fileId,
                                                                @RequestParam(name = "t") String token) {
@@ -98,7 +108,7 @@ public class StreamController {
         } else {
             List<File> files = getStreamableFilesRecursive();
             List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
-            if (filteredFiles.size() == 0) {
+            if (filteredFiles.isEmpty()) {
                 throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
             }
             path = filteredFiles.get(0).toPath();
@@ -119,7 +129,7 @@ public class StreamController {
         } else {
             List<File> files = getStreamableFilesRecursive();
             List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
-            if (filteredFiles.size() == 0) {
+            if (filteredFiles.isEmpty()) {
                 throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
             }
             path = filteredFiles.get(0).toPath();
@@ -132,7 +142,7 @@ public class StreamController {
 
     @GetMapping(value = "/search")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse searchFile(@Valid @NotEmpty @RequestParam(value = "q", defaultValue = "search") String query) {
+    public ApiResponse<List<HashMap<String, Object>>> searchFile(@Valid @NotEmpty @RequestParam(value = "q", defaultValue = "search") String query) {
         List<File> files = getStreamableFilesRecursive();
         List<HashMap<String, Object>> filteredFiles = files.stream()
                 .filter(file -> file.toPath().getFileName().toString()
@@ -140,7 +150,7 @@ public class StreamController {
                         .replace("_", " ")
                         .contains(query.toLowerCase()) && file.isFile())
                 .map(file -> streamService.createDetails(file.toPath())).toList();
-        return new ApiResponse(HttpStatus.OK, true, filteredFiles);
+        return new ApiResponse<>(HttpStatus.OK, true, filteredFiles);
     }
 
     private Map<String, Object> catchUpdate(String username, Map<String, List<String>> cache, String path) {
@@ -148,7 +158,7 @@ public class StreamController {
         // Create User cache and print log for first time user download file.
         if (cache.containsKey(username)) {
             List<String> filteredPath = cache.get(username).stream().filter(existingPath -> existingPath.equalsIgnoreCase(path)).toList();
-            if (filteredPath.size() == 0) {
+            if (filteredPath.isEmpty()) {
                 cache.get(username).add(path);
                 log = true;
             }
@@ -175,7 +185,6 @@ public class StreamController {
 
     private void catchUpdate(String token, String path, String cacheType){
         String username = "Someone";
-        String errorMessage = null;
         String tempUser = dbWorldUtils.getUserFromToken(token);
         if(tempUser != null){
             username = tempUser;
@@ -185,16 +194,12 @@ public class StreamController {
             download_cache = (Map<String, List<String>>) res.get("cache");
             if ((boolean) res.get("print")) {
                 log.info("user '{}' was downloaded file - {}", username, path);
-                if(errorMessage != null)
-                    log.warn(errorMessage);
             }
         }else if(cacheType.equals(CACHE_TYPE_WATCH)){
             Map<String, Object> res = catchUpdate(username, watch_cache, path);
             watch_cache = (Map<String, List<String>>) res.get("cache");
             if ((boolean) res.get("print")) {
                 log.info("user '{}' is watching file - {}", username, path);
-                if(errorMessage != null)
-                    log.warn(errorMessage);
             }
         }
 

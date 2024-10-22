@@ -1,11 +1,17 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.dbcinema.DBCinemaRecordsRepository;
-import com.db.dbworld.dao.dbcinema.MovieTmdbDataRepository;
-import com.db.dbworld.dao.dbcinema.SeriesTmdbDataRepository;
+import com.db.dbworld.dao.dbcinema.tmdb.TmdbDataRepository;
+import com.db.dbworld.dao.dbcinema.user.UserLikedRecordRepository;
+import com.db.dbworld.dao.dbcinema.user.UserWatchlistRecordRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
-import com.db.dbworld.entities.dbcinema.MovieTmdbDataEntity;
-import com.db.dbworld.entities.dbcinema.SeriesTmdbDataEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.MovieTmdbDataEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.SeriesTmdbDataEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.TmdbDataEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.providers.ProvidersEntity;
+import com.db.dbworld.entities.dbcinema.user.UserLikeRecordEntity;
+import com.db.dbworld.entities.dbcinema.user.UserWatchlistRecordEntity;
+import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.DuplicateResourceException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
@@ -13,9 +19,8 @@ import com.db.dbworld.exceptions.TmdbApiException;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
-import com.db.dbworld.payloads.dbcinema.MovieTmdbDataDto;
-import com.db.dbworld.payloads.dbcinema.SeriesTmdbDataDto;
-import com.db.dbworld.payloads.user.UserDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
@@ -24,26 +29,26 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.domain.*;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoOperations;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 @Service
 @Log4j2
@@ -59,16 +64,51 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     private ModelMapper modelMapper;
 
     @Autowired
-    private MongoOperations mongoOperations;
-
-    @Autowired
     private DBCinemaRecordsRepository dbCinemaRecordsRepository;
 
     @Autowired
-    private MovieTmdbDataRepository movieTmdbDataRepository;
+    private TmdbDataRepository tmdbDataRepository;
 
     @Autowired
-    private SeriesTmdbDataRepository seriesTmdbDataRepository;
+    private UserLikedRecordRepository userLikedRecordRepository;
+
+    @Autowired
+    private UserWatchlistRecordRepository userWatchlistRecordRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+//    private static final String RECORD_BY_TYPE = "SELECT dcr FROM DBCinemaRecordsEntity dcr WHERE dcr.type = :type";
+
+    //    private static String RECORD_BY_TYPE = "SELECT dcr," +
+//            " CASE WHEN uwr.isWatchListed IS NULL THEN false else uwr.isWatchListed END AS isWatchListed," +
+//            " CASE WHEN ulr.isLiked IS NOT NULL THEN ulr.isLiked ELSE false END AS isLiked" +
+//            " FROM UserDBCinemaRecords dcr" +
+//            " LEFT JOIN UserWatchlistRecordEntity uwr ON dcr.id = uwr.dbCinemaRecordsEntity.id AND uwr.user.id = :userId AND uwr.isWatchListed = true" +
+//            " LEFT JOIN UserLikeRecordEntity ulr ON dcr.id = ulr.dbCinemaRecordsEntity.id AND ulr.user.id = :userId AND ulr.isLiked = true" +
+//            " WHERE dcr.type = :type";
+//    private static String RECORD_BY_TYPE_WITH_USER_DATA = "SELECT dcr.id" +
+//        ", ifnull(uwr.isWatchlisted, 0) AS isWatchListed," +
+//        " ifnull(ulr.isLiked, 0) AS isLiked" +
+//            " FROM db_cinema_records dcr" +
+//            " JOIN tmdb_data td ON td.id = dcr.tmdb" +
+//            " LEFT JOIN user_watchlist_record uwr ON dcr.id = uwr.db_cinema_record AND uwr.user = :userId AND uwr.isWatchListed = true" +
+//            " LEFT JOIN User_like_record ulr ON dcr.id = ulr.db_cinema_record AND ulr.user = :userId AND ulr.isLiked = true" +
+//            " WHERE dcr.type = :type";
+//    private static final String COUNT_RECORD_BY_TYPE = "SELECT count(dcr) FROM DBCinemaRecordsEntity dcr WHERE dcr.type = :type";
+    private static final String SEARCH_RECORD_BY_KEYWORD = "SELECT dcr FROM DBCinemaRecordsEntity dcr WHERE dcr.name LIKE (:keyword) OR dcr.tmdb.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC";
+    //    private static final String GET_USER_LIKE_RECORD_BY_USER_RECORD = "SELECT ulr.* FROM USER_LIKE_RECORD ulr WHERE ulr.user = :userId AND ulr.db_cinema_record = :recordId";
+//    private static final String REMOVE_USER_LIKE_RECORD = "UPDATE USER_LIKE_RECORD ulr SET uwr.isLiked=false where ulr.user = :userId AND ulr.db_cinema_record = :recordId";
+//    private static final String REMOVE_USER_WATCHLIST_RECORD = "UPDATE user_watchlist_record uwr SET uwr.isWatchListed=false where uwr.user = :userId AND uwr.db_cinema_record = :recordId";
+//    private static final String GET_USER_WATCHLIST_RECORD_BY_USER_RECORD = "SELECT uwr.* FROM USER_WATCHLIST_RECORD uwr WHERE uwr.user = :userId AND uwr.db_cinema_record = :recordId";
+//    private static final String USER_WATCHLIST_RECORD_ID = "SELECT uwr.dbCinemaRecord.id FROM UserWatchlistRecordEntity uwr WHERE uwr.user.id=:userId and uwr.isWatchListed=true order by uwr.id";
+//    private static final String AND_TMDB_ORIGINAL_LANGUAGES = " AND dcr.tmdb.original_language in :original_language";
+//    private static final String ORIGINAL_LANGUAGES = "original_language";
+//    private static final String RECORD_TYPE = "type";
+    private static final String ALL_LANGUAGES = "all";
+
+//    @Autowired
+//    private TmdbDataRepository tmdbDataRepository;
 
     @Autowired
     private UserService userService;
@@ -77,300 +117,371 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     public boolean isRecordsUpdateRunning = false;
 
+    @Transactional
     @Override
     public DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record) {
-        try {
-            DBCinemaRecordsDto dbCinemaRecordsDto = modelMapper.map(record, DBCinemaRecordsDto.class);
-            DBCinemaRecordsEntity newDbCinemaRecordsEntity = null;
-            if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-                MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(record);
-                dbCinemaRecordsDto.setName(movieTmdbDataDto.getTitle());
-                newDbCinemaRecordsEntity = dbCinemaRecordsRepository.save(modelMapper.map(dbCinemaRecordsDto, DBCinemaRecordsEntity.class));
-                movieTmdbDataDto.setDbCinemaRecordId(newDbCinemaRecordsEntity.getRecordId().toString());
-                MovieTmdbDataEntity newMovieTmdbDataEntity = movieTmdbDataRepository.save(modelMapper.map(movieTmdbDataDto, MovieTmdbDataEntity.class));
-            } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-                SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(record);
-                dbCinemaRecordsDto.setName(seriesTmdbDataDto.getTitle());
-                newDbCinemaRecordsEntity = dbCinemaRecordsRepository.save(modelMapper.map(dbCinemaRecordsDto, DBCinemaRecordsEntity.class));
-                seriesTmdbDataDto.setDbCinemaRecordId(newDbCinemaRecordsEntity.getRecordId().toString());
-                SeriesTmdbDataEntity newSeriesTmdbDataEntity = seriesTmdbDataRepository.save(modelMapper.map(seriesTmdbDataDto, SeriesTmdbDataEntity.class));
+        if (this.dbCinemaRecordsRepository.findByTmdbId(record.getTmdbId()).isEmpty()) {
+            try {
+                DBCinemaRecordsEntity dbCinemaRecordsEntity = new DBCinemaRecordsEntity();
+                dbCinemaRecordsEntity.setType(record.getType().toLowerCase());
+
+                if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
+                    MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(record);
+                    dbCinemaRecordsEntity.setName(movieTmdbDataDto.getTitle());
+                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(dbWorldUtils.convertMovieTmdbDtoToEntity(movieTmdbDataDto)));
+                } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
+                    SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(record);
+                    dbCinemaRecordsEntity.setName(seriesTmdbDataDto.getTitle());
+                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(dbWorldUtils.convertSeriesTmdbDtoToEntity(seriesTmdbDataDto)));
+                }
+                DBCinemaRecordsEntity newDbCinemaRecordEntity = entityManager.merge(dbCinemaRecordsEntity);
+                return dbWorldUtils.convertDbCinemaRecordEntityToDto(newDbCinemaRecordEntity);
+            } catch (Exception ex) {
+                throw new DbWorldException(ex.getMessage());
             }
-            return modelMapper.map(newDbCinemaRecordsEntity, DBCinemaRecordsDto.class);
-        } catch (DuplicateKeyException ex) {
+        } else {
             throw new DuplicateResourceException("DBCinemaRecordsEntity", "tmdbId", Long.toString(record.getTmdbId()));
         }
     }
 
+    @Transactional
     @Override
-    public void updateRecord(String recordId, RequestPayloads.AddRecord record) {
-
-        if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-            //get tmdbdata from tmdbapi
-            MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(record);
-            movieTmdbDataDto.setDbCinemaRecordId(recordId);
-
-            Update update = new Update();
-            update.set("name", movieTmdbDataDto.getTitle());
-            update.set("tmdbId", movieTmdbDataDto.getId());
-            update.set("showOnTop", record.isShowOnTop());
-            DBCinemaRecordsEntity dbCinemaRecordsEntity = mongoOperations.findAndModify(
-                    new Query(Criteria.where("recordId").is(recordId)), update,
-                    new FindAndModifyOptions().returnNew(true), DBCinemaRecordsEntity.class);
-
-            //get data from Dbword db
-            mongoOperations.findAndRemove(new Query(Criteria.where("dbCinemaRecordId").is(recordId)), MovieTmdbDataEntity.class);
-            this.movieTmdbDataRepository.save(this.modelMapper.map(movieTmdbDataDto, MovieTmdbDataEntity.class));
-
-
-        } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-
-
-            //get tmdbdata from tmdbapi
-            SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(record);
-            seriesTmdbDataDto.setDbCinemaRecordId(recordId);
-
-            Update update = new Update();
-            update.set("name", seriesTmdbDataDto.getTitle());
-            update.set("tmdbId", seriesTmdbDataDto.getId());
-            update.set("showOnTop", record.isShowOnTop());
-            DBCinemaRecordsEntity dbCinemaRecordsEntity = mongoOperations.findAndModify(
-                    new Query(Criteria.where("recordId").is(recordId)), update,
-                    new FindAndModifyOptions().returnNew(true), DBCinemaRecordsEntity.class);
-
-            //get data from Dbword db
-            mongoOperations.findAndRemove(new Query(Criteria.where("dbCinemaRecordId").is(recordId)), SeriesTmdbDataEntity.class);
-            this.seriesTmdbDataRepository.save(this.modelMapper.map(seriesTmdbDataDto, SeriesTmdbDataEntity.class));
-
-        } else {
-            throw new ResourceNotFoundException("Db Cinema Record", "record type", record.getType());
+    public DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record) {
+        try {
+            TmdbDataEntity tmdbDataEntity = null;
+            DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId).orElseThrow(
+                    () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
+            );
+            if (record.getTmdbId() != dbCinemaRecordsEntity.getTmdb().getId()) {
+                throw new DbWorldException(HttpStatus.BAD_REQUEST, "Tmdb Id is different from existing.");
+            }
+            if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
+                tmdbDataEntity = updateTmdbForMovie(dbCinemaRecordsEntity.getTmdb());
+            } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
+                tmdbDataEntity = updateTmdbForSeries(dbCinemaRecordsEntity.getTmdb());
+            } else {
+                throw new ResourceNotFoundException("Db Cinema Record", "record type", record.getType());
+            }
+            dbCinemaRecordsEntity.setTmdb(tmdbDataEntity);
+            dbCinemaRecordsEntity.setName(Objects.requireNonNull(tmdbDataEntity).getTitle());
+            DBCinemaRecordsEntity newDbCinemaRecordsEntity = entityManager.merge(dbCinemaRecordsEntity);
+            return dbWorldUtils.convertDbCinemaRecordEntityToDto(newDbCinemaRecordsEntity);
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
         }
     }
 
     @Override
-    public void deleteRecord(String recordId) {
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = this.dbCinemaRecordsRepository.findById(recordId)
-                .orElseThrow(() -> new ResourceNotFoundException("DBCinema Record", "recordId", recordId));
-
-        Query query = Query.query(Criteria.where("dbCinemaRecordId").is(dbCinemaRecordsEntity.getTmdbId()));
-        if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-            mongoOperations.findAndRemove(query, MovieTmdbDataEntity.class);
+    @Transactional
+    public void deleteRecord(Long recordId) {
+        if (this.dbCinemaRecordsRepository.existsById(recordId)) {
+            this.userWatchlistRecordRepository.deleteByDbCinemaRecordId(recordId);
+            this.userLikedRecordRepository.deleteByDbCinemaRecordId(recordId);
+            this.dbCinemaRecordsRepository.deleteById(recordId);
         } else {
-            mongoOperations.findAndRemove(query, SeriesTmdbDataEntity.class);
-        }
-        dbCinemaRecordsRepository.deleteById(recordId);
-
-        //delete from users userAppdata
-        if (dbCinemaRecordsEntity.getLikedBy() != null) {
-            dbCinemaRecordsEntity.getLikedBy().stream().forEach(userId -> {
-                UserDto.UserAppData userAppData = userService.getUserAppDataByUserId(userId);
-                userAppData.getCinemaRecord().setLike(userAppData.getCinemaRecord().getLike().stream().filter(tempRecordId -> !tempRecordId.equalsIgnoreCase(recordId)).collect(Collectors.toCollection(ArrayList::new)));
-                userService.updateUserAppDataByUserId(userId, userAppData);
-            });
-        }
-
-        if (dbCinemaRecordsEntity.getWatchListBy() != null) {
-            dbCinemaRecordsEntity.getWatchListBy().stream().forEach(userId -> {
-                UserDto.UserAppData userAppData = userService.getUserAppDataByUserId(userId);
-                userAppData.getCinemaRecord().setWatchList(userAppData.getCinemaRecord().getWatchList().stream().filter(tempRecordId -> !tempRecordId.equalsIgnoreCase(recordId)).collect(Collectors.toCollection(ArrayList::new)));
-                userService.updateUserAppDataByUserId(userId, userAppData);
-            });
+            throw new ResourceNotFoundException("db_cinema_record", "id", recordId.toString());
         }
     }
 
     @Override
     public List<DBCinemaRecordsDto> getRecords() {
-        List<DBCinemaRecordsEntity> dbCinemaRecordsEntityList = dbCinemaRecordsRepository.findAll();
-        return dbCinemaRecordsEntityList.stream().map(dbCinemaRecordsEntity -> this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class)).toList();
+        return List.of();
     }
 
     @Override
-    public ResponsePayloads.PaginationRecords getRecordsByPagination(String recordType, int pageNumber, int pageSize) {
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("recordId").descending());
-        Query query = Query.query(Criteria.where("type").is(recordType));
+    public PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages) {
+
+        try {
+            Long userId = userService.getUserIdFromToken();
+            Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("creationDate").descending());
+
+            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = languages.equalsIgnoreCase(ALL_LANGUAGES) ?
+                    dbCinemaRecordsRepository.findRecordsByUserAndType(userId, recordType, pageable)
+                    :
+                    dbCinemaRecordsRepository.findRecordsByUserAndTypeAndLanguages(userId, recordType, Arrays.stream(languages.split(",")).toList(), pageable);
+
+            Long totalElements = languages.equalsIgnoreCase(ALL_LANGUAGES) ?
+                    dbCinemaRecordsRepository.countRecordsByType(recordType).orElse(0L)
+                    :
+                    dbCinemaRecordsRepository.countRecordsByTypeAndLanguages(recordType, Arrays.stream(languages.split(",")).toList()).orElse(0L);
 
 
-        long totalElement = mongoOperations.count(query, DBCinemaRecordsEntity.class);
-        List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = mongoOperations.find(query.with(pageable), DBCinemaRecordsEntity.class);
-        List<Long> tmdbIds = dbCinemaRecordsEntities.stream().map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList();
-        List<MovieTmdbDataEntity> movieTmdbDataEntities = movieTmdbDataRepository.findAllById(tmdbIds);
-
-        Page<DBCinemaRecordsEntity> dbCinemaRecordPage = new PageImpl<>(dbCinemaRecordsEntities, pageable, totalElement);
-
-        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsEntities.stream().map(dbCinemaRecordsEntity -> {
-            MovieTmdbDataEntity movieTmdbDataEntity = movieTmdbDataEntities.stream().filter(
-                    movieTmdbData -> movieTmdbData.getId() == dbCinemaRecordsEntity.getTmdbId()
-            ).toList().get(0);
-            DBCinemaRecordsDto dbCinemaRecordsDto = this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class);
-            dbCinemaRecordsDto.setTmdbData(this.modelMapper.map(movieTmdbDataEntity, MovieTmdbDataDto.class));
-            return dbCinemaRecordsDto;
-        }).toList();
-
-
-        ResponsePayloads.PaginationRecords paginationRecords = new ResponsePayloads.PaginationRecords();
-        paginationRecords.setPageNumber(dbCinemaRecordPage.getNumber());
-        paginationRecords.setPageSize(dbCinemaRecordPage.getSize());
-        paginationRecords.setTotalElements(dbCinemaRecordPage.getTotalElements());
-        paginationRecords.setLast(dbCinemaRecordPage.isLast());
-        paginationRecords.setFirst(dbCinemaRecordPage.isFirst());
-        paginationRecords.setEmpty(dbCinemaRecordPage.isEmpty());
-        paginationRecords.setRecords(dbCinemaRecordsDtos);
-
-        return paginationRecords;
-
-    }
-
-    @Override
-    public ResponsePayloads.PaginationRecords getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages, String username) {
-        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = null;
-        Page<DBCinemaRecordsEntity> dbCinemaRecordPage = null;
-
-        String userId = userService.getUserIdByUsername(username);
-
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("dbCinemaRecordId").descending());
-        Query query = new Query();
-//        query.addCriteria(Criteria.where("showOnTop").in(true));
-        if (!languages.equalsIgnoreCase("all")) {
-            query.addCriteria(Criteria.where("original_language").in(Arrays.stream(languages.split(",")).toList()));
-        }
-
-        if (recordType.equalsIgnoreCase("movie")) {
-            long totalElement = mongoOperations.count(query, MovieTmdbDataEntity.class);
-            List<MovieTmdbDataEntity> movieTmdbDataEntities = mongoOperations.find(query.with(pageable), MovieTmdbDataEntity.class);
-            List<Long> tmdbIds = movieTmdbDataEntities.stream().map(movieTmdbDataEntity -> movieTmdbDataEntity.getId()).toList();
-
-            Query dbCinemaRecordsQuery = new Query(Criteria.where("tmdbId").in(tmdbIds)).with(Sort.by("recordId").descending());
-            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class);
-
-            //add code to show updated records on top
-            List<Criteria> showOnTopCriteria = new ArrayList<>();
-            showOnTopCriteria.add(Criteria.where("showOnTop").in(true));
-            showOnTopCriteria.add(Criteria.where("tmdbId").nin(tmdbIds));
-            if (!languages.equalsIgnoreCase("all"))
-                showOnTopCriteria.add(Criteria.where("original_language").in(Arrays.stream(languages.split(",")).toList()));
-            dbCinemaRecordsQuery = new Query(new Criteria().andOperator(showOnTopCriteria)).with(Sort.by("recordId").descending());
-            List<DBCinemaRecordsEntity> showOnTopRecords = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class)
-                    .stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)).toList();
-            movieTmdbDataEntities.addAll(movieTmdbDataRepository.findAllById(showOnTopRecords.stream()
-                    .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList()));
-            dbCinemaRecordsEntities.addAll(showOnTopRecords);
-
-            dbCinemaRecordPage = new PageImpl<>(dbCinemaRecordsEntities, pageable, totalElement);
-
-            dbCinemaRecordsDtos = dbCinemaRecordsEntities.stream().map(dbCinemaRecordsEntity -> {
-                MovieTmdbDataEntity movieTmdbDataEntity = movieTmdbDataEntities.stream().filter(
-                        movieTmdbData -> movieTmdbData.getId() == dbCinemaRecordsEntity.getTmdbId()
-                ).toList().get(0);
-                DBCinemaRecordsDto dbCinemaRecordsDto = this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class);
-                dbCinemaRecordsDto = filterDataByUser(dbCinemaRecordsDto, userId);
-                dbCinemaRecordsDto.setTmdbData(this.modelMapper.map(movieTmdbDataEntity, MovieTmdbDataDto.class));
-                return dbCinemaRecordsDto;
+            List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsEntities.stream().map(dbCinemaRecordsEntity -> {
+                dbCinemaRecordsEntity.setWatchListed(
+                        this.userWatchlistRecordRepository.isRecordWatchListedByUser(userId, dbCinemaRecordsEntity.getId()).orElse(false)
+                );
+                dbCinemaRecordsEntity.setLiked(
+                        this.userLikedRecordRepository.isRecordLikedByUser(userId, dbCinemaRecordsEntity.getId()).orElse(false)
+                );
+                return dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity);
             }).toList();
 
-        } else if (recordType.equalsIgnoreCase("series")) {
-            long totalElement = mongoOperations.count(query, SeriesTmdbDataEntity.class);
-            List<SeriesTmdbDataEntity> seriesTmdbDataEntities = mongoOperations.find(query.with(pageable), SeriesTmdbDataEntity.class);
-            List<Long> tmdbIds = seriesTmdbDataEntities.stream().map(seriesTmdbDataEntity -> seriesTmdbDataEntity.getId()).toList();
-
-            Query dbCinemaRecordsQuery = new Query(Criteria.where("tmdbId").in(tmdbIds)).with(Sort.by("recordId").descending());
-            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class);
-
-            //add code to show updated records on top
-            dbCinemaRecordsQuery = new Query(new Criteria().andOperator(
-                    Criteria.where("showOnTop").in(true),
-                    Criteria.where("tmdbId").nin(tmdbIds),
-                    !languages.equalsIgnoreCase("all") ?
-                            Criteria.where("original_language").in(Arrays.stream(languages.split(",")).toList()) : new Criteria())
-            ).with(Sort.by("recordId").descending());
-            List<DBCinemaRecordsEntity> showOnTopRecords = mongoOperations.find(dbCinemaRecordsQuery, DBCinemaRecordsEntity.class)
-                    .stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)).toList();
-            seriesTmdbDataEntities.addAll(seriesTmdbDataRepository.findAllById(showOnTopRecords.stream().map(DBCinemaRecordsEntity::getTmdbId).toList()));
-            dbCinemaRecordsEntities.addAll(showOnTopRecords);
-
-            dbCinemaRecordPage = new PageImpl<>(dbCinemaRecordsEntities, pageable, totalElement);
-
-            dbCinemaRecordsDtos = dbCinemaRecordsEntities.stream().map(dbCinemaRecordsEntity -> {
-                SeriesTmdbDataEntity seriesTmdbDataEntity = seriesTmdbDataEntities.stream().filter(
-                        seriesTmdbData -> seriesTmdbData.getId() == dbCinemaRecordsEntity.getTmdbId()
-                ).toList().get(0);
-                DBCinemaRecordsDto dbCinemaRecordsDto = this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class);
-                dbCinemaRecordsDto = filterDataByUser(dbCinemaRecordsDto, userId);
-                dbCinemaRecordsDto.setTmdbData(this.modelMapper.map(seriesTmdbDataEntity, SeriesTmdbDataDto.class));
-                return dbCinemaRecordsDto;
-            }).toList();
+            return new PageImpl<>(
+//                    dbCinemaRecordsEntities.stream().map(
+//                            dbCinemaRecordsEntity -> {
+//                                DBCinemaRecordsDto dbCinemaRecordsDto = dbWorldUtils.convertDbCinemaRecordEntityToDto(this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsEntity.class));
+//                                List<UserWatchlistRecordEntity> filteredWatchlistRecordEntity = userWatchlistRecordEntities.stream().filter(userWatchlistRecordEntity -> Objects.equals(userWatchlistRecordEntity.getDbCinemaRecord().getId(), dbCinemaRecordsDto.getRecordId())).toList();
+//                                List<UserLikeRecordEntity> filLikeRecordEntity = userLikeRecordEntities.stream().filter(userLikeRecordEntity -> Objects.equals(userLikeRecordEntity.getDbCinemaRecord().getId(), dbCinemaRecordsDto.getRecordId())).toList();
+//                                if (!filteredWatchlistRecordEntity.isEmpty()) {
+//                                    dbCinemaRecordsDto.setWatchListed(filteredWatchlistRecordEntity.get(0).isWatchListed());
+//                                }
+//                                if (!filLikeRecordEntity.isEmpty()) {
+//                                    dbCinemaRecordsDto.setLiked(filLikeRecordEntity.get(0).isLiked());
+//                                }
+//                                return dbCinemaRecordsDto;
+//                            }
+//                    ).toList(),
+                    dbCinemaRecordsDtos,
+                    pageable,
+                    totalElements);
+        } catch (AuthenticationException ex) {
+            throw new AuthenticationServiceException(DbWorldConstants.AUTHENTICATION_EXCEPTION_MESSAGE);
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
         }
-
-        ResponsePayloads.PaginationRecords paginationRecords = new ResponsePayloads.PaginationRecords();
-        paginationRecords.setPageNumber(dbCinemaRecordPage.getNumber());
-        paginationRecords.setPageSize(dbCinemaRecordPage.getSize());
-        paginationRecords.setTotalElements(dbCinemaRecordPage.getTotalElements());
-        paginationRecords.setLast(dbCinemaRecordPage.isLast());
-        paginationRecords.setFirst(dbCinemaRecordPage.isFirst());
-        paginationRecords.setEmpty(dbCinemaRecordPage.isEmpty());
-        paginationRecords.setRecords(dbCinemaRecordsDtos);
-
-        return paginationRecords;
     }
 
     @Override
-    public DBCinemaRecordsDto getRecordById(String recordId) {
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId)
-                .orElseThrow(() -> new ResourceNotFoundException("dbCinemaRecord", "recordId", recordId));
-        DBCinemaRecordsDto dbCinemaRecordsDto = this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class);
+    public DBCinemaRecordsDto getRecordById(Long recordId) {
+        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId).orElseThrow(
+                () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
+        );
+        return dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity);
+    }
 
-        //Adding TMDB Data
-        if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-            MovieTmdbDataEntity movieTmdbDataEntity = movieTmdbDataRepository.findById(dbCinemaRecordsDto.getTmdbId())
-                    .orElseThrow(() -> new ResourceNotFoundException("MovieTmdbData", "tmdbId", String.valueOf(dbCinemaRecordsDto.getTmdbId())));
-            dbCinemaRecordsDto.setTmdbData(this.modelMapper.map(movieTmdbDataEntity, MovieTmdbDataDto.class));
-        } else {
-            SeriesTmdbDataEntity seriesTmdbDataEntity = seriesTmdbDataRepository.findById(dbCinemaRecordsEntity.getTmdbId())
-                    .orElseThrow(() -> new ResourceNotFoundException("SeriesTmdbData", "tmdbId", String.valueOf(dbCinemaRecordsDto.getTmdbId())));
-            dbCinemaRecordsDto.setTmdbData(this.modelMapper.map(seriesTmdbDataEntity, SeriesTmdbDataDto.class));
-        }
-
-        return dbCinemaRecordsDto;
+    @Override
+    public DBCinemaRecordsEntity getRecordEntityById(Long recordId) {
+        return dbCinemaRecordsRepository.findById(recordId).orElseThrow(
+                () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
+        );
     }
 
     @Override
     public List<DBCinemaRecordsDto> searchRecordByKeyword(String keyword) {
-        Query query = new Query(Criteria.where("name").regex(".*" + keyword + ".*", "i")).limit(12);
-
-        List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = mongoOperations.find(query, DBCinemaRecordsEntity.class);
-        List<Long> movieTmdbIds = dbCinemaRecordsEntities.stream()
-                .filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE))
-                .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList();
-
-        List<Long> seriesTmdbIds = dbCinemaRecordsEntities.stream()
-                .filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES))
-                .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList();
-
-        List<MovieTmdbDataEntity> movieTmdbDataEntities = movieTmdbDataRepository.findAllById(movieTmdbIds);
-        List<SeriesTmdbDataEntity> seriesTmdbDataEntities = seriesTmdbDataRepository.findAllById(seriesTmdbIds);
-
-        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsEntities.stream().map(dbCinemaRecordsEntity -> {
-            DBCinemaRecordsDto dbCinemaRecordsDto = this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class);
-            if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-                MovieTmdbDataEntity movieTmdbDataEntity = movieTmdbDataEntities.stream().filter(
-                        movieTmdbData -> movieTmdbData.getId() == dbCinemaRecordsEntity.getTmdbId()
-                ).toList().get(0);
-                dbCinemaRecordsDto.setTmdbData(this.modelMapper.map(movieTmdbDataEntity, MovieTmdbDataDto.class));
-            } else if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-                SeriesTmdbDataEntity seriesTmdbDataEntity = seriesTmdbDataEntities.stream().filter(
-                        movieTmdbData -> movieTmdbData.getId() == dbCinemaRecordsEntity.getTmdbId()
-                ).toList().get(0);
-
-                dbCinemaRecordsDto.setTmdbData(this.modelMapper.map(seriesTmdbDataEntity, MovieTmdbDataDto.class));
-            }
-            return dbCinemaRecordsDto;
-        }).toList();
-
-        return dbCinemaRecordsDtos;
+        try {
+            TypedQuery<DBCinemaRecordsEntity> query = entityManager.createQuery(SEARCH_RECORD_BY_KEYWORD, DBCinemaRecordsEntity.class);
+            query.setParameter("keyword", "%" + keyword + "%");
+            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = query.getResultList();
+            return dbCinemaRecordsEntities.stream().map(
+                    dbCinemaRecordsEntity -> this.dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity)
+            ).toList();
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
     }
 
     @Override
-    public List getTmdbByQuery(String recordType, String query, int year) {
+    public void likeRecord(Long recordId) {
+        UserEntity userEntity;
+        try {
+            userEntity = this.userService.getUserFromToken();
+        } catch (AuthenticationException ex) {
+            throw new AuthenticationServiceException("Token is not valid. Please do login again.");
+        }
+        UserLikeRecordEntity userLikeRecordEntity = this.userLikedRecordRepository
+                .findByUserUserIdAndDbCinemaRecordId(userEntity.getUserId(), recordId)
+                .orElseGet(() -> {
+                    UserLikeRecordEntity newUserLikeRecordEntity = new UserLikeRecordEntity();
+                    newUserLikeRecordEntity.setDbCinemaRecord(getRecordEntityById(recordId));
+                    newUserLikeRecordEntity.setUser(userEntity);
+                    return newUserLikeRecordEntity;
+                });
+//        UserLikeRecordEntity userLikeRecordEntity;
+//        Query query = entityManager.createNativeQuery(GET_USER_LIKE_RECORD_BY_USER_RECORD);
+//        query.setParameter("userId", userEntity.getUserId());
+//        query.setParameter("recordId", recordId);
+//        try {
+//            userLikeRecordEntity = (UserLikeRecordEntity) query.getSingleResult();
+//        } catch (NoResultException ex) {
+//            log.info("No data available for record - {} under user - {}. Adding new data", recordId, userEntity.getUserId());
+//            userLikeRecordEntity = new UserLikeRecordEntity();
+//            userLikeRecordEntity.setDbCinemaRecordsEntity(getRecordEntityById(recordId));
+//            userLikeRecordEntity.setUser(userEntity);
+//        }
+        userLikeRecordEntity.setLiked(true);
+        this.userLikedRecordRepository.save(userLikeRecordEntity);
+//        entityManager.merge(userLikeRecordEntity);
+    }
+
+    @Override
+    public void unLikeRecord(Long recordId) {
+        try {
+            this.userLikedRecordRepository.setIsLikeAsFalseByUserIdRecordId(this.userService.getUserIdFromToken(), recordId);
+        } catch (AuthenticationException ex) {
+            throw new AuthenticationServiceException("Token is not valid. Please do login again.");
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Transactional
+    @Override
+    public void watchListRecord(Long recordId) {
+        try {
+            UserEntity userEntity = this.userService.getUserFromToken();
+            UserWatchlistRecordEntity userWatchlistRecordEntity = this.userWatchlistRecordRepository
+                    .findByUserUserIdAndDbCinemaRecordId(userEntity.getUserId(), recordId)
+                    .orElseGet(() -> {
+                        UserWatchlistRecordEntity uwr = new UserWatchlistRecordEntity();
+                        uwr.setDbCinemaRecord(getRecordEntityById(recordId));
+                        uwr.setUser(userEntity);
+                        return uwr;
+                    });
+            userWatchlistRecordEntity.setWatchListed(true);
+            this.userWatchlistRecordRepository.save(userWatchlistRecordEntity);
+        } catch (AuthenticationException ex) {
+            throw new AuthenticationServiceException("Token is not valid. Please do login again.");
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Transactional
+    @Override
+    public void removeWatchListRecord(Long recordId) {
+        try {
+            this.userWatchlistRecordRepository.setIsWatchlistAsFalseByUserIdRecordId(this.userService.getUserIdFromToken(), recordId);
+        } catch (AuthenticationException ex) {
+            throw new AuthenticationServiceException("Token is not valid. Please do login again.");
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    public List<DBCinemaRecordsDto> getWatchListCinemaRecords() {
+        try {
+//            TypedQuery<Long> query = entityManager.createQuery(USER_WATCHLIST_RECORD_ID, Long.class);
+//            query.setParameter("userId", this.userService.getUserFromToken().getUserId());
+//            List<Long> dcrIds = query.getResultList();
+
+            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = this.dbCinemaRecordsRepository
+                    .findUserWatchListCinemaRecords(this.userService.getUserFromToken().getUserId());
+            if (dbCinemaRecordsEntities == null) {
+                dbCinemaRecordsEntities = new ArrayList<>();
+            }
+            return dbCinemaRecordsEntities.stream().map(
+                    dbCinemaRecordsEntity -> {
+                        DBCinemaRecordsDto dbCinemaRecordsDto = this.dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity);
+                        dbCinemaRecordsDto.setWatchListed(true);
+                        return dbCinemaRecordsDto;
+                    }
+            ).toList();
+        } catch (AuthenticationException ex) {
+            throw new AuthenticationServiceException("Token is not valid. Please do login again.");
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> updateTmdbWithLatest() {
+
+        Map<Long, String> failedIds = new HashMap<>();
+        List<Long> successIds = new ArrayList<>();
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            List<TmdbDataEntity> tmdbDataEntities = tmdbDataRepository.findAll().stream().limit(5).toList();
+            tmdbDataEntities.forEach(tmdbDataEntity -> {
+                try {
+                    if (tmdbDataEntity instanceof MovieTmdbDataEntity) {
+                        updateTmdbForMovie(tmdbDataEntity);
+//                    MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(new RequestPayloads.AddRecord(
+//                            tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_MOVIE, false
+//                    ));
+//                    MovieTmdbDataEntity movieTmdbDataEntity = dbWorldUtils.convertMovieTmdbDtoToEntity(movieTmdbDataDto);
+//                    if (tmdbDataEntity.getProviders() != null) {
+//                        movieTmdbDataEntity.getProviders().setId(tmdbDataEntity.getProviders().getId());
+//                    }
+//                    if (tmdbDataEntity.getCredits() != null) {
+//                        movieTmdbDataEntity.getCredits().setId(tmdbDataEntity.getCredits().getId());
+//                    }
+//                    mergeTmdbEntity(movieTmdbDataEntity);
+
+                        //                    this.modelMapper.map(dbWorldUtils.convertMovieTmdbDtoToEntity(movieTmdbDataDto, tmdbDataEntity);
+                    } else if (tmdbDataEntity instanceof SeriesTmdbDataEntity) {
+                        updateTmdbForSeries(tmdbDataEntity);
+//                    SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(new RequestPayloads.AddRecord(
+//                            tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_SERIES, false
+//                    ));
+//                    SeriesTmdbDataEntity seriesTmdbDataEntity = dbWorldUtils.convertSeriesTmdbDtoToEntity(seriesTmdbDataDto);
+//                    if (tmdbDataEntity.getProviders() != null) {
+//                        seriesTmdbDataEntity.getProviders().setId(tmdbDataEntity.getProviders().getId());
+//                    }
+//                    if (tmdbDataEntity.getCredits() != null) {
+//                        seriesTmdbDataEntity.getCredits().setId(tmdbDataEntity.getCredits().getId());
+//                    }
+//                    mergeTmdbEntity(seriesTmdbDataEntity);
+//                    this.modelMapper.map(dbWorldUtils.convertSeriesTmdbDtoToEntity(seriesTmdbDataDto), tmdbDataEntity);
+                    }
+                    successIds.add(tmdbDataEntity.getId());
+                    log.info("Success TMDB ID: {}", tmdbDataEntity.getId());
+                    Thread.sleep(1000);
+                } catch (Exception ex) {
+                    failedIds.put(tmdbDataEntity.getId(), ex.getMessage());
+                    log.error("Failed ID: {} Error Message: {}", tmdbDataEntity.getId(), ex.getMessage());
+                }
+//                tmdbDataRepository.save(mergeTmdbEntity(tmdbDataEntity));
+
+//                entityManager.flush();
+//                entityManager.clear();
+//                tmdbDataRepository.save(tmdbDataEntity);
+                log.info("completed tmdb: {}", tmdbDataEntity.getId());
+            });
+            response.put("success", successIds);
+            response.put("failed", failedIds);
+        } catch (Exception ex) {
+            response.put("success", successIds);
+            response.put("failed", failedIds);
+            throw new DbWorldException(ex.getMessage(), response);
+        }
+        return response;
+    }
+
+    private TmdbDataEntity updateTmdbForSeries(TmdbDataEntity tmdbDataEntity) {
+        SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(new RequestPayloads.AddRecord(
+                tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_SERIES, false
+        ));
+        SeriesTmdbDataEntity seriesTmdbDataEntity = dbWorldUtils.convertSeriesTmdbDtoToEntity(seriesTmdbDataDto);
+        if (tmdbDataEntity.getProviders() != null) {
+            seriesTmdbDataEntity.getProviders().setId(tmdbDataEntity.getProviders().getId());
+        }
+        if (tmdbDataEntity.getCredits() != null) {
+            seriesTmdbDataEntity.getCredits().setId(tmdbDataEntity.getCredits().getId());
+        }
+        return mergeTmdbEntity(seriesTmdbDataEntity);
+    }
+
+    private TmdbDataEntity updateTmdbForMovie(TmdbDataEntity tmdbDataEntity) {
+        MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(new RequestPayloads.AddRecord(
+                tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_MOVIE, false
+        ));
+        MovieTmdbDataEntity movieTmdbDataEntity = dbWorldUtils.convertMovieTmdbDtoToEntity(movieTmdbDataDto);
+        if (tmdbDataEntity.getProviders() != null) {
+            movieTmdbDataEntity.getProviders().setId(tmdbDataEntity.getProviders().getId());
+        }
+        if (tmdbDataEntity.getCredits() != null) {
+            movieTmdbDataEntity.getCredits().setId(tmdbDataEntity.getCredits().getId());
+        }
+        return mergeTmdbEntity(movieTmdbDataEntity);
+    }
+
+    @Override
+    public Map<String, Long> getStatusOfRecordsUpdate() {
+        return Map.of();
+    }
+
+    @Override
+    public boolean isRecordsUpdateRunning() {
+        return false;
+    }
+
+    @Override
+    public List<HashMap<String, Object>> getTmdbByQuery(String recordType, String query, int year) {
         ResponseEntity<String> response = null;
-        List tmdbSearchList = new ArrayList<>();
+        List<HashMap<String, Object>> tmdbSearchList = new ArrayList<>();
         try {
             response = restTemplate.getForEntity(dbWorldUtils.getTMDBByQueryUrl(recordType, query, year), String.class);
             String tmdbRecords = response.getBody();
@@ -407,201 +518,39 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         return new Gson().fromJson(recordDetailsJson, SeriesTmdbDataDto.class);
     }
 
-    @Override
-    public void likeRecord(String userId, String recordId) {
-        UserDto.UserAppData userAppDataDto = this.userService.getUserAppDataByUserId(userId);
-        UserDto.UserAppData.CinemaRecord cinemaRecordDto = userAppDataDto.getCinemaRecord() == null ?
-                new UserDto.UserAppData.CinemaRecord() : userAppDataDto.getCinemaRecord();
+    @Transactional
+    private TmdbDataEntity mergeTmdbEntity(TmdbDataEntity tmdbDataEntity) {
 
-        //update recordId list in userAppData
-        ArrayList<String> recordIdList = cinemaRecordDto.getLike() == null ? new ArrayList<>() : cinemaRecordDto.getLike();
-        recordIdList.add(recordId);
-        cinemaRecordDto.setLike(recordIdList);
-        userAppDataDto.setCinemaRecord(cinemaRecordDto);
-        this.userService.updateUserAppDataByUserId(userId, userAppDataDto);
-
-        //update userId list in dbCinemaRecord
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = this.dbCinemaRecordsRepository.findById(recordId)
-                .orElseThrow(() -> new ResourceNotFoundException("DbCinemaRecord", "recordId", recordId));
-
-        ArrayList<String> userIdList = dbCinemaRecordsEntity.getLikedBy() == null ? new ArrayList<>() : dbCinemaRecordsEntity.getLikedBy();
-        userIdList.add(userId);
-        dbCinemaRecordsEntity.setLikedBy(userIdList);
-        this.dbCinemaRecordsRepository.save(dbCinemaRecordsEntity);
-
-    }
-
-    @Override
-    public void unLikeRecord(String userId, String recordId) {
-        UserDto.UserAppData userAppDataDto = this.userService.getUserAppDataByUserId(userId);
-        if (userAppDataDto.getCinemaRecord() == null) {
-            throw new DbWorldException("There is no record for this user.");
+        if (tmdbDataEntity.getCredits() == null) {
+            tmdbDataEntity.setProviders(new ProvidersEntity());
         }
-        UserDto.UserAppData.CinemaRecord cinemaRecordDto = userAppDataDto.getCinemaRecord();
-
-        ArrayList<String> recordIdList = cinemaRecordDto.getLike();
-        if (recordIdList == null) {
-            throw new DbWorldException("There is no record for this user.");
+        if (tmdbDataEntity.getCredits().getCast() != null) {
+            tmdbDataEntity.getCredits().setCast(tmdbDataEntity.getCredits().getCast().stream().map(cast -> entityManager.merge(cast)).toList());
         }
-
-        //update recordId list in userAppData
-        List<String> filteredList = recordIdList.stream().filter(id -> id.equalsIgnoreCase(recordId)).toList();
-        if (filteredList.size() == 0) {
-            throw new DbWorldException("User first have to like this record, then only can unlike it.");
+        if (tmdbDataEntity.getCredits().getCrew() != null) {
+            tmdbDataEntity.getCredits().setCrew(tmdbDataEntity.getCredits().getCrew().stream().map(crew -> entityManager.merge(crew)).toList());
         }
-        recordIdList.remove(filteredList.get(0));
-        cinemaRecordDto.setLike(recordIdList);
-        userAppDataDto.setCinemaRecord(cinemaRecordDto);
-        this.userService.updateUserAppDataByUserId(userId, userAppDataDto);
+        tmdbDataEntity.getCredits().setTmdb(tmdbDataEntity);
+        tmdbDataEntity.setCredits(tmdbDataEntity.getCredits());
 
-        //update userId list in dbCinemaRecord
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = this.dbCinemaRecordsRepository.findById(recordId)
-                .orElseThrow(() -> new ResourceNotFoundException("DbCinemaRecord", "recordId", recordId));
-        ArrayList<String> userIdList = dbCinemaRecordsEntity.getLikedBy();
-        if (userIdList == null) {
-            throw new DbWorldException("There is no record that user have liked this record.");
-        }
-        List<String> filteredUserList = userIdList.stream().filter(id -> id.equalsIgnoreCase(userId)).toList();
-        if (filteredList.size() == 0) {
-            throw new DbWorldException("User first have to like this record, then only can unlike it.");
-        }
-
-        userIdList.remove(filteredUserList.get(0));
-        dbCinemaRecordsEntity.setLikedBy(userIdList);
-        this.dbCinemaRecordsRepository.save(dbCinemaRecordsEntity);
-    }
-
-    @Override
-    public void watchListRecord(String userId, String recordId) {
-        UserDto.UserAppData userAppDataDto = this.userService.getUserAppDataByUserId(userId);
-        UserDto.UserAppData.CinemaRecord cinemaRecordDto = userAppDataDto.getCinemaRecord() == null ?
-                new UserDto.UserAppData.CinemaRecord() : userAppDataDto.getCinemaRecord();
-
-        //update recordId list in userAppData
-        ArrayList<String> recordIdList = cinemaRecordDto.getWatchList() == null ? new ArrayList<>() : cinemaRecordDto.getWatchList();
-        recordIdList.add(recordId);
-        cinemaRecordDto.setWatchList(recordIdList);
-        userAppDataDto.setCinemaRecord(cinemaRecordDto);
-        this.userService.updateUserAppDataByUserId(userId, userAppDataDto);
-
-        //update userId list in dbCinemaRecord
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = this.dbCinemaRecordsRepository.findById(recordId)
-                .orElseThrow(() -> new ResourceNotFoundException("DbCinemaRecord", "recordId", recordId));
-
-        ArrayList<String> userIdList = dbCinemaRecordsEntity.getWatchListBy() == null ? new ArrayList<>() : dbCinemaRecordsEntity.getWatchListBy();
-        userIdList.add(userId);
-        dbCinemaRecordsEntity.setWatchListBy(userIdList);
-        this.dbCinemaRecordsRepository.save(dbCinemaRecordsEntity);
-    }
-
-    @Override
-    public void removeWatchListRecord(String userId, String recordId) {
-        UserDto.UserAppData userAppDataDto = this.userService.getUserAppDataByUserId(userId);
-        if (userAppDataDto.getCinemaRecord() == null) {
-            throw new DbWorldException("There is no record for this user.");
-        }
-        UserDto.UserAppData.CinemaRecord cinemaRecordDto = userAppDataDto.getCinemaRecord();
-
-        ArrayList<String> recordIdList = cinemaRecordDto.getWatchList();
-        if (recordIdList == null) {
-            throw new DbWorldException("There is no record for this user.");
-        }
-
-        //update recordId list in userAppData
-        List<String> filteredList = recordIdList.stream().filter(id -> id.equalsIgnoreCase(recordId)).toList();
-        if (filteredList.size() == 0) {
-            throw new DbWorldException("User first have to like this record, then only can unlike it.");
-        }
-        recordIdList.remove(filteredList.get(0));
-        cinemaRecordDto.setWatchList(recordIdList);
-        userAppDataDto.setCinemaRecord(cinemaRecordDto);
-        this.userService.updateUserAppDataByUserId(userId, userAppDataDto);
-
-        //update userId list in dbCinemaRecord
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = this.dbCinemaRecordsRepository.findById(recordId)
-                .orElseThrow(() -> new ResourceNotFoundException("DbCinemaRecord", "recordId", recordId));
-        ArrayList<String> userIdList = dbCinemaRecordsEntity.getWatchListBy();
-        if (userIdList == null) {
-            throw new DbWorldException("There is no record that user have liked this record.");
-        }
-        List<String> filteredUserList = userIdList.stream().filter(id -> id.equalsIgnoreCase(userId)).toList();
-        if (filteredList.size() == 0) {
-            throw new DbWorldException("User first have to like this record, then only can unlike it.");
-        }
-
-        userIdList.remove(filteredUserList.get(0));
-        dbCinemaRecordsEntity.setWatchListBy(userIdList);
-        this.dbCinemaRecordsRepository.save(dbCinemaRecordsEntity);
-    }
-
-    @Override
-    public List<DBCinemaRecordsDto> getWatchListCinemaRecords(String userId) {
-        List<Object> watchListedRecords = new ArrayList<>();
-        UserDto.UserAppData userAppData = this.userService.getUserAppDataByUserId(userId);
-        ArrayList<String> userWatchListedRecordLists = userAppData.getCinemaRecord().getWatchList();
-        List<DBCinemaRecordsEntity> dbCinemaRecordsEntityList = dbCinemaRecordsRepository.findAllById(userWatchListedRecordLists);
-        List<MovieTmdbDataEntity> movieTmdbDataEntities = movieTmdbDataRepository.findAllById(
-                dbCinemaRecordsEntityList.stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE))
-                        .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList()
+        tmdbDataEntity.setGenres(
+                tmdbDataEntity.getGenres().stream().map(genresEntity -> entityManager.merge(genresEntity)).toList()
         );
-        List<SeriesTmdbDataEntity> seriesTmdbDataEntities = seriesTmdbDataRepository.findAllById(
-                dbCinemaRecordsEntityList.stream().filter(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES))
-                        .map(dbCinemaRecordsEntity -> dbCinemaRecordsEntity.getTmdbId()).toList()
-        );
-        return dbCinemaRecordsEntityList.stream().map(dbCinemaRecordsEntity -> {
-                    DBCinemaRecordsDto dbCinemaRecordsDto = this.modelMapper.map(dbCinemaRecordsEntity, DBCinemaRecordsDto.class);
-                    if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-                        dbCinemaRecordsDto.setTmdbData(
-                                movieTmdbDataEntities.stream().filter(movieTmdbDataEntity -> movieTmdbDataEntity.getId() == dbCinemaRecordsEntity.getTmdbId()).findFirst().get()
-                        );
-                    } else if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-                        dbCinemaRecordsDto.setTmdbData(
-                                seriesTmdbDataEntities.stream().filter(seriesTmdbDataEntity -> seriesTmdbDataEntity.getId() == dbCinemaRecordsEntity.getTmdbId()).findFirst().get()
-                        );
-                    }
-                    return dbCinemaRecordsDto;
-                })
-                .toList();
-    }
-
-    @Async
-    @Override
-    public void updateTmdbWithLatest() {
-        if (this.isRecordsUpdateRunning) {
-            log.info("Process is already running on server.");
-            throw new DbWorldException("Process is already running on server.");
-        } else {
-            this.isRecordsUpdateRunning = true;
-            AtomicLong pass = new AtomicLong();
-            AtomicLong fail = new AtomicLong();
-            List<DBCinemaRecordsDto> dbCinemaRecordsDtos = this.getRecords();
-            this.updateRecordsStatus.put("total", dbCinemaRecordsDtos.stream().count());
-            this.updateRecordsStatus.put("pass", 0L);
-            this.updateRecordsStatus.put("fail", 0L);
-            dbCinemaRecordsDtos.stream().forEach(dbCinemaRecordsDto -> {
-                try {
-                    this.updateRecord(dbCinemaRecordsDto.getRecordId(),
-                            new RequestPayloads.AddRecord(dbCinemaRecordsDto.getName(), dbCinemaRecordsDto.getTmdbId(), dbCinemaRecordsDto.getType(), dbCinemaRecordsDto.isShowOnTop()));
-                    pass.getAndIncrement();
-                    this.updateRecordsStatus.put("pass", pass.longValue());
-                } catch (Exception ex) {
-                    fail.getAndIncrement();
-                    this.updateRecordsStatus.put("fail", fail.longValue());
-                    log.error("Record [TMDB Id = {}, name = {}] is failed. Error: {}", dbCinemaRecordsDto.getTmdbId(), dbCinemaRecordsDto.getName(), ex.getMessage());
-                }
-            });
-            this.isRecordsUpdateRunning = false;
+        if (tmdbDataEntity.getProviders() == null) {
+            tmdbDataEntity.setProviders(new ProvidersEntity());
         }
-    }
-
-    @Override
-    public Map<String, Long> getStatusOfRecordsUpdate() {
-        return this.updateRecordsStatus;
-    }
-
-    @Override
-    public boolean isRecordsUpdateRunning() {
-        return this.isRecordsUpdateRunning;
+//        if (tmdbDataEntity.getProviders().getBuy() != null) {
+//            tmdbDataEntity.getProviders().setBuy(tmdbDataEntity.getProviders().getBuy().stream().map(buyEntity -> entityManager.merge(buyEntity)).toList());
+//        }
+//        if (tmdbDataEntity.getProviders().getRent() != null) {
+//            tmdbDataEntity.getProviders().setRent(tmdbDataEntity.getProviders().getRent().stream().map(rentEntity -> entityManager.merge(rentEntity)).toList());
+//        }
+//        if (tmdbDataEntity.getProviders().getFlatRate() != null) {
+//            tmdbDataEntity.getProviders().setFlatRate(tmdbDataEntity.getProviders().getFlatRate().stream().map(flatRateEntity -> entityManager.merge(flatRateEntity)).toList());
+//        }
+        tmdbDataEntity.getProviders().setTmdb(tmdbDataEntity);
+        tmdbDataEntity.setProviders(tmdbDataEntity.getProviders());
+        return entityManager.merge(tmdbDataEntity);
     }
 
     private JsonObject getRecordDetailsFromTmdbApi(RequestPayloads.AddRecord record) {
@@ -655,20 +604,47 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         return recordDetailsJson;
     }
 
-    private DBCinemaRecordsDto filterDataByUser(DBCinemaRecordsDto dbCinemaRecordsDto, String userId) {
-        if (dbCinemaRecordsDto.getLikedBy() != null) {
-            dbCinemaRecordsDto.setLikedBy(
-                    (ArrayList<String>) dbCinemaRecordsDto.getLikedBy().stream()
-                            .filter(likeBy -> likeBy.equals(userId)).collect(Collectors.toList())
-            );
-        }
-        if (dbCinemaRecordsDto.getWatchListBy() != null) {
-            dbCinemaRecordsDto.setWatchListBy(
-                    (ArrayList<String>) dbCinemaRecordsDto.getWatchListBy().stream()
-                            .filter(watchListBy -> watchListBy.equals(userId)).collect(Collectors.toList())
-            );
-        }
-        return dbCinemaRecordsDto;
-    }
+
+//
+//    @Async
+//    @Override
+//    public void updateTmdbWithLatest() {
+//        if (this.isRecordsUpdateRunning) {
+//            log.info("Process is already running on server.");
+//            throw new DbWorldException("Process is already running on server.");
+//        } else {
+//            this.isRecordsUpdateRunning = true;
+//            AtomicLong pass = new AtomicLong();
+//            AtomicLong fail = new AtomicLong();
+//            List<DBCinemaRecordsDto> dbCinemaRecordsDtos = this.getRecords();
+//            this.updateRecordsStatus.put("total", dbCinemaRecordsDtos.stream().count());
+//            this.updateRecordsStatus.put("pass", 0L);
+//            this.updateRecordsStatus.put("fail", 0L);
+//            dbCinemaRecordsDtos.stream().forEach(dbCinemaRecordsDto -> {
+//                try {
+//                    this.updateRecord(dbCinemaRecordsDto.getRecordId(),
+//                            new RequestPayloads.AddRecord(dbCinemaRecordsDto.getName(), dbCinemaRecordsDto.getTmdbId(), dbCinemaRecordsDto.getType(), dbCinemaRecordsDto.isShowOnTop()));
+//                    pass.getAndIncrement();
+//                    this.updateRecordsStatus.put("pass", pass.longValue());
+//                } catch (Exception ex) {
+//                    fail.getAndIncrement();
+//                    this.updateRecordsStatus.put("fail", fail.longValue());
+//                    log.error("Record [TMDB Id = {}, name = {}] is failed. Error: {}", dbCinemaRecordsDto.getTmdbId(), dbCinemaRecordsDto.getName(), ex.getMessage());
+//                }
+//            });
+//            this.isRecordsUpdateRunning = false;
+//        }
+//    }
+//
+//    @Override
+//    public Map<String, Long> getStatusOfRecordsUpdate() {
+//        return this.updateRecordsStatus;
+//    }
+//
+//    @Override
+//    public boolean isRecordsUpdateRunning() {
+//        return this.isRecordsUpdateRunning;
+//    }
+//
 
 }

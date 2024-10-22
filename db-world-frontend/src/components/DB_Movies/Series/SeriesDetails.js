@@ -45,6 +45,7 @@ function SeriesDetails() {
         let recordResponse = await getRecordDetailsbyId(id);
         if (recordResponse.httpStatusCode === 200) {
             let series = recordResponse.data;
+            series["tmdbData"] = series?.type == Constants.RECORD_TYPE_MOVIE ? series?.movieTmdb : series?.seriesTmdb;
             if (series === "No results found") {
                 navigate(Constants.DB_WORLD_HOME_ROUTE);
             }

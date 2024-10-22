@@ -1,0 +1,18 @@
+package com.db.dbworld.dao.pm;
+
+import com.db.dbworld.entities.pm.PasswordManagerEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface PasswordManagerRepository extends JpaRepository<PasswordManagerEntity, String> {
+    List<PasswordManagerEntity> findAllByHostAndUserEntityUserId(String host, Long userId);
+    List<PasswordManagerEntity> findAllByUserEntityUserId(Long userId);
+    Optional<PasswordManagerEntity> findByIdAndUserEntityUserIdAndCredentialsId(String pmId, Long UserId, String credentialId);
+    void deleteByIdAndUserEntityUserId(String pmId, Long userId);
+    void deleteByCredentialsIdAndUserEntityUserId(String credentialId, Long userId);
+    @Query(value = "SELECT HOST FROM PASSWORD_MANAGER ORDER BY HOST", nativeQuery = true)
+    List<String> findAllHost();
+}

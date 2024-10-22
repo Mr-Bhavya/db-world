@@ -1,48 +1,50 @@
 package com.db.dbworld.services;
 
+import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.payloads.RequestPayloads;
-import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
-import com.db.dbworld.payloads.dbcinema.MovieTmdbDataDto;
-import com.db.dbworld.payloads.dbcinema.SeriesTmdbDataDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
+import org.springframework.data.domain.PageImpl;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public interface DBCinemaRecordsService {
     DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record);
 
-    void updateRecord(String recordId, RequestPayloads.AddRecord record);
+    DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record);
 
-    void deleteRecord(String recordId);
+    void deleteRecord(Long recordId);
 
     List<DBCinemaRecordsDto> getRecords();
 
-    ResponsePayloads.PaginationRecords getRecordsByPagination(String recordType, int pageNumber, int pageSize);
+    PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages);
 
-    ResponsePayloads.PaginationRecords getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages, String username);
+    DBCinemaRecordsDto getRecordById(Long recordId);
 
-    DBCinemaRecordsDto getRecordById(String recordId);
+    DBCinemaRecordsEntity getRecordEntityById(Long recordId);
 
     List<DBCinemaRecordsDto> searchRecordByKeyword(String keyword);
 
-    List getTmdbByQuery(String recordType, String query, int year);
+    List<HashMap<String, Object>> getTmdbByQuery(String recordType, String query, int year);
 
     MovieTmdbDataDto getTMDBDetailsForMovieById(RequestPayloads.AddRecord record);
 
     SeriesTmdbDataDto getTMDBDetailsForSeriesById(RequestPayloads.AddRecord record);
 
-    void likeRecord(String userId, String recordId);
+    void likeRecord(Long recordId);
 
-    void unLikeRecord(String userId, String recordId);
+    void unLikeRecord(Long recordId);
 
-    void watchListRecord(String userId, String recordId);
+    void watchListRecord(Long recordId);
 
-    void removeWatchListRecord(String userId, String recordId);
+    void removeWatchListRecord(Long recordId);
 
-    List<DBCinemaRecordsDto> getWatchListCinemaRecords(String userId);
+    List<DBCinemaRecordsDto> getWatchListCinemaRecords();
 
-    void updateTmdbWithLatest();
+    Map<String, Object> updateTmdbWithLatest();
 
     Map<String, Long> getStatusOfRecordsUpdate();
 
