@@ -55,14 +55,14 @@ public class UtilsController {
 
     @DeleteMapping(value = "/tempFiles")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse deleteTempFiles() {
+    public ApiResponse<String> deleteTempFiles() {
         utilsService.deleteTempFiles();
         return new ApiResponse<>(HttpStatus.OK, true, "Temporary files are deleted.");
     }
 
     @RequestMapping(value = "/mirror", method = RequestMethod.POST)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse mirror(@RequestBody RequestPayloads.Mirror mirror) {
+    public ApiResponse<String> mirror(@RequestBody RequestPayloads.Mirror mirror) {
 
         if (mirror.getUrl().startsWith("http") || mirror.getUrl().startsWith("https")) {
             if (mirror.isUrlProtected() && mirror.getUrl().contains("https://")) {
@@ -100,30 +100,29 @@ public class UtilsController {
             );
             utilsService.downloadMagnetFile(mirrorStatus);
         }
-        return new ApiResponse(HttpStatus.OK, true, "Task added. task id: "+ mirrorStatus.getId());
+        return new ApiResponse<>(HttpStatus.OK, true, "Task added. task id: "+ mirrorStatus.getId());
     }
 
     @RequestMapping(value = "/mirror/{mirrorId}", method = RequestMethod.DELETE)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse mirrorCancelled(@PathVariable String mirrorId) {
+    public ApiResponse<String> mirrorCancelled(@PathVariable String mirrorId) {
         MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
         mirrorStatus.setCancelled(true);
         statusService.updateStatus(mirrorStatus);
-        return new ApiResponse(HttpStatus.OK, true, "Task Cancelled.");
+        return new ApiResponse<>(HttpStatus.OK, true, "Task Cancelled.");
     }
 
     @GetMapping(value = "/mirror/status")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse getAllStatus() {
+    public ApiResponse<List<MirrorStatus>> getAllStatus() {
         Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
-        List<MirrorStatus> mirrorStatuses = new ArrayList<>();
-        mirrorStatuses.addAll(mirrorStatusMap.values().stream().sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp())).toList());
-        return new ApiResponse(HttpStatus.OK, true, mirrorStatuses);
+        List<MirrorStatus> mirrorStatuses = new ArrayList<>(mirrorStatusMap.values().stream().sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp())).toList());
+        return new ApiResponse<>(HttpStatus.OK, true, mirrorStatuses);
     }
 
     @RequestMapping(value = "/mirror/status/{statusId}", method = RequestMethod.DELETE)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse mirrorDelete(@PathVariable String statusId) {
+    public ApiResponse<String> mirrorDelete(@PathVariable String statusId) {
         Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
         if (mirrorStatusMap.containsKey(statusId)) {
             MirrorStatus mirrorStatus = mirrorStatusMap.get(statusId);
@@ -136,31 +135,34 @@ public class UtilsController {
         } else {
             throw new ResourceNotFoundException("Mirror Status", "id", statusId);
         }
-        return new ApiResponse(HttpStatus.OK, true, "Task Status Deleted.");
+        return new ApiResponse<>(HttpStatus.OK, true, "Task Status Deleted.");
     }
 
     @RequestMapping(value = "/yt/info", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResponse ytInfo(@RequestParam String url) throws IOException {
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<JsonObject> ytInfo(@RequestParam String url) throws IOException {
         JsonObject jsonInfo = utilsService.getInfoYtFile(url);
-        return new ApiResponse(HttpStatus.OK, true, "Success", jsonInfo);
+        return new ApiResponse<>(HttpStatus.OK, true, "Success", jsonInfo);
     }
 
     @RequestMapping(value = "/yt/download", method = RequestMethod.POST)
-    public ApiResponse ytDownload(@RequestBody RequestPayloads.YtDlp ytDlp) throws IOException {
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<String> ytDownload(@RequestBody RequestPayloads.YtDlp ytDlp) throws IOException {
         mirrorStatus = new MirrorStatus(ytDlp);
         utilsService.downloadYtFile(mirrorStatus);
-        return new ApiResponse(HttpStatus.OK, true, "Task Added.");
+        return new ApiResponse<>(HttpStatus.OK, true, "Task Added.");
     }
 
     @RequestMapping(value = "/system-info", method = RequestMethod.GET)
-//    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse getSystemInfo() {
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<Map<String, Object>> getSystemInfo() {
         Map<String, Object> osInfoMap = new HashMap<>();
         OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
 
-        File[] roots = File.listRoots();
+        List<File> roots = new ArrayList<>(Arrays.stream(File.listRoots()).toList());
+        roots.add(new File(DbWorldConstants.EXTERNAL_H_DISK_PATH));
 
-        List<Map<String, Object>> rom = Arrays.stream(roots).map(file -> {
+        List<Map<String, Object>> rom = roots.stream().map(file -> {
             Map<String, Object> temp = new HashMap<>();
             temp.put("name", file.getAbsolutePath());
             temp.put("totalSpace", file.getTotalSpace());
@@ -187,7 +189,7 @@ public class UtilsController {
         osInfoMap.put("rom", rom);
         osInfoMap.put("cpu", cpu);
 
-        return new ApiResponse(HttpStatus.OK, true, osInfoMap);
+        return new ApiResponse<>(HttpStatus.OK, true, osInfoMap);
     }
 
 

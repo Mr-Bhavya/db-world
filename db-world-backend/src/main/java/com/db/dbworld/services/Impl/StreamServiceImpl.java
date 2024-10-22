@@ -98,7 +98,7 @@ public class StreamServiceImpl implements StreamService {
         Path externalDiskPath = Path.of(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH + File.separator + path);
         List<Path> list = new ArrayList<>();
         try {
-            if (path == null || path.equals("")) {
+            if (path == null || path.isEmpty()) {
                 list.addAll(Files.list(normalPath).toList());
                 if (Files.exists(externalDiskPath))
                     list.addAll(Files.list(externalDiskPath).toList());

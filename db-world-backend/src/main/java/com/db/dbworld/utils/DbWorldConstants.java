@@ -62,6 +62,11 @@ public class DbWorldConstants {
     public void setExternalStreamHomePath(String externalStreamHomePath){
         EXTERNAL_STREAM_HOME_PATH = externalStreamHomePath;
     }
+    public static String EXTERNAL_H_DISK_PATH;
+    @Value("${dbworld.paths.extHDiskPath}")
+    public void setExternalHDiskPath(String externalHDiskPath){
+        EXTERNAL_H_DISK_PATH = externalHDiskPath;
+    }
     public static String TORRENT_DOWNLOAD_HOME_PATH;
     @Value("${dbworld.paths.torrentDownloadPath}")
     public void setTorrentDownloadHomePath(String torrentDownloadPath){
@@ -79,6 +84,7 @@ public class DbWorldConstants {
     }
     public static final String YTDLP_COOKIES_CMD = "--cookies";
     public static final String HOTSTAR_COM = "hotstar.com";
+    public static final String AUTHENTICATION_EXCEPTION_MESSAGE = "Token is not valid. Please do login again.";
     public static final String ALL_AUTHORIZE = "hasAuthority('" + OWNER + "')" + "||" + "hasAuthority('" + ADMIN + "')" + "||" + "hasAuthority('" + VIEWER + "')";
     public static final String OWNER_AUTHORIZE = "hasAuthority('" + OWNER + "')";
     public static final String OWNER_ADMIN_AUTHORIZE = "hasAuthority('" + OWNER + "')" + "||" + "hasAuthority('" + ADMIN + "')";
@@ -88,7 +94,7 @@ public class DbWorldConstants {
             "/dbworld-api-doc.html",
             "/swagger-ui/**",
             "/api/utils/status",
-            "api/utils/logs",
+            "/api/utils/logs",
             "/api/stream/watch/**",
             "/api/stream/download/**",
             "/*", "/db-world/**", "/static/**"

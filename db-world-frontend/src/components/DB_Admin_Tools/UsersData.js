@@ -307,16 +307,23 @@ const UsersData = () => {
                                                                                 <td>{user.userRole?.name}</td>
                                                                             </tr>
                                                                             {
-                                                                                user.userLoginDetails && user.userLoginDetails.length > 0 ?
+                                                                                user.loginData && user.loginData.length > 0 ?
                                                                                     <tr>
                                                                                         <th>User Last 5 Login:</th>
                                                                                         <td>
-                                                                                            {user.userLoginDetails.map((userLoginDetail, idx) => {
-                                                                                                if (typeof (userLoginDetail.timeStamp) !== 'object' && idx < 5) {
+                                                                                            {user.loginData.map((data, idx) => {
+                                                                                                <tr>
+                                                                                                <td>
+                                                                                                    {data.lastLoginDate}
+                                                                                                    {/* {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).date} | {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).time} */}
+                                                                                                </td>
+                                                                                            </tr>
+                                                                                                if (typeof (data.lastLoginDate) !== 'object') {
                                                                                                     return (
                                                                                                         <tr>
                                                                                                             <td>
-                                                                                                                {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).date} | {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).time}
+                                                                                                                {data.lastLoginDate}
+                                                                                                                {/* {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).date} | {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).time} */}
                                                                                                             </td>
                                                                                                         </tr>
                                                                                                     )

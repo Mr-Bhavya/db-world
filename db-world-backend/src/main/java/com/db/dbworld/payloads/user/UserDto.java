@@ -4,23 +4,23 @@ import jakarta.validation.constraints.*;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
-import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Getter
 @Setter
 public class UserDto {
-    private String userId;
+    private long userId;
     @NotEmpty
-    @Size(min = 3, max=15)
+    @Size(min = 2, max=20)
     private String firstName;
     @NotEmpty
-    @Size(min = 3, max=15)
+    @Size(min = 1, max=20)
     private String lastName;
     private int age;
-    @NotEmpty
+//    @NotEmpty
 //    @DateTimeFormat()
     private String dob;
     @NotEmpty
@@ -33,15 +33,25 @@ public class UserDto {
     @NotEmpty
     private String email;
     @NotEmpty
-    @Size(max=10)
+    @Size(max=20)
     private String password;
     private UserRole userRole;
-    private UserAppData userAppData;
+    private Date creationDate;
+    private Date lastModifiedDate;
+//    private UserAppData userAppData;
     private List<PasswordManagerCredential> passwordManager;
+    private List<LoginData> loginData;
+
+    @Getter
+    @Setter
+    public static class LoginData {
+        private Date lastLoginDate;
+        private String loginAgent;
+    }
 
     @Data
     public static class UserAppData {
-        private ObjectId id;
+        private String id;
         private Long noOfLogin;
         private List<LoginDetails> loginDetails;
         private CinemaRecord cinemaRecord;
@@ -92,7 +102,6 @@ public class UserDto {
                 ", mobileNo='" + mobileNo + '\'' +
                 ", email='" + email + '\'' +
                 ", password='" + password + '\'' +
-                ", userAppData=" + userAppData +
                 '}';
     }
 }

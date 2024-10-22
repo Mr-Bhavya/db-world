@@ -20,14 +20,16 @@ public class RequestPayloads {
     }
 
     @Data
+    @ToString
     public static class AddCredential{
         @NotEmpty
         private String url;
+        private String id;
         @NotEmpty
         private String username;
         private String password;
-        private long pin;
-        private String description;
+        private String pin;
+        private String notes;
     }
 
     @Data

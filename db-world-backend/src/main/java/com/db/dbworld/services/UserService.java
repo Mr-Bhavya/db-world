@@ -1,26 +1,30 @@
 package com.db.dbworld.services;
 
-import com.db.dbworld.payloads.Credential;
-import com.db.dbworld.payloads.ResponsePayloads;
+import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.payloads.user.UserDto;
 
 import java.util.List;
 
 public interface UserService {
 
+    UserEntity getUserFromToken();
+
+    Long getUserIdFromToken();
+
     List<UserDto> getAllUsers();
 
-    UserDto createUser(UserDto userDto);
+    List<UserDto> createUser(List<UserDto> userDtoList);
 
     UserDto registerUser(UserDto userDto);
 
-    UserDto getUserById(String id);
+    UserDto getUserDtoById(Long id);
+    UserEntity getUserEntityById(Long id);
 
-    String getUserIdByUsername(String username); //username = email
+    long getUserIdByUsername(String username); //username = email
 
-    UserDto updateUser(UserDto userDto, String userId);
+    UserDto updateUser(UserDto userDto, Long userId);
 
-    void deleteUserById(String id);
+    void deleteUserById(Long id);
 
     UserDto getUserByEmail(String email);
 
@@ -28,27 +32,17 @@ public interface UserService {
 
     List<UserDto.PasswordManagerCredential> getCredentialByUserId(String userId);
 
-    UserDto.UserRole addUpdateUserRoleByUserId(String userId, UserDto.UserRole role);
+    UserDto.UserRole addUpdateUserRoleByUserId(Long userId, UserDto.UserRole role);
 
-    UserDto.UserRole getRoleByUserId(String userId, String tokenUserName);
+    UserDto.UserRole getRoleByUserId(Long userId, String tokenUserName);
 
     UserDto updateRoleByUserId(String userId);
 
-    UserDto.UserAppData getUserAppDataByUserId(String userId);
+    UserDto.UserAppData getUserAppDataByUserId(Long userId);
 
-    UserDto.UserAppData updateUserAppDataByUserId(String userId, UserDto.UserAppData userAppData);
+    UserDto.UserAppData updateUserAppDataByUserId(Long userId, UserDto.UserAppData userAppData);
 
     void deleteUserAppDataById(String id);
 
     void deleteUserAppDataByUserId(String userId);
-
-    void addCredential(String userId, String host, Credential credential);
-
-    List<ResponsePayloads.PasswordManagerCredential> getCredentials(String userId);
-
-    Credential getCredentialById(String userId, long credential);
-
-    void updateCredential(String userId, String host, Credential credential);
-
-    void deleteCredential(String userId, String passwordManagerId, long credentialId);
 }

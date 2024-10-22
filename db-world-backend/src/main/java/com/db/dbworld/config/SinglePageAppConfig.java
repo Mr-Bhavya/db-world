@@ -29,12 +29,10 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
                 .addResolver(new PushStateResourceResolver());
     }
 
-    private class PushStateResourceResolver implements ResourceResolver {
-        private Resource index = new ClassPathResource("/public/index.html");
-        private Resource html_404 = new ClassPathResource("/public/404.html");
-        private Resource html_502 = new ClassPathResource("/public/502.html");
-        private List<String> handledExtensions = Arrays.asList("html", "js", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico", "json");
-        private List<String> ignoredPaths = Arrays.asList("api");
+    private static class PushStateResourceResolver implements ResourceResolver {
+        private final Resource index = new ClassPathResource("/public/db-world/index.html");
+        private final List<String> handledExtensions = Arrays.asList("html", "js", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico", "json", "map");
+        private final List<String> ignoredPaths = List.of("api");
 
         @Override
         public Resource resolveResource(HttpServletRequest request, String requestPath, List<? extends Resource> locations, ResourceResolverChain chain) {

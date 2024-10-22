@@ -4,27 +4,24 @@ Server:
   jetty:
     idle-timeout: 60000 # 60 seconds
 
-#MongoDB
+#MySQL Database
 spring:
-  data:
-    mongodb:
-#      uri: mongodb+srv://bhavya:30june99@cluster0.k804k.mongodb.net/db_world?retryWrites=true&w=majority
-      host: dbworldpi
-      port: 27017
-      authentication-database: admin
-      database: db_world
-      username: dbworld_admin
-      password: BD@pi
-      auto-index-creation: true
-      config:
-        enabled: true
-        write:
-          writeConcern:
-            isMajority: true
-          timeout:
-            milliseconds: 100000
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: dbworld_admin
+    password: BD@pi#2024
+    url: jdbc:mysql://localhost:3306/db_world?createDatabaseIfNotExist=true&jdbcCompliantTruncation=false
   jpa:
-    show-sql: true
+    show-sql: false
+    generate-ddl: true
+    hibernate:
+      enable_lazy_load_no_trans: true
+      event:
+        merge:
+          entity_copy_observer: allow
+      ddl-auto: update
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
   devtools:
     livereload:
       enable: false
@@ -37,25 +34,30 @@ spring:
     multipart:
       enabled: true
 
+#Security
+jwt:
+  token:
+    validity: 36000000  # validity in millisecond 10*60*60*1000 ~ 10hour
+    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
+
+# Jasypt Configuration
+jasypt:
+  encryptor:
+    bean: jasyptStringEncryptor
+    algorithm: PBEWithMD5AndDES
+    password: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
+
+#tmdb
+tmdb:
+  api:
+    key: 30061af77dba3722bbe14a2691055544
+
 #Swagger
 springdoc:
   api-docs:
     path: /api/dbworld-api-doc
   swagger-ui:
     path: /dbworld-api-doc.html
-
-#Security
-jwt:
-  token:
-    validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
-    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
-
-
-tmdbApiKey: 30061af77dba3722bbe14a2691055544
-
-tmdb:
-  api:
-    key: 30061af77dba3722bbe14a2691055544
 
 dbworld:
   paths:
@@ -65,9 +67,9 @@ dbworld:
     streamHomePath: /home/dbworld_admin/ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
     torrentDownloadPath: /home/dbworld_admin/ext_hdisk/videos/Torrent Download
-    #ytdlpPath: /home/dbworld_admin/ext_hdisk/dbworld/yt-dlp
-    ytdlpPath: /usr/bin/yt-dlp
+    ytdlpPath: /home/dbworld_admin/ext_hdisk/dbworld/yt-dlp
     hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
+    extHDiskPath: /home/dbworld_admin/ext_hdisk
 
 logging:
   config: classpath:log4j2.xml

@@ -4,7 +4,8 @@ import { toast, } from 'react-toastify';
 import Authentication from '../Authentication';
 import CommonServices from '../CommonServices';
 import Constants from '../Constants';
-import { addCredential, getUserRole } from '../ApiServices';
+import { addCredential, findAllHost, getUserRole } from '../ApiServices';
+import { Col, Form, Row } from 'react-bootstrap';
 
 function AddPassword() {
 
@@ -12,13 +13,13 @@ function AddPassword() {
     const [userData, setUserData] = useState({});
     const [submitLoader, setSubmitLoader] = useState(false);
     const [isValidUrl, setIsValidUrl] = useState(true);
-
+    const [host, setHost] = useState([]);
     const [inputField, setInputField] = useState({
-        url: '',
-        username: '',
-        password: '',
+        url: null,
+        username: null,
+        password: null,
         pin: null,
-        description: null
+        notes: null
     });
 
     const onFieldChange = (e) => {
@@ -32,7 +33,16 @@ function AddPassword() {
 
     const checkUserRole = async (userId) => {
         let roleRes = await getUserRole(userId);
-        if(roleRes.httpStatusCode === 401){
+        if (roleRes.httpStatusCode === 401) {
+            navigate(await Constants.REDIRECT(Constants.DB_ADD_PASSWORD_ROUTE));
+        }
+    }
+
+    const getAllHost = async () => {
+        let hostRes = await findAllHost();
+        if (hostRes.httpStatusCode == 200) {
+            setHost(hostRes.data);
+        } else if (hostRes.httpStatusCode === 401) {
             navigate(await Constants.REDIRECT(Constants.DB_ADD_PASSWORD_ROUTE));
         }
     }
@@ -42,6 +52,7 @@ function AddPassword() {
         if (authenticationRes.login) {
             setUserData(authenticationRes.user);
             checkUserRole(authenticationRes.user.userId)
+            getAllHost();
         }
         else {
             navigate(authenticationRes.redirectUrl, { replace: true });
@@ -72,7 +83,7 @@ function AddPassword() {
     const onSubmit = async (e) => {
         setSubmitLoader(true);
         e.preventDefault();
-        let { url, username, password} = inputField;
+        let { url, username, password } = inputField;
         inputField.pin = inputField.pin == "" ? null : inputField.pin;
         if (!isvalidateInputField()) {
             toast.warning("One or more filels are incorrect");
@@ -80,10 +91,11 @@ function AddPassword() {
             toast.warning("Please fill all requried fields.");
         }
         else {
-            let addCredentialRes = await addCredential(userData.userId, inputField);
+            let addCredentialRes = await addCredential(inputField);
 
             if (addCredentialRes.httpStatusCode === 201) {
                 toast.success(addCredentialRes.message);
+                getAllHost();
             } else if (addCredentialRes.httpStatusCode === 401) {
                 toast.error(addCredentialRes.message,
                     {
@@ -119,23 +131,46 @@ function AddPassword() {
                     <div>
                         <form className="needs-validation">
                             <div className="form-group row mb-2">
-                                <label htmlFor="url" className="col-sm-2 col-form-label">Host/Url <span style={{ color: 'red' }}>*</span></label>
-                                <div className="col-sm-5">
-                                    <input type="text" className={isValidUrl ? "form-control" : "form-control is-invalid"} id="url" placeholder='Ex. www.hotstar.com' value={inputField.url} onChange={onFieldChange} />
-                                    <div className="invalid-feedback" htmlFor="url">
-                                        <ul>
-                                            <li>The URL must start with either http or https and</li>
-                                            <li>Then followed by :// </li>
-                                            {/* <li>then it must contain www. </li> */}
-                                            <li>Then followed by subdomain of length (2, 256) </li>
-                                            <li>Last part contains top level domain like .com, .org etc.</li>
-                                        </ul>
-                                    </div>
+                                {/* <label htmlFor="url" className="col-sm-2 col-form-label">Host/Url <span style={{ color: 'red' }}>*</span></label> */}
+                                {/* <div className=""> */}
+                                {/* <input type="text" className={isValidUrl ? "form-control" : "form-control is-invalid"} id="url" placeholder='Ex. www.hotstar.com' value={inputField.url} onChange={onFieldChange} /> */}
+                                <Form.Group as={Row}>
+                                    <Form.Label htmlFor='url' column sm="2" className='me-1'>Host/Url <span style={{ color: 'red' }}>*</span></Form.Label>
+                                    <Col sm="5">
+                                        <Form.Control
+                                            list="host"
+                                            id="url"
+                                            className={isValidUrl ? "form-control" : "form-control is-invalid"}
+                                            // isValid = {isValidUrl}
+                                            isInvalid = {!isValidUrl}
+                                            // defaultValue="pharmacyName"
+                                            // {...register("pharmacyLocation")}
+                                            // onChange={(e) => e.target.event}
+                                            onChange={onFieldChange}
+                                            placeholder="Select or Type Host"
+                                        // placeholder='Ex. www.hotstar.com'
+                                        ></Form.Control>
+                                        <datalist id="host">
+                                            {host?.map((item) => (
+                                                <option key={item} value={`https://${item}/`} >
+                                                    {item}
+                                                </option>
+                                            ))}
+                                        </datalist>
+                                    </Col>
+                                </Form.Group>
+                                <div className="invalid-feedback" htmlFor="url">
+                                    <ul>
+                                        <li>The URL must start with either http or https and</li>
+                                        <li>Then followed by :// </li>
+                                        <li>Then followed by subdomain of length (2, 256) </li>
+                                        <li>Last part contains top level domain like .com, .org etc.</li>
+                                    </ul>
                                 </div>
 
                             </div>
                             <div className="form-group row mb-2">
-                                <label htmlFor="username" className="col-sm-2 col-form-label">username <span style={{ color: 'red' }}>*</span></label>
+                                <label htmlFor="username" className="col-sm-2 col-form-label">Username <span style={{ color: 'red' }}>*</span></label>
                                 <div className="col-sm-5">
                                     <input type="text" className="form-control" id="username" placeholder='username or email or mobile number' value={inputField.username} onChange={onFieldChange} />
                                 </div>
@@ -158,9 +193,12 @@ function AddPassword() {
                                 </div>
                             </div>
                             <div className="form-group row mb-2">
-                                <label htmlFor="description" className="col-sm-2 col-form-label">Small description</label>
+                                <label htmlFor="notes" className="col-sm-2 col-form-label">Notes</label>
                                 <div className="col-sm-5">
-                                    <input type="text" className="form-control" id="description" placeholder="Any description if you want to add" value={inputField.description} onChange={onFieldChange} />
+                                    <textarea type="text" className="form-control" id="notes" placeholder="Any notes if you want to add"
+                                        rows="4" onChange={onFieldChange}>
+                                        {inputField.notes}
+                                    </textarea>
                                 </div>
                             </div>
                             <div className="form-group row">

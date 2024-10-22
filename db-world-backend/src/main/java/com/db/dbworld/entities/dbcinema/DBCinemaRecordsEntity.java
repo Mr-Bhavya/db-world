@@ -1,34 +1,60 @@
 package com.db.dbworld.entities.dbcinema;
 
+import com.db.dbworld.entities.dbcinema.tmdb.TmdbDataEntity;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.bson.types.ObjectId;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.DocumentReference;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.util.ArrayList;
+import java.util.Date;
 
 @Getter
 @Setter
-@Document("DB_CINEMA_RECORDS")
+@Entity
+@AllArgsConstructor
+@NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
+@Table(name = "DB_CINEMA_RECORDS", schema = "db_world")
 public class DBCinemaRecordsEntity {
     @Id
-    private ObjectId recordId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
     private String name;
     private String type;
-//    private Date lastModifiedTime;
-    @Indexed(unique = true)
-    private long tmdbId;
     private boolean showOnTop;
-    private ArrayList<String> watchListBy;
-    private ArrayList<String> likedBy;
-    private ArrayList<String> disLikeBy;
-    @DocumentReference
-    private ArrayList<DBCinemaRating> ratings;
-    @DocumentReference
-    private ArrayList<DBCinemaComment> comments;
+
+    @CreatedDate
+    private Date creationDate;
+
+    @LastModifiedDate
+    private Date lastModifiedDate;
+
+    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @JoinColumn(name = "tmdb", referencedColumnName = "id")
+    private TmdbDataEntity tmdb;
+
+    @Transient
+    private boolean isWatchListed;
+
+    @Transient
+    private boolean isLiked;
+
+//    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+//    @JoinColumn(name = "tmdb_data", referencedColumnName = "id")
+//    private SeriesTmdbDataEntity series_tmdb_data;
+//    private T tmdb_data;
+//    private ArrayList<String> watchListBy;
+//    private ArrayList<String> likedBy;
+//    private ArrayList<String> disLikeBy;
+//    @DocumentReference
+//    private ArrayList<DBCinemaRating> ratings;
+//    @DocumentReference
+//    private ArrayList<DBCinemaComment> comments;
 //    @DocumentReference
 //    private MovieTMDBDataEntity movieTMDBData;
 //    private ArrayList<Stream> streams;
