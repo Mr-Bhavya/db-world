@@ -22,6 +22,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Slf4j
@@ -132,6 +133,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserDto getUserProfile() {
+        return this.modelMapper.map(getUserFromToken(), UserDto.class);
+    }
+
+    @Override
     public long getUserIdByUsername(String username) {
         UserEntity userEntity = this.userRepository.findByEmail(username).orElseThrow(
                 () -> new ResourceNotFoundException("User", "username", username)
@@ -231,6 +237,17 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteUserAppDataByUserId(String userId) {
 
+    }
+
+    @Override
+    public void updateDob(Date dob) {
+        try{
+            UserEntity userEntity = getUserFromToken();
+            userEntity.setDob(dob);
+            userRepository.save(userEntity);
+        }catch (Exception ex){
+            throw new DbWorldException(ex.getMessage());
+        }
     }
 
 

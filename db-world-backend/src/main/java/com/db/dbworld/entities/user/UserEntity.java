@@ -1,6 +1,7 @@
 package com.db.dbworld.entities.user;
 
 import com.db.dbworld.entities.pm.PasswordManagerEntity;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -8,6 +9,7 @@ import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.util.Date;
 import java.util.List;
@@ -25,7 +27,8 @@ public class UserEntity {
     private long userId;
     private String firstName;
     private String lastName;
-    private String dob;
+    @JsonFormat(pattern = "dd-MM-yyyy")
+    private Date dob;
     private String gender;
     private Long mobileNo;
     @Column(unique = true)
