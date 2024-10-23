@@ -1,5 +1,6 @@
 package com.db.dbworld.payloads.user;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 import lombok.Getter;
@@ -20,9 +21,8 @@ public class UserDto {
     @Size(min = 1, max=20)
     private String lastName;
     private int age;
-//    @NotEmpty
-//    @DateTimeFormat()
-    private String dob;
+    @JsonFormat(pattern="yyyy-MM-dd")
+    private Date dob;
     @NotEmpty
     private String gender;
     @NotNull
