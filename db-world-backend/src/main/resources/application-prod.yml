@@ -1,6 +1,6 @@
 # Server Config
 Server:
-  port: 9191
+  port: 9090
   jetty:
     idle-timeout: 60000 # 60 seconds
 
