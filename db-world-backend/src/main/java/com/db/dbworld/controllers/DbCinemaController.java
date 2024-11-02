@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @Log4j2
+@CrossOrigin
 @RestController
 @RequestMapping("/api/cinema")
 public class DbCinemaController {

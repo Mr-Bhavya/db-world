@@ -49,9 +49,9 @@ function MovieDetails() {
             }
             else {
                 setProvider({
-                    "buy": movie.tmdbData.providers?.buy || null,
-                    "rent": movie.tmdbData.providers?.rent || null,
-                    "flatrate": movie.tmdbData.providers?.flatrate || null
+                    "buy": movie?.tmdbData?.providers?.buy || null,
+                    "rent": movie?.tmdbData?.providers?.rent || null,
+                    "flatrate": movie.tmdbData?.providers?.flatrate || null
                 });
                 setCast(movie.tmdbData.credits.cast);
                 setCrew(movie.tmdbData?.credits?.crew);

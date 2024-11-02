@@ -9,11 +9,10 @@ import lombok.EqualsAndHashCode;
 @Entity
 @Table(name="CREW_JOB", schema = "db_world")
 public class JobEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
 
-    @Column(name = "name", nullable = false)
+
+    @Id
+    @Column(name = "name")
     private String name;
 
 }

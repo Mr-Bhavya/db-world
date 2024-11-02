@@ -11,12 +11,8 @@ import lombok.EqualsAndHashCode;
 @Table(name = "CREW", schema = "db_world")
 public class CrewEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
-
-    @ManyToOne
-    @JoinColumn(name = "tmdb")
-    private TmdbDataEntity tmdb;
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "person")
@@ -29,5 +25,9 @@ public class CrewEntity {
     @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "job")
     private JobEntity job;
+
+    @OneToMany(fetch = FetchType.LAZY)
+    @JoinColumn(name = "credit")
+    private CreditsEntity creditsEntity;
 
 }

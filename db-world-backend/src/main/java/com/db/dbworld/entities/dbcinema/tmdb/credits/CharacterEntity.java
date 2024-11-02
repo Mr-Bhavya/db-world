@@ -9,10 +9,8 @@ import lombok.EqualsAndHashCode;
 @Entity
 @Table(name="CAST_CHARACTER", schema = "db_world")
 public class CharacterEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
 
+    @Id
     @Column(name = "name", nullable = false)
     private String name;
 

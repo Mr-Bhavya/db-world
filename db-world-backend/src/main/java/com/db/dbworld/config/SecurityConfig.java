@@ -44,7 +44,7 @@ public class SecurityConfig {
                             authorizationManagerRequestMatcherRegistry ->
                                     authorizationManagerRequestMatcherRegistry
                                             .requestMatchers(DbWorldConstants.PUBLIC_APIS).permitAll()
-                                            .anyRequest().authenticated())
+                                            .anyRequest().permitAll())
                     .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                     .exceptionHandling(ex -> ex.accessDeniedHandler(jwtAccessDeniedHandler))
                     .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 @Log4j2
+@CrossOrigin
 @RestController
 @RequestMapping("/api/pm")
 public class PasswordManagerController {

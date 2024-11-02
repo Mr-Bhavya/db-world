@@ -12,23 +12,20 @@ import java.util.List;
 @Entity
 @Table(name="CREDITS", schema = "db_world")
 public class CreditsEntity {
-
     @Id
-    @GeneratedValue(strategy= GenerationType.AUTO)
-    private long id;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
     @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "tmdb", referencedColumnName = "id", unique = true)
     private TmdbDataEntity tmdb;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-    @JoinTable(name = "credit_cast_map", joinColumns = @JoinColumn(name = "credit"),
-            inverseJoinColumns = @JoinColumn(name = "cast"))
+    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "credit")
     private List<CastEntity> cast;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-    @JoinTable(name = "credit_crew_map", joinColumns = @JoinColumn(name = "credit"),
-            inverseJoinColumns = @JoinColumn(name = "crew"))
+    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "credit")
     private List<CrewEntity> crew;
 
 }

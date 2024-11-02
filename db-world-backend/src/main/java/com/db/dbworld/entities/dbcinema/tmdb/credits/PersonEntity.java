@@ -7,11 +7,8 @@ import lombok.EqualsAndHashCode;
 import java.util.List;
 
 @Data
-@EqualsAndHashCode()
 @Entity
 @Table(name = "PERSON", schema = "db_world")
-//@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-//@DiscriminatorColumn(name = "credit_type", discriminatorType = DiscriminatorType.STRING)
 public class PersonEntity {
 
     @Id

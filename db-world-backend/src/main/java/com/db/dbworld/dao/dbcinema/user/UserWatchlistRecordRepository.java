@@ -13,7 +13,7 @@ public interface UserWatchlistRecordRepository extends JpaRepository<UserWatchli
     Optional<UserWatchlistRecordEntity> findByUserUserIdAndDbCinemaRecordId(Long userId, Long recordId);
 
     @Modifying
-    @Query(value = "UPDATE user_watchlist_record uwr SET uwr.isWatchListed=false where uwr.user = :userId AND uwr.db_cinema_record = :recordId", nativeQuery = true)
+    @Query(value = "UPDATE user_watchlist_record uwr SET uwr.isWatchListed=false WHERE uwr.user = :userId AND uwr.db_cinema_record = :recordId", nativeQuery = true)
     void setIsWatchlistAsFalseByUserIdRecordId(@Param("userId") Long userId, @Param("recordId") Long recordId);
 
     @Query(value = "SELECT uwr.isWatchListed FROM user_watchlist_record uwr WHERE uwr.user = :userId AND uwr.db_cinema_record = :recordId", nativeQuery = true)
