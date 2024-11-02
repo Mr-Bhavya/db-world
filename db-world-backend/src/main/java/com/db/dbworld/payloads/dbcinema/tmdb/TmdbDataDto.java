@@ -27,7 +27,7 @@ public class TmdbDataDto {
     private String overview; //
     private double popularity; //
     private String poster_path; //
-    private List<ProductionCompanies> production_companies; //
+    private List<ProductionCompaniesDto> production_companies; //
     private List<ProductionCountriesDto> production_countries; //
     private List<SpokenLanguageDto> spoken_languages; //
     private String status; //

@@ -16,6 +16,6 @@ public class ProductionCountriesEntity {
     private String english_name;
     private String native_name;
 
-    @ManyToMany(mappedBy = "production_countries", cascade = CascadeType.ALL)
+    @ManyToMany(mappedBy = "production_countries")
     private List<TmdbDataEntity> tmdbDataEntityList;
 }

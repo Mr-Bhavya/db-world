@@ -12,7 +12,7 @@ public interface UserLikedRecordRepository extends JpaRepository<UserLikeRecordE
     Optional<UserLikeRecordEntity> findByUserUserIdAndDbCinemaRecordId(Long userId, Long recordId);
 
     @Modifying
-    @Query(value = "UPDATE user_like_record ulr SET ulr.isLiked=false where ulr.user = :userId AND ulr.db_cinema_record = :recordId", nativeQuery = true)
+    @Query(value = "UPDATE user_like_record ulr SET ulr.isLiked=false WHERE ulr.user = :userId AND ulr.db_cinema_record = :recordId", nativeQuery = true)
     void setIsLikeAsFalseByUserIdRecordId(@Param("userId") Long userId, @Param("recordId") Long recordId);
 
     @Query(value = "SELECT ulr.isLiked FROM user_like_record ulr WHERE ulr.user = :userId AND ulr.db_cinema_record = :recordId", nativeQuery = true)
