@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
 @Log4j2
+@CrossOrigin
 @RestController
 @RequestMapping(("/api/admin"))
 public class AdminController {

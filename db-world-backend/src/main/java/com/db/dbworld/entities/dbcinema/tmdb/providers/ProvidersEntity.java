@@ -17,7 +17,6 @@ public class ProvidersEntity {
     @GeneratedValue(strategy=GenerationType.AUTO)
     private long id;
 
-//    private Long tmdb;
     @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "tmdb", referencedColumnName = "id", unique = true)
     private TmdbDataEntity tmdb;

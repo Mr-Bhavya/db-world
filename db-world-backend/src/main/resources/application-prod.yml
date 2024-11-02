@@ -1,6 +1,6 @@
 # Server Config
 Server:
-  port: 9090
+  port: 9191
   jetty:
     idle-timeout: 60000 # 60 seconds
 
@@ -15,6 +15,7 @@ spring:
     show-sql: false
     generate-ddl: true
     hibernate:
+      dialect: org.hibernate.dialect.MySQLDialect
       enable_lazy_load_no_trans: true
       event:
         merge:

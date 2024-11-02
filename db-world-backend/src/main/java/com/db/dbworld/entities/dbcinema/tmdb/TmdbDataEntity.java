@@ -21,7 +21,7 @@ public class TmdbDataEntity {
     @Id
     private long id;
 
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "db_cinema_record", referencedColumnName = "id")
     private DBCinemaRecordsEntity dbCinemaRecordsEntity;
 
@@ -54,7 +54,7 @@ public class TmdbDataEntity {
             inverseJoinColumns = @JoinColumn(name = "countries_id"))
     private List<ProductionCountriesEntity> production_countries;
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(name = "tmdb_spoken_languages_mapping", joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "spoken_languages_id"))
     private List<SpokenLanguageEntity> spoken_languages;
@@ -68,168 +68,16 @@ public class TmdbDataEntity {
     @JoinColumn(name = "tmdb", referencedColumnName = "id")
     private List<VideosEntity> videos;
 
-    @OneToMany(fetch = FetchType.LAZY)
+    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "tmdb", referencedColumnName = "id")
     private List<ImagesEntity> images;
-
-//    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST})
-//    @JoinTable(name = "tmdb_credits_mapping", joinColumns = @JoinColumn(name = "tmdb_id"),
-//            inverseJoinColumns = @JoinColumn(name = "credit_id"))
-//    private List<CreditsEntity> credits;
 
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "credits", referencedColumnName = "id")
     private CreditsEntity credits;
 
-//    @OneToMany(mappedBy = "tmdb", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-//    private List<CastEntity> casts;
-
-
-    //    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.MERGE})
-//    @JoinTable(name = "tmdb_providers_mapping",
-//            joinColumns = {@JoinColumn(name = "tmdb_id")},
-//            inverseJoinColumns = {@JoinColumn(name = "provider_id")})
-    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "providers", referencedColumnName = "id")
     private ProvidersEntity providers;
 
-
-//    @Entity
-//    public static class Images{
-//        private List<BackDropImage> backDropImages;
-//        private List<LogoImage> logoImages;
-//        private List<PosterImage> posterImages;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class Genres {
-//        private int id;
-//        private String name;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class ProductionCompanies {
-//        private int id;
-//        private String logo_path;
-//        private String name;
-//        private String origin_country;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class ProductionCountries {
-//        private String iso_3166_1;
-//        private String name;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class SpokenLanguage {
-//        private String english_name;
-//        private String iso_639_1;
-//        private String name;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class Images {
-//        private ArrayList<Image> backdrops;
-//        private ArrayList<Image> logos;
-//        private ArrayList<Image> posters;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class Image {
-//        private double aspect_ratio;
-//        private long height;
-//        private String iso_639_1;
-//        private String file_path;
-//        private double vote_average;
-//        private long vote_count;
-//        private long width;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class Videos {
-//        private String id;
-//        private String iso_639_1;
-//        private String iso_3166_1;
-//        private String name;
-//        private String key;
-//        private String site;
-//        private long size;
-//        private String type;
-//        private boolean official;
-//        private String published_at;
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class Credits {
-//        private ArrayList<Credits.CastDetails> cast;
-//        private ArrayList<Credits.CrewDetails> crew;
-//
-//        @Getter
-//        @Setter
-//        private static class CastDetails extends Credits.CreditDetails {
-//            private Long cast_id;
-//            private String character;
-//            private Long order;
-//        }
-//
-//        @Getter
-//        @Setter
-//        private static class CrewDetails extends Credits.CreditDetails {
-//            private String department;
-//            private String job;
-//        }
-//
-//        @Getter
-//        @Setter
-//        @NoArgsConstructor
-//        private static class CreditDetails {
-//            private boolean adult;
-//            private long gender;
-//            private long id;
-//            private String known_for_department;
-//            private String name;
-//            private String original_name;
-//            private double popularity;
-//            private String profile_path;
-//            private String credit_id;
-//
-//        }
-//
-//    }
-//
-//    @Getter
-//    @Setter
-//    @NoArgsConstructor
-//    private static class Providers {
-//
-//        private List<Provider> rent;
-//        private List<Provider> buy;
-//        private List<Provider> flatrate;
-//
-//        @Getter
-//        @Setter
-//        @NoArgsConstructor
-//        private static class Provider {
-//            private long provider_id;
-//            private String logo_path;
-//            private String provider_name;
-//        }
-//    }
 }
