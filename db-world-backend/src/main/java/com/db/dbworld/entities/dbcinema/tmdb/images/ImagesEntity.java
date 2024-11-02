@@ -26,7 +26,7 @@ public class ImagesEntity {
     private double aspect_ratio;
     private long height;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "iso_639_1", referencedColumnName = "iso_639_1")
     private SpokenLanguageEntity iso_639_1;
 

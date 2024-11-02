@@ -11,12 +11,8 @@ import lombok.EqualsAndHashCode;
 @Table(name = "CAST", schema = "db_world")
 public class CastEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
-
-    @ManyToOne
-    @JoinColumn(name = "tmdb")
-    private TmdbDataEntity tmdb;
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "person")
@@ -28,4 +24,9 @@ public class CastEntity {
 
     @Column(name = "cast_order")
     private Long order;
+
+    @OneToMany(fetch = FetchType.LAZY)
+    @JoinColumn(name = "credit")
+    private CreditsEntity creditsEntity;
+
 }

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
+@CrossOrigin
 @RequestMapping("/api/user")
 @EnableMethodSecurity(prePostEnabled = true)
 public class UserController {

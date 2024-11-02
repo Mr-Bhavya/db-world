@@ -30,8 +30,8 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
     }
 
     private static class PushStateResourceResolver implements ResourceResolver {
-        private final Resource index = new ClassPathResource("/public/db-world/index.html");
-        private final List<String> handledExtensions = Arrays.asList("html", "js", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico", "json", "map");
+        private final Resource index = new ClassPathResource("/public/index.html");
+        private final List<String> handledExtensions = Arrays.asList("html", "js", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico", "json", "map", "txt");
         private final List<String> ignoredPaths = List.of("api");
 
         @Override

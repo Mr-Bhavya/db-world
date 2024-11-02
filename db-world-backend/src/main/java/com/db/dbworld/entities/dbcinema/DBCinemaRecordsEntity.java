@@ -34,7 +34,7 @@ public class DBCinemaRecordsEntity {
     @LastModifiedDate
     private Date lastModifiedDate;
 
-    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "tmdb", referencedColumnName = "id")
     private TmdbDataEntity tmdb;
 
