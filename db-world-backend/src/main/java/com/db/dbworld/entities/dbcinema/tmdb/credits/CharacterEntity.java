@@ -5,7 +5,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 @Data
-@EqualsAndHashCode(of = "id")
 @Entity
 @Table(name="CAST_CHARACTER", schema = "db_world")
 public class CharacterEntity {

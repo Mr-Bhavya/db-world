@@ -44,21 +44,6 @@ public class DBCinemaRecordsEntity {
     @Transient
     private boolean isLiked;
 
-//    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-//    @JoinColumn(name = "tmdb_data", referencedColumnName = "id")
-//    private SeriesTmdbDataEntity series_tmdb_data;
-//    private T tmdb_data;
-//    private ArrayList<String> watchListBy;
-//    private ArrayList<String> likedBy;
-//    private ArrayList<String> disLikeBy;
-//    @DocumentReference
-//    private ArrayList<DBCinemaRating> ratings;
-//    @DocumentReference
-//    private ArrayList<DBCinemaComment> comments;
-//    @DocumentReference
-//    private MovieTMDBDataEntity movieTMDBData;
-//    private ArrayList<Stream> streams;
-
     private static class Stream{
         private ArrayList<Format> formats;
         private static class Format{

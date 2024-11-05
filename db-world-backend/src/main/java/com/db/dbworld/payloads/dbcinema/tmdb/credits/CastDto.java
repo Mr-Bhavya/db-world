@@ -5,7 +5,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class CastDto extends CreditDetailsDto{
+public class CastDto extends PersonDto{
+//    private Long id;
     private Long cast_id;
     private String character;
     private Long order;

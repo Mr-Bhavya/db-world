@@ -2,11 +2,14 @@ package com.db.dbworld.payloads.dbcinema.tmdb;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
+@Getter
+@Setter
 @EqualsAndHashCode(callSuper = true)
 public class SeriesTmdbDataDto extends TmdbDataDto {
 
@@ -18,7 +21,7 @@ public class SeriesTmdbDataDto extends TmdbDataDto {
     public String last_air_date;
     public LastEpisodeToAir last_episode_to_air;
     public Object next_episode_to_air;
-    public ArrayList<Network> networks;
+    public List<Network> networks;
     public int number_of_episodes;
     public int number_of_seasons;
     public List<Season> seasons;
