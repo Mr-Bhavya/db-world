@@ -5,7 +5,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class CrewDto extends CreditDetailsDto{
+public class CrewDto extends PersonDto {
+//    private Long id;
     private String department;
     private String job;
 }
