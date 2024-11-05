@@ -5,11 +5,10 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 @Data
-@EqualsAndHashCode(of = "id")
+@EqualsAndHashCode(of = "name")
 @Entity
 @Table(name="CREW_JOB", schema = "db_world")
 public class JobEntity {
-
 
     @Id
     @Column(name = "name")

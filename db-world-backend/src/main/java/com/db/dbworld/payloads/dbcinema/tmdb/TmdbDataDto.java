@@ -20,33 +20,25 @@ public class TmdbDataDto {
     private String dbCinemaRecordId;
     private boolean adult; //
     private String backdrop_path; //
-    private ArrayList<Genres> genres; //
+    private List<GenresDto> genres = new ArrayList<>(); //
     private String homepage; //
     private String original_language; //
     private String original_title; //original_name
     private String overview; //
     private double popularity; //
     private String poster_path; //
-    private List<ProductionCompaniesDto> production_companies; //
-    private List<ProductionCountriesDto> production_countries; //
-    private List<SpokenLanguageDto> spoken_languages; //
+    private List<ProductionCompaniesDto> production_companies = new ArrayList<>(); //
+    private List<ProductionCountriesDto> production_countries = new ArrayList<>(); //
+    private List<SpokenLanguageDto> spoken_languages = new ArrayList<>(); //
     private String status; //
     private String tagline; //
     private String title; //name
     private double vote_average; //
     private int vote_count; //
-    private List<VideosDto> videos; //
+    private List<VideosDto> videos = new ArrayList<>(); //
     private ImagesDto images; //
     private CreditsDto credits; //
     private ProvidersDto providers; //
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    private static class Genres {
-        private int id;
-        private String name;
-    }
 
     @Getter
     @Setter

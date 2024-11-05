@@ -9,8 +9,7 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-//@DiscriminatorValue("buy")
-@Table(name = "BUY_PROVIDER")
+@Table(name = "BUY_PROVIDER", schema = "db-world")
 public class BuyEntity {
     @Id
     @Column(name = "provider_id")
