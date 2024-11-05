@@ -1,5 +1,6 @@
 package com.db.dbworld.entities.dbcinema.tmdb;
 
+import com.db.dbworld.entities.dbcinema.tmdb.providers.NetworkEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,6 +23,11 @@ public class SeriesTmdbDataEntity extends TmdbDataEntity {
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "tmdb", referencedColumnName = "id")
     public List<SeasonsEntity> seasons;
+
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(name = "tmdb_network_mapping", joinColumns = @JoinColumn(name = "tmdb_id"),
+            inverseJoinColumns = @JoinColumn(name = "network_id"))
+    public List<NetworkEntity> networks;
 
 //    public ArrayList<CreatedBy> created_by;
 //    public ArrayList<Integer> episode_run_time;

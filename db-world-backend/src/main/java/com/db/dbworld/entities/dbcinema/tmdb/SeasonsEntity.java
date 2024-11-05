@@ -15,7 +15,6 @@ public class SeasonsEntity {
     private String name;
     private String air_date;
     private int episode_count;
-
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String overview;

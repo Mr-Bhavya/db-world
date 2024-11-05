@@ -6,7 +6,7 @@ import com.db.dbworld.dao.dbcinema.user.UserLikedRecordRepository;
 import com.db.dbworld.dao.dbcinema.user.UserWatchlistRecordRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.*;
-import com.db.dbworld.entities.dbcinema.tmdb.credits.CreditsEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.credits.*;
 import com.db.dbworld.entities.dbcinema.tmdb.providers.ProvidersEntity;
 import com.db.dbworld.entities.dbcinema.user.UserLikeRecordEntity;
 import com.db.dbworld.entities.dbcinema.user.UserWatchlistRecordEntity;
@@ -49,6 +49,7 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Log4j2
@@ -105,17 +106,13 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                 } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
                     SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(record);
                     dbCinemaRecordsEntity.setName(seriesTmdbDataDto.getTitle());
-                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(dbWorldUtils.convertSeriesTmdbDtoToEntity(seriesTmdbDataDto)));
+                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(pojoConverter.seriesTmdbDtoToEntity(seriesTmdbDataDto, new SeriesTmdbDataEntity())));
                 }
                 DBCinemaRecordsEntity newDbCinemaRecordEntity = entityManager.merge(dbCinemaRecordsEntity);
-                return dbWorldUtils.convertDbCinemaRecordEntityToDto(newDbCinemaRecordEntity);
+                return pojoConverter.dbCinemaRecordsEntityToDto(newDbCinemaRecordEntity);
             } catch (Exception ex) {
-                ex.printStackTrace();
+                log.error(ex);
                 throw new DbWorldException(ex.getMessage());
-            }finally {
-//                entityManager.flush();
-//                entityManager.clear();
-//                entityManager.close();
             }
         } else {
             throw new DuplicateResourceException("DBCinemaRecordsEntity", "tmdbId", Long.toString(record.getTmdbId()));
@@ -143,15 +140,10 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             dbCinemaRecordsEntity.setTmdb(tmdbDataEntity);
             dbCinemaRecordsEntity.setName(Objects.requireNonNull(tmdbDataEntity).getTitle());
             DBCinemaRecordsEntity newDbCinemaRecordsEntity = entityManager.merge(dbCinemaRecordsEntity);
-            return dbWorldUtils.convertDbCinemaRecordEntityToDto(newDbCinemaRecordsEntity);
+            return pojoConverter.dbCinemaRecordsEntityToDto(newDbCinemaRecordsEntity);
         } catch (Exception ex) {
-            ex.printStackTrace();
             log.error(ex);
             throw new DbWorldException(ex.getMessage());
-        }finally {
-//            entityManager.flush();
-//            entityManager.clear();
-//            entityManager.close();
         }
     }
 
@@ -197,7 +189,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                 dbCinemaRecordsEntity.setLiked(
                         this.userLikedRecordRepository.isRecordLikedByUser(userId, dbCinemaRecordsEntity.getId()).orElse(false)
                 );
-                return dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity);
+                return pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity);
             }).toList();
 
             return new PageImpl<>(dbCinemaRecordsDtos,pageable,totalElements);
@@ -213,7 +205,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId).orElseThrow(
                 () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
         );
-        return dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity);
+        return pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity);
     }
 
     @Override
@@ -230,7 +222,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             query.setParameter("keyword", "%" + keyword + "%");
             List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = query.getResultList();
             return dbCinemaRecordsEntities.stream().map(
-                    dbCinemaRecordsEntity -> this.dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity)
+                    dbCinemaRecordsEntity -> this.pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity)
             ).toList();
         } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
@@ -265,7 +257,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         } catch (AuthenticationException ex) {
             throw new AuthenticationServiceException("Token is not valid. Please do login again.");
         } catch (Exception ex) {
-            ex.printStackTrace();
+            log.error(ex);
             throw new DbWorldException(ex.getMessage());
         }
     }
@@ -314,7 +306,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             }
             return dbCinemaRecordsEntities.stream().map(
                     dbCinemaRecordsEntity -> {
-                        DBCinemaRecordsDto dbCinemaRecordsDto = this.dbWorldUtils.convertDbCinemaRecordEntityToDto(dbCinemaRecordsEntity);
+                        DBCinemaRecordsDto dbCinemaRecordsDto = this.pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity);
                         dbCinemaRecordsDto.setWatchListed(true);
                         return dbCinemaRecordsDto;
                     }
@@ -366,33 +358,13 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(new RequestPayloads.AddRecord(
                 tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_SERIES, false
         ));
-        SeriesTmdbDataEntity seriesTmdbDataEntity = dbWorldUtils.convertSeriesTmdbDtoToEntity(seriesTmdbDataDto);
-        seriesTmdbDataEntity.setDbCinemaRecordsEntity(tmdbDataEntity.getDbCinemaRecordsEntity());
-        if (tmdbDataEntity.getProviders() != null && seriesTmdbDataEntity.getProviders() != null) {
-            seriesTmdbDataEntity.getProviders().setId(tmdbDataEntity.getProviders().getId());
-        }
-        if (tmdbDataEntity.getCredits() != null && seriesTmdbDataEntity.getCredits() != null) {
-            seriesTmdbDataEntity.getCredits().setId(tmdbDataEntity.getCredits().getId());
-        }
-        return mergeTmdbEntity(seriesTmdbDataEntity);
+        return mergeTmdbEntity(pojoConverter.seriesTmdbDtoToEntity(seriesTmdbDataDto, (SeriesTmdbDataEntity) tmdbDataEntity));
     }
 
     private TmdbDataEntity updateTmdbForMovie(TmdbDataEntity tmdbDataEntity) {
         MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(new RequestPayloads.AddRecord(
                 tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_MOVIE, false
         ));
-//        MovieTmdbDataEntity movieTmdbDataEntity = dbWorldUtils.convertMovieTmdbDtoToEntity(movieTmdbDataDto);
-//        movieTmdbDataEntity.setDbCinemaRecordsEntity(tmdbDataEntity.getDbCinemaRecordsEntity());
-//        if (tmdbDataEntity.getProviders() == null && movieTmdbDataEntity.getProviders() == null) {
-//
-//        }else if (tmdbDataEntity.getProviders() == null && movieTmdbDataEntity.getProviders() != null){
-//
-//        } else if (tmdbDataEntity.getProviders() != null && movieTmdbDataEntity.getProviders() != null){
-//            movieTmdbDataEntity.getProviders().setId(tmdbDataEntity.getProviders().getId());
-//        }
-//        if (tmdbDataEntity.getCredits() != null) {
-//            movieTmdbDataEntity.getCredits().setId(tmdbDataEntity.getCredits().getId());
-//        }
         return mergeTmdbEntity(pojoConverter.movieTmdbDtoToEntity(movieTmdbDataDto, (MovieTmdbDataEntity) tmdbDataEntity));
     }
 
@@ -449,90 +421,39 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Transactional
     private TmdbDataEntity mergeTmdbEntity(TmdbDataEntity tmdbDataEntity) {
 
-
-//        if(!tmdbDataEntity.getProduction_companies().isEmpty()){
-//            tmdbDataEntity.setProduction_companies(tmdbDataEntity.getProduction_companies().stream().map(
-//                    productionCompany -> {
-//                        ProductionCompaniesEntity productionCompaniesEntity = entityManager.find(ProductionCompaniesEntity.class, productionCompany.getId());
-//                        if(productionCompaniesEntity == null){
-//                            entityManager.persist(productionCompany);
-//                        }
-//                        return productionCompany;
-//                    }
-//            ).toList());
-//        }
-//
-//        if(!tmdbDataEntity.getProduction_countries().isEmpty()){
-//            tmdbDataEntity.setProduction_countries(tmdbDataEntity.getProduction_countries().stream().map(
-//                    productionCountries -> {
-//                        ProductionCountriesEntity productionCountriesEntity = entityManager.find(ProductionCountriesEntity.class, productionCountries.getIso_3166_1());
-//                        if(productionCountriesEntity == null){
-//                            entityManager.persist(productionCountries);
-//                        }
-//                        return productionCountries;
-//                    }
-//            ).toList());
-//        }
-//
-//        if(!tmdbDataEntity.getSpoken_languages().isEmpty()){
-//            tmdbDataEntity.setSpoken_languages(tmdbDataEntity.getSpoken_languages().stream().map(
-//                    spokenLanguage -> {
-//                        SpokenLanguageEntity spokenLanguageEntity = entityManager.find(SpokenLanguageEntity.class, spokenLanguage.getIso_639_1());
-//                        if(spokenLanguageEntity == null){
-//                            entityManager.persist(spokenLanguage);
-//                        }
-//                        return spokenLanguage;
-//                    }
-//            ).toList());
-//        }
-//
-//        if(!tmdbDataEntity.getVideos().isEmpty()){
-//            tmdbDataEntity.setVideos(tmdbDataEntity.getVideos().stream().map(videosEntity -> {
-//                if(videosEntity.getIso_639_1() != null) {
-//                    SpokenLanguageEntity spokenLanguageEntity = entityManager.find(SpokenLanguageEntity.class, videosEntity.getIso_639_1().getIso_639_1());
-//                    if (spokenLanguageEntity == null) {
-//                        entityManager.persist(videosEntity.getIso_639_1());
-//                    }
-//                }
-//                if(videosEntity.getIso_3166_1() != null){
-//                    ProductionCountriesEntity productionCountries = entityManager.find(ProductionCountriesEntity.class, videosEntity.getIso_3166_1().getIso_3166_1());
-//                    if(productionCountries == null){
-//                        entityManager.persist(videosEntity.getIso_3166_1());
-//                    }
-//                }
-//                return videosEntity;
-//            }).toList());
-//        }
-//
-//        if(!tmdbDataEntity.getImages().isEmpty()){
-//            tmdbDataEntity.setImages(tmdbDataEntity.getImages().stream().map(imagesEntity -> {
-//                if(imagesEntity.getIso_639_1() != null) {
-//                    SpokenLanguageEntity spokenLanguageEntity = entityManager.find(SpokenLanguageEntity.class, imagesEntity.getIso_639_1().getIso_639_1());
-//                    if (spokenLanguageEntity == null) {
-//                        entityManager.persist(imagesEntity.getIso_639_1());
-//                    }
-//                }
-//                return imagesEntity;
-//            }).toList());
-//        }
-
-        if (tmdbDataEntity.getCredits() != null) {
-            if (tmdbDataEntity.getCredits().getCast() != null) {
-                tmdbDataEntity.getCredits().setCast(tmdbDataEntity.getCredits().getCast().stream().map(cast -> entityManager.merge(cast)).toList());
+        if(tmdbDataEntity.getCredits() != null){
+            if(tmdbDataEntity.getCredits().getCrew() != null){
+                tmdbDataEntity.getCredits().getCrew().forEach(crew -> {
+                    PersonEntity person = entityManager.find(PersonEntity.class, crew.getPerson().getId());
+                    if(person == null){
+                        entityManager.persist(crew.getPerson());
+                    }else{
+                        entityManager.merge(person);
+                    }
+                    DepartmentEntity department = entityManager.find(DepartmentEntity.class, crew.getDepartment().getName());
+                    if(department == null){
+                        entityManager.persist(crew.getDepartment());
+                    }
+                    JobEntity job = entityManager.find(JobEntity.class, crew.getJob().getName());
+                    if(job == null){
+                        entityManager.persist(crew.getJob());
+                    }
+                });
             }
-            if (tmdbDataEntity.getCredits().getCrew() != null) {
-                tmdbDataEntity.getCredits().setCrew(tmdbDataEntity.getCredits().getCrew().stream().map(crew -> entityManager.merge(crew)).toList());
+            if(tmdbDataEntity.getCredits().getCast() != null){
+                tmdbDataEntity.getCredits().getCast().forEach(cast -> {
+                    PersonEntity person = entityManager.find(PersonEntity.class, cast.getPerson().getId());
+                    if(person == null){
+                        entityManager.persist(cast.getPerson());
+                    }
+                    CharacterEntity character = entityManager.find(CharacterEntity.class, cast.getCharacter().getName());
+                    if(character == null){
+                        entityManager.persist(cast.getCharacter());
+                    }
+                });
             }
-            tmdbDataEntity.getCredits().setTmdb(tmdbDataEntity);
-            tmdbDataEntity.setCredits(tmdbDataEntity.getCredits());
         }
 
-        tmdbDataEntity.setGenres(tmdbDataEntity.getGenres().stream().map(genresEntity -> entityManager.merge(genresEntity)).toList());
-
-        if (tmdbDataEntity.getProviders() != null) {
-            tmdbDataEntity.getProviders().setTmdb(tmdbDataEntity);
-            tmdbDataEntity.setProviders(tmdbDataEntity.getProviders());
-        }
         return entityManager.merge(tmdbDataEntity);
     }
 
