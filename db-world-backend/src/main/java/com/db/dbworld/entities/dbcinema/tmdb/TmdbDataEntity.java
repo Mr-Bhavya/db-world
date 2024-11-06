@@ -21,8 +21,9 @@ public class TmdbDataEntity {
     @Id
     private long id;
 
-    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "db_cinema_record", referencedColumnName = "id")
+//    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+//    @JoinColumn(name = "db_cinema_record", referencedColumnName = "id")
+    @OneToOne(mappedBy = "tmdb", cascade = CascadeType.ALL, orphanRemoval = true)
     private DBCinemaRecordsEntity dbCinemaRecordsEntity;
 
     private boolean adult;

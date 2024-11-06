@@ -16,8 +16,4 @@ public class UserRoleEntity {
     @Column(unique = true)
     private String name;
 
-//    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-//    @JoinColumn(name = "user", referencedColumnName = "id")
-//    private List<UserEntity> userEntities;
-
 }

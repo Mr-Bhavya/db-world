@@ -18,7 +18,7 @@ public class RentEntity{
     private String logo_path;
     private String provider_name;
 
-    @ManyToMany(mappedBy = "rent", cascade = CascadeType.ALL)
+    @ManyToMany(mappedBy = "rent")
     private List<ProvidersEntity> provider_rent_map;
 
 }

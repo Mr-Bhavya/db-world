@@ -17,7 +17,7 @@ public class BuyEntity {
     private String logo_path;
     private String provider_name;
 
-    @ManyToMany(mappedBy = "buy", cascade = CascadeType.ALL)
+    @ManyToMany(mappedBy = "buy")
     private List<ProvidersEntity> provider_buy_map;
 
 }
