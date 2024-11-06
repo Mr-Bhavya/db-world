@@ -1,23 +1,7 @@
 package com.db.dbworld.utils;
 
-import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
-import com.db.dbworld.entities.dbcinema.tmdb.MovieTmdbDataEntity;
-import com.db.dbworld.entities.dbcinema.tmdb.SeriesTmdbDataEntity;
-import com.db.dbworld.entities.dbcinema.tmdb.credits.*;
-import com.db.dbworld.entities.dbcinema.tmdb.images.BackDropImage;
-import com.db.dbworld.entities.dbcinema.tmdb.images.ImagesEntity;
-import com.db.dbworld.entities.dbcinema.tmdb.images.LogoImage;
-import com.db.dbworld.entities.dbcinema.tmdb.images.PosterImage;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.RequestPayloads;
-import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
-import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
-import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
-import com.db.dbworld.payloads.dbcinema.tmdb.credits.CastDto;
-import com.db.dbworld.payloads.dbcinema.tmdb.credits.CreditsDto;
-import com.db.dbworld.payloads.dbcinema.tmdb.credits.CrewDto;
-import com.db.dbworld.payloads.dbcinema.tmdb.images.Image;
-import com.db.dbworld.payloads.dbcinema.tmdb.images.ImagesDto;
 import com.db.dbworld.security.JwtHelper;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
@@ -34,7 +18,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Service
@@ -148,6 +134,10 @@ public class DbWorldUtils {
             throw new DbWorldException(HttpStatus.UNAUTHORIZED, errorMessage);
         }
         return username;
+    }
+
+    public ZonedDateTime getISTDateTime(){
+        return ZonedDateTime.ofInstant(Instant.now(), ZoneId.of("Asia/Kolkata"));
     }
 
 }

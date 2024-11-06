@@ -1,8 +1,6 @@
 package com.db.dbworld.entities.dbcinema.tmdb.credits;
 
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 

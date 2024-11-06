@@ -14,24 +14,23 @@ import java.util.List;
 public class ProvidersEntity {
 
     @Id
-    @GeneratedValue(strategy=GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private long id;
 
-    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "tmdb", referencedColumnName = "id", unique = true)
+    @OneToOne(mappedBy = "providers", cascade = CascadeType.ALL)
     private TmdbDataEntity tmdb;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(name = "provider_buy_map", joinColumns = @JoinColumn(name = "db_provider_id"),
             inverseJoinColumns = @JoinColumn(name = "provider_id"))
     private List<BuyEntity> buy;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(name = "provider_rent_map", joinColumns = @JoinColumn(name = "db_provider_id"),
             inverseJoinColumns = @JoinColumn(name = "provider_id"))
     private List<RentEntity> rent;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(name = "provider_flatrate_map", joinColumns = @JoinColumn(name = "db_provider_id"),
             inverseJoinColumns = @JoinColumn(name = "provider_id"))
     private List<FlatRateEntity> flatRate;

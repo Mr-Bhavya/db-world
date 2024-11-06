@@ -33,7 +33,7 @@ public class UserEntity {
     private String password;
 
     @JsonProperty
-    @ManyToOne(fetch = FetchType.EAGER, optional = false, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "role", referencedColumnName = "id")
     private UserRoleEntity role;
 
@@ -46,10 +46,6 @@ public class UserEntity {
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "password_manager", referencedColumnName = "id")
     private List<PasswordManagerEntity> passwordManagerEntities;
-
-//    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-//    @JoinColumn(name = "user", referencedColumnName = "id")
-//    private List<LoginDataEntity> loginDataEntities ;
 
     @Override
     public String toString() {
