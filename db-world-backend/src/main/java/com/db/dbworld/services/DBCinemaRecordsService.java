@@ -44,9 +44,9 @@ public interface DBCinemaRecordsService {
 
     List<DBCinemaRecordsDto> getWatchListCinemaRecords();
 
-    Map<String, Object> updateTmdbWithLatest();
+    void updateTmdbWithLatest();
 
-    Map<String, Long> getStatusOfRecordsUpdate();
+    Map<String, Object> getStatusOfRecordsUpdate();
 
     boolean isRecordsUpdateRunning();
 }
