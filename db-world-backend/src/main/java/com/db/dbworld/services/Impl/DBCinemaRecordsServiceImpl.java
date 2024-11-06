@@ -6,8 +6,10 @@ import com.db.dbworld.dao.dbcinema.user.UserLikedRecordRepository;
 import com.db.dbworld.dao.dbcinema.user.UserWatchlistRecordRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.*;
-import com.db.dbworld.entities.dbcinema.tmdb.credits.*;
-import com.db.dbworld.entities.dbcinema.tmdb.providers.ProvidersEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.credits.CharacterEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.credits.DepartmentEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.credits.JobEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.credits.PersonEntity;
 import com.db.dbworld.entities.dbcinema.user.UserLikeRecordEntity;
 import com.db.dbworld.entities.dbcinema.user.UserWatchlistRecordEntity;
 import com.db.dbworld.entities.user.UserEntity;
@@ -40,6 +42,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
@@ -49,10 +53,11 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
-import java.util.stream.Collectors;
+
 
 @Service
 @Log4j2
+@EnableAsync
 public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Autowired
@@ -75,20 +80,22 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Autowired
     private UserWatchlistRecordRepository userWatchlistRecordRepository;
+
     @Autowired
     private EntityManager entityManager;
 
     @Autowired
     private PojoConverter pojoConverter;
+
     private static final String SEARCH_RECORD_BY_KEYWORD = "SELECT dcr FROM DBCinemaRecordsEntity dcr WHERE dcr.name LIKE (:keyword) OR dcr.tmdb.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC";
     private static final String ALL_LANGUAGES = "all";
 
     @Autowired
     private UserService userService;
 
-    private Map<String, Long> updateRecordsStatus = new HashMap<>();
+    private Map<String, Object> updateRecordsFromTmdb = new HashMap<>();
 
-    public boolean isRecordsUpdateRunning = false;
+    public boolean isRecordsUpdatingFromTmdb = false;
 
     @Transactional
     @Override
@@ -101,7 +108,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                 if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
                     MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(record);
                     dbCinemaRecordsEntity.setName(movieTmdbDataDto.getTitle());
-                    pojoConverter.movieTmdbDtoToEntity(movieTmdbDataDto, new MovieTmdbDataEntity());
                     dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(pojoConverter.movieTmdbDtoToEntity(movieTmdbDataDto, new MovieTmdbDataEntity())));
                 } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
                     SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(record);
@@ -318,16 +324,18 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         }
     }
 
+    @Async
     @Override
     @Transactional
-    public Map<String, Object> updateTmdbWithLatest() {
-
-        Map<Long, String> failedIds = new HashMap<>();
-        List<Long> successIds = new ArrayList<>();
-        Map<String, Object> response = new HashMap<>();
-
+    public void updateTmdbWithLatest() {
         try {
-            List<TmdbDataEntity> tmdbDataEntities = tmdbDataRepository.findAll().stream().limit(5).toList();
+            updateRecordsFromTmdb = new HashMap<>();
+            updateRecordsFromTmdb.put("start_time", dbWorldUtils.getISTDateTime().toLocalDateTime().toString());
+            updateRecordsFromTmdb.put("running", true);
+
+            List<TmdbDataEntity> tmdbDataEntities = tmdbDataRepository.findAll();
+            Map<Long, String> failedIds = new HashMap<>();
+            List<Long> successIds = new ArrayList<>();
             tmdbDataEntities.forEach(tmdbDataEntity -> {
                 try {
                     if (tmdbDataEntity instanceof MovieTmdbDataEntity) {
@@ -336,22 +344,21 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                         updateTmdbForSeries(tmdbDataEntity);
                     }
                     successIds.add(tmdbDataEntity.getId());
+                    updateRecordsFromTmdb.put("success", successIds);
                     log.info("Success TMDB ID: {}", tmdbDataEntity.getId());
                     Thread.sleep(200);
                 } catch (Exception ex) {
                     failedIds.put(tmdbDataEntity.getId(), ex.getMessage());
+                    updateRecordsFromTmdb.put("failed", failedIds);
                     log.error("Failed ID: {} Error Message: {}", tmdbDataEntity.getId(), ex.getMessage());
                 }
-                log.info("completed tmdb: {}", tmdbDataEntity.getId());
             });
-            response.put("success", successIds);
-            response.put("failed", failedIds);
         } catch (Exception ex) {
-            response.put("success", successIds);
-            response.put("failed", failedIds);
-            throw new DbWorldException(ex.getMessage(), response);
+            throw new DbWorldException(ex.getMessage(), updateRecordsFromTmdb);
+        }finally {
+            updateRecordsFromTmdb.put("end_time", dbWorldUtils.getISTDateTime().toLocalDateTime().toString());
+            updateRecordsFromTmdb.put("running", false);
         }
-        return response;
     }
 
     private TmdbDataEntity updateTmdbForSeries(TmdbDataEntity tmdbDataEntity) {
@@ -369,13 +376,13 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public Map<String, Long> getStatusOfRecordsUpdate() {
-        return Map.of();
+    public Map<String, Object> getStatusOfRecordsUpdate() {
+        return updateRecordsFromTmdb;
     }
 
     @Override
     public boolean isRecordsUpdateRunning() {
-        return false;
+        return updateRecordsFromTmdb.containsKey("running") && (Boolean) updateRecordsFromTmdb.get("running");
     }
 
     @Override
@@ -420,6 +427,79 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Transactional
     private TmdbDataEntity mergeTmdbEntity(TmdbDataEntity tmdbDataEntity) {
+
+        if(tmdbDataEntity.getSpoken_languages() != null){
+            tmdbDataEntity.getSpoken_languages().forEach(
+                    spokenLanguageEntity -> {
+                       SpokenLanguageEntity spokenLanguage = entityManager.find(SpokenLanguageEntity.class, spokenLanguageEntity.getIso_639_1());
+                        if (spokenLanguage == null) {
+                            entityManager.persist(spokenLanguageEntity);
+                        } else {
+                            entityManager.merge(spokenLanguageEntity);
+                        }
+                    }
+            );
+        }
+
+        if(tmdbDataEntity.getProduction_countries() != null){
+            tmdbDataEntity.getProduction_countries().forEach(
+                    productionCountriesEntity -> {
+                        ProductionCountriesEntity productionCountries = entityManager.find(ProductionCountriesEntity.class, productionCountriesEntity.getIso_3166_1());
+                        if (productionCountries == null) {
+                            entityManager.persist(productionCountriesEntity);
+                        } else {
+                            entityManager.merge(productionCountriesEntity);
+                        }
+                    }
+            );
+        }
+
+        if(tmdbDataEntity.getProduction_companies() != null){
+            tmdbDataEntity.getProduction_companies().forEach(
+                    productionCompaniesEntity -> {
+                        ProductionCompaniesEntity productionCountries = entityManager.find(ProductionCompaniesEntity.class, productionCompaniesEntity.getId());
+                        if (productionCountries == null) {
+                            entityManager.persist(productionCompaniesEntity);
+                        } else {
+                            entityManager.merge(productionCompaniesEntity);
+                        }
+                    }
+            );
+        }
+
+        if(tmdbDataEntity.getVideos() != null){
+            tmdbDataEntity.getVideos().forEach(videosEntity -> {
+                if(videosEntity.getIso_3166_1() != null) {
+                    ProductionCountriesEntity productionCountries = entityManager.find(ProductionCountriesEntity.class, videosEntity.getIso_3166_1().getIso_3166_1());
+                    if(productionCountries == null) {
+                        entityManager.persist(videosEntity.getIso_3166_1());
+                    }else{
+                        entityManager.merge(videosEntity.getIso_3166_1());
+                    }
+                }
+                if(videosEntity.getIso_639_1() != null){
+                    SpokenLanguageEntity spokenLanguage = entityManager.find(SpokenLanguageEntity.class, videosEntity.getIso_639_1().getIso_639_1());
+                    if (spokenLanguage == null) {
+                        entityManager.persist(videosEntity.getIso_639_1());
+                    } else {
+                        entityManager.merge(videosEntity.getIso_639_1());
+                    }
+                }
+            });
+        }
+
+        if(tmdbDataEntity.getImages() != null){
+            tmdbDataEntity.getImages().forEach(imagesEntity -> {
+                if(imagesEntity.getIso_639_1() != null){
+                    SpokenLanguageEntity spokenLanguage = entityManager.find(SpokenLanguageEntity.class, imagesEntity.getIso_639_1().getIso_639_1());
+                    if (spokenLanguage == null) {
+                        entityManager.persist(imagesEntity.getIso_639_1());
+                    } else {
+                        entityManager.merge(imagesEntity.getIso_639_1());
+                    }
+                }
+            });
+        }
 
         if(tmdbDataEntity.getCredits() != null){
             if(tmdbDataEntity.getCredits().getCrew() != null){

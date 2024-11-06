@@ -16,7 +16,7 @@ public class CreditsEntity {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
 
-    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "tmdb", referencedColumnName = "id", unique = true)
     private TmdbDataEntity tmdb;
 

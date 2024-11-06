@@ -1,5 +1,6 @@
 package com.db.dbworld.controllers;
 
+import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
@@ -103,8 +104,11 @@ public class AdminController {
     @PutMapping("/cinema/records")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> updateTmdbWithLatest (){
-        Map<String, Object> response = this.dbCinemaRecordsService.updateTmdbWithLatest();
-        return new ApiResponse<>(HttpStatus.OK, true, response);
+        if(this.dbCinemaRecordsService.getStatusOfRecordsUpdate().containsKey("running") && (Boolean) this.dbCinemaRecordsService.getStatusOfRecordsUpdate().get("running")){
+            throw new DbWorldException(HttpStatus.ALREADY_REPORTED, "Updating records is already running");
+        }
+        this.dbCinemaRecordsService.updateTmdbWithLatest();
+        return new ApiResponse<>(HttpStatus.OK, true, "Records is updating." ,this.dbCinemaRecordsService.getStatusOfRecordsUpdate());
     }
 
     @PutMapping("/cinema/record/{recordId}")
@@ -133,6 +137,13 @@ public class AdminController {
     ){
         List<HashMap<String, Object>> list = this.dbCinemaRecordsService.getTmdbByQuery(type, query, year);
         return new ApiResponse<>(HttpStatus.OK, true, list);
+    }
+
+    @GetMapping("/cinema/records/status")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<Map<String, Object>> getStatusOfRecordUpdate(){
+        Map<String, Object> map = this.dbCinemaRecordsService.getStatusOfRecordsUpdate();
+        return new ApiResponse<>(HttpStatus.OK, true, map);
     }
 
 }

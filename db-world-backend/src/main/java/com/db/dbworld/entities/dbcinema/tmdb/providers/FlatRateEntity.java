@@ -9,7 +9,6 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-//@DiscriminatorValue("flatrate")
 @Table(name = "FLATRATE_PROVIDER")
 public class FlatRateEntity {
     @Id
@@ -18,7 +17,7 @@ public class FlatRateEntity {
     private String logo_path;
     private String provider_name;
 
-    @ManyToMany(mappedBy = "flatRate", cascade = CascadeType.ALL)
-    private List<ProvidersEntity> provider_flatrate_map;
+    @ManyToMany(mappedBy = "flatRate")
+    private List<ProvidersEntity> providersEntities;
 
 }
