@@ -64,7 +64,7 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<ResponsePayloads.LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest, @RequestHeader HttpHeaders httpHeaders) {
 
-        this.doAuthenticate(loginRequest.getEmail(), loginRequest.getPassword());
+        this.doAuthenticate(loginRequest.getEmail().toLowerCase(), loginRequest.getPassword());
 
         UserDetails userDetails = this.userDetailsService.loadUserByUsername(loginRequest.getEmail());
         String token = this.helper.generateToken(userDetails.getUsername());
@@ -77,7 +77,7 @@ public class AuthController {
     }
 
     private void doAuthenticate(String email, String password) {
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(email, password);
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(email.toLowerCase(), password);
         try {
             authenticationManager.authenticate(authentication);
         }

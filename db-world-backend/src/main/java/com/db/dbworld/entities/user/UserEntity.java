@@ -28,7 +28,7 @@ public class UserEntity {
     private String dob;
     private String gender;
     private Long mobileNo;
-    @Column(unique = true)
+    @Column(unique = true, nullable = false)
     private String email;
     private String password;
 
