@@ -13,6 +13,6 @@ import java.util.List;
 @AllArgsConstructor
 public class PasswordManagerDto {
     private String id;
-    private String host;
+    private HostDto host;
     private List<CredentialDto> credentials;
 }
