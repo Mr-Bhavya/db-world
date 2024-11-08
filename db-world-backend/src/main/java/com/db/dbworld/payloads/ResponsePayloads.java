@@ -2,10 +2,9 @@ package com.db.dbworld.payloads;
 
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.pm.CredentialDto;
+import com.db.dbworld.payloads.pm.HostDto;
 import com.db.dbworld.services.Impl.UserDetailImpl;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -59,8 +58,14 @@ public class ResponsePayloads {
         private boolean success;
     }
 
-    public class userResponse{
-
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PasswordManagerResponse {
+        private String id;
+        private String host;
+        private List<CredentialDto> credentials;
     }
 
 }
