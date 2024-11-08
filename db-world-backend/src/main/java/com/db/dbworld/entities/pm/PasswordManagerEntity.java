@@ -15,10 +15,12 @@ public class PasswordManagerEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
-    private String host;
+
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "host", referencedColumnName = "name")
+    private HostEntity host;
 
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "passwordManager", cascade = CascadeType.ALL)
-    @Column(name = "password_manager")
     private List<CredentialEntity> credentials;
 
     @ManyToOne(fetch = FetchType.LAZY)
