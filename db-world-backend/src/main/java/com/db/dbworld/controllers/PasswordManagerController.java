@@ -3,6 +3,7 @@ package com.db.dbworld.controllers;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
+import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.pm.CredentialDto;
 import com.db.dbworld.payloads.pm.PasswordManagerDto;
 import com.db.dbworld.services.PasswordManagerService;
@@ -37,9 +38,18 @@ public class PasswordManagerController {
 
     @GetMapping("/")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<List<PasswordManagerDto>> getPasswordManagerByUser(){
+    public ApiResponse<List<ResponsePayloads.PasswordManagerResponse>> getPasswordManagerByUser(){
         List<PasswordManagerDto> passwordManagerDtos = this.passwordManagerService.getPasswordManagerByUser();
-        return new ApiResponse<>(HttpStatus.OK, true, passwordManagerDtos);
+
+        List<ResponsePayloads.PasswordManagerResponse> passwordManagerResponses = passwordManagerDtos.stream().map(passwordManagerDto -> {
+            ResponsePayloads.PasswordManagerResponse passwordManagerResponse = new ResponsePayloads.PasswordManagerResponse();
+            passwordManagerResponse.setId(passwordManagerDto.getId());
+            passwordManagerResponse.setHost(passwordManagerDto.getHost().getName());
+            passwordManagerResponse.setCredentials(passwordManagerDto.getCredentials());
+            return passwordManagerResponse;
+        }).toList();
+
+        return new ApiResponse<>(HttpStatus.OK, true, passwordManagerResponses);
     }
 
     @PostMapping("/")

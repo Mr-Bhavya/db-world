@@ -1,17 +1,21 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.pm.CredentialsRepository;
+import com.db.dbworld.dao.pm.HostRepository;
 import com.db.dbworld.dao.pm.PasswordManagerRepository;
 import com.db.dbworld.entities.pm.CredentialEntity;
+import com.db.dbworld.entities.pm.HostEntity;
 import com.db.dbworld.entities.pm.PasswordManagerEntity;
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.pm.CredentialDto;
+import com.db.dbworld.payloads.pm.HostDto;
 import com.db.dbworld.payloads.pm.PasswordManagerDto;
 import com.db.dbworld.services.PasswordManagerService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
+import jakarta.persistence.EntityManager;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -31,6 +35,9 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     private PasswordManagerRepository passwordManagerRepository;
 
     @Autowired
+    private HostRepository hostRepository;
+
+    @Autowired
     private CredentialsRepository credentialsRepository;
 
     @Autowired
@@ -39,21 +46,28 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Autowired
+    private EntityManager entityManager;
+
     @Override
     public void addCredential(String host, CredentialDto credential) {
-        UserEntity userEntity;
-        try{
-            userEntity = this.userService.getUserFromToken();
-        }catch (AuthenticationException ex){
-            throw new AuthenticationServiceException(DbWorldConstants.AUTHENTICATION_EXCEPTION_MESSAGE);
-        }
         try {
-            List<PasswordManagerEntity> passwordManagerEntities = this.passwordManagerRepository.findAllByHostAndUserEntityUserId(host, this.userService.getUserIdFromToken());
+
+            String finalHost = host.toLowerCase().replace("www.","");
+
+            HostEntity hostEntity = hostRepository.findById(host).orElseGet(()->{
+                HostEntity entity = new HostEntity();
+                entity.setName(finalHost);
+                return hostRepository.save(entity);
+            });
+
+            List<PasswordManagerEntity> passwordManagerEntities = this.passwordManagerRepository
+                    .findAllByHostNameAndUserEntityUserId(finalHost, this.userService.getUserIdFromToken());
             PasswordManagerEntity passwordManagerEntity;
             CredentialEntity credentialEntity = this.modelMapper.map(credential, CredentialEntity.class);
             if (passwordManagerEntities == null || passwordManagerEntities.isEmpty()) {
                 passwordManagerEntity = new PasswordManagerEntity();
-                passwordManagerEntity.setHost(host);
+                passwordManagerEntity.setHost(hostEntity);
                 credentialEntity.setPasswordManager(passwordManagerEntity);
                 passwordManagerEntity.setCredentials(Collections.singletonList(credentialEntity));
                 passwordManagerEntity.setUserEntity(this.userService.getUserFromToken());
@@ -64,8 +78,14 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                     passwordManagerEntity.setCredentials(Collections.singletonList(credentialEntity));
                 } else {
                     List<CredentialEntity> credentialEntities = passwordManagerEntity.getCredentials();
-                    credentialEntities.add(credentialEntity);
-                    passwordManagerEntity.setCredentials(credentialEntities);
+                    if(credentialEntities.stream().filter(credentialEntity1 ->
+                        credentialEntity1.getUsername().equalsIgnoreCase(credentialEntity.getUsername())
+                    ).toList().isEmpty()){
+                        credentialEntities.add(credentialEntity);
+                        passwordManagerEntity.setCredentials(credentialEntities);
+                    }else{
+                        throw new DbWorldException(HttpStatus.BAD_REQUEST, "username is already available under host");
+                    }
                 }
             }
             this.passwordManagerRepository.save(passwordManagerEntity);
@@ -76,12 +96,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
 
     @Override
     public List<PasswordManagerDto> getPasswordManagerByUser() {
-        Long userId;
-        try{
-            userId = this.userService.getUserIdFromToken();
-        }catch (AuthenticationException ex){
-            throw new AuthenticationServiceException(DbWorldConstants.AUTHENTICATION_EXCEPTION_MESSAGE);
-        }
         try {
             List<PasswordManagerDto> passwordManagerDtos = new ArrayList<>();
             List<PasswordManagerEntity> passwordManagerEntities = this.passwordManagerRepository.findAllByUserEntityUserId(this.userService.getUserIdFromToken());
@@ -99,12 +113,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Override
     @Transactional
     public void deletePasswordManagerById(String pmId) {
-        Long userId;
-        try{
-            userId = this.userService.getUserIdFromToken();
-        }catch (AuthenticationException ex){
-            throw new AuthenticationServiceException(DbWorldConstants.AUTHENTICATION_EXCEPTION_MESSAGE);
-        }
         try {
             this.passwordManagerRepository.deleteByIdAndUserEntityUserId(pmId, this.userService.getUserIdFromToken());
         }catch (Exception ex){
@@ -127,12 +135,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Override
     @Transactional
     public void deleteCredentialById(String credentialId) {
-        Long userId;
-        try{
-            userId = this.userService.getUserIdFromToken();
-        }catch (AuthenticationException ex){
-            throw new AuthenticationServiceException(DbWorldConstants.AUTHENTICATION_EXCEPTION_MESSAGE);
-        }
         try{
             this.credentialsRepository.deleteByIdAndPasswordManagerUserEntityUserId(credentialId, this.userService.getUserIdFromToken());
         }catch (Exception ex){
@@ -142,12 +144,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
 
     @Override
     public PasswordManagerDto updateCredential(String pmId, CredentialDto credential) {
-        Long userId;
-        try{
-            userId = this.userService.getUserIdFromToken();
-        }catch (AuthenticationException ex){
-            throw new AuthenticationServiceException(DbWorldConstants.AUTHENTICATION_EXCEPTION_MESSAGE);
-        }
         try {
             PasswordManagerEntity passwordManagerEntity = this.passwordManagerRepository.findByIdAndUserEntityUserIdAndCredentialsId(
                     pmId, this.userService.getUserIdFromToken(), credential.getId()
@@ -164,7 +160,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
 
             return new PasswordManagerDto(
                     passwordManagerEntity.getId(),
-                    passwordManagerEntity.getHost(),
+                    this.modelMapper.map(passwordManagerEntity.getHost(), HostDto.class),
                     Collections.singletonList(this.modelMapper.map(filteredCredential, CredentialDto.class))
             );
         }catch (Exception ex){
@@ -176,7 +172,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Override
     public List<String> getAllHosts() {
         try{
-            return this.passwordManagerRepository.findAllHost();
+            return this.hostRepository.findAll().stream().map(HostEntity::getName).toList();
         }catch (Exception ex){
             throw new DbWorldException(ex.getMessage());
         }
