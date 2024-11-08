@@ -46,6 +46,9 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Autowired
+    private EntityManager entityManager;
+
     @Override
     public void addCredential(String host, CredentialDto credential) {
         try {
