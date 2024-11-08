@@ -10,12 +10,14 @@ import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.validation.Valid;
 import lombok.extern.log4j.Log4j2;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Log4j2
 @CrossOrigin
@@ -29,6 +31,9 @@ public class AdminController {
     @Autowired
     private DBCinemaRecordsService dbCinemaRecordsService;
 
+    @Autowired
+    private ModelMapper modelMapper;
+
     @GetMapping("/user")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<UserDto>> getAllUsers() {
@@ -38,7 +43,8 @@ public class AdminController {
 
     @PostMapping("/user")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<List<UserDto>> createUser(@Valid @RequestBody List<UserDto> userDtoList) {
+    public ApiResponse<List<UserDto>> createUser(List<RequestPayloads.UserRequest> userRequestList) {
+            List<UserDto> userDtoList = userRequestList.stream().map(userRequest -> modelMapper.map(userRequest, UserDto.class)).collect(Collectors.toList());
         List<UserDto> createdUsers = this.userService.createUser(userDtoList);
         return new ApiResponse<>(HttpStatus.CREATED, true, createdUsers);
     }

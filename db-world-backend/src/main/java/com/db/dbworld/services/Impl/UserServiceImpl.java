@@ -188,11 +188,6 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserDto.PasswordManagerCredential> getCredentialByUserId(String userId) {
-        return List.of();
-    }
-
-    @Override
     public UserDto.UserRole addUpdateUserRoleByUserId(Long userId, UserDto.UserRole role) {
         UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(
                 () -> new ResourceNotFoundException("User", "userId", userId)
@@ -216,16 +211,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto updateRoleByUserId(String userId) {
-        return null;
-    }
-
-    @Override
-    public UserDto.UserAppData getUserAppDataByUserId(Long userId) {
-        return null;
-    }
-
-    @Override
-    public UserDto.UserAppData updateUserAppDataByUserId(Long userId, UserDto.UserAppData userAppData) {
         return null;
     }
 

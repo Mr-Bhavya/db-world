@@ -1,7 +1,6 @@
 package com.db.dbworld.payloads;
 
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 import lombok.*;
 
 public class RequestPayloads {
@@ -57,6 +56,34 @@ public class RequestPayloads {
         public YtDlp(){
             super();
         }
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class UserRequest{
+//        private Long userId;
+        @NotEmpty
+        @Size(min = 2, max=20)
+        private String firstName;
+        @NotEmpty
+        @Size(min = 1, max=20)
+        private String lastName;
+        //    @NotEmpty
+//    @DateTimeFormat()
+        private String dob;
+        @NotEmpty
+        private String gender;
+        @NotNull
+        @Min(value = 999999999L , message = "must be 10 digit")
+        @Max(value = 9999999999L , message = "must be 10 digit")
+        private Long mobileNo;
+        @Email
+        @NotEmpty
+        private String email;
+        @NotEmpty
+        @Size(max=20)
+        private String password;
     }
 
 }

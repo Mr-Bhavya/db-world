@@ -81,4 +81,14 @@ public class ResponsePayloads {
         private int noOfLogin;
     }
 
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PasswordManagerResponse {
+        private String id;
+        private String host;
+        private List<CredentialDto> credentials;
+    }
+
 }
