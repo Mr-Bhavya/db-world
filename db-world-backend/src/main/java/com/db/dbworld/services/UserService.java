@@ -34,17 +34,11 @@ public interface UserService {
 
     List<UserDto> searchUser(String key);
 
-    List<UserDto.PasswordManagerCredential> getCredentialByUserId(String userId);
-
     UserDto.UserRole addUpdateUserRoleByUserId(Long userId, UserDto.UserRole role);
 
     UserDto.UserRole getRoleByUserId(Long userId, String tokenUserName);
 
     UserDto updateRoleByUserId(String userId);
-
-    UserDto.UserAppData getUserAppDataByUserId(Long userId);
-
-    UserDto.UserAppData updateUserAppDataByUserId(Long userId, UserDto.UserAppData userAppData);
 
     void deleteUserAppDataById(String id);
 

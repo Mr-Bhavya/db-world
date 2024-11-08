@@ -13,7 +13,7 @@ import java.util.List;
 @Getter
 @Setter
 public class UserDto {
-    private long userId;
+    private Long userId;
     @NotEmpty
     @Size(min = 2, max=20)
     private String firstName;
@@ -38,8 +38,6 @@ public class UserDto {
     private UserRole userRole;
     private Date creationDate;
     private Date lastModifiedDate;
-//    private UserAppData userAppData;
-    private List<PasswordManagerCredential> passwordManager;
     private List<LoginData> loginData;
 
     @Getter
@@ -47,39 +45,6 @@ public class UserDto {
     public static class LoginData {
         private Date lastLoginDate;
         private String loginAgent;
-    }
-
-    @Data
-    public static class UserAppData {
-        private String id;
-        private Long noOfLogin;
-        private List<LoginDetails> loginDetails;
-        private CinemaRecord cinemaRecord;
-
-        @Getter
-        @Setter
-        public static class CinemaRecord{
-            private String id;
-            private ArrayList<String> like;
-            private ArrayList<String> disLike;
-            private ArrayList<String> rate;
-            private ArrayList<String> watchList;
-            private String[] searchHistory;
-            private String[] watched;
-        }
-
-        @Data
-        public static class LoginDetails {
-            private long timeStamp;
-            private String userAgent;
-        }
-    }
-
-    @Data
-    public static class PasswordManagerCredential {
-        private String host;
-        private List<byte[]> credentials;
-        private byte[] ivParameterSpec;
     }
 
     @Getter
