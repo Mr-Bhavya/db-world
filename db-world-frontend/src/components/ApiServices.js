@@ -38,6 +38,16 @@ export const deleteUser = async (userId) => {
     return await response.json();
 }
 
+export const updateDobForUser = async (dob) => {
+    const response = await fetch(`${REACT_APP_BASEURL}/api/user/dob=${dob}`,{
+        method: "PUT",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
 export const getAllUsers = async () => {
     let response = await fetch(REACT_APP_BASEURL + "/api/admin/user", {
         headers: {
@@ -65,8 +75,8 @@ export const getAllUserRoles = async () => {
     return await response.json();
 }
 
-export const getUserDetailByUserId = async (userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}`, {
+export const getUserDetail = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }

@@ -1,6 +1,7 @@
 package com.db.dbworld.entities.user;
 
 import com.db.dbworld.entities.pm.PasswordManagerEntity;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -8,6 +9,7 @@ import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.util.Date;
 import java.util.List;
@@ -25,15 +27,16 @@ public class UserEntity {
     private long userId;
     private String firstName;
     private String lastName;
-    private String dob;
+    @JsonFormat(pattern = "dd-MM-yyyy")
+    private Date dob;
     private String gender;
     private Long mobileNo;
-    @Column(unique = true, nullable = false)
+    @Column(unique = true)
     private String email;
     private String password;
 
     @JsonProperty
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false, cascade = CascadeType.ALL)
     @JoinColumn(name = "role", referencedColumnName = "id")
     private UserRoleEntity role;
 
@@ -46,6 +49,10 @@ public class UserEntity {
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "password_manager", referencedColumnName = "id")
     private List<PasswordManagerEntity> passwordManagerEntities;
+
+//    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+//    @JoinColumn(name = "user", referencedColumnName = "id")
+//    private List<LoginDataEntity> loginDataEntities ;
 
     @Override
     public String toString() {

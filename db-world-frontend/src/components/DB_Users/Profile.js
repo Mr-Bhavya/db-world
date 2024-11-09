@@ -3,7 +3,7 @@ import userProfile from '../../images/UserProfile.png';
 import { useNavigate } from 'react-router-dom';
 import Authentication from '../Authentication';
 import Constants from '../Constants';
-import { getUserDetailByUserId } from '../ApiServices';
+import { getUserDetail, getUserDetailByUserId } from '../ApiServices';
 
 function Profile(props) {
 
@@ -11,9 +11,13 @@ function Profile(props) {
     const [userData, setUserData] = useState({});
     const [loading, setLoading] = useState(true)
 
-    const getDetails = async (userId) => {
-        let getUserRes = await getUserDetailByUserId(userId);
+    const getDetails = async () => {
+        let getUserRes = await getUserDetail();
         if (getUserRes.httpStatusCode === 200) {
+            if(getUserRes.data[0].dob && getUserRes.data[0].dob != null){
+                let dob = new Intl.DateTimeFormat('fr-ca', {year: 'numeric', month: '2-digit',day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'}).format(new Date(getUserRes.data[0].dob)).split(" ")[0];
+                getUserRes.data[0].dob = dob;
+            }
             setUserData(getUserRes.data[0])
             setLoading(false);
         }else if (getUserRes.httpStatusCode === 401 || getUserRes.httpStatusCode === 403) {
@@ -30,25 +34,6 @@ function Profile(props) {
         else {
             navigate(authenticationRes.redirectUrl, { replace: true });
         }
-
-
-
-        // CommonServices.valiadteToken().then(async isValidToken => {
-        //     if (!isValidToken) {
-        //         navigate(await Constants.REDIRECT(Constants.EDIT_USER_PROFILE_ROUTE), { replace: true })
-        //     } else {
-        //         let authenticationRes = Authentication({ redirectTo: Constants.USER_PROFILE_ROUTE });
-        //         if (authenticationRes.login) {
-        //             setUserData(props.userData ? props.userData : authenticationRes.user)
-        //             setLoading(false);
-        //         }
-        //         else {
-        //             navigate(authenticationRes.redirectUrl, { replace: true });
-        //         }
-        //     }
-        // }).catch(err => {
-        //     console.log(err);
-        // });
     }, [])
 
     return (
@@ -98,7 +83,7 @@ function Profile(props) {
                                                 <td>Email Id</td><td>{userData.email}</td>
                                             </tr>
                                             <tr>
-                                                <td>No. Of Logins </td><td>{userData.userAppData?.noOfLogin}</td>
+                                                <td>No. Of Logins </td><td>{userData?.noOfLogin}</td>
                                             </tr>
                                             <tr>
                                                 <td>Role </td><td>{userData?.userRole?.name}</td>
