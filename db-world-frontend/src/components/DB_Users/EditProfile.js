@@ -46,20 +46,13 @@ function EditProfile(props) {
       }
 
       case "dob": {
-        console.log(value);
-        if (value && value.includes("-") && value.split("-").length === 3) {
-          let year = value.split("-")[0];
-          let month = value.split("-")[1];
-          let date = value.split("-")[2];
-
-          if ((month >= 1 || month <= 12) && (date >= 1 && date <= 31)) {
-            setDobError(false);
-          } else {
-            setDobError(true);
-          }
-        }
-        else {
-          setDobError(true);
+        var dobPattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+        let year = value.split("-")[0];
+        let currentYear = new Date().getFullYear();
+        if (!value || !dobPattern.test(value) || year < 1900 || year > currentYear) {
+          setDobError(true)
+        } else {
+          setDobError(false);
         }
         break;
       }
@@ -137,6 +130,7 @@ function EditProfile(props) {
             userData = location && location.state && location.state.userData
               ? location.state.userData : authenticationRes.user;
           }
+          console.log(userData.dob)
           setFormData({
             userId: userData.userId,
             firstName: userData.firstName,
@@ -179,7 +173,7 @@ function EditProfile(props) {
 
     const { userId, firstName, lastName, gender, dob, mobileNo, email, password } = formData;
 
-    if (!firstName || !lastName || !gender || !dob || !mobileNo || !email || !password ) {
+    if (!firstName || !lastName || !gender || !dob || !mobileNo || !email || !password) {
       !firstName && setFirstNameError(true)
       !lastName && setLastNameError(true)
       !dob && setDobError(true)
@@ -214,52 +208,6 @@ function EditProfile(props) {
       } else {
         toast.warning("Please Fill correct data.")
       }
-
-      //   const res = await fetch(Constants.EDIT_USER_API, {
-      //     method: "PUT",
-      //     headers: {
-      //       "content-type": "application/json"
-      //     }, body: JSON.stringify({ userId, firstName, lastName, gender, dob, mobileNo, email, password })
-      //   })
-
-      //   const data = await res.json();
-      //   console.log(data, "status=" + res.status);
-
-      //   if (res.status === 422 || !data) {
-      //     toast.warning("User already exists with this email.");
-      //   }
-      //   else if (res.status === 400 || !data) {
-      //     toast.warning("Please fill all the fields.");
-      //   }
-      //   else if (res.status === 500) {
-      //     toast.error("Failed Edited. Problem from server side.")
-      //   }
-      //   else if (res.status === 401) {
-      //     toast.error(data.errorMessage + Constants.RE_LOGIN, {
-      //       onClose: async () => {
-      //         navigate(await Constants.REDIRECT(Constants.EDIT_USER_PROFILE_ROUTE));
-      //       },
-      //       autoClose: 1000
-      //     })
-      //   }
-      //   else {
-      //     toast.success("User Profile Edited Successfull.", {
-      //       onClose: () => {
-      //         let localUser = JSON.parse(localStorage.getItem('user'));
-      //         // localUser.firstName = firstName;
-      //         // localUser.lastName = lastName;
-      //         // localUser.gender = gender;
-      //         // localUser.dob = dob;
-      //         // localUser.mobileNo = mobileNo;
-      //         // localUser.email = email;
-      //         // localUser.password = password;
-      //         // localStorage.setItem('user', JSON.stringify(localUser));
-      //         navigate(Constants.USER_PROFILE_ROUTE)
-      //       },
-      //       autoClose: 1000
-      //     });
-      //   }
-      // }
 
     }
     setSubmitLoader(false);
@@ -327,7 +275,7 @@ function EditProfile(props) {
         <div className="col-md-2">
           <label htmlFor="validationCustom05" className="form-label">📅 Date Of Birth <span className="text-danger">*</span> </label>
           {
-            dobError ? <input type="date" className="form-control is-invalid" value={formData.dob} name="dob" min="1" max="100" onChange={onFieldChange} />
+            dobError ? <input type="date" className="form-control is-invalid" value={formData.dob} onChange={onFieldChange} />
               : <input type="date" className="form-control" value={formData.dob} name="dob" onChange={onFieldChange} />
           }
           {

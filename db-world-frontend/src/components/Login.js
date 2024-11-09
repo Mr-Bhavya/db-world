@@ -7,8 +7,9 @@ import loginImage from '../images/login.jpg';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Constants from './Constants';
-import { login } from './ApiServices';
+import { login, updateDobForUser } from './ApiServices';
 import CommonServices from './CommonServices';
+import { Button, Form, Modal } from 'react-bootstrap';
 
 function Login() {
 
@@ -21,6 +22,10 @@ function Login() {
     const [passwordError, setPasswordError] = useState(false);
     const location = useLocation();
     const redirectTo = getRedirectTo(location);
+    const [dob, setDob] = useState();
+    const [dobModalShow, setDobModalShow] = useState(false);
+    const [user, setUser] = useState(null);
+    const [dobError, setDobError] = useState(false);
 
     function getRedirectTo(location) {
         if (location.search) {
@@ -34,28 +39,28 @@ function Login() {
 
     useEffect(() => {
 
-        dispatch(addUser(null));
+        // dispatch(addUser(null));
 
-        // Local Storage
-        localStorage.setItem('login', false);
-        localStorage.setItem('user', null);
-        localStorage.setItem('token', null);
+        // // Local Storage
+        // localStorage.setItem('login', false);
+        // localStorage.setItem('user', null);
+        // localStorage.setItem('token', null);
 
-        fetch("/api/auth/logout", {
-            method: "GET",
-            headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-            },
-            credentials: "include"
-        }).then((res) => {
-            if (!res.status === 200) {
-                const error = new Error(res.error);
-                throw error;
-            }
-        }).catch(err => {
-            console.log(err);
-        });
+        // fetch("/api/auth/logout", {
+        //     method: "GET",
+        //     headers: {
+        //         Accept: "application/json",
+        //         "Content-Type": "application/json",
+        //     },
+        //     credentials: "include"
+        // }).then((res) => {
+        //     if (!res.status === 200) {
+        //         const error = new Error(res.error);
+        //         throw error;
+        //     }
+        // }).catch(err => {
+        //     console.log(err);
+        // });
 
     }, [])
 
@@ -73,10 +78,17 @@ function Login() {
                     if (loginRes.httpStatusCode === 200) {
                         dispatch(addUser(loginRes.data.user));
                         CommonServices.setUserInLocal(JSON.stringify(loginRes.data.user), loginRes.data.token);
+                        
                         toast.success("Login Successfull.", {
                             onClose: () => {
+                                if(loginRes.data.user.dob == null){
+                                    setUser(loginRes.data.user);
+                                    setDobModalShow(true);
+                                }else{
+                                    redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
+                                }
                                 //redirect
-                                redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
+                                // redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
                             },
                             autoClose: 1000
                         });
@@ -116,7 +128,58 @@ function Login() {
                 setPasswordError(false)
             }
         }
+        else if(event.target.name === "dob") {
+            setDob(event.target.value);
+            var dobPattern =/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+            let year = event.target.value.split("-")[0];
+            let currentYear = new Date().getFullYear();
+            if(!event.target.value || !dobPattern.test(event.target.value) || year < 1900 || year > currentYear){
+                setDobError(true)
+            }else {
+                setDobError(false);
+            }
+        }
     }
+
+    const handleDobModalClose = () => {
+        toast.error("Please submit your date of birth");
+    }
+
+    const submitDob = async () => {
+        let res = await updateDobForUser(dob);
+        if(res.httpStatusCode == 200){
+            toast.success("DOB is updated.")
+            setDobModalShow(false);
+            redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
+        } else {
+            toast.error(res.message || res.errorMessage);
+        }
+    }
+
+    const dobModal =
+        <Modal show={dobModalShow} onHide={handleDobModalClose} backdrop="static">
+            <Modal.Header closeButton>
+                <Modal.Title>Mendatory Date Of Bith Update</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                <Form>
+                    <Form.Group>
+                        <Form.Label>DOB</Form.Label>
+                        <Form.Control name="dob" type="date" format = "dd-MM-yyyy" placeholder="Date Of Birth" required 
+                            onChange={onChange} isInvalid={dobError}
+                        />
+                        <Form.Control.Feedback type="invalid">
+                            Please enter correct date of birth.
+                        </Form.Control.Feedback>
+                    </Form.Group>
+                </Form>
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="primary" onClick={submitDob}>
+                    Submit
+                </Button>
+            </Modal.Footer>
+        </Modal>
 
     const page = <div className="card mb-3 mt-5 ms-3 me-3 " style={{ background: "rgba(255 ,255 ,255, 0.9)" }}>
         <div className="row g-0">
@@ -178,6 +241,7 @@ function Login() {
     return (
         <>
             {page}
+            {dobModal}
             {Constants.TOAST_CONTAINER}
         </>
     )
