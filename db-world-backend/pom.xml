@@ -284,7 +284,7 @@
     </pluginRepositories>
 
     <build>
-        <finalName>db-world_mysql</finalName>
+        <finalName>db-world</finalName>
         <plugins>
             <plugin>
                 <artifactId>maven-resources-plugin</artifactId>
