@@ -10,6 +10,7 @@ import WatchlistIcon from "./SubComponents/WatchlistIcon";
 import { deleteDbCinemaRecord } from "../ApiServices";
 import { toast } from "react-toastify";
 import { Card, Col, Container, Row } from "react-bootstrap";
+import WatchedIcon from "./SubComponents/WatchedIcon";
 
 function SingleMovie(props) {
     const movie = props.movie;
@@ -226,7 +227,7 @@ function SingleMovie(props) {
                     </div>
                 </Card.Header>
                 <Card.Body style={{ overflowY: "auto" }}>
-                {/* <Container> */}
+                    {/* <Container> */}
                     <Row className="justify-content-md-start">
                         {/* Movie Image */}
                         <Col xs={5}
@@ -234,65 +235,65 @@ function SingleMovie(props) {
                             onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
                         >
                             <img src={`https://image.tmdb.org/t/p/w500${movie.tmdbData.poster_path}`} alt={movie.name}
-                            style={{ maxHeight: "12rem", maxWidth:"10rem", width:"100%", height:"auto"}}
+                                style={{ maxHeight: "12rem", maxWidth: "10rem", width: "100%", height: "auto" }}
                             />
                             <div>
-                                    <div className="btn btn-secondary-dark btn-sm border-top border-dark w-100 m-0 p-0" style={{ display: "inline-block", maxWidth:"10rem" }}
-                                        onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
-                                    >
+                                <div className="btn btn-secondary-dark btn-sm border-top border-dark w-100 m-0 p-0" style={{ display: "inline-block", maxWidth: "10rem" }}
+                                    onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
+                                >
 
-                                        <img
-                                            className="mx-1"
-                                            src="https://img.icons8.com/ios-filled/50/000000/info.png"
-                                            style={{ width: "1rem" }}
-                                            title="Click for more details" alt="Click for more details"
-                                        />
-                                        More info ..
-                                    </div>
+                                    <img
+                                        className="mx-1"
+                                        src="https://img.icons8.com/ios-filled/50/000000/info.png"
+                                        style={{ width: "1rem" }}
+                                        title="Click for more details" alt="Click for more details"
+                                    />
+                                    More info ..
                                 </div>
+                            </div>
 
                         </Col>
                         <Col xs={7}>
                             {/* Movie Details */}
                             {/* <div className="d-grid gap-0 d-md-flex-row ms-3"> */}
-                                <p className="m-0 p-0"><b>Release: </b>
-                                    {movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? movie.tmdbData.release_date : movie.tmdbData.first_air_date}
-                                </p>
+                            <p className="m-0 p-0"><b>Release: </b>
+                                {movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? movie.tmdbData.release_date : movie.tmdbData.first_air_date}
+                            </p>
+                            {
+                                movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ?
+                                    <p className="m-0 p-0"><b>Runtime: </b> {Math.floor(movie.tmdbData.runtime / 60) + "h " + movie.tmdbData.runtime % 60 + "m"} </p>
+                                    :
+                                    <p className="m-0 p-0"><b>No. Of Seasons: </b>{movie.tmdbData.number_of_seasons}</p>
+                            }
+                            <p className="m-0 p-0"> <b>Geners: </b>
                                 {
-                                    movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ?
-                                        <p className="m-0 p-0"><b>Runtime: </b> {Math.floor(movie.tmdbData.runtime / 60) + "h " + movie.tmdbData.runtime % 60 + "m"} </p>
-                                        :
-                                        <p className="m-0 p-0"><b>No. Of Seasons: </b>{movie.tmdbData.number_of_seasons}</p>
+                                    movie.tmdbData.genres.map(ele => {
+                                        count++;
+                                        if (count === movie.tmdbData.genres.length) {
+                                            let genres = ele.name
+                                            return genres
+                                        }
+                                        else {
+                                            let genres = ele.name + ", "
+                                            return genres
+                                        }
+                                    })
                                 }
-                                <p className="m-0 p-0"> <b>Geners: </b>
-                                    {
-                                        movie.tmdbData.genres.map(ele => {
-                                            count++;
-                                            if (count === movie.tmdbData.genres.length) {
-                                                let genres = ele.name
-                                                return genres
-                                            }
-                                            else {
-                                                let genres = ele.name + ", "
-                                                return genres
-                                            }
-                                        })
-                                    }
-                                </p>
-                                {ratting != null ? <p className="m-0 p-0 card-text"><b style={{ fontWeight: "bold" }}>Ratting: </b> {ratting}</p> : ""}
-                                <div className="">
+                            </p>
+                            {ratting != null ? <p className="m-0 p-0 card-text"><b style={{ fontWeight: "bold" }}>Ratting: </b> {ratting}</p> : ""}
+                            <div className="">
 
-                                    <LikeIcon
-                                        isLiked={movie?.isLiked}
-                                        recordId={movie.recordId} userId={userData.userId}
-                                    />
+                                <LikeIcon
+                                    isLiked={movie?.isLiked}
+                                    recordId={movie.recordId} userId={userData.userId}
+                                />
 
-                                    <WatchlistIcon
-                                        isAddedToWatchList={movie?.isWatchListed}
-                                        recordId={movie.recordId} userId={userData.userId}
-                                    />
+                                <WatchlistIcon
+                                    isAddedToWatchList={movie?.isWatchListed}
+                                    recordId={movie.recordId} userId={userData.userId}
+                                />
 
-                                    {/* <button className='btn btn-sm' onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}>
+                                {/* <button className='btn btn-sm' onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}>
                                         <img src="https://img.icons8.com/ios-filled/50/000000/info.png"
                                             style={{ width: "2rem" }}
                                             title="Click for more details" alt="Click for more details"
@@ -301,29 +302,33 @@ function SingleMovie(props) {
                                         <span style={{ fontSize: "0.8rem" }}>Info</span>
                                     </button> */}
 
-                                </div>
-                                <div>
-                                    <span>
-                                        <img type="button" src="https://img.icons8.com/color/48/000000/youtube-play.png"
+                            </div>
+                            <div>
+                                <span>
+                                    <WatchedIcon
+                                        isWatched={movie?.isWatched}
+                                        recordId={movie.recordId} userId={userData.userId}
+                                    />
+                                    <img type="button" src="https://img.icons8.com/color/48/000000/youtube-play.png"
+                                        style={{ width: "2.5rem" }}
+                                        data-bs-toggle="modal"
+                                        data-bs-target={trailerModelTargetSrc}
+                                        data-placement="top" title="Watch Trailer On Youtube"
+                                        onClick={() => setSetTrailer(true)}
+                                    />
+                                    {/* {movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE && <a href={`https://www.imdb.com/title/${movie.tmdbData.imdb_id}`} target="_blank" >
+                                        <img type="button" src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg"
                                             style={{ width: "2.5rem" }}
-                                            data-bs-toggle="modal"
-                                            data-bs-target={trailerModelTargetSrc}
-                                            data-placement="top" title="Watch Trailer On Youtube"
-                                            onClick={() => setSetTrailer(true)}
+                                            data-placement="top" title="IMDB Link"
                                         />
-                                        {movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE && <a href={`https://www.imdb.com/title/${movie.tmdbData.imdb_id}`} target="_blank" >
-                                            <img type="button" src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg"
-                                                style={{ width: "2.5rem" }}
-                                                data-placement="top" title="IMDB Link"
-                                            />
-                                        </a>}
-                                        {movie.tmdbData.adult && <img type="button" src="https://img.icons8.com/color/48/000000/18-plus.png" />}
-                                        {/* <img type="button" title="Click for more details" alt="more details"
+                                    </a>} */}
+                                    {movie.tmdbData.adult && <img type="button" src="https://img.icons8.com/color/48/000000/18-plus.png" />}
+                                    {/* <img type="button" title="Click for more details" alt="more details"
                                             onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
                                             style={{ width: "35px" }} src="https://img.icons8.com/ios-filled/50/000000/info.png" /> */}
 
-                                    </span>
-                                </div>
+                                </span>
+                            </div>
 
 
                             {/* </div> */}

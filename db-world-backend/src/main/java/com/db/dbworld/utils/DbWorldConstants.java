@@ -32,6 +32,12 @@ public class DbWorldConstants {
     public static final String TMDB_NAME_PROPERTY_KEY = "name";
     public static final String TMDB_ORIGINAL_NAME_PROPERTY_KEY = "original_name";
     public static final String PROVIDERS_PROPERTY_KEY = "providers";
+    public static final String PROCESS_LIKE = "LIKE";
+    public static final String PROCESS_UN_LIKE = "UNLIKE";
+    public static final String PROCESS_WATCH = "WATCH";
+    public static final String PROCESS_UN_WATCH = "UNWATCH";
+    public static final String PROCESS_WATCHLIST = "WATCHLIST";
+    public static final String PROCESS_UN_WATCHLIST = "UNWATCHLIST";
     public static final String KEY_FACTORY_ALGORITHM = "PBKDF2WithHmacSHA256";
     public static final String KEY_SPEC_ALGORITHM = "AES";
     public static final String ENCRYPT_ALGORITHM = "AES/CBC/PKCS5Padding";

@@ -20,7 +20,7 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
     @Query(value = "SELECT DCR.* FROM DB_CINEMA_RECORDS DCR INNER JOIN TMDB_DATA TD ON DCR.TMDB = TD.ID WHERE DCR.type = :recordType AND TD.original_language IN :languages", nativeQuery = true)
     List<DBCinemaRecordsEntity> findByType(@Param("recordType") String recordType, @Param("languages") List<String> languages, Pageable pageable);
 
-    @Query(value = "SELECT DCR.* FROM DB_CINEMA_RECORDS DCR INNER JOIN USER_WATCHLIST_RECORD UWR ON DCR.ID = UWR.DB_CINEMA_RECORD WHERE UWR.USER=:userId and UWR.isWatchListed=TRUE ORDER BY UWR.ID", nativeQuery = true)
+    @Query(value = "SELECT DCR.* FROM DB_CINEMA_RECORDS DCR INNER JOIN USER_RECORD_DATA URD ON DCR.ID = URD.DB_CINEMA_RECORD WHERE URD.USER=:userId and URD.isWatchListed=TRUE ORDER BY URD.ID", nativeQuery = true)
     List<DBCinemaRecordsEntity> findUserWatchListCinemaRecords(@Param("userId") Long userId);
 
     @Query(value = "SELECT count(*) FROM DB_CINEMA_RECORDS dcr WHERE dcr.type = :type", nativeQuery = true)

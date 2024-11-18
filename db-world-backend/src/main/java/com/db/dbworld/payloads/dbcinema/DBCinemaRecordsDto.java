@@ -20,6 +20,7 @@ public class DBCinemaRecordsDto {
     private MovieTmdbDataDto movieTmdb;
     private SeriesTmdbDataDto seriesTmdb;
     private boolean isLiked;
+    private boolean isWatched;
     private boolean isWatchListed;
 
     private static class Stream{

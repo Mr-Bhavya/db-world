@@ -213,8 +213,8 @@ function MovieDetailsDesktop() {
 
 
                                                 <div className="bg-white text-dark m-0 p-0" style={{ width: "150px" }}>
-                                                    <LikeIcon recordId={movieData.recordId} userId={user.userId} />
-                                                    <WatchlistIcon recordId={movieData.recordId} userId={user.userId} />
+                                                <LikeIcon recordId={movieData.recordId} userId={user.userId} isLiked={movieData.isLiked} />
+                                                <WatchlistIcon recordId={movieData.recordId} userId={user.userId} isAddedToWatchList={movieData.isWatchListed} />
                                                 </div>
 
                                                 <div className="my-3">

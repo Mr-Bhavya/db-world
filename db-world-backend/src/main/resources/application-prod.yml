@@ -68,7 +68,7 @@ dbworld:
     streamHomePath: /home/dbworld_admin/ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
     torrentDownloadPath: /home/dbworld_admin/ext_hdisk/videos/Torrent Download
-    ytdlpPath: /home/dbworld_admin/ext_hdisk/dbworld/yt-dlp
+    ytdlpPath: yt-dlp
     hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
     extHDiskPath: /home/dbworld_admin/ext_hdisk
 
