@@ -260,7 +260,7 @@ export const watchlistRecord = async (recordId, userId) => {
 }
 
 export const removeWatchlistRecord = async (recordId, userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatchlist?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatchlist`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -269,8 +269,8 @@ export const removeWatchlistRecord = async (recordId, userId) => {
     return await response.json();
 }
 
-export const watchedRecord = async (recordId, userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/watched?userId=${userId}`, {
+export const watchedRecord = async (recordId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/watch`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -279,8 +279,8 @@ export const watchedRecord = async (recordId, userId) => {
     return await response.json();
 }
 
-export const unWatchedRecord = async (recordId, userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatched?userId=${userId}`, {
+export const unWatchedRecord = async (recordId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatch`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")

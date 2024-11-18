@@ -44,6 +44,9 @@ public class DBCinemaRecordsEntity {
     @Transient
     private boolean isLiked;
 
+    @Transient
+    private boolean isWatched;
+
     private static class Stream{
         private ArrayList<Format> formats;
         private static class Format{

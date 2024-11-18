@@ -206,8 +206,8 @@ function SeriesDetails() {
                         </div>
 
                         <div style={{width:"150px"}}>
-                            <LikeIcon recordId={seriesData.recordId} userId={user.userId} />
-                            <WatchlistIcon recordId={seriesData.recordId} userId={user.userId} />
+                        <LikeIcon recordId={seriesData.recordId} userId={user.userId} isLiked={seriesData.isLiked} />
+                        <WatchlistIcon recordId={seriesData.recordId} userId={user.userId} isAddedToWatchList={seriesData.isWatchListed} />
                         </div>
                     </div>
 

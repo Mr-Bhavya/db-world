@@ -18,9 +18,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+@CrossOrigin
 @RestController
 @RequestMapping("/api/user")
-@EnableMethodSecurity(prePostEnabled = true)
+@EnableMethodSecurity
 public class UserController {
 
     @Autowired

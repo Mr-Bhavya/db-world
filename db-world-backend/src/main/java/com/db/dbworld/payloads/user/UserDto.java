@@ -2,11 +2,9 @@ package com.db.dbworld.payloads.user;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.*;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 

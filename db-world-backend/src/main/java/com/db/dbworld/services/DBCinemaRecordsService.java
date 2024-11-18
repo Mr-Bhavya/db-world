@@ -34,13 +34,7 @@ public interface DBCinemaRecordsService {
 
     SeriesTmdbDataDto getTMDBDetailsForSeriesById(RequestPayloads.AddRecord record);
 
-    void likeRecord(Long recordId);
-
-    void unLikeRecord(Long recordId);
-
-    void watchListRecord(Long recordId);
-
-    void removeWatchListRecord(Long recordId);
+    void userRecordDataProcess(Long recordId, String process);
 
     List<DBCinemaRecordsDto> getWatchListCinemaRecords();
 

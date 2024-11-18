@@ -11,7 +11,7 @@ function WatchedIcon(props) {
     const onWatched = async () => {
         setLoader(true)
         if (!isWatched) {
-            let response = await watchedRecord(recordId, userId)
+            let response = await watchedRecord(recordId)
             if (response.httpStatusCode === 200) {
                 setIsWatched(true);
             } else {
@@ -24,7 +24,7 @@ function WatchedIcon(props) {
     const onUnWatched = async () => {
         setLoader(true)
         if (isWatched) {
-            let response = await unWatchedRecord(recordId, userId)
+            let response = await unWatchedRecord(recordId)
             if (response.httpStatusCode === 200) {
                 setIsWatched(false);
             } else {
@@ -45,13 +45,16 @@ function WatchedIcon(props) {
                     isWatched ?
                         <button type="button" className="btn btn-sm btn-success rounded-pill" onClick={() => onUnWatched()}>Watched</button>
                         :
-                        <button className='btn btn-sm m-0 p-0' onClick={() => onWatched()}>
+                        <button className='btn btn-sm' onClick={() => onWatched()}>
                             <img src={watchMovie}
-                                style={{ width: "2rem" }}
+                                style={{ width: "1.8rem" }}
                                 title="Add to watched" alt="Add to watched"
                             />
                             <br />
-                            <span style={{ fontSize: "0.8rem" }}>Add to<br />Watched</span>
+                            <b style={{ fontSize: "0.6rem" }}>
+                                {/* Add to<br /> */}
+                                + Watched
+                            </b>
                         </button>
             }
         </>

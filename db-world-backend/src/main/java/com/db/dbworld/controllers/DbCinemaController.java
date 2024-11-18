@@ -40,7 +40,7 @@ public class DbCinemaController {
             @RequestParam(required = false, defaultValue = "all") String languages
     ){
         if (!recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) && !recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-            return new ApiResponse(HttpStatus.BAD_REQUEST, false, "record type must be movie or series.");
+            return new ApiResponse<>(HttpStatus.BAD_REQUEST, false, "record type must be movie or series.");
         }
         PageImpl<DBCinemaRecordsDto> page = dbCinemaRecordsService
                 .getRecordsByPagination(recordType, pageNumber, pageSize, languages);
@@ -73,35 +73,42 @@ public class DbCinemaController {
     @GetMapping("/record/{recordId}/like")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<String> addLikeByRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.likeRecord(recordId);
+        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_LIKE);
         return new ApiResponse<>(HttpStatus.OK, true, "Record added in watchlist");
     }
 
     @GetMapping("/record/{recordId}/unlike")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<String> removeLikeByRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.unLikeRecord(recordId);
+        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_LIKE);
         return new ApiResponse<>(HttpStatus.OK, true, "Record removed from watchlist");
     }
 
-    @GetMapping("/like")
+    @GetMapping("/record/{recordId}/watch")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<List<DBCinemaRecordsDto>> getLikedCinemaRecords(){
-//        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsService.getWatchListCinemaRecords();
-        return new ApiResponse<>(HttpStatus.OK, true, null);
+    public ApiResponse<String> addWatchByRecord(@PathVariable Long recordId) {
+        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_WATCH);
+        return new ApiResponse<>(HttpStatus.OK, true, "Record mark as watched.");
+    }
+
+    @GetMapping("/record/{recordId}/unwatch")
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    public ApiResponse<String> removeWatchByRecord(@PathVariable Long recordId) {
+        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_WATCH);
+        return new ApiResponse<>(HttpStatus.OK, true, "Record remove from watch mark.");
     }
 
     @GetMapping("/record/{recordId}/watchlist")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<String> watchListRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.watchListRecord(recordId);
+        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_WATCHLIST);
         return new ApiResponse<>(HttpStatus.OK, true, "Record added in watchlist");
     }
 
     @GetMapping("/record/{recordId}/unwatchlist")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<String> removeWatchListRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.removeWatchListRecord(recordId);
+        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_WATCHLIST);
         return new ApiResponse<>(HttpStatus.OK, true, "Record removed from watchlist");
     }
 
