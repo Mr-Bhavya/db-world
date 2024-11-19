@@ -2,6 +2,7 @@ package com.db.dbworld.controllers;
 
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.security.JwtHelper;
 import com.db.dbworld.services.StreamService;
 import com.db.dbworld.services.UserService;
@@ -143,6 +144,10 @@ public class StreamController {
     @GetMapping(value = "/search")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<HashMap<String, Object>>> searchFile(@Valid @NotEmpty @RequestParam(value = "q", defaultValue = "search") String query) {
+        UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
+        userCinemaDataDto.setSearch_keyword(query);
+        userService.updateUserCinemaData(userCinemaDataDto, null);
+
         List<File> files = getStreamableFilesRecursive();
         List<HashMap<String, Object>> filteredFiles = files.stream()
                 .filter(file -> file.toPath().getFileName().toString()
@@ -184,22 +189,29 @@ public class StreamController {
     }
 
     private void catchUpdate(String token, String path, String cacheType){
-        String username = "Someone";
         String tempUser = dbWorldUtils.getUserFromToken(token);
-        if(tempUser != null){
-            username = tempUser;
-        }
+        String username = tempUser != null ? tempUser : "someone";
         if(cacheType.equals(CACHE_TYPE_DOWNLOAD)){
             Map<String, Object> res = catchUpdate(username, download_cache, path);
             download_cache = (Map<String, List<String>>) res.get("cache");
             if ((boolean) res.get("print")) {
                 log.info("user '{}' was downloaded file - {}", username, path);
+                if(!username.equalsIgnoreCase("someone")){
+                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
+                    userCinemaDataDto.setDownload_file(path);
+                    userService.updateUserCinemaData(userCinemaDataDto, username);
+                }
             }
         }else if(cacheType.equals(CACHE_TYPE_WATCH)){
             Map<String, Object> res = catchUpdate(username, watch_cache, path);
             watch_cache = (Map<String, List<String>>) res.get("cache");
             if ((boolean) res.get("print")) {
                 log.info("user '{}' is watching file - {}", username, path);
+                if(!username.equalsIgnoreCase("someone")){
+                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
+                    userCinemaDataDto.setStream_file(path);
+                    userService.updateUserCinemaData(userCinemaDataDto, username);
+                }
             }
         }
 

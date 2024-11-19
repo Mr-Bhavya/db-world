@@ -335,7 +335,7 @@ public class UtilsServiceImpl implements UtilsService {
                         }
                     }
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    log.error(e.getMessage());
                 }
             }).start();
 
@@ -348,14 +348,9 @@ public class UtilsServiceImpl implements UtilsService {
             }
 //            throw new DbWorldException("SevenZip is not supported on " + os.getName() + "-" + os.getArch() + " system.");
         } else {
-//        RandomAccessFile randomAccessFile = null;
             try {
-//            SevenZip.initLoadedLibraries();
-//            SevenZip.getPlatformList().stream().forEach(System.out::println);
-//            log.info("SevenZip best match platform: {}", SevenZip.getPlatformBestMatch() );
                 SevenZip.initSevenZipFromPlatformJAR();
                 if (SevenZip.isInitializedSuccessfully()) {
-//                    SevenZip.getPlatformList().stream().forEach(System.out::println);
                     log.info("SevenZip Used Platform: {}", SevenZip.getUsedPlatform());
                     RandomAccessFile randomAccessFile = new RandomAccessFile(sourcePath, "r");
                     RandomAccessFileInStream randomAccessFileStream = new RandomAccessFileInStream(randomAccessFile);
@@ -387,7 +382,6 @@ public class UtilsServiceImpl implements UtilsService {
                                 System.out.printf("%10s | %10s | %s%n", "Success", sizeArray[0], item.getPath());
                             } else {
                                 System.out.printf("%s | %10s | %s%n", "Fail", sizeArray[0], item.getPath());
-//                        log.error("Error extracting archive. Extracting error: {}", result);
                             }
                         }
                     }
@@ -406,7 +400,6 @@ public class UtilsServiceImpl implements UtilsService {
 
     @Override
     public JsonObject getInfoYtFile(String url) {
-        String jsonInfo = null;
         JsonObject jsonInfoObj = new JsonObject();
         Process process;
         try {
@@ -417,7 +410,7 @@ public class UtilsServiceImpl implements UtilsService {
             String inputString = new String(inputStream.readAllBytes());
             if (inputString == null || inputString.isEmpty() || inputString.isBlank() || inputString.equals("null") || inputString.equals("null\n")) {
                 String errorString = new String(process.getErrorStream().readAllBytes());
-                if (errorString != null && !errorString.isBlank() && !errorString.isEmpty()) {
+                if (!errorString.isBlank()) {
                     throw new DbWorldException(errorString);
                 }
             } else {
@@ -453,7 +446,8 @@ public class UtilsServiceImpl implements UtilsService {
                             Runtime.getRuntime().exec(new String[]{"kill", "-9", String.valueOf(process.pid())});
                             statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
                         }
-                        if (line.startsWith("{\"")) {
+                        if (line.startsWith("{")) {
+                            log.info(line);
                             YtProcessStatus ytProcessStatus = new Gson().fromJson(line, YtProcessStatus.class);
                             if (ytProcessStatus.getStatus() != null) {
                                 if (ytProcessStatus.getStatus().equals("finished") && !isFileNameFetch) {
@@ -535,11 +529,11 @@ public class UtilsServiceImpl implements UtilsService {
                     DbWorldConstants.YTDLP_EXE_PATH,
                     "-i", "--extract-audio",
                     "--progress-template",
-                    "\"%(progress)j\"",
+                    "'%(progress)j'",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
                     "-f",
-                    String.format("%s", mirrorStatus.getYtdlp().getAudioITag().equals("") || mirrorStatus.getYtdlp().getAudioITag().equals("0")
+                    String.format("%s", mirrorStatus.getYtdlp().getAudioITag().isEmpty() || mirrorStatus.getYtdlp().getAudioITag().equals("0")
                             ? "bestAudio" : mirrorStatus.getYtdlp().getAudioITag()),
                     mirrorStatus.getFileUrl(),
                     "--embed-metadata",
@@ -552,12 +546,12 @@ public class UtilsServiceImpl implements UtilsService {
             cmd = new String[]{
                     DbWorldConstants.YTDLP_EXE_PATH,
                     "--progress-template",
-                    "\"%(progress)j\"",
+                    "'%(progress)j'",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
                     "-f",
                     String.format("%s+%s/best", mirrorStatus.getYtdlp().getVideoITag(),
-                            mirrorStatus.getYtdlp().getAudioITag().equals("") || mirrorStatus.getYtdlp().getAudioITag().equals("0")
+                            mirrorStatus.getYtdlp().getAudioITag().isEmpty() || mirrorStatus.getYtdlp().getAudioITag().equals("0")
                                     ? "bestAudio" : mirrorStatus.getYtdlp().getAudioITag()),
                     mirrorStatus.getFileUrl(),
                     process.equals(PROCESS_FILENAME) ? "--get-filename" : "",
@@ -573,9 +567,9 @@ public class UtilsServiceImpl implements UtilsService {
                     "-J"
             };
         }
-        List<String> cmdElementList = Arrays.stream(cmd).filter(cmdElement -> !cmdElement.equals("")).collect(Collectors.toList());
+        List<String> cmdElementList = Arrays.stream(cmd).filter(cmdElement -> !cmdElement.isEmpty()).collect(Collectors.toList());
 
-        log.info("Running [{}] from command: \"{}\"", process, cmdElementList.stream().collect(Collectors.joining(" ")));
+        log.info("Running [{}] from command: \"{}\"", process, String.join(" ", cmdElementList));
         return cmdElementList;
     }
 

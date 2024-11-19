@@ -1,6 +1,7 @@
 package com.db.dbworld.services;
 
 import com.db.dbworld.entities.user.UserEntity;
+import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
 
 import java.util.Date;
@@ -30,7 +31,9 @@ public interface UserService {
 
     void deleteUserById(Long id);
 
-    UserDto getUserByEmail(String email);
+    UserDto getUserDtoByEmail(String email);
+
+    UserEntity getUserEntityByEmail(String email);
 
     List<UserDto> searchUser(String key);
 
@@ -42,7 +45,6 @@ public interface UserService {
 
     UserDto updateRoleByUserId(String userId);
 
-    void deleteUserAppDataById(String id);
+    UserCinemaDataDto updateUserCinemaData(UserCinemaDataDto userCinemaDataDto, String username);
 
-    void deleteUserAppDataByUserId(String userId);
 }

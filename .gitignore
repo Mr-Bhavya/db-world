@@ -48,3 +48,5 @@ build/
 /download/
 /status/
 /db-world-backend/src/main/resources/public/
+/db-world.war
+/db-world-frontend/package-lock.json

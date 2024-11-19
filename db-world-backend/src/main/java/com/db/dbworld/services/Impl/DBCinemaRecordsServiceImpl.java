@@ -185,8 +185,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                     dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity))
             ).toList();
             return new PageImpl<>(dbCinemaRecordsDtos, pageable, totalElements);
-        } catch (AuthenticationException ex) {
-            throw new AuthenticationServiceException(DbWorldConstants.AUTHENTICATION_EXCEPTION_MESSAGE);
         } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
         }

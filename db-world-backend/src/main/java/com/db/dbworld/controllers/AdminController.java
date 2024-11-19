@@ -60,7 +60,7 @@ public class AdminController {
     @GetMapping("/user/userbyemail")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<UserDto>> getUserByEmail(@RequestParam(value = "email") String email) {
-        UserDto userDto = this.userService.getUserByEmail(email);
+        UserDto userDto = this.userService.getUserDtoByEmail(email);
         return new ApiResponse<>(HttpStatus.OK, true, Arrays.stream(new UserDto[]{userDto}).toList());
     }
 
