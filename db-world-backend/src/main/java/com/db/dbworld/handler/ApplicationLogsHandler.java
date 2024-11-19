@@ -23,14 +23,14 @@ public class ApplicationLogsHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTextMessage(WebSocketSession session, TextMessage message) {
-        log.info("WebSocket Connection start for application logs");
+//        log.info("WebSocket Connection start for application logs");
         new Thread(() -> {
             try {
                 while (session.isOpen()) {
                     DbWorldUtils dbWorldUtils1 = new DbWorldUtils();
-                    List logs = dbWorldUtils1.readFileInList(DbWorldConstants.LOGS_FILE_PATH);
-                    session.sendMessage(new TextMessage(new Gson().toJson(new ApiResponse(HttpStatus.OK, true, "Info Logs", logs))));
-                    Thread.sleep(3000); // Simulate 25 fps (1000 ms / 25 = 40 ms)
+                    List<String> logs = dbWorldUtils1.readFileInList(DbWorldConstants.LOGS_FILE_PATH);
+                    session.sendMessage(new TextMessage(new Gson().toJson(new ApiResponse<>(HttpStatus.OK, true, "Info Logs", logs))));
+                    Thread.sleep(2000); // Simulate 25 fps (1000 ms / 25 = 40 ms)
                 }
             } catch (InterruptedException | IOException e) {
                 log.error(e.getMessage());
@@ -41,6 +41,6 @@ public class ApplicationLogsHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status){
         // Handle connection close
-        log.info("WebSocket Connection close for application logs. status code: {}", status.getCode());
+//        log.info("WebSocket Connection close for application logs. status code: {}", status.getCode());
     }
 }

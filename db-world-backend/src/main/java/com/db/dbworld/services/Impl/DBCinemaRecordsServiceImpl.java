@@ -2,9 +2,7 @@ package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.dbcinema.DBCinemaRecordsRepository;
 import com.db.dbworld.dao.dbcinema.tmdb.TmdbDataRepository;
-import com.db.dbworld.dao.dbcinema.user.UserLikedRecordRepository;
 import com.db.dbworld.dao.dbcinema.user.UserRecordDataRepository;
-import com.db.dbworld.dao.dbcinema.user.UserWatchlistRecordRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.*;
 import com.db.dbworld.entities.dbcinema.tmdb.credits.CharacterEntity;
@@ -76,13 +74,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     private TmdbDataRepository tmdbDataRepository;
 
     @Autowired
-    private UserLikedRecordRepository userLikedRecordRepository;
-
-    @Autowired
     private UserRecordDataRepository userRecordDataRepository;
-
-    @Autowired
-    private UserWatchlistRecordRepository userWatchlistRecordRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -160,8 +152,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Transactional
     public void deleteRecord(Long recordId) {
         if (this.dbCinemaRecordsRepository.existsById(recordId)) {
-            this.userWatchlistRecordRepository.deleteByDbCinemaRecordId(recordId);
-            this.userLikedRecordRepository.deleteByDbCinemaRecordId(recordId);
             this.userRecordDataRepository.deleteByDbCinemaRecordId(recordId);
             this.dbCinemaRecordsRepository.deleteById(recordId);
         } else {

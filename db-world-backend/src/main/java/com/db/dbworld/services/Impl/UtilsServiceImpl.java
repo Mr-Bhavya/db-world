@@ -39,6 +39,8 @@ import reactor.core.publisher.Flux;
 
 import java.io.*;
 import java.lang.management.ManagementFactory;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -84,7 +86,7 @@ public class UtilsServiceImpl implements UtilsService {
                 .exchangeToFlux(response -> {
                     long contentLength = response.headers().contentLength().orElse(0);
                     this.statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
-                            0, contentLength, mirrorStatus.getFileSize() <=0 ? 0 : mirrorStatus.getFileSize()
+                            0, contentLength, mirrorStatus.getFileSize() <= 0 ? 0 : mirrorStatus.getFileSize()
                     ));
                     return response.bodyToFlux(DataBuffer.class);
                 })
@@ -110,6 +112,86 @@ public class UtilsServiceImpl implements UtilsService {
         } catch (Exception ex) {
             System.out.println("In Exception.");
             this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), "In Exception: " + ex.getMessage());
+        }
+    }
+
+    @Async
+    @Override
+    public void downloadHttpFile_1(MirrorStatus mirrorStatus) {
+        try {
+            HttpURLConnection connection = getHttpURLConnection(mirrorStatus);
+
+            // Get total file size
+            mirrorStatus.setFileSize(connection.getContentLengthLong());
+            InputStream inputStream = connection.getInputStream();
+            RandomAccessFile file = new RandomAccessFile(mirrorStatus.getTempFilePath(), "rw");
+
+            // If resuming, move to the position where the download was paused
+            if (mirrorStatus.getDownloadStatus() != null && mirrorStatus.getDownloadStatus().getFileDownloaded() > 0) {
+                file.seek(mirrorStatus.getDownloadStatus().getFileDownloaded());
+            }
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                mirrorStatus = statusService.getStatusById(mirrorStatus.getId());
+
+                if (mirrorStatus.isCancelled()) {
+                    statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
+                    break;
+                }
+                if (mirrorStatus.isPause()) {
+                    statusService.updateMirrorStatusWithPause(mirrorStatus.getId());
+                    while (mirrorStatus.isPause() && !mirrorStatus.isCancelled()) {
+                        // Wait until paused is set to false
+                        Thread.sleep(1000);
+                    }
+                    if (mirrorStatus.isCancelled()) {
+                        statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
+                        break;
+                    }
+                }
+
+                file.write(buffer, 0, bytesRead);
+
+                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
+                        mirrorStatus.getDownloadStatus() != null ? mirrorStatus.getDownloadStatus().getFileDownloaded() + bytesRead : bytesRead,
+                        mirrorStatus.getFileSize() <= 0 ? 0 : mirrorStatus.getFileSize() - bytesRead,
+                        mirrorStatus.getFileSize()
+                ));
+
+                statusService.updateMirrorStatusWithSpeedAndETA(mirrorStatus.getId());
+
+                // If download completes, change state to COMPLETED
+                if (statusService.getStatusById(mirrorStatus.getId()).getDownloadStatus().getFileDownloaded() >= statusService.getStatusById(mirrorStatus.getId()).getFileSize()) {
+                    statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
+                    break;
+                }
+            }
+            file.close();
+            inputStream.close();
+            postDownloadTasks(mirrorStatus.getId());
+        } catch (IOException | InterruptedException | DbWorldException e) {
+            log.error(e.getMessage());
+            statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.getMessage());
+        }
+    }
+
+    private static HttpURLConnection getHttpURLConnection(MirrorStatus mirrorStatus) throws IOException {
+        try {
+            URL url = new URL(mirrorStatus.getFileUrl());
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+
+            // If the download was paused and needs to resume, use the "Range" header
+            if (mirrorStatus.getDownloadStatus() != null && mirrorStatus.getDownloadStatus().getFileDownloaded() > 0) {
+                connection.setRequestProperty("Range", "bytes=" + mirrorStatus.getDownloadStatus().getFileDownloaded() + "-");
+            }
+            return connection;
+        } catch (Exception ex) {
+            log.error(ex.getMessage());
+            throw new DbWorldException(ex.getMessage());
         }
     }
 
@@ -150,17 +232,6 @@ public class UtilsServiceImpl implements UtilsService {
 
     private Consumer<TorrentSessionState> torrentSessionStateConsumer(BtClient client, MirrorStatus mirrorStatus) {
         return torrentSessionState -> {
-//            System.out.println("*********************************************************************************" );
-//            System.out.println("getConnectedPeers: " + torrentSessionState.getConnectedPeers().size());
-//            System.out.println("getDownloaded: " + torrentSessionState.getDownloaded());
-//            System.out.println("getLeft: " + torrentSessionState.getLeft());
-//            System.out.println("getPiecesComplete: " + torrentSessionState.getPiecesComplete());
-//            System.out.println("getPiecesIncomplete: " + torrentSessionState.getPiecesIncomplete());
-//            System.out.println("getPiecesRemaining: " + torrentSessionState.getPiecesRemaining());
-//            System.out.println("getPiecesTotal: " + torrentSessionState.getPiecesTotal());
-//            System.out.println("getUploaded: " + torrentSessionState.getUploaded());
-//            System.out.println("*********************************************************************************\n" );
-
             if (this.statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
                 client.stop();
                 dbWorldUtils.deleteFile(mirrorStatus.getFilePath());
@@ -237,10 +308,7 @@ public class UtilsServiceImpl implements UtilsService {
                     this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                 }
             }
-        } catch (IOException ex) {
-            this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), ex.getMessage());
-            log.error(ex);
-        } catch (DbWorldException ex) {
+        } catch (IOException | DbWorldException ex) {
             this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), ex.getMessage());
             log.error(ex);
         }

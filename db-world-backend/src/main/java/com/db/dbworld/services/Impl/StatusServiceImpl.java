@@ -33,7 +33,7 @@ public class StatusServiceImpl implements StatusService {
     }
 
     @Override
-    public void updateStatus(MirrorStatus mirrorStatus){
+    public void updateStatus(MirrorStatus mirrorStatus) {
         mirrorStatus.setTimeStamp(String.valueOf(new Date().getTime()));
         cacheMirrorStatus.replace(mirrorStatus.getId(), mirrorStatus);
     }
@@ -56,7 +56,42 @@ public class StatusServiceImpl implements StatusService {
     public void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus downloadStatus) {
         MirrorStatus mirrorStatus = getStatusById(id);
         mirrorStatus.setCurrentStatus("Downloading...");
-        mirrorStatus.setDownloadStatus(downloadStatus);updateStatus(mirrorStatus);
+        mirrorStatus.setDownloadStatus(downloadStatus);
+        updateStatus(mirrorStatus);
+    }
+
+    @Override
+    public void updateMirrorStatusWithSpeedAndETA(String id) {
+        double downloadSpeed = 0;
+        long eta = 0;
+        long lastTime = 0;
+
+        long currentTime = System.currentTimeMillis();
+        MirrorStatus mirrorStatus = getStatusById(id);
+        if (currentTime - mirrorStatus.getDownloadStatus().getLastTime() >= 1000
+                || mirrorStatus.getDownloadStatus().getFileDownloaded() - mirrorStatus.getDownloadStatus().getLastDownloadedBytes() >= 1024 * 1024) {
+
+            // Calculate download speed in bytes per second
+            long timeElapsed = currentTime - mirrorStatus.getDownloadStatus().getLastTime();
+            if (timeElapsed > 0) {
+                downloadSpeed = (mirrorStatus.getDownloadStatus().getFileDownloaded() - mirrorStatus.getDownloadStatus().getLastDownloadedBytes()) / (timeElapsed / 1000.0); // Bytes per second
+            }
+
+            // Estimate the remaining time (ETA)
+            if (downloadSpeed > 0) {
+                long remainingBytes = mirrorStatus.getDownloadStatus().getFileRemaining();
+                eta = (long) (remainingBytes / downloadSpeed); // Time in seconds
+            }
+            lastTime = currentTime;
+
+            MirrorStatus.DownloadStatus downloadStatus = mirrorStatus.getDownloadStatus();
+            downloadStatus.setEta(eta);
+            downloadStatus.setSpeed(Long.parseLong(String.valueOf(downloadSpeed).split("\\.")[0]));
+            downloadStatus.setLastTime(lastTime);
+            downloadStatus.setLastDownloadedBytes(downloadStatus.getFileDownloaded());
+
+            updateMirrorStatusWithDownloadState(mirrorStatus.getId(), downloadStatus);
+        }
     }
 
     @Override
@@ -97,4 +132,23 @@ public class StatusServiceImpl implements StatusService {
         updateStatus(mirrorStatus);
         log.info("Task '{}' is cancelled. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
     }
+
+    @Override
+    public void updateMirrorStatusWithPause(String id) {
+        MirrorStatus mirrorStatus = getStatusById(id);
+        mirrorStatus.setCurrentStatus("Paused");
+        mirrorStatus.setPause(true);
+        updateStatus(mirrorStatus);
+        log.info("Task '{}' is paused. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+    }
+
+    @Override
+    public void updateMirrorStatusWithResume(String id) {
+        MirrorStatus mirrorStatus = getStatusById(id);
+        mirrorStatus.setCurrentStatus("Resume");
+        mirrorStatus.setPause(false);
+        updateStatus(mirrorStatus);
+        log.info("Task '{}' is resume. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+    }
+
 }
