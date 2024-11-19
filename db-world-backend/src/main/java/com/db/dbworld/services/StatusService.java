@@ -22,6 +22,8 @@ public interface StatusService {
 
     void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus downloadStatus);
 
+    void updateMirrorStatusWithSpeedAndETA(String id);
+
     void updateMirrorStatusWithExtracting(String id);
 
     void updateMirrorStatusWithSuccess(String id);
@@ -29,4 +31,8 @@ public interface StatusService {
     void updateMirrorStatusWithFailed(String id, String message);
 
     void updateMirrorStatusWithCancelled(String id);
+
+    void updateMirrorStatusWithPause(String id);
+
+    void updateMirrorStatusWithResume(String id);
 }

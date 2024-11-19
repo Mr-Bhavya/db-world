@@ -88,7 +88,8 @@ public class UtilsController {
                     mirror.isExtract()
             );
             log.info("Download file: '{}' from url: '{}'.", mirrorStatus.getFileName(), mirrorStatus.getFileUrl());
-            utilsService.downloadHttpFile(mirrorStatus);
+            statusService.addNewStatus(mirrorStatus);
+            utilsService.downloadHttpFile_1(mirrorStatus);
         } else if (mirror.getUrl().startsWith("magnet:?")) {
 
             String fileName = Arrays.stream(mirror.getUrl().split("&")).filter(s -> s.contains("dn=")).collect(Collectors.joining()).replace("dn=", "");

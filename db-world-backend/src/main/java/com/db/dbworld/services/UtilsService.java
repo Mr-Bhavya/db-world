@@ -8,6 +8,7 @@ import java.io.IOException;
 
 public interface UtilsService {
     void downloadHttpFile(MirrorStatus mirrorStatus);
+    void downloadHttpFile_1(MirrorStatus mirrorStatus);
     void downloadMagnetFile(MirrorStatus mirrorStatus);
     void extract(String mirrorId, String sourcePath, String targetPath, String password) throws IOException;
     JsonObject getInfoYtFile(String url);
