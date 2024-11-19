@@ -55,15 +55,6 @@ public class UserEntity {
 
     @Override
     public String toString() {
-        return "Users{" +
-                "userId='" + userId + '\'' +
-                ", firstName='" + firstName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", gender='" + gender + '\'' +
-                ", mobileNo='" + mobileNo + '\'' +
-                ", email='" + email + '\'' +
-                ", password='" + password + '\'' +
-                ", role='" + role.getName() + '\'' +
-                '}';
+        return String.valueOf(userId);
     }
 }

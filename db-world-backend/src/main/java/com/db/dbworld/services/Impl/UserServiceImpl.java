@@ -1,15 +1,19 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.user.LoginDataRepository;
+import com.db.dbworld.dao.user.UserCinemaDataRepository;
 import com.db.dbworld.dao.user.UserRepository;
 import com.db.dbworld.dao.user.UserRoleRepository;
 import com.db.dbworld.entities.user.LoginDataEntity;
+import com.db.dbworld.entities.user.UserCinemaDataEntity;
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.entities.user.UserRoleEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
+import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.UserService;
+import com.db.dbworld.utils.DbWorldUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +44,12 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private LoginDataRepository loginDataRepository;
+
+    @Autowired
+    private UserCinemaDataRepository userCinemaDataRepository;
+
+    @Autowired
+    private DbWorldUtils dbWorldUtils;
 
     @Override
     public UserEntity getUserFromToken() {
@@ -175,11 +185,18 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto getUserByEmail(String email) {
+    public UserDto getUserDtoByEmail(String email) {
         UserEntity userEntity = this.userRepository.findByEmail(email).orElseThrow(
                 () -> new ResourceNotFoundException("User", "email", email)
         );
         return this.modelMapper.map(userEntity, UserDto.class);
+    }
+
+    @Override
+    public UserEntity getUserEntityByEmail(String email) {
+        return this.userRepository.findByEmail(email).orElseThrow(
+                () -> new ResourceNotFoundException("User", "email", email)
+        );
     }
 
     @Override
@@ -193,9 +210,6 @@ public class UserServiceImpl implements UserService {
                 () -> new ResourceNotFoundException("User", "userId", userId)
         );
         UserRoleEntity userRoleEntity = this.userRoleRepository.findByName(role.getName());
-        if(userRoleEntity == null){
-
-        }
         userEntity.setRole(userRoleEntity);
         userEntity = this.userRepository.save(userEntity);
         return this.modelMapper.map(userEntity.getRole(), UserDto.UserRole.class);
@@ -226,14 +240,18 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void deleteUserAppDataById(String id) {
+    public UserCinemaDataDto updateUserCinemaData(UserCinemaDataDto userCinemaDataDto, String username) {
 
+        UserCinemaDataEntity userCinemaDataEntity = new UserCinemaDataEntity();
+        userCinemaDataEntity.setUser(username == null ? getUserFromToken() : getUserEntityByEmail(username));
+        userCinemaDataEntity.setDownload_file(userCinemaDataDto.getDownload_file());
+        userCinemaDataEntity.setStream_file(userCinemaDataDto.getStream_file());
+        userCinemaDataEntity.setSearch_keyword(userCinemaDataDto.getSearch_keyword());
+        userCinemaDataEntity = userCinemaDataRepository.save(userCinemaDataEntity);
+
+        return this.modelMapper.map(userCinemaDataEntity, UserCinemaDataDto.class);
     }
 
-    @Override
-    public void deleteUserAppDataByUserId(String userId) {
-
-    }
 
 
 }

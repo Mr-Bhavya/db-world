@@ -29,17 +29,15 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
     @Query(value = "SELECT count(*) FROM DB_CINEMA_RECORDS dcr JOIN TMDB_DATA td ON td.id = dcr.tmdb WHERE dcr.type = :type AND td.original_language in :languages", nativeQuery = true)
     Optional<Long> countRecordsByTypeAndLanguages(@Param("type") String recordType, @Param("languages") List<String> languages);
 
-    @Query(value = "SELECT dcr.*, uwr.isWatchListed AS isWatchListed, ulr.isLiked AS isLiked from db_cinema_records dcr" +
-            " LEFT JOIN user_watchlist_record uwr ON dcr.id = uwr.db_cinema_record AND uwr.user = :userId" +
-            " LEFT JOIN User_like_record ulr ON dcr.id = ulr.db_cinema_record AND ulr.user = :userId" +
+    @Query(value = "SELECT dcr.*, urd.isWatchListed AS isWatchListed, urd.isLiked AS isLiked from db_cinema_records dcr" +
+            " LEFT JOIN USER_RECORD_DATA urd ON dcr.id = urd.db_cinema_record AND urd.user = :userId" +
             " WHERE dcr.type = :type", nativeQuery = true)
     List<DBCinemaRecordsEntity> findRecordsByUserAndType(@Param("userId") Long userId, @Param("type") String recordType, Pageable pageable);
 
 
-    @Query(value = "SELECT dcr.*, uwr.isWatchListed AS isWatchListed, ulr.isLiked AS isLiked" +
+    @Query(value = "SELECT dcr.*, urd.isWatchListed AS isWatchListed, ulr.isLiked AS isLiked" +
             " FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb" +
-            " LEFT JOIN user_watchlist_record uwr ON dcr.id = uwr.db_cinema_record AND uwr.user = :userId" +
-            " LEFT JOIN User_like_record ulr ON dcr.id = ulr.db_cinema_record AND ulr.user = :userId" +
+            " LEFT JOIN USER_RECORD_DATA urd ON dcr.id = urd.db_cinema_record AND urd.user = :userId" +
             " WHERE dcr.type = :type and td.original_language in :languages", nativeQuery = true)
     List<DBCinemaRecordsEntity> findRecordsByUserAndTypeAndLanguages(@Param("userId") Long userId, @Param("type") String recordType, @Param("languages") List<String> languages, Pageable pageable);
 }
