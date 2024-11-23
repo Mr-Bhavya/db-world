@@ -1,24 +1,36 @@
 const columnDefs = [
-    { headerName: 'No', field: 'no', pinned: "left", width: 60 },
-    { headerName: 'ID', field: 'userId', width: 70 },
-    { headerName: 'First Name', field: 'firstName' },
-    { headerName: 'Last Name', field: 'lastName' },
-    { headerName: 'DOB', field: 'dob' },
-    { headerName: 'Age', field: 'age' },
-    { headerName: 'Gender', field: 'gender' },
-    { headerName: 'Mobile No', field: 'mobileNo' },
-    { headerName: 'Email', field: 'email' },
-    { headerName: 'Password', field: 'password' },
-    { headerName: 'Login No', field: 'userAppData.noOfLogin' },
+    // { headerName: 'No', field: 'no', width: 60 },
+    {
+        headerName: 'Persnoal Data',
+        children: [
+            { headerName: 'ID', field: 'userId', width: 70, columnGroupShow: 'closed' },
+            { headerName: 'First Name', field: 'firstName', columnGroupShow: 'opened', pinned: "left", width: 100},
+            { headerName: 'Last Name', field: 'lastName', columnGroupShow: 'closed' },
+            { headerName: 'User Role', field: 'userRole.name', columnGroupShow: 'closed' },
+            { headerName: 'DOB', field: 'dob', columnGroupShow: 'closed' },
+            { headerName: 'Age', field: 'age', columnGroupShow: 'closed' },
+            { headerName: 'Gender', field: 'gender', columnGroupShow: 'closed' },
+            { headerName: 'Mobile No', field: 'mobileNo', columnGroupShow: 'closed' },
+            { headerName: 'Email', field: 'email', columnGroupShow: 'closed' },
+            { headerName: 'Password', field: 'password', columnGroupShow: 'closed' },
+        ],
+    },
+    {
+        headerName: 'App Data',
+        children: [
+            { headerName: 'Last Login', field: 'loginData.0.lastLoginDate' },
+            { headerName: 'No Of Login', field: 'noOfLogin' },
+        ],
+    },
+    {
+        headerName: 'Cinema Data',
+        children: [
+            { headerName: 'download_files', field: 'cinemaData.download_files.0' },
+            { headerName: 'stream_files', field: 'cinemaData.stream_files.0' },
+            { headerName: 'search_keywords', field: 'cinemaData.search_keywords' },
+        ],
+    },
     { headerName: "Action", field: "action", minWidth: 150 },
-    { headerName: 'User Role', field: 'userRole.name' },
-    // {
-    //     headerName: 'User Credential',
-    //     children: [
-    //         { headerName: 'Host', field: 'host' },
-    //         { headerName: 'Credentials', field: 'credentials' },
-    //     ],
-    // },
     // {
     //     headerName: 'User Login Details',
     //     children: [

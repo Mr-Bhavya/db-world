@@ -44,6 +44,7 @@ public class PojoConverter {
         }
         dbCinemaRecordsDto.setLiked(dbCinemaRecordsEntity.isLiked());
         dbCinemaRecordsDto.setWatchListed(dbCinemaRecordsEntity.isWatchListed());
+        dbCinemaRecordsDto.setWatched(dbCinemaRecordsEntity.isWatched());
         return dbCinemaRecordsDto;
     }
 
@@ -189,7 +190,7 @@ public class PojoConverter {
                 backdrops.forEach(image -> {
                     if (tmdbDataEntity.getImages() != null) {
                         BackDropImage backDropImage = (BackDropImage) tmdbDataEntity.getImages().stream()
-                                .filter(imagesEntity -> imagesEntity.getFile_path().equalsIgnoreCase(image.getFile_path()))
+                                .filter(imagesEntity -> imagesEntity.getFile_path() != null && imagesEntity.getFile_path().equalsIgnoreCase(image.getFile_path()))
                                 .findFirst().orElse(new BackDropImage());
 
                         backDropImage.setTmdbDataEntity(tmdbDataEntity);
@@ -216,7 +217,7 @@ public class PojoConverter {
                 logos.forEach(image -> {
                     if (tmdbDataEntity.getImages() != null) {
                         LogoImage logoImage = (LogoImage) tmdbDataEntity.getImages().stream()
-                                .filter(imagesEntity -> imagesEntity.getFile_path().equalsIgnoreCase(image.getFile_path()))
+                                .filter(imagesEntity -> imagesEntity.getFile_path() != null && imagesEntity.getFile_path().equalsIgnoreCase(image.getFile_path()))
                                 .findFirst().orElse(new LogoImage());
 
                         logoImage.setTmdbDataEntity(tmdbDataEntity);
@@ -244,7 +245,7 @@ public class PojoConverter {
                 posters.forEach(image -> {
                     if (tmdbDataEntity.getImages() != null) {
                         PosterImage posterImage = (PosterImage) tmdbDataEntity.getImages().stream()
-                                .filter(imagesEntity -> imagesEntity.getFile_path().equalsIgnoreCase(image.getFile_path()))
+                                .filter(imagesEntity -> imagesEntity.getFile_path() != null && imagesEntity.getFile_path().equalsIgnoreCase(image.getFile_path()))
                                 .findFirst().orElse(new PosterImage());
 
                         posterImage.setTmdbDataEntity(tmdbDataEntity);

@@ -46,7 +46,7 @@ public class LoginDataServiceImpl implements LoginDataService {
     }
 
     @Override
-    public Integer totalNumberOfLogin(Long userId) {
+    public Long totalNumberOfLogin(Long userId) {
         return this.loginDataRepository.totalNumberOfLogin(userId);
     }
 }

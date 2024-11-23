@@ -140,6 +140,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             }
             dbCinemaRecordsEntity.setTmdb(tmdbDataEntity);
             dbCinemaRecordsEntity.setName(Objects.requireNonNull(tmdbDataEntity).getTitle());
+            dbCinemaRecordsEntity.setShowOnTop(record.isShowOnTop());
             DBCinemaRecordsEntity newDbCinemaRecordsEntity = entityManager.merge(dbCinemaRecordsEntity);
             return pojoConverter.dbCinemaRecordsEntityToDto(newDbCinemaRecordsEntity);
         } catch (Exception ex) {
@@ -169,7 +170,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
         try {
             Long userId = userService.getUserIdFromToken();
-            Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("creationDate").descending());
+            Pageable pageable = PageRequest.of(pageNumber, pageSize);
 
             List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = languages.equalsIgnoreCase(ALL_LANGUAGES) ?
                     dbCinemaRecordsRepository.findRecordsByUserAndType(userId, recordType, pageable)

@@ -17,6 +17,7 @@ import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.sun.management.OperatingSystemMXBean;
+import jakarta.validation.constraints.NotNull;
 import lombok.extern.log4j.Log4j2;
 import net.sf.sevenzipjbinding.*;
 import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMessage;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.scheduling.annotation.Async;
@@ -438,16 +440,16 @@ public class UtilsServiceImpl implements UtilsService {
                 BufferedReader reader = null;
                 try {
                     reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                    String line = null;
                     boolean isFileNameFetch = false;
-                    while ((line = reader.readLine()) != null) {
+                    while (process.isAlive()) {
+                        String line = reader.readLine();
+                        log.info(line);
                         if (statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
                             process.destroy();
                             Runtime.getRuntime().exec(new String[]{"kill", "-9", String.valueOf(process.pid())});
                             statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
                         }
-                        if (line.startsWith("{")) {
-                            log.info(line);
+                        if (line != null && line.startsWith("{")) {
                             YtProcessStatus ytProcessStatus = new Gson().fromJson(line, YtProcessStatus.class);
                             if (ytProcessStatus.getStatus() != null) {
                                 if (ytProcessStatus.getStatus().equals("finished") && !isFileNameFetch) {
@@ -472,7 +474,7 @@ public class UtilsServiceImpl implements UtilsService {
                         }
                     }
                     if (process.exitValue() == 0 || process.exitValue() == 1) {
-                        Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getFilePath()), StandardCopyOption.REPLACE_EXISTING);
+                        Files.move(Path.of(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()).toPath(), StandardCopyOption.REPLACE_EXISTING);
                         statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                     }
                 } catch (IOException | InterruptedException e) {
@@ -499,7 +501,7 @@ public class UtilsServiceImpl implements UtilsService {
     @Override
     public void deleteTempFiles() {
         File[] listFiles = new File(DbWorldConstants.TEMP_DOWNLOAD_PATH).listFiles();
-        if (listFiles.length != 0) {
+        if (listFiles !=null && listFiles.length != 0) {
             Arrays.stream(listFiles).forEach(file -> {
                 dbWorldUtils.deleteFile(file.getAbsolutePath());
             });
@@ -529,7 +531,7 @@ public class UtilsServiceImpl implements UtilsService {
                     DbWorldConstants.YTDLP_EXE_PATH,
                     "-i", "--extract-audio",
                     "--progress-template",
-                    "'%(progress)j'",
+                    "\"%(progress)j\"",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
                     "-f",
@@ -546,7 +548,7 @@ public class UtilsServiceImpl implements UtilsService {
             cmd = new String[]{
                     DbWorldConstants.YTDLP_EXE_PATH,
                     "--progress-template",
-                    "'%(progress)j'",
+                    "\"%(progress)j\"",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
                     "-f",
@@ -579,7 +581,7 @@ public class UtilsServiceImpl implements UtilsService {
             RestTemplate restTemplate = new RestTemplate();
             return restTemplate.execute(httpUrl, HttpMethod.HEAD,
                     request -> request.getHeaders().set("Host", httpUrl.split("/")[2]),
-                    response -> response.getHeaders());
+                    HttpMessage::getHeaders);
         } catch (WebClientResponseException ex) {
             log.error(ex.getMessage());
             return ex.getHeaders();

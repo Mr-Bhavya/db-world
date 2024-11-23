@@ -35,7 +35,7 @@ public class UserEntity {
     private String password;
 
     @JsonProperty
-    @ManyToOne(fetch = FetchType.EAGER, optional = false, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "role", referencedColumnName = "id")
     private UserRoleEntity role;
 

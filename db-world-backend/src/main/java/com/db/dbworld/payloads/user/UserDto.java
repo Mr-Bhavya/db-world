@@ -37,7 +37,9 @@ public class UserDto {
     private UserRole userRole;
     private Date creationDate;
     private Date lastModifiedDate;
+    private Long noOfLogin;
     private List<LoginData> loginData;
+    private CinemaData cinemaData;
 
     @Getter
     @Setter
@@ -45,6 +47,16 @@ public class UserDto {
         private Date lastLoginDate;
         private String loginAgent;
     }
+
+    @Getter
+    @Setter
+    public static class CinemaData {
+        private List<String> download_files;
+        private List<String> stream_files;
+        private List<String> search_keywords;
+    }
+
+
 
     @Getter
     @Setter
