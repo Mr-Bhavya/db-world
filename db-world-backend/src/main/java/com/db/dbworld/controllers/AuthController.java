@@ -91,7 +91,7 @@ public class AuthController {
 
     private void updateUserLoginDetail(UserDetailImpl userDetails, String userAgent){
         LoginDataDto newLoginData = this.loginDataService.addAgentByUserId(userAgent, userDetails.getUserId());
-        Integer totalNumberOfLogin = this.loginDataService.totalNumberOfLogin(userDetails.getUserId());
+        Long totalNumberOfLogin = this.loginDataService.totalNumberOfLogin(userDetails.getUserId());
         log.info("***** User [{}] is logged in using [{}]. Total No Of Login: {} *****", userDetails.getUsername(), userAgent, totalNumberOfLogin);
     }
 

@@ -72,7 +72,7 @@ public class ResponsePayloads {
         private String email;
         private String password;
         private UserDto.UserRole userRole;
-        private int noOfLogin;
+        private Long noOfLogin;
     }
 
     @Getter

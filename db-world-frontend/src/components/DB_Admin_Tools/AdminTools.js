@@ -103,7 +103,7 @@ function AdminTools() {
                                 }}
                                 style={{ overflowX: "auto" }}
                             >
-                                <Tab className='m-3' eventKey="user_data" title="User_Data" tabClassName={key === 'user_data' ? tabActiveClassName : tabClassName}>
+                                <Tab className='m-1' eventKey="user_data" title="User_Data" tabClassName={key === 'user_data' ? tabActiveClassName : tabClassName}>
                                     <Form>
                                         <Form.Switch // prettier-ignore
                                             type="switch"

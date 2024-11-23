@@ -31,13 +31,14 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
 
     @Query(value = "SELECT dcr.*, urd.isWatchListed AS isWatchListed, urd.isLiked AS isLiked from db_cinema_records dcr" +
             " LEFT JOIN USER_RECORD_DATA urd ON dcr.id = urd.db_cinema_record AND urd.user = :userId" +
-            " WHERE dcr.type = :type", nativeQuery = true)
+            " WHERE dcr.type = :type order by (dcr.showOnTop is true) desc, dcr.creationDate desc", nativeQuery = true)
     List<DBCinemaRecordsEntity> findRecordsByUserAndType(@Param("userId") Long userId, @Param("type") String recordType, Pageable pageable);
+//    CASE WHEN dcr.showOnTop = true THEN 1 ELSE 0 END DESC
 
-
-    @Query(value = "SELECT dcr.*, urd.isWatchListed AS isWatchListed, ulr.isLiked AS isLiked" +
+    @Query(value = "SELECT dcr.*, urd.isWatchListed AS isWatchListed, urd.isLiked AS isLiked" +
             " FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb" +
             " LEFT JOIN USER_RECORD_DATA urd ON dcr.id = urd.db_cinema_record AND urd.user = :userId" +
-            " WHERE dcr.type = :type and td.original_language in :languages", nativeQuery = true)
+            " WHERE dcr.type = :type and td.original_language in :languages" +
+            " order by (dcr.showOnTop is true) desc, dcr.creationDate desc", nativeQuery = true)
     List<DBCinemaRecordsEntity> findRecordsByUserAndTypeAndLanguages(@Param("userId") Long userId, @Param("type") String recordType, @Param("languages") List<String> languages, Pageable pageable);
 }

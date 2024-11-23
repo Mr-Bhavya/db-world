@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -58,11 +60,6 @@ public class UserServiceImpl implements UserService {
         return this.userRepository.findByEmail(user.getUsername()).orElseThrow(
                 ()->new ResourceNotFoundException("user", "email", user.getUsername())
         );
-//        try{
-//
-//        }catch (Exception ex){
-//            throw new AuthenticationServiceException("Token is not valid");
-//        }
     }
 
     @Override
@@ -70,11 +67,6 @@ public class UserServiceImpl implements UserService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserDetailImpl user = (UserDetailImpl) authentication.getPrincipal();
         return user.getUserId();
-//        try {
-//
-//        }catch (Exception ex){
-//            throw new AuthenticationServiceException("Token is not valid");
-//        }
     }
 
     @Override
@@ -85,12 +77,28 @@ public class UserServiceImpl implements UserService {
                         Pageable pageable = PageRequest.of(0,5, Sort.by(Sort.Direction.DESC, "lastLoginDate"));
                         List<LoginDataEntity> loginDataEntities = this.loginDataRepository
                                 .findByUserUserId(userEntity.getUserId(), pageable);
+
+                        pageable = PageRequest.of(0,20, Sort.by(Sort.Direction.DESC, "time"));
+                        List<UserCinemaDataEntity> userCinemaDataEntities = userCinemaDataRepository.findAllByUserUserId(userEntity.getUserId(), pageable);
+
+                        loginDataRepository.totalNumberOfLogin(userEntity.getUserId());
+
                         UserDto userDto = this.modelMapper.map(userEntity, UserDto.class);
                         userDto.setLoginData(
                                 loginDataEntities.stream().map(loginDataEntity -> this.modelMapper.map(
                                         loginDataEntity, UserDto.LoginData.class
                                 )).toList()
                         );
+
+                        userDto.setNoOfLogin(loginDataRepository.totalNumberOfLogin(userEntity.getUserId()));
+
+                        if(userCinemaDataEntities != null && !userCinemaDataEntities.isEmpty()){
+                            UserDto.CinemaData cinemaData = new UserDto.CinemaData();
+                            cinemaData.setDownload_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getDownload_file).filter(Objects::nonNull).collect(Collectors.toList()));
+                            cinemaData.setStream_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getStream_file).filter(Objects::nonNull).collect(Collectors.toList()));
+                            cinemaData.setSearch_keywords(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getSearch_keyword).filter(Objects::nonNull).collect(Collectors.toList()));
+                            userDto.setCinemaData(cinemaData);
+                        }
                         return userDto;
                     } catch (Exception ex) {
                         log.warn(ex.getMessage());

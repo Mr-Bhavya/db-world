@@ -29,7 +29,7 @@ const UserList = () => {
       let deleteUserRes = await deleteUser(cellData.data.userId);
       if (deleteUserRes.httpStatusCode === 200) {
         toast.success("User Deleted");
-        dispatch(findAllUsers(userData.filter( user => user.userId != cellData.data.userId)));
+        dispatch(findAllUsers(userData.filter(user => user.userId != cellData.data.userId)));
       } else if (deleteUserRes.httpStatusCode === 401) {
         // 
       } else {
@@ -53,6 +53,7 @@ const UserList = () => {
           filter: true,
           resizable: true,
           cellRenderer: BtnCellRenderer,
+          groupDisplayType: 'multipleColumns',
           cellRendererParams: {
             clicked: onBtnClicked,
           },
@@ -71,23 +72,16 @@ const UserList = () => {
     setGridApi(params.api);
     setGridColumnApi(params.columnApi);
     setAgGridData(userData);
-    // params.columnApi.autoSizeColumns(keys, false)
   };
 
-  useEffect(()=>{
+  useEffect(() => {
     setAgGridData(userData);
   }, [userData])
 
 
   return (
-    <div className='my-3' style={{ width: '100%', }}>
-      <div
-        id="myGrid"
-        style={{
-          height: '70vh',
-        }}
-        className="ag-theme-alpine m-1"
-      >
+    <div className='my-3'>
+      <div className="ag-theme-alpine" id="myGrid" style={{ height: '70vh' }} >
         <AgGridReact
           columnDefs={columnDefs}
           onGridReady={onGridReady}
