@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast, } from 'react-toastify';
-import Authentication from '../Authentication';
 import CommonServices from '../CommonServices';
 import Constants from '../Constants';
 import { addCredential, findAllHost, getUserRole } from '../ApiServices';
@@ -48,15 +47,7 @@ function AddPassword() {
     }
 
     useEffect(() => {
-        let authenticationRes = Authentication({ redirectTo: Constants.DB_ADD_PASSWORD_ROUTE });
-        if (authenticationRes.login) {
-            setUserData(authenticationRes.user);
-            checkUserRole(authenticationRes.user.userId)
-            getAllHost();
-        }
-        else {
-            navigate(authenticationRes.redirectUrl, { replace: true });
-        }
+        getAllHost();
     }, [])
 
     const togglePassword = () => {

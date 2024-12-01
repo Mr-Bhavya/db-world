@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router';
+import { replace, useNavigate } from 'react-router';
 import { useLocation } from 'react-router-dom';
-import { addUser } from '../redux/action/allActions';
 import loginImage from '../images/login.jpg';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Constants from './Constants';
-import { login, updateDobForUser } from './ApiServices';
-import CommonServices from './CommonServices';
+import { doLogin, login, updateDobForUser } from './ApiServices';
 import { Button, Form, Modal } from 'react-bootstrap';
+import Authentication from '../contexts/Authentication';
 
 function Login() {
 
@@ -26,6 +25,7 @@ function Login() {
     const [dobModalShow, setDobModalShow] = useState(false);
     const [user, setUser] = useState(null);
     const [dobError, setDobError] = useState(false);
+    const { login, logout } = Authentication.useAuth();
 
     function getRedirectTo(location) {
         if (location.search) {
@@ -38,6 +38,8 @@ function Login() {
     }
 
     useEffect(() => {
+
+        logout();
 
         // dispatch(addUser(null));
 
@@ -74,18 +76,16 @@ function Login() {
         } else {
             if (!emailError && !passwordError) {
                 try {
-                    const loginRes = await login(email, password);
+                    const loginRes = await doLogin(email, password);
                     if (loginRes.httpStatusCode === 200) {
-                        dispatch(addUser(loginRes.data.user));
-                        CommonServices.setUserInLocal(JSON.stringify(loginRes.data.user), loginRes.data.token);
-                        
+                        login(loginRes?.data?.token, loginRes?.data?.user)
                         toast.success("Login Successfull.", {
                             onClose: () => {
-                                if(loginRes.data.user.dob == null){
+                                if (loginRes.data.user.dob == null) {
                                     setUser(loginRes.data.user);
                                     setDobModalShow(true);
-                                }else{
-                                    redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
+                                } else {
+                                    navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE)
                                 }
                                 //redirect
                                 // redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
@@ -128,14 +128,14 @@ function Login() {
                 setPasswordError(false)
             }
         }
-        else if(event.target.name === "dob") {
+        else if (event.target.name === "dob") {
             setDob(event.target.value);
-            var dobPattern =/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+            var dobPattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
             let year = event.target.value.split("-")[0];
             let currentYear = new Date().getFullYear();
-            if(!event.target.value || !dobPattern.test(event.target.value) || year < 1900 || year > currentYear){
+            if (!event.target.value || !dobPattern.test(event.target.value) || year < 1900 || year > currentYear) {
                 setDobError(true)
-            }else {
+            } else {
                 setDobError(false);
             }
         }
@@ -147,10 +147,10 @@ function Login() {
 
     const submitDob = async () => {
         let res = await updateDobForUser(dob);
-        if(res.httpStatusCode == 200){
+        if (res.httpStatusCode == 200) {
             toast.success("DOB is updated.")
             setDobModalShow(false);
-            redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
+            navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE)
         } else {
             toast.error(res.message || res.errorMessage);
         }
@@ -165,7 +165,7 @@ function Login() {
                 <Form>
                     <Form.Group>
                         <Form.Label>DOB</Form.Label>
-                        <Form.Control name="dob" type="date" format = "dd-MM-yyyy" placeholder="Date Of Birth" required 
+                        <Form.Control name="dob" type="date" format="dd-MM-yyyy" placeholder="Date Of Birth" required
                             onChange={onChange} isInvalid={dobError}
                         />
                         <Form.Control.Feedback type="invalid">

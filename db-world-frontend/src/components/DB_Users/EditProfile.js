@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import LoadingSpinner from '../LoadingSpinner';
-import Authentication from '../Authentication';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import { updateUserDetails } from '../ApiServices';
@@ -117,42 +116,29 @@ function EditProfile(props) {
   }
 
   useEffect(() => {
-    CommonServices.valiadteToken().then(async isValidToken => {
-      if (!isValidToken) {
-        navigate(await Constants.REDIRECT(Constants.EDIT_USER_PROFILE_ROUTE), { replace: true })
-      } else {
-        let authenticationRes = Authentication({ redirectTo: Constants.EDIT_USER_PROFILE_ROUTE });
-        if (authenticationRes.login) {
-          let userData = null;
-          if (isFromAdmin) {
-            userData = user;
-          } else {
-            userData = location && location.state && location.state.userData
-              ? location.state.userData : authenticationRes.user;
-          }
-          console.log(userData.dob)
-          setFormData({
-            userId: userData.userId,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            gender: userData.gender,
-            dob: userData.dob ? userData.dob : "",
-            age: userData.age ? userData.age : 0,
-            mobileNo: userData.mobileNo,
-            email: userData.email,
-            userRole: userData.userRole,
-            agreeCheckBox: userData.agreeCheckBox,
-            password: userData.password
-          })
-          setLoader(false);
-        }
-        else {
-          navigate(authenticationRes.redirectUrl, { replace: true });
-        }
-      }
-    }).catch(err => {
-      console.log(err);
-    });
+    let userData = null;
+    if (isFromAdmin) {
+      userData = user;
+    } else {
+      userData = location && location.state && location.state.userData
+        ? location.state.userData : null;
+    }
+    console.log(userData.dob)
+    setFormData({
+      userId: userData.userId,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      gender: userData.gender,
+      dob: userData.dob ? userData.dob : "",
+      age: userData.age ? userData.age : 0,
+      mobileNo: userData.mobileNo,
+      email: userData.email,
+      userRole: userData.userRole,
+      agreeCheckBox: userData.agreeCheckBox,
+      password: userData.password
+    })
+    setLoader(false);
+
   }, [])
 
   const onFieldChange = (event) => {

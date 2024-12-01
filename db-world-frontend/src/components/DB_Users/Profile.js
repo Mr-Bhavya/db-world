@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import userProfile from '../../images/UserProfile.png';
 import { useNavigate } from 'react-router-dom';
-import Authentication from '../Authentication';
 import Constants from '../Constants';
 import { getUserDetail, getUserDetailByUserId } from '../ApiServices';
 
@@ -26,14 +25,7 @@ function Profile(props) {
     }
 
     useEffect(() => {
-
-        let authenticationRes = Authentication({ redirectTo: Constants.USER_PROFILE_ROUTE });
-        if (authenticationRes.login) {
-            getDetails(authenticationRes.user.userId);
-        }
-        else {
-            navigate(authenticationRes.redirectUrl, { replace: true });
-        }
+        getDetails()
     }, [])
 
     return (

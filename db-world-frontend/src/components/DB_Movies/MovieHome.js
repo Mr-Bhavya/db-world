@@ -9,24 +9,25 @@ import Movie from "./Movies/Movie";
 import Series from "./Series/Series";
 import { useSelector } from "react-redux";
 import { filterSelection } from '../../redux/action/allActions'
-import Authentication from "../Authentication";
+// import Authentication from "../Authentication";
 import LoadingSpinner from "../LoadingSpinner";
 import Constants from "../Constants";
 import { getUserRole } from "../ApiServices";
 import Stream from "./Stream/Stream";
 import MyWatchlist from "./MyWatchlist";
+import Authentication from "../../contexts/Authentication";
 
 
 function MovieHome() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const [userData, setUserData] = useState({});
+    const [userData, setUserData] = useState(useSelector(state => state.userReducer));
     const [isVisible, setIsVisible] = useState(false);
     const query = useSelector(state => state.searchReducer);
     const filter = useSelector(state => state.filterSelectionReducer)
     const [navLinkActive, setnavLinkActive] = useState(filter.catagory)
-    const [loader, setLoader] = useState(true);
-    const [userRole, SetUserRole] = useState();
+    const [loader, setLoader] = useState(false);
+    const [userRole, SetUserRole] = useState(Authentication.useAuth()?.auth.role);
     const [searchFieldValue, setSearchFieldValue] = useState("");
     const [isSerachInputEnable, setIsSearchInputEnable] = useState(false);
 
@@ -53,30 +54,32 @@ function MovieHome() {
             setLoader(false);
         } else if (roleRes.httpStatusCode === 401 || roleRes.httpStatusCode === 400) {
             navigate(await Constants.REDIRECT(Constants.DB_MOVIES_ROUTE), { replace: true });
-        } else{
+        } else {
             toast.error(roleRes.message)
         }
     }
 
     useEffect(() => {
-        setLoader(true);
-        let authenticationRes = Authentication({ redirectTo: Constants.DB_MOVIES_ROUTE });
-        if (authenticationRes.login) {
-            setUserData(authenticationRes.user);
-            window.addEventListener("scroll", toggleVisibility);
-            checkUserRole(authenticationRes.user.userId);
-        }
-        else {
-            navigate(authenticationRes.redirectUrl, { replace: true });
-        }
+        // setLoader(true);
+        // let authenticationRes = Authentication({ redirectTo: Constants.DB_MOVIES_ROUTE });
+        // if (authenticationRes.login) {
+        //     setUserData(authenticationRes.user);
+        //     window.addEventListener("scroll", toggleVisibility);
+        //     checkUserRole(authenticationRes.user.userId);
+        // }
+        // else {
+        //     navigate(authenticationRes.redirectUrl, { replace: true });
+        // }
+        // setUserData(auth.user);
+        // SetUserRole(auth.role);
+        window.addEventListener("scroll", toggleVisibility);
     }, [])
 
-    useEffect(()=>{
+    useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
             // Send Axios request here
-          }, 3000)
-      
-          return () => clearTimeout(delayDebounceFn)
+        }, 3000)
+        return () => clearTimeout(delayDebounceFn)
     }, [query])
 
 
@@ -153,7 +156,7 @@ function MovieHome() {
                                 }
                             </div>
 
-                            <ul className="nav nav-pills border rounded m-1" role="tablist" style={{ background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px", overflowY: "auto", flexWrap: "nowrap", textWrap:"nowrap" }} >
+                            <ul className="nav nav-pills border rounded m-1" role="tablist" style={{ background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px", overflowY: "auto", flexWrap: "nowrap", textWrap: "nowrap" }} >
                                 <li className="nav-item mx-2 my-1">
                                     <button
                                         className={navLinkActive === "movie" ? "btn btn-dark" : "btn btn-outline-secondary"}

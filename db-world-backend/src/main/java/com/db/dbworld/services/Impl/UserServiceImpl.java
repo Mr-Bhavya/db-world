@@ -224,9 +224,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto.UserRole getRoleByUserId(Long userId, String tokenUserName) {
+    public UserDto.UserRole getRoleForUser() {
+        Long userId = getUserIdFromToken();
         UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(
-                () -> new ResourceNotFoundException("User", "userId", userId.toString())
+                () -> new ResourceNotFoundException("User", "userId", userId)
         );
         return this.modelMapper.map(userEntity.getRole(), UserDto.UserRole.class);
     }

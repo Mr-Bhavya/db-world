@@ -38,8 +38,8 @@ public interface UserService {
     List<UserDto> searchUser(String key);
 
     UserDto.UserRole addUpdateUserRoleByUserId(Long userId, UserDto.UserRole role);
-
-    UserDto.UserRole getRoleByUserId(Long userId, String tokenUserName);
+    
+    UserDto.UserRole getRoleForUser();
 
     void updateDob(Date dob);
 

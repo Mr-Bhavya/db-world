@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useLocation } from "react-router-dom";
-import Authentication from "../Authentication";
 import Constants from "../Constants";
 import queryString from "query-string";
 import { UpdateDbCinemaRecord, getUserRole, searchTmdbByQuery } from "../ApiServices";
@@ -20,48 +19,44 @@ function EditRecord() {
     const [inputFields, setInputFields] = useState({})
     const [userRole, SetUserRole] = useState();
 
-    const checkUserRole = async (userId) => {
+    // const checkUserRole = async (userId) => {
 
-        let roleRes = await getUserRole(userId);
-        if (roleRes.httpStatusCode === 200) {
-            SetUserRole(roleRes.data.role.name);
-            if (roleRes.data.role.name !== Constants.OWNER_USER_ROLE && roleRes.data.role.name !== Constants.ADMIN_USER_ROLE) {
-                alert("You don't have admin rights.")
-                navigate(Constants.DB_WORLD_HOME_ROUTE);
-            } else {
-                if (location.state && location.state !== null) {
-                    setInputFields(location.state)
-                    setLoader(false);
-                } else {
-                    if (location.search && location.search.length > 0) {
-                        let query = queryString.parse(location.search);
-                        if (query && query._id) {
-                            getRecord(query._id);
-                        }
-                    }
-                    toast.warning("problem to fetch details");
-                    navigate(Constants.REDIRECT(Constants.DB_MOVIES_ROUTE));
-                }
-            }
-        } else if (roleRes.httpStatusCode === 401) {
-            navigate(Constants.LOGIN_ROUTE, { replace: true });
-        }
-    }
+    //     let roleRes = await getUserRole(userId);
+    //     if (roleRes.httpStatusCode === 200) {
+    //         SetUserRole(roleRes.data.role.name);
+    //         if (roleRes.data.role.name !== Constants.OWNER_USER_ROLE && roleRes.data.role.name !== Constants.ADMIN_USER_ROLE) {
+    //             alert("You don't have admin rights.")
+    //             navigate(Constants.DB_WORLD_HOME_ROUTE);
+    //         } else {
+    //             if (location.state && location.state !== null) {
+    //                 setInputFields(location.state)
+    //                 setLoader(false);
+    //             } else {
+    //                 if (location.search && location.search.length > 0) {
+    //                     let query = queryString.parse(location.search);
+    //                     if (query && query._id) {
+    //                         getRecord(query._id);
+    //                     }
+    //                 }
+    //                 toast.warning("problem to fetch details");
+    //                 navigate(Constants.REDIRECT(Constants.DB_MOVIES_ROUTE));
+    //             }
+    //         }
+    //     } else if (roleRes.httpStatusCode === 401) {
+    //         navigate(Constants.LOGIN_ROUTE, { replace: true });
+    //     }
+    // }
 
     useEffect(() => {
-        let authenticationRes = Authentication();
-        if (authenticationRes.login) {
-            checkUserRole(authenticationRes.user.userId)
-        }
-        else {
-            navigate(authenticationRes.redirectUrl, { replace: true });
+        console.log(location);
+        if (location.state && location.state !== null) {
+            setInputFields(location.state)
+            setLoader(false);
+        } else {
+            toast.warning("problem to fetch details");
+            navigate(Constants.DB_MOVIES_ROUTE);
         }
     }, [])
-
-    //TODO
-    async function getRecord(_id) {
-        // get record from database
-    }
 
 
     const onChangeHandler = (e) => {
@@ -76,7 +71,6 @@ function EditRecord() {
                 setOnSubmit(false);
             }
         }
-        // setOnSubmit(false)
     }
 
     const getTMDBList = async () => {

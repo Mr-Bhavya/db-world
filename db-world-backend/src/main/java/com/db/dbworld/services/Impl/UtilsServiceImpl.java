@@ -16,8 +16,8 @@ import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import com.sun.management.OperatingSystemMXBean;
-import jakarta.validation.constraints.NotNull;
 import lombok.extern.log4j.Log4j2;
 import net.sf.sevenzipjbinding.*;
 import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
@@ -124,7 +124,7 @@ public class UtilsServiceImpl implements UtilsService {
             HttpURLConnection connection = getHttpURLConnection(mirrorStatus);
 
             // Get total file size
-            mirrorStatus.setFileSize(connection.getContentLengthLong());
+//            mirrorStatus.setFileSize(connection.getContentLengthLong());
             InputStream inputStream = connection.getInputStream();
             RandomAccessFile file = new RandomAccessFile(mirrorStatus.getTempFilePath(), "rw");
 
@@ -173,6 +173,7 @@ public class UtilsServiceImpl implements UtilsService {
             }
             file.close();
             inputStream.close();
+            connection.disconnect();
             postDownloadTasks(mirrorStatus.getId());
         } catch (IOException | InterruptedException | DbWorldException e) {
             log.error(e.getMessage());
@@ -443,42 +444,53 @@ public class UtilsServiceImpl implements UtilsService {
                     boolean isFileNameFetch = false;
                     while (process.isAlive()) {
                         String line = reader.readLine();
-                        log.info(line);
                         if (statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
                             process.destroy();
                             Runtime.getRuntime().exec(new String[]{"kill", "-9", String.valueOf(process.pid())});
                             statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
                         }
-                        if (line != null && line.startsWith("{")) {
-                            YtProcessStatus ytProcessStatus = new Gson().fromJson(line, YtProcessStatus.class);
-                            if (ytProcessStatus.getStatus() != null) {
-                                if (ytProcessStatus.getStatus().equals("finished") && !isFileNameFetch) {
-                                    MirrorStatus temp = statusService.getStatusById(mirrorStatus.getId());
-                                    String[] tempArray = getYtOutputFileName(mirrorStatus).split("\\.");
-                                    String fileExtension = "." + tempArray[tempArray.length - 1];
-
-                                    temp.setFileName((mirrorStatus.getFileName() + fileExtension));
-                                    temp.setFilePath(mirrorStatus.getFilePath() + fileExtension);
-                                    temp.setTempFileName(mirrorStatus.getTempFileName() + fileExtension);
-                                    temp.setTempFilePath(mirrorStatus.getTempFilePath() + fileExtension);
-                                    statusService.updateStatus(mirrorStatus);
-                                    isFileNameFetch = true;
+                        if (line != null && line.contains("downloaded_bytes") && line.contains("status")) {
+                            line = line.replace(" ", "");
+                            line = line.startsWith("\"") && line.endsWith("\"") ? line.substring(1, line.length()-1) : line;
+                            try {
+                                YtProcessStatus ytProcessStatus = new Gson().fromJson(line, YtProcessStatus.class);
+                                if (ytProcessStatus.getStatus() != null) {
+                                    MirrorStatus.DownloadStatus downloadStatus = new MirrorStatus.DownloadStatus(
+                                            ytProcessStatus.getDownloaded_bytes(),
+                                            ytProcessStatus.getTotal_bytes() - ytProcessStatus.getDownloaded_bytes(),
+                                            ytProcessStatus.getTotal_bytes()
+                                    );
+                                    log.info("Status: {}", ytProcessStatus.getStatus());
+                                    if (ytProcessStatus.getStatus().equalsIgnoreCase("finished")) {
+                                        MirrorStatus temp = statusService.getStatusById(mirrorStatus.getId());
+                                        String[] tempArray = getYtOutputFileName(temp).split("\\.");
+                                        String fileExtension = "." + tempArray[tempArray.length - 1];
+                                        log.info(fileExtension);
+                                        temp.setFileName((mirrorStatus.getFileName() + fileExtension));
+                                        temp.setFilePath(mirrorStatus.getFilePath() + fileExtension);
+                                        temp.setTempFileName(mirrorStatus.getTempFileName() + fileExtension);
+                                        temp.setTempFilePath(mirrorStatus.getTempFilePath() + fileExtension);
+                                        statusService.updateStatus(temp);
+                                        isFileNameFetch = true;
+                                    }
+                                    statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), downloadStatus);
                                 }
-                                MirrorStatus.DownloadStatus downloadStatus = new MirrorStatus.DownloadStatus(
-                                        ytProcessStatus.getDownloaded_bytes(),
-                                        ytProcessStatus.getTotal_bytes() - ytProcessStatus.getDownloaded_bytes(),
-                                        ytProcessStatus.getTotal_bytes()
-                                );
-                                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), downloadStatus);
+                            }catch (JsonSyntaxException ex){
+                                log.error(ex.getMessage());
                             }
+
                         }
                     }
                     if (process.exitValue() == 0 || process.exitValue() == 1) {
-                        Files.move(Path.of(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        Files.move(Path.of(statusService.getStatusById(mirrorStatus.getId()).getTempFilePath()), Path.of(statusService.getStatusById(mirrorStatus.getId()).getFilePath()), StandardCopyOption.REPLACE_EXISTING);
                         statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                     }
                 } catch (IOException | InterruptedException e) {
-                    log.error("exit code : {}, Error: {}", process.exitValue(), e);
+                    try {
+                        log.error("exit code : {}, Error: {}", process.exitValue(), new String(process.getErrorStream().readAllBytes()));
+                    } catch (IOException ex) {
+                        throw new DbWorldException(ex.getMessage());
+                    }
                     statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.toString());
                     throw new DbWorldException(e.toString());
                 } finally {
@@ -486,7 +498,7 @@ public class UtilsServiceImpl implements UtilsService {
                         try {
                             reader.close();
                         } catch (IOException e) {
-                            throw new DbWorldException(e.getMessage());
+                            log.error(e.getMessage());
                         }
                     }
                 }
@@ -577,6 +589,23 @@ public class UtilsServiceImpl implements UtilsService {
 
     @Override
     public HttpHeaders getHeaders(String httpUrl) {
+
+        try {
+            URL url = new URL(httpUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("HEAD");
+
+            log.info("connection.getResponseMessage(): {}", connection.getResponseMessage());
+            log.info("connection.getResponseCode(): {}",connection.getResponseCode());
+            log.info("connection.getContentLengthLong(): {}",connection.getContentLengthLong());
+            log.info("connection.getErrorStream(): {}",connection.getErrorStream());
+            log.info("connection.getHeaderField(): {}",connection.getHeaderField("Content-Disposition"));
+
+        } catch (Exception ex) {
+            log.error(ex.getMessage());
+            throw new DbWorldException(ex.getMessage());
+        }
+
         try {
             RestTemplate restTemplate = new RestTemplate();
             return restTemplate.execute(httpUrl, HttpMethod.HEAD,

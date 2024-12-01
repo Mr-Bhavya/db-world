@@ -13,7 +13,7 @@ import com.google.gson.JsonObject;
 import com.sun.management.OperatingSystemMXBean;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.*;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -64,35 +66,53 @@ public class UtilsController {
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<String> mirror(@RequestBody RequestPayloads.Mirror mirror) {
 
+        URL url;
+        String fileName;
+        long contentLength;
+        String contentDisposition;
+        HttpURLConnection connection;
+
         if (mirror.getUrl().startsWith("http") || mirror.getUrl().startsWith("https")) {
             if (mirror.isUrlProtected() && mirror.getUrl().contains("https://")) {
                 mirror.setUrl(mirror.getUrl().replace("https://", "https://" + mirror.getUsername() + ":" + mirror.getPassword() + "@"));
             } else if (mirror.isUrlProtected() && mirror.getUrl().contains("http://")) {
                 mirror.setUrl(mirror.getUrl().replace("http://", "http://" + mirror.getUsername() + ":" + mirror.getPassword() + "@"));
             }
-            HttpHeaders headers = utilsService.getHeaders(mirror.getUrl());
-            String fileName = null;
-            if (mirror.isRename()) {
-                fileName = mirror.getFileName();
-            } else if (headers != null && headers.getContentDisposition() != null && headers.getContentDisposition().getFilename() != null) {
-                fileName = dbWorldUtils.decodeFileName(headers.getContentDisposition().getFilename());
-            } else if (headers == null) {
-                throw new DbWorldException("Not able to read headers from given url, Please send file name also.");
-            } else {
-                throw new DbWorldException("Not able to get filename from url. Please send file name also.");
+
+            try {
+                url = new URL(mirror.getUrl());
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("HEAD");
+                log.info("Response Code: {} for retrieve headers from URL: {}",connection.getResponseCode(), url.toString());
+                contentDisposition = connection.getHeaderField("Content-Disposition");
+                contentLength = connection.getContentLengthLong(); //default is -1
+                connection.disconnect();
+            } catch (IOException e) {
+                throw new DbWorldException(e.getMessage());
             }
+
+            if (contentDisposition == null || contentDisposition.isBlank()) {
+                if (mirror.isRename()) {
+                    fileName = mirrorStatus.getFileName();
+                } else
+                    throw new DbWorldException("Not able to retrieve fileName from url. Please try again with rename option.");
+            } else {
+                fileName = mirror.isRename() ? mirrorStatus.getFileName() : dbWorldUtils.decodeFileName(ContentDisposition.parse(contentDisposition).getFilename());
+            }
+
             mirrorStatus = new MirrorStatus(
                     mirror.getUrl(),
                     fileName,
-                    headers == null ? 0 : headers.getContentLength(),
+                    contentLength,
                     mirror.isExtract()
             );
+
             log.info("Download file: '{}' from url: '{}'.", mirrorStatus.getFileName(), mirrorStatus.getFileUrl());
             statusService.addNewStatus(mirrorStatus);
             utilsService.downloadHttpFile_1(mirrorStatus);
         } else if (mirror.getUrl().startsWith("magnet:?")) {
 
-            String fileName = Arrays.stream(mirror.getUrl().split("&")).filter(s -> s.contains("dn=")).collect(Collectors.joining()).replace("dn=", "");
+            fileName = Arrays.stream(mirror.getUrl().split("&")).filter(s -> s.contains("dn=")).collect(Collectors.joining()).replace("dn=", "");
             mirrorStatus = new MirrorStatus(
                     mirror.getUrl(),
                     dbWorldUtils.decodeFileName(fileName),
@@ -101,7 +121,7 @@ public class UtilsController {
             );
             utilsService.downloadMagnetFile(mirrorStatus);
         }
-        return new ApiResponse<>(HttpStatus.OK, true, "Task added. task id: "+ mirrorStatus.getId());
+        return new ApiResponse<>(HttpStatus.OK, true, "Task added. task id: " + mirrorStatus.getId());
     }
 
     @RequestMapping(value = "/mirror/{mirrorId}", method = RequestMethod.DELETE)

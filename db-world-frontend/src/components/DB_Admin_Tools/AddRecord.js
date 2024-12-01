@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Authentication from "../Authentication";
 import Constants from "../Constants";
 import { AddDbCinemaRecord, searchTmdbByQuery } from "../ApiServices";
 
@@ -25,18 +24,6 @@ function AddRecord(props) {
         downloadLink: null,
         tmdbData: ""
     })
-
-    useEffect(() => {
-        let authenticationRes = Authentication({ redirectTo: Constants.ADD_RECORD_ROUTE });
-        if (!authenticationRes.login) {
-            navigate(authenticationRes.redirectUrl, { replace: true });
-        } else {
-            if (userRole !== Constants.OWNER_USER_ROLE && userRole !== Constants.ADMIN_USER_ROLE) {
-                alert("don't have valid role");
-            }
-        }
-    }, [])
-
 
     const onChangeHandler = (e) => {
         setInputFields({ ...inputFields, [e.target.name]: e.target.value })

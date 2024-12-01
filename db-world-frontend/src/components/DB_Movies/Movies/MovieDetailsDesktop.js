@@ -8,25 +8,13 @@ import Credits from "../SubComponents/Credits";
 import LikeIcon from "../SubComponents/LikeIcon";
 import WatchlistIcon from "../SubComponents/WatchlistIcon";
 
-function MovieDetailsDesktop() {
-
+function MovieDetailsDesktop(props) {
     let user = JSON.parse(localStorage.getItem("user"))
-
-
-    const parseQuery = (search) => {
-        search = search.split("?")[1].split("&");
-        let queryParam = {};
-        search = search.map((query) => {
-            let key = query.split("=")[0];
-            let value = query.split("=")[1];
-            queryParam[key] = value;
-        })
-        return queryParam;
-    }
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { id, watch } = parseQuery(location.search);
+    const id = location?.pathname?.split("/")?.pop()?.split("-")[0];
+    const [watch, setWatch] = useState(null);
     const [movieData, setMovieData] = useState("");
     const [loader, setLoader] = useState(true);
     const [cast, setCast] = useState([]);
@@ -69,7 +57,9 @@ function MovieDetailsDesktop() {
     }
 
     useEffect(() => {
-        getMovie()
+        if (id) {
+            getMovie()
+        }
     }, []);
 
     if (movieData.tmdbData) {
@@ -213,8 +203,8 @@ function MovieDetailsDesktop() {
 
 
                                                 <div className="bg-white text-dark m-0 p-0" style={{ width: "150px" }}>
-                                                <LikeIcon recordId={movieData.recordId} userId={user.userId} isLiked={movieData.isLiked} />
-                                                <WatchlistIcon recordId={movieData.recordId} userId={user.userId} isAddedToWatchList={movieData.isWatchListed} />
+                                                    <LikeIcon recordId={movieData.recordId} userId={user.userId} isLiked={movieData.isLiked} />
+                                                    <WatchlistIcon recordId={movieData.recordId} userId={user.userId} isAddedToWatchList={movieData.isWatchListed} />
                                                 </div>
 
                                                 <div className="my-3">
@@ -223,7 +213,7 @@ function MovieDetailsDesktop() {
                                                             <b style={{ fontWeight: "bold" }}>Storyline: </b>
                                                         </summary>
                                                     </details>
-                                                    <p className="mx-3" style={{height: "6rem", overflowY:"auto"}}>{movieData.tmdbData.overview}</p>
+                                                    <p className="mx-3" style={{ height: "6rem", overflowY: "auto" }}>{movieData.tmdbData.overview}</p>
                                                 </div>
                                             </p>
 

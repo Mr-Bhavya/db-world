@@ -2,22 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import LoadingSpinner from './LoadingSpinner';
-import Authentication from './Authentication';
 import Constants from './Constants';
 import db_world_icon from '../images/db_world_teal.svg';
 import { getUserRole } from './ApiServices';
 import { addUser } from '../redux/action/allActions';
 import CommonServices from './CommonServices';
+import Authentication from '../contexts/Authentication';
 
 
 function Header() {
-    const [userData, setUserData] = useState(null);
+    const [userData, setUserData] = useState(useSelector(state => state.userReducer));
     const dispatch = useDispatch();
     const location = useLocation();
     const [loader, setLoader] = useState(false);
     const [login, setLogin] = useState(false);
-    const userReducer = useSelector(state => state.userReducer);
     const [userRole, SetUserRole] = useState();
+    const {auth} = Authentication.useAuth();
     const [cardDetails, setCardDetails] = useState([
         {
             index: 1,
@@ -105,19 +105,14 @@ function Header() {
 
     useEffect(() => {
         setLoader(true);
-        let authenticationRes = Authentication({ redirectTo: Constants.DB_WORLD_HOME_ROUTE });
-        if (authenticationRes.login) {
-            setUserData(authenticationRes.user);
-            setLogin(authenticationRes.login);
-            checkUserRole(authenticationRes.user.userId);
-        }
+        setLogin(auth.isAuthenticated);
         setLoader(false);
-    }, [userReducer])
+    }, [auth, location.pathname])
 
-    var user = "";
+    var menu = "";
 
-    if (login && userReducer) {
-        user = <>
+    if (login) {
+        menu = <>
             <div className="collapse navbar-collapse" id="navbarSupportedContent">
                 <ul className="navbar-nav me-auto mb-2 mb-lg-0">
                     {
@@ -149,7 +144,7 @@ function Header() {
                         <ul className="dropdown-menu" aria-labelledby="navbarDropdown">
                             <li><Link className="dropdown-item" to={Constants.USER_PROFILE_ROUTE}>My Profile</Link></li>
                             {
-                                userRole === Constants.OWNER_USER_ROLE || userRole === Constants.ADMIN_USER_ROLE ?
+                                auth?.role === Constants.OWNER_USER_ROLE || auth?.role === Constants.ADMIN_USER_ROLE ?
                                     <li><Link className="dropdown-item" to={Constants.DB_ADMIN_TOOLS_ROUTE} state={userRole}>Admin Tools</Link></li>
                                     : ""
                             }
@@ -161,7 +156,7 @@ function Header() {
         </>
     }
     else {
-        user =
+        menu =
             <div className="collapse navbar-collapse" id="navbarSupportedContent">
                 <ul className="navbar-nav me-auto mb-2 mb-lg-0">
                     <li className="nav-item">
@@ -191,7 +186,7 @@ function Header() {
                     <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
                         <span className="navbar-toggler-icon"></span>
                     </button>
-                    {user}
+                    {menu}
                 </div>
             </nav>
         </div>

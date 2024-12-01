@@ -21,7 +21,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.security.sasl.AuthenticationException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -99,10 +98,13 @@ public class StreamController {
     }
 
     @GetMapping(value = "/watch/{fileId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public CompletableFuture<ResponseEntity<InputStreamResource>> watchFileOnline(@RequestHeader(value = "Range", required = false) String rangeHeader,
                                                                @PathVariable(name = "fileId") @Valid @NotNull long fileId,
                                                                @RequestParam(name = "t") String token) {
+        String username = dbWorldUtils.getUserFromToken(token);
+        if(username == null || username.isBlank()){
+            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
+        }
         Path path = null;
         if (video_cache.containsKey(fileId)) {
             path = Path.of(video_cache.get(fileId));
@@ -123,7 +125,11 @@ public class StreamController {
     @GetMapping(value = "/download/{fileId}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public CompletableFuture<ResponseEntity<InputStreamResource>> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
                                                                               @PathVariable(name = "fileId") @Valid @NotNull long fileId,
-                                                                              @RequestParam("t") String token) throws AuthenticationException {
+                                                                              @RequestParam("t") String token) {
+        String username = dbWorldUtils.getUserFromToken(token);
+        if(username == null || username.isBlank()){
+            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
+        }
         Path path = null;
         if (video_cache.containsKey(fileId)) {
             path = Path.of(video_cache.get(fileId));
