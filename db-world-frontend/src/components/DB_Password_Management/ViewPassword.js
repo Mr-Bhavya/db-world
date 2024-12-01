@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ToastContainer, toast, } from 'react-toastify';
-import Authentication from '../Authentication';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import { v1 as uuidv1 } from 'uuid';
@@ -11,7 +10,6 @@ import { Button, Modal } from 'react-bootstrap';
 function ViewPassword() {
 
     const navigate = useNavigate();
-    const [userData, setUserData] = useState({});
     const [loader, setLoader] = useState(true);
     const [credentialsCache, setCredentialsCache] = useState([]);
     const [credentials, setCredentials] = useState([]);
@@ -73,7 +71,7 @@ function ViewPassword() {
         let updateCredentialRes = await updateCredential(pmId, { id: credentialId, url: `https://${host}`, username, password, pin, notes })
         if (updateCredentialRes.httpStatusCode === 200) {
             toast.success(updateCredentialRes.message);
-            getUserCredentials(userData.userId)
+            getUserCredentials()
         } else if (updateCredentialRes.httpStatusCode === 401) {
             toast.error(updateCredentialRes.message,
                 {
@@ -90,7 +88,7 @@ function ViewPassword() {
     }
 
 
-    const getUserCredentials = async (userId) => {
+    const getUserCredentials = async () => {
         let getCredentialRes = await getCredential()
         if (getCredentialRes.httpStatusCode === 200) {
             setCredentialsCache(getCredentialRes.data)
@@ -121,14 +119,7 @@ function ViewPassword() {
     }
 
     useEffect(() => {
-        let authenticationRes = Authentication({ redirectTo: Constants.DB_VIEW_PASSWORD_ROUTE });
-        if (authenticationRes.login) {
-            setUserData(authenticationRes.user);
-            getUserCredentials(authenticationRes.user.userId);
-        }
-        else {
-            navigate(authenticationRes.redirectUrl, { replace: true });
-        }
+        getUserCredentials();
     }, [])
 
     const onDeleteCredential = async () => {
@@ -136,7 +127,7 @@ function ViewPassword() {
         let deleteCredentialRes = await deleteCredentialByCredentialId(formCredential?.credentialId)
         if (deleteCredentialRes.httpStatusCode === 200) {
             toast.success(deleteCredentialRes.message);
-            getUserCredentials(userData.userId);
+            getUserCredentials();
         }
         else if (deleteCredentialRes.httpStatusCode === 401) {
             navigate(Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
@@ -154,7 +145,7 @@ function ViewPassword() {
             let deleteHostRes = await deleteHostById(pmId);
             if (deleteHostRes.httpStatusCode === 200) {
                 toast.success(deleteHostRes.message);
-                getUserCredentials(userData.userId);
+                getUserCredentials();
             }
             else if (deleteHostRes.status === 401) {
                 navigate(await Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));

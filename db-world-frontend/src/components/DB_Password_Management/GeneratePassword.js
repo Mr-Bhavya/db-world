@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Authentication from '../Authentication';
 import Constants from '../Constants';
 
 function GeneratePassword() {
@@ -9,8 +8,6 @@ function GeneratePassword() {
     const [generatedPassword, setGeneratedPassword] = useState("");
     const [passwordLength, setPasswordLength] = useState(8);
     const [isPasswordGenerated, setIsPasswordGenerated] = useState(false);
-    const [userData, setUserData] = useState({});
-    const navigate = useNavigate();
 
     const onInputChange = (e) => {
         if (e.target.id === "passwordLength") {
@@ -97,16 +94,16 @@ function GeneratePassword() {
         }
     }
 
-    useEffect(() => {
-        let authenticationRes = Authentication({ redirectTo: Constants.DB_GENERATE_PASSWORD_ROUTE });
-        console.log(authenticationRes);
-        if (authenticationRes.login) {
-            setUserData(authenticationRes.user);
-        }
-        else {
-            navigate(authenticationRes.redirectUrl, { replace: true });
-        }
-    }, [])
+    // useEffect(() => {
+    //     let authenticationRes = Authentication({ redirectTo: Constants.DB_GENERATE_PASSWORD_ROUTE });
+    //     console.log(authenticationRes);
+    //     if (authenticationRes.login) {
+    //         setUserData(authenticationRes.user);
+    //     }
+    //     else {
+    //         navigate(authenticationRes.redirectUrl, { replace: true });
+    //     }
+    // }, [])
 
     return (
         <div className="card mx-3 my-2" style={{ background: "rgba(255 ,255 ,255, 0.9)" }}>

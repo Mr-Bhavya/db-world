@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
-import { useNavigate } from "react-router";
+import { Navigate, useNavigate } from "react-router";
 import { Link } from "react-router-dom"
 import { reloadMovies } from "../../redux/action/allActions"
 import Constants from "../Constants";
@@ -184,7 +184,7 @@ function SingleMovie(props) {
                                     /* Movie Edit Button */
                                     <div className="col-2 ">
                                         <Link type="button" className="btn btn-success btn-sm"
-                                            to={Constants.EDIT_RECORD_ROUTE + "?_id=" + movie.recordId}
+                                            to={Constants.EDIT_RECORD_ROUTE.replace(":title", movie.recordId + "-" + movie.name.toLowerCase().replaceAll(/ /g, "-"))}
                                             state={movie}
                                         >📝</Link>
                                     </div> : ""
@@ -232,14 +232,22 @@ function SingleMovie(props) {
                         {/* Movie Image */}
                         <Col xs={5}
                             style={{ cursor: "pointer" }}
-                            onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
+                            onClick={() => navigate(
+                                movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
+                                    ? Constants.DB_MOVIE_DETIALS_ROUTE.replace(":title", movie.recordId + "-" + movie.name.toLowerCase().replace(/ /g, "-"))
+                                    : Constants.DB_SERIES_DETIALS_ROUTE.replace(":title", movie.recordId + "-" + movie.name.toLowerCase().replace(/ /g, "-"))
+                            )}
                         >
                             <img src={`https://image.tmdb.org/t/p/w500${movie.tmdbData.poster_path}`} alt={movie.name}
                                 style={{ maxHeight: "12rem", maxWidth: "10rem", width: "100%", height: "auto" }}
                             />
                             <div>
                                 <div className="btn btn-secondary-dark btn-sm border-top border-dark w-100 m-0 p-0" style={{ display: "inline-block", maxWidth: "10rem" }}
-                                    onClick={() => navigate((movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE) + `?id=${movie.recordId}`)}
+                                    onClick={() => navigate(
+                                        movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
+                                            ? Constants.DB_MOVIE_DETIALS_ROUTE.replace(":title", movie.recordId + "-" + movie.name.toLowerCase().replace(/ /g, "-"))
+                                            : Constants.DB_SERIES_DETIALS_ROUTE.replace(":title", movie.recordId + "-" + movie.name.toLowerCase().replace(/ /g, "-"))
+                                    )}
                                 >
 
                                     <img
@@ -375,7 +383,7 @@ function SingleMovie(props) {
                     {/* </Container> */}
                 </Card.Body>
                 {/* <hr /> */}
-            </Card>
+            </Card >
     }
 
     else {

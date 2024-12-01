@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Authentication from '../Authentication';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import Map from './Map';
@@ -84,25 +83,8 @@ function Weather() {
     }
 
     useEffect(() => {
-        CommonServices.valiadteToken().then(async isValidToken => {
-            if (isValidToken) {
-                let authenticationRes = Authentication({ redirectTo: Constants.DB_WEATHER_ROUTE });
-                if (authenticationRes.login) {
-                    getGeoLocationDetails();
-                } else {
-                    navigate(authenticationRes.redirectUrl);
-                }
-            }
-        }).catch(err => {
-            console.log(err);
-        });
+        getGeoLocationDetails()
     }, [])
-
-    // const onCitySubmit = () => {
-    //     getWeatherFromCity();
-    // }
-
-    // Authrize();
 
     return (
 

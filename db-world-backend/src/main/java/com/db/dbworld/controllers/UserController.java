@@ -63,12 +63,12 @@ public class UserController {
         return new ApiResponse<>(HttpStatus.OK, true, updatedUser);
     }
 
-    @GetMapping("/{userId}/role")
+    @GetMapping("/role")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> getUserRole(@PathVariable(value = "userId") Long userId) {
-        UserDto.UserRole userRole = this.userService.getRoleByUserId(userId, "username");
+    public ApiResponse<Map<String, Object>> getUserRole() {
+        UserDto.UserRole userRole = this.userService.getRoleForUser();
         Map<String, Object> response = new HashMap<>();
-        response.put("userId", userId);
+        response.put("userId", userService.getUserIdFromToken());
         response.put("role", userRole);
         return new ApiResponse<>(HttpStatus.OK, true, response);
     }

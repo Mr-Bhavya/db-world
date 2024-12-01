@@ -11,21 +11,11 @@ import WatchlistIcon from "../SubComponents/WatchlistIcon";
 function SeriesDetails() {
 
     let user = JSON.parse(localStorage.getItem("user"))
-    console.log(user);
-    const parseQuery = (search) => {
-        search = search.split("?")[1].split("&");
-        let queryParam = {};
-        search = search.map((query) => {
-            let key = query.split("=")[0];
-            let value = query.split("=")[1];
-            queryParam[key] = value;
-        })
-        return queryParam;
-    }
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { id, watch } = parseQuery(location.search);
+    const id = location?.pathname?.split("/")?.pop()?.split("-")[0];
+    const [watch, setWatch] = useState(null);
     const [seriesData, setSereisData] = useState("");
     const [loader, setLoader] = useState(true);
     const [cast, setCast] = useState([]);
@@ -71,7 +61,9 @@ function SeriesDetails() {
         }
     }
     useEffect(() => {
-        getMovie()
+        if (id) {
+            getMovie()
+        }
     }, []);
 
     if (seriesData.tmdbData) {

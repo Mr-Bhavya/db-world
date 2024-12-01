@@ -1,7 +1,7 @@
 import axios from 'axios'
 const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
 
-export const login = async (email, password) => {
+export const doLogin = async (email, password) => {
     let response = await fetch(REACT_APP_BASEURL + "/api/auth/login", {
         method: "POST",
         headers: {
@@ -57,8 +57,8 @@ export const getAllUsers = async () => {
     return response.json();
 }
 
-export const getUserRole = async (userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/role`, {
+export const getUserRole = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/role`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }

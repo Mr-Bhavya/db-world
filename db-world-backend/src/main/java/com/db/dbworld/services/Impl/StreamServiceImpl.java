@@ -59,9 +59,6 @@ public class StreamServiceImpl implements StreamService {
             httpStatus = HttpStatus.OK;
         }
         return CompletableFuture.completedFuture(ResponseEntity.status(httpStatus)
-//                .header("Cache-Control", "no-cache, no-store, must-revalidate")
-//                .header("Pragma", "no-cache")
-//                .header("Expires", "0")
                 .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
                 .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
                 .header(DbWorldConstants.CONTENT_LENGTH_HEADER, contentLength)
