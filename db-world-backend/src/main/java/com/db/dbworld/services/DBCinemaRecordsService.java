@@ -3,6 +3,7 @@ package com.db.dbworld.services;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
 import org.springframework.data.domain.PageImpl;
@@ -19,8 +20,8 @@ public interface DBCinemaRecordsService {
     void deleteRecord(Long recordId);
 
     List<DBCinemaRecordsDto> getRecords();
-
-    PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages);
+    
+    PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages, String genres);
 
     DBCinemaRecordsDto getRecordById(Long recordId);
 
@@ -43,4 +44,6 @@ public interface DBCinemaRecordsService {
     Map<String, Object> getStatusOfRecordsUpdate();
 
     boolean isRecordsUpdateRunning();
+
+    List<GenresDto> getAllGenres();
 }

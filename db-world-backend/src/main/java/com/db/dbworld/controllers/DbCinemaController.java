@@ -3,6 +3,7 @@ package com.db.dbworld.controllers;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
@@ -37,13 +38,14 @@ public class DbCinemaController {
             @Valid @NotEmpty @PathVariable("recordType") String recordType,
             @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
             @RequestParam(value = "size", required = false, defaultValue = "12") int pageSize,
-            @RequestParam(required = false, defaultValue = "all") String languages
+            @RequestParam(required = false, defaultValue = "") String languages,
+            @RequestParam(required = false, defaultValue = "") String genres
     ){
         if (!recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) && !recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
             return new ApiResponse<>(HttpStatus.BAD_REQUEST, false, "record type must be movie or series.");
         }
         PageImpl<DBCinemaRecordsDto> page = dbCinemaRecordsService
-                .getRecordsByPagination(recordType, pageNumber, pageSize, languages);
+                .getRecordsByPagination(recordType, pageNumber, pageSize, languages.isBlank() ? null : languages, genres.isEmpty() ? null : genres);
         ResponsePayloads.PaginationRecords paginationRecords = new ResponsePayloads.PaginationRecords(
                 page.getNumber(),
                 page.getSize(),
@@ -117,6 +119,13 @@ public class DbCinemaController {
     public ApiResponse<List<DBCinemaRecordsDto>> getWatchListCinemaRecords(){
         List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsService.getWatchListCinemaRecords();
         return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecordsDtos);
+    }
+
+    @GetMapping("/genres")
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    public ApiResponse<List<GenresDto>> getAllGenres(){
+        List<GenresDto> genresDtoList = dbCinemaRecordsService.getAllGenres();
+        return new ApiResponse<>(HttpStatus.OK, true, genresDtoList);
     }
 
 }

@@ -461,11 +461,10 @@ public class UtilsServiceImpl implements UtilsService {
                                             ytProcessStatus.getTotal_bytes()
                                     );
                                     log.info("Status: {}", ytProcessStatus.getStatus());
-                                    if (ytProcessStatus.getStatus().equalsIgnoreCase("finished")) {
+                                    if (ytProcessStatus.getStatus().equalsIgnoreCase("finished") && !isFileNameFetch) {
                                         MirrorStatus temp = statusService.getStatusById(mirrorStatus.getId());
                                         String[] tempArray = getYtOutputFileName(temp).split("\\.");
                                         String fileExtension = "." + tempArray[tempArray.length - 1];
-                                        log.info(fileExtension);
                                         temp.setFileName((mirrorStatus.getFileName() + fileExtension));
                                         temp.setFilePath(mirrorStatus.getFilePath() + fileExtension);
                                         temp.setTempFileName(mirrorStatus.getTempFileName() + fileExtension);

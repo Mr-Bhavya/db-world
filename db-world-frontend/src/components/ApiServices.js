@@ -158,12 +158,12 @@ export const deleteDbCinemaRecord = async (recordId) => {
     return await response.json();
 }
 
-export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList) => {
+export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList, genres) => {
 
     var api = "";
     if (industry === "all") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.all}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.all}&languages=all`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.all}`
     }
     else if (industry === "bollywood") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.bollywood}`
@@ -184,6 +184,11 @@ export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList)
     else if (industry === "gujarati") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.gujarati}`
         api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
+    }
+
+    console.log(genres);
+    if(genres && genres.length > 0){
+        api += `&genres=${genres.join(",")}`
     }
 
     const response = await fetch(api, {
@@ -281,6 +286,16 @@ export const watchedRecord = async (recordId) => {
 
 export const unWatchedRecord = async (recordId) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatch`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
+export const getGenresList = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/genres`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")

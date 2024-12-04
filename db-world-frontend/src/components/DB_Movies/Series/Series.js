@@ -7,7 +7,7 @@ import SingleMovie from "../SingleMovie";
 import { useSelector, useDispatch } from "react-redux";
 import LoadingSpinner from "../../LoadingSpinner";
 import { reloadMovies, seriesPageNumber, filterSelection, seriesPageNumber_b, seriesPageNumber_h, seriesPageNumber_s, seriesPageNumber_g } from '../../../redux/action/allActions'
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import Constants from "../../Constants";
 import { loadDbCinemaRecords } from "../../ApiServices";
 import Pagination from "../SubComponents/Pagination";
@@ -15,6 +15,7 @@ import { Col, Row } from "react-bootstrap";
 
 function Series(props) {
     const dispatch = useDispatch();
+    const location = useLocation();
     const [movieList, setMovieList] = useState([])
     const reload = useSelector(state => state.reloadMoviesReducer)
     const [loading, setLoading] = useState(false);
@@ -55,7 +56,7 @@ function Series(props) {
 
     const loadMovies = async () => {
         setLoading(true);
-        const response = await loadDbCinemaRecords(filter.seriesIndustry, filter.catagory, seriesPageNumberList);
+        const response = await loadDbCinemaRecords(filter.seriesIndustry, filter.catagory, seriesPageNumberList, filter.genres);
         if (response && response.httpStatusCode === 200) {
             setMovieList(response.data.records)
             setDisPageNumber(parseInt(response.data.pageNumber) + 1);
@@ -63,7 +64,7 @@ function Series(props) {
             setLoading(false);
         } else {
             alert(response.message);
-            navigate(`${Constants.LOGIN_ROUTE}?redirectTo=${Constants.DB_MOVIES_ROUTE}`, { replace: true });
+            <Navigate to={Constants.DB_WORLD_HOME_ROUTE} state={{from:location}} />
         }
 
 
