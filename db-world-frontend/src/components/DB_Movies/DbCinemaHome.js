@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Search from "./Search/Search";
@@ -9,16 +9,16 @@ import Movie from "./Movies/Movie";
 import Series from "./Series/Series";
 import { useSelector } from "react-redux";
 import { filterSelection } from '../../redux/action/allActions'
-// import Authentication from "../Authentication";
 import LoadingSpinner from "../LoadingSpinner";
 import Constants from "../Constants";
-import { getUserRole } from "../ApiServices";
+import { getGenresList, getUserRole } from "../ApiServices";
 import Stream from "./Stream/Stream";
 import MyWatchlist from "./MyWatchlist";
 import Authentication from "../../contexts/Authentication";
+import { Button, Form, Modal } from "react-bootstrap";
 
 
-function MovieHome() {
+function DbCinemaHome() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [userData, setUserData] = useState(useSelector(state => state.userReducer));
@@ -30,6 +30,10 @@ function MovieHome() {
     const [userRole, SetUserRole] = useState(Authentication.useAuth()?.auth.role);
     const [searchFieldValue, setSearchFieldValue] = useState("");
     const [isSerachInputEnable, setIsSearchInputEnable] = useState(false);
+    const [showGenersModal, setShowGenersModal] = useState(false);
+    const [genresList, setGenresList] = useState(null);
+    const [selectedGenres, setSelectedGenres] = useState([]);
+    const location = useLocation();
 
     const toggleVisibility = () => {
         if (window.pageYOffset > 0) {
@@ -46,33 +50,30 @@ function MovieHome() {
         });
     };
 
-    const checkUserRole = async (userId) => {
+    const getAllGenres = async () => {
 
-        let roleRes = await getUserRole(userId);
-        if (roleRes.httpStatusCode === 200) {
-            SetUserRole(roleRes.data.role.name);
-            setLoader(false);
-        } else if (roleRes.httpStatusCode === 401 || roleRes.httpStatusCode === 400) {
-            navigate(await Constants.REDIRECT(Constants.DB_MOVIES_ROUTE), { replace: true });
+        const res = await getGenresList();
+        if (res.httpStatusCode === 200) {
+            setGenresList(res.data);
+        } else if (res.httpStatusCode === 401) {
+            <Navigate to={Constants.LOGIN_ROUTE} state={{ from: location }} />
+        }
+
+    }
+
+    const onGenresCheckboxChange = (event) => {
+        console.log(event.target.checked)
+        let value = parseInt(event.target.value);
+        if (event.target.checked) {
+            setSelectedGenres([...selectedGenres, value]);
         } else {
-            toast.error(roleRes.message)
+            setSelectedGenres(selectedGenres.filter((id) => id !== value));
         }
     }
 
     useEffect(() => {
-        // setLoader(true);
-        // let authenticationRes = Authentication({ redirectTo: Constants.DB_MOVIES_ROUTE });
-        // if (authenticationRes.login) {
-        //     setUserData(authenticationRes.user);
-        //     window.addEventListener("scroll", toggleVisibility);
-        //     checkUserRole(authenticationRes.user.userId);
-        // }
-        // else {
-        //     navigate(authenticationRes.redirectUrl, { replace: true });
-        // }
-        // setUserData(auth.user);
-        // SetUserRole(auth.role);
         window.addEventListener("scroll", toggleVisibility);
+        getAllGenres();
     }, [])
 
     useEffect(() => {
@@ -87,8 +88,6 @@ function MovieHome() {
         e.preventDefault();
         dispatch(searchQuery(e.target.value))
         setSearchFieldValue(e.target.value)
-        // dispatch(searchQuery(searchFieldValue));
-        // setIsSearchInputEnable(false);
     }
 
     let searchInput =
@@ -159,8 +158,65 @@ function MovieHome() {
                             <ul className="nav nav-pills border rounded m-1" role="tablist" style={{ background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px", overflowY: "auto", flexWrap: "nowrap", textWrap: "nowrap" }} >
                                 <li className="nav-item mx-2 my-1">
                                     <button
+                                        className={navLinkActive === "genres" ? "btn btn-dark" : "btn btn-outline-secondary"}
+                                        to="#genres"
+                                        data-toggle="tab"
+                                        onClick={() => {
+                                            // dispatch(reloadMovies())
+                                            setShowGenersModal(true);
+                                            // setIsSearchInputEnable(false);
+                                            // dispatch(filterSelection({
+                                            //     ...filter, catagory: "movie"
+                                            // }))
+                                        }
+                                        }
+                                    >
+                                        Genres🔻
+                                    </button>
+
+                                    <Modal show={showGenersModal} onHide={() => setShowGenersModal(false)}>
+                                        <Modal.Header closeButton>
+                                            <Modal.Title>Filter On genres</Modal.Title>
+                                        </Modal.Header>
+                                        <Modal.Body>
+                                            {
+                                                genresList ? genresList.map((genres) => {
+                                                    return <Form.Check
+                                                        inline
+                                                        label={genres.name}
+                                                        name={genres.name}
+                                                        type='checkbox'
+                                                        id={genres.id}
+                                                        value={genres.id}
+                                                        checked={selectedGenres.includes(genres.id)}
+                                                        onChange={onGenresCheckboxChange}
+                                                    />
+                                                }) : ""
+                                            }
+                                        </Modal.Body>
+                                        <Modal.Footer>
+                                            <Button variant="secondary" onClick={() => setShowGenersModal(false)}>
+                                                Close
+                                            </Button>
+                                            <Button variant="warning" onClick={() => setSelectedGenres([])}>
+                                                Clear Filter
+                                            </Button>
+                                            <Button variant="primary" onClick={() => {
+                                                dispatch(filterSelection({
+                                                    ...filter, genres: selectedGenres
+                                                }))
+                                                setShowGenersModal(false);
+                                            }}>
+                                                Apply
+                                            </Button>
+                                        </Modal.Footer>
+                                    </Modal>
+
+                                </li>
+                                <li className="nav-item mx-2 my-1">
+                                    <a
                                         className={navLinkActive === "movie" ? "btn btn-dark" : "btn btn-outline-secondary"}
-                                        to="#movie"
+                                        href="#movie"
                                         data-toggle="tab"
                                         onClick={() => {
                                             // dispatch(reloadMovies())
@@ -173,7 +229,7 @@ function MovieHome() {
                                         }
                                     >
                                         Movies
-                                    </button>
+                                    </a>
                                 </li>
                                 <li className="nav-item mx-2 my-1">
                                     <a
@@ -193,7 +249,7 @@ function MovieHome() {
                                     </a>
                                 </li>
                                 <li className="nav-item mx-2 my-1">
-                                    <button
+                                    <a
                                         className={navLinkActive === "watchlist" ? "btn btn-dark" : "btn btn-outline-secondary"}
                                         href="#watchlist" data-toggle="tab"
                                         onClick={() => {
@@ -207,7 +263,7 @@ function MovieHome() {
                                         }
                                     >
                                         My Watchlist
-                                    </button>
+                                    </a>
                                 </li>
 
                                 <li className="nav-item mx-2 my-1">
@@ -257,9 +313,9 @@ function MovieHome() {
                         </div >
                     </div>
             }
-        </div>
+        </div >
     )
 
 }
 
-export default MovieHome;
+export default DbCinemaHome;

@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 // import './App.css';
 import Header from './components/Header';
-import Footer from './components/Footer';
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import MovieHome from './components/DB_Movies/MovieHome';
+import DbCinemaHome from './components/DB_Movies/DbCinemaHome';
 import Login from './components/Login';
 import LogOut from './components/LogOut';
 import Registration from './components/DB_Users/registration';
@@ -11,12 +10,10 @@ import Weather from './components/DB_Weather/weather';
 import TicTacToe from './components/DB_Games/TicTacToe';
 import SeriesDetails from './components/DB_Movies/Series/SeriesDetails';
 import Home from './components/Home';
-// import { useSelector } from 'react-redux';
 import ErrorPage from './components/ErrorPage';
 import Search from './components/DB_Movies/Search/Search';
 import MovieDetails from './components/DB_Movies/Movies/MovieDetails';
 import MovieDetailsDesktop from './components/DB_Movies/Movies/MovieDetailsDesktop';
-// import LoadingSpinner from './components/LoadingSpinner';
 import PasswordManagment from './components/DB_Password_Management/PasswordManagement';
 import GeneratePassword from './components/DB_Password_Management/GeneratePassword';
 import AddPassword from './components/DB_Password_Management/AddPassword';
@@ -65,7 +62,8 @@ function App() {
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-          <Route exact path={Constants.DB_MOVIES_ROUTE} element={<MovieHome />} />
+import DbCinemaHome from './components/DB_Movies/DbCinemaHome';
+          <Route exact path={Constants.DB_MOVIES_ROUTE} element={<DbCinemaHome />} />
           <Route path={Constants.DB_ADD_PASSWORD_ROUTE} element={<AddPassword />} />
           <Route path={Constants.DB_GENERATE_PASSWORD_ROUTE} element={<GeneratePassword />} />
           <Route path={Constants.DB_VIEW_PASSWORD_ROUTE} element={<ViewPassword />} />

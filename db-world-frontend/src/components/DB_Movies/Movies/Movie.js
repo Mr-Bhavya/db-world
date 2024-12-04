@@ -6,7 +6,7 @@ import ButtonToolbar from 'react-bootstrap/ButtonToolbar';
 import SingleMovie from '../SingleMovie';
 import LoadingSpinner from '../../LoadingSpinner';
 import { filterSelection } from '../../../redux/action/allActions'
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import Constants from "../../Constants";
 import { loadDbCinemaRecords } from "../../ApiServices";
 import Pagination from "../SubComponents/Pagination";
@@ -14,6 +14,7 @@ import { CardGroup, Col, Container, Row } from "react-bootstrap";
 
 function Movie(props) {
     const dispatch = useDispatch();
+    const location = useLocation();
     const [movieList, setMovieList] = useState([])
     const [loading, setLoading] = useState(true);
     const userData = props.userData;
@@ -54,7 +55,7 @@ function Movie(props) {
 
     const loadMovies = async () => {
         setLoading(true);
-        const response = await loadDbCinemaRecords(filter.movieIndustry, filter.catagory, moviePageNumberList);
+        const response = await loadDbCinemaRecords(filter.movieIndustry, filter.catagory, moviePageNumberList, filter.genres);
         if (response && response.httpStatusCode === 200) {
             setMovieList(response.data.records)
             setDisPageNumber(parseInt(response.data.pageNumber) + 1);
@@ -62,7 +63,8 @@ function Movie(props) {
             setLoading(false);
         } else {
             // alert(response.message);
-            navigate(`${Constants.LOGIN_ROUTE}?redirectTo=${Constants.DB_MOVIES_ROUTE}`, { replace: true });
+            <Navigate to={Constants.DB_WORLD_HOME_ROUTE} state={{from:location}} />
+            // navigate(`${Constants.LOGIN_ROUTE}?redirectTo=${Constants.DB_MOVIES_ROUTE}`, { replace: true });
         }
     }
 

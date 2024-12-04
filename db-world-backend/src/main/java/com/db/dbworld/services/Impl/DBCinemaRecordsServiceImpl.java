@@ -1,6 +1,7 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.dbcinema.DBCinemaRecordsRepository;
+import com.db.dbworld.dao.dbcinema.tmdb.GenresRepository;
 import com.db.dbworld.dao.dbcinema.tmdb.TmdbDataRepository;
 import com.db.dbworld.dao.dbcinema.user.UserRecordDataRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
@@ -18,6 +19,7 @@ import com.db.dbworld.exceptions.TmdbApiException;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
@@ -37,6 +39,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
@@ -74,6 +77,9 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Autowired
     private UserRecordDataRepository userRecordDataRepository;
+
+    @Autowired
+    private GenresRepository genresRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -165,21 +171,37 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages) {
+    public PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages, String genres) {
 
         try {
             Long userId = userService.getUserIdFromToken();
             Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            Integer[] genresArray = null;
 
-            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = languages.equalsIgnoreCase(ALL_LANGUAGES) ?
-                    dbCinemaRecordsRepository.findRecordsByUserAndType(userId, recordType, pageable)
-                    :
-                    dbCinemaRecordsRepository.findRecordsByUserAndTypeAndLanguages(userId, recordType, Arrays.stream(languages.split(",")).toList(), pageable);
+            if (genres != null) {
+                List<Integer> list = Arrays.stream(genres.split(",")).map(Integer::parseInt).toList();
+                genresArray = new Integer[list.size()];
+                genresArray = list.toArray(genresArray);
+            }
 
-            Long totalElements = languages.equalsIgnoreCase(ALL_LANGUAGES) ?
-                    dbCinemaRecordsRepository.countRecordsByType(recordType).orElse(0L)
-                    :
-                    dbCinemaRecordsRepository.countRecordsByTypeAndLanguages(recordType, Arrays.stream(languages.split(",")).toList()).orElse(0L);
+            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = null;
+            Long totalElements = null;
+            if (languages != null && genres != null) {
+                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType,
+                        genresArray, languages.split(","), pageable);
+                totalElements = dbCinemaRecordsRepository.countRecords(
+                        recordType, genresArray, languages.split(",")
+                ).orElse(0L);
+            } else if (languages == null && genres != null) {
+                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType, genresArray, pageable);
+                totalElements = dbCinemaRecordsRepository.countRecords(recordType, genresArray).orElse(0L);
+            } else if (languages != null) {
+                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType, languages.split(","), pageable);
+                totalElements = dbCinemaRecordsRepository.countRecords(recordType, languages.split(",")).orElse(0L);
+            } else {
+                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType, pageable);
+                totalElements = dbCinemaRecordsRepository.countRecords(recordType).orElse(0L);
+            }
 
             List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsEntities.stream().map(
                     dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity))
@@ -332,6 +354,12 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Override
     public boolean isRecordsUpdateRunning() {
         return updateRecordsFromTmdb.containsKey("running") && (Boolean) updateRecordsFromTmdb.get("running");
+    }
+
+    @Override
+    public List<GenresDto> getAllGenres() {
+        List<GenresEntity> genresEntities = genresRepository.findAll(Sort.by("name").ascending());
+        return genresEntities.stream().map(genresEntity -> this.modelMapper.map(genresEntity, GenresDto.class)).toList();
     }
 
     @Override
