@@ -79,7 +79,7 @@
         </RollingFile>
 
         <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" filePattern="${LOG_FILE_PATH}%d{MM-dd-yyyy}/dbworld-%d{MM-dd-yyyy}.log.gz"
-                     ignoreExceptions="true" target="SYSTEM_OUT">
+                     ignoreExceptions="true">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <TimeBasedTriggeringPolicy/>
             <Filters>

@@ -158,35 +158,36 @@ export const deleteDbCinemaRecord = async (recordId) => {
     return await response.json();
 }
 
-export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList, genres) => {
+export const loadDbCinemaRecords = async (industry, type, genres, pageNumber) => {
 
     var api = "";
     if (industry === "all") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.all}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.all}`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}`
     }
     else if (industry === "bollywood") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.bollywood}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.bollywood}&languages=hi`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=hi`
     }
     else if (industry === "hollywood") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.hollywood}&languages=en`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=en`
     }
     else if (industry === "korean") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.korean}&languages=ko`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=ko`
     }
     else if (industry === "south") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.south}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.south}&languages=ta,te,ml,kn`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=ta,te,ml,kn`
     }
     else if (industry === "gujarati") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.gujarati}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=gu`
     }
 
-    console.log(genres);
+    // api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
+
     if(genres && genres.length > 0){
         api += `&genres=${genres.join(",")}`
     }

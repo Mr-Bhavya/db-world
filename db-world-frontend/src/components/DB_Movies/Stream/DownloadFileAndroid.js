@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { CapacitorHttp, Plugins } from '@capacitor/core';
+// import { CapacitorHttp, Plugins } from '@capacitor/core';
 import CommonServices from '../../CommonServices';
 import { Directory, Filesystem } from '@capacitor/filesystem';
-import axios from 'axios';
+// import axios from 'axios';
 import { useDispatch, useSelector } from 'react-redux';
 import { getDownloadStatus, updateDownloadStatus } from '../../../redux/action/allActions';
 import Constants from '../../Constants';
 import { toast } from 'react-toastify';
 
-const { NotificationPlugin } = { Plugins }; // Assuming you created a custom plugin for notifications
+// const { NotificationPlugin } = { Plugins }; // Assuming you created a custom plugin for notifications
 
 const DownloadFileAndroid = ({ file }) => {
   const [downloadLoder, setDownloadLoader] = useState(false);
@@ -16,7 +16,6 @@ const DownloadFileAndroid = ({ file }) => {
   var currentFileStatus = useSelector(state => state.downloadProgressReducer);
 
   const setDownloadStatusInLocal = (file, progress) => {
-    console.log("In setDownloadStatusInLocal")
     let downloadFileStatus = JSON.parse(localStorage.getItem("downloadFileStatus"));
     downloadFileStatus[file.fileId] = { file, progress };
     dispatch(updateDownloadStatus(downloadFileStatus));
@@ -25,10 +24,7 @@ const DownloadFileAndroid = ({ file }) => {
 
   const downloadFile = async () => {
     setDownloadLoader(true);
-    const url = file.downloadUrl.replace("https://localhost", "https://db-world.in");
-    const fileSize = file.fileSize;
-    const chunkSize = 1024 * 1024 * 10;
-
+    const url = file.downloadUrl
     try {
       await Filesystem.deleteFile({
         directory: Directory.Documents,
@@ -83,65 +79,20 @@ const DownloadFileAndroid = ({ file }) => {
         "message": ex
       })
     }
-
-    // let downloadedBytes = 0;F
-    // let fileChunks = [];
-
-    // // 2. Download the file in chunks
-    // while (downloadedBytes < fileSize) {
-    //   const endRange = Math.min(downloadedBytes + chunkSize, fileSize - 1);
-    //   console.log(`Downloading bytes: ${downloadedBytes}-${endRange}`);
-
-    //   // 3. Send a Range request for the chunk
-    //   const chunkResponse = await axios({
-    //     method: 'GET',
-    //     url: url,
-    //     responseType: 'blob',
-    //     progress: true,
-    //     timeout: 0,
-    //     headers: {
-    //       Range: `bytes=${downloadedBytes}-${endRange}`,
-    //     },
-    //     responseType: 'blob', // Download the chunk as a blob
-    //     onDownloadProgress: (progressEvent) => {
-    //       setDownloadStatusInLocal({
-    //         "loaded": progressEvent.loaded,
-    //         "total": file.fileSize,
-    //         "pending": file.fileSize - progressEvent.loaded,
-    //         "percentage": progressEvent.progress,
-    //         "estimated": progressEvent.estimated,
-    //         "download": progressEvent.download,
-    //         "rate": progressEvent.rate
-    //       })
-    //       const percentComplete = Math.round(
-    //         (progressEvent.loaded / fileSize) * 100
-    //       );
-    //       setDownloadProgress(percentComplete);
-    //     },
-    //   });
-
-    //   fileChunks.push(chunkResponse.data); // Store the chunk
-    //   downloadedBytes = endRange + 1;
-    // }
-    // // 4. Merge the chunks into a single Blob
-    // const fullFileBlob = new Blob(fileChunks);
-
-    // // 5. Convert the Blob to base64 and save it using Capacitor Filesystem
-    // const reader = new FileReader();
-    // reader.onloadend = async () => {
-    //   const base64Data = reader.result.split(',')[1];
-
-    //   // 6. Save the file using the Capacitor Filesystem API
-    //   await Filesystem.writeFile({
-    //     path: file.fileName, // Provide the desired file name
-    //     data: base64Data,
-    //     directory: Directory.Documents, // Store in the Documents directory
-    //   });
-
-    //   console.log('File downloaded and saved successfully!');
-    // };
-    // reader.readAsDataURL(fullFileBlob); // Convert Blob to base64
   };
+
+  useEffect(()=>{
+    const createUrls = () => {
+      let tempUrl = window.location.origin + "/api/stream/watch/" + file.fileId + "?t=" + localStorage.getItem("token");
+      if (window.location.port === "3000") {
+          tempUrl = tempUrl.replace("3000", "9000")
+      }
+      file["videoUrl"] = tempUrl;
+      tempUrl = tempUrl.replace("/watch", "/download")
+      file["downloadUrl"] = tempUrl;
+  }
+  createUrls();
+  }, [])
 
   useEffect(() => {
     let progress = {

@@ -1,5 +1,6 @@
 import Constants from "./Constants";
-import { addUser } from "../redux/action/allActions";
+import { addUser, moviePageNumber, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from "../redux/action/allActions";
+import { useDispatch } from "react-redux";
 
 const getTimeDateFromTimeStamp = (timestamp, timezone) => {
 
@@ -190,5 +191,6 @@ export default {
     handleCopy,
     getCurrentUser,
     removeUserFromLocal,
-    setUserInLocal
+    setUserInLocal,
+    // pageUpdate
 }
