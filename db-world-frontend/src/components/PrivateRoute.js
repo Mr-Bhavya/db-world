@@ -11,7 +11,6 @@ const PrivateRoute = ({ allowedRoles }) => {
     const [isValid, setIsValid] = useState(null);
     const [isAllowed, setIsAllowed] = useState(null);
     const location = useLocation();
-    const [loading, SetLoding] = useState(true);
 
     const validateSession = async () => {
         if (sessionCache.isValid && Date.now() - sessionCache.timestamp < 5 * 60 * 1000 && auth.isAuthenticated && auth.role) {

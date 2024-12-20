@@ -6,12 +6,12 @@ import ButtonToolbar from 'react-bootstrap/ButtonToolbar';
 import SingleMovie from "../SingleMovie";
 import { useSelector, useDispatch } from "react-redux";
 import LoadingSpinner from "../../LoadingSpinner";
-import { reloadMovies, seriesPageNumber, filterSelection, seriesPageNumber_b, seriesPageNumber_h, seriesPageNumber_s, seriesPageNumber_g } from '../../../redux/action/allActions'
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { reloadMovies, filterSelection } from '../../../redux/action/allActions'
+import { Navigate, useLocation } from "react-router-dom";
 import Constants from "../../Constants";
 import { loadDbCinemaRecords } from "../../ApiServices";
-import Pagination from "../SubComponents/Pagination";
 import { Col, Row } from "react-bootstrap";
+import InfiniteScroll from "react-infinite-scroll-component";
 
 function Series(props) {
     const dispatch = useDispatch();
@@ -21,28 +21,13 @@ function Series(props) {
     const [loading, setLoading] = useState(false);
     const userData = props.userData;
     const userRole = props.userRole;
-    const [disPageNumber, setDisPageNumber] = useState(0)
     const [totalPage, setTotalPage] = useState(0);
-    const seriesPageNumberList = useSelector(state => state.seriesPageNumberReducer)
     const filter = useSelector(state => state.filterSelectionReducer)
-    const [navLinkActive, setNavLinkActive] = useState(filter.seriesIndustry);
     const [windowSize, setWindowSize] = useState([
         window.innerWidth,
         window.innerHeight,
     ]);
 
-
-    const navigate = useNavigate();
-
-    const onReSize = () => {
-        const handleWindowResize = () => {
-            setWindowSize([window.innerWidth, window.innerHeight]);
-        };
-        window.addEventListener('resize', handleWindowResize);
-        return () => {
-            window.removeEventListener('resize', handleWindowResize);
-        };
-    }
 
     const displayCol = () => {
         let displayCol = "4";
@@ -55,45 +40,61 @@ function Series(props) {
     }
 
     const loadMovies = async () => {
-        setLoading(true);
-        const response = await loadDbCinemaRecords(filter.seriesIndustry, filter.catagory, seriesPageNumberList, filter.genres);
+        const response = await loadDbCinemaRecords(filter.seriesIndustry, filter.catagory, filter.genres, filter.page);
         if (response && response.httpStatusCode === 200) {
-            setMovieList(response.data.records)
-            setDisPageNumber(parseInt(response.data.pageNumber) + 1);
-            setTotalPage(parseInt(parseInt(response.data.totalElements) / parseInt(response.data.pageSize))+1);
+            if (filter.page == 0) {
+                setMovieList(response.data.records)
+            } else {
+                // let filtered = movieList.filter((item, index) => movieList.indexOf(item) === index)
+                setMovieList((prev) => [...prev, ...response.data.records])
+                setMovieList((prev) => prev.filter((item, index) => prev.indexOf(item) === index))
+            }
+            setTotalPage(response?.data?.totalElements)
+            dispatch(filterSelection({
+                ...filter,
+                page: filter.page + 1,
+                totalPages: response?.data?.totalElements
+            }))
             setLoading(false);
         } else {
-            alert(response.message);
-            <Navigate to={Constants.DB_WORLD_HOME_ROUTE} state={{from:location}} />
+            <Navigate to={Constants.DB_WORLD_HOME_ROUTE} state={{ from: location }} />
         }
 
 
     }
 
+    const handleIndustryChange = (industry) => {
+        setMovieList([]);
+        dispatch(filterSelection({
+            ...filter,
+            catagory: "series",
+            seriesIndustry: industry,
+            page: 0,
+            totalPages: 0
+        }))
+        dispatch(reloadMovies())
+    }
+
     useEffect(() => {
-        onReSize();
-        loadMovies();
-    }, [reload, filter, seriesPageNumberList])
+        setLoading(true);
+        loadMovies()
+    }, [reload])
 
     return (
-        <>
-            <div className="mb-3 p-1 border rounded" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)"}}>
+        <InfiniteScroll
+            dataLength={movieList.length}
+            next={() => loadMovies()}
+            hasMore={totalPage !== movieList.length}
+            loader={Constants.LOADER}
+        >
+            <div className="mb-3 p-1 border rounded" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)" }}>
                 <ButtonToolbar aria-label="Toolbar with button groups" className="m-1" style={{ overflowX: "auto", flexWrap: "nowrap", textWrap: "nowrap" }}>
                     <ButtonGroup className="mx-2" aria-label="First group">
                         <Button
                             variant={filter.seriesIndustry === "all" ? "dark" : "outline-secondary"}
                             href="#all"
                             data-toggle="tab"
-                            onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("all")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "series",
-                                    seriesIndustry: "all"
-                                }))
-                            }
-                            }
+                            onClick={() => handleIndustryChange("all")}
                         >All</Button>
                     </ButtonGroup>
                     <ButtonGroup className="mx-2" aria-label="Second group">
@@ -101,17 +102,7 @@ function Series(props) {
                             variant={filter.seriesIndustry === "bollywood" ? "dark" : "outline-secondary"}
                             href="#bollywood"
                             data-toggle="tab"
-                            onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("bollywood")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "series",
-                                    seriesIndustry: "bollywood"
-                                }))
-                            }
-                            }
-                        >
+                            onClick={() => handleIndustryChange("bollywood")}                        >
                             Bollywood
                         </Button>
                     </ButtonGroup>
@@ -120,16 +111,7 @@ function Series(props) {
                             variant={filter.seriesIndustry === "hollywood" ? "dark" : "outline-secondary"}
                             href="#hollywood"
                             data-toggle="tab"
-                            onClick={() => {
-                                // setNavLinkActive("hollywood")
-                                // dispatch(moviePageNumber(0));
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "series",
-                                    seriesIndustry: "hollywood"
-                                }))
-                            }
-                            }
+                            onClick={() => handleIndustryChange("hollywood")}
                         >
                             Hollywood
                         </Button>
@@ -139,14 +121,7 @@ function Series(props) {
                             variant={filter.seriesIndustry === "korean" ? "dark" : "outline-secondary"}
                             href="#korean"
                             data-toggle="tab"
-                            onClick={() => {
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "series",
-                                    seriesIndustry: "korean"
-                                }))
-                            }
-                            }
+                            onClick={() => handleIndustryChange("korean")}
                         >
                             K-Drama
                         </Button>
@@ -156,16 +131,7 @@ function Series(props) {
                             variant={filter.seriesIndustry === "south" ? "dark" : "outline-secondary"}
                             href="#south"
                             data-toggle="tab"
-                            onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("south")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "series",
-                                    seriesIndustry: "south"
-                                }))
-                            }
-                            }
+                            onClick={() => handleIndustryChange("south")}
                         >
                             South
                         </Button>
@@ -175,16 +141,7 @@ function Series(props) {
                             variant={filter.seriesIndustry === "gujarati" ? "dark" : "outline-secondary"}
                             href="#gujarati"
                             data-toggle="tab"
-                            onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("gujarati")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "series",
-                                    seriesIndustry: "gujarati"
-                                }))
-                            }
-                            }
+                            onClick={() => handleIndustryChange("gujarati")}
                         >
                             Gujarati
                         </Button>
@@ -192,51 +149,24 @@ function Series(props) {
                 </ButtonToolbar>
             </div>
 
-            {!loading &&
-                <>
-                    <Row xs={12} md={displayCol()} className="m-1 p-0">
-                        {
-                            movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
-                                <Col xs="12" key={idx} className="p-0" >
-                                    <SingleMovie
-                                        movie={movie}
-                                        userData={userData}
-                                        id={movie.id}
-                                        userRole={userRole}
-                                    />
-                                </Col>
-                            ))
-                        }
-                    </Row>
+            <Row xs={12} md={displayCol()} className="m-1 p-0">
+                {
+                    movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
+                        <Col xs="12" key={idx} className="p-0" >
+                            <SingleMovie
+                                movie={movie}
+                                userData={userData}
+                                id={movie.id}
+                                userRole={userRole}
+                            />
+                        </Col>
+                    ))
+                }
+            </Row>
 
-                    {/* <div className="tab-content" id="myTabContent">
-                        <div className="tab-pane fade show active" id="all">
-                            <div className={`row row-cols-1 row-cols-md-${displayCol()} g-4`}>
-                                {movieList.sort(
-                                    (a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1)))
-                                    .map(movie => {
-                                    return (
-                                        <SingleMovie
-                                            movie={movie}
-                                            userData={userData}
-                                            id={movie.id}
-                                            userRole={userRole}
-                                        />
-                                    )
-                                })
-                                }
-                            </div>
-                        </div>
-                    </div> */}
-
-                    <div className="mx-5" >
-                        <Pagination filter={filter} page={{ totalPage, disPageNumber }} />
-                    </div>
-                </>
-            }
             {loading && <LoadingSpinner />}
 
-        </>
+        </InfiniteScroll>
     )
 }
 

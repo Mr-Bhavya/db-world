@@ -4,7 +4,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Search from "./Search/Search";
 import { useDispatch } from 'react-redux';
-import { searchQuery } from '../../redux/action/allActions'
+import { reloadMovies, searchQuery } from '../../redux/action/allActions'
 import Movie from "./Movies/Movie";
 import Series from "./Series/Series";
 import { useSelector } from "react-redux";
@@ -21,9 +21,8 @@ import { Button, Form, Modal } from "react-bootstrap";
 function DbCinemaHome() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const [userData, setUserData] = useState(useSelector(state => state.userReducer));
+    const userData = useState(useSelector(state => state.userReducer));
     const [isVisible, setIsVisible] = useState(false);
-    const query = useSelector(state => state.searchReducer);
     const filter = useSelector(state => state.filterSelectionReducer)
     const [navLinkActive, setnavLinkActive] = useState(filter.catagory)
     const [loader, setLoader] = useState(false);
@@ -35,13 +34,14 @@ function DbCinemaHome() {
     const [selectedGenres, setSelectedGenres] = useState([]);
     const location = useLocation();
 
-    const toggleVisibility = () => {
+    const handelScroll = () => {
+        // to enable top button
         if (window.pageYOffset > 0) {
             setIsVisible(true);
         } else {
             setIsVisible(false);
         }
-    };
+    }
 
     const scrollToTop = () => {
         window.scrollTo({
@@ -62,7 +62,6 @@ function DbCinemaHome() {
     }
 
     const onGenresCheckboxChange = (event) => {
-        console.log(event.target.checked)
         let value = parseInt(event.target.value);
         if (event.target.checked) {
             setSelectedGenres([...selectedGenres, value]);
@@ -72,21 +71,25 @@ function DbCinemaHome() {
     }
 
     useEffect(() => {
-        window.addEventListener("scroll", toggleVisibility);
+        window.addEventListener("scroll", handelScroll);
         getAllGenres();
+        return () => {
+            window.removeEventListener("scroll", handelScroll)
+            dispatch(filterSelection({
+                ...filter,
+                page: 0,
+                totalPages: 0
+            }))
+        }
     }, [])
-
-    useEffect(() => {
-        const delayDebounceFn = setTimeout(() => {
-            // Send Axios request here
-        }, 3000)
-        return () => clearTimeout(delayDebounceFn)
-    }, [query])
 
 
     const onSearchChange = (e) => {
         e.preventDefault();
-        dispatch(searchQuery(e.target.value))
+        // if search input length is greterthen 3 then only will call backend
+        if(e.target.value.length > 2){
+            dispatch(searchQuery(e.target.value))
+        }
         setSearchFieldValue(e.target.value)
     }
 
@@ -98,7 +101,6 @@ function DbCinemaHome() {
                     defaultValue={searchFieldValue}
                     type="search"
                     placeholder="search movies or series"
-                    // aria-label=""
                     autoFocus
                     onChange={onSearchChange}
                     style={{ width: "3rem", height: "2rem", }}
@@ -161,15 +163,7 @@ function DbCinemaHome() {
                                         className={navLinkActive === "genres" ? "btn btn-dark" : "btn btn-outline-secondary"}
                                         to="#genres"
                                         data-toggle="tab"
-                                        onClick={() => {
-                                            // dispatch(reloadMovies())
-                                            setShowGenersModal(true);
-                                            // setIsSearchInputEnable(false);
-                                            // dispatch(filterSelection({
-                                            //     ...filter, catagory: "movie"
-                                            // }))
-                                        }
-                                        }
+                                        onClick={() => setShowGenersModal(true)}
                                     >
                                         Genres🔻
                                     </button>
@@ -203,9 +197,13 @@ function DbCinemaHome() {
                                             </Button>
                                             <Button variant="primary" onClick={() => {
                                                 dispatch(filterSelection({
-                                                    ...filter, genres: selectedGenres
+                                                    ...filter,
+                                                    genres: selectedGenres,
+                                                    page: 0,
+                                                    totalPages: 0
                                                 }))
                                                 setShowGenersModal(false);
+                                                dispatch(reloadMovies())
                                             }}>
                                                 Apply
                                             </Button>
@@ -223,7 +221,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("movie")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "movie"
+                                                ...filter, catagory: "movie", page:0, totalPages:0
                                             }))
                                         }
                                         }
@@ -240,7 +238,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("series")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "series"
+                                                ...filter, catagory: "series", page:0, totalPages:0
                                             }))
                                         }
                                         }
@@ -257,7 +255,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("watchlist")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "watchlist"
+                                                ...filter, catagory: "watchlist", page:0, totalPages:0
                                             }))
                                         }
                                         }
@@ -274,7 +272,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("stream")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "stream"
+                                                ...filter, catagory: "stream", page:0, totalPages:0
                                             }))
                                         }
                                         }

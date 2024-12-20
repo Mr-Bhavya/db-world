@@ -1,45 +1,40 @@
 const initialPageNumber = {
-    all:0,
-    bollywood:0,
-    hollywood:0,
-    south:0,
-    gujarati:0,
-    korean:0
+    all: 0,
+    bollywood: 0,
+    hollywood: 0,
+    south: 0,
+    gujarati: 0,
+    korean: 0,
+    disPageNumber: 0,
+    totalPages: 0
 }
 
 const seriesPageNumberReducer = (state = initialPageNumber, action) => {
-    var {all, bollywood, hollywood, south, gujarati, korean} = state;
-    switch (action.type){
-        case "SERIESPAGENUMBER" : {
-            all=action.pageNumber
-            state = {all,bollywood, hollywood, south, gujarati, korean};
+    switch (action.type) {
+        case "SERIESPAGENUMBER": {
+            state.all = action.pageNumber
             return state;
-        }case "SERIESPAGENUMBER_B" : {
-            bollywood=action.pageNumber
-            state = {all,bollywood, hollywood, south, gujarati, korean};
+        } case "SERIESPAGENUMBER_B": {
+            state.bollywood = action.pageNumber
             return state;
         }
-        case "SERIESPAGENUMBER_H" : {
-            hollywood=action.pageNumber
-            state = {all,bollywood, hollywood, south, gujarati, korean};
+        case "SERIESPAGENUMBER_H": {
+            state.hollywood = action.pageNumber
             return state;
         }
-        case "SERIESPAGENUMBER_S" : {
-            south=action.pageNumber
-            state = {all,bollywood, hollywood, south, gujarati, korean};
+        case "SERIESPAGENUMBER_S": {
+            state.south = action.pageNumber
             return state;
         }
-        case "SERIESPAGENUMBER_G" : {
-            gujarati=action.pageNumber
-            state = {all,bollywood, hollywood, south, gujarati, korean};
+        case "SERIESPAGENUMBER_G": {
+            state.gujarati = action.pageNumber
             return state;
         }
-        case "SERIESPAGENUMBER_K" : {
-            korean=action.pageNumber
-            state = {all,bollywood, hollywood, south, gujarati, korean};
+        case "SERIESPAGENUMBER_K": {
+            state.korean = action.pageNumber
             return state;
         }
-        default : {
+        default: {
             return state;
         }
     }
