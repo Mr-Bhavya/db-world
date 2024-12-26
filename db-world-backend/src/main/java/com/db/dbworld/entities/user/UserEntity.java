@@ -2,6 +2,7 @@ package com.db.dbworld.entities.user;
 
 import com.db.dbworld.entities.pm.PasswordManagerEntity;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -10,6 +11,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
@@ -19,7 +21,7 @@ import java.util.List;
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "USERS", schema = "db_world")
 @SequenceGenerator(name="users_seq", initialValue=1001, allocationSize=1)
-public class UserEntity {
+public class UserEntity implements Serializable {
     @Id
     @Column(name = "id")
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator="users_seq")
@@ -45,6 +47,8 @@ public class UserEntity {
     @LastModifiedDate
     private Date lastModifiedDate;
 
+
+    @JsonIgnore
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "password_manager", referencedColumnName = "id")
     private List<PasswordManagerEntity> passwordManagerEntities;

@@ -2,15 +2,20 @@ package com.db.dbworld.payloads.user;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
 @Getter
 @Setter
-public class UserDto {
+@AllArgsConstructor
+@NoArgsConstructor
+public class UserDto implements Serializable {
     private Long userId;
     @NotEmpty
     @Size(min = 2, max = 20)
@@ -56,11 +61,9 @@ public class UserDto {
         private List<String> search_keywords;
     }
 
-
-
     @Getter
     @Setter
-    public static class UserRole {
+    public static class UserRole implements Serializable {
         @NotEmpty
         private String id;
         @NotEmpty

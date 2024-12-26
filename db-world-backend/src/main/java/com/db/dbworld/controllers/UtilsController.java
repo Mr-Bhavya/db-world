@@ -93,11 +93,11 @@ public class UtilsController {
 
             if (contentDisposition == null || contentDisposition.isBlank()) {
                 if (mirror.isRename()) {
-                    fileName = mirrorStatus.getFileName();
+                    fileName = mirror.getFileName();
                 } else
                     throw new DbWorldException("Not able to retrieve fileName from url. Please try again with rename option.");
             } else {
-                fileName = mirror.isRename() ? mirrorStatus.getFileName() : dbWorldUtils.decodeFileName(ContentDisposition.parse(contentDisposition).getFilename());
+                fileName = mirror.isRename() ? mirror.getFileName() : dbWorldUtils.decodeFileName(ContentDisposition.parse(contentDisposition).getFilename());
             }
 
             mirrorStatus = new MirrorStatus(

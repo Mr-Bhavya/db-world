@@ -6,7 +6,9 @@ import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
-import org.springframework.data.domain.PageImpl;
+import com.db.dbworld.utils.DbWorldConstants;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Pageable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,8 +22,10 @@ public interface DBCinemaRecordsService {
     void deleteRecord(Long recordId);
 
     List<DBCinemaRecordsDto> getRecords();
-    
-    PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages, String genres);
+
+    List<DBCinemaRecordsDto> fetchDbCinemaRecords(String recordType, Pageable pageable, String languages, String genres);
+
+    Integer fetchCountOfDbCinemaRecords(String recordType, String languages, String genres);
 
     DBCinemaRecordsDto getRecordById(Long recordId);
 
@@ -35,7 +39,7 @@ public interface DBCinemaRecordsService {
 
     SeriesTmdbDataDto getTMDBDetailsForSeriesById(RequestPayloads.AddRecord record);
 
-    void userRecordDataProcess(Long recordId, String process);
+    DBCinemaRecordsDto userRecordDataProcess(Long recordId, String process);
 
     List<DBCinemaRecordsDto> getWatchListCinemaRecords();
 
@@ -46,4 +50,6 @@ public interface DBCinemaRecordsService {
     boolean isRecordsUpdateRunning();
 
     List<GenresDto> getAllGenres();
+
+    DBCinemaRecordsDto addUsersDbCinemaData(DBCinemaRecordsDto dbCinemaRecordsDto);
 }

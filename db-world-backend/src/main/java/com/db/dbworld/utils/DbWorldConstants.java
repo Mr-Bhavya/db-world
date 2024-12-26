@@ -9,6 +9,8 @@ public class DbWorldConstants {
     public static final String OWNER = "OWNER";
     public static final String ADMIN = "ADMIN";
     public static final String VIEWER = "VIEWER";
+    public static final String CUSTOM_REDIS_KEY_GENERATOR = "customRedisKeyGenerator";
+    public static final String CUSTOM_REDIS_USER_KEY_GENERATOR = "customRedisUserKeyGenerator";
     public static final String REPLACE_ID_STRING = "${id}";
     public static final String REPLACE_QUERY_STRING = "${query}";
     public static final String REPLACE_YEAR_STRING = "${year}";
@@ -21,7 +23,7 @@ public class DbWorldConstants {
     public static final String ACCEPT_RANGES_HEADER = "Accept-Ranges";
     public static final String BYTES = "bytes";
     public static final String CONTENT_DISPOSITION_HEADER = "Content-Disposition";
-    public static final String TMDB_VIDEOS_PROPERTY_KEY = "videos";
+        public static final String TMDB_VIDEOS_PROPERTY_KEY = "videos";
     public static final String TMDB_RESULTS_PROPERTY_KEY = "results";
     public static final String TMDB_RENT_PROPERTY_KEY = "rent";
     public static final String TMDB_BUY_PROPERTY_KEY = "buy";

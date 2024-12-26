@@ -4,11 +4,13 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.Serializable;
+
 @Getter
 @Setter
 @Entity
 @Table(name = "VIDEOS", schema = "db_world")
-public class VideosEntity {
+public class VideosEntity implements Serializable {
     @Id
     private String id;
 

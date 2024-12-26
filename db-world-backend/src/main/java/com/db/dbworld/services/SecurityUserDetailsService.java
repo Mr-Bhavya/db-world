@@ -1,8 +1,6 @@
 package com.db.dbworld.services;
 
-import com.db.dbworld.dao.user.UserRepository;
 import com.db.dbworld.entities.user.UserEntity;
-import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.services.Impl.UserDetailImpl;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +14,7 @@ import org.springframework.stereotype.Service;
 public class SecurityUserDetailsService implements UserDetailsService {
 
     @Autowired
-    private UserRepository userRepository;
+    private UserService userService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -31,7 +29,7 @@ public class SecurityUserDetailsService implements UserDetailsService {
      */
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        UserEntity userEntity = this.userRepository.findByEmail(email).orElseThrow(()->new ResourceNotFoundException("User", "email", email));
+        UserEntity userEntity = this.userService.getUserEntityByEmail(email);
         UserDetailImpl userDetails = this.modelMapper.map(userEntity, UserDetailImpl.class);
         userDetails.setPassword(passwordEncoder.encode(userEntity.getPassword()));
         return userDetails;
