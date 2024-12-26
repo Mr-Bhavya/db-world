@@ -34,6 +34,10 @@ spring:
   servlet:
     multipart:
       enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 #Security
 jwt:
@@ -62,15 +66,15 @@ springdoc:
 
 dbworld:
   paths:
-    tempDownloadPath: /home/dbworld_admin/ext_hdisk/dbworld/download/
-    logFilePath: /home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld.log
-    log4j2LogPath: /home/dbworld_admin/ext_hdisk/dbworld/logs/
-    streamHomePath: /home/dbworld_admin/ext_hdisk/videos
+    tempDownloadPath: /ext_hdisk/dbworld/download/
+    logFilePath: /app/db_world/logs/dbworld.log
+    log4j2LogPath: /app/db_world/logs
+    streamHomePath: /ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
-    torrentDownloadPath: /home/dbworld_admin/ext_hdisk/videos/Torrent Download
+    torrentDownloadPath: /ext_hdisk/videos/Torrent Download
     ytdlpPath: yt-dlp
     hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
-    extHDiskPath: /home/dbworld_admin/ext_hdisk
+    extHDiskPath: /ext_hdisk
 
 logging:
   config: classpath:log4j2.xml

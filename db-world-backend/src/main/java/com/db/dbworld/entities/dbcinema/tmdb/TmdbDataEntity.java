@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Getter
@@ -17,7 +18,7 @@ import java.util.List;
 @Table(name = "TMDB_DATA", schema = "db_world")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "record_type", discriminatorType = DiscriminatorType.STRING)
-public class TmdbDataEntity {
+public class TmdbDataEntity implements Serializable {
     @Id
     private long id;
 

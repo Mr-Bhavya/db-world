@@ -13,10 +13,13 @@ import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.UserService;
+import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheConfig;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@CacheConfig(cacheNames = "User")
 public class UserServiceImpl implements UserService {
 
     @Autowired
@@ -54,6 +58,7 @@ public class UserServiceImpl implements UserService {
     private DbWorldUtils dbWorldUtils;
 
     @Override
+    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
     public UserEntity getUserFromToken() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserDetails user = (UserDetails) authentication.getPrincipal();
@@ -70,6 +75,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public List<UserDto> getAllUsers() {
         List<UserEntity> userEntities = this.userRepository.findAll();
         return userEntities.stream().map(userEntity -> {
@@ -105,7 +111,7 @@ public class UserServiceImpl implements UserService {
                         return this.modelMapper.map(userEntity, UserDto.class);
                     }
                 }
-        ).toList();
+        ).collect(Collectors.toList());
     }
 
     @Override
@@ -144,6 +150,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public UserEntity getUserEntityById(Long id) {
         return this.userRepository.findById(id).orElseThrow(
                 () -> new ResourceNotFoundException("User", "userid", id.toString())
@@ -194,13 +201,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto getUserDtoByEmail(String email) {
-        UserEntity userEntity = this.userRepository.findByEmail(email).orElseThrow(
-                () -> new ResourceNotFoundException("User", "email", email)
-        );
-        return this.modelMapper.map(userEntity, UserDto.class);
+        return this.modelMapper.map(getUserEntityByEmail(email), UserDto.class);
     }
 
     @Override
+    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public UserEntity getUserEntityByEmail(String email) {
         return this.userRepository.findByEmail(email).orElseThrow(
                 () -> new ResourceNotFoundException("User", "email", email)
@@ -224,6 +229,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
     public UserDto.UserRole getRoleForUser() {
         Long userId = getUserIdFromToken();
         UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(

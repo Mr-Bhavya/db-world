@@ -7,13 +7,14 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Getter
 @Setter
 @Entity
 @Table(name = "HOST", schema = "db_world")
-public class HostEntity {
+public class HostEntity implements Serializable {
     @Id
     private String name;
 

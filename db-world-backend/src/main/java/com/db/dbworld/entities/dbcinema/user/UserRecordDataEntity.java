@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 
+import java.io.Serializable;
+
 @Getter
 @Setter
 @Entity
@@ -14,7 +16,7 @@ import org.hibernate.annotations.ColumnDefault;
         @UniqueConstraint(columnNames = {"user", "db_cinema_record"})
 })
 @SequenceGenerator(name="user_record_data_seq", initialValue=1, allocationSize=1)
-public class UserRecordDataEntity {
+public class UserRecordDataEntity implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator="user_record_data_seq")
     private Long id;

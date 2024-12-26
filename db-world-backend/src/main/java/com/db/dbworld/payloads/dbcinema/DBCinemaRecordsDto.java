@@ -5,12 +5,13 @@ import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 
 @Getter
 @Setter
-public class DBCinemaRecordsDto {
+public class DBCinemaRecordsDto implements Serializable {
     private Long recordId;
     private String name;
     private String type;

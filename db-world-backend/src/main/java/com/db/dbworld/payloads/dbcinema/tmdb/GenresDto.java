@@ -1,11 +1,18 @@
 package com.db.dbworld.payloads.dbcinema.tmdb;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.io.Serializable;
 
 @Getter
 @Setter
-public class GenresDto {
+@NoArgsConstructor
+@AllArgsConstructor
+public class GenresDto implements Serializable {
     private int id;
     private String name;
 }

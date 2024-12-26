@@ -7,13 +7,14 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Getter
 @Setter
 @Entity
 @Table(name="PRODUCTION_COUNTRIES", schema = "db_world")
-public class ProductionCountriesEntity {
+public class ProductionCountriesEntity implements Serializable {
     @Id
     private String iso_3166_1;
     private String english_name;

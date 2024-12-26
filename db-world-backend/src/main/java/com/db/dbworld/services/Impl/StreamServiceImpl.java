@@ -5,6 +5,8 @@ import com.db.dbworld.services.StreamService;
 import com.db.dbworld.utils.DbWorldConstants;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheConfig;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Log4j2
+@CacheConfig(cacheNames = "DB-Stream")
 public class StreamServiceImpl implements StreamService {
 
     @Autowired
@@ -90,6 +93,7 @@ public class StreamServiceImpl implements StreamService {
     }
 
     @Override
+//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public List<HashMap<String, Object>> getList(String path) {
         Path normalPath = Path.of(DbWorldConstants.STREAM_HOME_PATH + File.separator + path);
         Path externalDiskPath = Path.of(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH + File.separator + path);
@@ -117,10 +121,11 @@ public class StreamServiceImpl implements StreamService {
     }
 
     @Override
+//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public ArrayList<File> getListRecursive(Path dir) {
         ArrayList<File> files = new ArrayList<>();
         if (Files.exists(dir) && Files.isDirectory(dir)) {
-            Arrays.stream(dir.toFile().listFiles()).forEach(file -> {
+            Arrays.stream(Objects.requireNonNull(dir.toFile().listFiles())).forEach(file -> {
                 if (file.isDirectory()) {
                     files.addAll(getListRecursive(file.toPath()));
                 } else {
@@ -132,8 +137,9 @@ public class StreamServiceImpl implements StreamService {
     }
 
     @Override
+//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public HashMap<String, Object> createDetails(Path path) {
-        HashMap<String, Object> hashMap = new LinkedHashMap();
+        HashMap<String, Object> hashMap = new LinkedHashMap<>();
         try {
             hashMap.put("fileName", path.toFile().getName());
             hashMap.put("filePath", path.toFile().getPath().replace("\\", "/")

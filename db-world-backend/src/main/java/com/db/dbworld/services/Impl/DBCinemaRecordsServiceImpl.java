@@ -36,8 +36,10 @@ import jakarta.persistence.TypedQuery;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.cache.annotation.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -53,11 +55,13 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 @Service
 @Log4j2
 @EnableAsync
+@CacheConfig(cacheNames = "DB-Cinema")
 public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Autowired
@@ -99,6 +103,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Transactional
     @Override
+    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
     public DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record) {
         if (this.dbCinemaRecordsRepository.findByTmdbId(record.getTmdbId()).isEmpty()) {
             try {
@@ -127,6 +132,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Transactional
     @Override
+    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
     public DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record) {
         try {
             TmdbDataEntity tmdbDataEntity = null;
@@ -156,6 +162,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
     public void deleteRecord(Long recordId) {
         if (this.dbCinemaRecordsRepository.existsById(recordId)) {
             this.userRecordDataRepository.deleteByDbCinemaRecordId(recordId);
@@ -171,52 +178,72 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public PageImpl<DBCinemaRecordsDto> getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages, String genres) {
-
-        try {
-            Long userId = userService.getUserIdFromToken();
-            Pageable pageable = PageRequest.of(pageNumber, pageSize);
-            Integer[] genresArray = null;
-
-            if (genres != null) {
-                List<Integer> list = Arrays.stream(genres.split(",")).map(Integer::parseInt).toList();
-                genresArray = new Integer[list.size()];
-                genresArray = list.toArray(genresArray);
-            }
-
-            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = null;
-            Long totalElements = null;
-            if (languages != null && genres != null) {
-                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType,
-                        genresArray, languages.split(","), pageable);
-                totalElements = dbCinemaRecordsRepository.countRecords(
-                        recordType, genresArray, languages.split(",")
-                ).orElse(0L);
-            } else if (languages == null && genres != null) {
-                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType, genresArray, pageable);
-                totalElements = dbCinemaRecordsRepository.countRecords(recordType, genresArray).orElse(0L);
-            } else if (languages != null) {
-                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType, languages.split(","), pageable);
-                totalElements = dbCinemaRecordsRepository.countRecords(recordType, languages.split(",")).orElse(0L);
-            } else {
-                dbCinemaRecordsEntities = dbCinemaRecordsRepository.findRecords(userId, recordType, pageable);
-                totalElements = dbCinemaRecordsRepository.countRecords(recordType).orElse(0L);
-            }
-
-            List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsEntities.stream().map(
-                    dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity))
-            ).toList();
-            return new PageImpl<>(dbCinemaRecordsDtos, pageable, totalElements);
-        } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
+    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
+    public List<DBCinemaRecordsDto> fetchDbCinemaRecords(String recordType, Pageable pageable, String languages, String genres) {
+        Long userId = userService.getUserIdFromToken();
+        Integer[] genresArray = null;
+        if (genres != null) {
+            List<Integer> list = Arrays.stream(genres.split(",")).map(Integer::parseInt).toList();
+            genresArray = new Integer[list.size()];
+            genresArray = list.toArray(genresArray);
+        }
+        if (languages != null && genresArray != null) {
+            return dbCinemaRecordsRepository.findRecords(userId, recordType, genresArray, languages.split(","), pageable)
+                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
+                    .collect(Collectors.toList());
+        } else if (languages == null && genresArray != null) {
+            return dbCinemaRecordsRepository.findRecords(userId, recordType, genresArray, pageable)
+                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
+                    .collect(Collectors.toList());
+        } else if (languages != null) {
+            return dbCinemaRecordsRepository.findRecords(userId, recordType, languages.split(","), pageable)
+                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
+                    .collect(Collectors.toList());
+        } else {
+            return dbCinemaRecordsRepository.findRecords(userId, recordType, pageable)
+                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
+                    .collect(Collectors.toList());
         }
     }
 
     @Override
+    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
+    public Integer fetchCountOfDbCinemaRecords(String recordType, String languages, String genres) {
+        Integer[] genresArray = null;
+        Integer totalElement = null;
+        if (genres != null) {
+            List<Integer> list = Arrays.stream(genres.split(",")).map(Integer::parseInt).toList();
+            genresArray = new Integer[list.size()];
+            genresArray = list.toArray(genresArray);
+        }
+        if (languages != null && genresArray != null) {
+            totalElement = dbCinemaRecordsRepository.countRecords( recordType, genresArray, languages.split(",") )
+                    .orElse(0L).intValue();
+        } else if (languages == null && genresArray != null) {
+            totalElement = dbCinemaRecordsRepository.countRecords(recordType, genresArray).orElse(0L).intValue();
+        } else if (languages != null) {
+            totalElement = dbCinemaRecordsRepository.countRecords(recordType, languages.split(",")).orElse(0L).intValue();
+        } else {
+            totalElement = dbCinemaRecordsRepository.countRecords(recordType).orElse(0L).intValue();
+        }
+        return totalElement;
+    }
+
+
+    @Override
+    @Cacheable(keyGenerator = "addUsersDbCinemaDataKey")
+    public DBCinemaRecordsDto addUsersDbCinemaData(DBCinemaRecordsDto dbCinemaRecordsDto) {
+        Long userId = this.userService.getUserIdFromToken();
+        UserRecordDataEntity userRecordDataEntity = userRecordDataRepository.findByUserUserIdAndDbCinemaRecordId(userId, dbCinemaRecordsDto.getRecordId()).orElse(null);
+        dbCinemaRecordsDto.setWatchListed(userRecordDataEntity != null && userRecordDataEntity.isWatchListed());
+        dbCinemaRecordsDto.setLiked(userRecordDataEntity != null && userRecordDataEntity.isLiked());
+        dbCinemaRecordsDto.setWatched(userRecordDataEntity != null && userRecordDataEntity.isWatched());
+        return dbCinemaRecordsDto;
+    }
+
+    @Override
     public DBCinemaRecordsDto getRecordById(Long recordId) {
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId).orElseThrow(
-                () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
-        );
+        DBCinemaRecordsEntity dbCinemaRecordsEntity = getRecordEntityById(recordId);
         return pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity));
     }
 
@@ -228,6 +255,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
+//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
     public List<DBCinemaRecordsDto> searchRecordByKeyword(String keyword) {
         try {
             TypedQuery<DBCinemaRecordsEntity> query = entityManager.createQuery(SEARCH_RECORD_BY_KEYWORD, DBCinemaRecordsEntity.class);
@@ -243,7 +271,8 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Override
     @Transactional
-    public void userRecordDataProcess(Long recordId, String process) {
+    @CacheEvict(keyGenerator = "addUsersDbCinemaDataKey")
+    public DBCinemaRecordsDto userRecordDataProcess(Long recordId, String process) {
         try {
             if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_UN_LIKE)) {
                 this.userRecordDataRepository.setIsLikeAsFalseByUserIdRecordId(this.userService.getUserIdFromToken(), recordId);
@@ -272,6 +301,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                 }
                 this.userRecordDataRepository.save(userRecordDataEntity);
             }
+            return getRecordById(recordId);
         } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
         }
@@ -357,9 +387,10 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
+    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public List<GenresDto> getAllGenres() {
         List<GenresEntity> genresEntities = genresRepository.findAll(Sort.by("name").ascending());
-        return genresEntities.stream().map(genresEntity -> this.modelMapper.map(genresEntity, GenresDto.class)).toList();
+        return genresEntities.stream().map(genresEntity -> this.modelMapper.map(genresEntity, GenresDto.class)).collect(Collectors.toList());
     }
 
     @Override

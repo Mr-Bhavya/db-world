@@ -6,6 +6,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Getter
@@ -13,7 +14,7 @@ import java.util.List;
 @Entity
 @EqualsAndHashCode(of = {"iso_639_1"})
 @Table(name="SPOKEN_LANGUAGES", schema = "db_world")
-public class SpokenLanguageEntity {
+public class SpokenLanguageEntity implements Serializable {
     @Id
     @Column(name = "iso_639_1", nullable = false, unique = true)
     private String iso_639_1;

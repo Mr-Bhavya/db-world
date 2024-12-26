@@ -10,6 +10,7 @@ import com.db.dbworld.utils.DbWorldUtils;
 import jakarta.validation.Valid;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,7 +40,7 @@ public class UserController {
     @PreAuthorize(DbWorldConstants.OWNER_AUTHORIZE)
     public ApiResponse<List<UserDto>> getUserById(@PathVariable(value = "userId") Long userId) {
         UserDto userDto = this.userService.getUserDtoById(userId);
-        return new ApiResponse<>(HttpStatus.OK, true, Arrays.stream(new UserDto[] {userDto}).toList());
+        return new ApiResponse<>(HttpStatus.OK, true, Arrays.stream(new UserDto[]{userDto}).toList());
     }
 
     @GetMapping("/")
@@ -50,7 +51,6 @@ public class UserController {
         profileResponse.setNoOfLogin(this.loginDataService.totalNumberOfLogin(userDto.getUserId()));
         return new ApiResponse<>(HttpStatus.OK, true, Collections.singletonList(profileResponse));
     }
-
 
 
     @PutMapping("/{userId}")
@@ -75,7 +75,7 @@ public class UserController {
 
     @PutMapping("/dob={dob}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> updateDobForUser(@PathVariable(value = "dob") @DateTimeFormat(pattern= "yyyy-MM-dd") Date dob) {
+    public ApiResponse<Map<String, Object>> updateDobForUser(@PathVariable(value = "dob") @DateTimeFormat(pattern = "yyyy-MM-dd") Date dob) {
         userService.updateDob(dob);
         return new ApiResponse<>(HttpStatus.OK, true, "Dob is updated");
     }
