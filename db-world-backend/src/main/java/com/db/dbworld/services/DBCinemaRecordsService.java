@@ -6,8 +6,6 @@ import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
-import com.db.dbworld.utils.DbWorldConstants;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 
 import java.util.HashMap;

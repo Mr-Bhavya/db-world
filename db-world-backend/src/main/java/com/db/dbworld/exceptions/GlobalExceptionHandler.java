@@ -96,7 +96,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DbWorldException.class)
     ResponseEntity<ApiResponse> dbWorldExceptionHandler(DbWorldException ex) {
         ApiResponse apiResponse = new ApiResponse(ex.getHttpStatus(), false, ex.getMessage());
-        return new ResponseEntity<>(apiResponse, apiResponse.getHttpStatus());
+        return new ResponseEntity<>(apiResponse, getJsonContentTypeHeader(), apiResponse.getHttpStatus());
     }
 
     @ExceptionHandler(NullPointerException.class)

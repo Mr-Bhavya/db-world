@@ -7,10 +7,12 @@ import Constants from "../Constants";
 import LoadingSpinner from "../LoadingSpinner";
 import LikeIcon from "./SubComponents/LikeIcon";
 import WatchlistIcon from "./SubComponents/WatchlistIcon";
-import { deleteDbCinemaRecord } from "../ApiServices";
+import { deleteDbCinemaRecord, loadStreamFileInfoByRecordId } from "../ApiServices";
 import { toast } from "react-toastify";
-import { Card, Col, Container, Row } from "react-bootstrap";
+import { Button, Card, Col, Container, Modal, Row } from "react-bootstrap";
 import WatchedIcon from "./SubComponents/WatchedIcon";
+import HtmlJsonTable from "react-json-to-html-table";
+import CommonServices from "../CommonServices";
 
 function SingleMovie(props) {
     const movie = props.movie;
@@ -21,6 +23,8 @@ function SingleMovie(props) {
     const [deleteRecord, setDeleteRecord] = useState();
     const [setTrailer, setSetTrailer] = useState(false);
     const [loader, setLoader] = useState(false);
+    const [showDownloadModal, setShowDownloadModal] = useState(false);
+    const [mediaFileList, setMediaFileList] = useState([]);
     var deleteModelTargetSrc = "#deleteMovieId" + movie.recordId;
     var deleteModelTargetDes = "deleteMovieId" + movie.recordId;
     var trailerModelTargetDes = "trailerMovieId" + new Date();
@@ -144,12 +148,106 @@ function SingleMovie(props) {
             ></iframe>
         </>
 
-    let singleMovie = ""
+    const handleDownloadModal = async () => {
+        setShowDownloadModal(true);
+        const response = await loadStreamFileInfoByRecordId(movie.recordId);
+        if (response.httpStatusCode === 200) {
+            // setMediaFileList(response.data);
 
+            setMediaFileList(response.data?.map(mediaFile => {
+                let mediaDetails = {
+                    id: "",
+                    general: {},
+                    video: {},
+                    audio: [],
+                    subtitle: []
+                }
+                mediaDetails.id = mediaFile.id
+
+                mediaFile?.trackInfos?.forEach(track => {
+                    if (track?.type === "General") {
+                        let general = {}
+                        general.fileName = mediaFile.fileName;
+                        general.fileSize = CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).value + " " +  CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).suffix;
+                        general.duration = track?.duration;
+                        general.hdrDetails = track?.hdrFormat != null && track?.hdrFormat + " | " + track?.hdrFormatVersion + " | " + track?.hdrFormatCompatibility
+                        mediaDetails.general = general;
+                    }
+                    if (track?.type === "Video") {
+                        let video = {}
+                        video.resolution = track?.width + "x" + track?.height;
+                        video.format = track?.codecID + " | " + track?.format + " @ " + track?.bitRate;
+                        // video.bitrate = track?.bitRate;
+                        video.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " +  CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
+                        mediaDetails.video = video;
+                    }
+                    if (track?.type === "Audio") {
+                        let audio = {}
+                        audio.language = track?.language;
+                        audio.format = track?.codecID + " | " + track?.format + " @ " + track?.bitRate;
+                        // audio.bitrate = track?.bitRate;
+                        audio.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " +  CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
+                        audio.channelInfo = track?.channels + " | " + track?.channelPositions;
+                        mediaDetails.audio.push(audio);
+                    }
+                    if (track?.type === "Text") {
+                        let subtitle = {}
+                        subtitle.format = track?.codecID + " " + track?.format + " @ " + track?.bitRate;
+                        // subtitle.bitrate = track?.bitRate;
+                        subtitle.language = track?.language;
+                        subtitle.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " +  CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;;
+                        mediaDetails.subtitle.push(subtitle);
+                    }
+                });
+                console.log(mediaDetails);
+                return mediaDetails;
+            }))
+        }
+    }
+
+    const dowanloadModal =
+        <Modal show={showDownloadModal} onHide={() => setShowDownloadModal(false)} fullscreen={true}>
+            <Modal.Header closeButton>
+                <Modal.Title>Modal heading</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                {/* <HtmlJsonTable data={mediaFileList} /> */}
+                {
+                    mediaFileList.map((mediaFile, index) => {
+                        return (<Card className="my-3">
+                            <Card.Header as="h5">{index+1}. {mediaFile?.general?.fileName}</Card.Header>
+                            <Card.Body>
+                                <Card.Title>Media Details:</Card.Title>
+                                <Card.Text>
+
+                                    <div className="w-100" style={{overflow:"auto"}}>
+                                        <HtmlJsonTable data={mediaFile} className="table table-sm table-striped table-bordered table-responsive" />
+                                    </div>
+                                </Card.Text>
+                            </Card.Body>
+                            <Card.Footer>
+                                <Button className="btn-sm w-100" variant="danger">Download</Button>
+                            </Card.Footer>
+                        </Card>)
+                    })
+                }
+
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="secondary" onClick={() => setShowDownloadModal(false)}>
+                    Close
+                </Button>
+                {/* <Button variant="primary" onClick={handleClose}>
+                    Save Changes
+                </Button> */}
+            </Modal.Footer>
+        </Modal>
+
+    let singleMovie = ""
     if (movie.tmdbData) {
         singleMovie =
             <Card className="m-1"
-                style={{ background: "rgba(255 ,255 ,255, 0.6)", maxHeight: "20rem" }}
+                style={{ background: "rgba(255 ,255 ,255, 0.6)", maxHeight: "22rem" }}
             // style={{ background: "rgba(255 ,255 ,255, 0.6)" }} 
             // style={{ background: "rgba(255 ,255 ,255, 0.6)" }}
             >
@@ -382,6 +480,10 @@ function SingleMovie(props) {
                     </Row>
                     {/* </Container> */}
                 </Card.Body>
+                <Card.Footer style={{ height: "2rem" }} className="m-0 p-0">
+                    <Button className="btn-sm m-0 p-0 w-100 h-90" variant="dark" onClick={handleDownloadModal}>Download</Button>
+                </Card.Footer>
+                {dowanloadModal}
                 {/* <hr /> */}
             </Card >
     }

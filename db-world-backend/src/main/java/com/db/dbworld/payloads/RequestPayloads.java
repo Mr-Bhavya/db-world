@@ -40,6 +40,8 @@ public class RequestPayloads {
     @Data
     public static class Mirror{
         @NotEmpty
+        private String folderName;
+        @NotEmpty
         private String url;
         private String username;
         private String password;

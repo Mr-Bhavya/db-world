@@ -6,16 +6,14 @@ import com.db.dbworld.utils.DbWorldConstants;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,6 +67,38 @@ public class StreamServiceImpl implements StreamService {
                 .body(readResource(path, rangeStart)));
     }
 
+    //    @Async
+    @Override
+    public ResponseEntity<StreamingResponseBody> downloadFile(Path path, String rangeHeader) {
+        try {
+            StreamingResponseBody responseStream;
+            final Long fileSize = getFileSize(path);
+            final HttpHeaders responseHeaders = new HttpHeaders();
+            responseHeaders.add("Content-Type", Files.probeContentType(path));
+            responseHeaders.add(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path));
+            responseHeaders.add(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES);
+            if (rangeHeader == null) {
+                responseHeaders.add(DbWorldConstants.CONTENT_LENGTH_HEADER, fileSize.toString());
+                return new ResponseEntity<>(readStreamingBody(path, 0, fileSize - 1), responseHeaders, HttpStatus.OK);
+            }
+
+            String[] ranges = rangeHeader.split("-");
+            long rangeStart = Long.parseLong(ranges[0].substring(6));
+            long rangeEnd = ranges.length > 1 && fileSize - 1 > Long.parseLong(ranges[1])
+                    ? Long.parseLong(ranges[1])
+                    : fileSize - 1;
+            String contentLength = String.valueOf((rangeEnd - rangeStart) + 1);
+            responseHeaders.add(DbWorldConstants.CONTENT_LENGTH_HEADER, contentLength);
+            responseHeaders.add(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize);
+            return new ResponseEntity<>(readStreamingBody(path, rangeStart, rangeEnd), responseHeaders, HttpStatus.PARTIAL_CONTENT);
+        } catch (FileNotFoundException ex) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, ex.getMessage());
+        } catch (IOException ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+
     @Override
     @Async
     public CompletableFuture<ResponseEntity<InputStreamResource>> getDownloadResource(Path path, String range) {
@@ -83,13 +113,12 @@ public class StreamServiceImpl implements StreamService {
         }
         return CompletableFuture.completedFuture(ResponseEntity.status(httpStatusCode)
 //                    .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
-                    .header(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES)
-                    .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-//                    .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize - rangeStart))
-                    .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize))
-                    .header(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path))
-                    .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
-                    .body(readResource(path, rangeStart)));
+                .header(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES)
+                .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize))
+                .header(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path))
+                .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
+                .body(readResource(path, rangeStart)));
     }
 
     @Override
@@ -156,7 +185,27 @@ public class StreamServiceImpl implements StreamService {
         return hashMap;
     }
 
-    public InputStreamResource readResource(Path path, long start) {
+    private StreamingResponseBody readStreamingBody(Path path, long start, long end) {
+        int length = (int) (end - start + 1);
+        byte[] buffer = new byte[length];
+        return os -> {
+            RandomAccessFile file = new RandomAccessFile(path.toString(), "r");
+            try (file) {
+                long pos = start;
+                file.seek(pos);
+                while (pos < end) {
+                    file.read(buffer);
+                    os.write(buffer);
+                    pos += buffer.length;
+                }
+                os.flush();
+            } catch (Exception e) {
+                throw new DbWorldException(e.getMessage());
+            }
+        };
+    }
+
+    private InputStreamResource readResource(Path path, long start) {
         InputStream inputStream = null;
         try {
             inputStream = Files.newInputStream(path);

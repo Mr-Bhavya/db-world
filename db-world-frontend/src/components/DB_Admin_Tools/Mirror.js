@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Constants from '../Constants';
-import { mirror } from '../ApiServices';
+import { mirror, searchRecord } from '../ApiServices';
+import { Form } from 'react-bootstrap';
 
 function Mirror() {
 
@@ -16,6 +17,8 @@ function Mirror() {
     const [zipPasswordProtect, setZipPasswordProtect] = useState(false);
     const [rename, setRename] = useState(false);
     const [submitLoader, setSubmitLoader] = useState(false);
+    const [recordName, setRecordName] = useState("");
+    const [recordList, setRecordList] = useState([]);
     const navigate = useNavigate();
 
     const onSubmit = async () => {
@@ -28,6 +31,7 @@ function Mirror() {
                     url: link,
                     username,
                     password,
+                    folderName:recordName,
                     fileName: title,
                     isRename: rename,
                     isUrlProtected: linkPasswordProtect,
@@ -59,6 +63,19 @@ function Mirror() {
         }
     }
 
+    const searchDbCinemaRecord = async () => {
+        const response = await searchRecord(recordName);
+        if (response.httpStatusCode == 200) {
+            setRecordList(response.data)
+        }
+    }
+
+    useEffect(() => {
+        if (recordName && recordName.length > 2) {
+            searchDbCinemaRecord();
+        }
+    }, [recordName])
+
 
     return (
         <div className="card my-1"
@@ -69,9 +86,29 @@ function Mirror() {
         >
             <h1 className="card-title text-center mx-3 my-2 border-bottom border-5 border-dark"> Mirror </h1>
             <div className="row g-2 mx-2 my-1">
+                <div className="col-md-6">
+                    <div className="form-floating mb-2">
+                        <Form.Control
+                            list="recordList"
+                            id="record"
+                            className={"form-control"}
+                            onChange={(e) => setRecordName(e.target.value)}
+                            placeholder="Select or Type recod"
+                        >
+                        </Form.Control>
+                        <datalist id="recordList" name="recordList">
+                            {recordList?.map((item) => (
+                                <option key={item} value={item.recordId + "-" + item.name} >
+                                    {item.recordId} | {item.type} | {item.name}
+                                </option>
+                            ))}
+                        </datalist>
+                        <label htmlFor="recordList">Record</label>
+                    </div>
+                </div>
                 <div className="col-md">
                     <div className="form-floating mb-2">
-                        <input type="search"
+                        <input type="text"
                             className="form-control"
                             id="floatingInput"
                             name="downloadLink"
@@ -125,6 +162,7 @@ function Mirror() {
                             :
                             ""
                     }
+
                 </div>
 
                 <div className='col-md'>
