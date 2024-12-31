@@ -5,10 +5,9 @@ import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.security.JwtHelper;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.log4j.Log4j2;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,7 +18,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Service
@@ -31,6 +32,9 @@ public class DbWorldUtils {
 
     @Autowired
     private JwtHelper jwtHelper;
+
+    @Autowired
+    private ModelMapper modelMapper;
 
     public byte[] serialize(Object obj) throws IOException {
         try (
@@ -56,12 +60,6 @@ public class DbWorldUtils {
         }
     }
 
-    public Update createMongoDbUpdateObject(HashMap<String, Object> hashMap) {
-        Update update = new Update();
-        hashMap.forEach(update::set);
-        return update;
-    }
-
     public void checkRecordType(String type) {
         if (!type.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) && !type.equalsIgnoreCase((DbWorldConstants.RECORD_TYPE_SERIES))) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Record Type is not correct. Please Try again with valid record type.");
@@ -75,7 +73,7 @@ public class DbWorldUtils {
 
     public String getTMDBByQueryUrl(String recordType, String query, int year) {
         return (recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? DbWorldConstants.TMDB_SEARCH_MOVIE_PROVIDER_URL : DbWorldConstants.TMDB_SEARCH_SERIES_PROVIDER_URL).
-                replace(DbWorldConstants.REPLACE_QUERY_STRING, query).replace(DbWorldConstants.REPLACE_YEAR_STRING, year == 0 ? "" : String.valueOf(year) );
+                replace(DbWorldConstants.REPLACE_QUERY_STRING, query).replace(DbWorldConstants.REPLACE_YEAR_STRING, year == 0 ? "" : String.valueOf(year));
     }
 
     public String getTMDBRecordProviderUrl(RequestPayloads.AddRecord record) {
@@ -83,40 +81,32 @@ public class DbWorldUtils {
                 replace(DbWorldConstants.REPLACE_ID_STRING, Long.toString(record.getTmdbId()));
     }
 
-    public List readFileInList(String filePath)
-    {
+    public List<String> readFileInList(String filePath) {
         try {
             return Files.readAllLines(Paths.get(filePath), StandardCharsets.UTF_8);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new DbWorldException(e.getMessage());
         }
     }
 
-    public String decodeFileName(String encodedString){
+    public String decodeFileName(String encodedString) {
         String decodString = null;
-        if(encodedString!=null){
-            encodedString.replace("+", "%2B");
+        if (encodedString != null) {
             decodString = URLDecoder.decode(encodedString.replace("+", "%2B"), StandardCharsets.UTF_8);
             decodString = decodString.replace("%2B", "+");
-            if(decodString.contains("/")){
-                decodString = decodString.replace("/","").replace("|","");
+            if (decodString.contains("/")) {
+                decodString = decodString.replace("/", "").replace("|", "");
             }
-        }else{
+        } else {
             throw new DbWorldException("Encoded String is null");
         }
         return decodString;
     }
 
-    public String getTokenFromHttpRequest (HttpServletRequest request){
-        String bearerToken = request.getHeader("Authorization");
-        return bearerToken.substring(7);
-    }
-
-    public void deleteFile(String path){
-        if(path == null || path.isEmpty()){
+    public void deleteFile(String path) {
+        if (path == null || path.isEmpty()) {
             log.error("Path is null for delete operation.");
-        }else{
+        } else {
             try {
                 Files.delete(Path.of(path));
             } catch (IOException e) {
@@ -125,7 +115,7 @@ public class DbWorldUtils {
         }
     }
 
-    public String getUserFromToken(String token){
+    public String getUserFromToken(String token) {
         String username = null;
         String errorMessage = null;
         try {
@@ -140,10 +130,14 @@ public class DbWorldUtils {
             errorMessage = e.getMessage();
         }
 
-        if(errorMessage != null){
+        if (errorMessage != null) {
             throw new DbWorldException(HttpStatus.UNAUTHORIZED, errorMessage);
         }
         return username;
+    }
+
+    public ZonedDateTime getISTDateTime(){
+        return ZonedDateTime.ofInstant(Instant.now(), ZoneId.of("Asia/Kolkata"));
     }
 
 }

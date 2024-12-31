@@ -1,37 +1,52 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ToastContainer, toast, } from 'react-toastify';
-import Authentication from '../Authentication';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import { v1 as uuidv1 } from 'uuid';
 import { deleteCredentialByCredentialId, deleteHostById, getCredential, updateCredential } from '../ApiServices';
+import { Button, Modal } from 'react-bootstrap';
 
 function ViewPassword() {
 
     const navigate = useNavigate();
-    const [userData, setUserData] = useState({});
     const [loader, setLoader] = useState(true);
     const [credentialsCache, setCredentialsCache] = useState([]);
     const [credentials, setCredentials] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [updateLoader, setUpdateLoader] = useState(false);
     const [deleteLoader, setDeleteLoader] = useState(false);
+    const [deleteModalShow, setDeleteModalShow] = useState(false);
     const [deleteHostLoader, setDeleteHostLoader] = useState(false);
+    const [deleteHostModalShow, setDeleteHostModalShow] = useState(false);
+    const [editModalShow, setEditModalShow] = useState(false);
     const [formCredential, setFormCredential] = useState({
-        hostId: null,
-        credentialId: null,
+        // pmId: null,
+        pmId: null,
         host: null,
+        credentialId: null,
         username: null,
         password: null,
         pin: null,
-        description: null
+        notes: null
     })
 
     const onFieldChange = (e) => {
         setFormCredential({
             ...formCredential,
             [e.target.name]: e.target.value
+        })
+    }
+
+    const resetFormCredential = () => {
+        setFormCredential({
+            pmId: null,
+            host: null,
+            credentialId: null,
+            username: null,
+            password: null,
+            pin: null,
+            notes: null
         })
     }
 
@@ -51,12 +66,12 @@ function ViewPassword() {
     const onUpdateCredential = async (e) => {
         e.preventDefault();
         setUpdateLoader(true);
-        let { credentialId, hostId, host, username, password, pin, description } = formCredential;
+        let { credentialId, pmId, host, username, password, pin, notes } = formCredential;
         pin = pin == "" ? null : pin;
-        let updateCredentialRes = await updateCredential(userData.userId, credentialId, { url: host, username, password, pin, description })
+        let updateCredentialRes = await updateCredential(pmId, { id: credentialId, url: `https://${host}`, username, password, pin, notes })
         if (updateCredentialRes.httpStatusCode === 200) {
             toast.success(updateCredentialRes.message);
-            getUserCredentials(userData.userId)
+            getUserCredentials()
         } else if (updateCredentialRes.httpStatusCode === 401) {
             toast.error(updateCredentialRes.message,
                 {
@@ -68,12 +83,13 @@ function ViewPassword() {
         } else {
             toast.error(updateCredentialRes.message);
         }
-        setUpdateLoader(false)
+        setUpdateLoader(false);
+        handelEditModalClose();
     }
 
 
-    const getUserCredentials = async (userId) => {
-        let getCredentialRes = await getCredential(userId)
+    const getUserCredentials = async () => {
+        let getCredentialRes = await getCredential()
         if (getCredentialRes.httpStatusCode === 200) {
             setCredentialsCache(getCredentialRes.data)
             setCredentials(getCredentialRes.data)
@@ -103,22 +119,15 @@ function ViewPassword() {
     }
 
     useEffect(() => {
-        let authenticationRes = Authentication({ redirectTo: Constants.DB_VIEW_PASSWORD_ROUTE });
-        if (authenticationRes.login) {
-            setUserData(authenticationRes.user);
-            getUserCredentials(authenticationRes.user.userId);
-        }
-        else {
-            navigate(authenticationRes.redirectUrl, { replace: true });
-        }
+        getUserCredentials();
     }, [])
 
     const onDeleteCredential = async () => {
         setDeleteLoader(true);
-        let deleteCredentialRes = await deleteCredentialByCredentialId(userData.userId, formCredential.hostId, formCredential.credentialId)
+        let deleteCredentialRes = await deleteCredentialByCredentialId(formCredential?.credentialId)
         if (deleteCredentialRes.httpStatusCode === 200) {
             toast.success(deleteCredentialRes.message);
-            getUserCredentials(userData.userId);
+            getUserCredentials();
         }
         else if (deleteCredentialRes.httpStatusCode === 401) {
             navigate(Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
@@ -127,15 +136,16 @@ function ViewPassword() {
             toast.error(deleteCredentialRes.message);
         }
         setDeleteLoader(false);
+        handelDeleteModalClose();
     }
 
-    const onDeleteHost = async (hostId) => {
+    const onDeleteHost = async (pmId) => {
         setDeleteHostLoader(true);
         try {
-            let deleteHostRes = await deleteHostById(userData.userId, hostId);
+            let deleteHostRes = await deleteHostById(pmId);
             if (deleteHostRes.httpStatusCode === 200) {
                 toast.success(deleteHostRes.message);
-                getUserCredentials(userData.userId);
+                getUserCredentials();
             }
             else if (deleteHostRes.status === 401) {
                 navigate(await Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
@@ -149,160 +159,141 @@ function ViewPassword() {
             toast.error(err);
         }
         setDeleteHostLoader(false);
+        handelDeleteHostModalClose();
     }
 
-    const deleteModel = (deleteModelId) => {
-        return (
-            <div className="modal fade" id={deleteModelId} tabindex="-1" aria-labelledby={deleteModelId} aria-hidden="true">
-                <div className="modal-dialog">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title" id={deleteModelId}>Delete Credential</h5>
-                            <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" onClick={() => setFormCredential({})}></button>
-                        </div>
-                        <div className="modal-body">
-                            <p>Are you sure, do you want to delete below credential ? </p>
-                            <CommonServices.JSONToHTMLTable data={formCredential} />
-                            <p></p>
-                        </div>
-                        <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary btn-sm" data-bs-dismiss="modal" onClick={() => setFormCredential({})}>Close</button>
-                            {
-                                deleteLoader &&
-                                <button className="btn btn-danger btn-sm" type="button" disabled>
-                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    &nbsp;&nbsp;&nbsp;&nbsp; Deleteing...
-                                </button>
-                                ||
-                                <button type="button" className="btn btn-danger btn-sm" onClick={onDeleteCredential}>Delete</button>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <ToastContainer
-                    containerId={`toast_` + uuidv1()}
-                    position="top-right"
-                    autoClose={1000}
-                    hideProgressBar={false}
-                    newestOnTop={true}
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                />
-            </div>
-        )
+    const handelDeleteModalClose = () => {
+        setDeleteModalShow(false);
+        resetFormCredential();
     }
 
-    const editModel = (editModelId) => {
-        return (
-            <div className="modal fade" id={editModelId} tabindex="-1" aria-labelledby={editModelId} aria-hidden="true">
-                <div className="modal-dialog">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title" id={editModelId}>Update Credential</h5>
-                            <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" onClose={() => setFormCredential({})}></button>
-                        </div>
-                        <div className="modal-body">
-                            <form>
-                                <div className="form-group row mb-2">
-                                    <label htmlFor="host" className="col-sm-2 col-form-label">Host <span style={{ color: 'red' }}>*</span></label>
-                                    <div className="col-sm-5">
-                                        <input type="text" className="form-control" name="host" placeholder='Ex. www.hotstar.com' value={formCredential.host} onChange={onFieldChange} disabled />
-                                    </div>
-                                </div>
-                                <div className="form-group row mb-2">
-                                    <label htmlFor="username" className="col-sm-2 col-form-label">username <span style={{ color: 'red' }}>*</span></label>
-                                    <div className="col-sm-5">
-                                        <input type="text" className="form-control" name="username" placeholder='username or email or mobile number' value={formCredential.username} onChange={onFieldChange} disabled />
-                                    </div>
-                                </div>
-                                <div className="form-group row mb-2">
-                                    <label htmlFor="inputPassword" className="col-sm-2 col-form-label">Password <span style={{ color: 'red' }}>*</span></label>
-                                    <div className="col-sm-5">
-                                        <input type="password" className="form-control" name="password" id={'password_' + editModelId} placeholder="Password" value={formCredential.password} onChange={onFieldChange} />
-                                        {/* <img src={hidePasswordIcon} id="togglePasswordIcon" style={{ marginLeft: "-30px", cursor: "pointer" }} onClick={togglePassword} /> */}
-                                    </div>
-                                    <div className="form-check col-sm-3 mx-3 my-2">
-                                        <input type="checkbox" className="form-check-input" id={'togglePassword_' + editModelId} name="togglePassword" placeholder="Password" value={false} onChange={() => togglePassword('password_' + editModelId)} />
-                                        <label htmlFor="togglePassword" className="form-check-lable">Show Password</label>
-                                    </div>
-                                </div>
-                                <div className="form-group row mb-2">
-                                    <label htmlFor="inputPin" className="col-sm-2 col-form-label">Pin</label>
-                                    <div className="col-sm-5">
-                                        <input type="text" className="form-control" name="pin" placeholder="Small Pin for mobile app login" value={formCredential.pin} onChange={onFieldChange} />
-                                    </div>
-                                </div>
-                                <div className="form-group row mb-2">
-                                    <label htmlFor="inputdescription" className="col-sm-2 col-form-label">Small description</label>
-                                    <div className="col-sm-5">
-                                        <input type="text" className="form-control" name="description" placeholder="Any description if you want to add" value={formCredential.description} onChange={onFieldChange} />
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary btn-sm " data-bs-dismiss="modal" onClose={() => setFormCredential({})}>Close</button>
-                            {
-                                updateLoader &&
-                                <button className="btn btn-danger btn-sm" type="button" disabled>
-                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    &nbsp;&nbsp;&nbsp;&nbsp; Updating...
-                                </button>
-                                ||
-                                <button type="button" className="btn btn-danger btn-sm" onClick={onUpdateCredential}>Update</button>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <ToastContainer
-                    containerId={`toast_` + uuidv1()}
-                    position="top-right"
-                    autoClose={1000}
-                    hideProgressBar={false}
-                    newestOnTop={true}
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                />
-            </div>
-        )
+    const handelDeleteHostModalClose = () => {
+        setDeleteHostModalShow(false);
+        resetFormCredential();
+    }
+    const handelEditModalClose = () => {
+        setEditModalShow(false);
+        resetFormCredential();
     }
 
-    const deleteHostModel = (hostId) => {
-        return (
-            <div className="modal fade" id={`host_${hostId}`} tabindex="-1" aria-labelledby={`host_${hostId}`} aria-hidden="true">
-                <div className="modal-dialog">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title" id={`host_${hostId}`}>Delete Host</h5>
-                            <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div className="modal-body">
-                            <div className='model-text'>Are you sure, do you want to delete host?</div>
-                            <div className='model-text text-danger'>*Note: It will delete all credential under this host.</div>
-                        </div>
-                        <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">No</button>
-                            {
-                                deleteHostLoader &&
-                                <button className="btn btn-danger" type="button" disabled>
-                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    &nbsp;&nbsp;&nbsp;&nbsp; Deleteing...
-                                </button>
-                                ||
-                                <button type="button" className="btn btn-danger" onClick={() => onDeleteHost(hostId)}>Yes, Delete</button>
-                            }
+    const deleteModel =
+        <Modal show={deleteModalShow} onHide={handelDeleteModalClose} animation={true}>
+            <Modal.Header closeButton>
+                <Modal.Title>Delete Credential</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                <p>Are you sure, do you want to delete below credential ? </p>
+                <CommonServices.JSONToHTMLTable data={formCredential} />
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="secondary" onClick={handelDeleteModalClose}>
+                    Close
+                </Button>
+                {
+                    deleteLoader ?
+                        <Button variant="danger" onClick={formCredential}>
+                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            &nbsp;&nbsp;&nbsp;&nbsp; Deleteing...
+                        </Button>
+                        :
+                        <Button variant="danger" onClick={onDeleteCredential}>
+                            Yes, Delete !!
+                        </Button>
+                }
+
+            </Modal.Footer>
+        </Modal>
+
+    const editModel =
+        <Modal show={editModalShow} onHide={handelEditModalClose} animation={true}>
+            <Modal.Header closeButton>
+                <Modal.Title>Update Credential</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                <form>
+                    <div className="form-group row mb-2">
+                        <label htmlFor="host" className="col-sm-2 col-form-label">Host <span style={{ color: 'red' }}>*</span></label>
+                        <div className="col-sm-5">
+                            <input type="text" className="form-control" name="host" placeholder='Ex. www.hotstar.com' value={formCredential.host} onChange={onFieldChange} disabled />
                         </div>
                     </div>
-                </div>
-            </div>
-        )
-    }
+                    <div className="form-group row mb-2">
+                        <label htmlFor="username" className="col-sm-2 col-form-label">username <span style={{ color: 'red' }}>*</span></label>
+                        <div className="col-sm-5">
+                            <input type="text" className="form-control" name="username" placeholder='username or email or mobile number' value={formCredential.username} onChange={onFieldChange} disabled />
+                        </div>
+                    </div>
+                    <div className="form-group row mb-2">
+                        <label htmlFor="inputPassword" className="col-sm-2 col-form-label">Password <span style={{ color: 'red' }}>*</span></label>
+                        <div className="col-sm-5">
+                            <input type="password" className="form-control" name="password" id={'password_'} placeholder="Password" value={formCredential.password} onChange={onFieldChange} />
+                            {/* <img src={hidePasswordIcon} id="togglePasswordIcon" style={{ marginLeft: "-30px", cursor: "pointer" }} onClick={togglePassword} /> */}
+                        </div>
+                        <div className="form-check col-sm-3 mx-3 my-2">
+                            <input type="checkbox" className="form-check-input" id={'togglePassword_'} name="togglePassword" placeholder="Password" value={false} onChange={() => togglePassword('password_')} />
+                            <label htmlFor="togglePassword" className="form-check-lable">Show Password</label>
+                        </div>
+                    </div>
+                    <div className="form-group row mb-2">
+                        <label htmlFor="inputPin" className="col-sm-2 col-form-label">Pin</label>
+                        <div className="col-sm-5">
+                            <input type="text" className="form-control" name="pin" placeholder="Small Pin for mobile app login" value={formCredential.pin} onChange={onFieldChange} />
+                        </div>
+                    </div>
+                    <div className="form-group row mb-2">
+                        <label htmlFor="inputnotes" className="col-sm-2 col-form-label">Small notes</label>
+                        <div className="col-sm-5">
+                            <textarea type="text" className="form-control" name="notes" placeholder="Any notes if you want to add" value={formCredential.notes} onChange={onFieldChange} />
+                        </div>
+                    </div>
+                </form>
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="secondary" onClick={handelEditModalClose}>
+                    Close
+                </Button>
+                {
+                    updateLoader &&
+                    <Button variant='danger' disabled>
+                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        &nbsp;&nbsp;&nbsp;&nbsp; Updating...
+                    </Button>
+                    ||
+                    <Button variant="danger" onClick={onUpdateCredential}>
+                        Save Changes
+                    </Button>
+                }
+            </Modal.Footer>
+        </Modal>
+
+    const deleteHostModel =
+        <Modal show={deleteHostModalShow} onHide={handelDeleteHostModalClose} animation={true}>
+            <Modal.Header closeButton>
+                <Modal.Title>Delete Host</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                <div className='model-text'>Are you sure, do you want to delete host?</div>
+                <div className='model-text'><b>Host: </b>{formCredential.host}</div>
+                <hr />
+                <div className='model-text text-danger'>*Note: It will delete all credential under this host.</div>
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="secondary" onClick={handelDeleteHostModalClose}>
+                    Close
+                </Button>
+                {
+                    deleteHostLoader ?
+                        <Button variant="danger" disabled>
+                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            &nbsp;&nbsp;&nbsp;&nbsp; Deleteing...
+                        </Button>
+                        :
+                        <Button variant="danger" onClick={() => onDeleteHost(formCredential.pmId)}>
+                            Yes, Delete
+                        </Button>
+                }
+            </Modal.Footer>
+        </Modal>
 
     return (
         <div className='m-1 p-2' style={{ background: "rgba(255 ,255 ,255, 0.9)" }}>
@@ -312,7 +303,7 @@ function ViewPassword() {
                 </Link>
                 <center><b><h2>View Credentials</h2></b></center>
             </div>
-            <hr/>
+            <hr />
             {
                 loader &&
                 <div className='d-flex justify-content-center'>
@@ -333,17 +324,20 @@ function ViewPassword() {
                         <div className="row row-cols-1 row-cols-md-3 g-3">
                             {
                                 credentials.map(({ id, host, credentials }) => {
-                                    let hostId = id;
+                                    let pmId = id;
                                     return (
                                         <div className="col">
                                             <div className="card h-100 border-dark">
-
-                                                {/* Delete Host Model */}
-                                                {deleteHostModel(hostId)}
                                                 <div className="card-header">
-                                                    <div className='btn btn-sm btn-light' style={{ position: "absolute", top: 0, right: 0, }} type="button" data-bs-toggle="modal" data-bs-target={`#host_${hostId}`}>
+                                                    {/* <div className='btn btn-sm btn-light' style={{ position: "absolute", top: 0, right: 0, }} type="button" data-bs-toggle="modal" data-bs-target={`#host_${pmId}`}>
                                                         <img style={{ width: "30px" }} src="https://img.icons8.com/fluency/48/null/delete-forever.png" className='' />
-                                                    </div>
+                                                    </div> */}
+                                                    <Button variant="danger" className='btn btn-sm btn-light' style={{ position: "absolute", top: 0, right: 0, }} onClick={() => {
+                                                        setFormCredential({ host, pmId })
+                                                        setDeleteHostModalShow(true);
+                                                    }}>
+                                                        <img style={{ width: "30px" }} src="https://img.icons8.com/fluency/48/null/delete-forever.png" className='' />
+                                                    </Button>
                                                     <div className="card-title" >
                                                         <dl className="row">
                                                             <dt className="col-sm-10 float-left">
@@ -357,7 +351,7 @@ function ViewPassword() {
                                                     <div className="card-text">
                                                         <ul className="list-group list-group-flush">
                                                             {
-                                                                credentials.map(({ id, username, password, pin, description }) => {
+                                                                credentials.map(({ id, username, password, pin, notes }) => {
                                                                     let collapseId = 'collapse_' + uuidv1();
                                                                     let editModelId = 'edit_' + uuidv1();
                                                                     let deleteModelId = 'delete_' + uuidv1();
@@ -372,26 +366,25 @@ function ViewPassword() {
                                                                                     <p><b>username:</b> {username}</p>
                                                                                     <p><b>password:</b> {password}</p>
                                                                                     {pin !== null && pin !== "" && pin !== 0 ? <p><b>pin:</b> {pin}</p> : ""}
-                                                                                    {description !== null && description !== "" ? <p><b>description:</b> {description}</p> : ""}
+                                                                                    {notes !== null && notes !== "" ? <p><b>notes:</b> {notes}</p> : ""}
                                                                                 </div>
                                                                                 <div className="card-footer">
                                                                                     <div className="btn-toolbar justify-content-end">
-                                                                                        <button className="btn btn-warning btn-sm mx-2" type="button" data-bs-toggle="modal" data-bs-target={`#${editModelId}`}
-                                                                                            onClick={() => setFormCredential({
-                                                                                                host, username, password, pin, description, credentialId, hostId
-                                                                                            })}
-                                                                                        >Edit</button>
-                                                                                        <button className="btn btn-danger btn-sm mx-2" type="button" data-bs-toggle="modal" data-bs-target={`#${deleteModelId}`}
-                                                                                            onClick={() => setFormCredential({
-                                                                                                host, username, password, pin, description, credentialId, hostId
-                                                                                            })}
-                                                                                        >Delete</button>
-
-                                                                                        {/* Edit Modal */}
-                                                                                        {editModel(editModelId)}
-
-                                                                                        {/* Delete Model */}
-                                                                                        {deleteModel(deleteModelId)}
+                                                                                        <Button variant="warning" size='sm' className='mx-1' onClick={() => {
+                                                                                            setFormCredential({
+                                                                                                host, username, password, pin, notes, credentialId, pmId
+                                                                                            })
+                                                                                            setEditModalShow(true);
+                                                                                        }}>
+                                                                                            Edit</Button>
+                                                                                        <Button variant="danger" size='sm' className='mx-1' onClick={() => {
+                                                                                            setFormCredential({
+                                                                                                host, username, password, pin, notes, credentialId, pmId
+                                                                                            })
+                                                                                            setDeleteModalShow(true);
+                                                                                        }}>
+                                                                                            Delete
+                                                                                        </Button>
 
                                                                                     </div>
                                                                                 </div>
@@ -408,6 +401,12 @@ function ViewPassword() {
                                     )
                                 })
                             }
+                            {/* Edit Modal */}
+                            {editModel}
+                            {/* Delete Model */}
+                            {deleteModel}
+                            {/* Delete Host Model */}
+                            {deleteHostModel}
                         </div>
                         :
                         <div className="row justify-content-center m-5">

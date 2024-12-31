@@ -1,54 +1,50 @@
 package com.db.dbworld.services;
 
-import com.db.dbworld.payloads.Credential;
-import com.db.dbworld.payloads.ResponsePayloads;
+import com.db.dbworld.entities.user.UserEntity;
+import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
 
+import java.util.Date;
 import java.util.List;
 
 public interface UserService {
 
+    UserEntity getUserFromToken();
+
+    Long getUserIdFromToken();
+
     List<UserDto> getAllUsers();
 
-    UserDto createUser(UserDto userDto);
+    List<UserDto> createUser(List<UserDto> userDtoList);
 
     UserDto registerUser(UserDto userDto);
 
-    UserDto getUserById(String id);
+    UserDto getUserDtoById(Long id);
 
-    String getUserIdByUsername(String username); //username = email
+    UserEntity getUserEntityById(Long id);
 
-    UserDto updateUser(UserDto userDto, String userId);
+    UserDto getUserProfile();
 
-    void deleteUserById(String id);
+    long getUserIdByUsername(String username); //username = email
 
-    UserDto getUserByEmail(String email);
+    UserDto updateUser(UserDto userDto, Long userId);
+
+    void deleteUserById(Long id);
+
+    UserDto getUserDtoByEmail(String email);
+
+    UserEntity getUserEntityByEmail(String email);
 
     List<UserDto> searchUser(String key);
 
-    List<UserDto.PasswordManagerCredential> getCredentialByUserId(String userId);
+    UserDto.UserRole addUpdateUserRoleByUserId(Long userId, UserDto.UserRole role);
+    
+    UserDto.UserRole getRoleForUser();
 
-    UserDto.UserRole addUpdateUserRoleByUserId(String userId, UserDto.UserRole role);
-
-    UserDto.UserRole getRoleByUserId(String userId, String tokenUserName);
+    void updateDob(Date dob);
 
     UserDto updateRoleByUserId(String userId);
 
-    UserDto.UserAppData getUserAppDataByUserId(String userId);
+    UserCinemaDataDto updateUserCinemaData(UserCinemaDataDto userCinemaDataDto, String username);
 
-    UserDto.UserAppData updateUserAppDataByUserId(String userId, UserDto.UserAppData userAppData);
-
-    void deleteUserAppDataById(String id);
-
-    void deleteUserAppDataByUserId(String userId);
-
-    void addCredential(String userId, String host, Credential credential);
-
-    List<ResponsePayloads.PasswordManagerCredential> getCredentials(String userId);
-
-    Credential getCredentialById(String userId, long credential);
-
-    void updateCredential(String userId, String host, Credential credential);
-
-    void deleteCredential(String userId, String passwordManagerId, long credentialId);
 }

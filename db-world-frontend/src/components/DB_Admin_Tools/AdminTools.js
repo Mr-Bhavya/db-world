@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import Status from './Status';
-import Authentication from '../Authentication';
 import { useLocation, useNavigate } from 'react-router-dom';
 import UserList from '../DB_Users/UserList';
 import Constants from '../Constants';
@@ -37,11 +36,6 @@ function AdminTools() {
         navigate(await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + `${location.hash.length !== 0 ? "#active=" + queryString.parse(location.hash).active : ""}`), { replace: true });
     }
 
-    const checkUserRole = async (userId) => {
-        let roleRes = await getUserRole(userId);
-        return {httpStatusCode: roleRes.httpStatusCode, role: roleRes?.data?.role?.name };        
-    }
-
     const setHasKey = () => {
         if (location.hash.length !== 0) {
             let hash = queryString.parse(location.hash);
@@ -50,33 +44,24 @@ function AdminTools() {
         setLoader(false);
     }
 
-    const postProcessAfterAuthenticatiion = async (authenticationRes) => {
-        setUserData(authenticationRes.user);
-        let roleRes = await checkUserRole(authenticationRes.user.userId);
-        if (roleRes.httpStatusCode == 200 && (roleRes.role == Constants.OWNER_USER_ROLE || roleRes.role == Constants.ADMIN_USER_ROLE)) {
-            setUserRole(roleRes.role)
-            let usersRes = await getAllUsers();
-            if (usersRes.httpStatusCode === 200) {
-                dispatch(findAllUsers(usersRes.data))
-            } else if (usersRes.httpStatusCode === 401) {
-                await navigateToLogin();
-            } else if (usersRes.httpStatusCode === 403) {
-                alert("You don't have admin rights.")
-                navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-            }
-            setHasKey();
-            setMainLoader(false);
-        }else if(roleRes.httpStatusCode == 401 || roleRes.httpStatusCode == 403){
+    const fetchAllUser = async () => {
+
+        let usersRes = await getAllUsers();
+        if (usersRes.httpStatusCode === 200) {
+            dispatch(findAllUsers(usersRes.data))
+        } else if (usersRes.httpStatusCode === 401) {
             await navigateToLogin();
-        }else {
+        } else if (usersRes.httpStatusCode === 403) {
             alert("You don't have admin rights.")
             navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
         }
+        setHasKey();
+        setMainLoader(false);
+
     }
 
     useEffect(() => {
-        let authenticationRes = Authentication();
-        authenticationRes.login ? postProcessAfterAuthenticatiion(authenticationRes) : navigateToLogin();
+        fetchAllUser();
     }, [])
 
     useEffect(() => {
@@ -103,7 +88,7 @@ function AdminTools() {
                                 }}
                                 style={{ overflowX: "auto" }}
                             >
-                                <Tab className='m-3' eventKey="user_data" title="User_Data" tabClassName={key === 'user_data' ? tabActiveClassName : tabClassName}>
+                                <Tab className='m-1' eventKey="user_data" title="User_Data" tabClassName={key === 'user_data' ? tabActiveClassName : tabClassName}>
                                     <Form>
                                         <Form.Switch // prettier-ignore
                                             type="switch"

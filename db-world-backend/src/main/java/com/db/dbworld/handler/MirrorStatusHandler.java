@@ -20,14 +20,13 @@ public class MirrorStatusHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTextMessage(WebSocketSession session, TextMessage message) {
-        log.info("WebSocket Connection start for status");
+//        log.info("WebSocket Connection start for status");
         new Thread(() -> {
             try {
                 while (session.isOpen()) {
                     StatusService statusService = new StatusServiceImpl();
                     Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
-                    List<MirrorStatus> mirrorStatuses = new ArrayList<>();
-                    mirrorStatuses.addAll(mirrorStatusMap.values().stream().sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp())).toList());
+                    List<MirrorStatus> mirrorStatuses = new ArrayList<>(mirrorStatusMap.values().stream().sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp())).toList());
                     session.sendMessage(new TextMessage(new Gson().toJson(mirrorStatuses)));
                     Thread.sleep(3000); // Simulate 25 fps (1000 ms / 25 = 40 ms)
                 }
@@ -40,7 +39,7 @@ public class MirrorStatusHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status){
         // Handle connection close
-        log.info("WebSocket Connection close for status. status code: {}", status.getCode());
+//        log.info("WebSocket Connection close for status. status code: {}", status.getCode());
     }
 
 }

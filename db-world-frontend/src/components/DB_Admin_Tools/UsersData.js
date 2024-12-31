@@ -22,8 +22,8 @@ const UsersData = () => {
     const onSearchQueryChange = (query) => {
         setUserData(
             query === "" || query === null || typeof (query) === "undefined" ? users :
-                users.filter(({ userId, email, firstName, lastName, mobileNo }) =>
-                    userId?.toLowerCase().includes(query.toLowerCase()) ||
+                users?.filter(({ userId, email, firstName, lastName, mobileNo }) =>
+                    userId?.toString().toLowerCase().includes(query.toLowerCase()) ||
                     email?.toLowerCase().includes(query.toLowerCase()) ||
                     firstName?.toLowerCase().includes(query.toLowerCase()) ||
                     lastName?.toLowerCase().includes(query.toLowerCase()) ||
@@ -296,7 +296,7 @@ const UsersData = () => {
                                                                             }
                                                                             <tr>
                                                                                 <th>No. of login</th>
-                                                                                <td>{user.userAppData?.noOfLogin}</td>
+                                                                                <td>{user?.noOfLogin}</td>
                                                                             </tr>
                                                                             <tr>
                                                                                 <th>Site Password:</th>
@@ -307,16 +307,21 @@ const UsersData = () => {
                                                                                 <td>{user.userRole?.name}</td>
                                                                             </tr>
                                                                             {
-                                                                                user.userLoginDetails && user.userLoginDetails.length > 0 ?
+                                                                                user.loginData && user.loginData.length > 0 ?
                                                                                     <tr>
                                                                                         <th>User Last 5 Login:</th>
                                                                                         <td>
-                                                                                            {user.userLoginDetails.map((userLoginDetail, idx) => {
-                                                                                                if (typeof (userLoginDetail.timeStamp) !== 'object' && idx < 5) {
+                                                                                            {user.loginData.map((data, idx) => {
+                                                                                                <tr>
+                                                                                                    <td>
+                                                                                                        {data.lastLoginDate}
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                                if (typeof (data.lastLoginDate) !== 'object') {
                                                                                                     return (
                                                                                                         <tr>
                                                                                                             <td>
-                                                                                                                {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).date} | {CommonServices.getTimeDateFromTimeStamp(userLoginDetail.timeStamp).time}
+                                                                                                                {data.lastLoginDate}
                                                                                                             </td>
                                                                                                         </tr>
                                                                                                     )
@@ -326,6 +331,46 @@ const UsersData = () => {
                                                                                     </tr>
                                                                                     :
                                                                                     ""
+                                                                            }
+                                                                            {
+                                                                                user.cinemaData && user.cinemaData != null && user.cinemaData.download_files && user.cinemaData.download_files.length > 0 ?
+                                                                                    <tr>
+                                                                                        <th>Downloaded Files: </th>
+                                                                                        <td>
+                                                                                            {
+                                                                                                user.cinemaData.download_files.map(file => {
+                                                                                                    return (<tr><td> <b>==&gt;</b>{file} </td> </tr>)
+                                                                                                })
+                                                                                            }
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    : ""
+                                                                            }
+                                                                            {
+                                                                                user.cinemaData && user.cinemaData != null && user.cinemaData.stream_files && user.cinemaData.stream_files.length > 0 ?
+                                                                                    <tr>
+                                                                                        <th>Stream Files: </th>
+                                                                                        <td>
+                                                                                            {
+                                                                                                user.cinemaData.stream_files.map(file => {
+                                                                                                    return (<tr><td> <b>==&gt;</b>{file} </td> </tr>)
+                                                                                                })
+                                                                                            }
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    : ""
+                                                                            }
+                                                                            {
+                                                                                user.cinemaData && user.cinemaData != null && user.cinemaData.search_keywords && user.cinemaData.search_keywords.length > 0 ?
+                                                                                    <tr>
+                                                                                        <th>search_keywords: </th>
+                                                                                        <td>
+                                                                                            {
+                                                                                                user.cinemaData.search_keywords.map(file => file + ", ")
+                                                                                            }
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    : ""
                                                                             }
                                                                         </tbody>
                                                                     </Table>
@@ -371,10 +416,10 @@ const UsersData = () => {
                             })
 
                             }
-                        </CardGroup>
-                    </div>
+                        </CardGroup >
+                    </div >
             }
-            
+
             {Constants.TOAST_CONTAINER}
 
         </div >

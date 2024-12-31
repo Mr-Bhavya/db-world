@@ -1,50 +1,55 @@
 package com.db.dbworld.services;
 
+import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.payloads.RequestPayloads;
-import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
-import com.db.dbworld.payloads.dbcinema.MovieTmdbDataDto;
-import com.db.dbworld.payloads.dbcinema.SeriesTmdbDataDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
+import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
+import com.db.dbworld.utils.DbWorldConstants;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Pageable;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public interface DBCinemaRecordsService {
     DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record);
 
-    void updateRecord(String recordId, RequestPayloads.AddRecord record);
+    DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record);
 
-    void deleteRecord(String recordId);
+    void deleteRecord(Long recordId);
 
     List<DBCinemaRecordsDto> getRecords();
 
-    ResponsePayloads.PaginationRecords getRecordsByPagination(String recordType, int pageNumber, int pageSize);
+    List<DBCinemaRecordsDto> fetchDbCinemaRecords(String recordType, Pageable pageable, String languages, String genres);
 
-    ResponsePayloads.PaginationRecords getRecordsByPagination(String recordType, int pageNumber, int pageSize, String languages, String username);
+    Integer fetchCountOfDbCinemaRecords(String recordType, String languages, String genres);
 
-    DBCinemaRecordsDto getRecordById(String recordId);
+    DBCinemaRecordsDto getRecordById(Long recordId);
+
+    DBCinemaRecordsEntity getRecordEntityById(Long recordId);
 
     List<DBCinemaRecordsDto> searchRecordByKeyword(String keyword);
 
-    List getTmdbByQuery(String recordType, String query, int year);
+    List<HashMap<String, Object>> getTmdbByQuery(String recordType, String query, int year);
 
     MovieTmdbDataDto getTMDBDetailsForMovieById(RequestPayloads.AddRecord record);
 
     SeriesTmdbDataDto getTMDBDetailsForSeriesById(RequestPayloads.AddRecord record);
 
-    void likeRecord(String userId, String recordId);
+    DBCinemaRecordsDto userRecordDataProcess(Long recordId, String process);
 
-    void unLikeRecord(String userId, String recordId);
-
-    void watchListRecord(String userId, String recordId);
-
-    void removeWatchListRecord(String userId, String recordId);
-
-    List<DBCinemaRecordsDto> getWatchListCinemaRecords(String userId);
+    List<DBCinemaRecordsDto> getWatchListCinemaRecords();
 
     void updateTmdbWithLatest();
 
-    Map<String, Long> getStatusOfRecordsUpdate();
+    Map<String, Object> getStatusOfRecordsUpdate();
 
     boolean isRecordsUpdateRunning();
+
+    List<GenresDto> getAllGenres();
+
+    DBCinemaRecordsDto addUsersDbCinemaData(DBCinemaRecordsDto dbCinemaRecordsDto);
 }

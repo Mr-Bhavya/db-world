@@ -1,7 +1,9 @@
 package com.db.dbworld.services.Impl;
 
+import com.db.dbworld.entities.user.UserRoleEntity;
 import com.db.dbworld.exceptions.DbWorldException;
-import com.db.dbworld.payloads.user.UserDto;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,22 +14,25 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UserDetailImpl implements UserDetails {
-    private String userId;
+    private Long userId;
     private String firstName;
     private String lastName;
     private String age;
-    private String dob;
+    @JsonFormat(pattern="yyyy-MM-dd")
+    private Date dob;
     private String gender;
     private Long mobileNo;
     private String email;
     private String password;
-    private UserDto.UserRole userRole;
+    private UserRoleEntity role;
 
     /**
      * @return
@@ -35,10 +40,10 @@ public class UserDetailImpl implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-        if(userRole == null){
+        if(role == null){
             throw new DbWorldException(HttpStatus.FORBIDDEN, "You don't have any role. first please assign to you role from administrator.");
         }
-        authorities.add(new SimpleGrantedAuthority(userRole.getName()));
+        authorities.add(new SimpleGrantedAuthority(role.getName()));
         return authorities;
     }
 

@@ -10,7 +10,7 @@ import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import DownloadFileAndroid from "./DownloadFileAndroid";
 import { Browser } from "@capacitor/browser";
 import { useDispatch, useSelector } from "react-redux";
-import { getDownloadStatus, updateDownloadStatus } from "../../../redux/action/allActions";
+import { updateDownloadStatus } from "../../../redux/action/allActions";
 
 
 function File(props) {
@@ -94,13 +94,6 @@ function File(props) {
         if (currentFileStatus != null) {
             setCurrentProgress(currentFileStatus[file.fileId]);
         }
-        // let downloadFileStatus = localStorage.getItem("downloadFileStatus");
-        // if (downloadFileStatus != null) {
-        //     downloadFileStatus = JSON.parse(downloadFileStatus);
-        //     if (Object.keys(downloadFileStatus).filter(key => key == file.fileId).length != 0) {
-        //         setCurrentFileStatus(downloadFileStatus[file.fileId].progress);
-        //     }
-        // }
     }, [])
 
     useEffect(() => {
@@ -127,10 +120,10 @@ function File(props) {
 
     return (
         isDeleted ||
-        <div className="m-1" 
-        style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px" }}
+        <div className="m-1"
+            style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)", borderRadius: "3px" }}
         >
-            <span style={{overflowX:"auto"}}>📃
+            <span style={{ overflowX: "auto" }}>📃
                 {
                     onRename ? <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} /> : file.fileName
                 }
@@ -153,95 +146,90 @@ function File(props) {
             </span>
 
             {
-                videoModel ?
-                    <Modal show={videoModel} animation onHide={handleStop}>
-                        <Modal.Header closeButton>
-                            <Modal.Title className="overflow-auto w-100">{document.title}</Modal.Title>
-                        </Modal.Header>
-                        <Modal.Body>
-                            <video id="player" class="player" controls style={{ width: "100%" }}
-                                enabled autoPlay src={videoUrl}
-                            ></video>
-                            <hr />
 
-                            {
-                                currentProgress && currentProgress != null && typeof (currentProgress) != "undefined" && currentProgress.progress.download ?
-                                    <div>
-                                        <h3><u><b>Download status</b> </u></h3>
-                                        {/* {console.log("currentProgress:", currentProgress)} */}
-                                        <p><b>Total Size: </b>{CommonServices.bytesToReadbleFormat(file.fileSize)?.value} {CommonServices.bytesToReadbleFormat(file.fileSize)?.suffix}</p>
-                                        <div className="row">
-                                            <div className="col-4 col-md-2">
-                                                <b>Process : </b>({CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)}%)
-                                            </div>
-                                            <div className="col-8 col-md-4">
-                                                <div className="progress" style={{ width: "70%" }}>
-                                                    <div className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
-                                                        aria-valuemin="0"
-                                                        aria-valuenow={CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)}
-                                                        aria-valuemax="100"
-                                                        style={{ width: `${CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)}%` }}
-                                                    >
-                                                        <b>{CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)} % </b>
-                                                    </div>
-                                                </div>
-                                            </div>
+                <Modal show={videoModel} animation onHide={handleStop}>
+                    <Modal.Header closeButton>
+                        <Modal.Title className="overflow-auto w-100">{document.title}</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <video id="player" class="player" controls style={{ width: "100%" }}
+                            enabled autoPlay src={videoUrl}
+                        ></video>
+                        <hr />
+
+                        {
+                            currentProgress && currentProgress != null && typeof (currentProgress) != "undefined" && currentProgress.progress?.download ?
+                                <div>
+                                    <h3><u><b>Download status</b> </u></h3>
+                                    {/* {console.log("currentProgress:", currentProgress)} */}
+                                    <div><b>Total Size: </b>{CommonServices.bytesToReadbleFormat(file.fileSize)?.value} {CommonServices.bytesToReadbleFormat(file.fileSize)?.suffix}</div>
+                                    <div className="row">
+                                        <div className="col-4 col-md-2">
+                                            <b>Process : </b>
                                         </div>
-                                        {/* <p><b>Percentage: </b>({CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)}%)
-                                            <span className="progress"
-                                                style={{ width: "50%" }}
-                                            >
-                                                <span className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
+                                        <div className="col-8 col-md-4">
+                                            <div className="progress" style={{ width: "70%" }}>
+                                                <div className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
                                                     aria-valuemin="0"
                                                     aria-valuenow={CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)}
                                                     aria-valuemax="100"
                                                     style={{ width: `${CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)}%` }}
                                                 >
                                                     <b>{CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)} % </b>
-                                                </span>
-                                            </span>
-                                        </p> */}
-                                        <div>
-                                            <Button className="btn btn-sm btn-warning my-3" onClick={resetProgress} >Clear Download</Button>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div> : ""
-                            }
-                        </Modal.Body>
-                        <Modal.Footer>
+                                    </div>
+                                    <div className="row">
+                                        <div className="col-6 col-md-2">
+                                            <b>Percentage : </b>
+                                        </div>
+                                        <div className="col-6 col-md-4">
+                                            {CommonServices.getPercentage(currentProgress?.progress?.loaded, currentProgress?.progress?.total)}%
+                                        </div>
+                                    </div>
+                                    <hr />
+                                    <div className="row">
+                                        <div class="col"><Button className="btn btn-sm btn-warning" onClick={resetProgress} >Clear Download</Button></div>
+                                    </div>
+                                    <div >
 
-                            {
-                                onUrlCopied ?
-                                    <Button variant="success">
-                                        Copied !
-                                    </Button>
-                                    :
-                                    <Button variant="primary" onClick={() => {
-                                        CommonServices.handleCopy(downloadUrl)
-                                        setOnUrlCopied(true)
-                                        setInterval(() => {
-                                            setOnUrlCopied(false)
-                                        }, 5000)
+                                    </div>
+                                </div> : ""
+                        }
+                    </Modal.Body>
+                    <Modal.Footer>
 
-                                    }}>
-                                        Copy Url
-                                    </Button>
-                            }
+                        {
+                            onUrlCopied ?
+                                <Button variant="success">
+                                    Copied !
+                                </Button>
+                                :
+                                <Button variant="primary" onClick={() => {
+                                    CommonServices.handleCopy(downloadUrl)
+                                    setOnUrlCopied(true)
+                                    setInterval(() => {
+                                        setOnUrlCopied(false)
+                                    }, 5000)
 
-                            {
-                                Capacitor.isNativePlatform() ? <DownloadFileAndroid file={file} />
-                                    :
-                                    <button className="btn btn-danger" onClick={handelFileDownload}>
-                                        Download
-                                    </button>
-                            }
-                            {/* <button className="btn btn-danger" onClick={handelFileDownload}>
-                        Download
-                    </button> */}
-                            <Button variant="secondary" onClick={handleStop}>
-                                Close
-                            </Button>
-                        </Modal.Footer>
-                    </Modal> : ""
+                                }}>
+                                    Copy Url
+                                </Button>
+                        }
+
+                        {
+                            Capacitor.isNativePlatform() ? <DownloadFileAndroid file={file} />
+                                :
+                                <button className="btn btn-danger" onClick={handelFileDownload}>
+                                    Download
+                                </button>
+                        }
+                        <Button variant="secondary" onClick={handleStop}>
+                            Close
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
             }
 
             {

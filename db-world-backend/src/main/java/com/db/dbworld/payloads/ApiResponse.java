@@ -2,15 +2,18 @@ package com.db.dbworld.payloads;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.http.HttpStatus;
 
+import java.io.Serializable;
 import java.util.Date;
 
 @Getter
 @Setter
 @AllArgsConstructor
-public class ApiResponse <T>{
+@NoArgsConstructor
+public class ApiResponse <T> implements Serializable {
     private String timestamp = new Date(System.currentTimeMillis()).toString();
     private HttpStatus httpStatus;
     private int httpStatusCode;

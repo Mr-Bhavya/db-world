@@ -1,150 +1,129 @@
 export const userLogin = () => {
-    return{
-        type:"LOGIN"
+    return {
+        type: "LOGIN"
     }
 }
 
 export const userLogout = () => {
-    return{
-        type:"LOGOUT"
+    return {
+        type: "LOGOUT"
     }
 }
 
 export const addUser = (user) => {
-    return{
-        type:"ADD_USER",
-        user:user
+    return {
+        type: "ADD_USER",
+        user: user
     }
 }
 
 export const searchQuery = (query) => {
-    return{
-        type:"SEARCH",
-        query:query
-    }
-}
-
-export const searchList = (list) => {
-    return{
-        type:"SEARCH_LIST",
-        searchList:list
-    }
-}
-
-export const updateMovieID = (id) => {
-    return{
-        type:"UPDATEMOVIEID",
-        id:id
+    return {
+        type: "SEARCH",
+        query: query
     }
 }
 
 export const reloadMovies = () => {
-    return{
-        type:"RELOADMOVIES"
+    return {
+        type: "RELOADMOVIES"
     }
 }
 
-export const moviePageNumber = (pageNumber) => {
-    return{
-        type:"MOVIEPAGENUMBER",
+export const moviePageNumber_a = (pageNumber) => {
+    return {
+        type: "MOVIEPAGENUMBER_A",
         pageNumber
     }
 }
 
 export const moviePageNumber_b = (pageNumber) => {
-    return{
-        type:"MOVIEPAGENUMBER_B",
+    return {
+        type: "MOVIEPAGENUMBER_B",
         pageNumber
     }
 }
 
 export const moviePageNumber_h = (pageNumber) => {
-    return{
-        type:"MOVIEPAGENUMBER_H",
+    return {
+        type: "MOVIEPAGENUMBER_H",
         pageNumber
     }
 }
 
 export const moviePageNumber_s = (pageNumber) => {
-    return{
-        type:"MOVIEPAGENUMBER_S",
+    return {
+        type: "MOVIEPAGENUMBER_S",
         pageNumber
     }
 }
 
 export const moviePageNumber_g = (pageNumber) => {
-    return{
-        type:"MOVIEPAGENUMBER_G",
+    return {
+        type: "MOVIEPAGENUMBER_G",
         pageNumber
     }
 }
 
 export const moviePageNumber_k = (pageNumber) => {
-    return{
-        type:"MOVIEPAGENUMBER_K",
+    return {
+        type: "MOVIEPAGENUMBER_K",
         pageNumber
     }
 }
 
 export const seriesPageNumber = (pageNumber) => {
-    return{
-        type:"SERIESPAGENUMBER",
+    return {
+        type: "SERIESPAGENUMBER",
         pageNumber
     }
 }
 
 export const seriesPageNumber_b = (pageNumber) => {
-    return{
-        type:"SERIESPAGENUMBER_B",
+    return {
+        type: "SERIESPAGENUMBER_B",
         pageNumber
     }
 }
 
 export const seriesPageNumber_h = (pageNumber) => {
-    return{
-        type:"SERIESPAGENUMBER_H",
+    return {
+        type: "SERIESPAGENUMBER_H",
         pageNumber
     }
 }
 
 export const seriesPageNumber_s = (pageNumber) => {
-    return{
-        type:"SERIESPAGENUMBER_S",
+    return {
+        type: "SERIESPAGENUMBER_S",
         pageNumber
     }
 }
 
 export const seriesPageNumber_g = (pageNumber) => {
-    return{
-        type:"SERIESPAGENUMBER_G",
+    return {
+        type: "SERIESPAGENUMBER_G",
         pageNumber
     }
 }
 
 export const seriesPageNumber_k = (pageNumber) => {
-    return{
-        type:"SERIESPAGENUMBER_K",
+    return {
+        type: "SERIESPAGENUMBER_K",
         pageNumber
     }
 }
 
 export const filterSelection = (filter) => {
-    return{
-        type:"FILTERSELECTION",
+    return {
+        type: "FILTERSELECTION",
         filter
     }
 }
 
-export const displayDbCinemaRecordsList = (dbCinemaRecords) => {
-    return {
-        type:"DISPLAYDBCINEMARECORDSLIST",
-        dbCinemaRecords
-    }
-}
-
 export const findAllUsers = (users) => {
-    return{
-        type:"FINDALLUSERS",
+    return {
+        type: "FINDALLUSERS",
         users
     }
 }

@@ -1,7 +1,7 @@
 import axios from 'axios'
 const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
 
-export const login = async (email, password) => {
+export const doLogin = async (email, password) => {
     let response = await fetch(REACT_APP_BASEURL + "/api/auth/login", {
         method: "POST",
         headers: {
@@ -24,12 +24,12 @@ export const register = async (user) => {
 
 export const findAllUsersService = async () => {
     // return await axios.get(Constants.FIND_ALL_USERS_API)
-    return await axios.get(REACT_APP_BASEURL + "/api/user");
+    return await axios.get(REACT_APP_BASEURL + "/api/admin/user");
 
 }
 
 export const deleteUser = async (userId) => {
-    const response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}`,{
+    const response = await fetch(`${REACT_APP_BASEURL}/api/admin/user/${userId}`,{
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -38,8 +38,18 @@ export const deleteUser = async (userId) => {
     return await response.json();
 }
 
+export const updateDobForUser = async (dob) => {
+    const response = await fetch(`${REACT_APP_BASEURL}/api/user/dob=${dob}`,{
+        method: "PUT",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
 export const getAllUsers = async () => {
-    let response = await fetch(REACT_APP_BASEURL + "/api/user/", {
+    let response = await fetch(REACT_APP_BASEURL + "/api/admin/user", {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -47,8 +57,8 @@ export const getAllUsers = async () => {
     return response.json();
 }
 
-export const getUserRole = async (userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/role`, {
+export const getUserRole = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/role`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -65,8 +75,8 @@ export const getAllUserRoles = async () => {
     return await response.json();
 }
 
-export const getUserDetailByUserId = async (userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}`, {
+export const getUserDetail = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/user/`, {
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
         }
@@ -88,7 +98,7 @@ export const updateUserDetails = async (user) => {
 }
 
 export const updateUserRoleService = async (doer_id, userId, role) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/role`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/user/${userId}/role`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -101,7 +111,7 @@ export const updateUserRoleService = async (doer_id, userId, role) => {
 }
 
 export const searchTmdbByQuery = async (recordType, query, year) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/tmdb/${recordType}/search?q=${query}${!year || typeof(year)=="undefined" || year == "" ? "" : "&year="+year}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/tmdb/${recordType}/search?q=${query}${!year || typeof(year)=="undefined" || year == "" ? "" : "&year="+year}`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -113,7 +123,7 @@ export const searchTmdbByQuery = async (recordType, query, year) => {
 }
 
 export const AddDbCinemaRecord = async (name, type, tmdbId) => {
-    let response = await fetch(REACT_APP_BASEURL + "/api/cinema/record", {
+    let response = await fetch(REACT_APP_BASEURL + "/api/admin/cinema/record", {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -126,7 +136,7 @@ export const AddDbCinemaRecord = async (name, type, tmdbId) => {
 }
 
 export const UpdateDbCinemaRecord = async (recordId, body) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/record/${recordId}`, {
         method: "PUT",
         headers: {
             'Content-Type': 'application/json',
@@ -139,7 +149,7 @@ export const UpdateDbCinemaRecord = async (recordId, body) => {
 }
 
 export const deleteDbCinemaRecord = async (recordId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/record/${recordId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -148,32 +158,38 @@ export const deleteDbCinemaRecord = async (recordId) => {
     return await response.json();
 }
 
-export const loadDbCinemaRecords = async (industry, type, recordsPageNumberList) => {
+export const loadDbCinemaRecords = async (industry, type, genres, pageNumber) => {
 
     var api = "";
     if (industry === "all") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.all}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.all}&languages=all`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}`
     }
     else if (industry === "bollywood") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.bollywood}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.bollywood}&languages=hi`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=hi`
     }
     else if (industry === "hollywood") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.hollywood}&languages=en`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=en`
     }
     else if (industry === "korean") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.hollywood}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.korean}&languages=ko`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=ko`
     }
     else if (industry === "south") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.south}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.south}&languages=ta,te,ml,kn`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=ta,te,ml,kn`
     }
     else if (industry === "gujarati") {
         // api = `${REACT_APP_BASEURL}/api/media/movie?industry=${filter.movieIndustry}&page=${recordsPageNumberList.gujarati}`
-        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
+        api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${pageNumber}&languages=gu`
+    }
+
+    // api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
+
+    if(genres && genres.length > 0){
+        api += `&genres=${genres.join(",")}`
     }
 
     const response = await fetch(api, {
@@ -250,7 +266,7 @@ export const watchlistRecord = async (recordId, userId) => {
 }
 
 export const removeWatchlistRecord = async (recordId, userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatchlist?userId=${userId}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatchlist`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -259,8 +275,8 @@ export const removeWatchlistRecord = async (recordId, userId) => {
     return await response.json();
 }
 
-export const watchedRecord = async (recordId, userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/watched?userId=${userId}`, {
+export const watchedRecord = async (recordId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/watch`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -269,8 +285,18 @@ export const watchedRecord = async (recordId, userId) => {
     return await response.json();
 }
 
-export const unWatchedRecord = async (recordId, userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatched?userId=${userId}`, {
+export const unWatchedRecord = async (recordId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatch`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
+export const getGenresList = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/genres`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -299,8 +325,20 @@ export const getStreamMediaList = async (path) => {
     return await response.json();
 }
 
-export const addCredential = async (userId, credential) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential`, {
+export const findAllHost = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/pm/host`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
+export const addCredential = async (credential) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/pm/`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -312,8 +350,8 @@ export const addCredential = async (userId, credential) => {
     return await response.json();
 }
 
-export const updateCredential = async (userId, credentialId, credential) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential/${credentialId}`, {
+export const updateCredential = async (pmId, credential) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/pm/${pmId}`, {
         method: "PUT",
         headers: {
             'Content-Type': 'application/json',
@@ -325,8 +363,8 @@ export const updateCredential = async (userId, credentialId, credential) => {
     return await response.json();
 }
 
-export const getCredential = async (userId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential`, {
+export const getCredential = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/pm/`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -335,8 +373,8 @@ export const getCredential = async (userId) => {
     return await response.json();
 }
 
-export const deleteCredentialByCredentialId = async (userId, pmId, credentialId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/credential/${credentialId}?pmId=${pmId}`, {
+export const deleteCredentialByCredentialId = async (credentialId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/pm/credential/${credentialId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -345,8 +383,8 @@ export const deleteCredentialByCredentialId = async (userId, pmId, credentialId)
     return await response.json();
 }
 
-export const deleteHostById = async (userId, pmId) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/user/${userId}/pm/${pmId}`, {
+export const deleteHostById = async (pmId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/pm/${pmId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -415,7 +453,7 @@ export const deleteMirror = async (statusId) => {
 }
 
 export const updateRecordsWithLatest = async () => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/records/update`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/records/update`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',

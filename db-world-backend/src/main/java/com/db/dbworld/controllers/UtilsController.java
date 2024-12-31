@@ -13,7 +13,7 @@ import com.google.gson.JsonObject;
 import com.sun.management.OperatingSystemMXBean;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.*;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -55,14 +57,20 @@ public class UtilsController {
 
     @DeleteMapping(value = "/tempFiles")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse deleteTempFiles() {
+    public ApiResponse<String> deleteTempFiles() {
         utilsService.deleteTempFiles();
         return new ApiResponse<>(HttpStatus.OK, true, "Temporary files are deleted.");
     }
 
     @RequestMapping(value = "/mirror", method = RequestMethod.POST)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse mirror(@RequestBody RequestPayloads.Mirror mirror) {
+    public ApiResponse<String> mirror(@RequestBody RequestPayloads.Mirror mirror) {
+
+        URL url;
+        String fileName;
+        long contentLength;
+        String contentDisposition;
+        HttpURLConnection connection;
 
         if (mirror.getUrl().startsWith("http") || mirror.getUrl().startsWith("https")) {
             if (mirror.isUrlProtected() && mirror.getUrl().contains("https://")) {
@@ -70,28 +78,41 @@ public class UtilsController {
             } else if (mirror.isUrlProtected() && mirror.getUrl().contains("http://")) {
                 mirror.setUrl(mirror.getUrl().replace("http://", "http://" + mirror.getUsername() + ":" + mirror.getPassword() + "@"));
             }
-            HttpHeaders headers = utilsService.getHeaders(mirror.getUrl());
-            String fileName = null;
-            if (mirror.isRename()) {
-                fileName = mirror.getFileName();
-            } else if (headers != null && headers.getContentDisposition() != null && headers.getContentDisposition().getFilename() != null) {
-                fileName = dbWorldUtils.decodeFileName(headers.getContentDisposition().getFilename());
-            } else if (headers == null) {
-                throw new DbWorldException("Not able to read headers from given url, Please send file name also.");
-            } else {
-                throw new DbWorldException("Not able to get filename from url. Please send file name also.");
+
+            try {
+                url = new URL(mirror.getUrl());
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("HEAD");
+                log.info("Response Code: {} for retrieve headers from URL: {}",connection.getResponseCode(), url.toString());
+                contentDisposition = connection.getHeaderField("Content-Disposition");
+                contentLength = connection.getContentLengthLong(); //default is -1
+                connection.disconnect();
+            } catch (IOException e) {
+                throw new DbWorldException(e.getMessage());
             }
+
+            if (contentDisposition == null || contentDisposition.isBlank()) {
+                if (mirror.isRename()) {
+                    fileName = mirror.getFileName();
+                } else
+                    throw new DbWorldException("Not able to retrieve fileName from url. Please try again with rename option.");
+            } else {
+                fileName = mirror.isRename() ? mirror.getFileName() : dbWorldUtils.decodeFileName(ContentDisposition.parse(contentDisposition).getFilename());
+            }
+
             mirrorStatus = new MirrorStatus(
                     mirror.getUrl(),
                     fileName,
-                    headers == null ? 0 : headers.getContentLength(),
+                    contentLength,
                     mirror.isExtract()
             );
+
             log.info("Download file: '{}' from url: '{}'.", mirrorStatus.getFileName(), mirrorStatus.getFileUrl());
-            utilsService.downloadHttpFile(mirrorStatus);
+            statusService.addNewStatus(mirrorStatus);
+            utilsService.downloadHttpFile_1(mirrorStatus);
         } else if (mirror.getUrl().startsWith("magnet:?")) {
 
-            String fileName = Arrays.stream(mirror.getUrl().split("&")).filter(s -> s.contains("dn=")).collect(Collectors.joining()).replace("dn=", "");
+            fileName = Arrays.stream(mirror.getUrl().split("&")).filter(s -> s.contains("dn=")).collect(Collectors.joining()).replace("dn=", "");
             mirrorStatus = new MirrorStatus(
                     mirror.getUrl(),
                     dbWorldUtils.decodeFileName(fileName),
@@ -100,30 +121,29 @@ public class UtilsController {
             );
             utilsService.downloadMagnetFile(mirrorStatus);
         }
-        return new ApiResponse(HttpStatus.OK, true, "Task added. task id: "+ mirrorStatus.getId());
+        return new ApiResponse<>(HttpStatus.OK, true, "Task added. task id: " + mirrorStatus.getId());
     }
 
     @RequestMapping(value = "/mirror/{mirrorId}", method = RequestMethod.DELETE)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse mirrorCancelled(@PathVariable String mirrorId) {
+    public ApiResponse<String> mirrorCancelled(@PathVariable String mirrorId) {
         MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
         mirrorStatus.setCancelled(true);
         statusService.updateStatus(mirrorStatus);
-        return new ApiResponse(HttpStatus.OK, true, "Task Cancelled.");
+        return new ApiResponse<>(HttpStatus.OK, true, "Task Cancelled.");
     }
 
     @GetMapping(value = "/mirror/status")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse getAllStatus() {
+    public ApiResponse<List<MirrorStatus>> getAllStatus() {
         Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
-        List<MirrorStatus> mirrorStatuses = new ArrayList<>();
-        mirrorStatuses.addAll(mirrorStatusMap.values().stream().sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp())).toList());
-        return new ApiResponse(HttpStatus.OK, true, mirrorStatuses);
+        List<MirrorStatus> mirrorStatuses = new ArrayList<>(mirrorStatusMap.values().stream().sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp())).toList());
+        return new ApiResponse<>(HttpStatus.OK, true, mirrorStatuses);
     }
 
     @RequestMapping(value = "/mirror/status/{statusId}", method = RequestMethod.DELETE)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse mirrorDelete(@PathVariable String statusId) {
+    public ApiResponse<String> mirrorDelete(@PathVariable String statusId) {
         Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
         if (mirrorStatusMap.containsKey(statusId)) {
             MirrorStatus mirrorStatus = mirrorStatusMap.get(statusId);
@@ -136,31 +156,34 @@ public class UtilsController {
         } else {
             throw new ResourceNotFoundException("Mirror Status", "id", statusId);
         }
-        return new ApiResponse(HttpStatus.OK, true, "Task Status Deleted.");
+        return new ApiResponse<>(HttpStatus.OK, true, "Task Status Deleted.");
     }
 
     @RequestMapping(value = "/yt/info", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResponse ytInfo(@RequestParam String url) throws IOException {
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<JsonObject> ytInfo(@RequestParam String url) throws IOException {
         JsonObject jsonInfo = utilsService.getInfoYtFile(url);
-        return new ApiResponse(HttpStatus.OK, true, "Success", jsonInfo);
+        return new ApiResponse<>(HttpStatus.OK, true, "Success", jsonInfo);
     }
 
     @RequestMapping(value = "/yt/download", method = RequestMethod.POST)
-    public ApiResponse ytDownload(@RequestBody RequestPayloads.YtDlp ytDlp) throws IOException {
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<String> ytDownload(@RequestBody RequestPayloads.YtDlp ytDlp) throws IOException {
         mirrorStatus = new MirrorStatus(ytDlp);
         utilsService.downloadYtFile(mirrorStatus);
-        return new ApiResponse(HttpStatus.OK, true, "Task Added.");
+        return new ApiResponse<>(HttpStatus.OK, true, "Task Added.");
     }
 
     @RequestMapping(value = "/system-info", method = RequestMethod.GET)
-//    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse getSystemInfo() {
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<Map<String, Object>> getSystemInfo() {
         Map<String, Object> osInfoMap = new HashMap<>();
         OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
 
-        File[] roots = File.listRoots();
+        List<File> roots = new ArrayList<>(Arrays.stream(File.listRoots()).toList());
+        roots.add(new File(DbWorldConstants.EXTERNAL_H_DISK_PATH));
 
-        List<Map<String, Object>> rom = Arrays.stream(roots).map(file -> {
+        List<Map<String, Object>> rom = roots.stream().map(file -> {
             Map<String, Object> temp = new HashMap<>();
             temp.put("name", file.getAbsolutePath());
             temp.put("totalSpace", file.getTotalSpace());
@@ -187,7 +210,7 @@ public class UtilsController {
         osInfoMap.put("rom", rom);
         osInfoMap.put("cpu", cpu);
 
-        return new ApiResponse(HttpStatus.OK, true, osInfoMap);
+        return new ApiResponse<>(HttpStatus.OK, true, osInfoMap);
     }
 
 

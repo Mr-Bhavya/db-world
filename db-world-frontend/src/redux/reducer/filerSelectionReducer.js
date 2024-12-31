@@ -1,19 +1,19 @@
 const initialState = {
-    catagory:"movie",
-    movieIndustry:"all",
-    seriesIndustry:'all'
+    catagory: "movie",
+    movieIndustry: "all",
+    seriesIndustry: 'all',
+    genres: [],
+    page: 0,
+    totalPages: 0
 }
 
-const filterSelectionReducer = (state=initialState,action) => {
+const filterSelectionReducer = (state = initialState, action) => {
     switch (action.type) {
-        case "FILTERSELECTION" : {
-            const {catagory, movieIndustry, seriesIndustry} = action.filter;
-            state = {
-                catagory, movieIndustry, seriesIndustry
-            }
+        case "FILTERSELECTION": {
+            state = action.filter;
             return state;
         }
-        default : {
+        default: {
             return state;
         }
     }

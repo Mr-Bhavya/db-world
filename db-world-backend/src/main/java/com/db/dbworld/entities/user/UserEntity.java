@@ -1,57 +1,64 @@
 package com.db.dbworld.entities.user;
 
-import com.db.dbworld.annotation.CascadeSave;
+import com.db.dbworld.entities.pm.PasswordManagerEntity;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.bson.types.ObjectId;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.DBRef;
-import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.DocumentReference;
-import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.io.Serializable;
+import java.util.Date;
 import java.util.List;
 
 @Getter
 @Setter
-@Document(collection = "USERS")
-public class UserEntity {
+@Entity
+@EntityListeners(AuditingEntityListener.class)
+@Table(name = "USERS", schema = "db_world")
+@SequenceGenerator(name="users_seq", initialValue=1001, allocationSize=1)
+public class UserEntity implements Serializable {
     @Id
-    private ObjectId userId;
+    @Column(name = "id")
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator="users_seq")
+    private long userId;
     private String firstName;
     private String lastName;
-    private int age;
-    private String dob;
+    @JsonFormat(pattern = "dd-MM-yyyy")
+    private Date dob;
     private String gender;
     private Long mobileNo;
-    @Indexed(unique = true)
+    @Column(unique = true)
     private String email;
     private String password;
 
-    @DocumentReference
-    private UserRoleEntity userRole;
+    @JsonProperty
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "role", referencedColumnName = "id")
+    private UserRoleEntity role;
 
-    @Field("userAppData")
-    @DocumentReference
-    private UserAppDataEntity userAppData;
+    @CreatedDate
+    private Date creationDate;
 
-    @DBRef
-    @CascadeSave
-    private List<PasswordManagerCredential> passwordManager;
+    @LastModifiedDate
+    private Date lastModifiedDate;
+
+
+    @JsonIgnore
+    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "password_manager", referencedColumnName = "id")
+    private List<PasswordManagerEntity> passwordManagerEntities;
+
+//    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+//    @JoinColumn(name = "user", referencedColumnName = "id")
+//    private List<LoginDataEntity> loginDataEntities ;
 
     @Override
     public String toString() {
-        return "Users{" +
-                "userId='" + userId + '\'' +
-                ", firstName='" + firstName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", age='" + age + '\'' +
-                ", gender='" + gender + '\'' +
-                ", mobileNo='" + mobileNo + '\'' +
-                ", email='" + email + '\'' +
-                ", password='" + password + '\'' +
-                ", userAppData=" + userAppData +
-                '}';
+        return String.valueOf(userId);
     }
 }

@@ -11,21 +11,11 @@ import WatchlistIcon from "../SubComponents/WatchlistIcon";
 function SeriesDetails() {
 
     let user = JSON.parse(localStorage.getItem("user"))
-    console.log(user);
-    const parseQuery = (search) => {
-        search = search.split("?")[1].split("&");
-        let queryParam = {};
-        search = search.map((query) => {
-            let key = query.split("=")[0];
-            let value = query.split("=")[1];
-            queryParam[key] = value;
-        })
-        return queryParam;
-    }
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { id, watch } = parseQuery(location.search);
+    const id = location?.pathname?.split("/")?.pop()?.split("-")[0];
+    const [watch, setWatch] = useState(null);
     const [seriesData, setSereisData] = useState("");
     const [loader, setLoader] = useState(true);
     const [cast, setCast] = useState([]);
@@ -45,6 +35,7 @@ function SeriesDetails() {
         let recordResponse = await getRecordDetailsbyId(id);
         if (recordResponse.httpStatusCode === 200) {
             let series = recordResponse.data;
+            series["tmdbData"] = series?.type == Constants.RECORD_TYPE_MOVIE ? series?.movieTmdb : series?.seriesTmdb;
             if (series === "No results found") {
                 navigate(Constants.DB_WORLD_HOME_ROUTE);
             }
@@ -70,7 +61,9 @@ function SeriesDetails() {
         }
     }
     useEffect(() => {
-        getMovie()
+        if (id) {
+            getMovie()
+        }
     }, []);
 
     if (seriesData.tmdbData) {
@@ -205,8 +198,8 @@ function SeriesDetails() {
                         </div>
 
                         <div style={{width:"150px"}}>
-                            <LikeIcon recordId={seriesData.recordId} userId={user.userId} />
-                            <WatchlistIcon recordId={seriesData.recordId} userId={user.userId} />
+                        <LikeIcon recordId={seriesData.recordId} userId={user.userId} isLiked={seriesData.isLiked} />
+                        <WatchlistIcon recordId={seriesData.recordId} userId={user.userId} isAddedToWatchList={seriesData.isWatchListed} />
                         </div>
                     </div>
 

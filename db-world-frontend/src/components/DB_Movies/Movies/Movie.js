@@ -5,32 +5,27 @@ import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import ButtonToolbar from 'react-bootstrap/ButtonToolbar';
 import SingleMovie from '../SingleMovie';
 import LoadingSpinner from '../../LoadingSpinner';
-import { filterSelection } from '../../../redux/action/allActions'
-import { useNavigate } from "react-router-dom";
+import { filterSelection, reloadMovies } from '../../../redux/action/allActions'
+import { Navigate, useLocation } from "react-router-dom";
 import Constants from "../../Constants";
 import { loadDbCinemaRecords } from "../../ApiServices";
-import Pagination from "../SubComponents/Pagination";
-import { CardGroup, Col, Container, Row } from "react-bootstrap";
+import { Col, Row } from "react-bootstrap";
+import InfiniteScroll from "react-infinite-scroll-component";
 
 function Movie(props) {
     const dispatch = useDispatch();
+    const location = useLocation();
     const [movieList, setMovieList] = useState([])
     const [loading, setLoading] = useState(true);
     const userData = props.userData;
     const userRole = props.userRole;
     const reload = useSelector(state => state.reloadMoviesReducer)
-    const moviePageNumberList = useSelector(state => state.moviePageNumberReducer)
     const filter = useSelector(state => state.filterSelectionReducer)
-    const [navLinkActive, setNavLinkActive] = useState(filter.movieIndustry);
-    const [disPageNumber, setDisPageNumber] = useState(0);
     const [totalPage, setTotalPage] = useState(0);
     const [windowSize, setWindowSize] = useState([
         window.innerWidth,
         window.innerHeight,
     ]);
-
-
-    const navigate = useNavigate();
 
     const onReSize = () => {
         const handleWindowResize = () => {
@@ -53,27 +48,52 @@ function Movie(props) {
     }
 
     const loadMovies = async () => {
-        setLoading(true);
-        const response = await loadDbCinemaRecords(filter.movieIndustry, filter.catagory, moviePageNumberList);
+        const response = await loadDbCinemaRecords(filter.movieIndustry, filter.catagory, filter.genres, filter.page);
         if (response && response.httpStatusCode === 200) {
-            setMovieList(response.data.records)
-            setDisPageNumber(parseInt(response.data.pageNumber) + 1);
-            setTotalPage(parseInt(parseInt(response.data.totalElements) / parseInt(response.data.pageSize)) + 1);
+            if (filter.page == 0) {
+                setMovieList(response.data.records)
+            } else {
+                // let filtered = movieList.filter((item, index) => movieList.indexOf(item) === index)
+                setMovieList((prev) => [...prev, ...response.data.records])
+                setMovieList((prev) => prev.filter((item, index) => prev.indexOf(item) === index))
+            }
+            setTotalPage(response?.data?.totalElements)
+            dispatch(filterSelection({
+                ...filter,
+                page: filter.page + 1,
+                totalPages: response?.data?.totalElements
+            }))
             setLoading(false);
         } else {
-            // alert(response.message);
-            navigate(`${Constants.LOGIN_ROUTE}?redirectTo=${Constants.DB_MOVIES_ROUTE}`, { replace: true });
+            <Navigate to={Constants.DB_WORLD_HOME_ROUTE} state={{ from: location }} />
         }
     }
 
+    const handleIndustryChange = (industry) => {
+        setLoading(true);
+        setMovieList([]);
+        dispatch(filterSelection({
+            ...filter,
+            catagory: "movie",
+            movieIndustry: industry,
+            page: 0,
+            totalPages: 0
+        }))
+        dispatch(reloadMovies())
+    }
+
     useEffect(() => {
-        onReSize();
-        loadMovies();
-    }, [reload, filter, moviePageNumberList])
+        loadMovies()
+    }, [reload])
 
     return (
-        <>
-            <div className="border rounded" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)"}}>
+        <InfiniteScroll
+            dataLength={movieList.length}
+            next={() => loadMovies()}
+            hasMore={totalPage !== movieList.length}
+            loader={Constants.LOADER}
+        >
+            <div className="border rounded" style={{ display: "flex", flexWrap: "nowrap", background: "rgba(255 ,255 ,255, 0.9)" }}>
                 <ButtonToolbar aria-label="Toolbar with button groups" className="m-1" style={{ overflowX: "auto", flexWrap: "nowrap", textWrap: "nowrap" }}>
                     <ButtonGroup className="mx-2" aria-label="all">
                         <Button
@@ -81,13 +101,7 @@ function Movie(props) {
                             href="#all"
                             data-toggle="tab"
                             onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("all")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "movie",
-                                    movieIndustry: "all"
-                                }))
+                                handleIndustryChange("all")
                             }
                             }
                         >All</Button>
@@ -98,13 +112,7 @@ function Movie(props) {
                             href="#bollywood"
                             data-toggle="tab"
                             onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("bollywood")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "movie",
-                                    movieIndustry: "bollywood"
-                                }))
+                                handleIndustryChange("bollywood")
                             }
                             }
                         >
@@ -117,13 +125,7 @@ function Movie(props) {
                             href="#hollywood"
                             data-toggle="tab"
                             onClick={() => {
-                                // setNavLinkActive("hollywood")
-                                // dispatch(moviePageNumber(0));
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "movie",
-                                    movieIndustry: "hollywood"
-                                }))
+                                handleIndustryChange("hollywood")
                             }
                             }
                         >
@@ -136,13 +138,7 @@ function Movie(props) {
                             href="#korean"
                             data-toggle="tab"
                             onClick={() => {
-                                // setNavLinkActive("hollywood")
-                                // dispatch(moviePageNumber(0));
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "movie",
-                                    movieIndustry: "korean"
-                                }))
+                                handleIndustryChange("korean")
                             }
                             }
                         >
@@ -155,13 +151,7 @@ function Movie(props) {
                             href="#south"
                             data-toggle="tab"
                             onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("south")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "movie",
-                                    movieIndustry: "south"
-                                }))
+                                handleIndustryChange("south")
                             }
                             }
                         >
@@ -174,13 +164,7 @@ function Movie(props) {
                             href="#gujarati"
                             data-toggle="tab"
                             onClick={() => {
-                                // dispatch(moviePageNumber(0));
-                                // setNavLinkActive("gujarati")
-                                dispatch(filterSelection({
-                                    ...filter,
-                                    catagory: "movie",
-                                    movieIndustry: "gujarati"
-                                }))
+                                handleIndustryChange("gujarati")
                             }
                             }
                         >
@@ -190,31 +174,24 @@ function Movie(props) {
                 </ButtonToolbar>
             </div>
 
-            {!loading &&
-                <>
-                    <Row xs={12} md={displayCol()} className="m-1 p-0">
-                        {
-                            movieList.sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
-                                <Col xs="12" key={idx} className="p-0" >
-                                    <SingleMovie
-                                        movie={movie}
-                                        userData={userData}
-                                        id={movie.id}
-                                        userRole={userRole}
-                                    />
-                                </Col>
-                            ))
-                        }
-                    </Row>
+            <Row xs={12} md={displayCol()} className="m-1 p-0">
+                {
+                    movieList.filter((item, index) => movieList.indexOf(item) === index).sort((a, b) => (a.showOnTop == b.showOnTop ? 0 : (b.showOnTop ? 1 : -1))).map((movie, idx) => (
+                        <Col xs="12" key={idx} className="p-0" >
+                            <SingleMovie
+                                movie={movie}
+                                userData={userData}
+                                id={movie.id}
+                                userRole={userRole}
+                            />
+                        </Col>
+                    ))
+                }
+            </Row>
 
-                    <div className="mx-5" >
-                        <Pagination filter={filter} page={{ totalPage, disPageNumber }} />
-                    </div>
-                </>
-                ||
-                <LoadingSpinner />
-            }
-        </>
+            {loading && <LoadingSpinner />}
+
+        </InfiniteScroll >
     )
 
 }

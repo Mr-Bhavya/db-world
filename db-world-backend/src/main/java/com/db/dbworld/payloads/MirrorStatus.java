@@ -36,6 +36,7 @@ public class MirrorStatus {
     private String currentStatus;
     private DownloadStatus downloadStatus;
     private YtDlp ytdlp;
+    private boolean pause = false;
     private boolean failed = false;
     private boolean cancelled = false;
     private boolean success = false;
@@ -97,6 +98,8 @@ public class MirrorStatus {
         private long fileRemaining;
         private long eta;
         private long totalFileSize;
+        private long lastTime;
+        private long lastDownloadedBytes;
 
         public DownloadStatus(long fileDownloaded, long fileRemaining, long totalFileSize) {
             this.fileDownloaded = fileDownloaded;

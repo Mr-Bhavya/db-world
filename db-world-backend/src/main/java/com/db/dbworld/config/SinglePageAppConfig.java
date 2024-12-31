@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -13,6 +14,7 @@ import org.springframework.web.servlet.resource.ResourceResolverChain;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Redirects every page to index.html
@@ -25,16 +27,15 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/**")
                 .addResourceLocations("classpath:/public/")
+                .setCacheControl(CacheControl.maxAge(90, TimeUnit.SECONDS).noTransform().mustRevalidate())
                 .resourceChain(false)
                 .addResolver(new PushStateResourceResolver());
     }
 
-    private class PushStateResourceResolver implements ResourceResolver {
-        private Resource index = new ClassPathResource("/public/index.html");
-        private Resource html_404 = new ClassPathResource("/public/404.html");
-        private Resource html_502 = new ClassPathResource("/public/502.html");
-        private List<String> handledExtensions = Arrays.asList("html", "js", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico", "json");
-        private List<String> ignoredPaths = Arrays.asList("api");
+    private static class PushStateResourceResolver implements ResourceResolver {
+        private final Resource index = new ClassPathResource("/public/index.html");
+        private final List<String> handledExtensions = Arrays.asList("html", "js", "csv", "css", "png", "svg", "eot", "ttf", "woff", "appcache", "jpg", "jpeg", "gif", "ico", "json", "map", "txt");
+        private final List<String> ignoredPaths = List.of("api");
 
         @Override
         public Resource resolveResource(HttpServletRequest request, String requestPath, List<? extends Resource> locations, ResourceResolverChain chain) {

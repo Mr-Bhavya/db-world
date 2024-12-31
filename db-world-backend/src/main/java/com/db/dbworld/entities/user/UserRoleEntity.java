@@ -1,19 +1,21 @@
 package com.db.dbworld.entities.user;
 
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.bson.types.ObjectId;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.io.Serializable;
 
 @Getter
 @Setter
-@Document(collection = "ROLE")
-public class UserRoleEntity {
+@Entity
+@Table(name = "role", schema = "db_world")
+public class UserRoleEntity implements Serializable {
     @Id
-    private ObjectId id;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private int id;
 
-    @Indexed(unique = true)
+    @Column(unique = true)
     private String name;
+
 }

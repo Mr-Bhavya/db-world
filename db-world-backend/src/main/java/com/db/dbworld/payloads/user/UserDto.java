@@ -1,80 +1,69 @@
 package com.db.dbworld.payloads.user;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.*;
-import lombok.Data;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.bson.types.ObjectId;
 
-import java.util.ArrayList;
+import java.io.Serializable;
+import java.util.Date;
 import java.util.List;
 
 @Getter
 @Setter
-public class UserDto {
-    private String userId;
+@AllArgsConstructor
+@NoArgsConstructor
+public class UserDto implements Serializable {
+    private Long userId;
     @NotEmpty
-    @Size(min = 3, max=15)
+    @Size(min = 2, max = 20)
     private String firstName;
     @NotEmpty
-    @Size(min = 3, max=15)
+    @Size(min = 1, max = 20)
     private String lastName;
     private int age;
-    @NotEmpty
-//    @DateTimeFormat()
-    private String dob;
+    //    @NotEmpty
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private Date dob;
     @NotEmpty
     private String gender;
     @NotNull
-    @Min(value = 999999999L , message = "must be 10 digit")
-    @Max(value = 9999999999L , message = "must be 10 digit")
+    @Min(value = 999999999L, message = "must be 10 digit")
+    @Max(value = 9999999999L, message = "must be 10 digit")
     private Long mobileNo;
     @Email
     @NotEmpty
     private String email;
     @NotEmpty
-    @Size(max=10)
+    @Size(max = 20)
     private String password;
     private UserRole userRole;
-    private UserAppData userAppData;
-    private List<PasswordManagerCredential> passwordManager;
+    private Date creationDate;
+    private Date lastModifiedDate;
+    private Long noOfLogin;
+    private List<LoginData> loginData;
+    private CinemaData cinemaData;
 
-    @Data
-    public static class UserAppData {
-        private ObjectId id;
-        private Long noOfLogin;
-        private List<LoginDetails> loginDetails;
-        private CinemaRecord cinemaRecord;
-
-        @Getter
-        @Setter
-        public static class CinemaRecord{
-            private String id;
-            private ArrayList<String> like;
-            private ArrayList<String> disLike;
-            private ArrayList<String> rate;
-            private ArrayList<String> watchList;
-            private String[] searchHistory;
-            private String[] watched;
-        }
-
-        @Data
-        public static class LoginDetails {
-            private long timeStamp;
-            private String userAgent;
-        }
-    }
-
-    @Data
-    public static class PasswordManagerCredential {
-        private String host;
-        private List<byte[]> credentials;
-        private byte[] ivParameterSpec;
+    @Getter
+    @Setter
+    public static class LoginData {
+        private Date lastLoginDate;
+        private String loginAgent;
     }
 
     @Getter
     @Setter
-    public static class UserRole {
+    public static class CinemaData {
+        private List<String> download_files;
+        private List<String> stream_files;
+        private List<String> search_keywords;
+    }
+
+    @Getter
+    @Setter
+    public static class UserRole implements Serializable {
         @NotEmpty
         private String id;
         @NotEmpty
@@ -92,7 +81,6 @@ public class UserDto {
                 ", mobileNo='" + mobileNo + '\'' +
                 ", email='" + email + '\'' +
                 ", password='" + password + '\'' +
-                ", userAppData=" + userAppData +
                 '}';
     }
 }

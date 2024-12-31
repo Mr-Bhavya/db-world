@@ -12,21 +12,10 @@ import WatchlistIcon from "../SubComponents/WatchlistIcon";
 function MovieDetails() {
 
     let user = JSON.parse(localStorage.getItem("user"))
-
-    const parseQuery = (search) => {
-        search = search.split("?")[1].split("&");
-        let queryParam = {};
-        search = search.map((query) => {
-            let key = query.split("=")[0];
-            let value = query.split("=")[1];
-            queryParam[key] = value;
-        })
-        return queryParam;
-    }
-
     const navigate = useNavigate();
     const location = useLocation();
-    const { id, watch } = parseQuery(location.search);
+    const id = location?.pathname?.split("/")?.pop()?.split("-")[0];
+    const [watch, setWatch] = useState(null);
     const [movieData, setMovieData] = useState("");
     const [loader, setLoader] = useState(true);
     const [cast, setCast] = useState([]);
@@ -43,14 +32,15 @@ function MovieDetails() {
         let recordResponse = await getRecordDetailsbyId(id);
         if (recordResponse.httpStatusCode === 200) {
             let movie = recordResponse.data;
+            movie["tmdbData"] = movie?.type == Constants.RECORD_TYPE_MOVIE ? movie?.movieTmdb : movie?.seriesTmdb;
             if (movie === "No results found") {
                 navigate(Constants.DB_WORLD_HOME_ROUTE);
             }
             else {
                 setProvider({
-                    "buy": movie.tmdbData.providers?.buy || null,
-                    "rent": movie.tmdbData.providers?.rent || null,
-                    "flatrate": movie.tmdbData.providers?.flatrate || null
+                    "buy": movie?.tmdbData?.providers?.buy || null,
+                    "rent": movie?.tmdbData?.providers?.rent || null,
+                    "flatrate": movie.tmdbData?.providers?.flatrate || null
                 });
                 setCast(movie.tmdbData.credits.cast);
                 setCrew(movie.tmdbData?.credits?.crew);
@@ -68,7 +58,9 @@ function MovieDetails() {
     }
 
     useEffect(() => {
-        getMovie()
+        if (id) {
+            getMovie()
+        }
     }, []);
 
 
@@ -234,8 +226,8 @@ function MovieDetails() {
                         </div>
 
                         <div style={{width:"150px"}}>
-                            <LikeIcon recordId={movieData.recordId} userId={user.userId} />
-                            <WatchlistIcon recordId={movieData.recordId} userId={user.userId} />
+                            <LikeIcon recordId={movieData.recordId} userId={user.userId} isLiked={movieData.isLiked} />
+                            <WatchlistIcon recordId={movieData.recordId} userId={user.userId} isAddedToWatchList={movieData.isWatchListed} />
                         </div>
                     </div>
 
