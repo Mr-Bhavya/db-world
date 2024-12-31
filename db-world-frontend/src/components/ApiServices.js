@@ -234,6 +234,16 @@ export const searchStreamFile = async (query) => {
     return await response.json();
 }
 
+export const loadStreamFileInfoByRecordId = async (recordId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/media-info/${recordId}`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
 
 export const likeRecord = async (recordId, userId) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/like?userId=${userId}`, {

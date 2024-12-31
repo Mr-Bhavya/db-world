@@ -123,8 +123,6 @@ public class UtilsServiceImpl implements UtilsService {
         try {
             HttpURLConnection connection = getHttpURLConnection(mirrorStatus);
 
-            // Get total file size
-//            mirrorStatus.setFileSize(connection.getContentLengthLong());
             InputStream inputStream = connection.getInputStream();
             RandomAccessFile file = new RandomAccessFile(mirrorStatus.getTempFilePath(), "rw");
 
@@ -159,7 +157,6 @@ public class UtilsServiceImpl implements UtilsService {
 
                 statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
                         mirrorStatus.getDownloadStatus() != null ? mirrorStatus.getDownloadStatus().getFileDownloaded() + bytesRead : bytesRead,
-                        mirrorStatus.getFileSize() <= 0 ? 0 : mirrorStatus.getFileSize() - bytesRead,
                         mirrorStatus.getFileSize()
                 ));
 
@@ -303,11 +300,11 @@ public class UtilsServiceImpl implements UtilsService {
                         log.info("Extract Completed for file: {}", mirrorStatus.getFileName());
                         Files.delete(Path.of(mirrorStatus.getTempFilePath()));
                     } catch (ExtractException ex) {
-                        Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getFilePath()), StandardCopyOption.REPLACE_EXISTING);
+                        Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getRecordIdPath()), StandardCopyOption.REPLACE_EXISTING);
                         throw new DbWorldException(ex.getMessage());
                     }
                 } else {
-                    Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getFilePath()), StandardCopyOption.REPLACE_EXISTING);
+                    Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getRecordIdPath()), StandardCopyOption.REPLACE_EXISTING);
                     this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                 }
             }
@@ -346,6 +343,9 @@ public class UtilsServiceImpl implements UtilsService {
             try {
                 int exitCode = process.waitFor();
                 System.out.println("Process exited with code: " + exitCode);
+                if(exitCode != 0){
+                    throw new ExtractException("Extraction failed.");
+                }
             } catch (InterruptedException e) {
                 throw new ExtractException(e.getMessage());
             }
@@ -618,5 +618,7 @@ public class UtilsServiceImpl implements UtilsService {
             return null;
         }
     }
+
+
 
 }
