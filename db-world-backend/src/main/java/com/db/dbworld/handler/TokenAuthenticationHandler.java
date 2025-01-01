@@ -47,18 +47,6 @@ public class TokenAuthenticationHandler {
             response.getWriter().write(new Gson().toJson(apiResponse));
         }
 
-/*
-        @Override
-        public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException, ServletException {
-            ApiResponse apiResponse = new ApiResponse(HttpStatus.valueOf(HttpServletResponse.SC_FORBIDDEN), false, "You don't have required role to perform this action.");
-            response.setStatus(apiResponse.getHttpStatusCode());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-
-            final ObjectMapper mapper = new ObjectMapper();
-            mapper.writeValue(response.getOutputStream(), apiResponse);
-        }
- */
-
     }
 
 }

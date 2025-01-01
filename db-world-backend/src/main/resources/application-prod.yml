@@ -69,6 +69,7 @@ dbworld:
     tempDownloadPath: /ext_hdisk/dbworld/download/
     logFilePath: /app/db_world/logs/dbworld.log
     log4j2LogPath: /app/db_world/logs
+    integrationFolderPath: /ext_hdisk/integration/
     streamHomePath: /ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
     torrentDownloadPath: /ext_hdisk/videos/Torrent Download

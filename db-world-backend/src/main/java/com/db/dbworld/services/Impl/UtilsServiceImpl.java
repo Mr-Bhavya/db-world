@@ -17,12 +17,7 @@ import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
-import com.sun.management.OperatingSystemMXBean;
 import lombok.extern.log4j.Log4j2;
-import net.sf.sevenzipjbinding.*;
-import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
-import net.sf.sevenzipjbinding.simple.ISimpleInArchive;
-import net.sf.sevenzipjbinding.simple.ISimpleInArchiveItem;
 import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -33,7 +28,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.util.FileSystemUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
@@ -42,13 +36,10 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Flux;
 
 import java.io.*;
-import java.lang.management.ManagementFactory;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -318,87 +309,37 @@ public class UtilsServiceImpl implements UtilsService {
 
     @Override
     public void extract(String mirrorId, String sourcePath, String targetPath, String password) throws IOException {
-        OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-        if (os.getArch().equalsIgnoreCase("aarch64")) {
-            ProcessBuilder pb = new ProcessBuilder(new String[]{"7z", "x", sourcePath, "-o" + targetPath, "-aou"});
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
 
-            // Start a thread to read and display the output
-            new Thread(() -> {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        // Print each line of output from the process
-                        System.out.println(line);
-                        if (mirrorId != null) {
-                            String message = statusService.getStatusById(mirrorId).getMessage() == null ? "" : statusService.getStatusById(mirrorId).getMessage();
-                            statusService.updateStatusMessage(mirrorId, message + "\n" + line);
-                        }
+        ProcessBuilder pb = new ProcessBuilder(new String[]{"7z", "x", sourcePath, "-o" + targetPath, "-aou"});
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        // Start a thread to read and display the output
+        new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    // Print each line of output from the process
+                    System.out.println(line);
+                    if (mirrorId != null) {
+                        String message = statusService.getStatusById(mirrorId).getMessage() == null ? "" : statusService.getStatusById(mirrorId).getMessage();
+                        statusService.updateStatusMessage(mirrorId, message + "\n" + line);
                     }
-                } catch (IOException e) {
-                    log.error(e.getMessage());
                 }
-            }).start();
-
-            // Wait for the process to finish
-            try {
-                int exitCode = process.waitFor();
-                System.out.println("Process exited with code: " + exitCode);
-                if(exitCode != 0){
-                    throw new ExtractException("Extraction failed.");
-                }
-            } catch (InterruptedException e) {
-                throw new ExtractException(e.getMessage());
-            }
-//            throw new DbWorldException("SevenZip is not supported on " + os.getName() + "-" + os.getArch() + " system.");
-        } else {
-            try {
-                SevenZip.initSevenZipFromPlatformJAR();
-                if (SevenZip.isInitializedSuccessfully()) {
-                    log.info("SevenZip Used Platform: {}", SevenZip.getUsedPlatform());
-                    RandomAccessFile randomAccessFile = new RandomAccessFile(sourcePath, "r");
-                    RandomAccessFileInStream randomAccessFileStream = new RandomAccessFileInStream(randomAccessFile);
-                    IInArchive inArchive = SevenZip.openInArchive(null, randomAccessFileStream);
-                    ISimpleInArchive simpleInArchive = inArchive.getSimpleInterface();
-
-                    System.out.println("   Status   |    Size    | Filename");
-                    System.out.println("----------+------------+---------");
-
-                    for (ISimpleInArchiveItem item : simpleInArchive.getArchiveItems()) {
-                        if (!item.isFolder()) {
-                            ExtractOperationResult result;
-                            final Integer[] sizeArray = new Integer[1];
-                            result = item.extractSlow(bytes -> {
-                                InputStream is = new ByteArrayInputStream(bytes);
-                                sizeArray[0] = bytes.length;
-                                Path fullPath = Path.of(targetPath + "/" + item.getPath());
-                                try {
-                                    Files.createDirectories(fullPath.getParent());
-                                    Files.write(fullPath, bytes, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-                                    is.close();
-                                } catch (IOException e) {
-                                    log.error("Error in writing file: {}. Error: {}", fullPath, e.getMessage());
-                                }
-                                return sizeArray[0];
-                            }, password);
-
-                            if (result == ExtractOperationResult.OK) {
-                                System.out.printf("%10s | %10s | %s%n", "Success", sizeArray[0], item.getPath());
-                            } else {
-                                System.out.printf("%s | %10s | %s%n", "Fail", sizeArray[0], item.getPath());
-                            }
-                        }
-                    }
-                    randomAccessFile.close();
-                }
-            } catch (FileNotFoundException | SevenZipException e) {
-                throw new ExtractException("Error in extracting. Error Message: " + e.getMessage());
             } catch (IOException e) {
-                throw new ExtractException("Error in closing file. Error Message: " + e.getMessage());
-            } catch (SevenZipNativeInitializationException e) {
-                throw new ExtractException("Error in initialization SevenZip. Error Message: " + e);
+                log.error(e.getMessage());
             }
+        }).start();
+
+        // Wait for the process to finish
+        try {
+            int exitCode = process.waitFor();
+            System.out.println("Process exited with code: " + exitCode);
+            if (exitCode != 0) {
+                throw new ExtractException("Extraction failed.");
+            }
+        } catch (InterruptedException e) {
+            throw new ExtractException(e.getMessage());
         }
 
     }

@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -19,6 +20,9 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MirrorStatus {
+    @Value("${dbworld.paths.integrationFolderPath}")
+    private String INPUT_DIRECTORY;
+    
     private String id;
     private String timeStamp;
     private Long recordId;
@@ -57,7 +61,7 @@ public class MirrorStatus {
         this.fileUrl = fileUrl;
         this.fileName = fileName;
         this.fileSize = fileSize;
-        this.recordIdPath = DbWorldConstants.STREAM_HOME_PATH + "/" + folderName;
+        this.recordIdPath = INPUT_DIRECTORY + "/" + folderName;
         this.tempRecordIdPath = DbWorldConstants.TEMP_DOWNLOAD_PATH + folderName;
         this.filePath = recordIdPath + "/" + fileName;
         this.tempFilePath = tempRecordIdPath + "/" + tempFileName;
@@ -75,7 +79,7 @@ public class MirrorStatus {
             else if (this.fileName.endsWith(".rar")) this.extractedFileName = this.fileName.replace(".rar", "");
             else if (this.fileName.endsWith(".tar")) this.extractedFileName = this.fileName.replace(".tar", "");
             else if (this.fileName.endsWith(".7z")) this.extractedFileName = this.fileName.replace(".7z", "");
-            this.extractedFilePath = DbWorldConstants.STREAM_HOME_PATH + "/" + extractedFileName;
+            this.extractedFilePath = INPUT_DIRECTORY + "/" + extractedFileName;
         }
     }
 
@@ -93,7 +97,7 @@ public class MirrorStatus {
                     .replace("\\","");
         }
         this.fileSize = this.ytdlp.fileSize;
-        this.filePath = DbWorldConstants.STREAM_HOME_PATH + "/" + fileName;
+        this.filePath = INPUT_DIRECTORY + "/" + fileName;
         this.tempFilePath = DbWorldConstants.TEMP_DOWNLOAD_PATH + tempFileName;
         this.extract = false;
     }

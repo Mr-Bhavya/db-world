@@ -15,14 +15,20 @@ import org.jasypt.encryption.pbe.config.SimpleStringPBEConfig;
 import org.modelmapper.ModelMapper;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.integration.dsl.IntegrationFlow;
+import org.springframework.integration.file.FileReadingMessageSource;
+import org.springframework.integration.file.dsl.Files;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
+
+import java.io.File;
 
 @Configuration
 public class BeanConfig {
@@ -54,6 +60,24 @@ public class BeanConfig {
         config.setStringOutputType("base64");
         encryptor.setConfig(config);
         return encryptor;
+    }
+
+    @Value("${dbworld.paths.integrationFolderPath}")
+    private String integrationFolderPath;
+
+    @Bean
+    public IntegrationFlow fileIntegrationFlow() {
+        return IntegrationFlow
+                .from(Files.inboundAdapter(new File(integrationFolderPath))
+//                        .preventDuplicates(true)
+                                .useWatchService(true) // Real-time detection
+                                .watchEvents(FileReadingMessageSource.WatchEventType.CREATE,
+                                        FileReadingMessageSource.WatchEventType.MODIFY,
+                                        FileReadingMessageSource.WatchEventType.DELETE)
+                                .autoCreateDirectory(true)
+                )
+                .handle("mediaFileHandler", "processFile")
+                .get();
     }
 
     @Bean
