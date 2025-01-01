@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Constants from '../Constants';
-import { mirror, searchRecord } from '../ApiServices';
+import { adminSearchRecord, mirror } from '../ApiServices';
 import { Form } from 'react-bootstrap';
 
 function Mirror() {
@@ -64,7 +64,7 @@ function Mirror() {
     }
 
     const searchDbCinemaRecord = async () => {
-        const response = await searchRecord(recordName);
+        const response = await adminSearchRecord(recordName);
         if (response.httpStatusCode == 200) {
             setRecordList(response.data)
         }

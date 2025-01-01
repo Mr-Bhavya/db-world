@@ -12,10 +12,6 @@ import { Browser } from "@capacitor/browser";
 import { useDispatch, useSelector } from "react-redux";
 import { updateDownloadStatus } from "../../../redux/action/allActions";
 import HtmlJsonTable from "react-json-to-html-table"
-// import MediaInfoDisplay from "./JsonViewer";
-import JsonViewer from "./JsonViewer";
-// import MediaInfoDisplay from "./MediaInfoDisplay";
-// import MediaInfoDisplay from "./MediaInfoDisplay";
 
 
 function File(props) {
@@ -801,17 +797,7 @@ function File(props) {
                         <div  style={{ width: "100%", overflowX: "auto" }} >
                             <HtmlJsonTable data={info} className="table table-sm table-striped table-bordered table-responsive"/>
                         </div>
-
                         <hr />
-
-                        {/* <div className="container mt-5">
-                            <h1 className="text-center mb-4">Media Info</h1>
-                            <div className="card shadow-sm">
-                                <div className="card-body">
-                                    <JsonViewer data={info} />
-                                </div>
-                            </div>
-                        </div> */}
                         {
                             currentProgress && currentProgress != null && typeof (currentProgress) != "undefined" && currentProgress.progress?.download ?
                                 <div>

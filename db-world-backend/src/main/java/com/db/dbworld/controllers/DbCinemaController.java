@@ -20,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -69,7 +70,7 @@ public class DbCinemaController {
     @GetMapping("/record/search")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<DBCinemaRecordsDto>> searchRecordByKeyword(@RequestParam(value = "q") String query) {
-        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsService.searchRecordByKeyword(query);
+        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsService.searchRecordByKeywordWithUserData(query);
         return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecordsDtos);
     }
 

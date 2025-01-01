@@ -176,6 +176,22 @@ public class StreamController {
         return streamService.downloadFile(path, rangeHeader);
     }
 
+    @GetMapping(value = "/download/uuid/{fileId}")
+    public ResponseEntity<StreamingResponseBody> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
+                                                              @PathVariable(name = "fileId") @Valid @NotNull String fileId,
+                                                              @RequestParam("t") String token) throws IOException {
+        String username = dbWorldUtils.getUserFromToken(token);
+        if (username == null || username.isBlank()) {
+            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
+        }
+        String filePath = mediaFileInfoService.getFileInfoById(fileId);
+        if(filePath!=null && !filePath.isBlank() && new File(filePath).exists() ){
+            return streamService.downloadFile(Path.of(filePath), rangeHeader);
+        }else {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "No information found for given ID");
+        }
+    }
+
     @GetMapping(value = "/search")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<HashMap<String, Object>>> searchFile(@Valid @NotEmpty @RequestParam(value = "q", defaultValue = "search") String query) {

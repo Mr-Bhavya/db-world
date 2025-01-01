@@ -1,6 +1,7 @@
 package com.db.dbworld.entities.dbcinema.stream;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import lombok.Getter;
@@ -11,145 +12,111 @@ import lombok.Setter;
 @Entity
 @DiscriminatorValue("Audio")
 public class AudioInfoEntity extends TrackInfoEntity {
-
-    @JsonProperty("@typeorder")
-    private int typeOrder;
-
-    @JsonProperty("StreamOrder")
-    private String streamOrder;
-
-    @JsonProperty("Id")
-    private String id;
-
     @JsonProperty("UniqueID")
     private String uniqueID;
 
+    @Column(name = "StreamOrder")
+    @JsonProperty("StreamOrder")
+    private String streamOrder;
+
+    @Column(name = "Format")
     @JsonProperty("Format")
     private String format;
 
-    @JsonProperty("FormatCommercialIfAny")
+    @Column(name = "Format_Commercial_IfAny")
+    @JsonProperty("Format_Commercial_IfAny")
     private String formatCommercialIfAny;
 
-    @JsonProperty("FormatSettingsEndianness")
+    @Column(name = "Format_Settings_Endianness")
+    @JsonProperty("Format_Settings_Endianness")
     private String formatSettingsEndianness;
 
-    @JsonProperty("FormatAdditionalFeatures")
-    private String formatAdditionalFeatures;
-
+    @Column(name = "CodecID")
     @JsonProperty("CodecID")
     private String codecID;
 
+    @Column(name = "Duration")
     @JsonProperty("Duration")
-    private double duration;
+    private Double duration;
 
-    @JsonProperty("BitRateMode")
+    @Column(name = "BitRate_Mode")
+    @JsonProperty("BitRate_Mode")
     private String bitRateMode;
 
+    @Column(name = "BitRate")
     @JsonProperty("BitRate")
-    private long bitRate;
+    private Integer bitRate;
 
+    @Column(name = "Channels")
     @JsonProperty("Channels")
-    private int channels;
+    private Integer channels;
 
+    @Column(name = "ChannelPositions")
     @JsonProperty("ChannelPositions")
     private String channelPositions;
 
+    @Column(name = "ChannelLayout")
     @JsonProperty("ChannelLayout")
     private String channelLayout;
 
+    @Column(name = "SamplesPerFrame")
     @JsonProperty("SamplesPerFrame")
-    private int samplesPerFrame;
+    private Integer samplesPerFrame;
 
+    @Column(name = "SamplingRate")
     @JsonProperty("SamplingRate")
-    private int samplingRate;
+    private Integer samplingRate;
 
+    @Column(name = "SamplingCount")
     @JsonProperty("SamplingCount")
-    private long samplingCount;
+    private Long samplingCount;
 
+    @Column(name = "FrameRate")
     @JsonProperty("FrameRate")
-    private double frameRate;
+    private Double frameRate;
 
-    @JsonProperty("FrameCount")
-    private int frameCount;
+    @Column(name = "BitDepth")
+    @JsonProperty("BitDepth")
+    private Integer bitDepth;
 
-    @JsonProperty("CompressionMode")
+    @Column(name = "Compression_Mode")
+    @JsonProperty("Compression_Mode")
     private String compressionMode;
 
+    @Column(name = "Delay")
     @JsonProperty("Delay")
-    private double delay;
+    private Double delay;
 
-    @JsonProperty("DelaySource")
+    @Column(name = "Delay_Source")
+    @JsonProperty("Delay_Source")
     private String delaySource;
 
-    @JsonProperty("VideoDelay")
-    private double videoDelay;
+    @Column(name = "Video_Delay")
+    @JsonProperty("Video_Delay")
+    private Double videoDelay;
 
+    @Column(name = "StreamSize")
     @JsonProperty("StreamSize")
-    private long streamSize;
+    private Long streamSize;
 
+    @Column(name = "Title")
+    @JsonProperty("Title")
+    private String title;
+
+    @Column(name = "Language")
     @JsonProperty("Language")
     private String language;
 
+    @Column(name = "ServiceKind")
     @JsonProperty("ServiceKind")
     private String serviceKind;
 
-    @JsonProperty("DefaultFlag")
-    private String defaultFlag;
+    @Column(name = "`Default`")
+    @JsonProperty("Default")
+    private String defaultValue;
 
+    @Column(name = "Forced")
     @JsonProperty("Forced")
     private String forced;
-
-//    @JsonProperty("Extra")
-//    private Extra extra;
-//
-//    @Getter
-//    @Setter
-//    private static class Extra {
-//
-//        @JsonProperty("ComplexityIndex")
-//        private int complexityIndex;
-//
-//        @JsonProperty("NumberOfDynamicObjects")
-//        private int numberOfDynamicObjects;
-//
-//        @JsonProperty("BedChannelCount")
-//        private int bedChannelCount;
-//
-//        @JsonProperty("BedChannelConfiguration")
-//        private String bedChannelConfiguration;
-//
-//        @JsonProperty("Bsid")
-//        private String bsid;
-//
-//        @JsonProperty("Dialnorm")
-//        private String dialnorm;
-//
-//        @JsonProperty("Compr")
-//        private String compr;
-//
-//        @JsonProperty("Acmod")
-//        private String acmod;
-//
-//        @JsonProperty("Lfeon")
-//        private String lfeon;
-//
-//        @JsonProperty("DialnormAverage")
-//        private String dialnormAverage;
-//
-//        @JsonProperty("DialnormMinimum")
-//        private String dialnormMinimum;
-//
-//        @JsonProperty("ComprAverage")
-//        private String comprAverage;
-//
-//        @JsonProperty("ComprMinimum")
-//        private String comprMinimum;
-//
-//        @JsonProperty("ComprMaximum")
-//        private String comprMaximum;
-//
-//        @JsonProperty("ComprCount")
-//        private int comprCount;
-//    }
 }
 

@@ -21,6 +21,7 @@ import org.springframework.integration.core.MessageSource;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.Pollers;
 import org.springframework.integration.file.FileReadingMessageSource;
+import org.springframework.integration.file.dsl.Files;
 import org.springframework.integration.file.filters.AcceptAllFileListFilter;
 import org.springframework.integration.file.filters.CompositeFileListFilter;
 import org.springframework.integration.file.filters.FileSystemPersistentAcceptOnceFileListFilter;
@@ -109,80 +110,33 @@ public class FilePollingConfig {
     @Bean
     public IntegrationFlow fileIntegrationFlow() {
         return IntegrationFlow
-                .from(fileReadingMessageSource())
+//                .from(fileReadingMessageSource())
 //                .handle(message -> {
 //                    System.out.println("File detected: " + message.getPayload());
 //                })
-                .handle(file -> {
-                    File originalFile = (File) file.getPayload();
-                    log.info("Processing File: {}", originalFile.toString());
-                    try {
-                        List<MediaFileInfoEntity> mediaFileInfoEntities = storeMediaInfo(originalFile.toPath());
-                        log.info("Total files processed - {}", mediaFileInfoEntities.size());
-                    } catch (Exception e) {
-                        log.error(e.getMessage());
-                    }
-                    log.info("File processed: {}", originalFile.toString());
-                })
+                .from(Files.inboundAdapter(new File(INPUT_DIRECTORY))
+//                        .patternFilter("*.mkv") // Filter for movie files
+//                        .preventDuplicates(true)
+                        .useWatchService(true) // Real-time detection
+                        .watchEvents(FileReadingMessageSource.WatchEventType.CREATE, FileReadingMessageSource.WatchEventType.MODIFY,
+                                FileReadingMessageSource.WatchEventType.DELETE))
+                .handle("fileHandlerServiceImpl", "processFile")
                 .get();
+//                .handle(file -> {
+//                    File originalFile = (File) file.getPayload();
+//                    log.info("Processing File: {}", originalFile.toString());
+//                    try {
+//                        List<MediaFileInfoEntity> mediaFileInfoEntities = storeMediaInfo(originalFile.toPath());
+//                        log.info("Total files processed - {}", mediaFileInfoEntities.size());
+//                    } catch (Exception e) {
+//                        log.error(e.getMessage());
+//                    }
+//                    log.info("File processed: {}", originalFile.toString());
+//                })
+//                .get();
     }
 
-    private List<MediaFileInfoEntity> storeMediaInfo(Path path) throws IOException, InterruptedException {
-        try {
-            Long recordId = Long.parseLong(path.getFileName().toString().split("-")[0]);
 
-            LinkedList<String> list = new LinkedList<>();
-            list.add("D:\\Bhavya\\Downloads\\Compressed\\MediaInfo_CLI_24.12_Windows_x64\\mediainfo");
-            list.add("--Output=JSON");
-            list.add(path.toString());
-            // Run mediainfo command
-            ProcessBuilder processBuilder = new ProcessBuilder();
-            processBuilder.command(list);
-            Process process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            StringBuilder output = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line);
-            }
-            process.waitFor();
-            List<MediaFileInfoEntity> mediaFileInfos = new ArrayList<>();
-
-            JsonElement outputJsonElement = new Gson().fromJson(output.toString(), JsonElement.class);
-            if (outputJsonElement.isJsonArray()) {
-                outputJsonElement.getAsJsonArray().asList().forEach(
-                        jsonElement -> {
-                            if (jsonElement.isJsonObject()) {
-                                MediaFileInfoEntity mediaFileInfo = null;
-                                try {
-                                    mediaFileInfo = convertJsonObjectToMediaInfo(jsonElement.getAsJsonObject());
-                                    mediaFileInfoRepository.save(mediaFileInfo.initialize(dbCinemaRecordsService.getRecordEntityById(recordId)));
-                                } catch (Exception e) {
-                                    throw new DbWorldException(e.getMessage());
-                                }
-                            }
-                        }
-                );
-            } else if (outputJsonElement.isJsonObject()) {
-                MediaFileInfoEntity mediaFileInfo = convertJsonObjectToMediaInfo(outputJsonElement.getAsJsonObject());
-                mediaFileInfoRepository.save(mediaFileInfo.initialize(dbCinemaRecordsService.getRecordEntityById(recordId)));
-            }
-            return mediaFileInfos;
-        }catch (Exception ex){
-            throw new DbWorldException(ex.getMessage());
-        }
-    }
-
-    private MediaFileInfoEntity convertJsonObjectToMediaInfo(JsonObject jsonObject) throws JsonProcessingException {
-        String media = jsonObject.get("media").toString();
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        MediaFileInfoEntity mediaFileInfo = objectMapper.readValue(media, MediaFileInfoEntity.class);
-        if(mediaFileInfo == null){
-            throw new DbWorldException("Not able to fetch details for media file");
-        }
-        return mediaFileInfo;
-    }
 
 }
 

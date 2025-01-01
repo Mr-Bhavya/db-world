@@ -254,8 +254,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
-    public List<DBCinemaRecordsDto> searchRecordByKeyword(String keyword) {
+    public List<DBCinemaRecordsDto> searchRecordByKeywordWithUserData(String keyword) {
         try {
             TypedQuery<DBCinemaRecordsEntity> query = entityManager.createQuery(SEARCH_RECORD_BY_KEYWORD, DBCinemaRecordsEntity.class);
             query.setParameter("keyword", "%" + keyword + "%");
@@ -263,6 +262,15 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             return dbCinemaRecordsEntities.stream().map(
                     dbCinemaRecordsEntity -> this.pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity))
             ).toList();
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    public List<Map<String, String>> searchRecordByKeyword(String keyword) {
+        try {
+            return dbCinemaRecordsRepository.findRecords("%" + keyword + "%");
         } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
         }

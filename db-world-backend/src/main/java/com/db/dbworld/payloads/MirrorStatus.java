@@ -65,6 +65,8 @@ public class MirrorStatus {
 //        this.statusFilePath = "status/" + timeStamp + ".json";
         try {
             this.fileType = Files.probeContentType(Path.of(fileName));
+            Files.createDirectories(Path.of(tempRecordIdPath));
+            Files.createDirectories(Path.of(recordIdPath));
         } catch (IOException | InvalidPathException e) {
             System.out.println(e.getMessage());
         }

@@ -1,6 +1,7 @@
 package com.db.dbworld.entities.dbcinema.stream;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import lombok.Getter;
@@ -11,50 +12,45 @@ import lombok.Setter;
 @Entity
 @DiscriminatorValue("Text")
 public class TextInfoEntity extends TrackInfoEntity {
-
-    @JsonProperty("@typeorder")
-    private int typeOrder;
-
-    @JsonProperty("StreamOrder")
-    private String streamOrder;
-
-    @JsonProperty("Id")
-    private String id;
-
+    @Column(name = "UniqueID")
     @JsonProperty("UniqueID")
     private String uniqueID;
 
+    @Column(name = "StreamOrder")
+    @JsonProperty("StreamOrder")
+    private String streamOrder;
+
+    @Column(name = "Format")
     @JsonProperty("Format")
     private String format;
 
+    @Column(name = "CodecID")
     @JsonProperty("CodecID")
     private String codecID;
 
+    @Column(name = "Duration")
     @JsonProperty("Duration")
-    private double duration;
+    private Double duration;
 
-    @JsonProperty("BitRate")
-    private int bitRate;
+    @Column(name = "Title")
+    @JsonProperty("Title")
+    private String title;
 
-    @JsonProperty("FrameRate")
-    private double frameRate;
+    @Column(name = "Encoded_Library")
+    @JsonProperty("Encoded_Library")
+    private String encodedLibrary;
 
-    @JsonProperty("FrameCount")
-    private int frameCount;
-
-    @JsonProperty("ElementCount")
-    private int elementCount;
-
-    @JsonProperty("StreamSize")
-    private long streamSize;
-
+    @Column(name = "Language")
     @JsonProperty("Language")
     private String language;
 
-    @JsonProperty("DefaultFlag")
-    private String defaultFlag;
+    @Column(name = "`Default`")
+    @JsonProperty("Default")
+    private String defaultValue;
 
+    @Column(name = "Forced")
     @JsonProperty("Forced")
     private String forced;
+
 }
 

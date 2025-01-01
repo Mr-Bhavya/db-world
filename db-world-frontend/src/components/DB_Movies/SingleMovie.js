@@ -9,10 +9,12 @@ import LikeIcon from "./SubComponents/LikeIcon";
 import WatchlistIcon from "./SubComponents/WatchlistIcon";
 import { deleteDbCinemaRecord, loadStreamFileInfoByRecordId } from "../ApiServices";
 import { toast } from "react-toastify";
-import { Button, Card, Col, Container, Modal, Row } from "react-bootstrap";
+import { Button, Card, Col, Collapse, Container, Modal, Row } from "react-bootstrap";
 import WatchedIcon from "./SubComponents/WatchedIcon";
 import HtmlJsonTable from "react-json-to-html-table";
 import CommonServices from "../CommonServices";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 
 function SingleMovie(props) {
     const movie = props.movie;
@@ -25,6 +27,8 @@ function SingleMovie(props) {
     const [loader, setLoader] = useState(false);
     const [showDownloadModal, setShowDownloadModal] = useState(false);
     const [mediaFileList, setMediaFileList] = useState([]);
+    const [showMediaInfo, setShowMediaInfo] = useState(false);
+    const [mediaListLoader, setMediaListLoader] = useState(false);
     var deleteModelTargetSrc = "#deleteMovieId" + movie.recordId;
     var deleteModelTargetDes = "deleteMovieId" + movie.recordId;
     var trailerModelTargetDes = "trailerMovieId" + new Date();
@@ -150,6 +154,7 @@ function SingleMovie(props) {
 
     const handleDownloadModal = async () => {
         setShowDownloadModal(true);
+        setMediaListLoader(true);
         const response = await loadStreamFileInfoByRecordId(movie.recordId);
         if (response.httpStatusCode === 200) {
             // setMediaFileList(response.data);
@@ -168,68 +173,102 @@ function SingleMovie(props) {
                     if (track?.type === "General") {
                         let general = {}
                         general.fileName = mediaFile.fileName;
-                        general.fileSize = CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).value + " " +  CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).suffix;
+                        general.fileSize = CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).value + " " + CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).suffix;
                         general.duration = track?.duration;
-                        general.hdrDetails = track?.hdrFormat != null && track?.hdrFormat + " | " + track?.hdrFormatVersion + " | " + track?.hdrFormatCompatibility
+                        general.overallBitrate = CommonServices.bytesToReadbleFormat(track?.overallBitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.overallBitRate).suffix + "/s";
+                        general.Description = track?.Description;
                         mediaDetails.general = general;
                     }
                     if (track?.type === "Video") {
                         let video = {}
                         video.resolution = track?.width + "x" + track?.height;
-                        video.format = track?.codecID + " | " + track?.format + " @ " + track?.bitRate;
-                        // video.bitrate = track?.bitRate;
-                        video.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " +  CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
+                        video.format = track?.codecID + " | " + track?.format + " | " + track?.formatProfile + " | " + CommonServices.bytesToReadbleFormat(track?.bitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.bitRate).suffix + "/s";
+                        video.hdrDetails = track?.hdrFormat != null && track?.hdrFormat + " | " + track?.hdrFormatVersion + " | " + track?.hdrFormatCompatibility
+                        video.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " + CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
                         mediaDetails.video = video;
                     }
                     if (track?.type === "Audio") {
                         let audio = {}
                         audio.language = track?.language;
-                        audio.format = track?.codecID + " | " + track?.format + " @ " + track?.bitRate;
+                        audio.format = track?.codecID + " | " + track?.format + " @ " + CommonServices.bytesToReadbleFormat(track?.bitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.bitRate).suffix + "/s";
                         // audio.bitrate = track?.bitRate;
-                        audio.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " +  CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
+                        audio.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " + CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
                         audio.channelInfo = track?.channels + " | " + track?.channelPositions;
                         mediaDetails.audio.push(audio);
                     }
                     if (track?.type === "Text") {
                         let subtitle = {}
-                        subtitle.format = track?.codecID + " " + track?.format + " @ " + track?.bitRate;
-                        // subtitle.bitrate = track?.bitRate;
+                        subtitle.format = track?.codecID + " " + track?.format + " @ " + CommonServices.bytesToReadbleFormat(track?.bitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.bitRate).suffix + "/s";
                         subtitle.language = track?.language;
-                        subtitle.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " +  CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;;
+                        subtitle.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " + CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;;
                         mediaDetails.subtitle.push(subtitle);
                     }
                 });
-                console.log(mediaDetails);
                 return mediaDetails;
             }))
+            setMediaListLoader(false);
+        }
+
+    }
+
+    const handleDownload = async (mediaFile) => {
+        let tempUrl = window.location.origin + "/api/stream/watch/" + mediaFile.id + "?t=" + localStorage.getItem("token");
+        if (window.location.port === "3000") {
+            tempUrl = tempUrl.replace("3000", "9000")
+        }
+        let videoUrl = tempUrl;
+        tempUrl = tempUrl.replace("/watch", "/download/uuid")
+        let downloadUrl = tempUrl
+        if (Capacitor.isNativePlatform()) {
+            Browser.open(downloadUrl)
+        } else {
+            window.open(downloadUrl);
         }
     }
 
     const dowanloadModal =
         <Modal show={showDownloadModal} onHide={() => setShowDownloadModal(false)} fullscreen={true}>
             <Modal.Header closeButton>
-                <Modal.Title>Modal heading</Modal.Title>
+                <Modal.Title>Media List</Modal.Title>
             </Modal.Header>
             <Modal.Body>
-                {/* <HtmlJsonTable data={mediaFileList} /> */}
                 {
-                    mediaFileList.map((mediaFile, index) => {
-                        return (<Card className="my-3">
-                            <Card.Header as="h5">{index+1}. {mediaFile?.general?.fileName}</Card.Header>
-                            <Card.Body>
-                                <Card.Title>Media Details:</Card.Title>
-                                <Card.Text>
+                    mediaListLoader ? <LoadingSpinner />
+                        : mediaFileList?.length == 0
+                            ?
+                            <div className="d-flex justify-content-center align-items-center vh-100">
+                                <div className="alert alert-danger text-center" role="alert">
+                                    No media available to download for this record
+                                </div>
+                            </div>
+                            : mediaFileList.map((mediaFile, index) => {
+                                return (<Card className="my-3">
+                                    <Card.Header as="h5">{index + 1}. {mediaFile?.general?.fileName}</Card.Header>
+                                    <Card.Body>
+                                        <Card.Text>
 
-                                    <div className="w-100" style={{overflow:"auto"}}>
-                                        <HtmlJsonTable data={mediaFile} className="table table-sm table-striped table-bordered table-responsive" />
-                                    </div>
-                                </Card.Text>
-                            </Card.Body>
-                            <Card.Footer>
-                                <Button className="btn-sm w-100" variant="danger">Download</Button>
-                            </Card.Footer>
-                        </Card>)
-                    })
+                                            <Button
+                                                size="sm"
+                                                className="btn-sm btn-light btn-outline-dark mx-auto"
+                                                onClick={(e) => setShowMediaInfo(showMediaInfo !== "media-info-" + index ? "media-info-" + index : "false")}
+                                                aria-controls={"media-info-" + index}
+                                                aria-expanded={showMediaInfo === "media-info-" + index ? true : false}
+                                            >
+                                                Show Media Info {showMediaInfo === "media-info-" + index ? "🔻" : "▶️"}
+                                            </Button>
+                                            <Collapse in={showMediaInfo === "media-info-" + index ? true : false}>
+                                                <div id={"media-info-" + index} style={{ overflow: "auto" }}>
+                                                    <HtmlJsonTable data={mediaFile} className="table table-sm table-striped table-bordered table-responsive-sm" HeaderText="Media Info" />
+                                                </div>
+                                            </Collapse>
+
+                                        </Card.Text>
+                                    </Card.Body>
+                                    <Card.Footer>
+                                        <Button className="btn-sm float-end" variant="danger" onClick={() => handleDownload(mediaFile)}>Download</Button>
+                                    </Card.Footer>
+                                </Card>)
+                            })
                 }
 
             </Modal.Body>
@@ -237,9 +276,6 @@ function SingleMovie(props) {
                 <Button variant="secondary" onClick={() => setShowDownloadModal(false)}>
                     Close
                 </Button>
-                {/* <Button variant="primary" onClick={handleClose}>
-                    Save Changes
-                </Button> */}
             </Modal.Footer>
         </Modal>
 
