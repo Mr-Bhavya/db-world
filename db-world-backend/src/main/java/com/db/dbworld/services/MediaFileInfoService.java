@@ -8,4 +8,6 @@ public interface MediaFileInfoService {
 
     List<MediaFileInfo> getAllFileInfoByRecordId(Long recordId);
 
+    String getFileInfoById(String id);
+
 }

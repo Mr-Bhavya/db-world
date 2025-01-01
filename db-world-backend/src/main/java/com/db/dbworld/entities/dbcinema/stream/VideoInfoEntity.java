@@ -1,6 +1,7 @@
 package com.db.dbworld.entities.dbcinema.stream;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import lombok.Getter;
@@ -12,157 +13,205 @@ import lombok.Setter;
 @DiscriminatorValue("Video")
 public class VideoInfoEntity extends TrackInfoEntity {
 
-    @JsonProperty("StreamOrder")
-    private String streamOrder;
-
-    @JsonProperty("Id")
-    private String id;
-
+    @Column(name = "UniqueID")
     @JsonProperty("UniqueID")
     private String uniqueID;
 
+    @Column(name = "StreamOrder")
+    @JsonProperty("StreamOrder")
+    private String streamOrder;
+
+    @Column(name = "Format")
     @JsonProperty("Format")
     private String format;
 
-    @JsonProperty("FormatProfile")
+    @Column(name = "Format_Profile")
+    @JsonProperty("Format_Profile")
     private String formatProfile;
 
-    @JsonProperty("FormatLevel")
+    @Column(name = "Format_Level")
+    @JsonProperty("Format_Level")
     private String formatLevel;
 
-    @JsonProperty("FormatTier")
+    @Column(name = "Format_Tier")
+    @JsonProperty("Format_Tier")
     private String formatTier;
 
-    @JsonProperty("HdrFormat")
+    @Column(name = "HDR_Format")
+    @JsonProperty("HDR_Format")
     private String hdrFormat;
 
-    @JsonProperty("HdrFormatVersion")
-    private String hdrFormatVersion;
-
-    @JsonProperty("HdrFormatCompatibility")
+    @Column(name = "HDR_Format_Compatibility")
+    @JsonProperty("HDR_Format_Compatibility")
     private String hdrFormatCompatibility;
 
+    @Column(name = "CodecID")
     @JsonProperty("CodecID")
     private String codecID;
 
+    @Column(name = "Duration")
     @JsonProperty("Duration")
-    private double duration;
+    private Double duration;
 
+    @Column(name = "BitRate")
     @JsonProperty("BitRate")
-    private long bitRate;
+    private Integer bitRate;
 
+    @Column(name = "Width")
     @JsonProperty("Width")
-    private int width;
+    private Integer width;
 
+    @Column(name = "Height")
     @JsonProperty("Height")
-    private int height;
+    private Integer height;
 
-    @JsonProperty("SampledWidth")
-    private int sampledWidth;
+    @Column(name = "Sampled_Width")
+    @JsonProperty("Sampled_Width")
+    private Integer sampledWidth;
 
-    @JsonProperty("SampledHeight")
-    private int sampledHeight;
+    @Column(name = "Sampled_Height")
+    @JsonProperty("Sampled_Height")
+    private Integer sampledHeight;
 
+    @Column(name = "PixelAspectRatio")
     @JsonProperty("PixelAspectRatio")
-    private double pixelAspectRatio;
+    private Double pixelAspectRatio;
 
+    @Column(name = "DisplayAspectRatio")
     @JsonProperty("DisplayAspectRatio")
-    private double displayAspectRatio;
+    private Double displayAspectRatio;
 
-    @JsonProperty("FrameRateMode")
+    @Column(name = "FrameRate_Mode")
+    @JsonProperty("FrameRate_Mode")
     private String frameRateMode;
 
+    @Column(name = "FrameRate")
     @JsonProperty("FrameRate")
-    private double frameRate;
+    private Double frameRate;
 
-    @JsonProperty("FrameRateNum")
-    private int frameRateNum;
+    @Column(name = "FrameRate_Num")
+    @JsonProperty("FrameRate_Num")
+    private Integer frameRateNum;
 
-    @JsonProperty("FrameRateDen")
-    private int frameRateDen;
+    @Column(name = "FrameRate_Den")
+    @JsonProperty("FrameRate_Den")
+    private Integer frameRateDen;
 
+    @Column(name = "FrameCount")
     @JsonProperty("FrameCount")
-    private int frameCount;
+    private Integer frameCount;
 
+    @Column(name = "ColorSpace")
     @JsonProperty("ColorSpace")
     private String colorSpace;
 
+    @Column(name = "ChromaSubsampling")
     @JsonProperty("ChromaSubsampling")
     private String chromaSubsampling;
 
-    @JsonProperty("ChromaSubsamplingPosition")
+    @Column(name = "ChromaSubsampling_Position")
+    @JsonProperty("ChromaSubsampling_Position")
     private String chromaSubsamplingPosition;
 
+    @Column(name = "BitDepth")
     @JsonProperty("BitDepth")
-    private int bitDepth;
+    private Integer bitDepth;
 
+    @Column(name = "Delay")
     @JsonProperty("Delay")
-    private double delay;
+    private Double delay;
 
-    @JsonProperty("DelaySource")
+    @Column(name = "Delay_Source")
+    @JsonProperty("Delay_Source")
     private String delaySource;
 
+    @Column(name = "StreamSize")
     @JsonProperty("StreamSize")
-    private long streamSize;
+    private Long streamSize;
 
-    @JsonProperty("DefaultFlag")
-    private String defaultFlag;
+    @Column(name = "Encoded_Library")
+    @JsonProperty("Encoded_Library")
+    private String encodedLibrary;
 
+    @Column(name = "`Default`")
+    @JsonProperty("Default")
+    private String defaultValue;
+
+    @Column(name = "Forced")
     @JsonProperty("Forced")
     private String forced;
 
-    @JsonProperty("ColourDescriptionPresent")
+    @Column(name = "colour_description_present")
+    @JsonProperty("colour_description_present")
     private String colourDescriptionPresent;
 
-    @JsonProperty("ColourDescriptionPresentSource")
+    @Column(name = "colour_description_present_Source")
+    @JsonProperty("colour_description_present_Source")
     private String colourDescriptionPresentSource;
 
-    @JsonProperty("ColourRange")
+    @Column(name = "colour_range")
+    @JsonProperty("colour_range")
     private String colourRange;
 
-    @JsonProperty("ColourRangeSource")
+    @Column(name = "colour_range_Source")
+    @JsonProperty("colour_range_Source")
     private String colourRangeSource;
 
-    @JsonProperty("ColourPrimaries")
+    @Column(name = "colour_primaries")
+    @JsonProperty("colour_primaries")
     private String colourPrimaries;
 
-    @JsonProperty("ColourPrimariesSource")
+    @Column(name = "colour_primaries_Source")
+    @JsonProperty("colour_primaries_Source")
     private String colourPrimariesSource;
 
-    @JsonProperty("TransferCharacteristics")
+    @Column(name = "transfer_characteristics")
+    @JsonProperty("transfer_characteristics")
     private String transferCharacteristics;
 
-    @JsonProperty("TransferCharacteristicsSource")
+    @Column(name = "transfer_characteristics_Source")
+    @JsonProperty("transfer_characteristics_Source")
     private String transferCharacteristicsSource;
 
-    @JsonProperty("MatrixCoefficients")
+    @Column(name = "matrix_coefficients")
+    @JsonProperty("matrix_coefficients")
     private String matrixCoefficients;
 
-    @JsonProperty("MatrixCoefficientsSource")
+    @Column(name = "matrix_coefficients_Source")
+    @JsonProperty("matrix_coefficients_Source")
     private String matrixCoefficientsSource;
 
-    @JsonProperty("MasteringDisplayColorPrimaries")
+    @Column(name = "MasteringDisplay_ColorPrimaries")
+    @JsonProperty("MasteringDisplay_ColorPrimaries")
     private String masteringDisplayColorPrimaries;
 
-    @JsonProperty("MasteringDisplayColorPrimariesSource")
+    @Column(name = "MasteringDisplay_ColorPrimaries_Source")
+    @JsonProperty("MasteringDisplay_ColorPrimaries_Source")
     private String masteringDisplayColorPrimariesSource;
 
-    @JsonProperty("MasteringDisplayLuminance")
+    @Column(name = "MasteringDisplay_Luminance")
+    @JsonProperty("MasteringDisplay_Luminance")
     private String masteringDisplayLuminance;
 
-    @JsonProperty("MasteringDisplayLuminanceSource")
+    @Column(name = "MasteringDisplay_Luminance_Source")
+    @JsonProperty("MasteringDisplay_Luminance_Source")
     private String masteringDisplayLuminanceSource;
 
+    @Column(name = "MaxCLL")
     @JsonProperty("MaxCLL")
     private String maxCLL;
 
-    @JsonProperty("MaxCLLSource")
+    @Column(name = "MaxCLL_Source")
+    @JsonProperty("MaxCLL_Source")
     private String maxCLLSource;
 
+    @Column(name = "MaxFALL")
     @JsonProperty("MaxFALL")
     private String maxFALL;
 
-    @JsonProperty("MaxFALLSource")
+    @Column(name = "MaxFALL_Source")
+    @JsonProperty("MaxFALL_Source")
     private String maxFALLSource;
+
 }
 

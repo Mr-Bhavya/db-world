@@ -23,6 +23,7 @@ import net.sf.sevenzipjbinding.*;
 import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
 import net.sf.sevenzipjbinding.simple.ISimpleInArchive;
 import net.sf.sevenzipjbinding.simple.ISimpleInArchiveItem;
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -32,6 +33,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.FileSystemUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
@@ -300,11 +302,11 @@ public class UtilsServiceImpl implements UtilsService {
                         log.info("Extract Completed for file: {}", mirrorStatus.getFileName());
                         Files.delete(Path.of(mirrorStatus.getTempFilePath()));
                     } catch (ExtractException ex) {
-                        Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getRecordIdPath()), StandardCopyOption.REPLACE_EXISTING);
+                        FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
                         throw new DbWorldException(ex.getMessage());
                     }
                 } else {
-                    Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getRecordIdPath()), StandardCopyOption.REPLACE_EXISTING);
+                    FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
                     this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                 }
             }
@@ -481,7 +483,8 @@ public class UtilsServiceImpl implements UtilsService {
                         }
                     }
                     if (process.exitValue() == 0 || process.exitValue() == 1) {
-                        Files.move(Path.of(statusService.getStatusById(mirrorStatus.getId()).getTempFilePath()), Path.of(statusService.getStatusById(mirrorStatus.getId()).getFilePath()), StandardCopyOption.REPLACE_EXISTING);
+                        FileUtils.moveToDirectory(new File(statusService.getStatusById(mirrorStatus.getId()).getTempFilePath()), new File(statusService.getStatusById(mirrorStatus.getId()).getFilePath()), true);
+//                        FileUtils.moveToDirectory();
                         statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                     }
                 } catch (IOException | InterruptedException e) {

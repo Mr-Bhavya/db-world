@@ -29,7 +29,10 @@ public interface DBCinemaRecordsService {
 
     DBCinemaRecordsEntity getRecordEntityById(Long recordId);
 
-    List<DBCinemaRecordsDto> searchRecordByKeyword(String keyword);
+    //    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
+    List<DBCinemaRecordsDto> searchRecordByKeywordWithUserData(String keyword);
+
+    List<Map<String, String>> searchRecordByKeyword(String keyword);
 
     List<HashMap<String, Object>> getTmdbByQuery(String recordType, String query, int year);
 

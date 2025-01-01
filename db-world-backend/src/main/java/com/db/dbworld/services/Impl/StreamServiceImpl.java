@@ -79,6 +79,7 @@ public class StreamServiceImpl implements StreamService {
             responseHeaders.add(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES);
             if (rangeHeader == null) {
                 responseHeaders.add(DbWorldConstants.CONTENT_LENGTH_HEADER, fileSize.toString());
+                log.info("Start: {}, end: {}", 0, fileSize-1);
                 return new ResponseEntity<>(readStreamingBody(path, 0, fileSize - 1), responseHeaders, HttpStatus.OK);
             }
 
@@ -186,17 +187,22 @@ public class StreamServiceImpl implements StreamService {
     }
 
     private StreamingResponseBody readStreamingBody(Path path, long start, long end) {
-        int length = (int) (end - start + 1);
-        byte[] buffer = new byte[length];
+        Long length = (end - start + 1);
+        log.info("readStreamingBody - Start: {}, end: {}, length: {}", start, end, length);
+        int bufferSize = 1024 * 1024; // 1 MB buffer size
         return os -> {
-            RandomAccessFile file = new RandomAccessFile(path.toString(), "r");
-            try (file) {
+            try (RandomAccessFile file = new RandomAccessFile(path.toString(), "r")) {
+                byte[] buffer = new byte[bufferSize];
                 long pos = start;
                 file.seek(pos);
                 while (pos < end) {
-                    file.read(buffer);
-                    os.write(buffer);
-                    pos += buffer.length;
+                    int bytesToRead = (int) Math.min(bufferSize, end - pos + 1);
+                    int bytesRead = file.read(buffer, 0, bytesToRead);
+                    if (bytesRead == -1) {
+                        break; // End of file
+                    }
+                    os.write(buffer, 0, bytesRead);
+                    pos += bytesRead;
                 }
                 os.flush();
             } catch (Exception e) {
@@ -208,13 +214,12 @@ public class StreamServiceImpl implements StreamService {
     private InputStreamResource readResource(Path path, long start) {
         InputStream inputStream = null;
         try {
-            inputStream = Files.newInputStream(path);
             inputStream.skip(start);
+            inputStream = Files.newInputStream(path);
         } catch (IOException e) {
             throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
-        InputStreamResource resource = new InputStreamResource(inputStream);
-        return resource;
+        return new InputStreamResource(inputStream);
     }
 
     public String getContentDisposition(Path path) {

@@ -224,6 +224,16 @@ export const searchRecord = async (query) => {
     return await response.json();
 }
 
+export const adminSearchRecord = async (query) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/record/search?q=${query}`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
 export const searchStreamFile = async (query) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/stream/search?q=${query}`, {
         method: "GET",

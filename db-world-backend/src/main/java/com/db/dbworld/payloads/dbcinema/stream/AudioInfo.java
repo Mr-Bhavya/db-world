@@ -98,6 +98,35 @@ public class AudioInfo extends TrackInfo {
     @JsonProperty("Extra")
     private Extra extra;
 
+    private String StreamOrder;
+    private String ID;
+    private String UniqueID;
+    private String Format;
+    private String Format_Commercial_IfAny;
+    private String Format_Settings_Endianness;
+    private String CodecID;
+    private double Duration;
+    private String BitRate_Mode;
+    private int BitRate;
+    private int Channels;
+    private String ChannelPositions;
+    private String ChannelLayout;
+    private int SamplesPerFrame;
+    private int SamplingRate;
+    private long SamplingCount;
+    private double FrameRate;
+    private int BitDepth;
+    private String Compression_Mode;
+    private double Delay;
+    private String Delay_Source;
+    private double Video_Delay;
+    private long StreamSize;
+    private String Title;
+    private String Language;
+    private String ServiceKind;
+    private String Default;
+    private String Forced;
+
     @Getter
     @Setter
     private static class Extra {

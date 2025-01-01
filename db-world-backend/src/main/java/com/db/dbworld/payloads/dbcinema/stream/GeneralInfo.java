@@ -86,6 +86,30 @@ public class GeneralInfo extends TrackInfo {
     @JsonProperty("Extra")
     private Extra extra;
 
+    private String UniqueID;
+    private int VideoCount;
+    private int AudioCount;
+    private int TextCount;
+    private String FileExtension;
+    private String Format;
+    private String Format_Version;
+    private long FileSize;
+    private double Duration;
+    private int OverallBitRate;
+    private double FrameRate;
+    private int FrameCount;
+    private long StreamSize;
+    private String IsStreamable;
+    private String Title;
+    private String Movie;
+    private String Description;
+    private String File_Created_Date;
+    private String File_Created_Date_Local;
+    private String File_Modified_Date;
+    private String File_Modified_Date_Local;
+    private String Encoded_Application;
+    private String Encoded_Library;
+
     @Getter
     @Setter
     public static class Extra {

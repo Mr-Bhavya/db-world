@@ -1,8 +1,10 @@
 package com.db.dbworld.entities.dbcinema.stream;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Lob;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -12,90 +14,98 @@ import lombok.Setter;
 @DiscriminatorValue("General")
 public class GeneralInfoEntity extends TrackInfoEntity {
 
+    @Column(name = "UniqueID")
     @JsonProperty("UniqueID")
-    private String uniqueID;
+    private String id;
 
+    @Column(name = "VideoCount")
     @JsonProperty("VideoCount")
-    private int videoCount;
+    private Integer videoCount;
 
+    @Column(name = "AudioCount")
     @JsonProperty("AudioCount")
-    private int audioCount;
+    private Integer audioCount;
 
+    @Column(name = "TextCount")
     @JsonProperty("TextCount")
-    private int textCount;
+    private Integer textCount;
 
-    @JsonProperty("MenuCount")
-    private int menuCount;
-
+    @Column(name = "FileExtension")
     @JsonProperty("FileExtension")
     private String fileExtension;
 
+    @Column(name = "Format")
     @JsonProperty("Format")
     private String format;
 
-    @JsonProperty("FormatVersion")
+    @Column(name = "Format_Version")
+    @JsonProperty("Format_Version")
     private String formatVersion;
 
+    @Column(name = "FileSize")
     @JsonProperty("FileSize")
-    private long fileSize;
+    private Long fileSize;
 
+    @Column(name = "Duration")
     @JsonProperty("Duration")
-    private double duration;
+    private Double duration;
 
+    @Column(name = "OverallBitRate")
     @JsonProperty("OverallBitRate")
-    private long overallBitRate;
+    private Integer overallBitRate;
 
+    @Column(name = "FrameRate")
     @JsonProperty("FrameRate")
-    private double frameRate;
+    private Double frameRate;
 
+    @Column(name = "FrameCount")
     @JsonProperty("FrameCount")
-    private int frameCount;
+    private Integer frameCount;
 
+    @Column(name = "StreamSize")
     @JsonProperty("StreamSize")
-    private long streamSize;
+    private Long streamSize;
 
+    @Column(name = "IsStreamable")
     @JsonProperty("IsStreamable")
     private String isStreamable;
 
+    @Column(name = "Title")
     @JsonProperty("Title")
     private String title;
 
+    @Column(name = "Movie")
     @JsonProperty("Movie")
     private String movie;
 
-    @JsonProperty("EncodedDate")
-    private String encodedDate;
+    @Lob
+    @Column(name = "Description", columnDefinition = "LONGTEXT")
+    @JsonProperty("Description")
+    private String description;
 
-    @JsonProperty("FileCreatedDate")
+    @Column(name = "File_Created_Date")
+    @JsonProperty("File_Created_Date")
     private String fileCreatedDate;
 
-    @JsonProperty("FileCreatedDateLocal")
+    @Column(name = "File_Created_Date_Local")
+    @JsonProperty("File_Created_Date_Local")
     private String fileCreatedDateLocal;
 
-    @JsonProperty("FileModifiedDate")
+    @Column(name = "File_Modified_Date")
+    @JsonProperty("File_Modified_Date")
     private String fileModifiedDate;
 
-    @JsonProperty("FileModifiedDateLocal")
+    @Column(name = "File_Modified_Date_Local")
+    @JsonProperty("File_Modified_Date_Local")
     private String fileModifiedDateLocal;
 
-    @JsonProperty("EncodedApplication")
+    @Column(name = "Encoded_Application")
+    @JsonProperty("Encoded_Application")
     private String encodedApplication;
 
-    @JsonProperty("EncodedLibrary")
+    @Column(name = "Encoded_Library")
+    @JsonProperty("Encoded_Library")
     private String encodedLibrary;
 
-    @JsonProperty("Cover")
-    private String cover;
-
-//    @JsonProperty("Extra")
-//    private Extra extra;
-//
-//    @Getter
-//    @Setter
-//    public static class Extra {
-//
-//        @JsonProperty("Attachments")
-//        private String attachments;
-//    }
 }
 

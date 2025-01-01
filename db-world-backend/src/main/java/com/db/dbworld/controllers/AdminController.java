@@ -134,6 +134,13 @@ public class AdminController {
         return new ApiResponse<>(HttpStatus.OK, true, "Record deleted.");
     }
 
+    @GetMapping("/cinema/record/search")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<List<Map<String, String>>> searchRecordByKeyword(@RequestParam(value = "q") String query) {
+        List<Map<String, String>> dbCinemaRecords = dbCinemaRecordsService.searchRecordByKeyword(query);
+        return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecords);
+    }
+
     @GetMapping("/cinema/tmdb/{type}/search")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<HashMap<String, Object>>> searchTmdbByKeyword(
