@@ -129,7 +129,7 @@ public class MediaFileHandler {
 
     private String runMediaInfoCommand(Path path) throws IOException, InterruptedException {
         List<String> command = Arrays.asList(
-                "D:\\Bhavya\\Downloads\\Compressed\\MediaInfo_CLI_24.12_Windows_x64\\mediainfo",
+                "mediainfo",
                 "--Output=JSON",
                 path.toString()
         );
