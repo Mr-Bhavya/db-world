@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +15,16 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Date;
 
+@Log4j2
 @Getter
 @Setter
 @Service
 @NoArgsConstructor
 @AllArgsConstructor
 public class MirrorStatus {
+
     @Value("${dbworld.paths.integrationFolderPath}")
-    private String INPUT_DIRECTORY;
+    private String integrationFolderPath;
     
     private String id;
     private String timeStamp;
@@ -61,12 +64,15 @@ public class MirrorStatus {
         this.fileUrl = fileUrl;
         this.fileName = fileName;
         this.fileSize = fileSize;
-        this.recordIdPath = INPUT_DIRECTORY + "/" + folderName;
+        if(integrationFolderPath == null || integrationFolderPath.equals("null")){
+            log.warn("integrationFolderPath is null");
+            integrationFolderPath = "/ext_hdisk/dbworld/integration/";
+        }
+        this.recordIdPath = integrationFolderPath + "/" + folderName;
         this.tempRecordIdPath = DbWorldConstants.TEMP_DOWNLOAD_PATH + folderName;
         this.filePath = recordIdPath + "/" + fileName;
         this.tempFilePath = tempRecordIdPath + "/" + tempFileName;
         this.extract = extract;
-//        this.statusFilePath = "status/" + timeStamp + ".json";
         try {
             this.fileType = Files.probeContentType(Path.of(fileName));
             Files.createDirectories(Path.of(tempRecordIdPath));
@@ -79,7 +85,7 @@ public class MirrorStatus {
             else if (this.fileName.endsWith(".rar")) this.extractedFileName = this.fileName.replace(".rar", "");
             else if (this.fileName.endsWith(".tar")) this.extractedFileName = this.fileName.replace(".tar", "");
             else if (this.fileName.endsWith(".7z")) this.extractedFileName = this.fileName.replace(".7z", "");
-            this.extractedFilePath = INPUT_DIRECTORY + "/" + extractedFileName;
+            this.extractedFilePath = integrationFolderPath + "/" + extractedFileName;
         }
     }
 
@@ -97,7 +103,7 @@ public class MirrorStatus {
                     .replace("\\","");
         }
         this.fileSize = this.ytdlp.fileSize;
-        this.filePath = INPUT_DIRECTORY + "/" + fileName;
+        this.filePath = integrationFolderPath + "/" + fileName;
         this.tempFilePath = DbWorldConstants.TEMP_DOWNLOAD_PATH + tempFileName;
         this.extract = false;
     }
