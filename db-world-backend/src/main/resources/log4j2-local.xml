@@ -18,7 +18,6 @@
         <Console name="Console-INFO" target="SYSTEM_OUT" follow="true">
             <PatternLayout pattern="${CONSOLE_LOG_PATTERN}" disableAnsi="false"/>
             <Filters>
-
                 <RegexFilter regex=".*(Peer collection finished with exception in peer source).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(Error when writing message).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(Failed to process key).*" onMatch="DENY" onMismatch="NEUTRAL"/>
@@ -26,62 +25,50 @@
                 <RegexFilter regex=".*(Listener invocation failed).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(handleException /api/stream/download).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(handleException /api/stream/watch).*" onMatch="DENY" onMismatch="NEUTRAL"/>
-
-                <!-- This filter accepts info, warn, error, fatal and denies debug/trace -->
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
-
-                <!-- Now deny warn, error and fatal messages -->
-<!--                <ThresholdFilter level="WARN" onMatch="DENY" onMismatch="NEUTRAL"/>-->
-
-                <!-- deny error and fatal messages -->
-<!--                <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL" />-->
             </Filters>
         </Console>
 
-<!--        <RollingFile name="File-DEBUG" fileName="logs/dbworld-debug.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-debug-%d{MM-dd-yyyy}.log.gz"-->
-<!--                     ignoreExceptions="false">-->
-<!--            <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>-->
-<!--            <TimeBasedTriggeringPolicy/>-->
-<!--            <Filters>-->
-<!--                <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>-->
-<!--                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>-->
-<!--            </Filters>-->
-<!--        </RollingFile>-->
-
-        <RollingFile name="File-INFO" fileName="${LOG_FILE_PATH}dbworld-info.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-info-%d{MM-dd-yyyy}.log.gz"
-                     ignoreExceptions="false">
+        <RollingFile name="File-INFO" fileName="${LOG_FILE_PATH}dbworld-info.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-info-%i.log">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
-            <TimeBasedTriggeringPolicy/>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="WARN" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
+            <Policies>
+                <OnStartupTriggeringPolicy minSize="1"/>
+                <SizeBasedTriggeringPolicy size="50MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
-
-        <RollingFile name="File-ERROR" fileName="${LOG_FILE_PATH}dbworld-error.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-error-%d{MM-dd-yyyy}.log.gz"
-                     ignoreExceptions="false">
+        <RollingFile name="File-ERROR" fileName="${LOG_FILE_PATH}dbworld-error.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-error-%i.log">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
-            <TimeBasedTriggeringPolicy/>
             <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+            <Policies>
+                <OnStartupTriggeringPolicy minSize="1"/>
+                <SizeBasedTriggeringPolicy size="50MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
-        <RollingFile name="File-WARN" fileName="${LOG_FILE_PATH}dbworld-warn.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-warn-%d{MM-dd-yyyy}.log.gz"
-                     ignoreExceptions="false">
+        <RollingFile name="File-WARN" fileName="${LOG_FILE_PATH}dbworld-warn.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-warn-%i.log">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
-            <TimeBasedTriggeringPolicy/>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
+            <Policies>
+                <OnStartupTriggeringPolicy minSize="1"/>
+                <SizeBasedTriggeringPolicy size="50MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
-        <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" filePattern="logs/%d{MM-dd-yyyy}/dbworld-%d{MM-dd-yyyy}.log.gz"
-                     ignoreExceptions="true" target="SYSTEM_OUT">
+        <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-%i.log">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
-            <TimeBasedTriggeringPolicy/>
             <Filters>
                 <RegexFilter regex=".*(Peer collection finished with exception in peer source).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <RegexFilter regex=".*(Error when writing message).*" onMatch="DENY" onMismatch="NEUTRAL"/>
@@ -92,6 +79,11 @@
                 <RegexFilter regex=".*(handleException /api/stream/watch).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
+            <Policies>
+                <OnStartupTriggeringPolicy minSize="1"/>
+                <SizeBasedTriggeringPolicy size="50MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
     </Appenders>
@@ -102,9 +94,14 @@
             <AppenderRef ref="File-INFO"/>
             <AppenderRef ref="File-WARN"/>
             <AppenderRef ref="File-ERROR"/>
-<!--            <AppenderRef ref="File-DEBUG"/>-->
             <AppenderRef ref="File-INFO-Main"/>
         </Root>
     </Loggers>
+
+    <!-- Delete files older than 2 days -->
+    <CustomDelete>
+        <BasePath>${LOG_FILE_PATH}</BasePath>
+        <MaxAge>2d</MaxAge>
+    </CustomDelete>
 
 </Configuration>
