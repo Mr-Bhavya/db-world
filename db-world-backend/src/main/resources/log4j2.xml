@@ -28,45 +28,30 @@
             </Filters>
         </Console>
 
-        <RollingFile name="File-INFO" fileName="${LOG_FILE_PATH}dbworld-info.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-info-%i.log">
+        <RollingFile name="File-INFO" fileName="${LOG_FILE_PATH}dbworld-info.log" ignoreExceptions="false">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="WARN" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
-            <Policies>
-                <OnStartupTriggeringPolicy minSize="1"/>
-                <SizeBasedTriggeringPolicy size="50MB"/>
-            </Policies>
-            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
-        <RollingFile name="File-ERROR" fileName="${LOG_FILE_PATH}dbworld-error.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-error-%i.log">
+        <RollingFile name="File-ERROR" fileName="${LOG_FILE_PATH}dbworld-error.log" ignoreExceptions="false">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
-            <Policies>
-                <OnStartupTriggeringPolicy minSize="1"/>
-                <SizeBasedTriggeringPolicy size="50MB"/>
-            </Policies>
-            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
-        <RollingFile name="File-WARN" fileName="${LOG_FILE_PATH}dbworld-warn.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-warn-%i.log">
+        <RollingFile name="File-WARN" fileName="${LOG_FILE_PATH}dbworld-warn.log" ignoreExceptions="false">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
-            <Policies>
-                <OnStartupTriggeringPolicy minSize="1"/>
-                <SizeBasedTriggeringPolicy size="50MB"/>
-            </Policies>
-            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
-        <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" ignoreExceptions="false" filePattern="${LOG_FILE_PATH}dbworld-%i.log">
+        <RollingFile name="File-INFO-Main" fileName="${LOG_FILE_PATH}dbworld.log" ignoreExceptions="true">
             <PatternLayout pattern="${FILE_LOG_PATTERN}" disableAnsi="false"/>
             <Filters>
                 <RegexFilter regex=".*(Peer collection finished with exception in peer source).*" onMatch="DENY" onMismatch="NEUTRAL"/>
@@ -78,11 +63,6 @@
                 <RegexFilter regex=".*(handleException /api/stream/watch).*" onMatch="DENY" onMismatch="NEUTRAL"/>
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
-            <Policies>
-                <OnStartupTriggeringPolicy minSize="1"/>
-                <SizeBasedTriggeringPolicy size="50MB"/>
-            </Policies>
-            <DefaultRolloverStrategy max="10"/>
         </RollingFile>
 
     </Appenders>
