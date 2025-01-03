@@ -4,6 +4,7 @@ import com.db.dbworld.dao.dbcinema.stream.MediaFileInfoRepository;
 import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.services.DBCinemaRecordsService;
+import com.db.dbworld.utils.DbWorldUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +42,9 @@ public class MediaFileHandler {
     @Autowired
     private DBCinemaRecordsService dbCinemaRecordsService;
 
+    @Autowired
+    private DbWorldUtils dbWorldUtils;
+
     public void processFile(File file) {
         try {
             // Extract details from the file path
@@ -55,22 +59,21 @@ public class MediaFileHandler {
 
             if (file.exists()) {
                 // File created or modified
+                List<MediaFileInfoEntity> mediaFileInfoEntities = storeMediaInfo(recordId, file.toPath());
                 moveFileToDirectory(sourcePath, targetFolder);
-                List<MediaFileInfoEntity> mediaFileInfoEntities = storeMediaInfo(recordId, Path.of(map.get("filePath")));
                 log.info("Processed {} files for recordId: {}", mediaFileInfoEntities.size(), recordId);
             } else {
                 // File deleted
                 handleFileDeletion(file.getAbsolutePath());
             }
         } catch (Exception e) {
-            log.error("Error processing file: {}", file.getName(), e);
+            log.error("Error processing file: {}, {}", file, e.getLocalizedMessage());
         }
     }
 
     private Map<String, String> extractBaseFolder(String filePath) {
         filePath = normalizePath(filePath);
         String baseDirectory = normalizePath(integrationFolderPath);
-        String streamDirectory = normalizePath(streamHomePath+File.separator);
 
         if (!filePath.startsWith(baseDirectory)) {
             return null;
@@ -83,7 +86,7 @@ public class MediaFileHandler {
         Matcher matcher = Pattern.compile(pattern).matcher(folderName);
         if (matcher.find()) {
             Map<String, String> map = new HashMap<>();
-            map.put("filePath", filePath.replace(baseDirectory, streamDirectory));
+            map.put("filePath", getStreamFolderFilePath(filePath));
             map.put("folderName", matcher.group());
             return map;
         }
@@ -120,49 +123,43 @@ public class MediaFileHandler {
 
     private List<MediaFileInfoEntity> storeMediaInfo(Long recordId, Path path) {
         try {
-            String jsonOutput = runMediaInfoCommand(path);
+            String jsonOutput = dbWorldUtils.runMediaInfoCommand(path);
             return parseMediaInfoJson(jsonOutput, recordId);
         } catch (Exception e) {
-            throw new DbWorldException("Error storing media info for recordId: " + recordId, e);
+            throw new DbWorldException("Error storing media info for recordId: " + recordId + ", " + e.getMessage());
         }
     }
 
-    private String runMediaInfoCommand(Path path) throws IOException, InterruptedException {
-        List<String> command = Arrays.asList(
-                "mediainfo",
-                "--Output=JSON",
-                path.toString()
-        );
+    private List<MediaFileInfoEntity> parseMediaInfoJson(String jsonOutput, Long recordId) {
+        try {
+            List<MediaFileInfoEntity> mediaFileInfos = new ArrayList<>();
+            JsonElement jsonElement = new Gson().fromJson(jsonOutput, JsonElement.class);
 
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        Process process = processBuilder.start();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            StringBuilder output = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line);
+            if(jsonElement.isJsonArray()){
+                jsonElement.getAsJsonArray().forEach(element -> {
+                    mediaFileInfos.add(saveJsonObject(recordId, element.getAsJsonObject()));
+                });
+            }else if(jsonElement.isJsonObject()) {
+                mediaFileInfos.add(saveJsonObject(recordId, jsonElement.getAsJsonObject()));
             }
-            process.waitFor();
-            return output.toString();
+            return mediaFileInfos;
+        }catch (Exception ex){
+            throw new DbWorldException(ex.getMessage());
         }
     }
 
-    private List<MediaFileInfoEntity> parseMediaInfoJson(String jsonOutput, Long recordId) throws JsonProcessingException {
-        List<MediaFileInfoEntity> mediaFileInfos = new ArrayList<>();
-        JsonElement jsonElement = new Gson().fromJson(jsonOutput, JsonElement.class);
-
-        if (jsonElement.isJsonObject() || jsonElement.isJsonArray()) {
-            jsonElement.getAsJsonArray().forEach(element -> {
-                try {
-                    MediaFileInfoEntity entity = convertJsonObjectToMediaInfo(element.getAsJsonObject());
-                    mediaFileInfos.add(mediaFileInfoRepository.save(entity.initialize(dbCinemaRecordsService.getRecordEntityById(recordId))));
-                } catch (Exception e) {
-                    log.error("Error parsing media info JSON for recordId: {}", recordId, e);
-                }
-            });
+    private MediaFileInfoEntity saveJsonObject(Long recordId, JsonObject jsonObject){
+        try {
+            log.info("Converting Json to entity class");
+            MediaFileInfoEntity entity = convertJsonObjectToMediaInfo(jsonObject.getAsJsonObject());
+            entity.setFilePath(getStreamFolderFilePath(entity.getFilePath()));
+            log.info("Set New Path: {} ", entity.getFilePath());
+            log.info("Converted to entity, storing data to db...");
+            return mediaFileInfoRepository.save(entity.initialize(dbCinemaRecordsService.getRecordEntityById(recordId)));
+        } catch (Exception e) {
+            log.error("Error parsing media info JSON for recordId: {}, {}", recordId, e.getMessage());
+            throw new DbWorldException("Error parsing media info JSON for recordId: "+ recordId + ", "+e.getMessage());
         }
-
-        return mediaFileInfos;
     }
 
     private MediaFileInfoEntity convertJsonObjectToMediaInfo(JsonObject jsonObject) throws JsonProcessingException {
@@ -178,6 +175,15 @@ public class MediaFileHandler {
 
     private String normalizePath(String path) {
         return path.replace("\\", "/");
+    }
+
+    private String getStreamFolderFilePath(String integrationFolderFilePath){
+        String baseDirectory = normalizePath(integrationFolderPath);
+        String streamDirectory = normalizePath(streamHomePath+File.separator);
+        if(integrationFolderFilePath != null){
+            return normalizePath(integrationFolderFilePath).replace(baseDirectory, streamDirectory);
+        }
+        return null;
     }
 
 }

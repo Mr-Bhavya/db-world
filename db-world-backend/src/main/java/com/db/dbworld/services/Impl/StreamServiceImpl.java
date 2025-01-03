@@ -187,8 +187,7 @@ public class StreamServiceImpl implements StreamService {
     }
 
     private StreamingResponseBody readStreamingBody(Path path, long start, long end) {
-        Long length = (end - start + 1);
-        log.info("readStreamingBody - Start: {}, end: {}, length: {}", start, end, length);
+
         int bufferSize = 1024 * 1024; // 1 MB buffer size
         return os -> {
             try (RandomAccessFile file = new RandomAccessFile(path.toString(), "r")) {

@@ -157,55 +157,7 @@ function SingleMovie(props) {
         setMediaListLoader(true);
         const response = await loadStreamFileInfoByRecordId(movie.recordId);
         if (response.httpStatusCode === 200) {
-            // setMediaFileList(response.data);
-
-            setMediaFileList(response.data?.map(mediaFile => {
-                let mediaDetails = {
-                    id: "",
-                    general: {},
-                    video: {},
-                    audio: [],
-                    subtitle: []
-                }
-                mediaDetails.id = mediaFile.id
-
-                mediaFile?.trackInfos?.forEach(track => {
-                    if (track?.type === "General") {
-                        let general = {}
-                        general.fileName = mediaFile.fileName;
-                        general.fileSize = CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).value + " " + CommonServices.bytesToReadbleFormat(mediaFile?.fileSize).suffix;
-                        general.duration = track?.duration;
-                        general.overallBitrate = CommonServices.bytesToReadbleFormat(track?.overallBitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.overallBitRate).suffix + "/s";
-                        general.Description = track?.Description;
-                        mediaDetails.general = general;
-                    }
-                    if (track?.type === "Video") {
-                        let video = {}
-                        video.resolution = track?.width + "x" + track?.height;
-                        video.format = track?.codecID + " | " + track?.format + " | " + track?.formatProfile + " | " + CommonServices.bytesToReadbleFormat(track?.bitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.bitRate).suffix + "/s";
-                        video.hdrDetails = track?.hdrFormat != null && track?.hdrFormat + " | " + track?.hdrFormatVersion + " | " + track?.hdrFormatCompatibility
-                        video.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " + CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
-                        mediaDetails.video = video;
-                    }
-                    if (track?.type === "Audio") {
-                        let audio = {}
-                        audio.language = track?.language;
-                        audio.format = track?.codecID + " | " + track?.format + " @ " + CommonServices.bytesToReadbleFormat(track?.bitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.bitRate).suffix + "/s";
-                        // audio.bitrate = track?.bitRate;
-                        audio.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " + CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;
-                        audio.channelInfo = track?.channels + " | " + track?.channelPositions;
-                        mediaDetails.audio.push(audio);
-                    }
-                    if (track?.type === "Text") {
-                        let subtitle = {}
-                        subtitle.format = track?.codecID + " " + track?.format + " @ " + CommonServices.bytesToReadbleFormat(track?.bitRate).value + " " + CommonServices.bytesToReadbleFormat(track?.bitRate).suffix + "/s";
-                        subtitle.language = track?.language;
-                        subtitle.size = CommonServices.bytesToReadbleFormat(track?.streamSize).value + " " + CommonServices.bytesToReadbleFormat(track?.streamSize).suffix;;
-                        mediaDetails.subtitle.push(subtitle);
-                    }
-                });
-                return mediaDetails;
-            }))
+            setMediaFileList(CommonServices.convertMediaInfoToCustomFormat(response.data));
             setMediaListLoader(false);
         }
 

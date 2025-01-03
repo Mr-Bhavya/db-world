@@ -26,7 +26,7 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     private ModelMapper modelMapper;
 
     @Override
-    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
+//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public List<MediaFileInfo> getAllFileInfoByRecordId(Long recordId) {
         try {
             List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.findAllByDbCinemaRecordId(recordId);
