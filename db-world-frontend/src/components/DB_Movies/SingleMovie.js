@@ -15,6 +15,7 @@ import HtmlJsonTable from "react-json-to-html-table";
 import CommonServices from "../CommonServices";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
+import CopyButton from "./SubComponents/CopyButton";
 
 function SingleMovie(props) {
     const movie = props.movie;
@@ -164,17 +165,10 @@ function SingleMovie(props) {
     }
 
     const handleDownload = async (mediaFile) => {
-        let tempUrl = window.location.origin + "/api/stream/watch/" + mediaFile.id + "?t=" + localStorage.getItem("token");
-        if (window.location.port === "3000") {
-            tempUrl = tempUrl.replace("3000", "9000")
-        }
-        let videoUrl = tempUrl;
-        tempUrl = tempUrl.replace("/watch", "/download/uuid")
-        let downloadUrl = tempUrl
         if (Capacitor.isNativePlatform()) {
-            Browser.open(downloadUrl)
+            Browser.open(mediaFile.downloadUrl)
         } else {
-            window.open(downloadUrl);
+            window.open(mediaFile.downloadUrl);
         }
     }
 
@@ -217,6 +211,7 @@ function SingleMovie(props) {
                                         </Card.Text>
                                     </Card.Body>
                                     <Card.Footer>
+                                        <CopyButton text={mediaFile.downloadUrl} />
                                         <Button className="btn-sm float-end" variant="danger" onClick={() => handleDownload(mediaFile)}>Download</Button>
                                     </Card.Footer>
                                 </Card>)

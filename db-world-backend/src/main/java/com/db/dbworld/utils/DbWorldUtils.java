@@ -119,7 +119,7 @@ public class DbWorldUtils {
     public String runMediaInfoCommand(Path path) {
         try {
             List<String> command = Arrays.asList(
-                    "mediainfo",
+                    DbWorldConstants.MEDIAINFO,
                     "--output=JSON",
                     path.toString()
             );

@@ -52,17 +52,5 @@ public class TextInfo extends TrackInfo{
 
     @JsonProperty("Forced")
     private String forced;
-
-    private String StreamOrder;
-    private String ID;
-    private String UniqueID;
-    private String Format;
-    private String CodecID;
-    private double Duration;
-    private String Title;
-    private String Encoded_Library;
-    private String Language;
-    private String Default;
-    private String Forced;
 }
 

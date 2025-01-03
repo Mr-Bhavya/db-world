@@ -13,16 +13,12 @@ public class MediaFileInfo {
 
     private String id;
 
-//    private Long recordId;
-
     private String fileName;
 
     private Long fileSize;
 
     @JsonProperty("@ref")
-//    @JsonSerialize(using = NioPathSerializer.class)
-//    @JsonAdapter(PathAdapter.class)
-    private Path filePath;
+    private String filePath;
 
     @JsonProperty("track")
     private List<TrackInfo> trackInfos;

@@ -185,9 +185,19 @@ const convertMediaInfoToCustomFormat = (data) => {
             general: {},
             video: {},
             audio: [],
-            subtitle: []
+            subtitle: [],
+            downloadUrl: "",
+            streamUrl: ""
         }
         mediaDetails.id = mediaFile.id
+
+        let tempUrl = window.location.origin + "/api/stream/watch/uuid/" + mediaFile.id + "?t=" + localStorage.getItem("token");
+        if (window.location.port === "3000") {
+            tempUrl = tempUrl.replace("3000", "9000")
+        }
+        mediaDetails.streamUrl = tempUrl;
+        tempUrl = tempUrl.replace("/watch", "/download")
+        mediaDetails.downloadUrl = tempUrl
 
         mediaFile?.trackInfos?.forEach(track => {
             if (track?.type === "General") {

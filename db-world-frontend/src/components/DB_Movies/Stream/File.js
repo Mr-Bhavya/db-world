@@ -12,6 +12,7 @@ import { Browser } from "@capacitor/browser";
 import { useDispatch, useSelector } from "react-redux";
 import { updateDownloadStatus } from "../../../redux/action/allActions";
 import HtmlJsonTable from "react-json-to-html-table"
+import CopyButton from "../SubComponents/CopyButton";
 
 
 function File(props) {
@@ -20,7 +21,6 @@ function File(props) {
     const [deleteModel, setDeleteModel] = useState(false);
     const [videoUrl, setVideoUrl] = useState("");
     const [downloadUrl, setDownloadUrl] = useState("");
-    const [onUrlCopied, setOnUrlCopied] = useState(false);
     const [newName, setNewName] = useState(file.fileName);
     const [onRename, setOnRename] = useState(false);
     const navigate = useNavigate();
@@ -170,8 +170,8 @@ function File(props) {
                                 enabled autoPlay src={videoUrl}
                             ></video>
                         </div>
-                        <div  style={{ width: "100%", overflowX: "auto" }} >
-                            <HtmlJsonTable data={mediaInfo} className="table table-sm table-striped table-bordered table-responsive"/>
+                        <div style={{ width: "100%", overflowX: "auto" }} >
+                            <HtmlJsonTable data={mediaInfo} className="table table-sm table-striped table-bordered table-responsive" />
                         </div>
                         <hr />
                         {
@@ -216,25 +216,7 @@ function File(props) {
                         }
                     </Modal.Body>
                     <Modal.Footer>
-
-                        {
-                            onUrlCopied ?
-                                <Button variant="success">
-                                    Copied !
-                                </Button>
-                                :
-                                <Button variant="primary" onClick={() => {
-                                    CommonServices.handleCopy(downloadUrl)
-                                    setOnUrlCopied(true)
-                                    setInterval(() => {
-                                        setOnUrlCopied(false)
-                                    }, 5000)
-
-                                }}>
-                                    Copy Url
-                                </Button>
-                        }
-
+                        <CopyButton text={downloadUrl} />
                         {
                             Capacitor.isNativePlatform() ? <DownloadFileAndroid file={file} />
                                 :
