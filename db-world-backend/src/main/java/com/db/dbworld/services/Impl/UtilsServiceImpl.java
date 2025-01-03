@@ -483,7 +483,7 @@ public class UtilsServiceImpl implements UtilsService {
         if (process.equals(PROCESS_AUDIO)) {
             MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
             cmd = new String[]{
-                    DbWorldConstants.YTDLP_EXE_PATH,
+                    DbWorldConstants.YT_DLP,
                     "-i", "--extract-audio",
                     "--progress-template",
                     "\"%(progress)j\"",
@@ -501,7 +501,7 @@ public class UtilsServiceImpl implements UtilsService {
         } else if (process.equals(PROCESS_DOWNLOAD) || process.equals(PROCESS_FILENAME)) {
             MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
             cmd = new String[]{
-                    DbWorldConstants.YTDLP_EXE_PATH,
+                    DbWorldConstants.YT_DLP,
                     "--progress-template",
                     "\"%(progress)j\"",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
@@ -517,7 +517,7 @@ public class UtilsServiceImpl implements UtilsService {
             };
         } else if (process.equals(PROCESS_INFO)) {
             cmd = new String[]{
-                    DbWorldConstants.YTDLP_EXE_PATH,
+                    DbWorldConstants.YT_DLP,
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
                     url,
