@@ -13,6 +13,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,6 +62,24 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     public String getFileInfoById(String id) {
         try {
             return mediaFileInfoRepository.getFileInfoById(id).orElseThrow(()->new DbWorldException("No Information"));
+        }catch (Exception ex){
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    public List<Map<String, String>> getAllFilePath() {
+        try {
+            return mediaFileInfoRepository.getAllFilePath();
+        }catch (Exception ex){
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    public void deleteInfoById(String id) {
+        try {
+            mediaFileInfoRepository.deleteById(id);
         }catch (Exception ex){
             throw new DbWorldException(ex.getMessage());
         }
