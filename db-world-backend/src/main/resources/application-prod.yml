@@ -52,11 +52,6 @@ jasypt:
     algorithm: PBEWithMD5AndDES
     password: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
-#tmdb
-tmdb:
-  api:
-    key: 30061af77dba3722bbe14a2691055544
-
 #Swagger
 springdoc:
   api-docs:
@@ -73,7 +68,8 @@ dbworld:
     streamHomePath: /ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
     torrentDownloadPath: /ext_hdisk/videos/Torrent Download
-    ytdlpPath: yt-dlp
+    yt-dlp: yt-dlp
+    mediainfo: mediainfo
     hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
     extHDiskPath: /ext_hdisk
 

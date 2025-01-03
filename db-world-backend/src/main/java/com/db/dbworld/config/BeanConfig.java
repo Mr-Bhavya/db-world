@@ -67,13 +67,10 @@ public class BeanConfig {
         return encryptor;
     }
 
-    @Value("${dbworld.paths.integrationFolderPath}")
-    private String integrationFolderPath;
-
     @Bean
     public IntegrationFlow fileIntegrationFlow() {
         return IntegrationFlow
-                .from(Files.inboundAdapter(new File(integrationFolderPath))
+                .from(Files.inboundAdapter(new File(DbWorldConstants.INTEGRATION_FOLDER_PATH))
 //                        .preventDuplicates(true)
                                 .useWatchService(true) // Real-time detection
                                 .watchEvents(FileReadingMessageSource.WatchEventType.CREATE,

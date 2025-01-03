@@ -183,6 +183,22 @@ public class StreamController {
         return streamService.downloadFile(path, rangeHeader);
     }
 
+    @GetMapping(value = "/watch/uuid/{fileId}")
+    public CompletableFuture<ResponseEntity<InputStreamResource>> watchFileOnline(@RequestHeader(value = "Range", required = false) String rangeHeader,
+                                                                                  @PathVariable(name = "fileId") @Valid @NotNull String fileId,
+                                                                                  @RequestParam(name = "t") String token) {
+        String username = dbWorldUtils.getUserFromToken(token);
+        if (username == null || username.isBlank()) {
+            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
+        }
+        String filePath = mediaFileInfoService.getFileInfoById(fileId);
+        if(filePath!=null && !filePath.isBlank() && new File(filePath).exists() ){
+            return streamService.getStreamResource(Path.of(filePath), rangeHeader);
+        }else {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "No information found for given ID");
+        }
+    }
+
     @GetMapping(value = "/download/uuid/{fileId}")
     public ResponseEntity<StreamingResponseBody> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
                                                               @PathVariable(name = "fileId") @Valid @NotNull String fileId,

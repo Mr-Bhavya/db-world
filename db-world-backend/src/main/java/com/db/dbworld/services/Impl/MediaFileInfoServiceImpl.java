@@ -27,6 +27,15 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     private ModelMapper modelMapper;
 
     @Override
+    public MediaFileInfoEntity save(MediaFileInfoEntity mediaFileInfoEntity) {
+        try {
+            return mediaFileInfoRepository.save(mediaFileInfoEntity);
+        }catch (Exception ex){
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
 //    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public List<MediaFileInfo> getAllFileInfoByRecordId(Long recordId) {
         try {
@@ -80,6 +89,15 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     public void deleteInfoById(String id) {
         try {
             mediaFileInfoRepository.deleteById(id);
+        }catch (Exception ex){
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    public void deleteInfoByFilePath(String filePath) {
+        try {
+            mediaFileInfoRepository.deleteAllByFilePath(filePath);
         }catch (Exception ex){
             throw new DbWorldException(ex.getMessage());
         }

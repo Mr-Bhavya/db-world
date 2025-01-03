@@ -4,6 +4,8 @@ import com.db.dbworld.dao.dbcinema.stream.MediaFileInfoRepository;
 import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.services.DBCinemaRecordsService;
+import com.db.dbworld.services.MediaFileInfoService;
+import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -30,14 +32,8 @@ import java.util.regex.Pattern;
 @Service("mediaFileHandler")
 public class MediaFileHandler {
 
-    @Value("${dbworld.paths.integrationFolderPath}")
-    private String integrationFolderPath;
-
-    @Value("${dbworld.paths.streamHomePath}")
-    private String streamHomePath;
-
     @Autowired
-    private MediaFileInfoRepository mediaFileInfoRepository;
+    private MediaFileInfoService mediaFileInfoService;
 
     @Autowired
     private DBCinemaRecordsService dbCinemaRecordsService;
@@ -55,10 +51,9 @@ public class MediaFileHandler {
 
             Long recordId = parseRecordId(map.get("folderName"));
             String sourcePath = file.getPath();
-            String targetFolder = streamHomePath+ File.separator + map.get("folderName");
+            String targetFolder = DbWorldConstants.STREAM_HOME_PATH+ File.separator + map.get("folderName");
 
             if (file.exists()) {
-                // File created or modified
                 List<MediaFileInfoEntity> mediaFileInfoEntities = storeMediaInfo(recordId, file.toPath());
                 moveFileToDirectory(sourcePath, targetFolder);
                 log.info("Processed {} files for recordId: {}", mediaFileInfoEntities.size(), recordId);
@@ -73,7 +68,7 @@ public class MediaFileHandler {
 
     private Map<String, String> extractBaseFolder(String filePath) {
         filePath = normalizePath(filePath);
-        String baseDirectory = normalizePath(integrationFolderPath);
+        String baseDirectory = normalizePath(DbWorldConstants.INTEGRATION_FOLDER_PATH);
 
         if (!filePath.startsWith(baseDirectory)) {
             return null;
@@ -114,7 +109,7 @@ public class MediaFileHandler {
     private void handleFileDeletion(String filePath) {
         try {
             // Uncomment below to handle database deletion
-            // mediaFileInfoRepository.deleteByPath(filePath);
+            mediaFileInfoService.deleteInfoByFilePath(filePath);
             log.info("File deleted from database: {}", filePath);
         } catch (Exception e) {
             log.error("Error deleting file from database: {}", filePath, e);
@@ -155,7 +150,7 @@ public class MediaFileHandler {
             entity.setFilePath(getStreamFolderFilePath(entity.getFilePath()));
             log.info("Set New Path: {} ", entity.getFilePath());
             log.info("Converted to entity, storing data to db...");
-            return mediaFileInfoRepository.save(entity.initialize(dbCinemaRecordsService.getRecordEntityById(recordId)));
+            return mediaFileInfoService.save(entity.initialize(dbCinemaRecordsService.getRecordEntityById(recordId)));
         } catch (Exception e) {
             log.error("Error parsing media info JSON for recordId: {}, {}", recordId, e.getMessage());
             throw new DbWorldException("Error parsing media info JSON for recordId: "+ recordId + ", "+e.getMessage());
@@ -178,8 +173,8 @@ public class MediaFileHandler {
     }
 
     private String getStreamFolderFilePath(String integrationFolderFilePath){
-        String baseDirectory = normalizePath(integrationFolderPath);
-        String streamDirectory = normalizePath(streamHomePath+File.separator);
+        String baseDirectory = normalizePath(DbWorldConstants.INTEGRATION_FOLDER_PATH);
+        String streamDirectory = normalizePath(DbWorldConstants.STREAM_HOME_PATH+File.separator);
         if(integrationFolderFilePath != null){
             return normalizePath(integrationFolderFilePath).replace(baseDirectory, streamDirectory);
         }
