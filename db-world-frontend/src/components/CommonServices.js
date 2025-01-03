@@ -36,7 +36,7 @@ const getPercentage = (actual, total) => {
 const bytesToReadbleFormat = (bytes) => {
 
     if (bytes == null || typeof (bytes) === "undefined") {
-        return {value: null, suffix: null};
+        return { value: null, suffix: null };
     }
 
     if (typeof (bytes) === "string") {
@@ -59,7 +59,7 @@ const bytesToReadbleFormat = (bytes) => {
     else if (megabytes > 1024) {
         return { value: parseFloat(gigabytes).toFixed(2), suffix: "GB" }
     } else {
-        return {value: null, suffix: null};
+        return { value: null, suffix: null };
     }
 }
 
@@ -130,14 +130,14 @@ const isValidUrl = (url) => {
 
 const removeUserFromLocal = () => {
     // Local Storage
-    localStorage.setItem('login',false);
+    localStorage.setItem('login', false);
     localStorage.setItem('user', null);
     localStorage.setItem('token', null);
 }
 
 const setUserInLocal = (user, token) => {
     // Local Storage
-    localStorage.setItem('login',true);
+    localStorage.setItem('login', true);
     localStorage.setItem('user', user);
     localStorage.setItem('token', token);
 }
@@ -178,6 +178,57 @@ const JSONToHTMLTable = (props) => {
     )
 }
 
+const convertMediaInfoToCustomFormat = (data) => {
+    return data?.map(mediaFile => {
+        let mediaDetails = {
+            id: "",
+            general: {},
+            video: {},
+            audio: [],
+            subtitle: []
+        }
+        mediaDetails.id = mediaFile.id
+
+        mediaFile?.trackInfos?.forEach(track => {
+            if (track?.type === "General") {
+                let general = {}
+                general.fileName = mediaFile.fileName;
+                general.fileSize = bytesToReadbleFormat(mediaFile?.fileSize).value + " " + bytesToReadbleFormat(mediaFile?.fileSize).suffix;
+                general.duration = track?.duration;
+                general.overallBitrate = bytesToReadbleFormat(track?.overallBitRate).value + " " + bytesToReadbleFormat(track?.overallBitRate).suffix + "/s";
+                general.Description = track?.Description;
+                mediaDetails.general = general;
+            }
+            if (track?.type === "Video") {
+                let video = {}
+                video.resolution = track?.width + "x" + track?.height;
+                video.format = track?.codecID + " | " + track?.format + " | " + track?.formatProfile + " | " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
+                video.hdrDetails = track?.hdrFormat != null && track?.hdrFormat + " | " + track?.hdrFormatVersion + " | " + track?.hdrFormatCompatibility
+                video.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;
+                mediaDetails.video = video;
+            }
+            if (track?.type === "Audio") {
+                let audio = {}
+                audio.language = track?.language;
+                audio.format = track?.codecID + " | " + track?.format + " @ " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
+                // audio.bitrate = track?.bitRate;
+                audio.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;
+                audio.channelInfo = track?.channels + " | " + track?.channelPositions;
+                mediaDetails.audio.push(audio);
+            }
+            if (track?.type === "Text") {
+                let subtitle = {}
+                subtitle.format = track?.codecID + " " + track?.format + " @ " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
+                subtitle.language = track?.language;
+                subtitle.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;;
+                mediaDetails.subtitle.push(subtitle);
+            }
+        });
+        return mediaDetails;
+    })
+}
+
+
 export default {
     getTimeDateFromTimeStamp,
     getHHmmFromSeconds,
@@ -192,5 +243,6 @@ export default {
     getCurrentUser,
     removeUserFromLocal,
     setUserInLocal,
+    convertMediaInfoToCustomFormat
     // pageUpdate
 }

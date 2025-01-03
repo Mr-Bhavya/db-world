@@ -21,6 +21,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -112,6 +113,31 @@ public class DbWorldUtils {
             } catch (IOException e) {
                 log.error("Failed to delete file/folder: {}, Error: {}", path, e.getMessage());
             }
+        }
+    }
+
+    public String runMediaInfoCommand(Path path) {
+        try {
+            List<String> command = Arrays.asList(
+                    "mediainfo",
+                    "--output=JSON",
+                    path.toString()
+            );
+
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            Process process = processBuilder.start();
+            log.info("MediaInfo command : {}",process.info().commandLine());
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line);
+                }
+                process.waitFor();
+                return output.toString();
+            }
+        } catch (Exception e){
+            throw new DbWorldException("Error While running mediainfo command: "+e.getMessage());
         }
     }
 

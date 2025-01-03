@@ -6,9 +6,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 
 @Getter
@@ -45,18 +42,18 @@ public class MediaFileInfoEntity {
     private List<TrackInfoEntity> trackInfos;
 
 //    @PostConstruct
-    public MediaFileInfoEntity initialize(DBCinemaRecordsEntity dbCinemaRecordsEntity) throws IOException {
+    public MediaFileInfoEntity initialize(DBCinemaRecordsEntity dbCinemaRecordsEntity) {
         if (this.filePath != null) {
-            this.fileName = Path.of(this.filePath).getFileName().toString();
-            this.fileSize = Files.size(Path.of(this.filePath));
+            String[] filePathArray = filePath.replace("\\","/").split("/");
+            this.fileName = filePathArray[filePathArray.length - 1];
+            trackInfos.forEach(trackInfoEntity -> {
+                if(trackInfoEntity instanceof GeneralInfoEntity generalInfoEntity){
+                    this.fileSize = generalInfoEntity.getFileSize();
+                }
+            });
         }
         this.dbCinemaRecord = dbCinemaRecordsEntity;
         return this;
     }
-
-//    private GeneralInfo generalInfo;
-//    private VideoInfo videoInfo;
-//    private List<AudioInfo> audioInfo;
-//    private List<TextInfo> textInfo;
 
 }

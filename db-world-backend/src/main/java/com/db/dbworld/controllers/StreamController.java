@@ -1,5 +1,6 @@
 package com.db.dbworld.controllers;
 
+import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
@@ -10,10 +11,17 @@ import com.db.dbworld.services.StreamService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.log4j.Log4j2;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
@@ -27,10 +35,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Log4j2
@@ -50,6 +55,8 @@ public class StreamController {
     private UserService userService;
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
+    @Autowired
+    private ModelMapper modelMapper;
 
 
     private final Map<Long, String> video_cache = new HashMap<>();
@@ -210,10 +217,58 @@ public class StreamController {
     }
 
     @GetMapping(value = "/media-info/{recordId}")
-//    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<MediaFileInfo>> getAllMediaInfoByRecordId(@PathVariable(value = "recordId") Long recordId){
         List<MediaFileInfo> mediaFileInfos = mediaFileInfoService.getAllFileInfoByRecordId(recordId);
         return new ApiResponse<>(HttpStatus.OK, true, mediaFileInfos);
+    }
+
+    @GetMapping(value = "/media-info/file/{fileId}")
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    public ApiResponse<List<MediaFileInfo>> getMediaInfoByFile(@PathVariable(value = "fileId") Long fileId){
+        Path path = null;
+        if (video_cache.containsKey(fileId)) {
+            path = Path.of(video_cache.get(fileId));
+        } else {
+            List<File> files = getStreamableFilesRecursive();
+            List<File> filteredFiles = files.stream().filter(file -> Objects.equals(streamService.getFileSize(file.toPath()), fileId)).toList();
+            if (filteredFiles.isEmpty()) {
+                throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
+            }
+            path = filteredFiles.get(0).toPath();
+            video_cache.put(fileId, path.toString());
+        }
+        String jsonOutput = dbWorldUtils.runMediaInfoCommand(path);
+        try {
+            List<MediaFileInfo> mediaFileInfos = new ArrayList<>();
+            JsonElement jsonElement = new Gson().fromJson(jsonOutput, JsonElement.class);
+
+            if(jsonElement.isJsonArray()){
+                jsonElement.getAsJsonArray().forEach(element -> {
+                    try {
+                        mediaFileInfos.add(convertJsonObjectToMediaInfo(element.getAsJsonObject()));
+                    } catch (JsonProcessingException e) {
+                        throw new DbWorldException(e.getMessage());
+                    }
+                });
+            }else if(jsonElement.isJsonObject()) {
+                mediaFileInfos.add(convertJsonObjectToMediaInfo(jsonElement.getAsJsonObject()));
+            }
+            return new ApiResponse<>(HttpStatus.OK, true, mediaFileInfos);
+        }catch (Exception ex){
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    private MediaFileInfo convertJsonObjectToMediaInfo(JsonObject jsonObject) throws JsonProcessingException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        MediaFileInfo mediaFileInfo = objectMapper.readValue(jsonObject.get("media").toString(), MediaFileInfo.class);
+        if (mediaFileInfo == null) {
+            throw new DbWorldException("Media file details could not be retrieved from JSON");
+        }
+        return mediaFileInfo;
     }
 
     private Map<String, Object> catchUpdate(String username, Map<String, List<String>> cache, String path) {
