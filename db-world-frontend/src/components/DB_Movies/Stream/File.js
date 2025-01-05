@@ -13,6 +13,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { updateDownloadStatus } from "../../../redux/action/allActions";
 import HtmlJsonTable from "react-json-to-html-table"
 import CopyButton from "../SubComponents/CopyButton";
+import DownloadButton from "../SubComponents/DownloadButton";
 
 
 function File(props) {
@@ -171,7 +172,8 @@ function File(props) {
                             ></video>
                         </div>
                         <div style={{ width: "100%", overflowX: "auto" }} >
-                            <HtmlJsonTable data={mediaInfo} className="table table-sm table-striped table-bordered table-responsive" />
+                            <CommonServices.JSONToHTMLTable data={mediaInfo} className="table table-sm table-striped table-bordered table-responsive" />
+                            {/* <JSONToHTMLTable data={mediaInfo} className="table table-sm table-striped table-bordered table-responsive" /> */}
                         </div>
                         <hr />
                         {
@@ -216,17 +218,22 @@ function File(props) {
                         }
                     </Modal.Body>
                     <Modal.Footer>
-                        <CopyButton text={downloadUrl} />
+                        <CopyButton text={downloadUrl} eventValue={file.fileName}/>
                         {
                             Capacitor.isNativePlatform() ? <DownloadFileAndroid file={file} />
                                 :
-                                <button className="btn btn-danger" onClick={handelFileDownload}>
-                                    Download
-                                </button>
+                                <DownloadButton text={file.downloadUrl} eventValue={file.fileName} />
                         }
-                        <Button variant="secondary" onClick={handleStop}>
-                            Close
-                        </Button>
+                        <button className="btn btn-sm" onClick={handleStop}>
+                            <img src="https://img.icons8.com/?size=100&id=64164&format=png&color=000000"
+                                style={{ width: "2rem" }}
+                                alt="close" title="Close"
+                            />
+                            <br />
+                            <b style={{ fontSize: "0.6rem" }}>
+                                Close
+                            </b>
+                        </button>
                     </Modal.Footer>
                 </Modal>
             }

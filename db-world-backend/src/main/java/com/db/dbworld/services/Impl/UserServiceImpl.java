@@ -28,10 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -100,9 +97,26 @@ public class UserServiceImpl implements UserService {
 
                         if(userCinemaDataEntities != null && !userCinemaDataEntities.isEmpty()){
                             UserDto.CinemaData cinemaData = new UserDto.CinemaData();
-                            cinemaData.setDownload_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getDownload_file).filter(Objects::nonNull).collect(Collectors.toList()));
-                            cinemaData.setStream_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getStream_file).filter(Objects::nonNull).collect(Collectors.toList()));
-                            cinemaData.setSearch_keywords(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getSearch_keyword).filter(Objects::nonNull).collect(Collectors.toList()));
+                            List<String> downloads = new ArrayList<>();
+                            List<String> streams = new ArrayList<>();
+                            List<String> searches = new ArrayList<>();
+                            userCinemaDataEntities.forEach(userCinemaDataEntity -> {
+                                if(userCinemaDataEntity.getEvent().equalsIgnoreCase("DOWNLOAD")){
+                                    downloads.add(userCinemaDataEntity.getValue());
+                                } else if(userCinemaDataEntity.getEvent().equalsIgnoreCase("STREAM")){
+                                    streams.add(userCinemaDataEntity.getValue());
+                                } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("SEARCH")) {
+                                    searches.add(userCinemaDataEntity.getValue());
+                                }
+                            });
+                            Map<String, List<String>> map = new HashMap<>();
+                            map.put("download_files", downloads);
+                            map.put("stream_files", streams);
+                            map.put("search_keywords", searches);
+                            cinemaData.setEvents(map);
+//                            cinemaData.setDownload_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getDownload_file).filter(Objects::nonNull).collect(Collectors.toList()));
+//                            cinemaData.setStream_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getStream_file).filter(Objects::nonNull).collect(Collectors.toList()));
+//                            cinemaData.setSearch_keywords(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getSearch_keyword).filter(Objects::nonNull).collect(Collectors.toList()));
                             userDto.setCinemaData(cinemaData);
                         }
                         return userDto;
@@ -257,14 +271,15 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserCinemaDataDto updateUserCinemaData(UserCinemaDataDto userCinemaDataDto, String username) {
 
-        UserCinemaDataEntity userCinemaDataEntity = new UserCinemaDataEntity();
-        userCinemaDataEntity.setUser(username == null ? getUserFromToken() : getUserEntityByEmail(username));
-        userCinemaDataEntity.setDownload_file(userCinemaDataDto.getDownload_file());
-        userCinemaDataEntity.setStream_file(userCinemaDataDto.getStream_file());
-        userCinemaDataEntity.setSearch_keyword(userCinemaDataDto.getSearch_keyword());
-        userCinemaDataEntity = userCinemaDataRepository.save(userCinemaDataEntity);
-
-        return this.modelMapper.map(userCinemaDataEntity, UserCinemaDataDto.class);
+//        UserCinemaDataEntity userCinemaDataEntity = new UserCinemaDataEntity();
+//        userCinemaDataEntity.setUser(username == null ? getUserFromToken() : getUserEntityByEmail(username));
+//        userCinemaDataEntity.setDownload_file(userCinemaDataDto.getDownload_file());
+//        userCinemaDataEntity.setStream_file(userCinemaDataDto.getStream_file());
+//        userCinemaDataEntity.setSearch_keyword(userCinemaDataDto.getSearch_keyword());
+//        userCinemaDataEntity = userCinemaDataRepository.save(userCinemaDataEntity);
+//
+//        return this.modelMapper.map(userCinemaDataEntity, UserCinemaDataDto.class);
+        return null;
     }
 
 

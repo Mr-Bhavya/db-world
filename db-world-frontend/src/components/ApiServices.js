@@ -580,3 +580,15 @@ export const deleteTempFile = async () => {
     });
     return await response.json();
 }
+
+export const saveUserEventInfo = async (event, value) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/event-info/`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        },
+        body: JSON.stringify({event, value})
+    });
+}

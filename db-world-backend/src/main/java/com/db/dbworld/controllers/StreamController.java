@@ -218,9 +218,9 @@ public class StreamController {
     @GetMapping(value = "/search")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<HashMap<String, Object>>> searchFile(@Valid @NotEmpty @RequestParam(value = "q", defaultValue = "search") String query) {
-        UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
-        userCinemaDataDto.setSearch_keyword(query);
-        userService.updateUserCinemaData(userCinemaDataDto, null);
+//        UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
+//        userCinemaDataDto.setSearch_keyword(query);
+//        userService.updateUserCinemaData(userCinemaDataDto, null);
 
         List<File> files = getStreamableFilesRecursive();
         List<HashMap<String, Object>> filteredFiles = files.stream()
@@ -325,22 +325,22 @@ public class StreamController {
             download_cache = (Map<String, List<String>>) res.get("cache");
             if ((boolean) res.get("print")) {
                 log.info("user '{}' was downloaded file - {}", username, path);
-                if (!username.equalsIgnoreCase("someone")) {
-                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
-                    userCinemaDataDto.setDownload_file(path);
-                    userService.updateUserCinemaData(userCinemaDataDto, username);
-                }
+//                if (!username.equalsIgnoreCase("someone")) {
+//                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
+//                    userCinemaDataDto.setDownload_file(path);
+//                    userService.updateUserCinemaData(userCinemaDataDto, username);
+//                }
             }
         } else if (cacheType.equals(CACHE_TYPE_WATCH)) {
             Map<String, Object> res = catchUpdate(username, watch_cache, path);
             watch_cache = (Map<String, List<String>>) res.get("cache");
             if ((boolean) res.get("print")) {
                 log.info("user '{}' is watching file - {}", username, path);
-                if (!username.equalsIgnoreCase("someone")) {
-                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
-                    userCinemaDataDto.setStream_file(path);
-                    userService.updateUserCinemaData(userCinemaDataDto, username);
-                }
+//                if (!username.equalsIgnoreCase("someone")) {
+//                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
+//                    userCinemaDataDto.setStream_file(path);
+//                    userService.updateUserCinemaData(userCinemaDataDto, username);
+//                }
             }
         }
 

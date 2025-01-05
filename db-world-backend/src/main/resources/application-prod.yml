@@ -72,6 +72,8 @@ dbworld:
     mediainfo: mediainfo
     hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
     extHDiskPath: /ext_hdisk
+  api_keys:
+    tmdb: 30061af77dba3722bbe14a2691055544
 
 logging:
   config: classpath:log4j2.xml
