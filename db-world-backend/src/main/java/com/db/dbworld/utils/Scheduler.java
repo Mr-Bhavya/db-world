@@ -23,6 +23,7 @@ public class Scheduler {
                 if(file.containsKey("filePath") && file.containsKey("id")){
                     if(!new File(file.get("filePath")).exists()){
                         mediaFileInfoService.deleteInfoById(file.get("id"));
+                        log.info("{} is deleted successfully from database due to path is not available", file.get("filePath"));
                     }
                 }else{
                     log.warn("not able to retrieve keys id and filePath : {}", file);

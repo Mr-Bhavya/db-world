@@ -11,7 +11,6 @@ import DownloadFileAndroid from "./DownloadFileAndroid";
 import { Browser } from "@capacitor/browser";
 import { useDispatch, useSelector } from "react-redux";
 import { updateDownloadStatus } from "../../../redux/action/allActions";
-import HtmlJsonTable from "react-json-to-html-table"
 import CopyButton from "../SubComponents/CopyButton";
 import DownloadButton from "../SubComponents/DownloadButton";
 
