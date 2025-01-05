@@ -13,7 +13,7 @@ import java.util.Date;
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "USER_CINEMA_DATA", schema = "db_world")
-@SequenceGenerator(name="USER_CINEMA_DATA_SEQ", initialValue=1, allocationSize=1)
+@SequenceGenerator(name="USER_CINEMA_DATA_SEQ", allocationSize=1)
 public class UserCinemaDataEntity {
 
     @Id
@@ -24,11 +24,11 @@ public class UserCinemaDataEntity {
     @JoinColumn(name = "user", nullable = false)
     private UserEntity user;
 
-    private String download_file;
+    private String event;
 
-    private String stream_file;
-
-    private String search_keyword;
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String value;
 
     @CreatedDate
     @Column(nullable = false)

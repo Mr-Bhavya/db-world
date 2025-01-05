@@ -15,7 +15,7 @@ import HtmlJsonTable from "react-json-to-html-table";
 import CommonServices from "../CommonServices";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
-import CopyButton from "./SubComponents/CopyButton";
+import CopyDownloadButton from "./SubComponents/CopyDownloadButton";
 
 function SingleMovie(props) {
     const movie = props.movie;
@@ -204,15 +204,16 @@ function SingleMovie(props) {
                                             </Button>
                                             <Collapse in={showMediaInfo === "media-info-" + index ? true : false}>
                                                 <div id={"media-info-" + index} style={{ overflow: "auto" }}>
-                                                    <HtmlJsonTable data={mediaFile} className="table table-sm table-striped table-bordered table-responsive-sm" HeaderText="Media Info" />
+                                                    {/* <HtmlJsonTable data={mediaFile} className="table table-sm table-striped table-bordered table-responsive-sm" HeaderText="Media Info" /> */}
+                                                    <CommonServices.JSONToHTMLTable data={mediaFile} />
+
                                                 </div>
                                             </Collapse>
 
                                         </Card.Text>
                                     </Card.Body>
                                     <Card.Footer>
-                                        <CopyButton text={mediaFile.downloadUrl} />
-                                        <Button className="btn-sm float-end" variant="danger" onClick={() => handleDownload(mediaFile)}>Download</Button>
+                                        <CopyDownloadButton text={mediaFile.downloadUrl} eventValue={mediaFile?.general?.fileName} />
                                     </Card.Footer>
                                 </Card>)
                             })

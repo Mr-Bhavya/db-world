@@ -145,13 +145,13 @@ const setUserInLocal = (user, token) => {
 const JSONToHTMLTable = (props) => {
     const { data, style } = props
     return (
-        <div style={{ overflowX: "auto", display: "block" }} className="table-responsive">
-            <table className="table table-sm border-dark table-sm">
+        <div className="">
+            <table className="table table-sm table-striped table-bordered table-responsive">
                 <tbody>
                     {Object.keys(data).map((k) => (
                         <tr key={k}>
                             {!Array.isArray(data) &&
-                                <th className="text-uppercase align-middle" scope="row">
+                                <th className="align-middle" scope="row" style={{width : "10%"}} >
                                     {/* Convert snakes to space and capitalize for visual */}
                                     {k.replace(/_/g, ' ')}
                                 </th>
@@ -159,13 +159,13 @@ const JSONToHTMLTable = (props) => {
                             {(() => {
                                 if (data[k] && typeof data[k] === 'object') {
                                     return (
-                                        <td style={style}>
+                                        <td className="align-middle" style={style}>
                                             <JSONToHTMLTable data={data[k]} style={style} />
                                         </td>
                                     )
                                 }
                                 return (
-                                    <td>
+                                    <td className="align-middle">
                                         {data[k]}
                                     </td>
                                 )

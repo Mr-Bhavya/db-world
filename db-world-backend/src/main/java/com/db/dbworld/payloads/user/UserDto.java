@@ -10,6 +10,7 @@ import lombok.Setter;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -56,9 +57,9 @@ public class UserDto implements Serializable {
     @Getter
     @Setter
     public static class CinemaData {
-        private List<String> download_files;
-        private List<String> stream_files;
-        private List<String> search_keywords;
+        private Map<String, List<String>> events;
+//        private List<String> stream_files;
+//        private List<String> search_keywords;
     }
 
     @Getter

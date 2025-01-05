@@ -24,16 +24,16 @@ public class MediaFileInfoEntity {
     @JoinColumn(name = "db_cinema_record")
     private DBCinemaRecordsEntity dbCinemaRecord;
 
-    @Column(nullable = false)
+    @Lob
+    @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String fileName;
 
     @Column(nullable = false)
     private Long fileSize;
 
+    @Lob
     @JsonProperty("@ref")
-//    @JsonSerialize(using = NioPathSerializer.class)
-//    @JsonAdapter(PathAdapter.class)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String filePath;
 
     @JsonProperty("track")

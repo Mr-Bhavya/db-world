@@ -71,8 +71,6 @@ public class RequestPayloads {
         @NotEmpty
         @Size(min = 1, max=20)
         private String lastName;
-        //    @NotEmpty
-//    @DateTimeFormat()
         private String dob;
         @NotEmpty
         private String gender;
@@ -86,6 +84,14 @@ public class RequestPayloads {
         @NotEmpty
         @Size(max=20)
         private String password;
+    }
+
+    @Getter
+    @Setter
+    public static class InformationCollector{
+        private String event;
+        private String file;
+        private String value;
     }
 
 }
