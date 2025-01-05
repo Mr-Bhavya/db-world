@@ -11,7 +11,6 @@ import { deleteDbCinemaRecord, loadStreamFileInfoByRecordId } from "../ApiServic
 import { toast } from "react-toastify";
 import { Button, Card, Col, Collapse, Container, Modal, Row } from "react-bootstrap";
 import WatchedIcon from "./SubComponents/WatchedIcon";
-import HtmlJsonTable from "react-json-to-html-table";
 import CommonServices from "../CommonServices";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
@@ -204,9 +203,7 @@ function SingleMovie(props) {
                                             </Button>
                                             <Collapse in={showMediaInfo === "media-info-" + index ? true : false}>
                                                 <div id={"media-info-" + index} style={{ overflow: "auto" }}>
-                                                    {/* <HtmlJsonTable data={mediaFile} className="table table-sm table-striped table-bordered table-responsive-sm" HeaderText="Media Info" /> */}
                                                     <CommonServices.JSONToHTMLTable data={mediaFile} />
-
                                                 </div>
                                             </Collapse>
 

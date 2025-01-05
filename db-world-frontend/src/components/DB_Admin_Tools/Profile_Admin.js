@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import CommonServices from '../CommonServices'
-import HtmlJsonTable from 'react-json-to-html-table';
 
 const Profile_Admin = (props) => {
     var { userData } = props;
@@ -29,10 +28,8 @@ const Profile_Admin = (props) => {
                 </div>
                 ||
                 <div style={{ width: "100%", overflowX: "auto" }} >
-                    {/* <HtmlJsonTable data={userData} className="table table-sm table-striped table-bordered table-responsive" /> */}
                     <CommonServices.JSONToHTMLTable data={userData} />
                 </div>
-                // <CommonServices.JSONToHTMLTable data={userData} style={{ overflowX: "auto", width: "20rem", display: "block" }} />
             }
 
         </div>
