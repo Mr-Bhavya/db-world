@@ -163,14 +163,6 @@ function SingleMovie(props) {
 
     }
 
-    const handleDownload = async (mediaFile) => {
-        if (Capacitor.isNativePlatform()) {
-            Browser.open(mediaFile.downloadUrl)
-        } else {
-            window.open(mediaFile.downloadUrl);
-        }
-    }
-
     const dowanloadModal =
         <Modal show={showDownloadModal} onHide={() => setShowDownloadModal(false)} fullscreen={true}>
             <Modal.Header closeButton>
@@ -229,8 +221,6 @@ function SingleMovie(props) {
         singleMovie =
             <Card className="m-1"
                 style={{ background: "rgba(255 ,255 ,255, 0.6)", maxHeight: "22rem" }}
-            // style={{ background: "rgba(255 ,255 ,255, 0.6)" }} 
-            // style={{ background: "rgba(255 ,255 ,255, 0.6)" }}
             >
                 {movie.tmdbData.backdrop_path && <div >
                     <img src={`https://image.tmdb.org/t/p/w500${movie.tmdbData.backdrop_path}`} alt={movie.name}
@@ -462,7 +452,10 @@ function SingleMovie(props) {
                     {/* </Container> */}
                 </Card.Body>
                 <Card.Footer style={{ height: "2rem" }} className="m-0 p-0">
-                    <Button className="btn-sm m-0 p-0 w-100 h-90" variant="dark" onClick={handleDownloadModal}>Download</Button>
+                    <div className="float-end">
+                        <Button className="btn-sm mx-1" variant="warning" onClick={handleDownloadModal}>Download</Button>
+                    </div>
+
                 </Card.Footer>
                 {dowanloadModal}
                 {/* <hr /> */}

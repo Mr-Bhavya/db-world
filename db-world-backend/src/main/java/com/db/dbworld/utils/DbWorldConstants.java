@@ -76,7 +76,6 @@ public class DbWorldConstants {
     public static String TMDB_SERIES_PROVIDER_URL;
     public static String TMDB_SEARCH_MOVIE_PROVIDER_URL;
     public static String TMDB_SEARCH_SERIES_PROVIDER_URL;
-    public static String LOG_FILE_PATH;
     public static String MEDIAINFO;
     public static String TEMP_DOWNLOAD_PATH;
     public static String LOGS_FILE_PATH;
@@ -91,7 +90,7 @@ public class DbWorldConstants {
     @PostConstruct
     public void initConstants() {
         TEMP_DOWNLOAD_PATH = dbWorldPropertiesConfig.getPaths().getTempDownloadPath();
-        LOG_FILE_PATH = dbWorldPropertiesConfig.getPaths().getLogFilePath();
+        LOGS_FILE_PATH = dbWorldPropertiesConfig.getPaths().getLogFilePath();
         INTEGRATION_FOLDER_PATH = dbWorldPropertiesConfig.getPaths().getIntegrationFolderPath();
         STREAM_HOME_PATH = dbWorldPropertiesConfig.getPaths().getStreamHomePath();
         EXTERNAL_STREAM_HOME_PATH = dbWorldPropertiesConfig.getPaths().getExternalStreamHomePath();
@@ -113,46 +112,5 @@ public class DbWorldConstants {
         TMDB_SEARCH_MOVIE_PROVIDER_URL = "https://api.themoviedb.org/3/search/movie?api_key=" + tmdbApiKey + "&query=" + REPLACE_QUERY_STRING + "&year=" + REPLACE_YEAR_STRING; //&year=YEAR
         TMDB_SEARCH_SERIES_PROVIDER_URL = "https://api.themoviedb.org/3/search/tv?api_key=" + tmdbApiKey + "&query=" + REPLACE_QUERY_STRING + "&year=" + REPLACE_YEAR_STRING;
     }
-
-//    @Value("${dbworld.paths.mediainfo}")
-//    public void setMediainfoPath(String mediainfo){
-//        MEDIAINFO = mediainfo;
-//    }
-//    @Value("${dbworld.paths.tempDownloadPath}")
-//    public void setTempDownloadPath(String tempDownloadPath){
-//        TEMP_DOWNLOAD_PATH = tempDownloadPath;
-//    }
-//    @Value("${dbworld.paths.logFilePath}")
-//    public void setLogsFilePath(String logsFilePath){
-//        LOGS_FILE_PATH = logsFilePath;
-//    }
-//    @Value("${dbworld.paths.integrationFolderPath}")
-//    public void setIntegrationFolderPath(String integrationFolderPath){
-//        INTEGRATION_FOLDER_PATH = integrationFolderPath;
-//    }
-//    @Value("${dbworld.paths.streamHomePath}")
-//    public void setStreamHomePath(String streamHomePath){
-//        STREAM_HOME_PATH = streamHomePath;
-//    }
-//    @Value("${dbworld.paths.externalStreamHomePath}")
-//    public void setExternalStreamHomePath(String externalStreamHomePath){
-//        EXTERNAL_STREAM_HOME_PATH = externalStreamHomePath;
-//    }
-//    @Value("${dbworld.paths.extHDiskPath}")
-//    public void setExternalHDiskPath(String externalHDiskPath){
-//        EXTERNAL_H_DISK_PATH = externalHDiskPath;
-//    }
-//    @Value("${dbworld.paths.torrentDownloadPath}")
-//    public void setTorrentDownloadHomePath(String torrentDownloadPath){
-//        TORRENT_DOWNLOAD_HOME_PATH = torrentDownloadPath;
-//    }
-//    @Value("${dbworld.paths.hsCookiesPath}")
-//    public void setHsCookiesPath(String hsCookiesPath){
-//        HS_COOKIES_PATH = hsCookiesPath;
-//    }
-//    @Value("${dbworld.paths.yt-dlp}")
-//    public void setYtDlp(String ytdlp){
-//        YT_DLP = ytdlp;
-//    }
 
 }

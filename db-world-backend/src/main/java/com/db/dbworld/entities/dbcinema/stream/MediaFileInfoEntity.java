@@ -31,9 +31,8 @@ public class MediaFileInfoEntity {
     @Column(nullable = false)
     private Long fileSize;
 
-    @Lob
     @JsonProperty("@ref")
-    @Column(nullable = false, columnDefinition = "LONGTEXT")
+    @Column(nullable = false, length = 764)
     private String filePath;
 
     @JsonProperty("track")

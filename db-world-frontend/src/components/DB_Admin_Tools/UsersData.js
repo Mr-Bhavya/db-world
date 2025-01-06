@@ -311,62 +311,69 @@ const UsersData = () => {
                                                                                     <tr>
                                                                                         <th>User Last 5 Login:</th>
                                                                                         <td>
-                                                                                            {user.loginData.map((data, idx) => {
-                                                                                                <tr>
-                                                                                                    <td>
-                                                                                                        {data.lastLoginDate}
-                                                                                                    </td>
-                                                                                                </tr>
-                                                                                                if (typeof (data.lastLoginDate) !== 'object') {
-                                                                                                    return (
-                                                                                                        <tr>
-                                                                                                            <td>
-                                                                                                                {data.lastLoginDate}
-                                                                                                            </td>
-                                                                                                        </tr>
-                                                                                                    )
-                                                                                                }
-                                                                                            })}
+                                                                                            <table className='table table-sm table-bordered table-striped'>
+                                                                                                {user.loginData.map((data, idx) => {
+                                                                                                    <tr>
+                                                                                                        <td>
+                                                                                                            {data.lastLoginDate}
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                    if (typeof (data.lastLoginDate) !== 'object') {
+                                                                                                        return (
+                                                                                                            <tr>
+                                                                                                                <td>
+                                                                                                                    {data.lastLoginDate}
+                                                                                                                </td>
+                                                                                                            </tr>
+                                                                                                        )
+                                                                                                    }
+                                                                                                })}
+                                                                                            </table>
                                                                                         </td>
                                                                                     </tr>
                                                                                     :
                                                                                     ""
                                                                             }
                                                                             {
-                                                                                user.cinemaData && user.cinemaData != null && user.cinemaData.download_files && user.cinemaData.download_files.length > 0 ?
+                                                                                user.cinemaData && user.cinemaData != null && user?.cinemaData?.events?.download_files && user?.cinemaData?.events?.download_files.length > 0 ?
+
                                                                                     <tr>
                                                                                         <th>Downloaded Files: </th>
                                                                                         <td>
-                                                                                            {
-                                                                                                user.cinemaData.download_files.map(file => {
-                                                                                                    return (<tr><td> <b>==&gt;</b>{file} </td> </tr>)
-                                                                                                })
-                                                                                            }
+                                                                                            <table className='table table-sm table-bordered table-striped'>
+                                                                                                {
+                                                                                                    user?.cinemaData?.events?.download_files.map(file => {
+                                                                                                        return (<tr><td> {file} </td> </tr>)
+                                                                                                    })
+                                                                                                }
+                                                                                            </table>
                                                                                         </td>
                                                                                     </tr>
                                                                                     : ""
                                                                             }
                                                                             {
-                                                                                user.cinemaData && user.cinemaData != null && user.cinemaData.stream_files && user.cinemaData.stream_files.length > 0 ?
+                                                                                user.cinemaData && user.cinemaData != null && user?.cinemaData?.events?.stream_files && user?.cinemaData?.events?.stream_files.length > 0 ?
                                                                                     <tr>
                                                                                         <th>Stream Files: </th>
                                                                                         <td>
-                                                                                            {
-                                                                                                user.cinemaData.stream_files.map(file => {
-                                                                                                    return (<tr><td> <b>==&gt;</b>{file} </td> </tr>)
-                                                                                                })
-                                                                                            }
+                                                                                            <table className='table table-sm table-bordered table-striped'>
+                                                                                                {
+                                                                                                    user?.cinemaData?.events?.stream_files.map(file => {
+                                                                                                        return (<tr><td> <b>==&gt;</b>{file} </td> </tr>)
+                                                                                                    })
+                                                                                                }
+                                                                                            </table>
                                                                                         </td>
                                                                                     </tr>
                                                                                     : ""
                                                                             }
                                                                             {
-                                                                                user.cinemaData && user.cinemaData != null && user.cinemaData.search_keywords && user.cinemaData.search_keywords.length > 0 ?
+                                                                                user.cinemaData && user.cinemaData != null && user?.cinemaData?.events?.search_keywords && user?.cinemaData?.events?.search_keywords.length > 0 ?
                                                                                     <tr>
                                                                                         <th>search_keywords: </th>
                                                                                         <td>
                                                                                             {
-                                                                                                user.cinemaData.search_keywords.map(file => file + ", ")
+                                                                                                user?.cinemaData?.events?.search_keywords.join(", ")
                                                                                             }
                                                                                         </td>
                                                                                     </tr>

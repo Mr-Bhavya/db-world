@@ -101,12 +101,14 @@ public class UserServiceImpl implements UserService {
                             List<String> streams = new ArrayList<>();
                             List<String> searches = new ArrayList<>();
                             userCinemaDataEntities.forEach(userCinemaDataEntity -> {
-                                if(userCinemaDataEntity.getEvent().equalsIgnoreCase("DOWNLOAD")){
-                                    downloads.add(userCinemaDataEntity.getValue());
-                                } else if(userCinemaDataEntity.getEvent().equalsIgnoreCase("STREAM")){
-                                    streams.add(userCinemaDataEntity.getValue());
-                                } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("SEARCH")) {
-                                    searches.add(userCinemaDataEntity.getValue());
+                                if(userCinemaDataEntity != null && userCinemaDataEntity.getEvent() != null && userCinemaDataEntity.getValue() != null) {
+                                    if (userCinemaDataEntity.getEvent().equalsIgnoreCase("DOWNLOAD")) {
+                                        downloads.add(userCinemaDataEntity.getValue());
+                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("STREAM")) {
+                                        streams.add(userCinemaDataEntity.getValue());
+                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("SEARCH")) {
+                                        searches.add(userCinemaDataEntity.getValue());
+                                    }
                                 }
                             });
                             Map<String, List<String>> map = new HashMap<>();
