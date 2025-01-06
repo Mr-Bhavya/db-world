@@ -25,20 +25,12 @@ const columnDefs = [
     {
         headerName: 'Cinema Data',
         children: [
-            { headerName: 'download_files', field: 'cinemaData.download_files.0' },
-            { headerName: 'stream_files', field: 'cinemaData.stream_files.0' },
-            { headerName: 'search_keywords', field: 'cinemaData.search_keywords' },
+            { headerName: 'download_files', field: 'cinemaData.events.download_files.0' },
+            { headerName: 'stream_files', field: 'cinemaData.events.stream_files.0' },
+            { headerName: 'search_keywords', field: 'cinemaData.events.search_keywords' },
         ],
     },
     { headerName: "Action", field: "action", minWidth: 150 },
-    // {
-    //     headerName: 'User Login Details',
-    //     children: [
-    //         { headerName: 'TimeStamp', field: 'timeStamp' },
-    //         { headerName: 'UserAgent', field: 'userAgent' },
-    //     ],
-    // },
-
 ];
 
 export default {
