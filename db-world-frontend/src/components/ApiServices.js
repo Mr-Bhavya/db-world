@@ -589,6 +589,18 @@ export const saveUserEventInfo = async (event, value) => {
             Accept: 'application/json',
             Authorization: 'Bearer ' + localStorage.getItem("token")
         },
-        body: JSON.stringify({event, value})
+        body: JSON.stringify({ event, value })
     });
+}
+
+export const deleteMediaFileInfoById = async (id) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/stream/media-info/file/${id}`, {
+        method: "DELETE",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
 }

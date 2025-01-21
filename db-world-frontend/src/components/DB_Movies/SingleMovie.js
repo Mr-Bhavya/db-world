@@ -7,9 +7,9 @@ import Constants from "../Constants";
 import LoadingSpinner from "../LoadingSpinner";
 import LikeIcon from "./SubComponents/LikeIcon";
 import WatchlistIcon from "./SubComponents/WatchlistIcon";
-import { deleteDbCinemaRecord, loadStreamFileInfoByRecordId } from "../ApiServices";
+import { deleteDbCinemaRecord, deleteMediaFileInfoById, loadStreamFileInfoByRecordId } from "../ApiServices";
 import { toast } from "react-toastify";
-import { Button, Card, Col, Collapse, Container, Modal, Row } from "react-bootstrap";
+import { Accordion, Button, Card, Col, Collapse, Container, Modal, Row } from "react-bootstrap";
 import WatchedIcon from "./SubComponents/WatchedIcon";
 import CommonServices from "../CommonServices";
 import { Capacitor } from "@capacitor/core";
@@ -21,14 +21,14 @@ function SingleMovie(props) {
     movie["tmdbData"] = movie?.type == Constants.RECORD_TYPE_MOVIE ? movie?.movieTmdb : movie?.seriesTmdb;
     const userData = props.userData;
     const userRole = props.userRole;
-    const id = props.id;
     const [deleteRecord, setDeleteRecord] = useState();
     const [setTrailer, setSetTrailer] = useState(false);
     const [loader, setLoader] = useState(false);
     const [showDownloadModal, setShowDownloadModal] = useState(false);
     const [mediaFileList, setMediaFileList] = useState([]);
-    const [showMediaInfo, setShowMediaInfo] = useState(false);
     const [mediaListLoader, setMediaListLoader] = useState(false);
+    const [groupedFiles, setGroupedFiles] = useState([]); const [activeKey, setActiveKey] = useState(null);
+
     var deleteModelTargetSrc = "#deleteMovieId" + movie.recordId;
     var deleteModelTargetDes = "deleteMovieId" + movie.recordId;
     var trailerModelTargetDes = "trailerMovieId" + new Date();
@@ -152,6 +152,21 @@ function SingleMovie(props) {
             ></iframe>
         </>
 
+
+    const groupFilesBySeason = (files) => {
+        return files.reduce((acc, file) => {
+            const match = file?.filePath?.match(/\/S(\d{2})\//);
+            if (match) {
+                const season = `Season ${parseInt(match[1], 10)}`;
+                if (!acc[season]) {
+                    acc[season] = [];
+                }
+                acc[season].push(CommonServices.convertMediaInfoToCustomFormat([file])[0]);
+            }
+            return acc;
+        }, {});
+    };
+
     const handleDownloadModal = async () => {
         setShowDownloadModal(true);
         setMediaListLoader(true);
@@ -159,8 +174,19 @@ function SingleMovie(props) {
         if (response.httpStatusCode === 200) {
             setMediaFileList(CommonServices.convertMediaInfoToCustomFormat(response.data));
             setMediaListLoader(false);
+            setGroupedFiles(groupFilesBySeason(response.data))
         }
 
+    }
+
+    const handelMediaFileInfoDelete = async (mediaFileId) => {
+        let response = await deleteMediaFileInfoById(mediaFileId);
+        if (response.httpStatusCode === 200) {
+            toast.success(response.message);
+            handleDownloadModal()
+        }
+        else
+            toast.error(response.message || response.errorMessages);
     }
 
     const dowanloadModal =
@@ -178,34 +204,122 @@ function SingleMovie(props) {
                                     No media available to download for this record
                                 </div>
                             </div>
-                            : mediaFileList.map((mediaFile, index) => {
-                                return (<Card className="my-3">
-                                    <Card.Header as="h5">{index + 1}. {mediaFile?.general?.fileName}</Card.Header>
-                                    <Card.Body>
-                                        <Card.Text>
+                            :
+                            movie.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE ?
+                                <div>
+                                    {
+                                        mediaFileList.map((mediaFile, index) => {
+                                            return (<Card className="my-3">
+                                                <Card.Header as="h5">{index + 1}. {mediaFile?.general?.fileName}</Card.Header>
+                                                <Card.Body>
+                                                    <Card.Text>
+                                                        <Accordion>
+                                                            <Accordion.Item eventKey={mediaFile?.id}>
+                                                                <Accordion.Header>
+                                                                    Show Media Info
+                                                                </Accordion.Header>
+                                                                <Accordion.Body>
+                                                                    <div id={"media-info-" + index} style={{ overflow: "auto" }}>
+                                                                        <CommonServices.JSONToHTMLTable data={mediaFile} />
+                                                                    </div>
+                                                                </Accordion.Body>
+                                                            </Accordion.Item>
+                                                        </Accordion>
+                                                        {/* <Button
+                                                            size="sm"
+                                                            className="btn-sm btn-light btn-outline-dark mx-auto"
+                                                            onClick={(e) => setShowMediaInfo(showMediaInfo !== "media-info-" + index ? "media-info-" + index : "false")}
+                                                            aria-controls={"media-info-" + index}
+                                                            aria-expanded={showMediaInfo === "media-info-" + index ? true : false}
+                                                        >
+                                                            Show Media Info {showMediaInfo === "media-info-" + index ? "🔻" : "▶️"}
+                                                        </Button>
+                                                        <Collapse in={showMediaInfo === "media-info-" + index ? true : false}>
+                                                            <div id={"media-info-" + index} style={{ overflow: "auto" }}>
+                                                                <CommonServices.JSONToHTMLTable data={mediaFile} />
+                                                            </div>
+                                                        </Collapse> */}
 
-                                            <Button
-                                                size="sm"
-                                                className="btn-sm btn-light btn-outline-dark mx-auto"
-                                                onClick={(e) => setShowMediaInfo(showMediaInfo !== "media-info-" + index ? "media-info-" + index : "false")}
-                                                aria-controls={"media-info-" + index}
-                                                aria-expanded={showMediaInfo === "media-info-" + index ? true : false}
-                                            >
-                                                Show Media Info {showMediaInfo === "media-info-" + index ? "🔻" : "▶️"}
-                                            </Button>
-                                            <Collapse in={showMediaInfo === "media-info-" + index ? true : false}>
-                                                <div id={"media-info-" + index} style={{ overflow: "auto" }}>
-                                                    <CommonServices.JSONToHTMLTable data={mediaFile} />
-                                                </div>
-                                            </Collapse>
+                                                    </Card.Text>
+                                                </Card.Body>
+                                                <Card.Footer className="m-0 p-0">
+                                                    {
+                                                        userRole === Constants.ADMIN_USER_ROLE || userRole === Constants.OWNER_USER_ROLE ?
+                                                            <div class="float-end">
+                                                                <button className='btn btn-sm' style={{ height: "65px" }}
+                                                                    onClick={() => handelMediaFileInfoDelete(mediaFile.id)}
+                                                                >
+                                                                    🗑️
+                                                                    <br />
+                                                                    <b style={{ fontSize: "0.6rem" }}>
+                                                                        Delete
+                                                                    </b>
+                                                                </button>
+                                                            </div> : ""
+                                                    }
+                                                    <CopyDownloadButton text={mediaFile.downloadUrl} eventValue={mediaFile?.general?.fileName} />
+                                                </Card.Footer>
+                                            </Card>)
+                                        })
+                                    }
+                                </div>
+                                :
+                                <div className="container m-1 p-0">
 
-                                        </Card.Text>
-                                    </Card.Body>
-                                    <Card.Footer>
-                                        <CopyDownloadButton text={mediaFile.downloadUrl} eventValue={mediaFile?.general?.fileName} />
-                                    </Card.Footer>
-                                </Card>)
-                            })
+                                    <Accordion>
+                                        {Object.keys(groupedFiles).map((season, index) => (
+                                            <Card key={index}>
+                                                <Accordion.Item eventKey={index.toString()}>
+                                                    <Accordion.Header>
+                                                        {season}
+                                                    </Accordion.Header>
+                                                    <Accordion.Body className="p-0 m-0">
+                                                        <Card.Body className="m-1 p-0">
+                                                            {groupedFiles[season].map((mediaFile, idx) => (
+                                                                <Card className="p-0 m-1">
+                                                                    <Card.Header as="h5" >{idx + 1}. {mediaFile?.general?.fileName}</Card.Header>
+                                                                    <Card.Body> 
+                                                                        <Card.Text>
+                                                                            <Accordion>
+                                                                                <Accordion.Item eventKey={mediaFile?.id}>
+                                                                                    <Accordion.Header>
+                                                                                        Show Media Info
+                                                                                    </Accordion.Header>
+                                                                                    <Accordion.Body>
+                                                                                        <div id={"media-info-" + index} style={{ overflow: "auto" }}>
+                                                                                            <CommonServices.JSONToHTMLTable data={mediaFile} />
+                                                                                        </div>
+                                                                                    </Accordion.Body>
+                                                                                </Accordion.Item>
+                                                                            </Accordion>
+                                                                        </Card.Text>
+                                                                    </Card.Body>
+                                                                    <Card.Footer className="m-0 p-0">
+                                                                        {
+                                                                            userRole === Constants.ADMIN_USER_ROLE || userRole === Constants.OWNER_USER_ROLE ?
+                                                                                <div class="float-end">
+                                                                                    <button className='btn btn-sm' style={{ height: "65px" }}
+                                                                                        onClick={() => handelMediaFileInfoDelete(mediaFile.id)}
+                                                                                    >
+                                                                                        🗑️
+                                                                                        <br />
+                                                                                        <b style={{ fontSize: "0.6rem" }}>
+                                                                                            Delete
+                                                                                        </b>
+                                                                                    </button>
+                                                                                </div> : ""
+                                                                        }
+                                                                        <CopyDownloadButton text={mediaFile.downloadUrl} eventValue={mediaFile?.general?.fileName} />
+                                                                    </Card.Footer>
+                                                                </Card>
+                                                            ))}
+                                                        </Card.Body>
+                                                    </Accordion.Body>
+                                                </Accordion.Item>
+                                            </Card>
+                                        ))}
+                                    </Accordion>
+                                </div>
                 }
 
             </Modal.Body>
@@ -214,7 +328,7 @@ function SingleMovie(props) {
                     Close
                 </Button>
             </Modal.Footer>
-        </Modal>
+        </Modal >
 
     let singleMovie = ""
     if (movie.tmdbData) {
@@ -488,7 +602,6 @@ function SingleMovie(props) {
                                             <button type="button" className="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target={deleteModelTargetSrc} onClick={() => setDeleteRecord({ recordId: movie.recordId, name: movie.name, type: movie.type })}>🗑</button>
                                         </div> : ""
                                 }
-
                                 {
                                     userRole === Constants.ADMIN_USER_ROLE || userRole === Constants.OWNER_USER_ROLE ?
 

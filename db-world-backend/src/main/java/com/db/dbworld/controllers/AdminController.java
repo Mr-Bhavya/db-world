@@ -4,8 +4,10 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
+import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
+import com.db.dbworld.services.MediaFileInfoService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.validation.Valid;
@@ -33,6 +35,9 @@ public class AdminController {
 
     @Autowired
     private ModelMapper modelMapper;
+
+    @Autowired
+    private MediaFileInfoService mediaFileInfoService;
 
     @GetMapping("/user")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
@@ -157,6 +162,14 @@ public class AdminController {
     public ApiResponse<Map<String, Object>> getStatusOfRecordUpdate(){
         Map<String, Object> map = this.dbCinemaRecordsService.getStatusOfRecordsUpdate();
         return new ApiResponse<>(HttpStatus.OK, true, map);
+    }
+
+
+    @DeleteMapping(value = "/stream/media-info/file/{fileId}")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<List<MediaFileInfo>> deleteMediaInfoByFileId(@PathVariable(value = "fileId") String fileId){
+        mediaFileInfoService.deleteInfoById(fileId);
+        return new ApiResponse<>(HttpStatus.OK, true, "File info deleted successfully.");
     }
 
 }
