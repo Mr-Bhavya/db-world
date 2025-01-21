@@ -13,7 +13,7 @@ public interface MediaFileInfoRepository extends JpaRepository<MediaFileInfoEnti
     List<MediaFileInfoEntity> findAllByDbCinemaRecordId(Long recordId);
     @Query(nativeQuery = true, value = "SELECT filePath FROM MEDIA_FILE_INFO WHERE ID=:id")
     Optional<String> getFileInfoById(@Param("id") String id);
-    @Query(nativeQuery = true, value = "SELECT id, filePath FROM MEDIA_FILE_INFO")
+    @Query(nativeQuery = true, value = "SELECT id, filePath, fileSize FROM MEDIA_FILE_INFO")
     List<Map<String, String>> getAllFilePath();
     void deleteAllByFilePath(String filePath);
 }
