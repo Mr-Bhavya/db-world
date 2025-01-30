@@ -288,9 +288,11 @@ public class UtilsServiceImpl implements UtilsService {
                 if (mirrorStatus.isExtract()) {
                     this.statusService.updateMirrorStatusWithExtracting(mirrorStatus.getId());
                     try {
-                        this.extract(mirrorStatus.getId(), mirrorStatus.getTempFilePath(), mirrorStatus.getExtractedFilePath(), null);
+                        this.extract(mirrorStatus.getId(), mirrorStatus.getTempFilePath(), mirrorStatus.getTempExtractedFilePath(), null);
                         this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                         log.info("Extract Completed for file: {}", mirrorStatus.getFileName());
+                        log.info("Moving folder \"{}\" ===> \"{}\".", mirrorStatus.getTempExtractedFilePath(), mirrorStatus.getExtractedFileName());
+                        FileUtils.moveDirectory(new File(mirrorStatus.getTempExtractedFilePath()), new File(mirrorStatus.getExtractedFilePath()));
                         Files.delete(Path.of(mirrorStatus.getTempFilePath()));
                     } catch (ExtractException ex) {
                         FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
@@ -310,7 +312,7 @@ public class UtilsServiceImpl implements UtilsService {
     @Override
     public void extract(String mirrorId, String sourcePath, String targetPath, String password) throws IOException {
 
-        ProcessBuilder pb = new ProcessBuilder(new String[]{"7z", "x", sourcePath, "-o" + targetPath, "-aou"});
+        ProcessBuilder pb = new ProcessBuilder("7z", "x", sourcePath, "-o" + targetPath, "-aou");
         pb.redirectErrorStream(true);
         Process process = pb.start();
 
@@ -320,7 +322,6 @@ public class UtilsServiceImpl implements UtilsService {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     // Print each line of output from the process
-                    System.out.println(line);
                     if (mirrorId != null) {
                         String message = statusService.getStatusById(mirrorId).getMessage() == null ? "" : statusService.getStatusById(mirrorId).getMessage();
                         statusService.updateStatusMessage(mirrorId, message + "\n" + line);
@@ -403,7 +404,6 @@ public class UtilsServiceImpl implements UtilsService {
                                             ytProcessStatus.getTotal_bytes() - ytProcessStatus.getDownloaded_bytes(),
                                             ytProcessStatus.getTotal_bytes()
                                     );
-                                    log.info("Status: {}", ytProcessStatus.getStatus());
                                     if (ytProcessStatus.getStatus().equalsIgnoreCase("finished") && !isFileNameFetch) {
                                         MirrorStatus temp = statusService.getStatusById(mirrorStatus.getId());
                                         String[] tempArray = getYtOutputFileName(temp).split("\\.");

@@ -36,6 +36,9 @@ public class MediaFileHandler {
     @Autowired
     private DbWorldUtils dbWorldUtils;
 
+    private final static String MOVIES_FOLDER = "movies";
+    private final static String SERIES_FOLDER = "series";
+
     public void processFile(File file) {
         try {
             Map<String, String> map = extractBaseFolder(file.getPath())
@@ -61,11 +64,11 @@ public class MediaFileHandler {
             return Optional.empty();
         }
         String relativePath = filePath.substring(baseDirectory.length());
-        String baseFolderPattern = "\\d+-[a-zA-Z0-9 .:\\-]+";
+        String baseFolderPattern = "\\d+-[a-zA-Z0-9 .:'\\-]+";
         String seasonEpisodePattern = "S\\d{2}E\\d{2}";
         Pattern baseFolderRegex = Pattern.compile(baseFolderPattern);
         Matcher baseFolderMatcher = baseFolderRegex.matcher(relativePath);
-        String baseFolder = baseFolderMatcher.find() ? baseFolderMatcher.group() : null;
+        String baseFolder = baseFolderMatcher.find() ? createFolderName(baseFolderMatcher.group()) : null;
         Pattern seasonEpisodeRegex = Pattern.compile(seasonEpisodePattern);
         Matcher seasonEpisodeMatcher = seasonEpisodeRegex.matcher(relativePath);
         String matcherString = seasonEpisodeMatcher.find() ? seasonEpisodeMatcher.group() : null;
@@ -74,14 +77,14 @@ public class MediaFileHandler {
         System.out.println(matcherString +" - " + season + " - "+ episode);
         if (baseFolder != null) {
             Map<String, String> map = new HashMap<>();
-            if (season != null && episode != null) {
-                map.put("streamFolderFilePath", String.format("%s/%s/%s/%s", normalizePath(DbWorldConstants.STREAM_HOME_PATH), baseFolder, season, getFileName(filePath)));
+            if (season != null) {
+                map.put("streamFolderFilePath", String.format("%s/%s/%s/%s/%s", normalizePath(DbWorldConstants.STREAM_HOME_PATH), SERIES_FOLDER, baseFolder, season, getFileName(filePath)));
                 map.put("recordIdFolder", baseFolder);
                 map.put("recordType", DbWorldConstants.RECORD_TYPE_SERIES);
                 map.put("season", season);
                 map.put("episode", episode);
             } else {
-                map.put("streamFolderFilePath", String.format("%s/%s/%s", normalizePath(DbWorldConstants.STREAM_HOME_PATH), baseFolder, getFileName(filePath)));
+                map.put("streamFolderFilePath", String.format("%s/%s/%s/%s", normalizePath(DbWorldConstants.STREAM_HOME_PATH), MOVIES_FOLDER,  baseFolder, getFileName(filePath)));
                 map.put("recordIdFolder", baseFolder);
                 map.put("recordType", DbWorldConstants.RECORD_TYPE_MOVIE);
             }
@@ -100,11 +103,12 @@ public class MediaFileHandler {
 
     private void moveFileToDirectory(String sourcePath, String targetPath) {
         try {
-            Path targetDir = Paths.get(targetPath).getParent();
+            Path target = Paths.get(targetPath);
+            Path targetDir = target.getParent();
             if (!Files.exists(targetDir)) {
                 Files.createDirectories(targetDir);
             }
-            Files.move(Paths.get(sourcePath), Paths.get(targetPath), StandardCopyOption.REPLACE_EXISTING);
+            Files.move(Paths.get(sourcePath), target, StandardCopyOption.REPLACE_EXISTING);
             log.info("Moved file to : {}", targetPath);
         } catch (IOException e) {
             throw new DbWorldException("Error moving file to directory: " + targetPath, e);
@@ -174,5 +178,12 @@ public class MediaFileHandler {
 
     private static String getFileName(String filePath) {
         return filePath.substring(filePath.lastIndexOf("/") + 1);
+    }
+
+    private String createFolderName(String originalName){
+        // Replace ": " with "- "
+        String safeName = originalName.replace(": ", "- ");
+        // Replace other restricted characters with "-"
+        return safeName.replaceAll("[:*?\"<>|\\\\/]", "-");
     }
 }

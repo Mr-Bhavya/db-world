@@ -158,6 +158,7 @@ function Series(props) {
                                 userData={userData}
                                 id={movie.id}
                                 userRole={userRole}
+                                idx={idx}
                             />
                         </Col>
                     ))

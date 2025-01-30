@@ -102,7 +102,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Transactional
     @Override
-    @CacheEvict(cacheNames = "DBCinemaRecordsServiceImpl", allEntries = true)
+    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
     public DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record) {
         if (this.dbCinemaRecordsRepository.findByTmdbId(record.getTmdbId()).isEmpty()) {
             try {
@@ -131,7 +131,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Transactional
     @Override
-    @CacheEvict(cacheNames = "DBCinemaRecordsServiceImpl", allEntries = true)
+    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
     public DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record) {
         try {
             TmdbDataEntity tmdbDataEntity = null;
@@ -161,7 +161,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "DBCinemaRecordsServiceImpl", allEntries = true)
+    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
     public void deleteRecord(Long recordId) {
         if (this.dbCinemaRecordsRepository.existsById(recordId)) {
             this.userRecordDataRepository.deleteByDbCinemaRecordId(recordId);

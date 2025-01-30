@@ -181,8 +181,9 @@ function Movie(props) {
                             <SingleMovie
                                 movie={movie}
                                 userData={userData}
-                                id={movie.id}
+                                id={movie.recordId}
                                 userRole={userRole}
+                                idx={idx}
                             />
                         </Col>
                     ))
