@@ -156,111 +156,26 @@ function Status() {
                                                                         <div className="progress" style={{ width: "70%" }}>
                                                                             <div className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
                                                                                 aria-valuemin="0"
-                                                                                aria-valuenow={getPercentage(stats.downloadStatus?.fileDownloaded, stats.downloadStatus?.totalFileSize)}
+                                                                                aria-valuenow={getPercentage(stats?.downloadStatus?.fileDownloaded, stats?.downloadStatus?.totalFileSize)}
                                                                                 aria-valuemax="100"
-                                                                                style={{ width: `${getPercentage(stats.downloadStatus?.fileDownloaded, stats.downloadStatus?.totalFileSize)}%` }}
+                                                                                style={{ width: `${getPercentage(stats?.downloadStatus?.fileDownloaded, stats?.downloadStatus?.totalFileSize)}%` }}
                                                                             >
-                                                                                <b>{getPercentage(stats.downloadStatus?.fileDownloaded, stats.downloadStatus?.totalFileSize)} % </b>
+                                                                                <b>{getPercentage(stats?.downloadStatus?.fileDownloaded, stats?.downloadStatus?.totalFileSize)} % </b>
                                                                             </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             </p>
-                                                            <p><b>Downloaded Size : </b>{bytesToReadbleFormat(stats.downloadStatus?.fileDownloaded)}</p>
-                                                            <p><b>Remaining Size : </b>{bytesToReadbleFormat(stats.downloadStatus?.fileRemaining)}</p>
+                                                            <p><b>Downloaded Size : </b>{bytesToReadbleFormat(stats?.downloadStatus?.fileDownloaded)}</p>
+                                                            <p><b>Remaining Size : </b>{bytesToReadbleFormat(stats?.downloadStatus?.fileRemaining)}</p>
                                                             {/* {stats.downloadStatus?.speed && <p><b>Current Speed : </b>{bytesToReadbleFormat(stats.downloadStatus?.speed)}/s</p>} */}
                                                             {/* {stats.downloadStatus?.eta && <p><b>ETA : </b>{stats.downloadStatus?.eta}</p>} */}
                                                         </> : ""
                                                     }
-                                                    {stats.message && stats.message != null ? <p><b>Message : </b>{stats?.message?.replace("\n\n", "<br>==>")?.replace("\n", "<br>=>")}</p> : ""}
-                                                    {stats.downloadStatus && stats.downloadStatus?.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadStatus?.totalFileSize)}</p> : ""}
-                                                    {stats.fileUrl && <p><b>Source Link : </b><a href={stats.fileUrl}>link</a></p>}
+                                                    {stats.message && stats.message != null ? <p style={{whiteSpace: "pre-wrap"}}><b>Message : </b>{stats?.message}</p> : ""}
+                                                    {stats.downloadStatus && stats?.downloadStatus?.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats?.downloadStatus?.totalFileSize)}</p> : ""}
+                                                    {stats.fileUrl && <p><b>Source Link : </b><a href={stats?.fileUrl}>link</a></p>}
                                                 </div>
-
-                                                {/* {
-                                                
-
-                                                stats.isDownload &&
-                                                <div>
-                                                    <p><b>Status : </b>{stats?.status}</p>
-                                                    <p><b>Message : </b>{stats?.message}</p>
-                                                    <p>
-                                                        <div className="row">
-                                                            <div className="col-4 col-md-2">
-                                                                <b>Process : </b>
-                                                            </div>
-                                                            <div className="col-8 col-md-4">
-                                                                <div className="progress" style={{ width: "70%" }}>
-                                                                    <div className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
-                                                                        aria-valuemin="0"
-                                                                        aria-valuenow={stats.downloadState.percentage ? parseFloat(stats.downloadState.percentage).toFixed(2) : getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)}
-                                                                        aria-valuemax="100"
-                                                                        style={{ width: stats.downloadState.percentage ? `${parseFloat(stats.downloadState.percentage).toFixed(2)}%` : `${getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)}%` }}
-                                                                    >
-                                                                        <b>{stats.downloadState.percentage ? parseFloat(stats.downloadState.percentage).toFixed(2) : getPercentage(stats.downloadState.downloadFileSize, stats.downloadState.totalFileSize)} % </b>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </p>
-                                                    <p><b>Downloaded Size : </b>{bytesToReadbleFormat(stats.downloadState.downloadFileSize)}</p>
-                                                    <p><b>Remaining Size : </b>{bytesToReadbleFormat(stats.downloadState.remaining)}</p>
-                                                    {stats.downloadState.speed && <p><b>Current Speed : </b>{bytesToReadbleFormat(stats.downloadState.speed)}/s</p>}
-                                                    {stats.downloadState.eta && <p><b>ETA : </b>{stats.downloadState.eta}</p>}
-                                                    {stats.downloadState && stats.downloadState.totalFileSize && <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p>}
-                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                </div>
-                                            }
-                                            {
-                                                stats.isUpload &&
-                                                <div>
-                                                    <p><b>Status : </b>{stats.status}</p>
-                                                    {stats.uploadState && <p><b>Uploading State : </b>{stats.uploadState}</p>}
-                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                </div>
-                                            }
-                                            {
-                                                stats.isExtract &&
-                                                <div>
-                                                    <p><b>Status : </b>{stats.status}</p>
-                                                    <p><b>Extract Method : </b>{stats.extractMethod}</p>
-                                                    <p><b>Message : </b>{stats.message}</p>
-                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                </div>
-                                            }
-                                            {
-                                                stats.isFailed &&
-                                                <div>
-                                                    <p><b>Status : </b>{stats.status}</p>
-                                                    <p><b>Message : </b>{stats.message}</p>
-                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                </div>
-                                            }
-                                            {
-                                                stats.isComplete &&
-                                                <div>
-                                                    <p><b>Status : </b>{stats.status}</p>
-                                                    {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                    {stats.isExtract && <p><b>Extract Method : </b>{stats.extractMethod}</p>}
-                                                    {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                    <p><b>Drive Link : </b><a href={stats.driveLink}>link</a></p>
-                                                    <p><b>Download Link : </b><a href={stats.downloadLink}>link</a></p>
-                                                </div>
-                                            }
-                                            {
-                                                (!stats.isDownload && !stats.isUpload && !stats.isExtract && !stats.isComplete && !stats.isFailed) ?
-                                                    <div>
-                                                        <p><b>Status : </b>{stats.status}</p>
-                                                        <p><b>Message : </b>{stats.message}</p>
-                                                        {stats.uploadState && <p><b>Uploading State : </b>{stats.uploadState}</p>}
-                                                        {stats.downloadState && stats.downloadState.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats.downloadState.totalFileSize)}</p> : ""}
-                                                        {stats.sourceUrl && <p><b>Source Link : </b><a href={stats.sourceUrl}>link</a></p>}
-                                                    </div>
-                                                    : ""
-                                            } */}
                                             </blockquote>
                                         </div>
                                         {

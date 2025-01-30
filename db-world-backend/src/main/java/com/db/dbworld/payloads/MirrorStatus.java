@@ -38,6 +38,7 @@ public class MirrorStatus {
     private String extractedFilePath;
     private String tempFileName;
     private String tempFilePath;
+    private String tempExtractedFilePath;
     private String tempRecordIdPath;
     private String statusFilePath;
     private Long fileSize;
@@ -82,6 +83,7 @@ public class MirrorStatus {
             else if (this.fileName.endsWith(".rar")) this.extractedFileName = this.fileName.replace(".rar", "");
             else if (this.fileName.endsWith(".tar")) this.extractedFileName = this.fileName.replace(".tar", "");
             else if (this.fileName.endsWith(".7z")) this.extractedFileName = this.fileName.replace(".7z", "");
+            this.tempExtractedFilePath = tempRecordIdPath + File.separator + extractedFileName;
             this.extractedFilePath = recordIdPath + File.separator + extractedFileName;
         }
     }

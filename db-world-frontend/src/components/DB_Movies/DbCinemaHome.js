@@ -70,9 +70,17 @@ function DbCinemaHome() {
         }
     }
 
+    const checkUserRole = async () => {
+        let roleRes = await getUserRole(userData?.id);
+        if (roleRes.httpStatusCode === 200) {
+            SetUserRole(roleRes.data.role.name);
+        }
+    }
+
     useEffect(() => {
         window.addEventListener("scroll", handelScroll);
         getAllGenres();
+        checkUserRole();
         return () => {
             window.removeEventListener("scroll", handelScroll)
             dispatch(filterSelection({
@@ -87,7 +95,7 @@ function DbCinemaHome() {
     const onSearchChange = (e) => {
         e.preventDefault();
         // if search input length is greterthen 3 then only will call backend
-        if(e.target.value.length > 2){
+        if (e.target.value.length > 2) {
             dispatch(searchQuery(e.target.value))
         }
         setSearchFieldValue(e.target.value)
@@ -221,7 +229,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("movie")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "movie", page:0, totalPages:0
+                                                ...filter, catagory: "movie", page: 0, totalPages: 0
                                             }))
                                         }
                                         }
@@ -238,7 +246,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("series")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "series", page:0, totalPages:0
+                                                ...filter, catagory: "series", page: 0, totalPages: 0
                                             }))
                                         }
                                         }
@@ -255,7 +263,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("watchlist")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "watchlist", page:0, totalPages:0
+                                                ...filter, catagory: "watchlist", page: 0, totalPages: 0
                                             }))
                                         }
                                         }
@@ -272,7 +280,7 @@ function DbCinemaHome() {
                                             setIsSearchInputEnable(false);
                                             setnavLinkActive("stream")
                                             dispatch(filterSelection({
-                                                ...filter, catagory: "stream", page:0, totalPages:0
+                                                ...filter, catagory: "stream", page: 0, totalPages: 0
                                             }))
                                         }
                                         }
