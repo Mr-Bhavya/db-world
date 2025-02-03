@@ -4,6 +4,7 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.security.JwtHelper;
+import com.db.dbworld.services.Impl.DownloadTrackerServiceImpl;
 import com.db.dbworld.services.MediaFileInfoService;
 import com.db.dbworld.services.StreamService;
 import com.db.dbworld.services.UserService;
@@ -33,8 +34,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 
 @Log4j2
 @RestController
@@ -55,6 +58,8 @@ public class StreamController {
     private MediaFileInfoService mediaFileInfoService;
     @Autowired
     private ModelMapper modelMapper;
+    @Autowired
+    private DownloadTrackerServiceImpl downloadTrackerService;
 
 
     private final Map<Long, String> video_cache = new HashMap<>();
@@ -62,6 +67,7 @@ public class StreamController {
     private Map<String, List<String>> watch_cache = new HashMap<>();
     public static final String CACHE_TYPE_DOWNLOAD = "CACHE_TYPE_DOWNLOAD";
     public static final String CACHE_TYPE_WATCH = "CACHE_TYPE_WATCH";
+    private final Semaphore rateLimiter = new Semaphore(5); // Allow 5 concurrent downloads
 
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
@@ -159,26 +165,28 @@ public class StreamController {
     @GetMapping(value = "/download/{fileId}")
     public ResponseEntity<StreamingResponseBody> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
                                                          @PathVariable(name = "fileId") @Valid @NotNull long fileId,
-                                                         @RequestParam("t") String token) throws IOException {
+                                                         @RequestParam("t")  @Valid @NotNull String token) throws IOException {
         String username = dbWorldUtils.getUserFromToken(token);
         if (username == null || username.isBlank()) {
             throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
         }
-        Path path = null;
-        if (video_cache.containsKey(fileId)) {
-            path = Path.of(video_cache.get(fileId));
-        } else {
-            List<File> files = getStreamableFilesRecursive();
-            List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
-            if (filteredFiles.isEmpty()) {
-                throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
-            }
-            path = filteredFiles.get(0).toPath();
-            video_cache.put(fileId, path.toString());
+
+        List<File> files = getStreamableFilesRecursive();
+        List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
+        if (filteredFiles.isEmpty()) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
         }
-        // Create User cache and print log for first time user download file.
-        catchUpdate(token, path.toString(), CACHE_TYPE_DOWNLOAD);
-        return streamService.downloadFile(path, rangeHeader);
+        Path path = filteredFiles.get(0).toPath();
+
+        try {
+            // Acquire a permit from the rate limiter
+            if (!rateLimiter.tryAcquire()) {
+                throw new DbWorldException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.");
+            }
+            return streamService.downloadFile(username, path, rangeHeader);
+        } finally {
+            rateLimiter.release(); // Release the permit
+        }
     }
 
     @GetMapping(value = "/watch/uuid/{fileId}")
@@ -200,14 +208,24 @@ public class StreamController {
     @GetMapping(value = "/download/uuid/{fileId}")
     public ResponseEntity<StreamingResponseBody> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
                                                               @PathVariable(name = "fileId") @Valid @NotNull String fileId,
-                                                              @RequestParam("t") String token) throws IOException {
+                                                              @RequestParam("t")  @Valid @NotNull String token) throws IOException {
+
         String username = dbWorldUtils.getUserFromToken(token);
         if (username == null || username.isBlank()) {
             throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
         }
         String filePath = mediaFileInfoService.getFileInfoById(fileId);
+
         if(filePath!=null && !filePath.isBlank() && new File(filePath).exists() ){
-            return streamService.downloadFile(Path.of(filePath), rangeHeader);
+            try {
+                // Acquire a permit from the rate limiter
+                if (!rateLimiter.tryAcquire()) {
+                    throw new DbWorldException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.");
+                }
+                return streamService.downloadFile(username, Path.of(filePath), rangeHeader);
+            } finally {
+                rateLimiter.release(); // Release the permit
+            }
         }else {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "No information found for given ID");
         }

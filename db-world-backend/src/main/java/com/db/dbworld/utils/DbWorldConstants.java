@@ -97,6 +97,7 @@ public class DbWorldConstants {
         MEDIAINFO = dbWorldPropertiesConfig.getPaths().getMediainfo();
         HS_COOKIES_PATH = dbWorldPropertiesConfig.getPaths().getHsCookiesPath();
         EXTERNAL_STREAM_HOME_PATH = dbWorldPropertiesConfig.getPaths().getExternalStreamHomePath();
+        EXTERNAL_H_DISK_PATH = dbWorldPropertiesConfig.getPaths().getExtHDiskPath();
 
         TMDB_API_KEY = dbWorldPropertiesConfig.getApi_keys().getTmdb();
         createTmdbUrls(dbWorldPropertiesConfig.getApi_keys().getTmdb());
