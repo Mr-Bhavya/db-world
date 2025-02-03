@@ -7,6 +7,7 @@ import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
+import com.db.dbworld.services.Impl.DownloadTrackerServiceImpl;
 import com.db.dbworld.services.MediaFileInfoService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
@@ -38,6 +39,9 @@ public class AdminController {
 
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
+
+    @Autowired
+    private DownloadTrackerServiceImpl downloadTrackerService;
 
     @GetMapping("/user")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
@@ -170,6 +174,12 @@ public class AdminController {
     public ApiResponse<List<MediaFileInfo>> deleteMediaInfoByFileId(@PathVariable(value = "fileId") String fileId){
         mediaFileInfoService.deleteInfoById(fileId);
         return new ApiResponse<>(HttpStatus.OK, true, "File info deleted successfully.");
+    }
+
+    @GetMapping(value = "/status/download")
+//    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<Map<String, DownloadTrackerServiceImpl.DownloadStatus>> getDownloadFileStatus(){
+        return new ApiResponse<>(HttpStatus.OK, true, downloadTrackerService.getAllDownloadStatus());
     }
 
 }

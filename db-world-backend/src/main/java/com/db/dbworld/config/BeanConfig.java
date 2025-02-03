@@ -65,12 +65,12 @@ public class BeanConfig {
     public IntegrationFlow fileIntegrationFlow() {
         return IntegrationFlow
                 .from(Files.inboundAdapter(new File(DbWorldConstants.INTEGRATION_FOLDER_PATH))
-//                        .preventDuplicates(true)
-                                .useWatchService(true) // Real-time detection
-                                .watchEvents(FileReadingMessageSource.WatchEventType.CREATE,
-                                        FileReadingMessageSource.WatchEventType.MODIFY,
-                                        FileReadingMessageSource.WatchEventType.DELETE)
-                                .autoCreateDirectory(true)
+                        .preventDuplicates(true)
+                        .useWatchService(true) // Real-time detection
+                        .watchEvents(FileReadingMessageSource.WatchEventType.CREATE,
+                                FileReadingMessageSource.WatchEventType.MODIFY,
+                                FileReadingMessageSource.WatchEventType.DELETE)
+                        .autoCreateDirectory(true)
                 )
                 .handle("mediaFileHandler", "processFile")
                 .get();
