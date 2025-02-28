@@ -1,4 +1,5 @@
 import axios from 'axios'
+import CommonServices from './CommonServices';
 const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
 
 export const doLogin = async (email, password) => {
@@ -29,7 +30,7 @@ export const findAllUsersService = async () => {
 }
 
 export const deleteUser = async (userId) => {
-    const response = await fetch(`${REACT_APP_BASEURL}/api/admin/user/${userId}`,{
+    const response = await fetch(`${REACT_APP_BASEURL}/api/admin/user/${userId}`, {
         method: "DELETE",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -39,7 +40,7 @@ export const deleteUser = async (userId) => {
 }
 
 export const updateDobForUser = async (dob) => {
-    const response = await fetch(`${REACT_APP_BASEURL}/api/user/dob=${dob}`,{
+    const response = await fetch(`${REACT_APP_BASEURL}/api/user/dob=${dob}`, {
         method: "PUT",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -111,7 +112,7 @@ export const updateUserRoleService = async (doer_id, userId, role) => {
 }
 
 export const searchTmdbByQuery = async (recordType, query, year) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/tmdb/${recordType}/search?q=${query}${!year || typeof(year)=="undefined" || year == "" ? "" : "&year="+year}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/tmdb/${recordType}/search?q=${query}${!year || typeof (year) == "undefined" || year == "" ? "" : "&year=" + year}`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -188,7 +189,7 @@ export const loadDbCinemaRecords = async (industry, type, genres, pageNumber) =>
 
     // api = `${REACT_APP_BASEURL}/api/cinema/record/type/${type}?page=${recordsPageNumberList.gujarati}&languages=gu`
 
-    if(genres && genres.length > 0){
+    if (genres && genres.length > 0) {
         api += `&genres=${genres.join(",")}`
     }
 
@@ -224,8 +225,38 @@ export const searchRecord = async (query) => {
     return await response.json();
 }
 
+export const adminSearchRecord = async (query) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/record/search?q=${query}`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
 export const searchStreamFile = async (query) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/stream/search?q=${query}`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
+export const loadStreamFileInfoByRecordId = async (recordId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/media-info/${recordId}`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
+export const loadStreamFileInfoByFiledId = async (fileId) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/media-info/file/${fileId}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -540,6 +571,30 @@ export const deleteStreamFile = async (fileId) => {
 
 export const deleteTempFile = async () => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/utils/tempFiles`, {
+        method: "DELETE",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
+export const saveUserEventInfo = async (event, value) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/event-info/`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        },
+        body: JSON.stringify({ event, value })
+    });
+}
+
+export const deleteMediaFileInfoById = async (id) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/stream/media-info/file/${id}`, {
         method: "DELETE",
         headers: {
             'Content-Type': 'application/json',

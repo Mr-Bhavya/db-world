@@ -40,6 +40,8 @@ public class RequestPayloads {
     @Data
     public static class Mirror{
         @NotEmpty
+        private String folderName;
+        @NotEmpty
         private String url;
         private String username;
         private String password;
@@ -69,8 +71,6 @@ public class RequestPayloads {
         @NotEmpty
         @Size(min = 1, max=20)
         private String lastName;
-        //    @NotEmpty
-//    @DateTimeFormat()
         private String dob;
         @NotEmpty
         private String gender;
@@ -84,6 +84,14 @@ public class RequestPayloads {
         @NotEmpty
         @Size(max=20)
         private String password;
+    }
+
+    @Getter
+    @Setter
+    public static class InformationCollector{
+        private String event;
+        private String file;
+        private String value;
     }
 
 }

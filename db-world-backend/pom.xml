@@ -214,17 +214,11 @@
             <artifactId>reactor-core</artifactId>
         </dependency>
 
+
         <!-- Redis cache -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-
-        <!-- 7 Zip/Unzip Library -->
-        <dependency>
-            <groupId>net.sf.sevenzipjbinding</groupId>
-            <artifactId>sevenzipjbinding</artifactId>
-            <version>16.02-2.01</version>
         </dependency>
 
         <!-- Bt Library -->
@@ -237,6 +231,12 @@
             <groupId>com.github.atomashpolskiy</groupId>
             <artifactId>bt-dht</artifactId>
             <version>${bt.version}</version>
+        </dependency>
+
+        <!-- MediaInfo Library -->
+        <dependency>
+            <groupId>org.springframework.integration</groupId>
+            <artifactId>spring-integration-file</artifactId>
         </dependency>
 
         <!-- Spring-Boot Test -->

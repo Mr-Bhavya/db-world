@@ -36,7 +36,7 @@ const getPercentage = (actual, total) => {
 const bytesToReadbleFormat = (bytes) => {
 
     if (bytes == null || typeof (bytes) === "undefined") {
-        return {value: null, suffix: null};
+        return { value: null, suffix: null };
     }
 
     if (typeof (bytes) === "string") {
@@ -59,7 +59,7 @@ const bytesToReadbleFormat = (bytes) => {
     else if (megabytes > 1024) {
         return { value: parseFloat(gigabytes).toFixed(2), suffix: "GB" }
     } else {
-        return {value: null, suffix: null};
+        return { value: null, suffix: null };
     }
 }
 
@@ -130,14 +130,14 @@ const isValidUrl = (url) => {
 
 const removeUserFromLocal = () => {
     // Local Storage
-    localStorage.setItem('login',false);
+    localStorage.setItem('login', false);
     localStorage.setItem('user', null);
     localStorage.setItem('token', null);
 }
 
 const setUserInLocal = (user, token) => {
     // Local Storage
-    localStorage.setItem('login',true);
+    localStorage.setItem('login', true);
     localStorage.setItem('user', user);
     localStorage.setItem('token', token);
 }
@@ -145,13 +145,13 @@ const setUserInLocal = (user, token) => {
 const JSONToHTMLTable = (props) => {
     const { data, style } = props
     return (
-        <div style={{ overflowX: "auto", display: "block" }} className="table-responsive">
-            <table className="table table-sm border-dark table-sm">
+        <div className="">
+            <table className="table table-sm table-striped table-bordered table-responsive">
                 <tbody>
                     {Object.keys(data).map((k) => (
                         <tr key={k}>
                             {!Array.isArray(data) &&
-                                <th className="text-uppercase align-middle" scope="row">
+                                <th className="align-middle" scope="row" style={{width : "10%"}} >
                                     {/* Convert snakes to space and capitalize for visual */}
                                     {k.replace(/_/g, ' ')}
                                 </th>
@@ -159,13 +159,13 @@ const JSONToHTMLTable = (props) => {
                             {(() => {
                                 if (data[k] && typeof data[k] === 'object') {
                                     return (
-                                        <td style={style}>
+                                        <td className="align-middle" style={style}>
                                             <JSONToHTMLTable data={data[k]} style={style} />
                                         </td>
                                     )
                                 }
                                 return (
-                                    <td>
+                                    <td className="align-middle">
                                         {data[k]}
                                     </td>
                                 )
@@ -177,6 +177,67 @@ const JSONToHTMLTable = (props) => {
         </div>
     )
 }
+
+const convertMediaInfoToCustomFormat = (data) => {
+    return data?.map(mediaFile => {
+        let mediaDetails = {
+            id: "",
+            general: {},
+            video: {},
+            audio: [],
+            subtitle: [],
+            downloadUrl: "",
+            streamUrl: ""
+        }
+        mediaDetails.id = mediaFile.id
+
+        let tempUrl = window.location.origin + "/api/stream/watch/uuid/" + mediaFile.id + "?t=" + localStorage.getItem("token");
+        if (window.location.port === "3000") {
+            tempUrl = tempUrl.replace("3000", "9000")
+        }
+        mediaDetails.streamUrl = tempUrl;
+        tempUrl = tempUrl.replace("/watch", "/download")
+        mediaDetails.downloadUrl = tempUrl
+
+        mediaFile?.trackInfos?.forEach(track => {
+            if (track?.type === "General") {
+                let general = {}
+                general.fileName = mediaFile.fileName;
+                general.fileSize = bytesToReadbleFormat(mediaFile?.fileSize).value + " " + bytesToReadbleFormat(mediaFile?.fileSize).suffix;
+                general.duration = track?.duration;
+                general.overallBitrate = bytesToReadbleFormat(track?.overallBitRate).value + " " + bytesToReadbleFormat(track?.overallBitRate).suffix + "/s";
+                general.Description = track?.Description;
+                mediaDetails.general = general;
+            }
+            if (track?.type === "Video") {
+                let video = {}
+                video.resolution = track?.width + "x" + track?.height;
+                video.format = track?.codecID + " | " + track?.format + " | " + track?.formatProfile + " | " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
+                video.hdrDetails = track?.hdrFormat != null && track?.hdrFormat + " | " + track?.hdrFormatVersion + " | " + track?.hdrFormatCompatibility
+                video.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;
+                mediaDetails.video = video;
+            }
+            if (track?.type === "Audio") {
+                let audio = {}
+                audio.language = track?.language;
+                audio.format = track?.codecID + " | " + track?.format + " @ " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
+                // audio.bitrate = track?.bitRate;
+                audio.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;
+                audio.channelInfo = track?.channels + " | " + track?.channelPositions;
+                mediaDetails.audio.push(audio);
+            }
+            if (track?.type === "Text") {
+                let subtitle = {}
+                subtitle.format = track?.codecID + " " + track?.format + " @ " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
+                subtitle.language = track?.language;
+                subtitle.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;;
+                mediaDetails.subtitle.push(subtitle);
+            }
+        });
+        return mediaDetails;
+    })
+}
+
 
 export default {
     getTimeDateFromTimeStamp,
@@ -192,5 +253,6 @@ export default {
     getCurrentUser,
     removeUserFromLocal,
     setUserInLocal,
+    convertMediaInfoToCustomFormat
     // pageUpdate
 }

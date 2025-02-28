@@ -99,7 +99,7 @@ public class StatusServiceImpl implements StatusService {
         MirrorStatus mirrorStatus = getStatusById(id);
         mirrorStatus.setCurrentStatus("Extracting...");
         updateStatus(mirrorStatus);
-        log.info("Extracting File: {}", mirrorStatus.getFileName());
+        log.info("Extracting File: \"{}\" ===> \"{}\"",mirrorStatus.getTempFilePath(), mirrorStatus.getTempExtractedFilePath());
     }
 
     @Override

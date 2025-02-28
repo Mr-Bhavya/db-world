@@ -13,11 +13,9 @@ public class UserCinemaDataDto {
 
     private String user;
 
-    private String download_file;
+    private String event;
 
-    private String stream_file;
-
-    private String search_keyword;
+    private String value;
 
     private Date time;
 

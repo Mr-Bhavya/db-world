@@ -9,7 +9,6 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-//@DiscriminatorValue("rent")
 @Table(name = "RENT_PROVIDER")
 public class RentEntity{
     @Id

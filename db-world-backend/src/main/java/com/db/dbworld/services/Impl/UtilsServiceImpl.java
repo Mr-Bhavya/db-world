@@ -17,12 +17,8 @@ import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
-import com.sun.management.OperatingSystemMXBean;
 import lombok.extern.log4j.Log4j2;
-import net.sf.sevenzipjbinding.*;
-import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream;
-import net.sf.sevenzipjbinding.simple.ISimpleInArchive;
-import net.sf.sevenzipjbinding.simple.ISimpleInArchiveItem;
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -40,13 +36,10 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Flux;
 
 import java.io.*;
-import java.lang.management.ManagementFactory;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -123,8 +116,6 @@ public class UtilsServiceImpl implements UtilsService {
         try {
             HttpURLConnection connection = getHttpURLConnection(mirrorStatus);
 
-            // Get total file size
-//            mirrorStatus.setFileSize(connection.getContentLengthLong());
             InputStream inputStream = connection.getInputStream();
             RandomAccessFile file = new RandomAccessFile(mirrorStatus.getTempFilePath(), "rw");
 
@@ -159,7 +150,6 @@ public class UtilsServiceImpl implements UtilsService {
 
                 statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
                         mirrorStatus.getDownloadStatus() != null ? mirrorStatus.getDownloadStatus().getFileDownloaded() + bytesRead : bytesRead,
-                        mirrorStatus.getFileSize() <= 0 ? 0 : mirrorStatus.getFileSize() - bytesRead,
                         mirrorStatus.getFileSize()
                 ));
 
@@ -298,16 +288,18 @@ public class UtilsServiceImpl implements UtilsService {
                 if (mirrorStatus.isExtract()) {
                     this.statusService.updateMirrorStatusWithExtracting(mirrorStatus.getId());
                     try {
-                        this.extract(mirrorStatus.getId(), mirrorStatus.getTempFilePath(), mirrorStatus.getExtractedFilePath(), null);
+                        this.extract(mirrorStatus.getId(), mirrorStatus.getTempFilePath(), mirrorStatus.getTempExtractedFilePath(), null);
                         this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                         log.info("Extract Completed for file: {}", mirrorStatus.getFileName());
+                        log.info("Moving folder \"{}\" ===> \"{}\".", mirrorStatus.getTempExtractedFilePath(), mirrorStatus.getExtractedFileName());
+                        FileUtils.moveDirectory(new File(mirrorStatus.getTempExtractedFilePath()), new File(mirrorStatus.getExtractedFilePath()));
                         Files.delete(Path.of(mirrorStatus.getTempFilePath()));
                     } catch (ExtractException ex) {
-                        Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getFilePath()), StandardCopyOption.REPLACE_EXISTING);
+                        FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
                         throw new DbWorldException(ex.getMessage());
                     }
                 } else {
-                    Files.move(Path.of(mirrorStatus.getTempFilePath()), Path.of(mirrorStatus.getFilePath()), StandardCopyOption.REPLACE_EXISTING);
+                    FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
                     this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                 }
             }
@@ -319,84 +311,36 @@ public class UtilsServiceImpl implements UtilsService {
 
     @Override
     public void extract(String mirrorId, String sourcePath, String targetPath, String password) throws IOException {
-        OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-        if (os.getArch().equalsIgnoreCase("aarch64")) {
-            ProcessBuilder pb = new ProcessBuilder(new String[]{"7z", "x", sourcePath, "-o" + targetPath, "-aou"});
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
 
-            // Start a thread to read and display the output
-            new Thread(() -> {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        // Print each line of output from the process
-                        System.out.println(line);
-                        if (mirrorId != null) {
-                            String message = statusService.getStatusById(mirrorId).getMessage() == null ? "" : statusService.getStatusById(mirrorId).getMessage();
-                            statusService.updateStatusMessage(mirrorId, message + "\n" + line);
-                        }
+        ProcessBuilder pb = new ProcessBuilder("7z", "x", sourcePath, "-o" + targetPath, "-aou");
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        // Start a thread to read and display the output
+        new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    // Print each line of output from the process
+                    if (mirrorId != null) {
+                        String message = statusService.getStatusById(mirrorId).getMessage() == null ? "" : statusService.getStatusById(mirrorId).getMessage();
+                        statusService.updateStatusMessage(mirrorId, message + "\n" + line);
                     }
-                } catch (IOException e) {
-                    log.error(e.getMessage());
                 }
-            }).start();
-
-            // Wait for the process to finish
-            try {
-                int exitCode = process.waitFor();
-                System.out.println("Process exited with code: " + exitCode);
-            } catch (InterruptedException e) {
-                throw new ExtractException(e.getMessage());
-            }
-//            throw new DbWorldException("SevenZip is not supported on " + os.getName() + "-" + os.getArch() + " system.");
-        } else {
-            try {
-                SevenZip.initSevenZipFromPlatformJAR();
-                if (SevenZip.isInitializedSuccessfully()) {
-                    log.info("SevenZip Used Platform: {}", SevenZip.getUsedPlatform());
-                    RandomAccessFile randomAccessFile = new RandomAccessFile(sourcePath, "r");
-                    RandomAccessFileInStream randomAccessFileStream = new RandomAccessFileInStream(randomAccessFile);
-                    IInArchive inArchive = SevenZip.openInArchive(null, randomAccessFileStream);
-                    ISimpleInArchive simpleInArchive = inArchive.getSimpleInterface();
-
-                    System.out.println("   Status   |    Size    | Filename");
-                    System.out.println("----------+------------+---------");
-
-                    for (ISimpleInArchiveItem item : simpleInArchive.getArchiveItems()) {
-                        if (!item.isFolder()) {
-                            ExtractOperationResult result;
-                            final Integer[] sizeArray = new Integer[1];
-                            result = item.extractSlow(bytes -> {
-                                InputStream is = new ByteArrayInputStream(bytes);
-                                sizeArray[0] = bytes.length;
-                                Path fullPath = Path.of(targetPath + "/" + item.getPath());
-                                try {
-                                    Files.createDirectories(fullPath.getParent());
-                                    Files.write(fullPath, bytes, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-                                    is.close();
-                                } catch (IOException e) {
-                                    log.error("Error in writing file: {}. Error: {}", fullPath, e.getMessage());
-                                }
-                                return sizeArray[0];
-                            }, password);
-
-                            if (result == ExtractOperationResult.OK) {
-                                System.out.printf("%10s | %10s | %s%n", "Success", sizeArray[0], item.getPath());
-                            } else {
-                                System.out.printf("%s | %10s | %s%n", "Fail", sizeArray[0], item.getPath());
-                            }
-                        }
-                    }
-                    randomAccessFile.close();
-                }
-            } catch (FileNotFoundException | SevenZipException e) {
-                throw new ExtractException("Error in extracting. Error Message: " + e.getMessage());
             } catch (IOException e) {
-                throw new ExtractException("Error in closing file. Error Message: " + e.getMessage());
-            } catch (SevenZipNativeInitializationException e) {
-                throw new ExtractException("Error in initialization SevenZip. Error Message: " + e);
+                log.error(e.getMessage());
             }
+        }).start();
+
+        // Wait for the process to finish
+        try {
+            int exitCode = process.waitFor();
+            System.out.println("Process exited with code: " + exitCode);
+            if (exitCode != 0) {
+                throw new ExtractException("Extraction failed.");
+            }
+        } catch (InterruptedException e) {
+            throw new ExtractException(e.getMessage());
         }
 
     }
@@ -460,7 +404,6 @@ public class UtilsServiceImpl implements UtilsService {
                                             ytProcessStatus.getTotal_bytes() - ytProcessStatus.getDownloaded_bytes(),
                                             ytProcessStatus.getTotal_bytes()
                                     );
-                                    log.info("Status: {}", ytProcessStatus.getStatus());
                                     if (ytProcessStatus.getStatus().equalsIgnoreCase("finished") && !isFileNameFetch) {
                                         MirrorStatus temp = statusService.getStatusById(mirrorStatus.getId());
                                         String[] tempArray = getYtOutputFileName(temp).split("\\.");
@@ -481,7 +424,8 @@ public class UtilsServiceImpl implements UtilsService {
                         }
                     }
                     if (process.exitValue() == 0 || process.exitValue() == 1) {
-                        Files.move(Path.of(statusService.getStatusById(mirrorStatus.getId()).getTempFilePath()), Path.of(statusService.getStatusById(mirrorStatus.getId()).getFilePath()), StandardCopyOption.REPLACE_EXISTING);
+                        FileUtils.moveToDirectory(new File(statusService.getStatusById(mirrorStatus.getId()).getTempFilePath()), new File(statusService.getStatusById(mirrorStatus.getId()).getFilePath()), true);
+//                        FileUtils.moveToDirectory();
                         statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
                     }
                 } catch (IOException | InterruptedException e) {
@@ -539,7 +483,7 @@ public class UtilsServiceImpl implements UtilsService {
         if (process.equals(PROCESS_AUDIO)) {
             MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
             cmd = new String[]{
-                    DbWorldConstants.YTDLP_EXE_PATH,
+                    DbWorldConstants.YT_DLP,
                     "-i", "--extract-audio",
                     "--progress-template",
                     "\"%(progress)j\"",
@@ -557,7 +501,7 @@ public class UtilsServiceImpl implements UtilsService {
         } else if (process.equals(PROCESS_DOWNLOAD) || process.equals(PROCESS_FILENAME)) {
             MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
             cmd = new String[]{
-                    DbWorldConstants.YTDLP_EXE_PATH,
+                    DbWorldConstants.YT_DLP,
                     "--progress-template",
                     "\"%(progress)j\"",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
@@ -573,7 +517,7 @@ public class UtilsServiceImpl implements UtilsService {
             };
         } else if (process.equals(PROCESS_INFO)) {
             cmd = new String[]{
-                    DbWorldConstants.YTDLP_EXE_PATH,
+                    DbWorldConstants.YT_DLP,
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
                     url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
                     url,
@@ -618,5 +562,7 @@ public class UtilsServiceImpl implements UtilsService {
             return null;
         }
     }
+
+
 
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button, Modal, ToastContainer } from "react-bootstrap";
 import CommonServices from "../../CommonServices";
 import Constants from "../../Constants";
-import { deleteStreamFile, renameStreamFile } from "../../ApiServices";
+import { deleteStreamFile, loadStreamFileInfoByFiledId, renameStreamFile } from "../../ApiServices";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { v1 as uuidv1 } from 'uuid';
@@ -11,6 +11,8 @@ import DownloadFileAndroid from "./DownloadFileAndroid";
 import { Browser } from "@capacitor/browser";
 import { useDispatch, useSelector } from "react-redux";
 import { updateDownloadStatus } from "../../../redux/action/allActions";
+import CopyButton from "../SubComponents/CopyButton";
+import DownloadButton from "../SubComponents/DownloadButton";
 
 
 function File(props) {
@@ -19,7 +21,6 @@ function File(props) {
     const [deleteModel, setDeleteModel] = useState(false);
     const [videoUrl, setVideoUrl] = useState("");
     const [downloadUrl, setDownloadUrl] = useState("");
-    const [onUrlCopied, setOnUrlCopied] = useState(false);
     const [newName, setNewName] = useState(file.fileName);
     const [onRename, setOnRename] = useState(false);
     const navigate = useNavigate();
@@ -28,6 +29,8 @@ function File(props) {
     const [renameLoader, setRenameLoader] = useState(false);
     var currentFileStatus = useSelector(state => state.downloadProgressReducer);
     const [currentProgress, setCurrentProgress] = useState(currentFileStatus);
+    const [mediaInfo, setMediaInfo] = useState([]);
+    const [mediaInfoLoader, setMediaInfoLoader] = useState(false);
     const dispatch = useDispatch();
 
     const createUrls = () => {
@@ -42,6 +45,7 @@ function File(props) {
     }
 
     const playVideo = (file) => {
+        loadMediaInfo();
         setVideoUrl(file.videoUrl);
         document.title = "DB World | DB Cinema - " + file.fileName;
         setVideoModel(true);
@@ -87,6 +91,15 @@ function File(props) {
             toast.error(deleteFileRes.message);
         }
         setDeleteLoader(false)
+    }
+
+    const loadMediaInfo = async () => {
+        let mediaInfoRes = await loadStreamFileInfoByFiledId(file.fileId);
+        if (mediaInfoRes.httpStatusCode === 200) {
+            setMediaInfo(CommonServices.convertMediaInfoToCustomFormat(mediaInfoRes.data));
+        } else {
+            toast.error(mediaInfoRes.message);
+        }
     }
 
     useEffect(() => {
@@ -147,16 +160,21 @@ function File(props) {
 
             {
 
-                <Modal show={videoModel} animation onHide={handleStop}>
+                <Modal show={videoModel} animation onHide={handleStop} fullscreen={true}>
                     <Modal.Header closeButton>
                         <Modal.Title className="overflow-auto w-100">{document.title}</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        <video id="player" class="player" controls style={{ width: "100%" }}
-                            enabled autoPlay src={videoUrl}
-                        ></video>
+                        <div>
+                            <video id="player" class="player" controls style={{ width: "100%" }}
+                                enabled autoPlay src={videoUrl}
+                            ></video>
+                        </div>
+                        <div style={{ width: "100%", overflowX: "auto" }} >
+                            <CommonServices.JSONToHTMLTable data={mediaInfo} className="table table-sm table-striped table-bordered table-responsive" />
+                            {/* <JSONToHTMLTable data={mediaInfo} className="table table-sm table-striped table-bordered table-responsive" /> */}
+                        </div>
                         <hr />
-
                         {
                             currentProgress && currentProgress != null && typeof (currentProgress) != "undefined" && currentProgress.progress?.download ?
                                 <div>
@@ -199,35 +217,22 @@ function File(props) {
                         }
                     </Modal.Body>
                     <Modal.Footer>
-
-                        {
-                            onUrlCopied ?
-                                <Button variant="success">
-                                    Copied !
-                                </Button>
-                                :
-                                <Button variant="primary" onClick={() => {
-                                    CommonServices.handleCopy(downloadUrl)
-                                    setOnUrlCopied(true)
-                                    setInterval(() => {
-                                        setOnUrlCopied(false)
-                                    }, 5000)
-
-                                }}>
-                                    Copy Url
-                                </Button>
-                        }
-
+                        <CopyButton text={downloadUrl} eventValue={file.fileName}/>
                         {
                             Capacitor.isNativePlatform() ? <DownloadFileAndroid file={file} />
                                 :
-                                <button className="btn btn-danger" onClick={handelFileDownload}>
-                                    Download
-                                </button>
+                                <DownloadButton text={file.downloadUrl} eventValue={file.fileName} />
                         }
-                        <Button variant="secondary" onClick={handleStop}>
-                            Close
-                        </Button>
+                        <button className="btn btn-sm" onClick={handleStop}>
+                            <img src="https://img.icons8.com/?size=100&id=64164&format=png&color=000000"
+                                style={{ width: "2rem" }}
+                                alt="close" title="Close"
+                            />
+                            <br />
+                            <b style={{ fontSize: "0.6rem" }}>
+                                Close
+                            </b>
+                        </button>
                     </Modal.Footer>
                 </Modal>
             }

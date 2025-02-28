@@ -27,7 +27,9 @@ const Profile_Admin = (props) => {
                     </div>
                 </div>
                 ||
-                <CommonServices.JSONToHTMLTable data={userData} style={{ overflowX: "auto", width: "20rem", display: "block" }} />
+                <div style={{ width: "100%", overflowX: "auto" }} >
+                    <CommonServices.JSONToHTMLTable data={userData} />
+                </div>
             }
 
         </div>

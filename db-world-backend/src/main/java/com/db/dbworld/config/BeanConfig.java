@@ -1,10 +1,6 @@
 package com.db.dbworld.config;
 
-import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.utils.DbWorldConstants;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
@@ -19,26 +15,19 @@ import org.jasypt.encryption.pbe.config.SimpleStringPBEConfig;
 import org.modelmapper.ModelMapper;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.interceptor.KeyGenerator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.data.redis.cache.RedisCacheConfiguration;
-import org.springframework.data.redis.cache.RedisCacheManager;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializationContext;
-import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.integration.dsl.IntegrationFlow;
+import org.springframework.integration.file.FileReadingMessageSource;
+import org.springframework.integration.file.dsl.Files;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.Duration;
-import java.util.Arrays;
+import java.io.File;
 
 @Configuration
 public class BeanConfig {
@@ -70,6 +59,21 @@ public class BeanConfig {
         config.setStringOutputType("base64");
         encryptor.setConfig(config);
         return encryptor;
+    }
+
+    @Bean
+    public IntegrationFlow fileIntegrationFlow() {
+        return IntegrationFlow
+                .from(Files.inboundAdapter(new File(DbWorldConstants.INTEGRATION_FOLDER_PATH))
+                        .preventDuplicates(true)
+                        .useWatchService(true) // Real-time detection
+                        .watchEvents(FileReadingMessageSource.WatchEventType.CREATE,
+                                FileReadingMessageSource.WatchEventType.MODIFY,
+                                FileReadingMessageSource.WatchEventType.DELETE)
+                        .autoCreateDirectory(true)
+                )
+                .handle("mediaFileHandler", "processFile")
+                .get();
     }
 
     @Bean

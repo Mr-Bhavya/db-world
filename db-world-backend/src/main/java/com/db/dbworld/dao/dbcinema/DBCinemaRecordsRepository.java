@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecordsEntity, Long> {
@@ -61,5 +62,8 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
             " WHERE dcr.type = :type and td.original_language in :languages and tgm.genres_id in :genres" +
             " order by (dcr.showOnTop is true) desc, dcr.creationDate desc", nativeQuery = true)
     List<DBCinemaRecordsEntity> findRecords(@Param("userId") Long userId, @Param("type") String recordType, @Param("genres") @NotNull Integer[] genres, @Param("languages") @NotNull String[] languages, Pageable pageable);
+
+    @Query(value = "SELECT dcr.id as recordId, dcr.name, dcr.type, dcr.tmdb FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb WHERE dcr.name LIKE (:keyword) OR td.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC", nativeQuery = true)
+    List<Map<String, String>> findRecords(@Param("keyword") String keyword);
 
 }

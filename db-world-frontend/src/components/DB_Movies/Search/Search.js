@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux'
 import SingleMovie from '../SingleMovie';
 import { useNavigate } from 'react-router-dom';
 import Constants from '../../Constants';
-import { searchRecord, searchStreamFile } from '../../ApiServices';
+import { saveUserEventInfo, searchRecord, searchStreamFile } from '../../ApiServices';
 import File from '../Stream/File';
 import CommonServices from '../../CommonServices';
 import { Col, Row } from 'react-bootstrap';
@@ -32,6 +32,7 @@ function Search(props) {
         try {
             setIsSearchRecordResDone(false)
             setIsSearchStreamResDone(false)
+            saveUserEventInfo("SEARCH", query);
             searchRecord(CommonServices.modifySearchQuery(query)).then(async searchResponse => {
                 if (searchResponse.httpStatusCode === 200) {
                     setSearchMovieList(searchResponse.data)

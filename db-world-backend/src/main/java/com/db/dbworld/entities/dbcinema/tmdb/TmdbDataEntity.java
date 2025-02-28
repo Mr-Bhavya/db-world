@@ -14,7 +14,6 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-//@EqualsAndHashCode(of = "id")
 @Table(name = "TMDB_DATA", schema = "db_world")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "record_type", discriminatorType = DiscriminatorType.STRING)
@@ -22,8 +21,6 @@ public class TmdbDataEntity implements Serializable {
     @Id
     private long id;
 
-//    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-//    @JoinColumn(name = "db_cinema_record", referencedColumnName = "id")
     @OneToOne(mappedBy = "tmdb", cascade = CascadeType.ALL, orphanRemoval = true)
     private DBCinemaRecordsEntity dbCinemaRecordsEntity;
 

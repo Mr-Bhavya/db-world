@@ -2,23 +2,23 @@ package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.services.StreamService;
+import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -30,6 +30,12 @@ public class StreamServiceImpl implements StreamService {
 
     @Autowired
     private ResourceLoader resourceLoader;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private DownloadTrackerServiceImpl downloadTrackerService;
 
     @Async
     @Override
@@ -69,6 +75,90 @@ public class StreamServiceImpl implements StreamService {
                 .body(readResource(path, rangeStart)));
     }
 
+    //    @Async
+    @Override
+    public ResponseEntity<StreamingResponseBody> downloadFile(String user, Path path, String rangeHeader) {
+
+        String downloadId = user + "-" + path.getFileName(); // Unique ID for the download session
+        try {
+            final Long fileSize = getFileSize(path);
+            downloadTrackerService.startDownload(downloadId, path.toString(), user, fileSize);
+            // Handle range requests
+            long rangeStart;
+            long rangeEnd;
+            if (rangeHeader != null) {
+                String[] ranges = rangeHeader.substring(6).split("-");
+                rangeStart = Long.parseLong(ranges[0]);
+                rangeEnd = ranges.length > 1 ? Long.parseLong(ranges[1]) : fileSize - 1;
+            } else {
+                rangeStart = 0;
+                rangeEnd = fileSize - 1;
+            }
+
+            // Stream the file
+            StreamingResponseBody responseBody = outputStream -> {
+                try (InputStream inputStream = Files.newInputStream(path)) {
+                    byte[] buffer = new byte[1024 * 1024]; // 1 MB buffer
+                    long bytesToRead = rangeEnd - rangeStart + 1;
+                    long totalBytesRead = 0;
+
+                    inputStream.skip(rangeStart);
+
+                    while (totalBytesRead < bytesToRead) {
+                        int bytesToWrite = (int) Math.min(buffer.length, bytesToRead - totalBytesRead);
+                        int bytesRead = inputStream.read(buffer, 0, bytesToWrite);
+                        if (bytesRead == -1) break;
+
+                        try {
+                            outputStream.write(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
+                            // Update progress
+                            downloadTrackerService.updateDownloadProgress(downloadId, totalBytesRead);
+                        } catch (IOException e) {
+                            // Handle client disconnect
+                            if (e.getMessage() != null && (e.getMessage().contains("Broken pipe") || e.getMessage().contains("ServletOutputStream failed to write"))) {
+                                log.warn("user {} disconnected. Partial download completed.", user);
+                                break;
+                            } else {
+                                throw e; // Re-throw other IOExceptions
+                            }
+                        }
+                    }
+
+                    // Mark as completed only if all bytes were sent
+                    if (totalBytesRead >= bytesToRead || rangeEnd == fileSize -1 ) {
+                        downloadTrackerService.completeDownload(downloadId);
+                    }
+                } catch (IOException e) {
+                    // Mark as failed only for non-client-disconnect errors
+                    if (!(e.getMessage() != null && e.getMessage().contains("Broken pipe"))) {
+                        downloadTrackerService.failDownload(downloadId, e.getMessage());
+                    }
+                    throw e;
+                }
+            };
+
+            HttpHeaders responseHeaders = new HttpHeaders();
+            responseHeaders.add("Content-Type", Files.probeContentType(path));
+            responseHeaders.add(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path));
+            responseHeaders.add(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES);
+
+            if (rangeHeader != null) {
+                responseHeaders.add(DbWorldConstants.CONTENT_RANGE_HEADER, "bytes " + rangeStart + "-" + rangeEnd + "/" + fileSize);
+                responseHeaders.add(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(rangeEnd - rangeStart + 1));
+                return new ResponseEntity<>(responseBody, responseHeaders, HttpStatus.PARTIAL_CONTENT);
+            } else {
+                responseHeaders.add(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize));
+                return new ResponseEntity<>(responseBody, responseHeaders, HttpStatus.OK);
+            }
+        } catch (FileNotFoundException ex) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, ex.getMessage());
+        } catch (IOException ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+
     @Override
     @Async
     public CompletableFuture<ResponseEntity<InputStreamResource>> getDownloadResource(Path path, String range) {
@@ -83,13 +173,12 @@ public class StreamServiceImpl implements StreamService {
         }
         return CompletableFuture.completedFuture(ResponseEntity.status(httpStatusCode)
 //                    .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
-                    .header(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES)
-                    .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-//                    .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize - rangeStart))
-                    .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize))
-                    .header(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path))
-                    .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
-                    .body(readResource(path, rangeStart)));
+                .header(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES)
+                .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize))
+                .header(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path))
+                .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
+                .body(readResource(path, rangeStart)));
     }
 
     @Override
@@ -156,16 +245,63 @@ public class StreamServiceImpl implements StreamService {
         return hashMap;
     }
 
-    public InputStreamResource readResource(Path path, long start) {
+    private StreamingResponseBody readStreamingBody(Path path, long start, long end) {
+
+        return outputStream -> {
+            try (InputStream inputStream = Files.newInputStream(path, StandardOpenOption.READ)) {
+                byte[] buffer = new byte[64 * 1024]; // 64 KB buffer
+                long bytesToRead = end - start + 1;
+                long bytesRead = 0;
+
+                // Skip to the start position
+                inputStream.skip(start);
+
+                while (bytesRead < bytesToRead) {
+                    int bytesToWrite = (int) Math.min(buffer.length, bytesToRead - bytesRead);
+                    int read = inputStream.read(buffer, 0, bytesToWrite);
+                    if (read == -1) {
+                        break; // End of file
+                    }
+                    outputStream.write(buffer, 0, read);
+                    bytesRead += read;
+                }
+                outputStream.flush();
+            } catch (IOException e) {
+                throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, "Error streaming file: " + e.getMessage());
+            }
+        };
+
+//        int bufferSize = 1024 * 1024; // 1 MB buffer size
+//        return os -> {
+//            try (RandomAccessFile file = new RandomAccessFile(path.toString(), "r")) {
+//                byte[] buffer = new byte[bufferSize];
+//                long pos = start;
+//                file.seek(pos);
+//                while (pos < end) {
+//                    int bytesToRead = (int) Math.min(bufferSize, end - pos + 1);
+//                    int bytesRead = file.read(buffer, 0, bytesToRead);
+//                    if (bytesRead == -1) {
+//                        break; // End of file
+//                    }
+//                    os.write(buffer, 0, bytesRead);
+//                    pos += bytesRead;
+//                }
+//                os.flush();
+//            } catch (Exception e) {
+//                throw new DbWorldException(e.getMessage());
+//            }
+//        };
+    }
+
+    private InputStreamResource readResource(Path path, long start) {
         InputStream inputStream = null;
         try {
-            inputStream = Files.newInputStream(path);
             inputStream.skip(start);
+            inputStream = Files.newInputStream(path);
         } catch (IOException e) {
             throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
-        InputStreamResource resource = new InputStreamResource(inputStream);
-        return resource;
+        return new InputStreamResource(inputStream);
     }
 
     public String getContentDisposition(Path path) {
@@ -179,8 +315,8 @@ public class StreamServiceImpl implements StreamService {
             return Files.size(path);
         } catch (IOException ioException) {
             log.error("Error while getting the file size. filepath: {}, Error: {}", path.toString(), ioException.getMessage());
+            throw new DbWorldException("Error while getting the file size. filepath: " + path + " Error: " + ioException.getMessage());
         }
-        return Math.round(Math.random());
     }
 
 }
