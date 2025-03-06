@@ -85,7 +85,7 @@ function Login() {
                                     setUser(loginRes.data.user);
                                     setDobModalShow(true);
                                 } else {
-                                    navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE)
+                                    navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, {replace: true})
                                 }
                                 //redirect
                                 // redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)

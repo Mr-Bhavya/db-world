@@ -1,10 +1,7 @@
 package com.db.dbworld.payloads;
 
 import com.db.dbworld.utils.DbWorldConstants;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
@@ -13,18 +10,21 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Date;
+import java.util.Optional;
 
 @Log4j2
 @Getter
 @Setter
-@Service
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Service
 public class MirrorStatus {
 
-    private String id;
-    private String timeStamp;
+    private String id = String.valueOf(new Date().getTime());
+    private String timeStamp = id;
     private Long recordId;
     private String userBy;
     private String folderName;
@@ -36,75 +36,129 @@ public class MirrorStatus {
     private boolean extract;
     private String extractedFileName;
     private String extractedFilePath;
-    private String tempFileName;
+    private String tempFileName = timeStamp;
     private String tempFilePath;
     private String tempExtractedFilePath;
     private String tempRecordIdPath;
     private String statusFilePath;
     private Long fileSize;
-    private String currentStatus;
+    private String currentStatus = "Downloading ...";
     private DownloadStatus downloadStatus;
-    private YtDlp ytdlp;
-    private boolean pause = false;
-    private boolean failed = false;
-    private boolean cancelled = false;
-    private boolean success = false;
-    private boolean completed = false;
+    private String videoITag;
+    private String audioITag;
+    private boolean onlyAudio;
+    private boolean pause;
+    private boolean failed;
+    private boolean cancelled;
+    private boolean success;
+    private boolean completed;
     private String message;
 
     public MirrorStatus(String folderName, String fileUrl, String fileName, Long fileSize, boolean extract) {
         this.id = String.valueOf(new Date().getTime());
         this.timeStamp = this.id;
-        this.recordId = Long.valueOf(folderName.split("-")[0]);
-        this.folderName = folderName;
+
+        // Determine folder name (default: "unassigned" if null/empty)
+        this.folderName = determineFolderName(folderName);
+
+        // Extract recordId from folderName
+        this.recordId = extractRecordId(folderName);
+
         this.tempFileName = timeStamp;
         this.currentStatus = "Downloading ...";
         this.fileUrl = fileUrl;
-        this.fileName = fileName;
+        this.fileName = sanitizeFileName(fileName);
         this.fileSize = fileSize;
-        if(DbWorldConstants.INTEGRATION_FOLDER_PATH == null || DbWorldConstants.INTEGRATION_FOLDER_PATH.equals("null")){
+
+        if (DbWorldConstants.INTEGRATION_FOLDER_PATH == null || DbWorldConstants.INTEGRATION_FOLDER_PATH.equals("null")) {
             log.warn("integrationFolderPath is null");
             DbWorldConstants.INTEGRATION_FOLDER_PATH = "/ext_hdisk/dbworld/integration/";
         }
-        this.recordIdPath = DbWorldConstants.INTEGRATION_FOLDER_PATH + File.separator + folderName;
-        this.tempRecordIdPath = DbWorldConstants.TEMP_DOWNLOAD_PATH + folderName;
-        this.filePath = recordIdPath + File.separator + fileName;
+
+        // Updated paths to handle "unassigned" folder
+        this.recordIdPath = DbWorldConstants.INTEGRATION_FOLDER_PATH + File.separator + this.folderName;
+        this.tempRecordIdPath = DbWorldConstants.TEMP_DOWNLOAD_PATH + this.folderName;
+        this.filePath = recordIdPath + File.separator + sanitizeFileName(fileName);
         this.tempFilePath = tempRecordIdPath + File.separator + tempFileName;
+
         this.extract = extract;
+
         try {
-            this.fileType = Files.probeContentType(Path.of(fileName));
+            this.fileType = Files.probeContentType(Path.of(sanitizeFileName(fileName)));
             Files.createDirectories(Path.of(tempRecordIdPath));
             Files.createDirectories(Path.of(recordIdPath));
         } catch (IOException | InvalidPathException e) {
-            System.out.println(e.getMessage());
+            log.error("Error creating directories: {}", e.getMessage());
         }
+
         if (extract) {
-            if (this.fileName.endsWith(".zip")) this.extractedFileName = this.fileName.replace(".zip", "");
-            else if (this.fileName.endsWith(".rar")) this.extractedFileName = this.fileName.replace(".rar", "");
-            else if (this.fileName.endsWith(".tar")) this.extractedFileName = this.fileName.replace(".tar", "");
-            else if (this.fileName.endsWith(".7z")) this.extractedFileName = this.fileName.replace(".7z", "");
+            this.extractedFileName = extractFileName(this.fileName);
             this.tempExtractedFilePath = tempRecordIdPath + File.separator + extractedFileName;
             this.extractedFilePath = recordIdPath + File.separator + extractedFileName;
         }
     }
 
-    public MirrorStatus (YtDlp ytDlp){
-        this.ytdlp = ytDlp;
-        this.id = String.valueOf(new Date().getTime());
-        this.timeStamp = this.id;
-        this.tempFileName = timeStamp;
-        this.currentStatus = "Downloading ...";
-        this.fileUrl = this.ytdlp.url;
-        this.fileName = this.ytdlp.fileName;
-        if(this.fileName.contains("|") || this.fileName.contains("/") || this.fileName.contains("\\")){
-            this.fileName = this.fileName.replace("|","")
-                    .replace("/", "")
-                    .replace("\\","");
+    public MirrorStatus(String folderName, String fileUrl, String fileName, Long fileSize, boolean extract, String videoITag, String audioITag, boolean onlyAudio) {
+        this(folderName, fileUrl, fileName, fileSize, extract);
+        this.videoITag = videoITag;
+        this.audioITag = audioITag;
+        this.onlyAudio = onlyAudio;
+    }
+
+    private String determineFolderName(String folderName) {
+        if (folderName == null || folderName.isEmpty()) {
+            return "unassigned"; // Separate folder for null/empty records
         }
-        this.fileSize = this.ytdlp.fileSize;
-        this.filePath = DbWorldConstants.INTEGRATION_FOLDER_PATH + File.separator + fileName;
-        this.tempFilePath = DbWorldConstants.TEMP_DOWNLOAD_PATH + tempFileName;
-        this.extract = false;
+        return folderName;
+    }
+
+    private Long extractRecordId(String folderName) {
+        try {
+            if (folderName != null && !folderName.isEmpty()) {
+                return Long.valueOf(folderName.split("-")[0]);
+            }
+        } catch (NumberFormatException e) {
+            log.warn("Invalid record ID in folder name: {}", folderName);
+        }
+        return -1L; // Default recordId for null or invalid values
+    }
+
+    private String sanitizeFileName(String fileName) {
+        return Optional.ofNullable(fileName)
+                .map(name -> name.replaceAll("[|/\\\\]", ""))
+                .orElse("unknown_file");
+    }
+
+
+    private String initRecordIdPath(String folderName) {
+        if (DbWorldConstants.INTEGRATION_FOLDER_PATH == null || "null".equals(DbWorldConstants.INTEGRATION_FOLDER_PATH)) {
+            log.warn("integrationFolderPath is null, using default");
+            DbWorldConstants.INTEGRATION_FOLDER_PATH = "/ext_hdisk/dbworld/integration/";
+        }
+        return Paths.get(DbWorldConstants.INTEGRATION_FOLDER_PATH, folderName).toString();
+    }
+
+    private String detectFileType(String fileName) {
+        try {
+            return Files.probeContentType(Paths.get(fileName));
+        } catch (IOException | InvalidPathException e) {
+            log.error("Failed to detect file type for {}: {}", fileName, e.getMessage());
+            return "unknown";
+        }
+    }
+
+    private String extractFileName(String fileName) {
+        return fileName.replaceAll("\\.(zip|rar|tar|7z)$", "");
+    }
+
+    private void createDirectories(String... paths) {
+        for (String path : paths) {
+            try {
+                Files.createDirectories(Paths.get(path));
+            } catch (IOException e) {
+                log.error("Failed to create directory {}: {}", path, e.getMessage());
+            }
+        }
     }
 
     @Getter
@@ -112,37 +166,18 @@ public class MirrorStatus {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DownloadStatus {
-        private long speed;
+        private Double speed;
         private long fileDownloaded;
         private long fileRemaining;
         private long eta;
         private long totalFileSize;
-        private long lastTime;
+        private long updateTime;
         private long lastDownloadedBytes;
-
-        public DownloadStatus(long fileDownloaded, long fileRemaining, long totalFileSize) {
-            this.fileDownloaded = fileDownloaded;
-            this.fileRemaining = fileRemaining;
-            this.totalFileSize = totalFileSize;
-        }
 
         public DownloadStatus(long fileDownloaded, long totalFileSize) {
             this.fileDownloaded = fileDownloaded;
-            this.fileRemaining = totalFileSize <= 0 ? 0 : totalFileSize - fileDownloaded;
             this.totalFileSize = totalFileSize;
+            this.fileRemaining = Math.max(0, totalFileSize - fileDownloaded);
         }
-
     }
-
-    @Getter
-    @Setter
-    public static class YtDlp {
-        private String url;
-        private String fileName;
-        private long fileSize;
-        private String videoITag;
-        private String audioITag;
-        private boolean onlyAudio;
-    }
-
 }

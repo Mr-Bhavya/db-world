@@ -8,11 +8,6 @@ import Constants from './Constants';
 
 const Home = () => {
 
-    // useEffect(() => {
-    //     localStorage.setItem('login', false);
-    //     localStorage.setItem('user', null);
-    // }, [])
-
     const navigate = useNavigate();
 
     const [cardDetails, setCardDetails] = useState([{
@@ -32,7 +27,7 @@ const Home = () => {
         id: "db-cinema",
         image: "https://img.icons8.com/clouds/500/null/movies-portal.png",
         title: "DB Cinema",
-        route: Constants.DB_MOVIES_ROUTE,
+        route: Constants.DB_CINEMA_BROWSE_ROUTE,
     },
     {
         id: "db-games",

@@ -2,13 +2,14 @@ package com.db.dbworld.dao.dbcinema.user;
 
 import com.db.dbworld.entities.dbcinema.user.UserRecordDataEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
-public interface UserRecordDataRepository extends JpaRepository<UserRecordDataEntity, Long> {
+public interface UserRecordDataRepository extends JpaRepository<UserRecordDataEntity, Long> , JpaSpecificationExecutor<UserRecordDataEntity> {
     Optional<UserRecordDataEntity> findByUserUserIdAndDbCinemaRecordId(Long userId, Long recordId);
 
     @Modifying

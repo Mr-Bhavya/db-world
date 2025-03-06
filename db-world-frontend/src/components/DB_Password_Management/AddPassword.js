@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast, } from 'react-toastify';
 import CommonServices from '../CommonServices';
 import Constants from '../Constants';
@@ -9,6 +9,7 @@ import { Col, Form, Row } from 'react-bootstrap';
 function AddPassword() {
 
     const navigate = useNavigate();
+      const location = useLocation();
     const [userData, setUserData] = useState({});
     const [submitLoader, setSubmitLoader] = useState(false);
     const [isValidUrl, setIsValidUrl] = useState(true);
@@ -33,7 +34,7 @@ function AddPassword() {
     const checkUserRole = async (userId) => {
         let roleRes = await getUserRole(userId);
         if (roleRes.httpStatusCode === 401) {
-            navigate(await Constants.REDIRECT(Constants.DB_ADD_PASSWORD_ROUTE));
+            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
         }
     }
 
@@ -42,7 +43,7 @@ function AddPassword() {
         if (hostRes.httpStatusCode == 200) {
             setHost(hostRes.data);
         } else if (hostRes.httpStatusCode === 401) {
-            navigate(await Constants.REDIRECT(Constants.DB_ADD_PASSWORD_ROUTE));
+            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
         }
     }
 
@@ -92,7 +93,7 @@ function AddPassword() {
                     {
                         autoClose: 1000,
                         onClose: () => {
-                            navigate(`${Constants.LOGIN_ROUTE}?redirectTo=${Constants.DB_ADD_PASSWORD_ROUTE}`, { replace: true });
+                            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
                         }
                     });
             } else {

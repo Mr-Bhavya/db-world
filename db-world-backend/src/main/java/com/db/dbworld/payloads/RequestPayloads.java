@@ -40,24 +40,19 @@ public class RequestPayloads {
     @Data
     public static class Mirror{
         @NotEmpty
-        private String folderName;
-        @NotEmpty
         private String url;
+        private String folderName;
         private String username;
         private String password;
         private String fileName;
+        private Long fileSize;
         private boolean isUrlProtected;
         private boolean isRename;
         private boolean isExtract;
         private String extractPassword;
-    }
-
-    @Getter
-    @Setter
-    public static class YtDlp extends MirrorStatus.YtDlp {
-        public YtDlp(){
-            super();
-        }
+        private String videoITag;
+        private String audioITag;
+        private boolean onlyAudio;
     }
 
     @Data

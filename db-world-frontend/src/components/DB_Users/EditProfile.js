@@ -108,7 +108,7 @@ function EditProfile(props) {
     let isValidToken = await CommonServices.valiadteToken();
     if (!isValidToken) {
       console.log("Token Is invalid")
-      navigate(await Constants.REDIRECT(Constants.EDIT_USER_PROFILE_ROUTE), { replace: true })
+      navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
     } else {
       console.log("Token Is valid")
     }
@@ -183,7 +183,7 @@ function EditProfile(props) {
         else if (updateUserRes.httpStatusCode === 401) {
           toast.error(updateUserRes.message + Constants.RE_LOGIN, {
             onClose: async () => {
-              navigate(await Constants.REDIRECT(Constants.EDIT_USER_PROFILE_ROUTE));
+              navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
             },
             autoClose: 1000
           })

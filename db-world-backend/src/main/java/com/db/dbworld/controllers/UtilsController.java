@@ -170,67 +170,21 @@ public class UtilsController {
 
     @RequestMapping(value = "/yt/download", method = RequestMethod.POST)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<String> ytDownload(@RequestBody RequestPayloads.YtDlp ytDlp) throws IOException {
-        mirrorStatus = new MirrorStatus(ytDlp);
+    public ApiResponse<String> ytDownload(@RequestBody RequestPayloads.Mirror mirror) throws IOException {
+        mirrorStatus = new MirrorStatus(
+                mirror.getFolderName(),
+                mirror.getUrl(),
+                dbWorldUtils.decodeFileName(mirror.getFileName()),
+                mirror.getFileSize(),
+                mirror.isExtract(),
+                mirror.getVideoITag(),
+                mirror.getAudioITag(),
+                mirror.isOnlyAudio()
+
+        );
         utilsService.downloadYtFile(mirrorStatus);
         return new ApiResponse<>(HttpStatus.OK, true, "Task Added.");
     }
-
-//    @RequestMapping(value = "/mediaInfo", method = RequestMethod.GET)
-////    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-//    public ApiResponse<List<MediaFileInfo>> getMediaInfo() throws IOException, EncoderException {
-//        MultimediaObject multimediaObject = new MultimediaObject(new File("D:\\Bhavya\\Videos\\Glass Onion_ A Knives Out Mystery.mkv"));
-//        MultimediaInfo multimediaInfo = multimediaObject.getInfo();
-//
-//        StringBuilder output;
-//        try {
-//
-//            Path filePath = Path.of("D:/Bhavya/Videos/Torrent Download/");//The.Fall.Guy.2024.1080p.10bit.DS4K.iTunes.WEB-Rip.HDR10+.[Hindi.DDP5.1-English.DDP5.1.Atmos].ESub.HEVC-NmCT.mkv");
-//
-//            AtomicReference<String> allPath = new AtomicReference<>("");
-//            Files.list(filePath).forEach(
-//                    path -> allPath.set(allPath.get() + path + " ")
-//            );
-//
-//            LinkedList<String> list = new LinkedList<>();
-//            list.add("D:\\Bhavya\\Downloads\\Compressed\\MediaInfo_CLI_24.12_Windows_x64\\mediainfo");
-//            list.add("--Output=JSON");
-//            // Run mediainfo command
-//            ProcessBuilder processBuilder = new ProcessBuilder();
-//            list.addAll(Files.list(filePath).map(Path::toString).toList());
-//            processBuilder.command(list);
-//            Process process = processBuilder.start();
-//            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-//            output = new StringBuilder();
-//            String line;
-//            while ((line = reader.readLine()) != null) {
-//                output.append(line);
-//            }
-//            process.waitFor();
-//            List<MediaFileInfo> mediaFileInfos = new ArrayList<>();
-//            JsonArray jsonArray = new Gson().fromJson(output.toString(), JsonArray.class);
-//            jsonArray.asList().forEach(
-//                    jsonElement -> {
-//                        if(jsonElement.isJsonObject()) {
-//                            String media = jsonElement.getAsJsonObject().get("media").toString();
-//                            ObjectMapper objectMapper = new ObjectMapper();
-//                            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-//                            try {
-//                                MediaFileInfoEntity mediaFileInfo = objectMapper.readValue(media, MediaFileInfo.class);
-//                                if(mediaFileInfo != null) {
-//                                    mediaFileInfos.add(mediaFileInfo.initialize());
-//                                }
-//                            } catch (IOException | DbWorldException e) {
-//                                log.error(e.getMessage());
-//                            }
-//                        }
-//                    }
-//            );
-//            return new ApiResponse<>(HttpStatus.OK, true, mediaFileInfos);
-//        } catch (Exception e) {
-//            throw new DbWorldException(e.getMessage());
-//        }
-//    }
 
     @RequestMapping(value = "/system-info", method = RequestMethod.GET)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)

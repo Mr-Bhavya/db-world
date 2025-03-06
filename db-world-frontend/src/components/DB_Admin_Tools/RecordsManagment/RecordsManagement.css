@@ -1,0 +1,148 @@
+/* Base styles */
+.records-management {
+  font-family: Arial, sans-serif;
+}
+
+.records-management h1 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+/* Form container styles */
+.form-container {
+  max-width: 600px;
+  margin: 0 auto 30px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #fff;
+}
+
+.record-form h2 {
+  text-align: center;
+  margin-top: 0;
+}
+
+.form-group {
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group select {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.form-group input[disabled] {
+  background-color: #eee;
+}
+
+.tmdb-group {
+  display: flex;
+  gap: 5px;
+}
+
+.tmdb-group select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.tmdb-group button {
+  padding: 8px 12px;
+  background-color: #007BFF;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tmdb-group button:hover {
+  background-color: #0056b3;
+}
+
+.checkbox-group {
+  flex-direction: row;
+  align-items: center;
+}
+
+.checkbox-group label {
+  margin-right: 10px;
+  margin-bottom: 0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.form-actions button {
+  padding: 10px 15px;
+  border: none;
+  background-color: #007BFF;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.form-actions button:hover {
+  background-color: #0056b3;
+}
+
+/* Grid container styles */
+.grid-container {
+  margin: 0; /* Reduced side margins for mobile */
+  height: 500px;
+}
+
+/* Custom action buttons for ag‑Grid */
+.rm-action-buttons button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-right: 5px;
+  font-size: 16px;
+  color: #333; /* Dark color for better visibility */
+}
+
+.rm-action-buttons button:hover {
+  opacity: 0.8;
+}
+
+/* When a row is refreshing, make it appear disabled */
+.ag-row.refreshing-row {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  
+  .grid-container {
+    margin: 0; /* Further reduce side margins on small screens */
+  }
+  
+  .form-group input[type="text"],
+  .form-group select {
+    padding: 6px;
+  }
+  
+  .form-actions button,
+  .tmdb-group button {
+    padding: 8px 12px;
+  }
+}

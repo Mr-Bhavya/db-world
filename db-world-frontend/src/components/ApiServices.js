@@ -215,8 +215,8 @@ export const loadMyWatchlist = async (userId) => {
     return await response.json();
 }
 
-export const searchRecord = async (query) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/search?q=${query}`, {
+export const searchRecord = async (query, page, size) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record?q=${query}&page=${page}&size=${size}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -306,7 +306,7 @@ export const removeWatchlistRecord = async (recordId, userId) => {
     return await response.json();
 }
 
-export const watchedRecord = async (recordId) => {
+export const markRecordWatched = async (recordId) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/watch`, {
         method: "GET",
         headers: {
@@ -316,7 +316,7 @@ export const watchedRecord = async (recordId) => {
     return await response.json();
 }
 
-export const unWatchedRecord = async (recordId) => {
+export const unmarkRecordWatched = async (recordId) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}/unwatch`, {
         method: "GET",
         headers: {
@@ -336,6 +336,16 @@ export const getGenresList = async () => {
     return await response.json();
 }
 
+export const getRecords = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/record`, {
+        method: "GET",
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
 export const getRecordDetailsbyId = async (recordId) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/cinema/record/${recordId}`, {
         method: "GET",
@@ -347,7 +357,7 @@ export const getRecordDetailsbyId = async (recordId) => {
 }
 
 export const getStreamMediaList = async (path) => {
-    let response = await fetch(`${REACT_APP_BASEURL}/api/stream/list?path=${path}`, {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/file-explorer/list?directory=${path}`, {
         method: "GET",
         headers: {
             Authorization: 'Bearer ' + localStorage.getItem("token")
@@ -595,6 +605,44 @@ export const saveUserEventInfo = async (event, value) => {
 
 export const deleteMediaFileInfoById = async (id) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/admin/stream/media-info/file/${id}`, {
+        method: "DELETE",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
+export const renameFileApi = async (id, body) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/file-explorer/${id}/rename`, {
+        method: "PUT",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        },
+        body: JSON.stringify(body)
+    });
+    return await response.json();
+}
+
+export const moveFileApi = async (id, body) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/file-explorer/${id}/move`, {
+        method: "PUT",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        },
+        body: JSON.stringify(body)
+    });
+    return await response.json();
+}
+
+export const deleteFileApi = async (id) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/file-explorer/${id}`, {
         method: "DELETE",
         headers: {
             'Content-Type': 'application/json',

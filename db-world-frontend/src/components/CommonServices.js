@@ -1,6 +1,8 @@
 import Constants from "./Constants";
 import { addUser, moviePageNumber, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from "../redux/action/allActions";
 import { useDispatch } from "react-redux";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 
 const getTimeDateFromTimeStamp = (timestamp, timezone) => {
 
@@ -36,31 +38,37 @@ const getPercentage = (actual, total) => {
 const bytesToReadbleFormat = (bytes) => {
 
     if (bytes == null || typeof (bytes) === "undefined") {
-        return { value: null, suffix: null };
+        return { value: 0, suffix: "Bytes" };
     }
 
     if (typeof (bytes) === "string") {
         bytes = parseFloat(bytes).toFixed(0);
     }
 
-    var megabytes = bytes * 0.00000095367432;
-    var kilobytes = bytes * 0.00097656;
-    var gigabytes = megabytes * 0.00097656;
+    if (bytes === 0) return { value: 0, suffix: "Bytes" };
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return { value: parseFloat((bytes / Math.pow(k, i)).toFixed(2)), suffix: sizes[i] };
 
-    if (bytes < 1024) {
-        return { value: bytes, suffix: "bytes" }
-    }
-    else if (kilobytes > 1 && kilobytes < 1024) {
-        return { value: parseFloat(kilobytes).toFixed(2), suffix: "KB" }
-    }
-    else if (megabytes < 1024) {
-        return { value: parseFloat(megabytes).toFixed(2), suffix: "MB" }
-    }
-    else if (megabytes > 1024) {
-        return { value: parseFloat(gigabytes).toFixed(2), suffix: "GB" }
-    } else {
-        return { value: null, suffix: null };
-    }
+    // var megabytes = bytes * 0.00000095367432;
+    // var kilobytes = bytes * 0.00097656;
+    // var gigabytes = megabytes * 0.00097656;
+
+    // if (bytes < 1024) {
+    //     return { value: bytes, suffix: "bytes" }
+    // }
+    // else if (kilobytes > 1 && kilobytes < 1024) {
+    //     return { value: parseFloat(kilobytes).toFixed(2), suffix: "KB" }
+    // }
+    // else if (megabytes < 1024) {
+    //     return { value: parseFloat(megabytes).toFixed(2), suffix: "MB" }
+    // }
+    // else if (megabytes > 1024) {
+    //     return { value: parseFloat(gigabytes).toFixed(2), suffix: "GB" }
+    // } else {
+    //     return { value: null, suffix: null };
+    // }
 }
 
 const modifySearchQuery = (query) => {
@@ -102,6 +110,29 @@ const convertTobytes = (value, suffix) => {
     return bytes;
 }
 
+// Utility function to format milliseconds to a human-readable string
+function formatETA(seconds) {
+    if (seconds <= 0) return "0 sec";
+
+    const years = Math.floor(seconds / (3600 * 24 * 365));
+    const days = Math.floor((seconds % (3600 * 24 * 365)) / (3600 * 24));
+    const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (years > 0) {
+        return `${years}y ${days}d ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    } else if (days > 0) {
+        return `${days}d ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    } else if (hours > 0) {
+        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    } else if (minutes > 0) {
+        return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    } else {
+        return `${secs} sec`;
+    }
+}
+
 const handleCopy = (text) => {
     try {
         const element = document.createElement("textarea");
@@ -110,6 +141,18 @@ const handleCopy = (text) => {
         element.select();
         document.execCommand("copy");
         document.body.removeChild(element);
+    } catch (e) {
+        alert(e)
+    }
+}
+
+const handleDownload = (text, isAndroid) => {
+    try {
+        if (Capacitor.isNativePlatform()) {
+            Browser.open(text)
+        } else {
+            window.open(text);
+        }
     } catch (e) {
         alert(e)
     }
@@ -151,7 +194,7 @@ const JSONToHTMLTable = (props) => {
                     {Object.keys(data).map((k) => (
                         <tr key={k}>
                             {!Array.isArray(data) &&
-                                <th className="align-middle" scope="row" style={{width : "10%"}} >
+                                <th className="align-middle" scope="row" style={{ width: "10%" }} >
                                     {/* Convert snakes to space and capitalize for visual */}
                                     {k.replace(/_/g, ' ')}
                                 </th>
@@ -178,7 +221,7 @@ const JSONToHTMLTable = (props) => {
     )
 }
 
-const convertMediaInfoToCustomFormat = (data) => {
+const convertMediaInfoToCustomFormat = (data, isSearchedFile) => {
     return data?.map(mediaFile => {
         let mediaDetails = {
             id: "",
@@ -191,7 +234,7 @@ const convertMediaInfoToCustomFormat = (data) => {
         }
         mediaDetails.id = mediaFile.id
 
-        let tempUrl = window.location.origin + "/api/stream/watch/uuid/" + mediaFile.id + "?t=" + localStorage.getItem("token");
+        let tempUrl = `${window.location.origin}${isSearchedFile ? "/api/stream/watch/" : "/api/stream/watch/uuid/"}${mediaFile.id}?t=${localStorage.getItem("token")}`;
         if (window.location.port === "3000") {
             tempUrl = tempUrl.replace("3000", "9000")
         }
@@ -243,6 +286,7 @@ export default {
     getTimeDateFromTimeStamp,
     getHHmmFromSeconds,
     getPercentage,
+    formatETA,
     isValidUrl,
     JSONToHTMLTable,
     bytesToReadbleFormat,
@@ -250,6 +294,7 @@ export default {
     valiadteToken,
     modifySearchQuery,
     handleCopy,
+    handleDownload,
     getCurrentUser,
     removeUserFromLocal,
     setUserInLocal,

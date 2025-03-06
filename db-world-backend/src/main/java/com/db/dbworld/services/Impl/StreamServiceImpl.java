@@ -12,16 +12,23 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import static org.springframework.util.StreamUtils.BUFFER_SIZE;
 
 @Service
 @Log4j2
@@ -75,88 +82,116 @@ public class StreamServiceImpl implements StreamService {
                 .body(readResource(path, rangeStart)));
     }
 
-    //    @Async
     @Override
     public ResponseEntity<StreamingResponseBody> downloadFile(String user, Path path, String rangeHeader) {
-
-        String downloadId = user + "-" + path.getFileName(); // Unique ID for the download session
+        String downloadId = user + "-" + path.getFileName();
         try {
-            final Long fileSize = getFileSize(path);
-            downloadTrackerService.startDownload(downloadId, path.toString(), user, fileSize);
-            // Handle range requests
+            final long fileSize = Files.size(path);
             long rangeStart;
             long rangeEnd;
-            if (rangeHeader != null) {
+            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
                 String[] ranges = rangeHeader.substring(6).split("-");
-                rangeStart = Long.parseLong(ranges[0]);
-                rangeEnd = ranges.length > 1 ? Long.parseLong(ranges[1]) : fileSize - 1;
+                rangeStart = Long.parseLong(ranges[0].trim());
+                rangeEnd = (ranges.length > 1 && !ranges[1].isEmpty()) ? Long.parseLong(ranges[1].trim()) : fileSize - 1;
             } else {
                 rangeStart = 0;
                 rangeEnd = fileSize - 1;
             }
 
-            // Stream the file
+            // Initialize or resume the download session (no DB insert here).
+            downloadTrackerService.startOrResumeDownload(downloadId, path.getFileName().toString(), user, fileSize, rangeStart);
+
             StreamingResponseBody responseBody = outputStream -> {
+                long totalBytesRead = 0;
+                long updateThreshold = 1024 * 1024; // 1MB
+                long lastUpdateBytes = 0;
+
                 try (InputStream inputStream = Files.newInputStream(path)) {
-                    byte[] buffer = new byte[1024 * 1024]; // 1 MB buffer
-                    long bytesToRead = rangeEnd - rangeStart + 1;
-                    long totalBytesRead = 0;
-
-                    inputStream.skip(rangeStart);
-
-                    while (totalBytesRead < bytesToRead) {
-                        int bytesToWrite = (int) Math.min(buffer.length, bytesToRead - totalBytesRead);
-                        int bytesRead = inputStream.read(buffer, 0, bytesToWrite);
-                        if (bytesRead == -1) break;
-
-                        try {
-                            outputStream.write(buffer, 0, bytesRead);
-                            totalBytesRead += bytesRead;
-                            // Update progress
-                            downloadTrackerService.updateDownloadProgress(downloadId, totalBytesRead);
-                        } catch (IOException e) {
-                            // Handle client disconnect
-                            if (e.getMessage() != null && (e.getMessage().contains("Broken pipe") || e.getMessage().contains("ServletOutputStream failed to write"))) {
-                                log.warn("user {} disconnected. Partial download completed.", user);
-                                break;
-                            } else {
-                                throw e; // Re-throw other IOExceptions
-                            }
+                    if (rangeStart > 0) {
+                        long skipped = inputStream.skip(rangeStart);
+                        if (skipped < rangeStart) {
+                            throw new IOException("Unable to skip to the requested range start.");
                         }
                     }
 
-                    // Mark as completed only if all bytes were sent
-                    if (totalBytesRead >= bytesToRead || rangeEnd == fileSize -1 ) {
+                    byte[] buffer = new byte[BUFFER_SIZE];
+                    long bytesToRead = rangeEnd - rangeStart + 1;
+                    while (totalBytesRead < bytesToRead) {
+                        int bytesRemaining = (int) Math.min(buffer.length, bytesToRead - totalBytesRead);
+                        int bytesRead = inputStream.read(buffer, 0, bytesRemaining);
+                        if (bytesRead == -1) {
+                            break;
+                        }
+                        try {
+                            outputStream.write(buffer, 0, bytesRead);
+                        } catch (IOException e) {
+                            if (isClientDisconnect(e)) {
+                                downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
+                                downloadTrackerService.pauseDownload(downloadId);
+                                break;
+                            } else if (e.getMessage().contains("ServletOutputStream failed to flush: null")) {
+                                downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
+                                break;
+                            } else {
+                                throw e;
+                            }
+                        }
+                        totalBytesRead += bytesRead;
+                        if (totalBytesRead - lastUpdateBytes >= updateThreshold) {
+                            downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
+                            lastUpdateBytes = totalBytesRead;
+                        }
+                    }
+                    // Final update after streaming completes.
+                    if (totalBytesRead > 0) {
+                        downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
+                    }
+                    // If the full requested range was delivered, mark the download as complete.
+                    if (totalBytesRead == (rangeEnd - rangeStart + 1)) {
                         downloadTrackerService.completeDownload(downloadId);
                     }
                 } catch (IOException e) {
-                    // Mark as failed only for non-client-disconnect errors
-                    if (!(e.getMessage() != null && e.getMessage().contains("Broken pipe"))) {
+                    if (!isClientDisconnect(e)) {
                         downloadTrackerService.failDownload(downloadId, e.getMessage());
                     }
                     throw e;
                 }
             };
 
-            HttpHeaders responseHeaders = new HttpHeaders();
-            responseHeaders.add("Content-Type", Files.probeContentType(path));
-            responseHeaders.add(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path));
-            responseHeaders.add(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES);
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Content-Type", Files.probeContentType(path));
+            headers.add("Content-Disposition", "attachment; filename=\"" + path.getFileName().toString() + "\"");
+            headers.add("Accept-Ranges", "bytes");
 
             if (rangeHeader != null) {
-                responseHeaders.add(DbWorldConstants.CONTENT_RANGE_HEADER, "bytes " + rangeStart + "-" + rangeEnd + "/" + fileSize);
-                responseHeaders.add(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(rangeEnd - rangeStart + 1));
-                return new ResponseEntity<>(responseBody, responseHeaders, HttpStatus.PARTIAL_CONTENT);
+                headers.add("Content-Range", "bytes " + rangeStart + "-" + rangeEnd + "/" + fileSize);
+                headers.add("Content-Length", String.valueOf(rangeEnd - rangeStart + 1));
+                return new ResponseEntity<>(responseBody, headers, HttpStatus.PARTIAL_CONTENT);
             } else {
-                responseHeaders.add(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize));
-                return new ResponseEntity<>(responseBody, responseHeaders, HttpStatus.OK);
+                headers.add("Content-Length", String.valueOf(fileSize));
+                return new ResponseEntity<>(responseBody, headers, HttpStatus.OK);
             }
-        } catch (FileNotFoundException ex) {
-            throw new DbWorldException(HttpStatus.NOT_FOUND, ex.getMessage());
-        } catch (IOException ex) {
-            throw new DbWorldException(ex.getMessage());
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            log.error("File not found: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found", e);
+        } catch (IOException e) {
+            log.error("I/O error during download: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "I/O error", e);
         }
     }
+
+
+    /**
+     * Checks if an IOException is due to a client disconnect.
+     */
+    private boolean isClientDisconnect(IOException e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("Broken pipe") ||
+                msg.contains("Connection reset") ||
+                msg.contains("Idle timeout"));
+//                || msg.contains("ServletOutputStream failed to write: null"));
+    }
+
 
 
     @Override

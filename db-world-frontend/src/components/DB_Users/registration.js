@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Constants from '../Constants';
@@ -9,6 +9,7 @@ function Registration() {
 
   const [check, setCheck] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const [firstNameError, setFirstNameError] = useState(false);
   const [lastNameError, setLastNameError] = useState(false);
   const [genderError, setGenderError] = useState(false);
@@ -164,12 +165,12 @@ function Registration() {
         console.log(registerRes);
         if (registerRes.httpStatusCode === 201 || registerRes.httpStatusCode === 200) {
           toast.success("Registration Successfull. You will be navigate to login page.", {
-            onClose: async () => navigate(await Constants.REDIRECT()),
+            onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } }),
             autoClose: 1000
           });
         } else if (registerRes.httpStatusCode === 401) {
           toast.error(registerRes.message + Constants.RE_LOGIN, {
-            onClose: async () => navigate(await Constants.REDIRECT(Constants.REGISTER_REDIRECT)),
+            onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } }),
             autoClose: 1000
           });
         } else {

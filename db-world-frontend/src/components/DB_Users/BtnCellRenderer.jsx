@@ -3,7 +3,7 @@ import Constants from "../Constants";
 import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
 import { useState } from "react";
-import Profile_Admin from "../DB_Admin_Tools/Profile_Admin";
+import Profile_Admin from "../DB_Admin_Tools/UserManagment/Profile_Admin";
 
 const BtnCellRenderer = (props) => {
 
@@ -60,7 +60,7 @@ const BtnCellRenderer = (props) => {
           {/* <Profile
             userData={props.data}
           /> */}
-          <Profile_Admin userData = {props.data} />
+          <Profile_Admin userData={props.data} />
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => handleClose("viewModelShow")}>

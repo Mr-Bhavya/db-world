@@ -10,7 +10,6 @@ import com.db.dbworld.services.StreamService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
@@ -34,7 +33,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
@@ -279,7 +277,7 @@ public class StreamController {
                 jsonElement.getAsJsonArray().forEach(element -> {
                     try {
                         mediaFileInfos.add(convertJsonObjectToMediaInfo(element.getAsJsonObject()));
-                    } catch (JsonProcessingException e) {
+                    } catch (IOException e) {
                         throw new DbWorldException(e.getMessage());
                     }
                 });
@@ -292,11 +290,12 @@ public class StreamController {
         }
     }
 
-    private MediaFileInfo convertJsonObjectToMediaInfo(JsonObject jsonObject) throws JsonProcessingException {
+    private MediaFileInfo convertJsonObjectToMediaInfo(JsonObject jsonObject) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         MediaFileInfo mediaFileInfo = objectMapper.readValue(jsonObject.get("media").toString(), MediaFileInfo.class);
+        mediaFileInfo.initialize();
         if (mediaFileInfo == null) {
             throw new DbWorldException("Media file details could not be retrieved from JSON");
         }

@@ -1,0 +1,252 @@
+/* Overall overlay style with dark theme */
+.search-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.95);
+  color: #fff;
+  z-index: 1000;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Header styling with search input and close button */
+.search-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.search-overlay-header input {
+  flex: 1;
+  padding: 10px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 4px;
+  margin-right: 10px;
+}
+
+.close-search-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* Tab Header styling */
+.tab-header {
+  display: flex;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #444;
+}
+
+.tab-button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 15px;
+  font-size: 1rem;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.tab-button:hover {
+  background: #333;
+}
+
+.tab-button.active {
+  background: #222;
+  color: #e50914;
+  border-bottom: 2px solid #e50914;
+}
+
+/* Tab Content */
+.tab-content {
+  /* Additional styling can be added if needed */
+}
+
+/* Results area styling */
+.search-overlay-results {
+  margin-top: 20px;
+}
+
+/* Container for search results */
+.results-container {
+  margin-top: 10px;
+}
+
+/* Grid layout for record results */
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 15px;
+}
+
+.result-item {
+  overflow: hidden;
+  border-radius: 8px;
+  transition: transform 0.3s ease;
+  cursor: pointer;
+}
+
+.result-item img {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+  transition: transform 0.3s ease;
+}
+
+.result-item:hover img {
+  transform: scale(1.05);
+}
+
+/* Skeleton loader placeholders */
+.skeleton-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.skeleton-item {
+  width: 100%;
+  height: 180px;
+  background: #333;
+  border-radius: 8px;
+  animation: skeleton-loading 1.5s infinite ease-in-out;
+}
+
+@keyframes skeleton-loading {
+  0% { background-color: #333; }
+  50% { background-color: #444; }
+  100% { background-color: #333; }
+}
+
+/* Search prompt styling */
+.search-prompt {
+  text-align: center;
+  font-size: 1.2rem;
+  margin-top: 50px;
+}
+
+/* Stream Files Tab Styling */
+.stream-files {
+  margin-top: 10px;
+}
+
+.directory-group {
+  margin-bottom: 20px;
+  padding: 10px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.directory-name {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  color: #e50914;
+  border-bottom: 1px solid #444;
+  padding-bottom: 5px;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.file-item {
+  background: #222;
+  padding: 10px;
+  border-radius: 6px;
+  transition: background 0.3s ease;
+  cursor: pointer;
+}
+
+.file-item:hover {
+  background: #333;
+}
+
+/* Ensure full file name is visible and wraps if needed */
+.file-name {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #fff;
+  word-break: break-all;
+}
+
+.file-size {
+  margin: 5px 0 0;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .search-overlay-header input {
+    font-size: 0.9rem;
+  }
+  .close-search-btn {
+    font-size: 1.3rem;
+  }
+  .search-prompt {
+    font-size: 1rem;
+  }
+  .tab-button {
+    font-size: 0.9rem;
+    padding: 8px 10px;
+  }
+}
+
+.stream-files-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #444;
+}
+
+.directory-group-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.directory-name-skeleton {
+  width: 150px;
+  height: 20px;
+  background: #4d3737;
+  border-radius: 4px;
+}
+
+.files-grid-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.file-item-skeleton {
+  width: 100%;
+  height: 100px;
+  background: #3d3c3c;
+  border-radius: 4px;
+}
+
+/* Optional: Add a simple animation for a loading effect */
+.skeleton-animation {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+

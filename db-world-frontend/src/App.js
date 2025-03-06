@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from 'react';
-// import './App.css';
 import Header from './components/Header';
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import DbCinemaHome from './components/DB_Movies/DbCinemaHome';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, redirect } from "react-router-dom";
 import Login from './components/Login';
 import LogOut from './components/LogOut';
 import Registration from './components/DB_Users/registration';
 import Weather from './components/DB_Weather/weather';
 import TicTacToe from './components/DB_Games/TicTacToe';
-import SeriesDetails from './components/DB_Movies/Series/SeriesDetails';
 import Home from './components/Home';
 import ErrorPage from './components/ErrorPage';
-import Search from './components/DB_Movies/Search/Search';
-import MovieDetails from './components/DB_Movies/Movies/MovieDetails';
-import MovieDetailsDesktop from './components/DB_Movies/Movies/MovieDetailsDesktop';
 import PasswordManagment from './components/DB_Password_Management/PasswordManagement';
 import GeneratePassword from './components/DB_Password_Management/GeneratePassword';
 import AddPassword from './components/DB_Password_Management/AddPassword';
@@ -22,10 +16,16 @@ import AdminTools from './components/DB_Admin_Tools/AdminTools';
 import ViewPassword from './components/DB_Password_Management/ViewPassword';
 import Profile from './components/DB_Users/Profile';
 import EditProfile from './components/DB_Users/EditProfile';
-import AddRecord from './components/DB_Admin_Tools/AddRecord';
-import EditRecord from './components/DB_Admin_Tools/EditRecord';
 import Authentication from './contexts/Authentication';
 import PrivateRoute from './components/PrivateRoute';
+import MainPage from './components//DBCinema/screens/mainPage/index.js'
+import MoviesPage from './components//DBCinema/screens/movies/index.js'
+import SeriesPage from './components//DBCinema/screens/series/index.js'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import DownloadPage from './components/DBCinema/screens/download/index.js';
+import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.js';
+import BackButtonHandler from './android-app-components/BackButtonHandler.js';
+import SeriesDetailsPage from './components/DBCinema/screens/series-details/SeriesDetailsPage.js';
 
 function App() {
 
@@ -46,7 +46,9 @@ function App() {
 
   var app =
     <div>
-      {/* <PrivateRoute><Header /></PrivateRoute> */}
+      
+      <BackButtonHandler />
+
       <Header />
 
       <Routes>
@@ -62,15 +64,17 @@ function App() {
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-import DbCinemaHome from './components/DB_Movies/DbCinemaHome';
-          <Route exact path={Constants.DB_MOVIES_ROUTE} element={<DbCinemaHome />} />
+          <Route exact path={Constants.DB_CINEMA_ROUTE} element={<Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />} />
+          <Route path={Constants.DB_CINEMA_BROWSE_ROUTE} element={<MainPage />} />
+          <Route path={Constants.DB_CINEMA_MOVIES_ROUTE} element={<MoviesPage />} />
+          <Route path={Constants.DB_CINEMA_SERIES_ROUTE} element={<SeriesPage />} />
+          <Route path={Constants.DB_DONWLOAD_RECORD_ROUTE} element={<DownloadPage />} />
           <Route path={Constants.DB_ADD_PASSWORD_ROUTE} element={<AddPassword />} />
           <Route path={Constants.DB_GENERATE_PASSWORD_ROUTE} element={<GeneratePassword />} />
           <Route path={Constants.DB_VIEW_PASSWORD_ROUTE} element={<ViewPassword />} />
           <Route path={Constants.EDIT_USER_PROFILE_ROUTE} element={<EditProfile />} />
-          <Route path="/search" element={<Search />} />
-          <Route path={Constants.DB_MOVIE_DETIALS_ROUTE} element={!matches && <MovieDetails /> || <MovieDetailsDesktop />} />
-          <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<SeriesDetails />} />
+          <Route path={Constants.DB_MOVIE_DETIALS_ROUTE} element={<MovieDetailsPage />} />
+          <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<SeriesDetailsPage />} />
           <Route path={Constants.USER_PROFILE_ROUTE} element={<Profile />} />
           <Route path={Constants.LOGOUT_ROUTE} element={<LogOut />} />
         </Route>
@@ -78,21 +82,22 @@ import DbCinemaHome from './components/DB_Movies/DbCinemaHome';
         {/* Protected Routes for only admin and owner */}
         <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
           <Route path={Constants.DB_ADMIN_TOOLS_ROUTE} element={<AdminTools />} />
-          <Route path={Constants.ADD_RECORD_ROUTE} element={<AddRecord />} />
-          <Route path={Constants.EDIT_RECORD_ROUTE} element={<EditRecord />} />
         </Route>
 
       </Routes>
 
     </div>
 
+  const queryClient = new QueryClient();
 
   return (
-    <Authentication.AuthProvider>
-      <Router>
-        {app}
-      </Router>
-    </Authentication.AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <Authentication.AuthProvider>
+        <Router>
+          {app}
+        </Router>
+      </Authentication.AuthProvider>
+    </QueryClientProvider>
   )
 }
 

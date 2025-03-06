@@ -21,9 +21,10 @@ import java.util.Date;
 @NoArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "DB_CINEMA_RECORDS", schema = "db_world")
+@SequenceGenerator(name="DB_CINEMA_RECORDS_SEQ", initialValue=1, allocationSize=1, schema = "db_world")
 public class DBCinemaRecordsEntity implements Serializable {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator="DB_CINEMA_RECORDS_SEQ")
     private Long id;
     private String name;
     private String type;

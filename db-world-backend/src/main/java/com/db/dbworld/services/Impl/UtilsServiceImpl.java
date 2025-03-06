@@ -40,8 +40,11 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -80,9 +83,7 @@ public class UtilsServiceImpl implements UtilsService {
                 .headers(httpHeaders -> httpHeaders.set("Host", mirrorStatus.getFileUrl().split("/")[2]))
                 .exchangeToFlux(response -> {
                     long contentLength = response.headers().contentLength().orElse(0);
-                    this.statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
-                            0, contentLength, mirrorStatus.getFileSize() <= 0 ? 0 : mirrorStatus.getFileSize()
-                    ));
+                    this.statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), 0L);
                     return response.bodyToFlux(DataBuffer.class);
                 })
                 .takeUntil(dataBuffer -> statusService.getStatusById(mirrorStatus.getId()).isCancelled());
@@ -148,12 +149,9 @@ public class UtilsServiceImpl implements UtilsService {
 
                 file.write(buffer, 0, bytesRead);
 
-                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
-                        mirrorStatus.getDownloadStatus() != null ? mirrorStatus.getDownloadStatus().getFileDownloaded() + bytesRead : bytesRead,
-                        mirrorStatus.getFileSize()
-                ));
+                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), bytesRead);
 
-                statusService.updateMirrorStatusWithSpeedAndETA(mirrorStatus.getId());
+//                statusService.updateMirrorStatusWithSpeedAndETA(mirrorStatus.getId());
 
                 // If download completes, change state to COMPLETED
                 if (statusService.getStatusById(mirrorStatus.getId()).getDownloadStatus().getFileDownloaded() >= statusService.getStatusById(mirrorStatus.getId()).getFileSize()) {
@@ -234,12 +232,7 @@ public class UtilsServiceImpl implements UtilsService {
                 this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
             } else {
                 this.statusService.updateMirrorStatusWithDownloadState(
-                        mirrorStatus.getId(),
-                        new MirrorStatus.DownloadStatus(
-                                torrentSessionState.getLeft() <= 0 ? 0 : mirrorStatus.getFileSize() - torrentSessionState.getLeft(),
-                                torrentSessionState.getLeft() <= 0 ? 0 : torrentSessionState.getLeft(),
-                                mirrorStatus.getFileSize()
-                        )
+                        mirrorStatus.getId(),torrentSessionState.getLeft() <= 0 ? 0 : mirrorStatus.getFileSize() - torrentSessionState.getLeft()
                 );
             }
         };
@@ -250,21 +243,13 @@ public class UtilsServiceImpl implements UtilsService {
             @Override
             public void write(byte[] b, int off, int len) throws IOException {
                 out.write(b, off, len);
-                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
-                        mirrorStatus.getDownloadStatus().getFileDownloaded() + len,
-                        mirrorStatus.getFileSize() <= 0 ? 0 : mirrorStatus.getDownloadStatus().getFileRemaining() - len,
-                        mirrorStatus.getFileSize()
-                ));
+                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), len);
             }
 
             @Override
             public void write(int b) throws IOException {
                 out.write(b);
-                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), new MirrorStatus.DownloadStatus(
-                        mirrorStatus.getDownloadStatus().getFileDownloaded() + 1,
-                        mirrorStatus.getFileSize() <= 0 ? 0 : mirrorStatus.getDownloadStatus().getFileRemaining() - 1,
-                        mirrorStatus.getFileSize()
-                ));
+                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), b);
             }
 
             @Override
@@ -374,161 +359,186 @@ public class UtilsServiceImpl implements UtilsService {
         return jsonInfoObj;
     }
 
-    @Async
-    @Override
-    public void downloadYtFile(MirrorStatus mirrorStatus) {
-        statusService.addNewStatus(mirrorStatus);
-        try {
-            ProcessBuilder processBuilder = new ProcessBuilder(getYtCommand(mirrorStatus.getFileUrl(), PROCESS_DOWNLOAD, mirrorStatus.getId()));
-            Process process = processBuilder.start();
-            new Thread(() -> {
-                BufferedReader reader = null;
-                try {
-                    reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                    boolean isFileNameFetch = false;
-                    while (process.isAlive()) {
-                        String line = reader.readLine();
-                        if (statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
-                            process.destroy();
-                            Runtime.getRuntime().exec(new String[]{"kill", "-9", String.valueOf(process.pid())});
-                            statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
-                        }
-                        if (line != null && line.contains("downloaded_bytes") && line.contains("status")) {
-                            line = line.replace(" ", "");
-                            line = line.startsWith("\"") && line.endsWith("\"") ? line.substring(1, line.length()-1) : line;
-                            try {
-                                YtProcessStatus ytProcessStatus = new Gson().fromJson(line, YtProcessStatus.class);
-                                if (ytProcessStatus.getStatus() != null) {
-                                    MirrorStatus.DownloadStatus downloadStatus = new MirrorStatus.DownloadStatus(
-                                            ytProcessStatus.getDownloaded_bytes(),
-                                            ytProcessStatus.getTotal_bytes() - ytProcessStatus.getDownloaded_bytes(),
-                                            ytProcessStatus.getTotal_bytes()
-                                    );
-                                    if (ytProcessStatus.getStatus().equalsIgnoreCase("finished") && !isFileNameFetch) {
-                                        MirrorStatus temp = statusService.getStatusById(mirrorStatus.getId());
-                                        String[] tempArray = getYtOutputFileName(temp).split("\\.");
-                                        String fileExtension = "." + tempArray[tempArray.length - 1];
-                                        temp.setFileName((mirrorStatus.getFileName() + fileExtension));
-                                        temp.setFilePath(mirrorStatus.getFilePath() + fileExtension);
-                                        temp.setTempFileName(mirrorStatus.getTempFileName() + fileExtension);
-                                        temp.setTempFilePath(mirrorStatus.getTempFilePath() + fileExtension);
-                                        statusService.updateStatus(temp);
-                                        isFileNameFetch = true;
-                                    }
-                                    statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), downloadStatus);
-                                }
-                            }catch (JsonSyntaxException ex){
-                                log.error(ex.getMessage());
-                            }
-
-                        }
-                    }
-                    if (process.exitValue() == 0 || process.exitValue() == 1) {
-                        FileUtils.moveToDirectory(new File(statusService.getStatusById(mirrorStatus.getId()).getTempFilePath()), new File(statusService.getStatusById(mirrorStatus.getId()).getFilePath()), true);
-//                        FileUtils.moveToDirectory();
-                        statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
-                    }
-                } catch (IOException | InterruptedException e) {
-                    try {
-                        log.error("exit code : {}, Error: {}", process.exitValue(), new String(process.getErrorStream().readAllBytes()));
-                    } catch (IOException ex) {
-                        throw new DbWorldException(ex.getMessage());
-                    }
-                    statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.toString());
-                    throw new DbWorldException(e.toString());
-                } finally {
-                    if (reader != null) {
-                        try {
-                            reader.close();
-                        } catch (IOException e) {
-                            log.error(e.getMessage());
-                        }
-                    }
-                }
-            }).start();
-            process.waitFor();
-        } catch (IOException | InterruptedException ex) {
-            statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), ex.getMessage());
-            throw new DbWorldException(ex.getMessage());
-        }
-    }
-
     @Override
     public void deleteTempFiles() {
         File[] listFiles = new File(DbWorldConstants.TEMP_DOWNLOAD_PATH).listFiles();
-        if (listFiles !=null && listFiles.length != 0) {
+        if (listFiles != null && listFiles.length != 0) {
             Arrays.stream(listFiles).forEach(file -> {
                 dbWorldUtils.deleteFile(file.getAbsolutePath());
             });
         }
     }
 
-    private String getYtOutputFileName(MirrorStatus mirrorStatus) throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder(getYtCommand(mirrorStatus.getFileUrl(), PROCESS_FILENAME, mirrorStatus.getId()));
-        Process process = pb.start();
+    @Async
+    @Override
+    public void downloadYtFile(MirrorStatus mirrorStatus) {
+        statusService.addNewStatus(mirrorStatus);
 
-        String fileName = new String(process.getInputStream().readAllBytes()).replace("null\n", "").replace("\n", "");
-        String error = new String(process.getErrorStream().readAllBytes());
-        process.waitFor();
-        int exitValue = process.exitValue();
-        if (exitValue == 2) {
-            throw new DbWorldException(error);
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    getYtCommand(mirrorStatus.getFileUrl(), PROCESS_DOWNLOAD, mirrorStatus.getId()));
+            Process process = processBuilder.start();
+            process.waitFor();
+
+            new Thread(() -> handleProcessOutput(process, mirrorStatus)).start();
+        } catch (IOException | InterruptedException ex) {
+            handleDownloadError(mirrorStatus, ex);
         }
-        log.info("Filename is fetched successfully. Fetched filename: {}", fileName);
+    }
+
+    private void handleProcessOutput(Process process, MirrorStatus mirrorStatus) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            boolean isFileNameFetched = false;
+
+            while ((line = reader.readLine()) != null) {
+                if (statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
+                    terminateProcess(process, mirrorStatus);
+                    return;
+                }
+
+                if (line.contains("downloaded_bytes") && line.contains("status")) {
+                    updateDownloadStatus(line, mirrorStatus);
+
+                    if (!isFileNameFetched && line.contains("\"status\": \"finished\"")) {
+                        updateFileNames(mirrorStatus);
+                        isFileNameFetched = true;
+                    }
+                }
+            }
+
+            if (process.exitValue() == 0 || process.exitValue() == 1) {
+                moveDownloadedFile(mirrorStatus);
+                statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
+            }
+        } catch (IOException | InterruptedException e) {
+            handleDownloadError(mirrorStatus, e);
+        }
+    }
+
+    private void terminateProcess(Process process, MirrorStatus mirrorStatus) throws IOException {
+        process.destroy();
+        Runtime.getRuntime().exec(new String[]{"kill", "-9", String.valueOf(process.pid())});
+        statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
+    }
+
+    private void updateDownloadStatus(String jsonLine, MirrorStatus mirrorStatus) {
+        try {
+            jsonLine = (jsonLine.startsWith("\"") && jsonLine.endsWith("\"") ? jsonLine.substring(1, jsonLine.length() - 1) : jsonLine)
+                    .replace(" ", "");
+            YtProcessStatus ytProcessStatus = new Gson().fromJson(jsonLine, YtProcessStatus.class);
+            if (ytProcessStatus != null && ytProcessStatus.getStatus() != null) {
+//                MirrorStatus.DownloadStatus downloadStatus = new MirrorStatus.DownloadStatus(
+//                        ytProcessStatus.getDownloaded_bytes(),
+//                        ytProcessStatus.getTotal_bytes()
+//                );
+                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), ytProcessStatus.getDownloaded_bytes());
+            }
+        } catch (JsonSyntaxException ex) {
+            log.error("Failed to parse download progress: {}", ex.getMessage());
+        }
+    }
+
+    private void updateFileNames(MirrorStatus mirrorStatus) throws IOException, InterruptedException {
+        String[] tempArray = getYtOutputFileName(mirrorStatus).split("\\.");
+        String fileExtension = "." + tempArray[tempArray.length - 1];
+        mirrorStatus.setFileName(mirrorStatus.getFileName() + fileExtension);
+        mirrorStatus.setFilePath(mirrorStatus.getFilePath() + fileExtension);
+        mirrorStatus.setTempFileName(mirrorStatus.getTempFileName() + fileExtension);
+        mirrorStatus.setTempFilePath(mirrorStatus.getTempFilePath() + fileExtension);
+        statusService.updateStatus(mirrorStatus);
+    }
+
+    private void moveDownloadedFile(MirrorStatus mirrorStatus) throws IOException {
+        FileUtils.moveFile(
+                new File(mirrorStatus.getTempFilePath()),
+                new File(mirrorStatus.getFilePath()),
+                StandardCopyOption.REPLACE_EXISTING
+        );
+    }
+
+    private void handleDownloadError(MirrorStatus mirrorStatus, Exception e) {
+        log.error("Download failed: {}", e.getMessage());
+        statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.getMessage());
+        throw new DbWorldException(e.getMessage());
+    }
+
+    private String getYtOutputFileName(MirrorStatus mirrorStatus) throws IOException, InterruptedException {
+        List<String> command = getYtCommand(mirrorStatus.getFileUrl(), PROCESS_FILENAME, mirrorStatus.getId());
+        Process process = new ProcessBuilder(command).start();
+        String fileName = new String(process.getInputStream().readAllBytes()).trim();
+        process.waitFor();
+
+        if (process.exitValue() == 2) {
+            throw new DbWorldException(new String(process.getErrorStream().readAllBytes()));
+        }
+        log.info("Filename fetched successfully: {}", fileName);
         return fileName;
     }
 
-    private List<String> getYtCommand(String url, String process, String statusId) {
-        String[] cmd = null;
-        if (process.equals(PROCESS_AUDIO)) {
-            MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
-            cmd = new String[]{
-                    DbWorldConstants.YT_DLP,
-                    "-i", "--extract-audio",
-                    "--progress-template",
-                    "\"%(progress)j\"",
-                    url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
-                    url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
-                    "-f",
-                    String.format("%s", mirrorStatus.getYtdlp().getAudioITag().isEmpty() || mirrorStatus.getYtdlp().getAudioITag().equals("0")
-                            ? "bestAudio" : mirrorStatus.getYtdlp().getAudioITag()),
-                    mirrorStatus.getFileUrl(),
-                    "--embed-metadata",
-                    "--embed-thumbnail",
-                    "-o",
-                    String.format("%s.%%(ext)s", mirrorStatus.getTempFilePath())
-            };
-        } else if (process.equals(PROCESS_DOWNLOAD) || process.equals(PROCESS_FILENAME)) {
-            MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
-            cmd = new String[]{
-                    DbWorldConstants.YT_DLP,
-                    "--progress-template",
-                    "\"%(progress)j\"",
-                    url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
-                    url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
-                    "-f",
-                    String.format("%s+%s/best", mirrorStatus.getYtdlp().getVideoITag(),
-                            mirrorStatus.getYtdlp().getAudioITag().isEmpty() || mirrorStatus.getYtdlp().getAudioITag().equals("0")
-                                    ? "bestAudio" : mirrorStatus.getYtdlp().getAudioITag()),
-                    mirrorStatus.getFileUrl(),
-                    process.equals(PROCESS_FILENAME) ? "--get-filename" : "",
-                    "-o",
-                    String.format("%s.%%(ext)s", mirrorStatus.getTempFilePath())
-            };
-        } else if (process.equals(PROCESS_INFO)) {
-            cmd = new String[]{
-                    DbWorldConstants.YT_DLP,
-                    url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.YTDLP_COOKIES_CMD : "",
-                    url.contains(DbWorldConstants.HOTSTAR_COM) ? DbWorldConstants.HS_COOKIES_PATH : "",
-                    url,
-                    "-J"
-            };
-        }
-        List<String> cmdElementList = Arrays.stream(cmd).filter(cmdElement -> !cmdElement.isEmpty()).collect(Collectors.toList());
+    private List<String> getYtCommand(String url, String processType, String statusId) {
+        MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
+        List<String> cmdList = new ArrayList<>(Arrays.asList(
+                DbWorldConstants.YT_DLP,
+                "--progress-template", "\"%(progress)j\""
+        ));
 
-        log.info("Running [{}] from command: \"{}\"", process, String.join(" ", cmdElementList));
-        return cmdElementList;
+        if (url.contains(DbWorldConstants.HOTSTAR_COM)) {
+            cmdList.addAll(Arrays.asList(DbWorldConstants.YTDLP_COOKIES_CMD, DbWorldConstants.HS_COOKIES_PATH));
+        }
+
+        // Detect OS
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+
+
+        switch (processType) {
+            case PROCESS_INFO:
+                cmdList.addAll(Arrays.asList(url, "-J"));
+                break;
+
+            case PROCESS_DOWNLOAD:
+
+                // Properly escape paths for both OS
+                String outputFilePath = mirrorStatus.getTempFilePath() + ".%(ext)s";
+                if (isWindows) {
+                    outputFilePath = "\"" + outputFilePath + "\""; // Double quotes for Windows
+                } else {
+                    outputFilePath = outputFilePath.replace(" ", "\\ "); // Escape spaces for Linux
+                }
+
+                cmdList.add("-f");
+                cmdList.add(getBestVideoAudioFormat(mirrorStatus.getVideoITag(), mirrorStatus.getAudioITag()));
+                cmdList.add("-o");
+                cmdList.add(outputFilePath);
+                cmdList.add(url);
+                break;
+
+            case PROCESS_FILENAME:
+                cmdList.add("-f");
+                cmdList.add(getBestVideoAudioFormat(mirrorStatus.getVideoITag(), mirrorStatus.getAudioITag()));
+                cmdList.add("--get-filename");
+                cmdList.add(url);
+                break;
+        }
+
+        cmdList.removeIf(String::isEmpty);
+        log.info("Running [{}] command: {}", processType, String.join(" ", cmdList));
+        return cmdList;
     }
+
+
+
+    private String getBestAudioFormat(String audioITag) {
+        return (audioITag == null || audioITag.isEmpty() || "0".equals(audioITag)) ? "bestaudio" : audioITag;
+    }
+
+    private String getBestVideoAudioFormat(String videoITag, String audioITag) {
+        return String.format("%s+%s/best",
+                Optional.ofNullable(videoITag).orElse("bestvideo"),
+                getBestAudioFormat(audioITag)
+        );
+    }
+
 
     @Override
     public HttpHeaders getHeaders(String httpUrl) {
@@ -539,10 +549,10 @@ public class UtilsServiceImpl implements UtilsService {
             connection.setRequestMethod("HEAD");
 
             log.info("connection.getResponseMessage(): {}", connection.getResponseMessage());
-            log.info("connection.getResponseCode(): {}",connection.getResponseCode());
-            log.info("connection.getContentLengthLong(): {}",connection.getContentLengthLong());
-            log.info("connection.getErrorStream(): {}",connection.getErrorStream());
-            log.info("connection.getHeaderField(): {}",connection.getHeaderField("Content-Disposition"));
+            log.info("connection.getResponseCode(): {}", connection.getResponseCode());
+            log.info("connection.getContentLengthLong(): {}", connection.getContentLengthLong());
+            log.info("connection.getErrorStream(): {}", connection.getErrorStream());
+            log.info("connection.getHeaderField(): {}", connection.getHeaderField("Content-Disposition"));
 
         } catch (Exception ex) {
             log.error(ex.getMessage());
@@ -562,7 +572,6 @@ public class UtilsServiceImpl implements UtilsService {
             return null;
         }
     }
-
 
 
 }

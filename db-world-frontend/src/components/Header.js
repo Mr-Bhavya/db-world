@@ -17,7 +17,7 @@ function Header() {
     const [loader, setLoader] = useState(false);
     const [login, setLogin] = useState(false);
     const [userRole, SetUserRole] = useState();
-    const {auth} = Authentication.useAuth();
+    const { auth } = Authentication.useAuth();
     const [cardDetails, setCardDetails] = useState([
         {
             index: 1,
@@ -46,7 +46,7 @@ function Header() {
             id: "db-cinema",
             image: "https://img.icons8.com/clouds/500/null/movies-portal.png",
             title: "DB Cinema",
-            route: Constants.DB_MOVIES_ROUTE,
+            route: Constants.DB_CINEMA_BROWSE_ROUTE,
         },
         {
             index: 5,
@@ -173,25 +173,27 @@ function Header() {
     }
 
     return (
-        !loader &&
         <div>
-            <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
-                <div className="container-fluid">
-                    <Link className="navbar-brand" to={Constants.DB_WORLD_HOME_ROUTE}>
-                        <img src={db_world_icon} className="d-inline-block align-top rounded-circle" width="50" height="50" style={{ backgroundColor: "rgb(203, 237, 232)" }} />
-                    </Link>
-                    <Link className="navbar-brand" to={location.pathname + location.search}>
-                        <h5 className="d-inline-block align-top"> {getCurrentCard().title} </h5>
-                    </Link>
-                    <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                        <span className="navbar-toggler-icon"></span>
-                    </button>
-                    {menu}
-                </div>
-            </nav>
+            {
+                loader ? <LoadingSpinner /> : !location.pathname.includes(Constants.DB_CINEMA_ROUTE) ?
+                    <div>
+                        <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
+                            <div className="container-fluid">
+                                <Link className="navbar-brand" to={Constants.DB_WORLD_HOME_ROUTE}>
+                                    <img src={db_world_icon} className="d-inline-block align-top rounded-circle" width="50" height="50" style={{ backgroundColor: "rgb(203, 237, 232)" }} />
+                                </Link>
+                                <Link className="navbar-brand" to={location.pathname + location.search}>
+                                    <h5 className="d-inline-block align-top"> {getCurrentCard().title} </h5>
+                                </Link>
+                                <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                                    <span className="navbar-toggler-icon"></span>
+                                </button>
+                                {menu}
+                            </div>
+                        </nav>
+                    </div> : ""
+            }
         </div>
-        ||
-        <LoadingSpinner />
     )
 }
 
