@@ -1,0 +1,141 @@
+/* DownloadPage.css */
+
+/* Overall dark theme for download page */
+.download-page {
+  background-color: #000;
+  color: #fff;
+  min-height: 100vh;
+  padding-bottom: 30px;
+}
+
+/* Remove extra padding from container */
+.download-page .container,
+.download-page .container-fluid {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+/* Header Movie Details */
+.movie-title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+/* Section Title */
+.section-title {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #e50914;
+  padding-bottom: 0.5rem;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+  .movie-title {
+    font-size: 1.5rem;
+  }
+  .custom-card {
+    margin: 0.5rem 0;
+  }
+  .custom-accordion .accordion-header {
+    font-size: 0.5rem;
+  }
+  .custom-accordion .accordion-body {
+    font-size: 0.75rem;
+  }
+}
+
+/* Cards Container */
+.cards-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+/* Media Card (Dark themed) */
+.media-card {
+  background: #222;
+  border-radius: 8px;
+  overflow: hidden;
+  width: calc(50% - 20px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease;
+}
+.media-card:hover {
+  transform: translateY(-5px);
+}
+
+/* Card Header */
+.media-card-header {
+  background: linear-gradient(135deg, #083541, #1b5566);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  padding: 3px;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.media-card-header h3 {
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  background: transparent;
+}
+
+/* Toggle Button: using Font Awesome icons in the component */
+.toggle-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  outline: none;
+  transition: color 0.3s ease;
+}
+.toggle-btn:hover {
+  color: #ddd;
+}
+
+/* Card Body (Collapsible Content) with scrollbar */
+.media-card-body {
+  max-height: 0;
+  overflow-y: hidden;
+  opacity: 0;
+  padding: 0 15px;
+  transition: max-height 0.5s ease, opacity 0.5s ease, padding 0.5s ease;
+}
+.media-card-body.expanded {
+  opacity: 1;
+  padding: 15px;
+  max-height: 500px; /* Adjust this value as needed */
+  overflow-y: auto;
+}
+.media-card-body p {
+  margin: 5px 0;
+  color: #eee;
+}
+.media-card-body h4 {
+  margin-bottom: 5px;
+  color: #ccc;
+}
+
+/* Season Group (for Series) */
+.season-group {
+  margin-bottom: 30px;
+}
+.season-group h3 {
+  background: transparent;
+  color: #fff;
+  padding: 5px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+/* Responsive: On small screens, card takes full width */
+@media (max-width: 768px) {
+  .media-card {
+    width: 100%;
+  }
+}

@@ -1,154 +1,171 @@
 package com.db.dbworld.services.Impl;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.services.StatusService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Log4j2
 @Service
 public class StatusServiceImpl implements StatusService {
 
+    // Using a thread-safe in-memory map instead of Redis.
+    private final Map<String, MirrorStatus> statusMap = new ConcurrentHashMap<>();
+
+    private static final MetricRegistry metricRegistry = new MetricRegistry();
+    private static final Meter meter = metricRegistry.meter("download-speed");
+
     @Override
     public Map<String, MirrorStatus> getAllStatus() {
-        return cacheMirrorStatus;
+        return statusMap;
     }
 
     @Override
     public MirrorStatus getStatusById(String id) {
-        return cacheMirrorStatus.get(id);
+        return statusMap.get(id);
     }
 
     @Override
     public void addNewStatus(MirrorStatus mirrorStatus) {
-        cacheMirrorStatus.put(mirrorStatus.getId(), mirrorStatus);
+        statusMap.put(mirrorStatus.getId(), mirrorStatus);
     }
 
     @Override
     public void deleteStatus(String id) {
-        cacheMirrorStatus.remove(id);
+        statusMap.remove(id);
     }
 
     @Override
     public void updateStatus(MirrorStatus mirrorStatus) {
-        mirrorStatus.setTimeStamp(String.valueOf(new Date().getTime()));
-        cacheMirrorStatus.replace(mirrorStatus.getId(), mirrorStatus);
+        // Update timestamp using system current time in millis.
+        mirrorStatus.setTimeStamp(String.valueOf(System.currentTimeMillis()));
+        statusMap.put(mirrorStatus.getId(), mirrorStatus);
     }
 
     @Override
     public void updateMirrorStatusWithFileSize(String id, Long fileSize) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setFileSize(fileSize);
-        updateStatus(mirrorStatus);
+        if (mirrorStatus != null) {
+            mirrorStatus.setFileSize(fileSize);
+            updateStatus(mirrorStatus);
+        }
     }
 
     @Override
     public void updateStatusMessage(String id, String message) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setMessage(message);
-        updateStatus(mirrorStatus);
+        if (mirrorStatus != null) {
+            mirrorStatus.setMessage(message);
+            updateStatus(mirrorStatus);
+        }
     }
 
     @Override
-    public void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus downloadStatus) {
+    public void updateMirrorStatusWithDownloadState(String id, long newBytes) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setCurrentStatus("Downloading...");
-        mirrorStatus.setDownloadStatus(downloadStatus);
-        updateStatus(mirrorStatus);
-    }
+        if (mirrorStatus != null) {
+            // Retrieve previous download status; if null, assume 0 bytes downloaded.
+            MirrorStatus.DownloadStatus previousStatus = mirrorStatus.getDownloadStatus();
+            long previousDownloaded = (previousStatus != null) ? previousStatus.getFileDownloaded() : 0;
+            long newDownloaded = previousDownloaded + newBytes;
 
-    @Override
-    public void updateMirrorStatusWithSpeedAndETA(String id) {
-        double downloadSpeed = 0;
-        long eta = 0;
-        long lastTime = 0;
-
-        long currentTime = System.currentTimeMillis();
-        MirrorStatus mirrorStatus = getStatusById(id);
-        if (currentTime - mirrorStatus.getDownloadStatus().getLastTime() >= 1000
-                || mirrorStatus.getDownloadStatus().getFileDownloaded() - mirrorStatus.getDownloadStatus().getLastDownloadedBytes() >= 1024 * 1024) {
-
-            // Calculate download speed in bytes per second
-            long timeElapsed = currentTime - mirrorStatus.getDownloadStatus().getLastTime();
-            if (timeElapsed > 0) {
-                downloadSpeed = (mirrorStatus.getDownloadStatus().getFileDownloaded() - mirrorStatus.getDownloadStatus().getLastDownloadedBytes()) / (timeElapsed / 1000.0); // Bytes per second
+            // Record the new bytes downloaded.
+            if (newBytes > 0) {
+                meter.mark(newBytes);
             }
+            double speed = meter.getOneMinuteRate(); // Bytes per second
+            long totalFileSize = mirrorStatus.getFileSize();
+            long remaining = totalFileSize - newDownloaded;
+            long eta = (speed > 0 && remaining > 0) ? (long) (remaining / speed) : 0; // In seconds
 
-            // Estimate the remaining time (ETA)
-            if (downloadSpeed > 0) {
-                long remainingBytes = mirrorStatus.getDownloadStatus().getFileRemaining();
-                eta = (long) (remainingBytes / downloadSpeed); // Time in seconds
-            }
-            lastTime = currentTime;
+            // Build new download status
+            MirrorStatus.DownloadStatus newStatus = new MirrorStatus.DownloadStatus();
+            newStatus.setFileDownloaded(newDownloaded);
+            newStatus.setSpeed(speed);
+            newStatus.setUpdateTime(System.currentTimeMillis());
+            newStatus.setTotalFileSize(totalFileSize);
+            newStatus.setEta(eta);
+            newStatus.setFileRemaining(remaining);
 
-            MirrorStatus.DownloadStatus downloadStatus = mirrorStatus.getDownloadStatus();
-            downloadStatus.setEta(eta);
-            downloadStatus.setSpeed(Long.parseLong(String.valueOf(downloadSpeed).split("\\.")[0]));
-            downloadStatus.setLastTime(lastTime);
-            downloadStatus.setLastDownloadedBytes(downloadStatus.getFileDownloaded());
-
-            updateMirrorStatusWithDownloadState(mirrorStatus.getId(), downloadStatus);
+            mirrorStatus.setDownloadStatus(newStatus);
+            mirrorStatus.setCurrentStatus("Downloading...");
+            updateStatus(mirrorStatus);
         }
     }
 
     @Override
     public void updateMirrorStatusWithExtracting(String id) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setCurrentStatus("Extracting...");
-        updateStatus(mirrorStatus);
-        log.info("Extracting File: \"{}\" ===> \"{}\"",mirrorStatus.getTempFilePath(), mirrorStatus.getTempExtractedFilePath());
+        if (mirrorStatus != null) {
+            mirrorStatus.setCurrentStatus("Extracting...");
+            updateStatus(mirrorStatus);
+            log.info("Extracting File: \"{}\" ===> \"{}\"",
+                    mirrorStatus.getTempFilePath(), mirrorStatus.getTempExtractedFilePath());
+        }
     }
 
     @Override
     public void updateMirrorStatusWithSuccess(String id) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setCurrentStatus("Completed ✅");
-        mirrorStatus.setSuccess(true);
-        mirrorStatus.setCompleted(true);
-        updateStatus(mirrorStatus);
-        log.info("Task '{}' is  Success. FileName: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        if (mirrorStatus != null) {
+            mirrorStatus.setCurrentStatus("Completed ✅");
+            mirrorStatus.setSuccess(true);
+            mirrorStatus.setCompleted(true);
+            updateStatus(mirrorStatus);
+            log.info("Task '{}' is Success. FileName: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        }
     }
 
     @Override
     public void updateMirrorStatusWithFailed(String id, String message) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setCurrentStatus("Failed ❌");
-        mirrorStatus.setFailed(true);
-        mirrorStatus.setCompleted(true);
-        mirrorStatus.setMessage(message);
-        updateStatus(mirrorStatus);
-        log.info("Task '{}' is failed. Filename: {}, Error Message: {}", mirrorStatus.getId(), mirrorStatus.getFileName(), message);
+        if (mirrorStatus != null) {
+            mirrorStatus.setCurrentStatus("Failed ❌");
+            mirrorStatus.setFailed(true);
+            mirrorStatus.setCompleted(true);
+            mirrorStatus.setMessage(message);
+            updateStatus(mirrorStatus);
+            log.info("Task '{}' failed. Filename: {}, Error Message: {}",
+                    mirrorStatus.getId(), mirrorStatus.getFileName(), message);
+        }
     }
 
     @Override
     public void updateMirrorStatusWithCancelled(String id) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setCurrentStatus("Cancelled 🚮");
-        mirrorStatus.setCancelled(true);
-        mirrorStatus.setCompleted(true);
-        updateStatus(mirrorStatus);
-        log.info("Task '{}' is cancelled. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        if (mirrorStatus != null) {
+            mirrorStatus.setCurrentStatus("Cancelled 🚮");
+            mirrorStatus.setCancelled(true);
+            mirrorStatus.setCompleted(true);
+            updateStatus(mirrorStatus);
+            log.info("Task '{}' is cancelled. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        }
     }
 
     @Override
     public void updateMirrorStatusWithPause(String id) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setCurrentStatus("Paused");
-        mirrorStatus.setPause(true);
-        updateStatus(mirrorStatus);
-        log.info("Task '{}' is paused. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        if (mirrorStatus != null) {
+            mirrorStatus.setCurrentStatus("Paused");
+            mirrorStatus.setPause(true);
+            updateStatus(mirrorStatus);
+            log.info("Task '{}' is paused. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        }
     }
 
     @Override
     public void updateMirrorStatusWithResume(String id) {
         MirrorStatus mirrorStatus = getStatusById(id);
-        mirrorStatus.setCurrentStatus("Resume");
-        mirrorStatus.setPause(false);
-        updateStatus(mirrorStatus);
-        log.info("Task '{}' is resume. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        if (mirrorStatus != null) {
+            mirrorStatus.setCurrentStatus("Resume");
+            mirrorStatus.setPause(false);
+            updateStatus(mirrorStatus);
+            log.info("Task '{}' is resumed. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+        }
     }
-
 }

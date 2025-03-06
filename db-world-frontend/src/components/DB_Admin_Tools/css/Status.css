@@ -1,0 +1,112 @@
+.download-container {
+    max-width: 1200px;
+    margin: auto;
+    /* padding: 0 1rem; */
+  }
+  
+  .download-card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+  }
+  
+  .download-card:hover {
+    transform: translateY(-3px);
+  }
+  
+  .download-header {
+    background: linear-gradient(135deg, #1b4249 0%, #a5bfc4 100%);
+    color: white;
+    border-radius: 15px 15px 0 0 !important;
+    padding: 1.5rem;
+  }
+  
+  .file-name {
+    font-weight: 600;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  
+  .progress-bar {
+    border-radius: 8px;
+    height: 25px;
+    font-weight: 500;
+  }
+  
+  .stats-row {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1rem;
+    margin: 0 -0.5rem;
+  }
+  
+  .stat-item {
+    text-align: center;
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .stat-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stat-value {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #2d3436;
+  }
+  
+  .status-badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+  
+  .btn-link.text-danger {
+    color: #dc3545 !important;
+  }
+  
+  .btn-link.text-danger:hover {
+    color: #c82333 !important;
+  }
+  
+  .btn-link.text-warning {
+    color: #ffc107 !important;
+  }
+  
+  .btn-link.text-warning:hover {
+    color: #e0a800 !important;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .file-name {
+      font-size: 1rem;
+    }
+    
+    .stat-item {
+      margin-bottom: 1rem;
+    }
+    
+    .stat-value {
+      font-size: 1rem;
+    }
+    
+    .download-header {
+      padding: 1rem;
+    }
+  
+    .status-badge {
+      margin-top: 0.5rem;
+    }
+  
+    .btn-link {
+      margin-top: 0.5rem;
+    }
+  }

@@ -1,53 +1,81 @@
 import React, { useEffect, useRef, useState } from 'react';
-import Constants from '../Constants';
+import { Spinner } from 'react-bootstrap';
 
 const ApplicationLogs = () => {
-
   const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
   const [logs, setLogs] = useState([]);
-  const [loder, setLoder] = useState(true);
+  const [loader, setLoader] = useState(true);
   const ws = useRef(null);
-  var tempLogs;
 
   useEffect(() => {
-      ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/logs`)
-      ws.current.onopen = () => {
-          console.log("websocket Connection open for application logs")
-          ws.current.send("");
-      };
-      ws.current.onmessage = (event) => {
-          tempLogs = JSON.parse(event.data);
-          setLogs(tempLogs.data);
-          setLoder(false);
-      }
-      ws.current.onclose = () => {
-          console.log("websocket connection close for application logs")
-      }
+    ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/logs`);
 
-      return () => {
-          if (ws.current) {
-              ws.current.close();
-          }
-      };
+    ws.current.onopen = () => {
+      console.log("WebSocket Connection open for application logs");
+      ws.current.send("");
+    };
+
+    ws.current.onmessage = (event) => {
+      const tempLogs = JSON.parse(event.data);
+      setLogs(tempLogs.data);
+      setLoader(false);
+    };
+
+    ws.current.onclose = () => {
+      console.log("WebSocket connection closed for application logs");
+    };
+
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+      }
+    };
   }, []);
 
-  return (
-    <div>
-      {
-        loder && Constants.LOADER
-        ||
-        <div>
-          <div className='border border-dark rounded m-1' style={{ height: "80vh", overflowX: "auto" }}>
-            <p className='m-1' style={{ display: "flex", flexWrap: "nowrap", height: "100%", width: "150%", whiteSpace: "pre" }}
-            >
-              {logs.length && logs.length > 0 ? logs.reverse().map(element => element).join("\n") : "No log found."}
-            </p>
-          </div>
-        </div>
-      }
-    </div>
-  )
+  // Function to determine log color
+  const getLogStyle = (log) => {
+    if (log.includes("ERROR")) return { color: "red", fontWeight: "bold" };
+    if (log.includes("WARN")) return { color: "orange", fontWeight: "bold" };
+    if (log.includes("INFO")) return { color: "blue", fontWeight: "bold" };
+    return { color: "black" };
+  };
 
-}
+  // Function to format logs for better readability
+  const formatLog = (log) => {
+    const dateMatch = log.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/); // Extracts ISO date if present
+    const dateStr = dateMatch ? new Date(dateMatch[0]).toLocaleString() : "";
+    const message = log.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, "").trim();
+
+    return (
+      <div key={log} style={getLogStyle(log)}>
+        {dateStr && <span style={{ color: "gray", fontWeight: "bold" }}>[{dateStr}] </span>}
+        {message}
+      </div>
+    );
+  };
+
+  return (
+    <div className="container-fluid">
+      {/* Loader */}
+      {loader && (
+        <div className="text-center my-4">
+          <Spinner animation="border" variant="danger" />
+        </div>
+      )}
+
+      {/* Logs Display */}
+      {!loader && (
+        <div 
+          className="border border-light rounded-3 bg-light p-2"
+          style={{ height: "80vh", overflowY: "auto", maxWidth: "100%", wordBreak: "break-word" }}
+        >
+          <pre className="m-0 p-2" style={{ whiteSpace: "pre-wrap", fontFamily: "'Courier New', monospace", fontSize: "14px", fontWeight:"bold" }}>
+            {logs.length > 0 ? logs.reverse().map(formatLog) : "No log found."}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default ApplicationLogs;

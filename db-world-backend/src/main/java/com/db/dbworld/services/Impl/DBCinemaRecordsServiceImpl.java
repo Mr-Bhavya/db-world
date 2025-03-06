@@ -1,10 +1,12 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.dbcinema.DBCinemaRecordsRepository;
+import com.db.dbworld.dao.dbcinema.stream.MediaFileInfoRepository;
 import com.db.dbworld.dao.dbcinema.tmdb.GenresRepository;
 import com.db.dbworld.dao.dbcinema.tmdb.TmdbDataRepository;
 import com.db.dbworld.dao.dbcinema.user.UserRecordDataRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
+import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.*;
 import com.db.dbworld.entities.dbcinema.tmdb.credits.CharacterEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.credits.DepartmentEntity;
@@ -16,6 +18,8 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.DuplicateResourceException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.exceptions.TmdbApiException;
+import com.db.dbworld.payloads.CustomPageImpl;
+import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
@@ -24,6 +28,7 @@ import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
 import com.db.dbworld.services.UserService;
+import com.db.dbworld.utils.DBSpecifications;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.db.dbworld.utils.PojoConverter;
@@ -32,13 +37,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.TypedQuery;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -89,6 +95,9 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Autowired
     private PojoConverter pojoConverter;
+
+    @Autowired
+    private MediaFileInfoRepository mediaFileInfoRepository;
 
     private static final String SEARCH_RECORD_BY_KEYWORD = "SELECT dcr FROM DBCinemaRecordsEntity dcr WHERE dcr.name LIKE (:keyword) OR dcr.tmdb.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC";
     private static final String ALL_LANGUAGES = "all";
@@ -172,60 +181,38 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public List<DBCinemaRecordsDto> getRecords() {
-        return List.of();
+    public List<Map<String, Object>> getRecords() {
+        return dbCinemaRecordsRepository.findRecords();
     }
 
     @Override
-    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
-    public List<DBCinemaRecordsDto> fetchDbCinemaRecords(String recordType, Pageable pageable, String languages, String genres) {
-        Long userId = userService.getUserIdFromToken();
-        Integer[] genresArray = null;
-        if (genres != null) {
-            List<Integer> list = Arrays.stream(genres.split(",")).map(Integer::parseInt).toList();
-            genresArray = new Integer[list.size()];
-            genresArray = list.toArray(genresArray);
-        }
-        if (languages != null && genresArray != null) {
-            return dbCinemaRecordsRepository.findRecords(userId, recordType, genresArray, languages.split(","), pageable)
-                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
-                    .collect(Collectors.toList());
-        } else if (languages == null && genresArray != null) {
-            return dbCinemaRecordsRepository.findRecords(userId, recordType, genresArray, pageable)
-                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
-                    .collect(Collectors.toList());
-        } else if (languages != null) {
-            return dbCinemaRecordsRepository.findRecords(userId, recordType, languages.split(","), pageable)
-                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
-                    .collect(Collectors.toList());
-        } else {
-            return dbCinemaRecordsRepository.findRecords(userId, recordType, pageable)
-                    .stream().map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity))
-                    .collect(Collectors.toList());
-        }
+    public List<DBCinemaRecordsDto> fetchCoverRecords(int pageNumber, int pageSize) {
+        List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.getRandom(PageRequest.of(pageNumber, pageSize));
+        return mediaFileInfoEntities.stream().map(
+                mediaFileInfoEntity -> pojoConverter.dbCinemaRecordsEntityToDto(mediaFileInfoEntity.getDbCinemaRecord())
+        ).toList();
     }
 
+    /**
+     * Retrieves records based on dynamic filters. If a filter parameter (languages or genres) is null or empty,
+     * that condition is omitted.
+     *
+     * @param recordSearchCriteria recordSearchCriteria
+     */
     @Override
     @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
-    public Integer fetchCountOfDbCinemaRecords(String recordType, String languages, String genres) {
-        Integer[] genresArray = null;
-        Integer totalElement = null;
-        if (genres != null) {
-            List<Integer> list = Arrays.stream(genres.split(",")).map(Integer::parseInt).toList();
-            genresArray = new Integer[list.size()];
-            genresArray = list.toArray(genresArray);
-        }
-        if (languages != null && genresArray != null) {
-            totalElement = dbCinemaRecordsRepository.countRecords( recordType, genresArray, languages.split(",") )
-                    .orElse(0L).intValue();
-        } else if (languages == null && genresArray != null) {
-            totalElement = dbCinemaRecordsRepository.countRecords(recordType, genresArray).orElse(0L).intValue();
-        } else if (languages != null) {
-            totalElement = dbCinemaRecordsRepository.countRecords(recordType, languages.split(",")).orElse(0L).intValue();
-        } else {
-            totalElement = dbCinemaRecordsRepository.countRecords(recordType).orElse(0L).intValue();
-        }
-        return totalElement;
+    public CustomPageImpl<DBCinemaRecordsDto> findRecords(RecordSearchCriteria recordSearchCriteria) {
+
+        Pageable pageable = PageRequest.of(recordSearchCriteria.getPageNumber(), recordSearchCriteria.getPageSize());
+
+        Page<DBCinemaRecordsDto> dbCinemaRecordsDtoPage = dbCinemaRecordsRepository.findAll(DBSpecifications.findRecord(recordSearchCriteria), pageable)
+                .map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity));
+
+        return new CustomPageImpl<>(
+                dbCinemaRecordsDtoPage.getNumber(), dbCinemaRecordsDtoPage.getSize(), dbCinemaRecordsDtoPage.getTotalElements(),
+                dbCinemaRecordsDtoPage.isEmpty(), dbCinemaRecordsDtoPage.isFirst(), dbCinemaRecordsDtoPage.isLast(),
+                dbCinemaRecordsDtoPage.getContent()
+        );
     }
 
 
@@ -254,14 +241,21 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public List<DBCinemaRecordsDto> searchRecordByKeywordWithUserData(String keyword) {
+    public List<DBCinemaRecordsDto> searchRecordByKeywordWithPagination(String keyword, Pageable pageable) {
         try {
-            TypedQuery<DBCinemaRecordsEntity> query = entityManager.createQuery(SEARCH_RECORD_BY_KEYWORD, DBCinemaRecordsEntity.class);
-            query.setParameter("keyword", "%" + keyword + "%");
-            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = query.getResultList();
-            return dbCinemaRecordsEntities.stream().map(
+            List<DBCinemaRecordsEntity> dbCinemaRecordsEntityList = dbCinemaRecordsRepository.findRecords("%" + keyword + "%", pageable);
+            return dbCinemaRecordsEntityList.stream().map(
                     dbCinemaRecordsEntity -> this.pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity))
             ).toList();
+        } catch (Exception ex) {
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    public Integer countRecordsByKeyword(String keyword) {
+        try {
+            return dbCinemaRecordsRepository.countRecordsByKeyword("%" + keyword + "%").orElse(0L).intValue();
         } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
         }
@@ -315,16 +309,17 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public List<DBCinemaRecordsDto> getWatchListCinemaRecords() {
+    public CustomPageImpl<DBCinemaRecordsDto> getWatchListCinemaRecords(int pageNumber, int pageSize) {
         try {
-            List<DBCinemaRecordsEntity> dbCinemaRecordsEntities = this.dbCinemaRecordsRepository
-                    .findUserWatchListCinemaRecords(this.userService.getUserFromToken().getUserId());
-            if (dbCinemaRecordsEntities == null) {
-                dbCinemaRecordsEntities = new ArrayList<>();
-            }
-            return dbCinemaRecordsEntities.stream().map(
-                    dbCinemaRecordsEntity -> this.pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity))
-            ).toList();
+            Page<DBCinemaRecordsDto> dbCinemaRecordsDtoPage = userRecordDataRepository
+                    .findAll(DBSpecifications.findUserWatchListedRecords(this.userService.getUserFromToken().getUserId()), PageRequest.of(pageNumber, pageSize))
+                    .map(UserRecordDataEntity::getDbCinemaRecord).map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity));
+
+            return new CustomPageImpl<>(
+                    dbCinemaRecordsDtoPage.getNumber(), dbCinemaRecordsDtoPage.getSize(), dbCinemaRecordsDtoPage.getTotalElements(),
+                    dbCinemaRecordsDtoPage.isEmpty(), dbCinemaRecordsDtoPage.isFirst(), dbCinemaRecordsDtoPage.isLast(),
+                    dbCinemaRecordsDtoPage.getContent()
+            );
         } catch (AuthenticationException ex) {
             throw new AuthenticationServiceException("Token is not valid. Please do login again.");
         } catch (Exception ex) {

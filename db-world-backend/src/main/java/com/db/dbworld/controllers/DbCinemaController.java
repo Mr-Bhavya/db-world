@@ -1,7 +1,8 @@
 package com.db.dbworld.controllers;
 
 import com.db.dbworld.payloads.ApiResponse;
-import com.db.dbworld.payloads.ResponsePayloads;
+import com.db.dbworld.payloads.CustomPageImpl;
+import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
@@ -12,15 +13,12 @@ import jakarta.validation.constraints.NotEmpty;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Log4j2
 @CrossOrigin
@@ -35,42 +33,52 @@ public class DbCinemaController {
     @Autowired
     private DbWorldUtils dbWorldUtils;
 
+    @GetMapping("/record")
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    public ApiResponse<CustomPageImpl<DBCinemaRecordsDto>> getRecordsByPagination(
+            @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
+            @RequestParam(value = "size", required = false, defaultValue = "10") int pageSize,
+            @RequestParam(required = false, defaultValue = "") String languages,
+            @RequestParam(required = false, defaultValue = "") String genres,
+            @RequestParam(value = "q", required = false) String query
+    ) {
+        CustomPageImpl<DBCinemaRecordsDto> pageResult = dbCinemaRecordsService.findRecords(
+                new RecordSearchCriteria(null, genres, languages, query, true, pageNumber, pageSize)
+        );
+        pageResult.setRecords(pageResult.getRecords().stream()
+                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
+        return new ApiResponse<>(HttpStatus.OK, true, pageResult);
+    }
+
     @GetMapping("/record/type/{recordType}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<ResponsePayloads.PaginationRecords> getRecordsByPagination(
+    public ApiResponse<CustomPageImpl<DBCinemaRecordsDto>> getRecordsByTypeAndPagination(
             @Valid @NotEmpty @PathVariable("recordType") String recordType,
             @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
-            @RequestParam(value = "size", required = false, defaultValue = "12") int pageSize,
+            @RequestParam(value = "size", required = false, defaultValue = "10") int pageSize,
             @RequestParam(required = false, defaultValue = "") String languages,
             @RequestParam(required = false, defaultValue = "") String genres
     ) {
         if (!recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) && !recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
             return new ApiResponse<>(HttpStatus.BAD_REQUEST, false, "record type must be movie or series.");
         }
-
-        Pageable pageable = PageRequest.of(pageNumber, pageSize);
-
-        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsService.fetchDbCinemaRecords(recordType, pageable,
-                languages.isBlank() ? null : languages, genres.isBlank() ? null : genres);
-
-        dbCinemaRecordsDtos = dbCinemaRecordsDtos.stream().map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto))
-                .collect(Collectors.toList());
-
-        PageImpl<DBCinemaRecordsDto> page = new PageImpl<>(dbCinemaRecordsDtos, pageable,
-                dbCinemaRecordsService.fetchCountOfDbCinemaRecords(recordType, languages.isBlank() ? null : languages, genres.isBlank() ? null : genres));
-
-        ResponsePayloads.PaginationRecords paginationRecords = new ResponsePayloads.PaginationRecords(
-                page.getNumber(), page.getSize(), page.getTotalElements(), page.isEmpty(),
-                page.isFirst(), page.isLast(), page.getContent()
+        CustomPageImpl<DBCinemaRecordsDto> pageResult = dbCinemaRecordsService.findRecords(
+                new RecordSearchCriteria(recordType, genres, languages, null, true, pageNumber, pageSize)
         );
-        return new ApiResponse<>(HttpStatus.OK, true, paginationRecords);
+        pageResult.setRecords(pageResult.getRecords().stream()
+                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
+        return new ApiResponse<>(HttpStatus.OK, true, pageResult);
     }
 
-    @GetMapping("/record/search")
+    @GetMapping("/record/cover")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<List<DBCinemaRecordsDto>> searchRecordByKeyword(@RequestParam(value = "q") String query) {
-        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsService.searchRecordByKeywordWithUserData(query);
-        return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecordsDtos);
+    public ApiResponse<HashMap<Object, Object>> fetchCoverRecords(
+            @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
+            @RequestParam(value = "size", required = false, defaultValue = "5") int pageSize
+    ) {
+        HashMap<Object, Object> map = new HashMap<>();
+        map.put("records", dbCinemaRecordsService.fetchCoverRecords(pageNumber, pageSize));
+        return new ApiResponse<>(HttpStatus.OK, true, map);
     }
 
     @GetMapping("/record/{recordId}")
@@ -124,9 +132,14 @@ public class DbCinemaController {
 
     @GetMapping("/watchlist")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<List<DBCinemaRecordsDto>> getWatchListCinemaRecords() {
-        List<DBCinemaRecordsDto> dbCinemaRecordsDtos = dbCinemaRecordsService.getWatchListCinemaRecords();
-        return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecordsDtos);
+    public ApiResponse<CustomPageImpl<DBCinemaRecordsDto>> getWatchListCinemaRecords(
+            @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
+            @RequestParam(value = "size", required = false, defaultValue = "50") int pageSize
+    ) {
+        CustomPageImpl<DBCinemaRecordsDto> pageResult = dbCinemaRecordsService.getWatchListCinemaRecords(pageNumber, pageSize);
+        pageResult.setRecords(pageResult.getRecords().stream()
+                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
+        return new ApiResponse<>(HttpStatus.OK, true, pageResult);
     }
 
     @GetMapping("/genres")

@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.file.FileReadingMessageSource;
 import org.springframework.integration.file.dsl.Files;
@@ -89,19 +90,27 @@ public class BeanConfig {
     @Bean
     public Gson gson() {
         return new GsonBuilder().setExclusionStrategies(new ExclusionStrategy() {
-            @Override
-            public boolean shouldSkipField(FieldAttributes fieldAttributes) {
-                return fieldAttributes.getAnnotation(ManyToOne.class) != null ||
-                        fieldAttributes.getAnnotation(OneToOne.class) != null ||
-                        fieldAttributes.getAnnotation(ManyToMany.class) != null ||
-                        fieldAttributes.getAnnotation(OneToMany.class) != null;
-            }
+                    @Override
+                    public boolean shouldSkipField(FieldAttributes fieldAttributes) {
+                        return fieldAttributes.getAnnotation(ManyToOne.class) != null ||
+                                fieldAttributes.getAnnotation(OneToOne.class) != null ||
+                                fieldAttributes.getAnnotation(ManyToMany.class) != null ||
+                                fieldAttributes.getAnnotation(OneToMany.class) != null;
+                    }
 
-            @Override
-            public boolean shouldSkipClass(Class<?> aClass) {
-                return false;
-            }
-        }).serializeNulls().create();
+                    @Override
+                    public boolean shouldSkipClass(Class<?> aClass) {
+                        return false;
+                    }
+                })
+                .serializeNulls().setPrettyPrinting().create();
+    }
+
+    @Bean
+    public GsonHttpMessageConverter gsonHttpMessageConverter(Gson gson) {
+        GsonHttpMessageConverter converter = new GsonHttpMessageConverter();
+        converter.setGson(gson);
+        return converter;
     }
 
     @Bean

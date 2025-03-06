@@ -45,6 +45,8 @@ build/
 /db-world-frontend/node_modules/
 /db-world-frontend/build/
 /db-world-frontend/node/
+/db-world-frontend/delete/
+/db-world-frontend/android/
 /download/
 /status/
 /db-world-backend/src/main/resources/public/

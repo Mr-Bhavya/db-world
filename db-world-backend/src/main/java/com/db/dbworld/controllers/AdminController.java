@@ -87,6 +87,13 @@ public class AdminController {
         return new ApiResponse<>(HttpStatus.CREATED, true, newDBDbCinemaRecordsDto);
     }
 
+    @GetMapping("/cinema/record")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<List<Map<String, Object>>> getDbCinemaRecords() {
+        List<Map<String, Object>> dbCinemaRecords = dbCinemaRecordsService.getRecords();
+        return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecords);
+    }
+
     @PostMapping("/cinema/records")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> addDBCinemaRecord(@Valid @RequestBody List<RequestPayloads.AddRecord> records) {
@@ -174,12 +181,6 @@ public class AdminController {
     public ApiResponse<List<MediaFileInfo>> deleteMediaInfoByFileId(@PathVariable(value = "fileId") String fileId){
         mediaFileInfoService.deleteInfoById(fileId);
         return new ApiResponse<>(HttpStatus.OK, true, "File info deleted successfully.");
-    }
-
-    @GetMapping(value = "/status/download")
-//    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<Map<String, DownloadTrackerServiceImpl.DownloadStatus>> getDownloadFileStatus(){
-        return new ApiResponse<>(HttpStatus.OK, true, downloadTrackerService.getAllDownloadStatus());
     }
 
 }

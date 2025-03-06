@@ -62,6 +62,7 @@ public class DbWorldConstants {
             "/swagger-ui/**",
             "/api/utils/status",
             "/api/utils/logs",
+            "/api/utils/download-tracker",
             "/api/stream/watch/**",
             "/api/stream/download/**",
             "/*", "/db-world/**", "/static/**"

@@ -1,207 +1,240 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast, } from 'react-toastify';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import Constants from '../Constants';
 import { cancelledMirror, deleteMirror } from '../ApiServices';
+import "./css/Status.css";
+import { Badge, Button, Card, Col, OverlayTrigger, ProgressBar, Row, Tooltip } from 'react-bootstrap';
+import CommonServices from '../CommonServices';
 
 function Status() {
+  const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
+  const [status, setStatus] = useState([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const ws = useRef(null);
 
-    const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
-    const [status, setStatus] = useState([])
-    const navigate = useNavigate();
-    const ws = useRef(null);
-    var tempStatus;
+  useEffect(() => {
+    ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/status`);
+    // ws.current = new WebSocket(`ws://localhost:9000/api/utils/status`);
+    ws.current.onopen = () => {
+      console.log("WebSocket connection open for status");
+      ws.current.send("");
+    };
+    ws.current.onmessage = (event) => {
+      setStatus(JSON.parse(event.data));
+    };
+    ws.current.onclose = () => {
+      console.log("WebSocket connection closed for status");
+    };
 
-    useEffect(() => {
-        ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/status`)
-        ws.current.onopen = () => {
-            console.log("websocket Connection open for status")
-            ws.current.send("");
-        };
-        ws.current.onmessage = (event) => {
-            tempStatus = JSON.parse(event.data);
-            setStatus(tempStatus);
-        }
-        ws.current.onclose = () => {
-            console.log("websocket connection close for status")
-        }
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+      }
+    };
+  }, [WEBSOCKET_BASEURL]);
 
-        return () => {
-            if (ws.current) {
-                ws.current.close();
-            }
-        };
-    }, [])
-
-
-    const deleteStatus = async (id) => {
-
-        try {
-            const deleteRes = await deleteMirror(id);
-            if (deleteRes.httpStatusCode === 200) {
-                toast.success(deleteRes.message);
-                // getStatus()
-            } else if (deleteRes.httpStatusCode === 401) {
-                toast.error(deleteRes.message + Constants.RE_LOGIN, {
-                    onClose: async () => {
-                        navigate(await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + "#active=status"));
-                    },
-                    autoClose: 1000
-                })
-            } else {
-                toast.error(deleteRes.message);
-            }
-        } catch (err) {
-            console.log(err);
-            toast.error("Failed.");
-        }
-
+  const deleteStatus = async (id) => {
+    try {
+      const deleteRes = await deleteMirror(id);
+      if (deleteRes.httpStatusCode === 200) {
+        toast.success(deleteRes.message);
+      } else if (deleteRes.httpStatusCode === 401) {
+        toast.error(deleteRes.message + Constants.RE_LOGIN, {
+          onClose: async () => {
+            navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+          },
+          autoClose: 1000,
+        });
+      } else {
+        toast.error(deleteRes.message);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed.");
     }
+  };
 
-    const cancelleTask = async (statusId) => {
-
-        const cancelleRes = await cancelledMirror(statusId);
-        if (cancelleRes.httpStatusCode === 200) {
-            toast.success(cancelleRes.message);
-            // getStatus();
-        } else if (cancelleRes.httpStatusCode === 401) {
-            toast.error(cancelleRes.message + Constants.RE_LOGIN, {
-                onClose: async () => {
-                    navigate(await Constants.REDIRECT(Constants.DB_ADMIN_TOOLS_ROUTE + "#active=status"));
-                },
-                autoClose: 1000
-            })
-        }
-        else {
-            toast.error(cancelleRes.message);
-        }
-
+  const cancelleTask = async (statusId) => {
+    const cancelleRes = await cancelledMirror(statusId);
+    if (cancelleRes.httpStatusCode === 200) {
+      toast.success(cancelleRes.message);
+    } else if (cancelleRes.httpStatusCode === 401) {
+      toast.error(cancelleRes.message + Constants.RE_LOGIN, {
+        onClose: async () => {
+          navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+        },
+        autoClose: 1000,
+      });
+    } else {
+      toast.error(cancelleRes.message);
     }
+  };
 
-    const bytesToReadbleFormat = (bytes) => {
-
-        var megabytes = bytes * 0.00000095367432;
-        var kilobytes = bytes * 0.00097656;
-        var gigabytes = megabytes * 0.00097656;
-
-        if (bytes < 1024) {
-            return `${bytes} bytes`
-        }
-        else if (kilobytes > 1 && kilobytes < 1024) {
-            return `${parseFloat(kilobytes).toFixed(2)} KB`
-        }
-        else if (megabytes < 1024) {
-            return `${parseFloat(megabytes).toFixed(2)} MB`
-        }
-        else if (megabytes > 1024) {
-            return `${parseFloat(gigabytes).toFixed(2)} GB`
-        }
+  // New helper: Open the source URL in a new tab
+  const openSourceUrl = (url) => {
+    if (url) {
+      window.open(url, "_blank");
+    } else {
+      toast.error("Source URL not available");
     }
-
-    function getPercentage(actual, total) {
-        let percentage = parseFloat((actual * 100) / total).toFixed(2)
-        return percentage;
-    }
+  };
 
 
-    return (
-        <div className="card bg-transparent">
-
-            {
-                <div>
-
-                    {/* <div className="row mx-3 my-3">
-                        <div className="col-6 form-check form-switch d-flex">
-                            <input className="form-check-input" type="checkbox" id="flexSwitchCheckDefault"
-                                onClick={() => setLiveUpdate(!liveUpdate)}
-                            />
-                            <label className="form-check-label mx-3" htmlFor="flexSwitchCheckDefault">Live Update</label>
-                        </div>
-                        <div className="col-6 justify-content-end d-flex">
-                            <button className='btn btn-primary'
-                                onClick={() => getStatus()}
-                            >Refresh Status</button>
-                        </div>
-                    </div> */}
-
-                    {
-                        status && status.length && status.length > 0 ?
-                            status.map((stats, key) => {
-                                return (
-                                    <div className="card mx-3 my-3">
-                                        <span className="btn btn-danger position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                                            onClick={() => deleteStatus(stats.id)}
-                                        >
-                                            🗑
-                                            <span className="visually-hidden">Delete</span>
-                                        </span>
-                                        <div className="card-header">
-                                            <b>{stats.fileName}</b>
-                                        </div>
-                                        <div className="card-body">
-                                            <blockquote className="blockquote mb-0">
-
-                                                <div>
-                                                    <p><b>Status : </b>{stats?.currentStatus}</p>
-
-                                                    {
-                                                        !stats?.completed && stats?.currentStatus.toLocaleLowerCase().includes("download") ?
-                                                        <>
-                                                            <p>
-                                                                <div className="row">
-                                                                    <div className="col-4 col-md-2">
-                                                                        <b>Process : </b>
-                                                                    </div>
-                                                                    <div className="col-8 col-md-4">
-                                                                        <div className="progress" style={{ width: "70%" }}>
-                                                                            <div className="progress-bar progress-bar-striped progress-bar-animated bg-success text-dark" role="progressbar"
-                                                                                aria-valuemin="0"
-                                                                                aria-valuenow={getPercentage(stats?.downloadStatus?.fileDownloaded, stats?.downloadStatus?.totalFileSize)}
-                                                                                aria-valuemax="100"
-                                                                                style={{ width: `${getPercentage(stats?.downloadStatus?.fileDownloaded, stats?.downloadStatus?.totalFileSize)}%` }}
-                                                                            >
-                                                                                <b>{getPercentage(stats?.downloadStatus?.fileDownloaded, stats?.downloadStatus?.totalFileSize)} % </b>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </p>
-                                                            <p><b>Downloaded Size : </b>{bytesToReadbleFormat(stats?.downloadStatus?.fileDownloaded)}</p>
-                                                            <p><b>Remaining Size : </b>{bytesToReadbleFormat(stats?.downloadStatus?.fileRemaining)}</p>
-                                                            {/* {stats.downloadStatus?.speed && <p><b>Current Speed : </b>{bytesToReadbleFormat(stats.downloadStatus?.speed)}/s</p>} */}
-                                                            {/* {stats.downloadStatus?.eta && <p><b>ETA : </b>{stats.downloadStatus?.eta}</p>} */}
-                                                        </> : ""
-                                                    }
-                                                    {stats.message && stats.message != null ? <p style={{whiteSpace: "pre-wrap"}}><b>Message : </b>{stats?.message}</p> : ""}
-                                                    {stats.downloadStatus && stats?.downloadStatus?.totalFileSize ? <p><b>Total Size : </b>{bytesToReadbleFormat(stats?.downloadStatus?.totalFileSize)}</p> : ""}
-                                                    {stats.fileUrl && <p><b>Source Link : </b><a href={stats?.fileUrl}>link</a></p>}
-                                                </div>
-                                            </blockquote>
-                                        </div>
-                                        {
-                                            stats?.cancelled || stats?.completed || <div className="card-footer">
-                                                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                                    <button class="btn btn-warning me-md-2" type="button"
-                                                        onClick={() => cancelleTask(stats.id)}
-                                                    >Cancelle Task 🚮</button>
-                                                    {/* <button class="btn btn-primary" type="button">Button</button> */}
-                                                </div>
-                                            </div>
-                                        }
-
-                                    </div>
-                                )
-                            })
-
-                            : <h4 className='text-warning text-center my-5'>Currently no task is running.</h4>
-
-                    }
-                </div>
-            }
-            {Constants.TOAST_CONTAINER}
+  return (
+    <div className="download-container">
+      {(!status || status.length === 0) ? (
+        <div className="my-5 alert alert-warning text-center">
+          No Downloads Found
         </div>
-    )
+      ) : (
+        status.map((download) => {
+          const progress =
+            (download?.downloadStatus?.fileDownloaded / download?.downloadStatus?.totalFileSize) * 100;
+          const speed = CommonServices.bytesToReadbleFormat(download?.downloadStatus?.speed).value +
+            CommonServices.bytesToReadbleFormat(download?.downloadStatus?.speed).suffix + '/s';
+          const downloaded = CommonServices.bytesToReadbleFormat(download?.downloadStatus?.fileDownloaded).value +
+            " " + CommonServices.bytesToReadbleFormat(download?.downloadStatus?.fileDownloaded).suffix;
+          const totalSize = CommonServices.bytesToReadbleFormat(download?.downloadStatus?.totalFileSize).value +
+            " " + CommonServices.bytesToReadbleFormat(download?.downloadStatus?.totalFileSize).suffix;
+          const eta = CommonServices.formatETA(download?.downloadStatus?.eta);
 
+          console.log(eta, download?.downloadStatus?.eta)
+        
+          return (
+            <Card key={download?.id} className="download-card mb-4">
+              <Card.Header className="download-header">
+                <Row className="align-items-center">
+                  <Col xs={12} md={8}>
+                    <OverlayTrigger
+                      placement="top"
+                      overlay={<Tooltip>{download?.fileName}</Tooltip>}
+                    >
+                      <h5 className="file-name">{download?.fileName}</h5>
+                    </OverlayTrigger>
+                    {/* New: Button to open/copy source URL */}
+                    {download?.fileUrl && (
+                      <Button
+                        variant="link"
+                        className="text-info ms-2"
+                        onClick={() => openSourceUrl(download.fileUrl)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                          className="bi bi-link-45deg" viewBox="0 0 16 16">
+                          <path d="M4.715 6.542a3 3 0 0 1 4.243-4.243l1.06 1.06a.5.5 0 0 1-.708.708l-1.06-1.06a2 2 0 1 0-2.828 2.828l1.06 1.06a.5.5 0 1 1-.708.708l-1.06-1.06z"/>
+                          <path d="M6.542 4.715a3 3 0 0 1 4.243 4.243l-1.06 1.06a.5.5 0 1 1-.708-.708l1.06-1.06a2 2 0 1 0-2.828-2.828l-1.06 1.06a.5.5 0 0 1-.708-.708l1.06-1.06z"/>
+                        </svg>
+                      </Button>
+                    )}
+                  </Col>
+                  <Col xs={12} md={4} className="text-md-end mt-2 mt-md-0">
+                    <Badge
+                      className='status-badge'
+                      pill
+                      bg={
+                        download?.completed ? 'success' :
+                          download?.failed ? 'danger' :
+                            download?.cancelled ? 'secondary' :
+                              download?.pause ? 'warning' : 'primary'
+                      }
+                    >
+                      {download?.currentStatus}
+                    </Badge>
+                    {/* Show DELETE button on complete or failed */}
+                    {(download?.completed || download?.failed) && (
+                      <Button
+                        variant="link"
+                        className="text-danger ms-2"
+                        onClick={() => deleteStatus(download?.id)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                          className="bi bi-trash" viewBox="0 0 16 16">
+                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z" />
+                          <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+                        </svg>
+                      </Button>
+                    )}
+                    {/* When download is active (not completed, failed, or cancelled), show PAUSE and CANCEL buttons */}
+                    {(!download?.completed && !download?.failed && !download?.cancelled) && (
+                      <>
+                        <Button
+                          variant="link"
+                          className="text-warning ms-2"
+                          onClick={() => console.log("Pause task", download?.id)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                            className="bi bi-pause-fill" viewBox="0 0 16 16">
+                            <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5m5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5" />
+                          </svg>
+                        </Button>
+                        <Button
+                          variant="link"
+                          className="text-danger ms-2"
+                          onClick={() => cancelleTask(download?.id)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                            className="bi bi-x-circle-fill" viewBox="0 0 16 16">
+                            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z" />
+                          </svg>
+                        </Button>
+                      </>
+                    )}
+                  </Col>
+                </Row>
+              </Card.Header>
+
+              <Card.Body>
+                <ProgressBar
+                  now={progress}
+                  label={`${progress.toFixed(1)}%`}
+                  variant={
+                    download?.completed ? 'success' :
+                      download?.failed ? 'danger' :
+                        download?.cancelled ? 'secondary' :
+                          download?.pause ? 'warning' : 'primary'
+                  }
+                  className="mb-3"
+                />
+
+                <Row className="stats-row">
+                  <Col xs={6} md={3} className="stat-item">
+                    <div className="stat-label">Downloaded</div>
+                    <div className="stat-value">{downloaded}</div>
+                  </Col>
+
+                  <Col xs={6} md={3} className="stat-item">
+                    <div className="stat-label">Total Size</div>
+                    <div className="stat-value">{totalSize}</div>
+                  </Col>
+
+                  <Col xs={6} md={3} className="stat-item">
+                    <div className="stat-label">Speed</div>
+                    <div className="stat-value">{speed}</div>
+                  </Col>
+
+                  <Col xs={6} md={3} className="stat-item">
+                    <div className="stat-label">ETA</div>
+                    <div className="stat-value">{eta}</div>
+                  </Col>
+                </Row>
+                {download?.failed && (
+                  <div className="mt-3 alert alert-danger">
+                    <strong>Error:</strong> {download?.message}
+                  </div>
+                )}
+                {download?.message && !download?.failed && (
+                  <div className="mt-3 alert alert-info">
+                    <strong>Message:</strong> {download?.message}
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          );
+        })
+      )}
+    </div>
+  );
 }
 
 export default Status;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ToastContainer, toast, } from 'react-toastify';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
@@ -10,6 +10,7 @@ import { Button, Modal } from 'react-bootstrap';
 function ViewPassword() {
 
     const navigate = useNavigate();
+    const location = useLocation();
     const [loader, setLoader] = useState(true);
     const [credentialsCache, setCredentialsCache] = useState([]);
     const [credentials, setCredentials] = useState([]);
@@ -77,7 +78,7 @@ function ViewPassword() {
                 {
                     autoClose: 1000,
                     onClose: () => {
-                        navigate(`${Constants.LOGIN_ROUTE}?redirectTo=${Constants.DB_VIEW_PASSWORD_ROUTE}`, { replace: true });
+                        navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
                     }
                 });
         } else {
@@ -95,7 +96,7 @@ function ViewPassword() {
             setCredentials(getCredentialRes.data)
         }
         else if (getCredentialRes.httpStatusCode === 401) {
-            navigate(await Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
+            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
         }
         else {
             toast.error(getCredentialRes.message)
@@ -130,7 +131,7 @@ function ViewPassword() {
             getUserCredentials();
         }
         else if (deleteCredentialRes.httpStatusCode === 401) {
-            navigate(Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
+            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
         }
         else {
             toast.error(deleteCredentialRes.message);
@@ -148,7 +149,7 @@ function ViewPassword() {
                 getUserCredentials();
             }
             else if (deleteHostRes.status === 401) {
-                navigate(await Constants.REDIRECT(Constants.DB_VIEW_PASSWORD_ROUTE));
+                navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
             }
             else {
                 toast.error(deleteHostRes.message);

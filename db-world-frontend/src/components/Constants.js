@@ -17,9 +17,13 @@ const MIRROR_API = "/api/media/mirror";
 const VALIDATE_TOKEN_API = "/api/validateToken";
 const DELETE_ICON_URL = "https://img.icons8.com/material-rounded/48/null/delete-forever.png";
 const VIEW_USER_ICON_URL = "https://img.icons8.com/material-sharp/24/null/contract-job.png";
-const DB_MOVIES_ROUTE = "/db-world/db-cinema"; // db-world/db-movies?catagory=movie&movieIndustry=all&page=2
-const DB_MOVIE_DETIALS_ROUTE = DB_MOVIES_ROUTE + "/movie/:title";
-const DB_SERIES_DETIALS_ROUTE = DB_MOVIES_ROUTE + "/series/:title";
+const DB_CINEMA_ROUTE = "/db-world/db-cinema"; // db-world/db-movies?catagory=movie&movieIndustry=all&page=2
+const DB_CINEMA_BROWSE_ROUTE = DB_CINEMA_ROUTE + "/browse";
+const DB_CINEMA_MOVIES_ROUTE = DB_CINEMA_ROUTE + "/movie";
+const DB_CINEMA_SERIES_ROUTE = DB_CINEMA_ROUTE + "/tv-shows";
+const DB_MOVIE_DETIALS_ROUTE = DB_CINEMA_ROUTE + "/movie/:title";
+const DB_SERIES_DETIALS_ROUTE = DB_CINEMA_ROUTE + "/series/:title";
+const DB_DONWLOAD_RECORD_ROUTE = DB_CINEMA_ROUTE + "/record/:recordId/download"
 const DB_WORLD_HOME_ROUTE = "/db-world";
 const DB_WEATHER_ROUTE = "/db-world/db-weather";
 const DB_GAMES_ROUTE = "/db-world/db-games";
@@ -33,7 +37,7 @@ const USER_PROFILE_ROUTE = "/db-world/user-profile";
 const EDIT_USER_PROFILE_ROUTE = "/db-world/user-profile-edit";
 const REGISTRATION_ROUTE = '/db-world/registration';
 const DB_ADMIN_TOOLS_ROUTE = '/db-world/admin-tools';
-const EDIT_RECORD_ROUTE = DB_MOVIES_ROUTE + '/edit-record/:title';
+const EDIT_RECORD_ROUTE = DB_CINEMA_ROUTE + '/edit-record/:title';
 const ADD_RECORD_ROUTE = DB_ADMIN_TOOLS_ROUTE + '#active=records';
 const DB_WORLD_TEAL_SVG_ICON = '../../public/svgs/db_world_teal.svg';
 const OWNER_USER_ROLE = "OWNER";
@@ -44,9 +48,7 @@ const MIB = "MiB";
 const GIB = "GIB";
 const RECORD_TYPE_MOVIE = "movie";
 const RECORD_TYPE_SERIES = "series";
-const REDIRECT = async (redirectTo) => {
-    return redirectTo ? `${LOGIN_ROUTE}?redirectTo=` + redirectTo : LOGIN_ROUTE
-}
+
 const LOADER = <div className="col-md-12">
     <div className='d-flex justify-content-center'>
         <div className="spinner-border text-danger m-5" role="status">
@@ -93,7 +95,11 @@ export default {
     DELETE_ICON_URL,
     VIEW_USER_ICON_URL,
     DB_WORLD_HOME_ROUTE,
-    DB_MOVIES_ROUTE,
+    DB_CINEMA_ROUTE,
+    DB_CINEMA_BROWSE_ROUTE,
+    DB_CINEMA_MOVIES_ROUTE,
+    DB_CINEMA_SERIES_ROUTE,
+    DB_DONWLOAD_RECORD_ROUTE,
     DB_MOVIE_DETIALS_ROUTE,
     DB_SERIES_DETIALS_ROUTE,
     DB_WEATHER_ROUTE,
@@ -115,7 +121,6 @@ export default {
     ADMIN_USER_ROLE,
     VIEWER_USER_ROLE,
     KIB, MIB, GIB,
-    REDIRECT,
     LOADER,
     BUTTON_LOADER,
     TOAST_CONTAINER,

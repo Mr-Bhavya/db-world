@@ -20,9 +20,7 @@ public interface StatusService {
 
     void updateStatusMessage(String id, String message);
 
-    void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus downloadStatus);
-
-    void updateMirrorStatusWithSpeedAndETA(String id);
+    void updateMirrorStatusWithDownloadState(String id, long newBytes);
 
     void updateMirrorStatusWithExtracting(String id);
 

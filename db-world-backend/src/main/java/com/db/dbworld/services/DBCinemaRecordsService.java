@@ -1,6 +1,8 @@
 package com.db.dbworld.services;
 
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
+import com.db.dbworld.payloads.CustomPageImpl;
+import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
@@ -19,18 +21,27 @@ public interface DBCinemaRecordsService {
 
     void deleteRecord(Long recordId);
 
-    List<DBCinemaRecordsDto> getRecords();
+    List<Map<String, Object>> getRecords();
 
-    List<DBCinemaRecordsDto> fetchDbCinemaRecords(String recordType, Pageable pageable, String languages, String genres);
+    List<DBCinemaRecordsDto> fetchCoverRecords(int pageNumber, int pageSize);
 
-    Integer fetchCountOfDbCinemaRecords(String recordType, String languages, String genres);
+    CustomPageImpl<DBCinemaRecordsDto> findRecords(RecordSearchCriteria recordSearchCriteria);
+
+//    List<DBCinemaRecordsDto> fetchDbCinemaRecords(String recordType, Pageable pageable, String languages, String genres);
+//
+//    Integer fetchCountOfDbCinemaRecords();
+//
+//    Integer fetchCountOfDbCinemaRecords(String recordType, String languages, String genres);
 
     DBCinemaRecordsDto getRecordById(Long recordId);
 
     DBCinemaRecordsEntity getRecordEntityById(Long recordId);
 
-    //    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
-    List<DBCinemaRecordsDto> searchRecordByKeywordWithUserData(String keyword);
+//    List<DBCinemaRecordsDto> searchRecordByKeywordWithUserData(String keyword);
+
+    List<DBCinemaRecordsDto> searchRecordByKeywordWithPagination(String keyword, Pageable pageable);
+
+    Integer countRecordsByKeyword(String keyword);
 
     List<Map<String, String>> searchRecordByKeyword(String keyword);
 
@@ -42,7 +53,7 @@ public interface DBCinemaRecordsService {
 
     DBCinemaRecordsDto userRecordDataProcess(Long recordId, String process);
 
-    List<DBCinemaRecordsDto> getWatchListCinemaRecords();
+    CustomPageImpl<DBCinemaRecordsDto> getWatchListCinemaRecords(int pageNumber, int pageSize);
 
     void updateTmdbWithLatest();
 
