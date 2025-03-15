@@ -1,98 +1,32 @@
-/* Container to hold the cover image and prevent overflow during animations */
+/* Base Variables */
+:root {
+  --primary-color: #e50914;
+  --background-dark: #181818;
+  --text-primary: #fff;
+  --transition-speed: 0.3s;
+}
+
+/* Cover Container & Main */
 .cover-container {
   position: relative;
   width: 100%;
-  height: 700px; /* Use same height as cover */
+  height: 700px; /* Same as cover height */
   overflow: hidden;
 }
-
-/* Main cover styling */
 .cover-main {
+  position: relative;
+  display: flex;
   height: 100%;
   object-fit: contain;
-  color: white;
-  display: flex;
+  color: var(--text-primary);
   z-index: 1;
   transition: opacity 0.5s ease;
-  position: relative;
 }
-
-/* Slide Out Left Animation */
-.slide-out-left {
-  animation: slideOutLeft 0.5s forwards;
-}
-@keyframes slideOutLeft {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(-100%);
-    opacity: 0;
-  }
-}
-
-/* Slide In Right Animation */
-.slide-in-right {
-  animation: slideInRight 0.5s forwards;
-}
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-/* Slide Out Right Animation */
-.slide-out-right {
-  animation: slideOutRight 0.5s forwards;
-}
-@keyframes slideOutRight {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-}
-
-/* Slide In Left Animation */
-.slide-in-left {
-  animation: slideInLeft 0.5s forwards;
-}
-@keyframes slideInLeft {
-  from {
-    transform: translateX(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-/* Optional fade effect (if used) */
 .cover-main.fade {
   opacity: 0;
 }
 
-/* Movie title and overview */
-.movie-title {
-  font-size: 80px;
-  line-height: normal;
-}
-
-.movie-overview {
-  font-weight: normal;
-}
-
-/* Cover contents styling */
+/* Cover Contents */
 .cover-contents {
   margin-left: 60px;
   padding-bottom: 30px;
@@ -104,73 +38,56 @@
   z-index: 2;
 }
 
+/* Movie Title & Overview */
+.movie-title {
+  font-size: 80px;
+  line-height: normal;
+}
+.movie-overview {
+  font-weight: normal;
+}
+
 /* Buttons */
-.btn-play {
-  background-color: white;
-  border: 1px solid white;
+.btn-play,
+.btn-more {
   border-radius: 4px;
-  color: #333;
   font-size: 18px;
   padding: 8px 18px;
   font-weight: bold;
-  margin-right: 8px;
   cursor: pointer;
 }
-
+.btn-play {
+  background-color: #fff;
+  border: 1px solid #fff;
+  color: #333;
+  margin-right: 8px;
+}
 .btn-play:hover {
   opacity: 0.8;
 }
-
 .btn-more {
   background-color: #545455;
   border: 1px solid #545455;
-  border-radius: 4px;
-  color: white;
-  font-size: 18px;
-  padding: 8px 18px;
-  font-weight: bold;
+  color: var(--text-primary);
   opacity: 0.8;
-  cursor: pointer;
 }
-
 .btn-more:hover {
   opacity: 1;
 }
 
-/* Faded cover effect at the bottom */
-/* .faded-bottom {
-  z-index: 0;
-  position: absolute;
-  top: 0;
-  height: 100%;
-  width: 100%;
-  background-image: linear-gradient(
-    180deg,
-    transparent,
-    rgba(37, 37, 37, 0.61),
-    #000000
-  );
-} */
-
-/* Updated faded-bottom for a stronger bottom shadow effect */
+/* Faded Bottom Effect */
 .faded-bottom {
   position: absolute;
-  bottom: 0; /* position at the bottom */
+  bottom: 0;
   left: 0;
   width: 100%;
   height: 8%;
-  background: linear-gradient(
-    180deg,
-    transparent,       /* transparent at the top */
-    rgba(0,0,0,0.5),     /* semi-transparent in the middle */
-    #000000                 /* fully black at the bottom */
-  );
-  pointer-events: none; /* ensures the overlay doesn't block interactions */
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.5), #000);
+  pointer-events: none;
   z-index: 1;
 }
 
-
-/* Navigation buttons for desktop (bottom right) */
+/* Navigation Controls */
 .cover-controls {
   position: absolute;
   bottom: 20px;
@@ -179,46 +96,68 @@
   gap: 10px;
   z-index: 3;
 }
-
 .cover-controls button {
   background: rgba(0, 0, 0, 0.5);
   border: none;
-  color: white;
+  color: var(--text-primary);
   padding: 8px 12px;
   cursor: pointer;
   border-radius: 4px;
   font-size: 16px;
 }
-
-/* Hide navigation buttons on mobile */
 @media (max-width: 768px) {
   .cover-controls {
     display: none;
   }
 }
 
-/* Cover Skeleton Styles */
+/* Animations */
+@keyframes slideOutLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-100%); opacity: 0; }
+}
+.slide-out-left { animation: slideOutLeft 0.5s forwards; }
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.slide-in-right { animation: slideInRight 0.5s forwards; }
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+.slide-out-right { animation: slideOutRight 0.5s forwards; }
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.slide-in-left { animation: slideInLeft 0.5s forwards; }
+
+/* Grid, Skeleton & Shimmer */
+.cover-skeleton,
+.cover-container {
+  overflow: hidden;
+}
 .cover-skeleton {
   position: relative;
   height: 700px;
   background-color: #333;
-  overflow: hidden;
 }
-
 .cover-skeleton-image {
   width: 100%;
   height: 100%;
-  background: #000000;
+  background: #000;
   animation: shimmer 1.5s infinite;
 }
-
 .cover-skeleton-contents {
   position: absolute;
   bottom: 30px;
   left: 60px;
-  color: white;
+  color: var(--text-primary);
 }
-
 .cover-skeleton-title {
   width: 60%;
   height: 80px;
@@ -226,7 +165,6 @@
   margin-bottom: 10px;
   border-radius: 4px;
 }
-
 .cover-skeleton-overview {
   width: 80%;
   height: 40px;
@@ -234,7 +172,6 @@
   margin-bottom: 20px;
   border-radius: 4px;
 }
-
 .cover-skeleton-buttons .btn-skeleton {
   display: inline-block;
   width: 140px;
@@ -243,65 +180,59 @@
   border-radius: 4px;
   margin-right: 10px;
 }
-
-/* Shimmer effect for skeleton */
 @keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
 }
-
 .skeleton {
   background: linear-gradient(90deg, #777 25%, #888 50%, #777 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
-/* Responsive styling for mobile */
+/* Cover & Skeleton Thumbnails */
+.thumbnail {
+  width: 180px;
+  height: 250px;
+  object-fit: cover;
+  border-radius: 4px;
+  transition: all var(--transition-speed) ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.thumbnail.horizontal,
+.skeleton-card.horizontal {
+  width: 380px;
+  height: 200px;
+}
+.skeleton-card {
+  background: #333;
+  border-radius: 4px;
+  width: 180px;
+  height: 250px;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* Responsive Styling */
 @media (max-width: 640px) {
-  .cover-container {
-    height: 400px;
-  }
-  .cover-main {
-    height: 100%;
-    object-fit: fill;
-    color: white;
-    display: flex;
-    z-index: 1;
-  }
-  .movie-title {
-    font-size: 26px;
-    line-height: normal;
-  }
-  .movie-overview {
-    font-size: 14px;
-  }
-  .btn-play {
-    font-size: 12px;
-    padding: 8px 18px;
-  }
-  .btn-more {
-    font-size: 12px;
-    padding: 8px 18px;
-  }
+  .cover-container,
+  .cover-skeleton { height: 400px; }
+  .cover-main { object-fit: fill; }
+  .movie-title { font-size: 26px; }
+  .movie-overview { font-size: 14px; }
+  .btn-play, .btn-more { font-size: 12px; padding: 8px 18px; }
   .cover-contents {
     margin-left: 18px;
     width: 320px;
-    display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    line-height: 1.6;
-    z-index: 2;
   }
 }
 
-/* Force scrollbar presence to prevent layout shifts */
-html {
-  overflow-y: scroll;
-}
-body {
-  overflow-x: hidden;
-}
+/* Prevent layout shifts */
+html { overflow-y: scroll; }
+body { overflow-x: hidden; }

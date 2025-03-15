@@ -41,6 +41,10 @@ public class VideoInfoEntity extends TrackInfoEntity {
     @JsonProperty("HDR_Format")
     private String hdrFormat;
 
+    @Column(name = "HDR_Format_Version")
+    @JsonProperty("HDR_Format_Version")
+    private String hdrFormatVersion;
+
     @Column(name = "HDR_Format_Compatibility")
     @JsonProperty("HDR_Format_Compatibility")
     private String hdrFormatCompatibility;

@@ -106,34 +106,7 @@ function FileDetailsModal({ show, onHide, fileId, userRole }) {
                 ) : mediaInfo ? (
                     <div>
                         <p>
-                            <strong>File Name: </strong>
-                            {isEditingName ? (
-                                <>
-                                    <Form.Control
-                                        type="text"
-                                        value={newFileName}
-                                        onChange={(e) => setNewFileName(e.target.value)}
-                                        size="sm"
-                                        className="d-inline-block w-auto"
-                                    />
-                                    <Button variant="success" size="sm" onClick={handleRename} className="ml-2">
-                                        Save
-                                    </Button>
-                                    <Button variant="secondary" size="sm" onClick={() => {
-                                        setIsEditingName(false);
-                                        setNewFileName(mediaInfo.general.fileName);
-                                    }} className="ml-2">
-                                        Cancel
-                                    </Button>
-                                </>
-                            ) : (userRole &&
-                                <>
-                                    {mediaInfo.general.fileName}{' '}
-                                    <Button variant="link" size="sm" onClick={() => setIsEditingName(true)} className="text-white p-0">
-                                        Rename
-                                    </Button>
-                                </>
-                            )}
+                            <strong>File Name: </strong> {mediaInfo.general.fileName}
                         </p>
                         <p><strong>File Size: </strong>{mediaInfo.general.fileSize}</p>
                         <p><strong>Duration: </strong>{mediaInfo.general.duration} sec</p>
@@ -144,7 +117,7 @@ function FileDetailsModal({ show, onHide, fileId, userRole }) {
                         <h5 className='text-danger'>Video</h5>
                         <p><strong>Resolution: </strong>{mediaInfo.video.resolution}</p>
                         <p><strong>Format: </strong>{mediaInfo.video.format}</p>
-                        <p><strong>HDR Details: </strong>{mediaInfo.video.hdrDetails ? 'Yes' : 'No'}</p>
+                        <p><strong>HDR Details: </strong>{mediaInfo.video.hdrDetails ? mediaInfo.video.hdrDetails : 'No'}</p>
                         <p><strong>Size: </strong>{mediaInfo.video.size}</p>
 
                         <hr />

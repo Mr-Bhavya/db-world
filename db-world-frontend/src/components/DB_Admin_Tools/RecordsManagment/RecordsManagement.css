@@ -102,10 +102,9 @@
   background-color: #0056b3;
 }
 
-/* Grid container styles */
 .grid-container {
   margin: 0; /* Reduced side margins for mobile */
-  height: 500px;
+  height: 80vh; /* Full viewport height */
 }
 
 /* Custom action buttons for ag‑Grid */

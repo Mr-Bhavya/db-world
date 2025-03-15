@@ -1,4 +1,4 @@
-/* Base Styles */
+/* Base Variables */
 :root {
   --primary-color: #e50914;
   --background-dark: #181818;
@@ -6,20 +6,17 @@
   --transition-speed: 0.3s;
 }
 
-/* Wrapper for each horizontal scroll container */
+/* Horizontal Scroll Container */
 .horizontal-scroll-wrapper {
   position: relative;
-  margin-bottom: 0rem; /* Optional: spacing between multiple scroll areas */
+  margin-bottom: 0;
 }
-
-/* Scroll Container */
 .scroll-container {
   overflow-x: auto;
   overflow-y: visible;
   padding: 1rem 0;
   scrollbar-width: none;
 }
-
 .scroll-container::-webkit-scrollbar {
   display: none;
 }
@@ -30,13 +27,11 @@
   gap: 0.5rem;
   padding: 0 2rem;
 }
-
 .item-container {
   position: relative;
   transition: transform var(--transition-speed) ease;
   cursor: pointer;
 }
-
 .item-container.active {
   transform: scale(1);
   z-index: 100;
@@ -44,21 +39,19 @@
 
 /* Thumbnails */
 .thumbnail {
-  width: 150px;
+  width: 180px;
   height: 250px;
   object-fit: cover;
   border-radius: 4px;
   transition: all var(--transition-speed) ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-
 .thumbnail.horizontal {
-  width: 300px;
+  width: 380px;
   height: 200px;
 }
 
 /* Scroll Icons */
-/* Positioned absolutely relative to the .horizontal-scroll-wrapper */
 .scroll-icon {
   position: absolute;
   top: 50%;
@@ -74,30 +67,26 @@
   justify-content: center;
   cursor: pointer;
   transition: background-color 0.3s, opacity 0.3s;
-  z-index: 2000; /* High z-index so they appear over the modal */
+  z-index: 2000;
   opacity: 0;
   pointer-events: none;
 }
-
-/* Show icons when hovering over the wrapper */
 .horizontal-scroll-wrapper:hover .scroll-icon {
   opacity: 1;
   pointer-events: auto;
 }
-
 .scroll-icon:hover {
   background-color: rgba(0, 0, 0, 0.8);
 }
-
 .scroll-left {
-  left: 0px;
+  left: 0;
 }
-
 .scroll-right {
-  right: 0px;
+  right: 0;
 }
 
-/* Desktop Modal */
+/* Modals */
+/* Desktop */
 .desktop-modal-overlay {
   position: absolute;
   top: 0;
@@ -111,7 +100,6 @@
   border-radius: 8px;
   animation: fadeIn var(--transition-speed) ease;
 }
-
 .desktop-modal {
   position: relative;
   background: var(--background-dark);
@@ -121,8 +109,7 @@
   box-shadow: 0 16px 24px rgba(0, 0, 0, 0.3);
   animation: scaleUp var(--transition-speed) ease forwards;
 }
-
-/* Mobile Modal Overlay */
+/* Mobile */
 .mobile-modal-overlay {
   position: fixed;
   top: 0;
@@ -137,7 +124,6 @@
   backdrop-filter: blur(5px);
   animation: fadeIn var(--transition-speed) ease;
 }
-
 .mobile-modal {
   position: relative;
   background: var(--background-dark);
@@ -151,12 +137,11 @@
 }
 
 /* Modal Content */
-.modal-content {
+.preview-modal-content {
   position: relative;
   padding: 0;
   color: var(--text-primary);
 }
-
 .trailer-container {
   height: 200px;
   background: #000;
@@ -164,7 +149,6 @@
   overflow: hidden;
   width: 100%;
 }
-
 .close-button {
   position: absolute;
   top: 1rem;
@@ -176,11 +160,9 @@
   cursor: pointer;
   z-index: 100;
 }
-
 .content-wrapper {
   margin: 1.2rem;
 }
-
 .meta-info {
   display: flex;
   gap: 1rem;
@@ -188,13 +170,11 @@
   font-size: 0.9rem;
   opacity: 0.8;
 }
-
 .action-buttons {
   display: flex;
   gap: 1rem;
   margin: 1.5rem 0;
 }
-
 .icon-button {
   background: rgba(255, 255, 255, 0.1);
   border: none;
@@ -205,12 +185,10 @@
   cursor: pointer;
   transition: all var(--transition-speed) ease;
 }
-
 .icon-button:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: scale(1.1);
 }
-
 .description {
   font-size: small;
   text-align: justify;
@@ -218,21 +196,21 @@
 
 /* Animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-
 @keyframes scaleUp {
-  from {
-    transform: scale(0.95);
-  }
-  to {
-    transform: scale(1);
-  }
+  from { transform: scale(0.95); }
+  to { transform: scale(1); }
+}
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Loading Spinner */
@@ -245,71 +223,58 @@
   animation: spin 1s linear infinite;
   margin: 2rem auto;
 }
-
-.card-img-overlay .card-title{
+.card-img-overlay .card-title {
   background: rgba(0, 0, 0, 0.3);
   border-radius: 5px;
-  width: 300px;
-  /* padding: 3px;
-  max-width: 8rem;
-  word-wrap: break-word;
-  margin-bottom: 3px; */
+  width: 380px;
 }
 
+/* Modal Transitions */
+.modal-enter {
+  opacity: 0;
+  transform: scale(0.95);
+}
+.modal-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 300ms, transform 300ms;
+}
+.modal-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+.modal-exit-active {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 300ms, transform 300ms;
+}
 
-/* =================================================
-   Skeleton Placeholders for Infinite Scroll Loading
-   ================================================= */
-   .skeleton-card {
-    background: #333;
-    border-radius: 4px;
-    width: 150px;
-    height: 250px;
-    animation: pulse 1.5s infinite;
-  }
-  
-  .skeleton-card.horizontal {
-    width: 300px;
-    height: 200px;
-  }
-  
-  @keyframes pulse {
-    0% {
-      opacity: 0.6;
-    }
-    50% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0.6;
-    }
-  }
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+/* Skeleton Loading */
+.skeleton-card {
+  background: #333;
+  border-radius: 4px;
+  width: 180px;
+  height: 250px;
+  animation: pulse 1.5s infinite;
+}
+.skeleton-card.horizontal {
+  width: 380px;
+  height: 200px;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .thumbnail, .skeleton-card  {
-    width: 120px;
+  .thumbnail, .skeleton-card {
+    width: 140px;
     height: 200px;
   }
-
   .thumbnail.horizontal, .skeleton-card.horizontal {
-    width: 200px;
+    width: 240px;
     height: 133px;
   }
-
   .modal-content {
     padding: 0;
   }
-
   .meta-info {
     flex-wrap: wrap;
   }

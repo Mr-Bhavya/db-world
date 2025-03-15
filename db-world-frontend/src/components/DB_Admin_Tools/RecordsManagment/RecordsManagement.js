@@ -1,20 +1,16 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { FaEdit, FaTrash, FaSync } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaSync, FaAd, FaPlus } from 'react-icons/fa';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import './RecordsManagement.css';
-import {
-  AddDbCinemaRecord,
-  deleteDbCinemaRecord,
-  getRecords,
-  searchTmdbByQuery,
-  UpdateDbCinemaRecord
-} from '../../ApiServices';
+import { AddDbCinemaRecord, changeShowOnTopRecord, deleteDbCinemaRecord, getRecords, searchTmdbByQuery, UpdateDbCinemaRecord } from '../../ApiServices';
 import { toast } from 'react-toastify';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DeleteModal from './DeleteModal';
 import Constants from '../../Constants';
+import RecordModal from './RecordModal';
+import { Button, Col, Container, Row } from 'react-bootstrap';
 
 function RecordsManagement() {
   const navigate = useNavigate();
@@ -48,6 +44,11 @@ function RecordsManagement() {
   // State for delete modal
   const [deleteModalRecord, setDeleteModalRecord] = useState(null);
 
+  //add or edit record Modal
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const handleOpenRecordModal = () => setShowRecordModal(true);
+  const handleCloseRecordModal = () => setShowRecordModal(false);
+
   const gridRef = useRef();
 
   const getAllRecords = async () => {
@@ -79,6 +80,7 @@ function RecordsManagement() {
       creationDate: record.creationDate ? record.creationDate.substring(0, 16) : '',
       lastModifiedDate: record.lastModifiedDate ? record.lastModifiedDate.substring(0, 16) : ''
     });
+    handleOpenRecordModal();
   };
 
   // Open delete confirmation modal
@@ -174,6 +176,23 @@ function RecordsManagement() {
     setLoadingTmdb(false);
   };
 
+  const handleSwitchShowOnTop = async (recordId, showOnTop) => {
+    let updateRecordRes = await changeShowOnTopRecord(recordId, showOnTop);
+    if (updateRecordRes.httpStatusCode === 200) {
+      toast.success("Show On Top updated successfully for record " + recordId);
+      await getAllRecords();
+    } else if (updateRecordRes.httpStatusCode === 401) {
+      toast.error(updateRecordRes.message + Constants.RE_LOGIN, {
+        onClose: async () => {
+          navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+        },
+        autoClose: 1000
+      });
+    } else {
+      toast.error(updateRecordRes.message);
+    }
+  }
+
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setLoadingSubmit(true);
@@ -217,6 +236,7 @@ function RecordsManagement() {
       }
     }
     setLoadingSubmit(false);
+    handleCloseRecordModal();
   };
 
   const resetForm = () => {
@@ -246,14 +266,8 @@ function RecordsManagement() {
       filter: true,
       sortable: true,
       valueFormatter: params => params.value ? params.value : ''
-    },
-    {
-      field: 'showOnTop',
-      headerName: 'Show On Top',
-      filter: true,
-      sortable: true,
-      valueFormatter: params => params.value ? 'Yes' : 'No'
-    },
+    }
+    ,
     {
       field: 'creationDate',
       headerName: 'Creation Date',
@@ -267,6 +281,71 @@ function RecordsManagement() {
       filter: 'agDateColumnFilter',
       sortable: true,
       valueFormatter: params => new Date(params.value).toLocaleString()
+    },
+    {
+      field: 'showOnTop',
+      headerName: 'Show On Top',
+      filter: true,
+      sortable: true,
+      cellRenderer: (params) => {
+        const handleToggle = async () => {
+          const updatedValue = !params.value;
+          // Update the underlying data for the 'updating' flag.
+          params.data.updating = true;
+          // Refresh the cell so the spinner appears.
+          params.api.refreshCells({ rowNodes: [params.node], force: true });
+          try {
+            // Call your API to update the value.
+            await handleSwitchShowOnTop(params.data.id, updatedValue);
+            // Now update the 'showOnTop' value.
+            if (params.node) {
+              params.node.setDataValue('showOnTop', updatedValue);
+            } else {
+              params.data.showOnTop = updatedValue;
+              params.api.refreshCells({ force: true });
+            }
+          } catch (error) {
+            console.error('API update failed: ', error);
+            // Optionally, you could revert the change here.
+          } finally {
+            // Remove the updating flag.
+            params.data.updating = false;
+            if (params.node) {
+              params.api.refreshCells({ rowNodes: [params.node], force: true });
+            } else {
+              params.api.refreshCells({ force: true });
+            }
+          }
+        };
+
+        // If the row is updating, show a spinner.
+        if (params.data.updating) {
+          return (
+            <span
+              className="spinner-border spinner-border-sm"
+              role="status"
+              aria-hidden="true"
+            ></span>
+          );
+        }
+
+        // Otherwise, show the interactive switch.
+        return (
+          <div
+            className="form-check form-switch my-2"
+            onClick={handleToggle}
+            title={params.value ? 'Turn Off' : 'Turn On'}
+          >
+            <input
+              className="form-check-input"
+              type="checkbox"
+              role="switch"
+              checked={params.value}
+              readOnly
+            />
+          </div>
+        );
+      }
     },
     {
       headerName: 'Actions',
@@ -312,108 +391,38 @@ function RecordsManagement() {
   };
 
   return (
-    <div className="records-management">
-      <h1>Record Management</h1>
+    <Container fluid className="records-management m-0 p-0">
+      {/* Header with Add Record Button */}
+      <Row className="my-3 d-flex flex-column flex-md-row align-items-md-center">
+        {/* Title - Centered on Mobile, Left on Desktop */}
+        <Col xs={12} md={8} className="d-flex justify-content-center text-center text-md-start">
+          <h1 className="mb-2 mb-md-0"><u>Record Management</u></h1>
+        </Col>
 
-      {/* Form for Adding/Editing a Record */}
-      <div className="form-container">
-        <form className="record-form" onSubmit={handleFormSubmit}>
-          <h2>{isEditing ? 'Edit Record' : 'Add New Record'}</h2>
-          {isEditing && (
-            <div className="form-group">
-              <label>Record ID:</label>
-              <input type="text" name="recordId" value={formData.recordId} disabled />
-            </div>
-          )}
-          {/* Type Dropdown */}
-          <div className="form-group">
-            <label>Type:</label>
-            <select
-              name="type"
-              value={formData.type}
-              onChange={handleFormChange}
-              required
-              disabled={isEditing} // disabled in edit mode
-            >
-              <option value="">Select Type</option>
-              <option value="movie">Movie</option>
-              <option value="series">Series</option>
-            </select>
-          </div>
-          {/* Name Input */}
-          <div className="form-group">
-            <label>Name:</label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleFormChange}
-              required
-            />
-          </div>
-          {/* Release Year Input */}
-          <div className="form-group">
-            <label hidden={isEditing}>Release Year:</label>
-            <input
-              type="text"
-              name="releaseYear"
-              value={formData.releaseYear}
-              onChange={handleFormChange}
-              placeholder="Optional"
-              hidden = {isEditing}
-            />
-          </div>
-          {/* TMDB Field */}
-          <div className="form-group">
-            <label>TMDB:</label>
-            {isEditing ? (
-              // In edit mode, show a plain disabled text input with the TMDB id
-              <input type="text" name="tmdb" value={formData.tmdb} disabled />
-            ) : (
-              // In add mode, render the dropdown with search button
-              <div className="tmdb-group">
-                <select name="tmdb" value={formData.tmdb} onChange={handleFormChange}>
-                  <option value="">Select TMDB Record</option>
-                  {tmdbOptions.map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.title} | {option.originalTitle} | {option.releaseDate}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" onClick={fetchTmdbResults} disabled={loadingTmdb}>
-                  {loadingTmdb ? (
-                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                  ) : (
-                    'Search TMDB'
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-          {/* Show On Top Checkbox */}
-          <div className="form-group checkbox-group">
-            <label>Show On Top:</label>
-            <input
-              type="checkbox"
-              name="showOnTop"
-              checked={formData.showOnTop}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="form-actions">
-            <button type="submit" disabled={loadingSubmit}>
-              {loadingSubmit ? (
-                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              ) : (
-                isEditing ? 'Update Record' : 'Add Record'
-              )}
-            </button>
-            {isEditing && <button type="button" onClick={resetForm}>Cancel</button>}
-          </div>
-        </form>
-      </div>
+        {/* Add Record Button - Centered on Mobile, Right on Desktop */}
+        <Col xs={12} md={4} className="d-flex justify-content-end justify-content-md-end">
+          <Button variant="" className='btn btn-outline-dark btn-sm' onClick={handleOpenRecordModal}>
+            <FaPlus /> <span className='m-1'>Add Record</span>
+          </Button>
+        </Col>
+      </Row>
 
-      {/* ag‑Grid Table */}
+      {/* Record Modal */}
+      <RecordModal
+        show={showRecordModal}
+        handleClose={handleCloseRecordModal}
+        isEditing={isEditing}
+        formData={formData}
+        handleFormChange={handleFormChange}
+        handleFormSubmit={handleFormSubmit}
+        resetForm={resetForm}
+        loadingSubmit={loadingSubmit}
+        tmdbOptions={tmdbOptions}
+        fetchTmdbResults={fetchTmdbResults}
+        loadingTmdb={loadingTmdb}
+      />
+
+      {/* ag-Grid Table */}
       <div className="grid-container ag-theme-alpine">
         <AgGridReact
           ref={gridRef}
@@ -421,8 +430,6 @@ function RecordsManagement() {
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           pagination={true}
-          paginationPageSize={10}
-          rowClassRules={rowClassRules}
         />
       </div>
 
@@ -434,9 +441,8 @@ function RecordsManagement() {
           onClose={handleCloseDeleteModal}
         />
       )}
-
       {Constants.TOAST_CONTAINER}
-    </div>
+    </Container>
   );
 }
 

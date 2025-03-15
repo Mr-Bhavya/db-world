@@ -149,6 +149,18 @@ export const UpdateDbCinemaRecord = async (recordId, body) => {
     return await response.json();
 }
 
+export const changeShowOnTopRecord = async (recordId, showOnTop) => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/record/${recordId}/showOnTop=${showOnTop}`, {
+        method: "PUT",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    })
+    return await response.json();
+}
+
 export const deleteDbCinemaRecord = async (recordId) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/admin/cinema/record/${recordId}`, {
         method: "DELETE",

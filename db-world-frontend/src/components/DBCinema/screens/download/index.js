@@ -74,7 +74,7 @@ const DownloadPage = () => {
     // }
 
     // --- REUSABLE CARD COMPONENT ---
-    function MediaCard({ media }) {
+    function MediaCard({ mediaInfo }) {
         const [expanded, setExpanded] = useState(false);
 
         return (
@@ -83,7 +83,7 @@ const DownloadPage = () => {
                     className="media-card-header"
                     onClick={() => setExpanded((prev) => !prev)}
                 >
-                    <p className="media-filename">{media.general.fileName}</p>
+                    <p className="media-filename">{mediaInfo.general.fileName}</p>
                     <button className="toggle-btn">
                         {expanded ? (
                             <i className="fas fa-chevron-up"></i>
@@ -92,96 +92,63 @@ const DownloadPage = () => {
                         )}
                     </button>
                 </div>
-                <div className={`media-card-body ${expanded ? "expanded" : ""}`}>
-                    <div className="general-info">
-                        <p>
-                            <strong>File Size:</strong> {media.general.fileSize}
-                        </p>
-                        <p>
-                            <strong>Duration:</strong> {Math.floor(media.general.duration / 60)} minutes
-                        </p>
-                        <p>
-                            <strong>Overall Bitrate:</strong> {media.general.overallBitrate}
-                        </p>
-                    </div>
+                <div className="mx-3 media-card-content" style={{ display: expanded ? "block" : "none" }}>
+                    <p><strong>File Size: </strong>{mediaInfo.general.fileSize}</p>
+                    <p><strong>Duration: </strong>{mediaInfo.general.duration} sec</p>
+                    <p><strong>Overall Bitrate: </strong>{mediaInfo.general.overallBitrate}</p>
+
                     <hr />
-                    <div className="video-info">
-                        <h4>Video</h4>
-                        <p>
-                            <strong>Resolution:</strong> {media.video.resolution}
-                        </p>
-                        <p>
-                            <strong>Format:</strong> {media.video.format}
-                        </p>
-                        <p>
-                            <strong>Size:</strong> {media.video.size}
-                        </p>
-                    </div>
+
+                    <h5 className='text-danger'>Video</h5>
+                    <p><strong>Resolution: </strong>{mediaInfo.video.resolution}</p>
+                    <p><strong>Format: </strong>{mediaInfo.video.format}</p>
+                    <p><strong>HDR Details: </strong>{mediaInfo.video.hdrDetails ? mediaInfo.video.hdrDetails : 'No'}</p>
+                    <p><strong>Size: </strong>{mediaInfo.video.size}</p>
+
                     <hr />
-                    {media.audio && media.audio.length > 0 && (
-                        <div className="audio-info">
-                            <h4>Audio</h4>
-                            {media.audio.map((audio, idx) => (
-                                <div key={idx}>
-                                    <p>
-                                        <strong>Language:</strong> {audio.language ? audio.language : "N/A"}
-                                    </p>
-                                    <p>
-                                        <strong>Format:</strong> {audio.format}
-                                    </p>
-                                    <p>
-                                        <strong>Size:</strong> {audio.size}
-                                    </p>
-                                    <p>
-                                        <strong>Channels:</strong> {audio.channelInfo}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
+
+                    <h5 className='text-danger'>Audio</h5>
+                    {mediaInfo.audio && mediaInfo.audio.length > 0 ? (
+                        mediaInfo.audio.map((audio, index) => (
+                            <div key={index}>
+                                {audio.language && <p><strong>Language:</strong> {audio.language}</p>}
+                                <p><strong>Format: </strong>{audio.format}</p>
+                                <p><strong>Size: </strong>{audio.size}</p>
+                                <p><strong>Channel Info: </strong>{audio.channelInfo}</p>
+                                {index !== mediaInfo.audio.length - 1 && <hr className='w-50' />}
+                            </div>
+                        ))
+                    ) : (
+                        <p>No audio info available.</p>
                     )}
-                    <hr />
-                    {media.subtitle && media.subtitle.length > 0 && (
-                        <div className="subtitle-info">
-                            <h4>Subtitles</h4>
-                            {media.subtitle.map((sub, idx) => (
-                                <div key={idx}>
-                                    <p>
-                                        <strong>Language:</strong> {sub.language}
-                                    </p>
-                                    <p>
-                                        <strong>Format:</strong> {sub.format}
-                                    </p>
-                                    <p>
-                                        <strong>Size:</strong> {sub.size}
-                                    </p>
+
+                    {mediaInfo.subtitle && mediaInfo.subtitle.length > 0 && (
+                        <>
+                            <hr />
+                            <h5 className='text-danger'>Subtitles</h5>
+                            {mediaInfo.subtitle.map((sub, index) => (
+                                <div key={index}>
+                                    {sub.format && <p><strong>Format:</strong> {sub.format}</p>}
+                                    {sub.language && <p><strong>Language:</strong> {sub.language}</p>}
+                                    {sub.size && <p><strong>Size:</strong> {sub.size}</p>}
+                                    {index !== mediaInfo.subtitle.length - 1 && <hr className='w-50' />}
                                 </div>
                             ))}
-                        </div>
+                        </>
                     )}
                 </div>
                 <Card.Footer className="d-flex justify-content-end align-items-center p-2">
-                    {(userRole === Constants.ADMIN_USER_ROLE ||
-                        userRole === Constants.OWNER_USER_ROLE) && (
-                            <Button
-                                size="sm"
-                                variant="danger"
-                                className="btn-sm me-2"
-                                onClick={() => handelMediaFileInfoDelete(media.id)}
-                            >
-                                <i className="fas fa-trash-alt"></i> Delete
-                            </Button>
-                        )}
                     <div>
-                        <Copy text={media.downloadUrl} />
+                        <Copy text={mediaInfo.downloadUrl} />
                         <Button
                             size="sm"
                             variant="outline-success"
                             className="btn-sm"
                             as="a"
-                            href={media.downloadUrl}
+                            href={mediaInfo.downloadUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            onClick={()=>CommonServices.handleDownload(media.downloadUrl)}
+                            onClick={() => CommonServices.handleDownload(mediaInfo.downloadUrl)}
                         >
                             <i className="fas fa-download"></i> Download
                         </Button>
@@ -197,7 +164,7 @@ const DownloadPage = () => {
             <div className="movies-section">
                 <div className="cards-container">
                     {mediaFileList.map((movieItem) => (
-                        <MediaCard key={movieItem.id} media={movieItem} />
+                        <MediaCard key={movieItem.id} mediaInfo={movieItem} />
                     ))}
                 </div>
             </div>
@@ -225,7 +192,7 @@ const DownloadPage = () => {
                             <h3>Season {parseInt(season, 10)}</h3>
                             <div className="cards-container">
                                 {groupedEpisodes[season].map((ep) => (
-                                    <MediaCard key={ep.id} media={ep} />
+                                    <MediaCard key={ep.id} mediaInfo={ep} />
                                 ))}
                             </div>
                         </div>
