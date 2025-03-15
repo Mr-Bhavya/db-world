@@ -1,6 +1,7 @@
 package com.db.dbworld.payloads.dbcinema.stream;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Column;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -29,13 +30,14 @@ public class VideoInfo extends TrackInfo {
     @JsonProperty("FormatTier")
     private String formatTier;
 
-    @JsonProperty("HdrFormat")
+    @JsonProperty("HDR_Format")
     private String hdrFormat;
 
-    @JsonProperty("HdrFormatVersion")
+    @Column(name = "HDR_Format_Version")
+    @JsonProperty("HDR_Format_Version")
     private String hdrFormatVersion;
 
-    @JsonProperty("HdrFormatCompatibility")
+    @JsonProperty("HDR_Format_Compatibility")
     private String hdrFormatCompatibility;
 
     @JsonProperty("CodecID")

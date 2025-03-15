@@ -19,6 +19,8 @@ public interface DBCinemaRecordsService {
 
     DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record);
 
+    void switchShowOnTopRecord(Long recordId, boolean showOnTop);
+
     void deleteRecord(Long recordId);
 
     List<Map<String, Object>> getRecords();

@@ -171,6 +171,31 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Override
     @Transactional
     @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
+    public void switchShowOnTopRecord(Long recordId, boolean showOnTop) {
+        try {
+            TmdbDataEntity tmdbDataEntity = null;
+            DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId).orElseThrow(
+                    () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
+            );
+            if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
+                tmdbDataEntity = updateTmdbForMovie(dbCinemaRecordsEntity.getTmdb());
+            } else if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
+                tmdbDataEntity = updateTmdbForSeries(dbCinemaRecordsEntity.getTmdb());
+            } else {
+                throw new ResourceNotFoundException("Db Cinema Record", "record type", dbCinemaRecordsEntity.getType());
+            }
+            dbCinemaRecordsEntity.setShowOnTop(showOnTop);
+            dbCinemaRecordsEntity.setTmdb(tmdbDataEntity);
+            entityManager.merge(dbCinemaRecordsEntity);
+        } catch (Exception ex) {
+            log.error(ex);
+            throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
     public void deleteRecord(Long recordId) {
         if (this.dbCinemaRecordsRepository.existsById(recordId)) {
             this.userRecordDataRepository.deleteByDbCinemaRecordId(recordId);

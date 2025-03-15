@@ -143,6 +143,16 @@ public class AdminController {
         return new ApiResponse<>(HttpStatus.OK, true, updatedDbCinemaRecordsDto);
     }
 
+    @PutMapping("/cinema/record/{recordId}/showOnTop={showOnTop}")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<DBCinemaRecordsDto> switchShowOnTopRecord(
+            @Valid @PathVariable Long recordId,
+            @Valid @PathVariable boolean showOnTop
+    ){
+        dbCinemaRecordsService.switchShowOnTopRecord(recordId, showOnTop);
+        return new ApiResponse<>(HttpStatus.OK, true, "Record Id: "+ recordId + " is updated successfully.");
+    }
+
     @DeleteMapping("/cinema/record/{recordId}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<String> deleteDBCinemaRecord(@Valid @PathVariable Long recordId) {

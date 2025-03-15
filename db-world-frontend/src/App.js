@@ -21,7 +21,6 @@ import PrivateRoute from './components/PrivateRoute';
 import MainPage from './components//DBCinema/screens/mainPage/index.js'
 import MoviesPage from './components//DBCinema/screens/movies/index.js'
 import SeriesPage from './components//DBCinema/screens/series/index.js'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DownloadPage from './components/DBCinema/screens/download/index.js';
 import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.js';
 import BackButtonHandler from './android-app-components/BackButtonHandler.js';
@@ -88,16 +87,12 @@ function App() {
 
     </div>
 
-  const queryClient = new QueryClient();
-
   return (
-    <QueryClientProvider client={queryClient}>
       <Authentication.AuthProvider>
         <Router>
           {app}
         </Router>
       </Authentication.AuthProvider>
-    </QueryClientProvider>
   )
 }
 

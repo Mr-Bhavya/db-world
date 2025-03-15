@@ -52,5 +52,29 @@ public class TextInfoEntity extends TrackInfoEntity {
     @JsonProperty("Forced")
     private String forced;
 
+    @Column(name = "BitRate")
+    @JsonProperty("BitRate")
+    private String bitRate;
+
+    @Column(name = "FrameRate")
+    @JsonProperty("FrameRate")
+    private String frameRate;
+
+    @Column(name = "FrameCount")
+    @JsonProperty("FrameCount")
+    private String frameCount;
+
+    @Column(name = "StreamSize")
+    @JsonProperty("StreamSize")
+    private String streamSize;
+
+    @Column(name = "Compression_Mode")
+    @JsonProperty("Compression_Mode")
+    private String compressionMode;
+
+    @Column(name = "ElementCount")
+    @JsonProperty("ElementCount")
+    private String elementCount;
+
 }
 
