@@ -5,57 +5,70 @@ import { addUser } from '../redux/action/allActions';
 const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
-    const [auth, setAuth] = useState({
-        isAuthenticated: localStorage.getItem('login'), role: null, user: localStorage.getItem('user'), token: localStorage.getItem('token')
-    })
-    const dispatch = useDispatch();
+  const dispatch = useDispatch();
+  const [auth, setAuth] = useState({
+    isAuthenticated: false,
+    user: null,
+    token: null,
+    role: null,
+  });
 
-    const login = (token, user) => {
-        setAuth({
-            isAuthenticated: true,
-            user, token, role: null
-        })
-        localStorage.setItem('login', true);
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user));
-        dispatch(addUser(user));
+  // Called after successful login
+  const login = (token, user, role = null) => {
+    localStorage.setItem('login', 'true');
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('role', role);
+    setAuth({
+      isAuthenticated: true,
+      token,
+      user,
+      role,
+    });
+    dispatch(addUser(user));
+  };
+
+  const logout = () => {
+    localStorage.clear();
+    setAuth({
+      isAuthenticated: false,
+      user: null,
+      token: null,
+      role: null,
+    });
+  };
+
+  const setUserRole = (role) => {
+    localStorage.setItem('role', role);
+    setAuth(prev => ({ ...prev, role }));
+  };
+
+  useEffect(() => {
+    const login = localStorage.getItem('login') === 'true';
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    if (login && user && token) {
+      setAuth({
+        isAuthenticated: true,
+        user,
+        token,
+        role,
+      });
+      dispatch(addUser(user));
     }
+  }, [dispatch]);
 
-    const logout = () => {
-        // localStorage.removeItem('login');
-        // localStorage.removeItem('token')
-        // localStorage.removeItem('user');
-        // localStorage.removeItem('role');
-        setAuth({
-            isAuthenticated: null,
-            user: null, token: null,
-            role: null
-        })
-    }
-
-    const setUserRole = (role) => {
-        setAuth([...auth, role])
-    }
-
-    useEffect(() => {
-        setAuth({
-            isAuthenticated: localStorage.getItem('login') === 'true', role: null, user: localStorage.getItem('user'), token: localStorage.getItem('token')
-        })
-    }, []);
-
-    return (
-        <AuthContext.Provider
-            value={{ auth, setUserRole, login, logout }}
-        >
-            {children}
-        </AuthContext.Provider>
-    )
-
-}
+  return (
+    <AuthContext.Provider value={{ auth, setUserRole, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
 const useAuth = () => useContext(AuthContext);
 
 export default {
-    AuthProvider,
-    useAuth
-}
+  AuthProvider,
+  useAuth,
+};

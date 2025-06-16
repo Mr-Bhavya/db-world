@@ -6,16 +6,16 @@
   "webDir": "build",
   "cordova": {},
   "server": {
-    "url": "https://db-world.in",
-    "hostname": "db-world.in"
+    "cleartext": true,
+    "url": "http://localhost:8100"
   },
-  "appendUserAgent": "===> Db-world APK <===", 
+  "appendUserAgent": "===> Db-world APK <===",
   "plugins": {
     "CapacitorHttp": {
       "enabled": true
     },
-    "NotificationPlugin": {
-      "package": "com.db.dbworld.plugin"
+    "MyMedia3Player": {
+      "package": "com.db.dbworld.plugins"
     }
   }
 }

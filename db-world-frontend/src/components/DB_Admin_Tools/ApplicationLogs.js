@@ -1,36 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
-const ApplicationLogs = () => {
+const ApplicationLogs = ({logs}) => {
   const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
-  const [logs, setLogs] = useState([]);
-  const [loader, setLoader] = useState(true);
+  // const [logs, setLogs] = useState([]);
+  const [loader, setLoader] = useState(false);
   const ws = useRef(null);
 
-  useEffect(() => {
-    ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/logs`);
+  // useEffect(() => {
+  //   ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/logs`);
 
-    ws.current.onopen = () => {
-      console.log("WebSocket Connection open for application logs");
-      ws.current.send("");
-    };
+  //   ws.current.onopen = () => {
+  //     console.log("WebSocket Connection open for application logs");
+  //     ws.current.send("");
+  //   };
 
-    ws.current.onmessage = (event) => {
-      const tempLogs = JSON.parse(event.data);
-      setLogs(tempLogs.data);
-      setLoader(false);
-    };
+  //   ws.current.onmessage = (event) => {
+  //     const tempLogs = JSON.parse(event.data);
+  //     setLogs(tempLogs.data);
+  //     setLoader(false);
+  //   };
 
-    ws.current.onclose = () => {
-      console.log("WebSocket connection closed for application logs");
-    };
+  //   ws.current.onclose = () => {
+  //     console.log("WebSocket connection closed for application logs");
+  //   };
 
-    return () => {
-      if (ws.current) {
-        ws.current.close();
-      }
-    };
-  }, []);
+  //   return () => {
+  //     if (ws.current) {
+  //       ws.current.close();
+  //     }
+  //   };
+  // }, []);
 
   // Function to determine log color
   const getLogStyle = (log) => {

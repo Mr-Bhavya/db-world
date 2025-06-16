@@ -1,0 +1,101 @@
+.fs-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    padding: env(safe-area-inset-top)
+             env(safe-area-inset-right)
+             env(safe-area-inset-bottom)
+             env(safe-area-inset-left);
+    z-index: 10000;
+    overflow: hidden;
+  }
+  /* We inject the <video-player> web component directly: no .fs-video needed */
+  
+  .fs-spinner {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: 1.2rem;
+  }
+  
+  .fs-slider-container {
+    position: absolute; top: 50%;
+    transform: translateY(-50%);
+    display: flex; align-items: center;
+    pointer-events: auto;
+  }
+  .fs-slider-container.left { left: 12px; }
+  .fs-slider-container.right { right: 12px; }
+  
+  .fs-slider.vertical {
+    width: 150px;
+    transform: rotate(-90deg);
+    background: transparent;
+  }
+  .fs-slider.vertical::-webkit-slider-thumb {
+    width: 16px; height: 16px;
+    background: #fff; border-radius: 50%;
+    cursor: pointer; -webkit-appearance: none;
+  }
+  .fs-slider.vertical::-webkit-slider-runnable-track {
+    height: 4px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 2px;
+  }
+  .fs-slider-icon { color: #fff; margin: 0 4px; }
+  
+  .fs-topbar {
+    position: absolute; top: env(safe-area-inset-top,12px);
+    width: 100%; display: flex;
+    align-items: center; justify-content: flex-start;
+    gap: 8px; pointer-events: auto;
+  }
+  .fs-iconbtn {
+    background: rgba(0,0,0,0.5);
+    border: none; color: #fff;
+    padding: 6px; border-radius: 4px;
+    cursor: pointer;
+  }
+  .fs-title {
+    color: #fff; flex: 1; text-align: center;
+    font-size: 1rem;
+  }
+  
+  .fs-center {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex; gap: 16px;
+    pointer-events: auto;
+  }
+  .fs-large { background: rgba(0,0,0,0.5); border-radius: 50%; }
+  
+  .fs-bottombar {
+    position: absolute; bottom: env(safe-area-inset-bottom,12px);
+    width: calc(100% - 24px); left: 12px;
+    display: flex; align-items: center;
+    pointer-events: auto;
+  }
+  .fs-time {
+    color: #fff; margin: 0 8px; font-size: 0.9rem;
+    width: 50px; text-align: center;
+  }
+  .fs-range {
+    flex: 1;
+  }
+  
+  .fs-tracks-menu {
+    position: absolute; top: 50px; right: 12px;
+    background: rgba(0,0,0,0.8); padding: 8px;
+    border-radius: 6px; pointer-events: auto;
+  }
+  .fs-tracks-section button {
+    display: block; color: #fff;
+    background: none; border: none;
+    text-align: left; padding: 4px 0;
+    cursor: pointer;
+  }
+  .fs-tracks-section {
+    margin-bottom: 8px;
+  }
+  

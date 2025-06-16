@@ -1,47 +1,90 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import './index.css'
 import Cover from '../../cover'
 import Navbar from '../../navbar'
 import TilesRow from '../../tilesRow'
 import requests from '../../services/requests'
+import { StatusBar } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core'
+import CommonServices from '../../../CommonServices'
+import Constants from '../../../Constants'
+import { styled } from '@mui/material'
+import { motion } from 'framer-motion'
 
 export default function MainPage() {
+  const [coverColor, setCoverColor] = useState('rgba(0,0,0,0.9)')
+
+  // Add explicit state initialization
+  const [navbarCollapsed, setNavbarCollapsed] = useState(() => {
+    // Define categories here or get from props
+    const categories = [
+      { route: Constants.DB_CINEMA_MOVIES_ROUTE },
+      { route: Constants.DB_CINEMA_SERIES_ROUTE }
+    ];
+    const initialPath = window.location.pathname;
+    return categories.some(cat => initialPath.includes(cat.route));
+  });
+
+  // Manage selected category at parent level
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  // This callback will be passed to Navbar so that when a category is selected,
+  // the parent state is updated.
+  const handleCategorySelect = (category) => {
+    console.log(category)
+    setSelectedCategory(category);
+  };
+  // Enhance handleNavbarCollapsed
+  const handleNavbarCollapsed = useCallback((collapsed) => {
+    setNavbarCollapsed(Boolean(collapsed));
+  }, []);
+
+  const handleColorChange = useCallback((newColor) => {
+    setCoverColor(newColor);
+  }, []);
+
+  const TopFadeEffect = styled('div')(({ theme }) => ({
+    position: 'absolute',
+    top: 100,
+    left: 0,
+    width: '100%',
+    height: '15%',
+    background: `linear-gradient(to bottom, var(--navbar-bg-color, rgba(0,0,0,0.7)), transparent)`,
+    pointerEvents: 'none',
+    zIndex: 2
+  }));
 
   return (
-    <div className='container-main-page'>
+    <div className="container-main-page">
 
-      {/* cover */}
-      <Cover />
+      <Navbar
+        onCollapseChange={handleNavbarCollapsed}
+        coverColor="transparent"
+        onCategorySelect={handleCategorySelect}
+      />
 
+      {/* Cover wrapper with fade overlay */}
+      <div className="cover-wrapper">
+        <Cover
+          isNavbarCollapsed={navbarCollapsed}
+          recordCount={5}
+          // The Cover component should call onColorChange when its image changes
+          onColorChange={handleColorChange}
+        />
+      </div>
 
-      {/* navbar */}
-      <Navbar />
-
-      {/* resuable component tile */}
-      <div style={{ paddingTop: 16, }}>
-        {/* passing special prop topRow for as top row is rendered differently in terms of size and design */}
+      {/* Tiles area which will overlap with the fade */}
+      <div className="tiles-wrapper">
+        <TopFadeEffect />
         <TilesRow title="Newly Added Movies & TV Shows" requestUrl={requests.fetchNewlyAdded} />
-
-        {/* Rest of the tiles */}
-        <TilesRow title="Movies" requestUrl={requests.fetchAllMovies} horizontal={true} />
-        <TilesRow title="TV Shows" requestUrl={requests.fetchAllSeries} horizontal={true} />
-
+        <TilesRow title="Movies" requestUrl={requests.fetchAllMovies} horizontal={true} category={selectedCategory} />
+        <TilesRow title="TV Shows" requestUrl={requests.fetchAllSeries} horizontal={true} category={selectedCategory} />
         <TilesRow title="My List" requestUrl={requests.fetchWatchlist} />
-
-        <TilesRow title="Bollywood" requestUrl={requests.fetchBollywoodRecords} />
-        <TilesRow title="Hollywood" requestUrl={requests.fetchHollywoodRecords} />
-        <TilesRow title="South" requestUrl={requests.fetchSouthRecord} />
-        <TilesRow title="Gujarati" requestUrl={requests.fetchGujaratiRecords} />
-        <TilesRow title="K-Drama" requestUrl={requests.fetchKoreanRecords}/>
-
-        {/* <RowPost title="Movies" url={requests.fetchTopRated} />
-        <RowPost title="Movies" url={requests.fetchPopular} />
-        <RowPost title="Movies" url={requests.fetchTVShows} />
-        <RowPost title="Movies" url={requests.fetchComedy} />
-        <RowPost title="Movies" url={requests.fetchAction} />
-        <RowPost title="Movies" url={requests.fetchDocumentaries} />
-        <RowPost title="Movies" url={requests.fetchHorror} /> */}
-
+        <TilesRow title="Bollywood" requestUrl={requests.fetchBollywoodRecords} category={selectedCategory} />
+        <TilesRow title="Hollywood" requestUrl={requests.fetchHollywoodRecords} category={selectedCategory} />
+        <TilesRow title="South" requestUrl={requests.fetchSouthRecord} category={selectedCategory} />
+        <TilesRow title="Gujarati" requestUrl={requests.fetchGujaratiRecords} category={selectedCategory} />
+        <TilesRow title="K-Drama" requestUrl={requests.fetchKoreanRecords} category={selectedCategory} />
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { Doughnut } from 'react-chartjs-2';
 import { Table } from 'react-bootstrap';
 import {Chart, ArcElement} from 'chart.js'
+import Constants from '../Constants';
 Chart.register(ArcElement);
 
 const SystemInfo = () => {
@@ -72,7 +73,7 @@ const SystemInfo = () => {
       setSystemData(infoRes.data);
     }
     else {
-      toast.error(infoRes.message);
+      Constants.showToast.error(infoRes.message);
     }
     setLoder(false);
   }

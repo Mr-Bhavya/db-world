@@ -72,8 +72,9 @@ springdoc:
 dbworld:
   paths:
     tempDownloadPath: /ext_hdisk/dbworld/download/
-    logFilePath: /app/db_world/logs/dbworld.log
+    logFilePath: /app/db_world/logs/dbworld-json.log
     log4j2LogPath: /app/db_world/logs
+    downloadLogPath: /app/db_world/logs/download_progress.log
     integrationFolderPath: /ext_hdisk/dbworld/integration/
     streamHomePath: /ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
@@ -84,6 +85,3 @@ dbworld:
     extHDiskPath: /ext_hdisk
   api_keys:
     tmdb: 30061af77dba3722bbe14a2691055544
-
-logging:
-  config: classpath:log4j2.xml

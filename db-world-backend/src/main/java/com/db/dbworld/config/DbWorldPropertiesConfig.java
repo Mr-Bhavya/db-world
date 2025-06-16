@@ -1,5 +1,6 @@
 package com.db.dbworld.config;
 
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -19,6 +20,8 @@ public class DbWorldPropertiesConfig {
     public static class Paths {
         private String tempDownloadPath;
         private String logFilePath;
+        private String log4j2LogPath;
+        private String downloadLogPath;
         private String integrationFolderPath;
         private String streamHomePath;
         private String externalStreamHomePath;
@@ -34,4 +37,12 @@ public class DbWorldPropertiesConfig {
     public static class ApiKeys {
         private String tmdb;
     }
+
+    @PostConstruct
+    public void initLogPath() {
+        if (paths != null && paths.getLogFilePath() != null) {
+            System.setProperty("DBWORLD_LOG_PATH", paths.getLog4j2LogPath());
+        }
+    }
+
 }

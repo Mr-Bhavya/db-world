@@ -1,6 +1,7 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.services.DownloadStatus;
 import com.db.dbworld.services.StreamService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
@@ -19,6 +20,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -40,9 +42,6 @@ public class StreamServiceImpl implements StreamService {
 
     @Autowired
     private UserService userService;
-
-    @Autowired
-    private DownloadTrackerServiceImpl downloadTrackerService;
 
     @Async
     @Override
@@ -82,103 +81,77 @@ public class StreamServiceImpl implements StreamService {
                 .body(readResource(path, rangeStart)));
     }
 
+    // Service class
     @Override
-    public ResponseEntity<StreamingResponseBody> downloadFile(String user, Path path, String rangeHeader) {
+    public ResponseEntity<Void> downloadFileFromCDN(String user, Path path, String rangeHeader, boolean inline) {
         String downloadId = user + "-" + path.getFileName();
+        long fileSize;
+        long rangeStart = 0;
+        boolean isPartial = false;
+
         try {
-            final long fileSize = Files.size(path);
-            long rangeStart;
-            long rangeEnd;
+            fileSize = Files.size(path);
+        } catch (IOException e) {
+            throw new DbWorldException("Failed to determine file size.", e);
+        }
+
+        try {
             if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-                String[] ranges = rangeHeader.substring(6).split("-");
-                rangeStart = Long.parseLong(ranges[0].trim());
-                rangeEnd = (ranges.length > 1 && !ranges[1].isEmpty()) ? Long.parseLong(ranges[1].trim()) : fileSize - 1;
-            } else {
-                rangeStart = 0;
-                rangeEnd = fileSize - 1;
-            }
-
-            // Initialize or resume the download session (no DB insert here).
-            downloadTrackerService.startOrResumeDownload(downloadId, path.getFileName().toString(), user, fileSize, rangeStart);
-
-            StreamingResponseBody responseBody = outputStream -> {
-                long totalBytesRead = 0;
-                long updateThreshold = 1024 * 1024; // 1MB
-                long lastUpdateBytes = 0;
-
-                try (InputStream inputStream = Files.newInputStream(path)) {
+                try {
+                    rangeStart = Long.parseLong(rangeHeader.substring(6).split("-")[0].trim());
                     if (rangeStart > 0) {
-                        long skipped = inputStream.skip(rangeStart);
-                        if (skipped < rangeStart) {
-                            throw new IOException("Unable to skip to the requested range start.");
-                        }
+                        isPartial = true;
                     }
-
-                    byte[] buffer = new byte[BUFFER_SIZE];
-                    long bytesToRead = rangeEnd - rangeStart + 1;
-                    while (totalBytesRead < bytesToRead) {
-                        int bytesRemaining = (int) Math.min(buffer.length, bytesToRead - totalBytesRead);
-                        int bytesRead = inputStream.read(buffer, 0, bytesRemaining);
-                        if (bytesRead == -1) {
-                            break;
-                        }
-                        try {
-                            outputStream.write(buffer, 0, bytesRead);
-                        } catch (IOException e) {
-                            if (isClientDisconnect(e)) {
-                                downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
-                                downloadTrackerService.pauseDownload(downloadId);
-                                break;
-                            } else if (e.getMessage().contains("ServletOutputStream failed to flush: null")) {
-                                downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
-                                break;
-                            } else {
-                                throw e;
-                            }
-                        }
-                        totalBytesRead += bytesRead;
-                        if (totalBytesRead - lastUpdateBytes >= updateThreshold) {
-                            downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
-                            lastUpdateBytes = totalBytesRead;
-                        }
-                    }
-                    // Final update after streaming completes.
-                    if (totalBytesRead > 0) {
-                        downloadTrackerService.updateDownloadedRange(downloadId, rangeStart, rangeStart + totalBytesRead - 1);
-                    }
-                    // If the full requested range was delivered, mark the download as complete.
-                    if (totalBytesRead == (rangeEnd - rangeStart + 1)) {
-                        downloadTrackerService.completeDownload(downloadId);
-                    }
-                } catch (IOException e) {
-                    if (!isClientDisconnect(e)) {
-                        downloadTrackerService.failDownload(downloadId, e.getMessage());
-                    }
-                    throw e;
+                } catch (NumberFormatException e) {
+                    throw new DbWorldException("Invalid Range Header format.", e);
                 }
-            };
+            }
 
             HttpHeaders headers = new HttpHeaders();
-            headers.add("Content-Type", Files.probeContentType(path));
-            headers.add("Content-Disposition", "attachment; filename=\"" + path.getFileName().toString() + "\"");
-            headers.add("Accept-Ranges", "bytes");
 
-            if (rangeHeader != null) {
-                headers.add("Content-Range", "bytes " + rangeStart + "-" + rangeEnd + "/" + fileSize);
-                headers.add("Content-Length", String.valueOf(rangeEnd - rangeStart + 1));
-                return new ResponseEntity<>(responseBody, headers, HttpStatus.PARTIAL_CONTENT);
+            // Important for range request
+            if (isPartial) {
+                headers.set(HttpHeaders.CONTENT_RANGE, "bytes " + rangeStart + "-" + (fileSize - 1) + "/" + fileSize);
+                headers.setContentLength(fileSize - rangeStart);
             } else {
-                headers.add("Content-Length", String.valueOf(fileSize));
-                return new ResponseEntity<>(responseBody, headers, HttpStatus.OK);
+                headers.setContentLength(fileSize);
             }
-        } catch (NoSuchFileException | FileNotFoundException e) {
-            log.error("File not found: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found", e);
-        } catch (IOException e) {
-            log.error("I/O error during download: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "I/O error", e);
+
+            String accelRedirectUrl = String.format("/cdn/stream/%s?userId=%s&downloadId=%s&originalFile=%s&rangeStart=%d&requestId=%s&type=%s",
+                    path,
+                    URLEncoder.encode(user, StandardCharsets.UTF_8),
+                    URLEncoder.encode(downloadId, StandardCharsets.UTF_8),
+                    URLEncoder.encode(path.toString(), StandardCharsets.UTF_8),
+                    rangeStart,
+                    UUID.randomUUID(),
+                    inline ? DownloadStatus.DownloadType.STREAM.toString() : DownloadStatus.DownloadType.DOWNLOAD.toString()
+            );  
+            headers.add("X-Accel-Redirect", accelRedirectUrl);
+
+            // MIME Type
+            String mimeType;
+            try {
+                mimeType = Files.probeContentType(path);
+            } catch (IOException e) {
+                mimeType = null;
+            }
+            headers.setContentType(MediaType.parseMediaType(mimeType != null ? mimeType : "application/octet-stream"));
+
+            // Content-Disposition (attachment = download, inline = stream/play)
+            ContentDisposition disposition = inline ?
+                    ContentDisposition.inline().filename(path.getFileName().toString()).build()
+                    : ContentDisposition.attachment().filename(path.getFileName().toString()).build();
+            headers.setContentDisposition(disposition);
+
+            // Return 206 for partial, otherwise 200
+            return new ResponseEntity<>(headers, isPartial ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK);
+
+        } catch (Exception e) {
+            log.error("Error during file stream/download: {}", e.getMessage());
+            throw new DbWorldException("Error during streaming/download", e);
         }
     }
+
 
 
     /**
@@ -191,7 +164,6 @@ public class StreamServiceImpl implements StreamService {
                 msg.contains("Idle timeout"));
 //                || msg.contains("ServletOutputStream failed to write: null"));
     }
-
 
 
     @Override
@@ -331,8 +303,8 @@ public class StreamServiceImpl implements StreamService {
     private InputStreamResource readResource(Path path, long start) {
         InputStream inputStream = null;
         try {
-            inputStream.skip(start);
             inputStream = Files.newInputStream(path);
+            inputStream.skip(start);
         } catch (IOException e) {
             throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

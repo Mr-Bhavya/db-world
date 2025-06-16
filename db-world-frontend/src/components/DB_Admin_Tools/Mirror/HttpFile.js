@@ -3,11 +3,32 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Constants from '../../Constants';
 import { adminSearchRecord, mirror } from '../../ApiServices';
-import { Form } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import {
+    Box,
+    Button,
+    Card,
+    CardContent,
+    Checkbox,
+    FormControl,
+    FormControlLabel,
+    FormGroup,
+    FormLabel,
+    Grid,
+    InputLabel,
+    MenuItem,
+    Radio,
+    RadioGroup,
+    TextField,
+    Typography,
+    CircularProgress,
+    Divider,
+    Chip,
+    Autocomplete
+} from '@mui/material';
 
 function HttpFile() {
-
-    const [link, setLink] = useState("");
+    const [links, setLinks] = useState([""]);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [linkPasswordProtect, setLinkPasswordProtect] = useState(false);
@@ -20,291 +41,355 @@ function HttpFile() {
     const [recordName, setRecordName] = useState("");
     const [recordList, setRecordList] = useState([]);
     const navigate = useNavigate();
-      const location = useLocation();
+    const location = useLocation();
 
     const onSubmit = async () => {
-        // setListening(false);
         try {
-            if (!link.includes("gdtot") && !link.includes("drive.google.com")) {
-                setSubmitLoader(true);
+            const invalidLinks = links.filter(link =>
+                link.includes("gdtot") || link.includes("drive.google.com")
+            );
 
-                const mirrorRes = await mirror({
-                    url: link,
-                    username,
-                    password,
-                    folderName:recordName,
-                    fileName: title,
-                    isRename: rename,
-                    isUrlProtected: linkPasswordProtect,
-                    isExtract: extract,
-                    extractPassword: zipPassword
-                });
-                if (mirrorRes.httpStatusCode === 200) {
-                    toast.success(mirrorRes.message);
-                } else if (mirrorRes.httpStatusCode === 401) {
-                    toast.error(mirrorRes.message + Constants.RE_LOGIN, {
-                        onClose: async () => {
-                            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
-                        },
-                        autoClose: 1000
-                    })
-                }
-                else {
-                    toast.error(mirrorRes.message);
-                }
-                setSubmitLoader(false);
+            if (invalidLinks.length > 0) {
+                Constants.showToast.error("Some links are not supported for cloning");
+                return;
             }
-            else {
-                toast.error("This is not clone.")
+
+            setSubmitLoader(true);
+            const mirrorRes = await mirror({
+                urls: links.filter(link => link.trim() !== ""),
+                username,
+                password,
+                folderName: recordName,
+                fileName: title,
+                isRename: rename,
+                isUrlProtected: linkPasswordProtect,
+                isExtract: extract,
+                extractPassword: zipPassword
+            });
+
+            if (mirrorRes.httpStatusCode === 200) {
+                Constants.showToast.success(mirrorRes.message);
+            } else if (mirrorRes.httpStatusCode === 401) {
+                Constants.showToast.error(mirrorRes.message + Constants.RE_LOGIN, {
+                    onClose: async () => {
+                        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+                    },
+                    autoClose: 1000
+                });
+            } else {
+                Constants.showToast.error(mirrorRes.message);
             }
         } catch (err) {
-            console.log(err);
+            console.error(err);
+            Constants.showToast.error("Failed to process request");
+        } finally {
             setSubmitLoader(false);
-            toast.error("Failed.")
         }
-    }
+    };
 
     const searchDbCinemaRecord = async () => {
         const response = await adminSearchRecord(recordName);
-        if (response.httpStatusCode == 200) {
-            setRecordList(response.data)
+        if (response.httpStatusCode === 200) {
+            setRecordList(response.data);
         }
-    }
+    };
 
     useEffect(() => {
         if (recordName && recordName.length > 2) {
             searchDbCinemaRecord();
         }
-    }, [recordName])
+    }, [recordName]);
 
+    const handleAddLink = () => {
+        setLinks([...links, ""]);
+    };
+
+    const handleRemoveLink = (index) => {
+        if (links.length > 1) {
+            const newLinks = [...links];
+            newLinks.splice(index, 1);
+            setLinks(newLinks);
+        }
+    };
+
+    const handleLinkChange = (index, value) => {
+        const newLinks = [...links];
+        newLinks[index] = value;
+        setLinks(newLinks);
+    };
 
     return (
-        <div className="card my-1"
-            style={{
-                border: "2px solid",
-                background: "rgba(255 ,255 ,255, 0.9)",
-            }}
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            style={{ margin: '0px', padding: '0px' }}
         >
-            <h1 className="card-title text-center mx-3 my-2 border-bottom border-5 border-dark"> Mirror </h1>
-            <div className="row g-2 mx-2 my-1">
-                <div className="col-md-6">
-                    <div className="form-floating mb-2">
-                        <Form.Control
-                            list="recordList"
-                            id="record"
-                            className={"form-control"}
-                            onChange={(e) => setRecordName(e.target.value)}
-                            placeholder="Select or Type recod"
-                        >
-                        </Form.Control>
-                        <datalist id="recordList" name="recordList">
-                            {recordList?.map((item) => (
-                                <option key={item} value={item.recordId + "-" + item.name} >
-                                    {item.recordId} | {item.type} | {item.name}
-                                </option>
-                            ))}
-                        </datalist>
-                        <label htmlFor="recordList">Record</label>
-                    </div>
-                </div>
-                <div className="col-md">
-                    <div className="form-floating mb-2">
-                        <input type="text"
-                            className="form-control"
-                            id="floatingInput"
-                            name="downloadLink"
-                            value={link}
-                            onChange={(e) => setLink(e.target.value)}
-                            placeholder="Enter Download Link" />
-                        <label htmlFor="floatingInput">Download Link</label>
-                    </div>
-                </div>
-                <div className="form-check mx-3">
-                    <input className="form-check-input"
-                        type="checkbox"
-                        value={linkPasswordProtect}
-                        id="linkPasswordProtect"
-                        checked={linkPasswordProtect}
-                        onChange={() => {
-                            setLinkPasswordProtect(!linkPasswordProtect)
-                        }
-                        } />
-                    <label className="form-check-label" htmlFor="linkPasswordProtect">
-                        <h5>link is password protected</h5>
-                    </label>
-                    {
-                        linkPasswordProtect ?
-                            <div>
-                                <div className="col-md mx-3">
-                                    <div className="form-floating mb-2">
-                                        <input type="search"
-                                            className="form-control"
-                                            id="floatingInput"
-                                            name="username"
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
-                                            placeholder="Username" />
-                                        <label htmlFor="floatingInput">Username</label>
-                                    </div>
-                                </div>
-                                <div className="col-md mx-3">
-                                    <div className="form-floating mb-2">
-                                        <input type="search"
-                                            className="form-control"
-                                            id="floatingInput"
-                                            name="password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            placeholder="password" />
-                                        <label htmlFor="floatingInput">password</label>
-                                    </div>
-                                </div>
-                            </div>
-                            :
-                            ""
-                    }
+            <Card sx={{
+                maxWidth: 1000,
+                margin: '0px auto',
+                mt: 4,
+                border: '1px solid teal',
+                background: 'rgba(255, 255, 255, 0.85)',
+                p: 1,
+            }}>
+                <CardContent >
+                    {/* <Typography variant="h4" component="h1" align="center" gutterBottom>
+                        
+                    </Typography> */}
 
-                </div>
+                    <Grid container spacing={1} style={{ justifyContent: 'center' }}>
+                        {/* Left Column */}
+                        <Grid item xs={12} md={6}>
+                            {/* Record selection */}
+                            <Box sx={{ mb: 3 }}>
+                                <Autocomplete
+                                    fullWidth
+                                    freeSolo
+                                    options={recordList.map((item) => ({
+                                        label: item.recordId + "-" + item.name,
+                                        value: item.recordId + "-" + item.name
+                                    }))}
+                                    onInputChange={(_, value) => setRecordName(value)}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Select or Type record"
+                                            variant="outlined"
+                                        />
+                                    )}
+                                    getOptionLabel={(option) => option.label || option}
+                                />
+                            </Box>
 
-                <div className='col-md'>
-                    <input className="form-check-input mx-3"
-                        type="checkbox"
-                        value={rename}
-                        id="rename"
-                        checked={rename}
-                        onChange={() => {
-                            setRename(!rename)
-                        }
-                        } />
-                    <label className="form-check-label" htmlFor="rename">
-                        <h5>Rename File</h5>
-                    </label>
+                            {/* Download links - Now scrollable when many links */}
+                            <Box sx={{
+                                mb: 3,
+                                maxHeight: '300px',
+                                overflowY: 'auto',
+                                pr: 1
+                            }}>
+                                <FormControl fullWidth>
+                                    <FormLabel>Download Links</FormLabel>
+                                    {links.map((link, index) => (
+                                        <Box key={index} sx={{
+                                            display: 'flex',
+                                            flexDirection: { xs: 'column', sm: 'row' },
+                                            gap: 1,
+                                            mb: 1
+                                        }}>
+                                            <TextField
+                                                fullWidth
+                                                variant="outlined"
+                                                value={link}
+                                                onChange={(e) => handleLinkChange(index, e.target.value)}
+                                                placeholder="Enter Download Link"
+                                            />
+                                            {links.length > 1 && (
+                                                <Button
+                                                    variant="outlined"
+                                                    color="error"
+                                                    onClick={() => handleRemoveLink(index)}
+                                                    sx={{ minWidth: '100px' }}
+                                                >
+                                                    Remove
+                                                </Button>
+                                            )}
+                                        </Box>
+                                    ))}
+                                    <Button
+                                        variant="outlined"
+                                        onClick={handleAddLink}
+                                        sx={{ mt: 1 }}
+                                    >
+                                        Add Another Link
+                                    </Button>
+                                </FormControl>
+                            </Box>
 
-                    {
-                        rename &&
-                        <div className="col-md mx-3">
-                            <div className="form-floating mb-2">
-                                <input type="search"
-                                    className="form-control"
-                                    id="floatingInput"
-                                    name="title"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="Rename file" />
-                                <label htmlFor="floatingInput">File Name</label>
-                            </div>
-                        </div>
-                    }
+                            {/* Link Protection - Now properly nested */}
+                            <Box sx={{
+                                mb: 3,
+                                p: 3,
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 2,
+                                // backgroundColor: 'background.paper'
+                            }}>
+                                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                    File Options
+                                </Typography>
 
-                </div>
+                                {/* Link Protection */}
+                                <Box sx={{ mb: 2 }}>
+                                    <FormGroup>
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox
+                                                    checked={linkPasswordProtect}
+                                                    onChange={() => setLinkPasswordProtect(!linkPasswordProtect)}
+                                                />
+                                            }
+                                            label="Link is password protected"
+                                        />
+                                    </FormGroup>
 
-                <div>
-                    <h5 className='mx-3'>Do you want to extract file ?</h5>
-                    <div className="form-check mx-5">
-                        <input className="form-check-input"
-                            type="radio"
-                            name="extract"
-                            id={extract}
-                            defaultChecked={extract}
-                            value={true}
-                            onChange={() => {
-                                setExtract(true);
-                                console.log(extract);
-                            }}
-                        />
-                        <label className="form-check-label" htmlFor="extract">
-                            yes
-                        </label>
-                    </div>
+                                    {linkPasswordProtect && (
+                                        <Box sx={{ ml: 4, mt: 1 }}>
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={12} md={6}>
+                                                    <TextField
+                                                        fullWidth
+                                                        label="Username"
+                                                        variant="outlined"
+                                                        size="small"
+                                                        value={username}
+                                                        onChange={(e) => setUsername(e.target.value)}
+                                                    />
+                                                </Grid>
+                                                <Grid item xs={12} md={6}>
+                                                    <TextField
+                                                        fullWidth
+                                                        label="Password"
+                                                        type="password"
+                                                        variant="outlined"
+                                                        size="small"
+                                                        value={password}
+                                                        onChange={(e) => setPassword(e.target.value)}
+                                                    />
+                                                </Grid>
+                                            </Grid>
+                                        </Box>
+                                    )}
+                                </Box>
 
-                    <div className="form-check mx-5">
-                        <input className="form-check-input"
-                            type="radio"
-                            name="extract"
-                            // id={extract}
-                            // defaultChecked={!extract}
-                            // value={false}
-                            onChange={() => {
-                                setExtract(false);
-                                console.log(extract);
-                            }}
-                        />
-                        <label className="form-check-label" htmlFor="extract">
-                            No
-                        </label>
-                    </div>
-                </div>
+                                {/* Rename */}
+                                <Box>
+                                    <FormGroup>
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox
+                                                    checked={rename}
+                                                    onChange={() => setRename(!rename)}
+                                                />
+                                            }
+                                            label="Rename File"
+                                        />
+                                    </FormGroup>
+                                    {rename && (
+                                        <Box sx={{ ml: 4, mt: 1 }}>
+                                            <TextField
+                                                fullWidth
+                                                label="File Name"
+                                                variant="outlined"
+                                                size="small"
+                                                value={title}
+                                                onChange={(e) => setTitle(e.target.value)}
+                                            />
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Box>
+                        </Grid>
 
-                <div>
-                    {
-                        extract &&
-                        <div className="form-check mx-5">
-                            <input className="form-check-input"
-                                type="checkbox"
-                                value={zipPasswordProtect}
-                                id="zipPasswordProtect"
-                                checked={zipPasswordProtect}
-                                onChange={() => {
-                                    setZipPasswordProtect(!zipPasswordProtect)
-                                }
-                                } />
-                            <label className="form-check-label" htmlFor="zipPasswordProtect">
-                                <h5>file is password protected</h5>
-                            </label>
-                            {
-                                zipPasswordProtect ?
-                                    <div>
-                                        <div className="col-md">
-                                            <div className="form-floating mb-2">
-                                                <input type="search"
-                                                    className="form-control"
-                                                    id="floatingInput"
-                                                    name="zipPassword"
+                        {/* Right Column */}
+                        <Grid item xs={12} md={6}>
+                            {/* Extraction section moved to right */}
+                            <Box sx={{
+                                p: 2,
+                                border: '1px solid #e0e0e0',
+                                borderRadius: 1,
+                                mb: 3
+                            }}>
+                                <FormControl component="fieldset" fullWidth>
+                                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                        File Extraction Options
+                                    </Typography>
+
+                                    <RadioGroup
+                                        value={extract}
+                                        onChange={(e) => setExtract(e.target.value === 'true')}
+                                    >
+                                        <FormControlLabel
+                                            value={true}
+                                            control={<Radio />}
+                                            label="Extract files after download"
+                                        />
+                                        <FormControlLabel
+                                            value={false}
+                                            control={<Radio />}
+                                            label="Keep files as-is"
+                                        />
+                                    </RadioGroup>
+                                </FormControl>
+
+                                {extract && (
+                                    <Box sx={{ mt: 2 }}>
+                                        <FormGroup>
+                                            <FormControlLabel
+                                                control={
+                                                    <Checkbox
+                                                        checked={zipPasswordProtect}
+                                                        onChange={() => setZipPasswordProtect(!zipPasswordProtect)}
+                                                    />
+                                                }
+                                                label="Archive is password protected"
+                                            />
+                                        </FormGroup>
+
+                                        {zipPasswordProtect && (
+                                            <Box sx={{ ml: 3, mt: 1 }}>
+                                                <TextField
+                                                    fullWidth
+                                                    label="Archive Password"
+                                                    type="password"
+                                                    variant="outlined"
                                                     value={zipPassword}
                                                     onChange={(e) => setZipPassword(e.target.value)}
-                                                    placeholder="Zip Password" />
-                                                <label htmlFor="floatingInput">password</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    :
-                                    ""
-                            }
-                        </div>
+                                                />
+                                            </Box>
+                                        )}
+                                    </Box>
+                                )}
+                            </Box>
+                        </Grid>
 
-                    }
-                </div>
+                        <Grid item xs={12} style={{ alignContent: 'flex-end' }}>
+                            <Box sx={{
+                                display: 'flex',
+                                justifyContent: 'flex-end', // Aligns content to the right
+                                mt: 2, // Margin top for spacing
 
-                {
-                    !submitLoader &&
-                    <div>
-                        <div className="col-md">
-                            <div className="form-floating">
-                                <button type="submit"
-                                    className="btn btn-primary mx-3 my-1"
+                            }}>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
                                     onClick={onSubmit}
-                                >Submit</button>
-                            </div>
-                        </div>
-                    </div>
-                    ||
-                    <div>
-                        <div className="col-md">
-                            <div className="form-floating">
-                                <button className="btn btn-primary" type="button" disabled>
-                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                       &nbsp;&nbsp;&nbsp;Processing ...
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }
-                <hr />
-            </div>
+                                    disabled={submitLoader}
+                                    size="large"
+                                    sx={{
+                                        width: { xs: '100%', sm: 'auto' }, // Full width on mobile, auto on desktop
+                                        minWidth: '120px', // Ensures consistent width
+                                        height: '48px'
+                                    }}
+                                >
+                                    {submitLoader ? (
+                                        <>
+                                            <CircularProgress size={24} color="inherit" />
+                                            <Box component="span" sx={{ ml: 2 }}>Processing...</Box>
+                                        </>
+                                    ) : (
+                                        'Submit'
+                                    )}
+                                </Button>
+                            </Box>
+                        </Grid>
+                    </Grid>
+                </CardContent>
+            </Card>
             {Constants.TOAST_CONTAINER}
-        </div >
-    )
-
+        </motion.div>
+    );
 }
 
 export default HttpFile;

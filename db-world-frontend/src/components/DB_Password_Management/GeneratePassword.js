@@ -1,149 +1,296 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import Constants from '../Constants';
+import {
+    Box,
+    Button,
+    Card,
+    CardHeader,
+    CardContent,
+    Divider,
+    IconButton,
+    InputAdornment,
+    List,
+    ListItem,
+    Slider,
+    TextField,
+    Typography,
+    useTheme
+} from '@mui/material';
+import {
+    Visibility,
+    VisibilityOff,
+    ContentCopy,
+    ArrowBack
+} from '@mui/icons-material';
+import { motion } from 'framer-motion';
+import CommonServices from '../CommonServices';
+import { toast } from 'react-toastify';
 
-function GeneratePassword() {
-    let hidePasswordIcon = "https://img.icons8.com/material-rounded/24/null/hide.png";
-    let visiblePasswordIcon = "https://img.icons8.com/material-rounded/24/null/visible.png";
+const GeneratePassword = () => {
     const [generatedPassword, setGeneratedPassword] = useState("");
     const [passwordLength, setPasswordLength] = useState(8);
-    const [isPasswordGenerated, setIsPasswordGenerated] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
+    const theme = useTheme();
 
-    const onInputChange = (e) => {
-        if (e.target.id === "passwordLength") {
-            setPasswordLength(parseInt(e.target.value));
-        }
-    }
+    const handleSliderChange = (event, newValue) => {
+        setPasswordLength(newValue);
+    };
+
+    const handleInputChange = (event) => {
+        const value = Math.min(Math.max(parseInt(event.target.value) || 8, 8), 16);
+        setPasswordLength(value);
+    };
 
     const copyPassword = () => {
-        window.navigator.clipboard.writeText(generatedPassword);
-        let copyPassword = document.getElementById("copyPassword");
-        copyPassword.innerHTML = "Copied !!";
-        copyPassword.className = "btn btn-success btn-sm m-3";
-        setTimeout(() => {
-            copyPassword.innerHTML = "Copy Password";
-            copyPassword.className = "btn btn-primary btn-sm m-3";
-        }, 1000)
+        const result = CommonServices.handleCopy(generatedPassword);
+        if (result.success) {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 1000);
+        } else {
+            Constants.showToast.error(result.message);
+        }
+    };
+
+    const togglePasswordVisibility = () => {
+        setShowPassword(!showPassword);
+    };
+
+    // const generatePassword = () => {
+    //     const numbers = "0123456789";
+    //     const upperLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    //     const lowerLetters = "abcdefghijklmnopqrstuvwxyz";
+    //     const specialCharacters = "~!@#$%^&*()_-+=<>{}[|]";
+
+    //     // Ensure at least one character from each category
+    //     const getRandomChar = (str) => str[Math.floor(Math.random() * str.length)];
+
+    //     let password = [
+    //         getRandomChar(numbers),
+    //         getRandomChar(upperLetters),
+    //         getRandomChar(lowerLetters),
+    //         getRandomChar(specialCharacters)
+    //     ];
+
+    //     // Fill the rest with random characters from all categories
+    //     const allChars = numbers + upperLetters + lowerLetters + specialCharacters;
+    //     while (password.length < passwordLength) {
+    //         password.push(getRandomChar(allChars));
+    //     }
+
+    //     // Shuffle the array to mix the required characters
+    //     for (let i = password.length - 1; i > 0; i--) {
+    //         const j = Math.floor(Math.random() * (i + 1));
+    //         [password[i], password[j]] = [password[j], password[i]];
+    //     }
+
+    //     setGeneratedPassword(password.join(''));
+    // };
+
+    function generatePassword() {
+        const length = passwordLength;
+        const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const lower = "abcdefghijklmnopqrstuvwxyz";
+        const digits = "0123456789";
+        const symbols = "!@#$%^&*()-_=+[]{}|;:,.<>?";
+        const allChars = upper + lower + digits + symbols;
+
+        if (length < 8) throw new Error("Password length should be at least 8 characters for security.");
+
+        // Ensure at least one character from each group
+        const getRandomChar = (charset) => charset[Math.floor(crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 * charset.length)];
+
+        let password = [
+            getRandomChar(upper),
+            getRandomChar(lower),
+            getRandomChar(digits),
+            getRandomChar(symbols)
+        ];
+
+        // Fill the rest of the password
+        for (let i = password.length; i < length; i++) {
+            password.push(getRandomChar(allChars));
+        }
+
+        // Shuffle the password
+        setGeneratedPassword(password.sort(() => 0.5 - Math.random()).join(''));
     }
 
-    const generatePassword = (passwordLength) => {
 
-        setIsPasswordGenerated(false);
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.1,
+                when: "beforeChildren"
+            }
+        },
+        color: 'black'
+    };
 
-        let numbers = "1234567890";
-        let upperLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        let lowerLetters = upperLetters.toLowerCase();
-        let specialCharacters = "~!@#$%^&*()_-+=<>{}[|]";
-        let generatedPassword = "";
-        let allCharacterArray = [numbers, upperLetters, lowerLetters, specialCharacters];
-        console.log(passwordLength);
-        passwordLength = typeof (passwordLength) === 'undefined' ? 10 : passwordLength;
-
-        if (typeof (passwordLength) !== "number") {
-            alert("Password length should be number.")
-            setGeneratedPassword("");
-            // return { status: false, result: "Password length should be number." }
-        }
-        else {
-            if (passwordLength < 8 || passwordLength > 16) {
-                setGeneratedPassword("");
-                alert("password length should be between 8 and 16.")
-                // return { status: false, result: "Password length should be between 8 and 16." }
-            } else {
-                let generatedString = "";
-                for (let i = 0; i <= 3; i++) {
-                    let pickUpString = allCharacterArray[i];
-                    let j = 0;
-                    let addNumber = pickUpString === lowerLetters ? passwordLength - 6 : 2;
-                    while (j < addNumber) {
-                        let character = pickUpString.charAt(Math.random() * pickUpString.length);
-                        if (!generatedString.includes(character)) {
-                            generatedString += character;
-                            j++;
-                        }
-                    }
-                }
-
-                while (true) {
-                    if (generatedPassword.length == generatedString.length) {
-                        break;
-                    }
-                    else {
-                        let character = generatedString.charAt(Math.random() * generatedString.length);
-                        if (!generatedPassword.includes(character)) {
-                            generatedPassword += character;
-                        }
-                    }
-                }
-                // return { status: true, result: generatedPassword };
-                setIsPasswordGenerated(true);
-                setGeneratedPassword(generatedPassword);
-                console.log(generatedPassword);
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: {
+            y: 0,
+            opacity: 1,
+            transition: {
+                duration: 0.5
             }
         }
-    }
-
-    const togglePassword = () => {
-
-        if (document.getElementById("generatedPassword").type == "text") {
-            document.getElementById("generatedPassword").type = "password";
-            document.getElementById("togglePasswordIcon").src = hidePasswordIcon;
-        } else {
-            document.getElementById("generatedPassword").type = "text";
-            document.getElementById("togglePasswordIcon").src = visiblePasswordIcon;
-        }
-    }
-
-    // useEffect(() => {
-    //     let authenticationRes = Authentication({ redirectTo: Constants.DB_GENERATE_PASSWORD_ROUTE });
-    //     console.log(authenticationRes);
-    //     if (authenticationRes.login) {
-    //         setUserData(authenticationRes.user);
-    //     }
-    //     else {
-    //         navigate(authenticationRes.redirectUrl, { replace: true });
-    //     }
-    // }, [])
+    };
 
     return (
-        <div className="card mx-3 my-2" style={{ background: "rgba(255 ,255 ,255, 0.9)" }}>
-            <div className="card-header">
-                <Link className='btn btn-outline-light btn-sm' to={Constants.DB_PASSWORD_MANAGER_ROUTE} style={{ float: "left" }}>
-                    <img src="https://img.icons8.com/ios-glyphs/30/null/left.png" title="Go Back to Password Management" />
-                </Link>
-                <center><b><h2>Password Generater</h2></b></center>
-            </div>
-            <div className="mx-3">
-                <div className="card-body">
-                    <h5 className="card-title"><u>Generate Password</u></h5>
-                    <ul className="card-text">
-                        <li>This will generate password for requried length.</li>
-                        <li>Password Will contains Numbers, Special Character, Caps and Small Letters.</li>
-                        <li>Password length should be between 8 and 16.</li>
-                    </ul>
-                    <hr />
-                    <div>
-                        <label className="card-text" htmlFor="passwordLength"><b>Select Password length: </b></label>
-                        <input className="m-1" type="number" id="passwordLength" value={passwordLength} min="8" max="16" onChange={onInputChange} />
-                        <button className="btn btn-warning btn-sm mx-3" onClick={() => generatePassword(passwordLength)}>Generate</button>
-                    </div>
-                    <hr />
-                    {
-                        isPasswordGenerated &&
-                        <div className="mx-1" >
-                            <span>
-                                <label className="card-text" htmlFor="generatedPassword"><b>Generated Password:  </b></label>
-                                &nbsp;<input type="password" id="generatedPassword" value={generatedPassword} readOnly />
-                                <img src={hidePasswordIcon} id="togglePasswordIcon" style={{ marginLeft: "-30px", cursor: "pointer" }} onClick={togglePassword} />
-                            </span>
-                            <button className="btn btn-primary btn-sm m-3" id="copyPassword" onClick={copyPassword}> Copy Password</button>
-                        </div>
+        <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={containerVariants}
+            style={{ padding: theme.spacing(2) }}
+        >
+            <Card
+                sx={{
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    maxWidth: 800,
+                    margin: '0 auto',
+                    color: 'black'
+                }}
+            >
+                <CardHeader
+                    title={
+                        <motion.div variants={itemVariants}>
+                            <Box display="flex" alignItems="center" gap={2}>
+                                <Button
+                                    component={Link}
+                                    to={Constants.DB_PASSWORD_MANAGER_ROUTE}
+                                    startIcon={<ArrowBack />}
+                                    variant="contained"
+                                    size="small"
+                                    style={{ alignItems: 'center' }}
+                                >
+                                    Back
+                                </Button>
+                                <Typography variant="h4" gutterBottom sx={{ alignItems: 'center', mb: 0 }}>
+                                    Password Generator
+                                </Typography>
+                            </Box>
+                        </motion.div>
                     }
+                />
+                <Divider sx={{ backgroundColor: 'teal' }} />
 
-                </div>
-            </div>
-        </div>
-    )
-}
+                <CardContent>
+                    <motion.div variants={containerVariants}>
+                        <motion.div variants={itemVariants}>
+                            <Typography variant="h6" gutterBottom>
+                                <u>Generate Password</u>
+                            </Typography>
+                        </motion.div>
+
+                        <motion.div variants={itemVariants}>
+                            <List>
+                                <ListItem>
+                                    <Typography variant="body1">
+                                        • This will generate password for required length.
+                                    </Typography>
+                                </ListItem>
+                                <ListItem>
+                                    <Typography variant="body1">
+                                        • Password will contain numbers, special characters, uppercase and lowercase letters.
+                                    </Typography>
+                                </ListItem>
+                                <ListItem>
+                                    <Typography variant="body1">
+                                        • Password length should be between 8 and 16.
+                                    </Typography>
+                                </ListItem>
+                            </List>
+                        </motion.div>
+
+                        <motion.div variants={itemVariants}>
+                            <Divider sx={{ my: 2 }} />
+                        </motion.div>
+
+                        <motion.div variants={itemVariants}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Typography variant="body1" sx={{ minWidth: 180 }}>
+                                    Password length: {passwordLength}
+                                </Typography>
+                                <Slider
+                                    value={passwordLength}
+                                    onChange={handleSliderChange}
+                                    min={8}
+                                    max={16}
+                                    sx={{ flexGrow: 1 }}
+                                />
+                                <TextField
+                                    size="small"
+                                    type="number"
+                                    value={passwordLength}
+                                    onChange={handleInputChange}
+                                    inputProps={{ min: 8, max: 16 }}
+                                    sx={{ width: 80 }}
+                                />
+                            </Box>
+                        </motion.div>
+
+                        <motion.div variants={itemVariants}>
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={generatePassword}
+                                sx={{ mt: 2 }}
+                                fullWidth
+                            >
+                                Generate Password
+                            </Button>
+                        </motion.div>
+
+                        {generatedPassword && (
+                            <>
+                                <motion.div variants={itemVariants}>
+                                    <Divider sx={{ my: 2, color: 'InfoBackground' }} />
+                                </motion.div>
+
+                                <motion.div variants={itemVariants}>
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', color: 'black' }}>
+                                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                                            Generated Password:
+                                        </Typography>
+                                        <TextField
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={generatedPassword}
+                                            InputProps={{
+                                                readOnly: true,
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <IconButton onClick={togglePasswordVisibility} sx={{ color: 'teal' }}>
+                                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ),
+                                                style: { color: 'black', border: '1px solid teal' }
+                                            }}
+                                            className='text-dark'
+                                            sx={{ flexGrow: 1, color: 'teal' }}
+                                        />
+                                        <Button
+                                            variant="contained"
+                                            startIcon={<ContentCopy />}
+                                            onClick={copyPassword}
+                                            color={isCopied ? 'success' : 'primary'}
+                                        >
+                                            {isCopied ? 'Copied!' : 'Copy'}
+                                        </Button>
+                                    </Box>
+                                </motion.div>
+                            </>
+                        )}
+                    </motion.div>
+                </CardContent>
+            </Card>
+        </motion.div>
+    );
+};
 
 export default GeneratePassword;

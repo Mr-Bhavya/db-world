@@ -23,6 +23,7 @@ import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
+import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
@@ -208,6 +209,18 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Override
     public List<Map<String, Object>> getRecords() {
         return dbCinemaRecordsRepository.findRecords();
+    }
+
+    @Override
+    public List<Map<String, Object>> getRecordsWithStreamList() {
+        List<Map<String, Object>> dbCinemaRecords = dbCinemaRecordsRepository.findRecords();
+        return dbCinemaRecords.stream().map(stringObjectMap -> {
+            Map<String, Object> temp = new HashMap<>(stringObjectMap);
+            List<MediaFileInfo> mediaFileInfos = mediaFileInfoRepository.findAllByDbCinemaRecordId((Long) temp.get("id"))
+                    .stream().map(mediaFileInfoEntity -> modelMapper.map(mediaFileInfoEntity, MediaFileInfo.class)).collect(Collectors.toList());
+            temp.put("stream_file_list", mediaFileInfos);
+            return temp;
+        }).toList();
     }
 
     @Override

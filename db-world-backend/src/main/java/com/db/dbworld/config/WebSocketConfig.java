@@ -30,7 +30,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
     private final ApplicationLogsHandler applicationLogsHandler;
     private final DownloadTrackerHandler downloadTrackerHandler;
 
-    public WebSocketConfig(MirrorStatusHandler mirrorStatusHandler,  ApplicationLogsHandler applicationLogsHandler, DownloadTrackerHandler downloadTrackerHandler) {
+    public WebSocketConfig(MirrorStatusHandler mirrorStatusHandler, ApplicationLogsHandler applicationLogsHandler, DownloadTrackerHandler downloadTrackerHandler) {
         this.mirrorStatusHandler = mirrorStatusHandler;
         this.applicationLogsHandler = applicationLogsHandler;
         this.downloadTrackerHandler = downloadTrackerHandler;
@@ -41,7 +41,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         registry.addHandler(mirrorStatusHandler, "/api/utils/status")
                 .setAllowedOrigins("*");
 
-        registry.addHandler(applicationLogsHandler, "/api/utils/logs")
+        registry.addHandler(applicationLogsHandler, "/api/utils/application-logs")
                 .setAllowedOrigins("*");
 
         registry.addHandler(downloadTrackerHandler, "/api/utils/download-tracker")

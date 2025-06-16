@@ -77,7 +77,8 @@ public class DbCinemaController {
             @RequestParam(value = "size", required = false, defaultValue = "5") int pageSize
     ) {
         HashMap<Object, Object> map = new HashMap<>();
-        map.put("records", dbCinemaRecordsService.fetchCoverRecords(pageNumber, pageSize));
+        map.put("records", dbCinemaRecordsService.fetchCoverRecords(pageNumber, pageSize).stream()
+                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
         return new ApiResponse<>(HttpStatus.OK, true, map);
     }
 

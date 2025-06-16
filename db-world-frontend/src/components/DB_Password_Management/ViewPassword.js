@@ -1,28 +1,67 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ToastContainer, toast, } from 'react-toastify';
+import { toast } from 'react-toastify';
+import {
+    Box,
+    Button,
+    Card,
+    CardContent,
+    CardHeader,
+    CircularProgress,
+    Collapse,
+    Container,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Divider,
+    Grid,
+    IconButton,
+    InputAdornment,
+    List,
+    ListItem,
+    ListItemText,
+    Paper,
+    TextField,
+    Typography,
+    Tooltip,
+    useTheme
+} from '@mui/material';
+import {
+    Search as SearchIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
+    Edit as EditIcon,
+    Delete as DeleteIcon,
+    ContentCopy as CopyIcon,
+    Visibility as VisibilityIcon,
+    VisibilityOff as VisibilityOffIcon,
+    ArrowBack as ArrowBackIcon
+} from '@mui/icons-material';
+import { motion } from 'framer-motion';
 import Constants from '../Constants';
-import CommonServices from '../CommonServices';
-import { v1 as uuidv1 } from 'uuid';
 import { deleteCredentialByCredentialId, deleteHostById, getCredential, updateCredential } from '../ApiServices';
-import { Button, Modal } from 'react-bootstrap';
+import { teal } from '@mui/material/colors';
+import { max } from 'rxjs';
+import CommonServices from '../CommonServices';
 
-function ViewPassword() {
-
+const ViewPassword = () => {
+    const theme = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
-    const [loader, setLoader] = useState(true);
+    const [loading, setLoading] = useState(true);
     const [credentialsCache, setCredentialsCache] = useState([]);
     const [credentials, setCredentials] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
-    const [updateLoader, setUpdateLoader] = useState(false);
-    const [deleteLoader, setDeleteLoader] = useState(false);
-    const [deleteModalShow, setDeleteModalShow] = useState(false);
-    const [deleteHostLoader, setDeleteHostLoader] = useState(false);
-    const [deleteHostModalShow, setDeleteHostModalShow] = useState(false);
-    const [editModalShow, setEditModalShow] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isDeletingHost, setIsDeletingHost] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
+    const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+    const [openDeleteHostDialog, setOpenDeleteHostDialog] = useState(false);
+    const [openEditDialog, setOpenEditDialog] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [formCredential, setFormCredential] = useState({
-        // pmId: null,
         pmId: null,
         host: null,
         credentialId: null,
@@ -30,14 +69,32 @@ function ViewPassword() {
         password: null,
         pin: null,
         notes: null
-    })
+    });
 
-    const onFieldChange = (e) => {
+    // Style for dark background
+    const darkBackgroundStyle = {
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+        color: '#ffffff',
+        minHeight: '100vh',
+        padding: theme.spacing(4)
+    };
+
+    const cardStyle = {
+        backgroundColor: 'rgba(255, 255, 255, 0.6)',
+        color: '#000000',
+        transition: 'all 0.3s ease',
+        '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: theme.shadows[6]
+        }
+    };
+
+    const handleInputChange = (e) => {
         setFormCredential({
             ...formCredential,
             [e.target.name]: e.target.value
-        })
-    }
+        });
+    };
 
     const resetFormCredential = () => {
         setFormCredential({
@@ -48,383 +105,752 @@ function ViewPassword() {
             password: null,
             pin: null,
             notes: null
-        })
-    }
+        });
+        setShowPassword(false);
+    };
 
-    const togglePassword = (id) => {
+    const togglePasswordVisibility = () => {
+        setShowPassword(!showPassword);
+    };
 
-        if (document.getElementById(id).type == "text") {
-            document.getElementById(id).type = "password";
-            document.getElementsByName("togglePassword").value = false;
-            // document.getElementById("togglePasswordIcon").src = hidePasswordIcon;
-        } else {
-            document.getElementById(id).type = "text";;
-            document.getElementsByName("togglePassword").value = true;
-            // document.getElementById("togglePasswordIcon").src = visiblePasswordIcon;
-        }
-    }
-
-    const onUpdateCredential = async (e) => {
+    const handleUpdateCredential = async (e) => {
         e.preventDefault();
-        setUpdateLoader(true);
-        let { credentialId, pmId, host, username, password, pin, notes } = formCredential;
-        pin = pin == "" ? null : pin;
-        let updateCredentialRes = await updateCredential(pmId, { id: credentialId, url: `https://${host}`, username, password, pin, notes })
-        if (updateCredentialRes.httpStatusCode === 200) {
-            toast.success(updateCredentialRes.message);
-            getUserCredentials()
-        } else if (updateCredentialRes.httpStatusCode === 401) {
-            toast.error(updateCredentialRes.message,
-                {
-                    autoClose: 1000,
-                    onClose: () => {
-                        navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
-                    }
-                });
-        } else {
-            toast.error(updateCredentialRes.message);
-        }
-        setUpdateLoader(false);
-        handelEditModalClose();
-    }
+        setIsUpdating(true);
+        const { credentialId, pmId, host, username, password, pin, notes } = formCredential;
+        const processedPin = pin === "" ? null : pin;
 
+        try {
+            const updateCredentialRes = await updateCredential(pmId, {
+                id: credentialId,
+                url: `https://${host}`,
+                username,
+                password,
+                pin: processedPin,
+                notes
+            });
+
+            if (updateCredentialRes.httpStatusCode === 200) {
+                Constants.showToast.success(updateCredentialRes.message);
+                await getUserCredentials();
+                setOpenEditDialog(false);
+            } else if (updateCredentialRes.httpStatusCode === 401) {
+                Constants.showToast.error(updateCredentialRes.message, {
+                    autoClose: 1000,
+                    onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } })
+                });
+            } else {
+                Constants.showToast.error(updateCredentialRes.message);
+            }
+        } catch (error) {
+            Constants.showToast.error("An error occurred while updating credential");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     const getUserCredentials = async () => {
-        let getCredentialRes = await getCredential()
-        if (getCredentialRes.httpStatusCode === 200) {
-            setCredentialsCache(getCredentialRes.data)
-            setCredentials(getCredentialRes.data)
+        setIsFetching(true);
+        try {
+            const getCredentialRes = await getCredential();
+            if (getCredentialRes.httpStatusCode === 200) {
+                setCredentialsCache(getCredentialRes.data);
+                setCredentials(getCredentialRes.data);
+            } else if (getCredentialRes.httpStatusCode === 401) {
+                navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+            } else {
+                Constants.showToast.error(getCredentialRes.message);
+            }
+        } catch (error) {
+            Constants.showToast.error("Failed to fetch credentials");
+        } finally {
+            setLoading(false);
+            setIsFetching(false);
         }
-        else if (getCredentialRes.httpStatusCode === 401) {
-            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
-        }
-        else {
-            toast.error(getCredentialRes.message)
-        }
-        setLoader(false);
-    }
+    };
 
-    const onSearchFieldChange = (e) => {
-        let query = e.target.value;
+    const handleSearch = (query) => {
         setSearchQuery(query);
-        if (query === "" || query === null || typeof (query) === "undefined") {
+        if (!query) {
             setCredentials(credentialsCache);
-        } else {
-            setCredentials(credentials.filter(({ host }) => host.toLowerCase().includes(query.toLowerCase())))
+            return;
         }
 
-        setCredentials(
-            query === "" || query === null || typeof (query) === "undefined" ? credentialsCache :
-                credentials.filter(({ host, credentials }) => host.toLowerCase().includes(query.toLowerCase()) || credentials.filter(({ username }) => username.toLowerCase().includes(query.toLowerCase())).length > 0)
-        )
-    }
+        const filtered = credentialsCache.filter(({ host, credentials }) =>
+            host.toLowerCase().includes(query.toLowerCase()) ||
+            credentials.some(({ username }) => username.toLowerCase().includes(query.toLowerCase()))
+        );
+        setCredentials(filtered);
+    };
+
+    const handleDeleteCredential = async () => {
+        setIsDeleting(true);
+        try {
+            const deleteCredentialRes = await deleteCredentialByCredentialId(formCredential?.credentialId);
+            if (deleteCredentialRes.httpStatusCode === 200) {
+                Constants.showToast.success(deleteCredentialRes.message);
+                await getUserCredentials();
+                setOpenDeleteDialog(false);
+            } else if (deleteCredentialRes.httpStatusCode === 401) {
+                navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+            } else {
+                Constants.showToast.error(deleteCredentialRes.message);
+            }
+        } catch (error) {
+            Constants.showToast.error("An error occurred while deleting credential");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteHost = async () => {
+        setIsDeletingHost(true);
+        try {
+            const deleteHostRes = await deleteHostById(formCredential.pmId);
+            if (deleteHostRes.httpStatusCode === 200) {
+                Constants.showToast.success(deleteHostRes.message);
+                await getUserCredentials();
+                setOpenDeleteHostDialog(false);
+            } else if (deleteHostRes.status === 401) {
+                navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+            } else {
+                Constants.showToast.error(deleteHostRes.message);
+            }
+        } catch (error) {
+            Constants.showToast.error("An error occurred while deleting host");
+        } finally {
+            setIsDeletingHost(false);
+        }
+    };
+
+    const copyToClipboard = (text) => {
+        const result = CommonServices.handleCopy(text);
+        if (result.success) {
+            Constants.showToast.success(result.message);
+        } else {
+            Constants.showToast.error(result.message);
+        }
+    };
 
     useEffect(() => {
         getUserCredentials();
-    }, [])
+    }, []);
 
-    const onDeleteCredential = async () => {
-        setDeleteLoader(true);
-        let deleteCredentialRes = await deleteCredentialByCredentialId(formCredential?.credentialId)
-        if (deleteCredentialRes.httpStatusCode === 200) {
-            toast.success(deleteCredentialRes.message);
-            getUserCredentials();
-        }
-        else if (deleteCredentialRes.httpStatusCode === 401) {
-            navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
-        }
-        else {
-            toast.error(deleteCredentialRes.message);
-        }
-        setDeleteLoader(false);
-        handelDeleteModalClose();
-    }
+    const CredentialItem = ({ credential, host, pmId }) => {
+        const [expanded, setExpanded] = useState(false);
+        const { id, username, password, pin, notes } = credential;
 
-    const onDeleteHost = async (pmId) => {
-        setDeleteHostLoader(true);
-        try {
-            let deleteHostRes = await deleteHostById(pmId);
-            if (deleteHostRes.httpStatusCode === 200) {
-                toast.success(deleteHostRes.message);
-                getUserCredentials();
-            }
-            else if (deleteHostRes.status === 401) {
-                navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
-            }
-            else {
-                toast.error(deleteHostRes.message);
-            }
-        }
-        catch (err) {
-            console.log(err);
-            toast.error(err);
-        }
-        setDeleteHostLoader(false);
-        handelDeleteHostModalClose();
-    }
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+            >
+                <Paper elevation={2} sx={{ ...cardStyle, mb: 1 }}>
+                    <ListItem
+                        alignItems="flex-start"
+                        sx={{ cursor: 'pointer' }}
+                        onClick={() => setExpanded(!expanded)}
+                    >
+                        <ListItemText
+                            sx={{ maxWidth: '100%' }}
+                            primary={
+                                <Box display="flex" justifyContent="space-between" alignItems="center">
+                                    <Typography variant="subtitle1" sx={{ flex: 1 }} noWrap>
+                                        {username}
+                                    </Typography>
+                                    <IconButton edge="end" size="small" sx={{ ml: 1, color: 'teal' }}>
+                                        {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                    </IconButton>
+                                </Box>
+                            }
+                        />
+                    </ListItem>
 
-    const handelDeleteModalClose = () => {
-        setDeleteModalShow(false);
-        resetFormCredential();
-    }
+                    <Collapse in={expanded} timeout="auto" unmountOnExit>
+                        <Divider />
+                        <Box sx={{ p: 2 }}>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} sm={6}>
+                                    <Typography variant="body2">
+                                        <strong>Username:</strong> {username}
+                                        <Tooltip title="Copy username">
+                                            <IconButton size="small" onClick={() => copyToClipboard(username)} style={{ color: 'teal' }}>
+                                                <CopyIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        <strong>Password:</strong> {password}
+                                        <Tooltip title="Copy password">
+                                            <IconButton size="small" onClick={() => copyToClipboard(password)} style={{ color: 'teal' }}>
+                                                <CopyIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    {pin && (
+                                        <Typography variant="body2">
+                                            <strong>Pin:</strong> {pin}
+                                            <Tooltip title="Copy pin">
+                                                <IconButton size="small" onClick={() => copyToClipboard(pin)} style={{ color: 'teal' }}>
+                                                    <CopyIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Typography>
+                                    )}
+                                    {notes && (
+                                        <Typography variant="body2">
+                                            <strong>Notes:</strong> {notes}
+                                        </Typography>
+                                    )}
+                                </Grid>
+                            </Grid>
 
-    const handelDeleteHostModalClose = () => {
-        setDeleteHostModalShow(false);
-        resetFormCredential();
-    }
-    const handelEditModalClose = () => {
-        setEditModalShow(false);
-        resetFormCredential();
-    }
+                            {/* Action buttons (Edit/Delete) inside collapse */}
+                            <Box mt={2} display="flex" justifyContent="flex-end" gap={1}>
+                                <Tooltip title="Edit">
+                                    <IconButton
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setFormCredential({ host, username, password, pin, notes, credentialId: id, pmId });
+                                            setOpenEditDialog(true);
+                                        }}
+                                    >
+                                        <EditIcon color="primary" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete">
+                                    <IconButton
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setFormCredential({ host, username, password, pin, notes, credentialId: id, pmId });
+                                            setOpenDeleteDialog(true);
+                                        }}
+                                    >
+                                        <DeleteIcon color="error" />
+                                    </IconButton>
+                                </Tooltip>
+                            </Box>
+                        </Box>
+                    </Collapse>
+                </Paper>
+            </motion.div>
+        );
+    };
 
-    const deleteModel =
-        <Modal show={deleteModalShow} onHide={handelDeleteModalClose} animation={true}>
-            <Modal.Header closeButton>
-                <Modal.Title>Delete Credential</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                <p>Are you sure, do you want to delete below credential ? </p>
-                <CommonServices.JSONToHTMLTable data={formCredential} />
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={handelDeleteModalClose}>
-                    Close
-                </Button>
-                {
-                    deleteLoader ?
-                        <Button variant="danger" onClick={formCredential}>
-                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                            &nbsp;&nbsp;&nbsp;&nbsp; Deleteing...
-                        </Button>
-                        :
-                        <Button variant="danger" onClick={onDeleteCredential}>
-                            Yes, Delete !!
-                        </Button>
-                }
 
-            </Modal.Footer>
-        </Modal>
+    const HostCard = ({ hostData, index, sx }) => {
+        const { id: pmId, host, credentials } = hostData;
 
-    const editModel =
-        <Modal show={editModalShow} onHide={handelEditModalClose} animation={true}>
-            <Modal.Header closeButton>
-                <Modal.Title>Update Credential</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                <form>
-                    <div className="form-group row mb-2">
-                        <label htmlFor="host" className="col-sm-2 col-form-label">Host <span style={{ color: 'red' }}>*</span></label>
-                        <div className="col-sm-5">
-                            <input type="text" className="form-control" name="host" placeholder='Ex. www.hotstar.com' value={formCredential.host} onChange={onFieldChange} disabled />
-                        </div>
-                    </div>
-                    <div className="form-group row mb-2">
-                        <label htmlFor="username" className="col-sm-2 col-form-label">username <span style={{ color: 'red' }}>*</span></label>
-                        <div className="col-sm-5">
-                            <input type="text" className="form-control" name="username" placeholder='username or email or mobile number' value={formCredential.username} onChange={onFieldChange} disabled />
-                        </div>
-                    </div>
-                    <div className="form-group row mb-2">
-                        <label htmlFor="inputPassword" className="col-sm-2 col-form-label">Password <span style={{ color: 'red' }}>*</span></label>
-                        <div className="col-sm-5">
-                            <input type="password" className="form-control" name="password" id={'password_'} placeholder="Password" value={formCredential.password} onChange={onFieldChange} />
-                            {/* <img src={hidePasswordIcon} id="togglePasswordIcon" style={{ marginLeft: "-30px", cursor: "pointer" }} onClick={togglePassword} /> */}
-                        </div>
-                        <div className="form-check col-sm-3 mx-3 my-2">
-                            <input type="checkbox" className="form-check-input" id={'togglePassword_'} name="togglePassword" placeholder="Password" value={false} onChange={() => togglePassword('password_')} />
-                            <label htmlFor="togglePassword" className="form-check-lable">Show Password</label>
-                        </div>
-                    </div>
-                    <div className="form-group row mb-2">
-                        <label htmlFor="inputPin" className="col-sm-2 col-form-label">Pin</label>
-                        <div className="col-sm-5">
-                            <input type="text" className="form-control" name="pin" placeholder="Small Pin for mobile app login" value={formCredential.pin} onChange={onFieldChange} />
-                        </div>
-                    </div>
-                    <div className="form-group row mb-2">
-                        <label htmlFor="inputnotes" className="col-sm-2 col-form-label">Small notes</label>
-                        <div className="col-sm-5">
-                            <textarea type="text" className="form-control" name="notes" placeholder="Any notes if you want to add" value={formCredential.notes} onChange={onFieldChange} />
-                        </div>
-                    </div>
-                </form>
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={handelEditModalClose}>
-                    Close
-                </Button>
-                {
-                    updateLoader &&
-                    <Button variant='danger' disabled>
-                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        &nbsp;&nbsp;&nbsp;&nbsp; Updating...
-                    </Button>
-                    ||
-                    <Button variant="danger" onClick={onUpdateCredential}>
-                        Save Changes
-                    </Button>
-                }
-            </Modal.Footer>
-        </Modal>
-
-    const deleteHostModel =
-        <Modal show={deleteHostModalShow} onHide={handelDeleteHostModalClose} animation={true}>
-            <Modal.Header closeButton>
-                <Modal.Title>Delete Host</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                <div className='model-text'>Are you sure, do you want to delete host?</div>
-                <div className='model-text'><b>Host: </b>{formCredential.host}</div>
-                <hr />
-                <div className='model-text text-danger'>*Note: It will delete all credential under this host.</div>
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={handelDeleteHostModalClose}>
-                    Close
-                </Button>
-                {
-                    deleteHostLoader ?
-                        <Button variant="danger" disabled>
-                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                            &nbsp;&nbsp;&nbsp;&nbsp; Deleteing...
-                        </Button>
-                        :
-                        <Button variant="danger" onClick={() => onDeleteHost(formCredential.pmId)}>
-                            Yes, Delete
-                        </Button>
-                }
-            </Modal.Footer>
-        </Modal>
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                style={{ width: '100%', height: '100%' }}
+            >
+                <Card sx={{
+                    ...cardStyle,
+                    mb: 3,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    ...sx
+                }}>
+                    <CardHeader
+                        avatar={
+                            <img
+                                src={`https://t1.gstatic.com/faviconV2?client=PASSWORD_MANAGER&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=32&url=https%3A%2F%2F${host}`}
+                                alt={host}
+                                style={{ width: 32, height: 32 }}
+                            />
+                        }
+                        action={
+                            <Tooltip title="Delete host and all credentials">
+                                <IconButton
+                                    color="error"
+                                    onClick={() => {
+                                        setFormCredential({ host, pmId });
+                                        setOpenDeleteHostDialog(true);
+                                    }}
+                                >
+                                    <DeleteIcon />
+                                </IconButton>
+                            </Tooltip>
+                        }
+                        title={
+                            <Typography variant="h6" component="div">
+                                {host}
+                            </Typography>
+                        }
+                    />
+                    <CardContent sx={{ flexGrow: 1, overflow: 'auto' }}>
+                        <List sx={{ maxHeight: '300px', overflow: 'auto' }}>
+                            {credentials.map((credential, idx) => (
+                                <CredentialItem
+                                    key={idx}
+                                    credential={credential}
+                                    host={host}
+                                    pmId={pmId}
+                                />
+                            ))}
+                        </List>
+                    </CardContent>
+                </Card>
+            </motion.div>
+        );
+    };
 
     return (
-        <div className='m-1 p-2' style={{ background: "rgba(255 ,255 ,255, 0.9)" }}>
-            <div>
-                <Link className='btn btn-outline-light btn-sm' to={Constants.DB_PASSWORD_MANAGER_ROUTE} style={{ float: "left" }}>
-                    <img src="https://img.icons8.com/ios-glyphs/30/null/left.png" title="Go Back to Password Management" />
-                </Link>
-                <center><b><h2>View Credentials</h2></b></center>
-            </div>
-            <hr />
-            {
-                loader &&
-                <div className='d-flex justify-content-center'>
-                    <div className="spinner-border text-danger m-5" role="status">
-                        <span className="sr-only text-center"></span>
-                    </div>
-                </div>
-                ||
-                <div className='my-5'>
+        <Box sx={darkBackgroundStyle} style={{
+            padding: '10px', margin: '10px auto',
+            maxWidth: 1500
+        }} >
+            <Container style={{ padding: '0px', margin: '0px', maxWidth: '100%' }}>
+                <Box sx={{ mb: 4, display: 'flex', alignItems: 'center' }}>
+                    <Button
+                        variant="contained"
+                        startIcon={<ArrowBackIcon />}
+                        onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
+                        sx={{ mr: 2 }}
+                    >
+                        Back
+                    </Button>
+                    <Typography variant="h4" component="h1" sx={{ flexGrow: 1, color: 'black' }}>
+                        View Credentials
+                    </Typography>
+                </Box>
 
-                    <nav className="navbar navbar-light justify-content-end">
-                        <form className="form-inline">
-                            <input className="form-control border rounded-pill" type="search" aria-label="Search" placeholder="Search Host/Username" value={searchQuery} onChange={onSearchFieldChange} />
-                        </form>
-                    </nav>
+                <Divider sx={{ mb: 4, backgroundColor: 'rgba(0, 0, 0, 0.9)' }} />
 
-                    {credentials && credentials.length > 0 ?
-                        <div className="row row-cols-1 row-cols-md-3 g-3">
-                            {
-                                credentials.map(({ id, host, credentials }) => {
-                                    let pmId = id;
-                                    return (
-                                        <div className="col">
-                                            <div className="card h-100 border-dark">
-                                                <div className="card-header">
-                                                    {/* <div className='btn btn-sm btn-light' style={{ position: "absolute", top: 0, right: 0, }} type="button" data-bs-toggle="modal" data-bs-target={`#host_${pmId}`}>
-                                                        <img style={{ width: "30px" }} src="https://img.icons8.com/fluency/48/null/delete-forever.png" className='' />
-                                                    </div> */}
-                                                    <Button variant="danger" className='btn btn-sm btn-light' style={{ position: "absolute", top: 0, right: 0, }} onClick={() => {
-                                                        setFormCredential({ host, pmId })
-                                                        setDeleteHostModalShow(true);
-                                                    }}>
-                                                        <img style={{ width: "30px" }} src="https://img.icons8.com/fluency/48/null/delete-forever.png" className='' />
-                                                    </Button>
-                                                    <div className="card-title" >
-                                                        <dl className="row">
-                                                            <dt className="col-sm-10 float-left">
-                                                                <img style={{ width: "30px" }} src={`https://t1.gstatic.com/faviconV2?client=PASSWORD_MANAGER&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=32&url=https%3A%2F%2F${host}` || `https://${host}/favicon.ico`} />
-                                                                <span className='m-3'>{host}</span>
-                                                            </dt>
-                                                        </dl>
-                                                    </div>
-                                                </div>
-                                                <div className="card-body">
-                                                    <div className="card-text">
-                                                        <ul className="list-group list-group-flush">
-                                                            {
-                                                                credentials.map(({ id, username, password, pin, notes }) => {
-                                                                    let collapseId = 'collapse_' + uuidv1();
-                                                                    let editModelId = 'edit_' + uuidv1();
-                                                                    let deleteModelId = 'delete_' + uuidv1();
-                                                                    let credentialId = id;
-                                                                    return (
-                                                                        <li className="list-group-item">
-                                                                            <button className="btn btn-outline-dark btn-sm" type="button" data-bs-toggle="collapse" data-bs-target={`#${collapseId}`} aria-expanded="false" aria-controls={`${collapseId}`}>
-                                                                                <details><summary><b>username:</b> {username}</summary></details>
-                                                                            </button>
-                                                                            <div className="collapse m-1" id={`${collapseId}`}>
-                                                                                <div className="card card-body">
-                                                                                    <p><b>username:</b> {username}</p>
-                                                                                    <p><b>password:</b> {password}</p>
-                                                                                    {pin !== null && pin !== "" && pin !== 0 ? <p><b>pin:</b> {pin}</p> : ""}
-                                                                                    {notes !== null && notes !== "" ? <p><b>notes:</b> {notes}</p> : ""}
-                                                                                </div>
-                                                                                <div className="card-footer">
-                                                                                    <div className="btn-toolbar justify-content-end">
-                                                                                        <Button variant="warning" size='sm' className='mx-1' onClick={() => {
-                                                                                            setFormCredential({
-                                                                                                host, username, password, pin, notes, credentialId, pmId
-                                                                                            })
-                                                                                            setEditModalShow(true);
-                                                                                        }}>
-                                                                                            Edit</Button>
-                                                                                        <Button variant="danger" size='sm' className='mx-1' onClick={() => {
-                                                                                            setFormCredential({
-                                                                                                host, username, password, pin, notes, credentialId, pmId
-                                                                                            })
-                                                                                            setDeleteModalShow(true);
-                                                                                        }}>
-                                                                                            Delete
-                                                                                        </Button>
+                {/* <Grid item xs={12} md={6} lg={6}> */}
+                <Box
+                    sx={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        mb: 4,
+                        mx: 'auto',
+                    }}
+                >
 
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </li>
-                                                                    )
-                                                                })
-                                                            }
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })
-                            }
-                            {/* Edit Modal */}
-                            {editModel}
-                            {/* Delete Model */}
-                            {deleteModel}
-                            {/* Delete Host Model */}
-                            {deleteHostModel}
-                        </div>
-                        :
-                        <div className="row justify-content-center m-5">
-                            <div className="col-12">
-                                No Credentials Found.
-                            </div>
-                        </div>
-                    }
+                    <TextField
 
-                    {Constants.TOAST_CONTAINER}
-                    {/* <CommonServices.JSONToHTMLTable data={credentials} /> */}
-                </div>
+                        // fullWidth
+                        variant="outlined"
+                        placeholder="Search by host or username..."
+                        value={searchQuery}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon color="action" />
+                                </InputAdornment>
+                            ),
+                            sx: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                color: 'white',
+                                minWidth: '300px',
+                                maxWidth: '400px',
+                            },
+                        }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                '& fieldset': {
+                                    borderColor: 'rgba(0, 0, 0, 0.23)',
+                                },
+                                '&:hover fieldset': {
+                                    borderColor: 'rgba(0, 0, 0, 0.5)',
+                                },
+                            },
+                        }}
+                    />
+                </Box>
+                {/* </Grid> */}
 
-            }
 
-        </div >
-    )
-}
+                {isFetching ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                        <CircularProgress color="primary" />
+                        <Typography variant="body1" sx={{ ml: 2, color: 'black' }}>
+                            Loading credentials...
+                        </Typography>
+                    </Box>
+                ) : loading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                        <CircularProgress color="primary" />
+                    </Box>
+                ) : (
+                    <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
+                        {credentials.length > 0 ? (
+                            credentials.map((hostData, index) => (
+                                <Grid
+                                    item
+                                    key={hostData.id}
+                                    sx={{
+                                        width: { xs: '100%', sm: '45%', md: '30%' },
+                                        minWidth: '300px',
+                                        maxWidth: '400px',
+                                        height: '100%',
+                                        display: 'flex'
+                                    }}
+                                >
+                                    <HostCard
+                                        hostData={hostData}
+                                        index={index}
+                                        sx={{
+                                            width: '100%',
+                                            height: '100%',
+                                            display: 'flex',
+                                            flexDirection: 'column'
+                                        }}
+                                    />
+                                </Grid>
+                            ))
+                        ) : (
+                            <Grid item xs={12}>
+                                <Paper elevation={3} sx={{ ...cardStyle, p: 4, textAlign: 'center' }}>
+                                    <Typography variant="h6">No credentials found</Typography>
+                                </Paper>
+                            </Grid>
+                        )}
+                    </Grid>
+                )}
+
+                {/* Edit Credential Dialog */}
+
+                <Dialog
+                    open={openEditDialog}
+                    onClose={() => !isUpdating && setOpenEditDialog(false)}
+                    maxWidth="sm"
+                    fullWidth
+                    PaperProps={{
+                        sx: {
+                            backgroundColor: 'white',
+                            color: 'black',
+                            borderRadius: 3,
+                            boxShadow: 6,
+                            border: `2px solid ${teal[500]}`,
+                        }
+                    }}
+                >
+                    <DialogTitle sx={{
+                        color: 'black',
+                        fontWeight: 'bold',
+                        backgroundColor: teal[100],
+                        borderBottom: `1px solid ${teal[300]}`,
+                        padding: '16px 24px'
+                    }}>
+                        Update Credential
+                    </DialogTitle>
+
+                    <DialogContent dividers sx={{ backgroundColor: 'white' }}>
+                        <Grid container spacing={2}>
+                            {/* Host (disabled) */}
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="Host"
+                                    name="host"
+                                    value={formCredential.host || ''}
+                                    disabled
+                                    sx={{
+                                        '& .MuiInputLabel-root': {
+                                            color: teal[800],
+                                            fontWeight: '500',
+                                            '&.Mui-disabled': {
+                                                color: teal[600] // Slightly lighter when disabled
+                                            }
+                                        },
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: teal[300],
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: teal[500],
+                                            },
+                                            '&.Mui-disabled': {
+                                                '& fieldset': {
+                                                    borderColor: teal[200],
+                                                },
+                                                '& input': {
+                                                    color: 'black !important',
+                                                    WebkitTextFillColor: 'black !important',
+                                                },
+                                                backgroundColor: teal[50],
+                                            }
+                                        },
+                                    }}
+                                />
+                            </Grid>
+
+                            {/* Username (disabled) */}
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="Username"
+                                    name="username"
+                                    value={formCredential.username || ''}
+                                    disabled
+                                    sx={{
+                                        '& .MuiInputLabel-root': {
+                                            color: teal[800],
+                                            fontWeight: '500',
+                                            '&.Mui-disabled': {
+                                                color: teal[600]
+                                            }
+                                        },
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: teal[300],
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: teal[500],
+                                            },
+                                            '&.Mui-disabled': {
+                                                '& fieldset': {
+                                                    borderColor: teal[200],
+                                                },
+                                                '& input': {
+                                                    color: 'black !important',
+                                                    WebkitTextFillColor: 'black !important',
+                                                },
+                                                backgroundColor: teal[50],
+                                            }
+                                        },
+                                    }}
+                                />
+                            </Grid>
+
+                            {/* Password with toggle */}
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="Password"
+                                    name="password"
+                                    type={showPassword ? "text" : "password"}
+                                    value={formCredential.password || ''}
+                                    onChange={handleInputChange}
+                                    sx={{
+                                        '& .MuiInputLabel-root': {
+                                            color: teal[800],
+                                            fontWeight: '500'
+                                        },
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: teal[300],
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: teal[500],
+                                            },
+                                            '& input': {
+                                                color: 'black'
+                                            }
+                                        },
+                                    }}
+                                    InputProps={{
+                                        endAdornment: (
+                                            <InputAdornment position="end">
+                                                <IconButton
+                                                    onClick={togglePasswordVisibility}
+                                                    sx={{ color: teal[700] }}
+                                                >
+                                                    {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                                </IconButton>
+                                            </InputAdornment>
+                                        )
+                                    }}
+                                />
+                            </Grid>
+
+                            {/* Optional PIN */}
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="Pin (optional)"
+                                    name="pin"
+                                    value={formCredential.pin || ''}
+                                    onChange={handleInputChange}
+                                    sx={{
+                                        '& .MuiInputLabel-root': {
+                                            color: teal[800],
+                                            fontWeight: '500'
+                                        },
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: teal[300],
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: teal[500],
+                                            },
+                                            '& input': {
+                                                color: 'black'
+                                            }
+                                        },
+                                    }}
+                                />
+                            </Grid>
+
+                            {/* Optional Notes */}
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="Notes (optional)"
+                                    name="notes"
+                                    multiline
+                                    rows={3}
+                                    value={formCredential.notes || ''}
+                                    onChange={handleInputChange}
+                                    sx={{
+                                        '& .MuiInputLabel-root': {
+                                            color: teal[800],
+                                            fontWeight: '500'
+                                        },
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: teal[300],
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: teal[500],
+                                            },
+                                            '& textarea': {
+                                                color: 'black'
+                                            }
+                                        },
+                                    }}
+                                />
+                            </Grid>
+                        </Grid>
+                    </DialogContent>
+
+                    <DialogActions sx={{
+                        backgroundColor: teal[50],
+                        borderTop: `1px solid ${teal[300]}`,
+                        padding: '16px 24px'
+                    }}>
+                        <Button
+                            onClick={() => setOpenEditDialog(false)}
+                            disabled={isUpdating}
+                            sx={{
+                                color: teal[800],
+                                border: `1px solid ${teal[800]}`,
+                                fontWeight: 'bold',
+                                '&:hover': {
+                                    backgroundColor: teal[100],
+                                },
+                                '&:disabled': {
+                                    color: teal[300],
+                                    borderColor: teal[300]
+                                }
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={handleUpdateCredential}
+                            disabled={isUpdating}
+                            startIcon={isUpdating ? <CircularProgress size={20} color="inherit" /> : null}
+                            sx={{
+                                backgroundColor: teal[700],
+                                color: 'white',
+                                fontWeight: 'bold',
+                                '&:hover': {
+                                    backgroundColor: teal[900]
+                                },
+                                '&:disabled': {
+                                    backgroundColor: teal[300]
+                                }
+                            }}
+                        >
+                            {isUpdating ? 'Updating...' : 'Save Changes'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* Delete Credential Dialog */}
+                <Dialog
+                    open={openDeleteDialog}
+                    onClose={() => !isDeleting && setOpenDeleteDialog(false)}
+                    PaperProps={{
+                        sx: { ...cardStyle, backgroundColor: 'white' }
+                    }}
+                >
+                    <DialogTitle>Delete Credential</DialogTitle>
+                    <DialogContent>
+                        <Typography>
+                            Are you sure you want to delete this credential?
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 2 }}>
+                            <strong>Host:</strong> {formCredential.host}
+                        </Typography>
+                        <Typography variant="body2">
+                            <strong>Username:</strong> {formCredential.username}
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button
+                            onClick={() => setOpenDeleteDialog(false)}
+                            disabled={isDeleting}
+                            color="inherit"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="contained"
+                            color="error"
+                            onClick={handleDeleteCredential}
+                            disabled={isDeleting}
+                            startIcon={isDeleting ? <CircularProgress size={20} color="inherit" /> : null}
+                        >
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* Delete Host Dialog */}
+                <Dialog
+                    open={openDeleteHostDialog}
+                    onClose={() => !isDeletingHost && setOpenDeleteHostDialog(false)}
+                    PaperProps={{
+                        sx: cardStyle
+                    }}
+                >
+                    <DialogTitle>Delete Host</DialogTitle>
+                    <DialogContent>
+                        <Typography>
+                            Are you sure you want to delete this host and all its credentials?
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 2 }}>
+                            <strong>Host:</strong> {formCredential.host}
+                        </Typography>
+                        <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+                            Warning: This will permanently delete all credentials under this host.
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button
+                            onClick={() => setOpenDeleteHostDialog(false)}
+                            disabled={isDeletingHost}
+                            color="inherit"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="contained"
+                            color="error"
+                            onClick={handleDeleteHost}
+                            disabled={isDeletingHost}
+                            startIcon={isDeletingHost ? <CircularProgress size={20} color="inherit" /> : null}
+                        >
+                            {isDeletingHost ? 'Deleting...' : 'Delete Host'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            </Container>
+            {Constants.TOAST_CONTAINER}
+        </Box>
+    );
+};
 
 export default ViewPassword;

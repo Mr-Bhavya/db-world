@@ -61,7 +61,7 @@ public class DbWorldConstants {
             "/dbworld-api-doc.html",
             "/swagger-ui/**",
             "/api/utils/status",
-            "/api/utils/logs",
+            "/api/utils/application-logs",
             "/api/utils/download-tracker",
             "/api/stream/watch/**",
             "/api/stream/download/**",
@@ -78,6 +78,8 @@ public class DbWorldConstants {
     public static String MEDIAINFO;
     public static String TEMP_DOWNLOAD_PATH;
     public static String LOGS_FILE_PATH;
+    public static String LOG42_FILE_PATH;
+    public static String DOWNLOAD_LOG_PATH;
     public static String STREAM_HOME_PATH;
     public static String INTEGRATION_FOLDER_PATH;
     public static String EXTERNAL_STREAM_HOME_PATH;
@@ -90,6 +92,7 @@ public class DbWorldConstants {
     public void initConstants() {
         TEMP_DOWNLOAD_PATH = dbWorldPropertiesConfig.getPaths().getTempDownloadPath();
         LOGS_FILE_PATH = dbWorldPropertiesConfig.getPaths().getLogFilePath();
+        DOWNLOAD_LOG_PATH = dbWorldPropertiesConfig.getPaths().getDownloadLogPath();
         INTEGRATION_FOLDER_PATH = dbWorldPropertiesConfig.getPaths().getIntegrationFolderPath();
         STREAM_HOME_PATH = dbWorldPropertiesConfig.getPaths().getStreamHomePath();
         EXTERNAL_STREAM_HOME_PATH = dbWorldPropertiesConfig.getPaths().getExternalStreamHomePath();
@@ -99,7 +102,7 @@ public class DbWorldConstants {
         HS_COOKIES_PATH = dbWorldPropertiesConfig.getPaths().getHsCookiesPath();
         EXTERNAL_STREAM_HOME_PATH = dbWorldPropertiesConfig.getPaths().getExternalStreamHomePath();
         EXTERNAL_H_DISK_PATH = dbWorldPropertiesConfig.getPaths().getExtHDiskPath();
-
+        LOG42_FILE_PATH = dbWorldPropertiesConfig.getPaths().getLog4j2LogPath();
         TMDB_API_KEY = dbWorldPropertiesConfig.getApi_keys().getTmdb();
         createTmdbUrls(dbWorldPropertiesConfig.getApi_keys().getTmdb());
     }

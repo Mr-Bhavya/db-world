@@ -1,250 +1,422 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { replace, useNavigate } from 'react-router';
-import { useLocation } from 'react-router-dom';
-import loginImage from '../images/login.jpg';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Constants from './Constants';
-import { doLogin, login, updateDobForUser } from './ApiServices';
-import { Button, Form, Modal } from 'react-bootstrap';
+import { doLogin, updateDobForUser } from './ApiServices';
 import Authentication from '../contexts/Authentication';
+import loginImage from '../images/login.png';
 
-function Login() {
+// MUI Components
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardMedia,
+  CircularProgress,
+  Container,
+  Divider,
+  FormControl,
+  FormHelperText,
+  Grid,
+  IconButton,
+  InputAdornment,
+  Modal,
+  TextField,
+  Typography,
+  useTheme
+} from '@mui/material';
+import {
+  Lock as LockIcon,
+  Email as EmailIcon,
+  Close as CloseIcon,
+  CalendarToday as CalendarIcon,
+  Login as LoginIcon,
+  PersonAdd as PersonAddIcon,
+  VisibilityOff,
+  Visibility
+} from '@mui/icons-material';
 
-    const dispatch = useDispatch();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const navigate = useNavigate();
-    const [loader, setLoader] = useState(false);
-    const [emailError, setEmailError] = useState(false);
-    const [passwordError, setPasswordError] = useState(false);
-    const location = useLocation();
-    const redirectTo = getRedirectTo(location);
-    const [dob, setDob] = useState();
-    const [dobModalShow, setDobModalShow] = useState(false);
-    const [user, setUser] = useState(null);
-    const [dobError, setDobError] = useState(false);
-    const { login, logout } = Authentication.useAuth();
+// Animation
+import { motion } from 'framer-motion';
 
-    function getRedirectTo(location) {
-        if (location.search) {
-            let redirectTo = location.search;
-            redirectTo = redirectTo.replaceAll("?redirectTo=", "")
-            return redirectTo;
-        }
-        else
-            return null;
+// Styles
+const modalStyle = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  boxShadow: 24,
+  p: 4,
+  borderRadius: 2
+};
+
+const Login = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const theme = useTheme();
+  const { login, logout } = Authentication.useAuth();
+
+  // State
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+  const [errors, setErrors] = useState({
+    email: false,
+    password: false
+  });
+  const [loading, setLoading] = useState(false);
+  const [dob, setDob] = useState('');
+  const [dobError, setDobError] = useState(false);
+  const [dobModalOpen, setDobModalOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+//   useEffect(() => {
+//     logout(); // Clear auth state on mount
+//   }, [logout]);
+
+  // Helpers
+  const getRedirectPath = () => {
+    if (location.search) {
+      return location.search.replace('?redirectTo=', '');
     }
+    return null;
+  };
 
-    useEffect(() => {
+  // Handlers
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    validateField(name, value);
+  };
 
-        logout();
+  const validateField = (name, value) => {
+    let isValid = true;
+    
+    if (name === 'email') {
+      isValid = !!value && !/\s/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      setErrors(prev => ({ ...prev, email: !isValid }));
+    } else if (name === 'password') {
+      isValid = !!value && !/\s/.test(value);
+      setErrors(prev => ({ ...prev, password: !isValid }));
+    } else if (name === 'dob') {
+      const dobPattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+      const year = value.split('-')[0];
+      const currentYear = new Date().getFullYear();
+      isValid = !!value && dobPattern.test(value) && year >= 1900 && year <= currentYear;
+      setDobError(!isValid);
+    }
+    
+    return isValid;
+  };
 
-        // dispatch(addUser(null));
-
-        // // Local Storage
-        // localStorage.setItem('login', false);
-        // localStorage.setItem('user', null);
-        // localStorage.setItem('token', null);
-
-        // fetch("/api/auth/logout", {
-        //     method: "GET",
-        //     headers: {
-        //         Accept: "application/json",
-        //         "Content-Type": "application/json",
-        //     },
-        //     credentials: "include"
-        // }).then((res) => {
-        //     if (!res.status === 200) {
-        //         const error = new Error(res.error);
-        //         throw error;
-        //     }
-        // }).catch(err => {
-        //     console.log(err);
-        // });
-
-    }, [])
-
-    const onValidate = async (e) => {
-        e.preventDefault();
-        setLoader(true);
-        if (!email || !password) {
-            !email && setEmailError(true)
-            !password && setPasswordError(true)
-            toast.warning("Please Fill all required field.")
-        } else {
-            if (!emailError && !passwordError) {
-                try {
-                    const loginRes = await doLogin(email, password);
-                    if (loginRes.httpStatusCode === 200) {
-                        login(loginRes?.data?.token, loginRes?.data?.user)
-                        toast.success("Login Successfull.", {
-                            onClose: () => {
-                                if (loginRes.data.user.dob == null) {
-                                    setUser(loginRes.data.user);
-                                    setDobModalShow(true);
-                                } else {
-                                    navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, {replace: true})
-                                }
-                                //redirect
-                                // redirectTo ? navigate(`${redirectTo}`) : navigate(Constants.DB_WORLD_HOME_ROUTE)
-                            },
-                            autoClose: 1000
-                        });
-                        // alert("Login Successfull.")
-                        // navigate("/");
-                        setLoader(false);
-                    }
-                    else {
-                        toast.error(loginRes.message);
-                        setLoader(false);
-                    }
-                } catch (err) {
-                    toast.error('🦄 No Response from Server Side.');
-                }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    // Validate all fields
+    const isEmailValid = validateField('email', formData.email);
+    const isPasswordValid = validateField('password', formData.password);
+    
+    if (!isEmailValid || !isPasswordValid) {
+      Constants.showToast.warning('Please fill all required fields correctly.');
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const loginRes = await doLogin(formData.email, formData.password);
+      
+      if (loginRes.httpStatusCode === 200) {
+        Constants.showToast.success('Login successful!', {
+          autoClose: 1000,
+          onClose: () => {
+            login(loginRes.data.token, loginRes.data.user);
+            if (!loginRes.data.user.dob) {
+              setUser(loginRes.data.user);
+              setDobModalOpen(true);
             } else {
-                toast.warning("Please Fill correct data.")
+              navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
             }
-        }
-        setLoader(false);
+          }
+        });
+      } else {
+        Constants.showToast.error(loginRes.message || 'Login failed');
+      }
+    } catch (err) {
+      Constants.showToast.error('No response from server');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const onChange = (event) => {
-        //checkFieldError(event.target.name, event.target.value);
-        if (event.target.name === "email") {
-            setEmail(event.target.value);
-            if (!event.target.value || /[" "]{1,}/.test(event.target.value)) {
-                setEmailError(true)
-            } else {
-                setEmailError(false)
-            }
-        }
-        else if (event.target.name === "password") {
-            setPassword(event.target.value);
-            if (!event.target.value || /[" "]{1,}/.test(event.target.value)) {
-                setPasswordError(true)
-            } else {
-                setPasswordError(false)
-            }
-        }
-        else if (event.target.name === "dob") {
-            setDob(event.target.value);
-            var dobPattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
-            let year = event.target.value.split("-")[0];
-            let currentYear = new Date().getFullYear();
-            if (!event.target.value || !dobPattern.test(event.target.value) || year < 1900 || year > currentYear) {
-                setDobError(true)
-            } else {
-                setDobError(false);
-            }
-        }
+  const handleDobSubmit = async () => {
+    if (!validateField('dob', dob)) {
+      Constants.showToast.warning('Please enter a valid date of birth');
+      return;
     }
-
-    const handleDobModalClose = () => {
-        toast.error("Please submit your date of birth");
+    
+    try {
+      const res = await updateDobForUser(dob);
+      if (res.httpStatusCode === 200) {
+        Constants.showToast.success('Date of birth updated successfully');
+        setDobModalOpen(false);
+        navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE);
+      } else {
+        Constants.showToast.error(res.message || 'Failed to update date of birth');
+      }
+    } catch (err) {
+      Constants.showToast.error('Error updating date of birth');
     }
+  };
 
-    const submitDob = async () => {
-        let res = await updateDobForUser(dob);
-        if (res.httpStatusCode == 200) {
-            toast.success("DOB is updated.")
-            setDobModalShow(false);
-            navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE)
-        } else {
-            toast.error(res.message || res.errorMessage);
-        }
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        when: "beforeChildren"
+      }
     }
+  };
 
-    const dobModal =
-        <Modal show={dobModalShow} onHide={handleDobModalClose} backdrop="static">
-            <Modal.Header closeButton>
-                <Modal.Title>Mendatory Date Of Bith Update</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                <Form>
-                    <Form.Group>
-                        <Form.Label>DOB</Form.Label>
-                        <Form.Control name="dob" type="date" format="dd-MM-yyyy" placeholder="Date Of Birth" required
-                            onChange={onChange} isInvalid={dobError}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                            Please enter correct date of birth.
-                        </Form.Control.Feedback>
-                    </Form.Group>
-                </Form>
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="primary" onClick={submitDob}>
-                    Submit
-                </Button>
-            </Modal.Footer>
-        </Modal>
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100
+      }
+    }
+  };
 
-    const page = <div className="card mb-3 mt-5 ms-3 me-3 " style={{ background: "rgba(255 ,255 ,255, 0.9)" }}>
-        <div className="row g-0">
-            <div className="col-md-3 mt-5 ms-3 mb-5 me-3">
-                <img src={loginImage} className="img-fluid rounded-start" alt="No Photo" style={{ width: "90%" }} />
-            </div>
-            <div className="col-md-8">
-                <div className="card-body mx-3 my-3">
-                    <h1 className="card-title">Sign In</h1><hr />
-                    <div className="table-responsive mt-5 mb-5" >
-                        <form className="form mt-3 mb-3">
-                            <div className="row mb-3 ">
-                                <label htmlFor="inputEmail3" className="col-sm-2 col-form-label">📧 Email ID <span className="text-danger">*</span></label>
-                                <div className="col-sm-10">
-                                    {emailError && <>
-                                        <input type="email" className="form-control is-invalid" id="inputEmail3" name="email" onChange={onChange} value={email} autoFocus />
-                                        <div className="invalid-feedback">Please enter valid email</div>
-                                    </>
-                                        || <input type="email" className="form-control" id="inputEmail3" name="email" onChange={onChange} value={email} autoFocus />}
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <label htmlFor="inputPassword3" className="col-sm-2 col-form-label">🔑 Password <span className="text-danger">*</span></label>
-                                <div className="col-sm-10">
-                                    {passwordError && <>
-                                        <input type="password" className="form-control is-invalid" id="inputPassword3" name="password" onChange={onChange} value={password} />
-                                        <div className="invalid-feedback">Password should not be blank or contain white space.</div>
-                                    </>
-                                        || <input type="password" className="form-control" id="inputPassword3" name="password" onChange={onChange} value={password} />}
-                                </div>
-                            </div>
-                            <hr />
-                            <br />
-                            <div className="row">
-                                <div className="d-flex justify-content-strat mx-3">
-                                    {!loader && <button className="btn btn-success btn-sm" type="submit" onClick={onValidate}>Login 🔓</button>
-                                        || <button className="btn btn-success btn-sm" type="button" disabled>
-                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                            &nbsp;&nbsp;&nbsp;&nbsp; Validating...
-                                        </button>}
-                                    <button type="submit" className="btn btn-outline-danger btn-sm mx-3" onClick={() => navigate(Constants.DB_WORLD_HOME_ROUTE)}>❌ Cancel</button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                    <hr />
-                    <div className="d-flex justify-content-center mb-3">
-                        <p className="card-text md-auto">Not a member ?</p>
-                    </div>
-                    <div className="d-flex justify-content-center mb-3">
-                        <button className="btn btn-outline-primary" type="submit" onClick={() => navigate(Constants.REGISTRATION_ROUTE)}>Create Account 📃</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* Toast container */}
+      {Constants.TOAST_CONTAINER}
+      
+      {/* Login Card */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Card sx={{ display: 'flex', borderRadius: 4, overflow: 'hidden' }}>
+          {/* Image Section */}
+          <CardMedia
+            component="img"
+            sx={{ 
+              width: { xs: 0, md: '35%' },
+              objectFit: 'cover',
+              display: { xs: 'none', md: 'block' }
+            }}
+            image={loginImage}
+            alt="Login illustration"
+          />
+          
+          {/* Form Section */}
+          <Box sx={{ flex: 1 }}>
+            <CardContent sx={{ p: 4 }}>
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                <motion.div variants={itemVariants}>
+                  <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                    Welcome Back
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary" gutterBottom>
+                    Sign in to continue to your account
+                  </Typography>
+                  <Divider sx={{ my: 3 }} />
+                </motion.div>
+                
+                <Box component="form" onSubmit={handleSubmit} noValidate>
+                  <motion.div variants={itemVariants}>
+                    <FormControl fullWidth margin="normal" error={errors.email}>
+                      <TextField
+                        label="Email Address"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        required
+                        fullWidth
+                        autoFocus
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <EmailIcon color={errors.email ? 'error' : 'action'} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        error={errors.email}
+                        helperText={errors.email ? 'Please enter a valid email' : ''}
+                      />
+                    </FormControl>
+                  </motion.div>
+                  
+                  <motion.div variants={itemVariants}>
+                    <FormControl fullWidth margin="normal" error={errors.password}>
+                      <TextField
+                        label="Password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        required
+                        fullWidth
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LockIcon color={errors.password ? 'error' : 'action'} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => setShowPassword(!showPassword)}
+                                edge="end"
+                              >
+                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          )
+                        }}
+                        error={errors.password}
+                        helperText={errors.password ? 'Password cannot be empty or contain spaces' : ''}
+                      />
+                    </FormControl>
+                  </motion.div>
+                  
+                  <motion.div variants={itemVariants}>
+                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        color="primary"
+                        size="large"
+                        startIcon={<LoginIcon />}
+                        disabled={loading}
+                        sx={{ minWidth: 120 }}
+                      >
+                        {loading ? (
+                          <>
+                            <CircularProgress size={24} color="inherit" />
+                            <Box component="span" sx={{ ml: 1 }}>Signing In...</Box>
+                          </>
+                        ) : 'Sign In'}
+                      </Button>
+                      
+                      <Button
+                        variant="outlined"
+                        color="secondary"
+                        size="large"
+                        onClick={() => navigate(Constants.DB_WORLD_HOME_ROUTE)}
+                        startIcon={<CloseIcon />}
+                      >
+                        Cancel
+                      </Button>
+                    </Box>
+                  </motion.div>
+                </Box>
+                
+                <motion.div variants={itemVariants}>
+                  <Divider sx={{ my: 3 }} />
+                  <Typography variant="body2" align="center" sx={{ mb: 2 }}>
+                    Don't have an account?
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<PersonAddIcon />}
+                      onClick={() => navigate(Constants.REGISTRATION_ROUTE)}
+                    >
+                      Create Account
+                    </Button>
+                  </Box>
+                </motion.div>
+              </motion.div>
+            </CardContent>
+          </Box>
+        </Card>
+      </motion.div>
+      
+      {/* DOB Modal */}
+      <Modal
+        open={dobModalOpen}
+        onClose={() => setDobModalOpen(false)}
+        aria-labelledby="dob-modal-title"
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+        >
+          <Box sx={modalStyle}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography id="dob-modal-title" variant="h6" component="h2">
+                Update Your Date of Birth
+              </Typography>
+              <IconButton onClick={() => setDobModalOpen(false)}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            
+            <Typography variant="body1" sx={{ mb: 3 }}>
+              Please provide your date of birth to continue. This information is required.
+            </Typography>
+            
+            <TextField
+              fullWidth
+              type="date"
+              label="Date of Birth"
+              variant="outlined"
+              InputLabelProps={{ shrink: true }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarIcon color={dobError ? 'error' : 'action'} />
+                  </InputAdornment>
+                ),
+              }}
+              value={dob}
+              onChange={(e) => {
+                setDob(e.target.value);
+                validateField('dob', e.target.value);
+              }}
+              error={dobError}
+              helperText={dobError ? 'Please enter a valid date (YYYY-MM-DD)' : ''}
+              sx={{ mb: 3 }}
+            />
+            
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="contained"
+                onClick={handleDobSubmit}
+                startIcon={<CalendarIcon />}
+              >
+                Submit
+              </Button>
+            </Box>
+          </Box>
+        </motion.div>
+      </Modal>
+    </Container>
+  );
+};
 
-
-    return (
-        <>
-            {page}
-            {dobModal}
-            {Constants.TOAST_CONTAINER}
-        </>
-    )
-}
-
-export default Login
+export default Login;

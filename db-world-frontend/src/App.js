@@ -25,6 +25,61 @@ import DownloadPage from './components/DBCinema/screens/download/index.js';
 import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.js';
 import BackButtonHandler from './android-app-components/BackButtonHandler.js';
 import SeriesDetailsPage from './components/DBCinema/screens/series-details/SeriesDetailsPage.js';
+import DownloadProgressPage from './components/DBCinema/screens/download/DownloadProgressPage.jsx';
+
+// import { createTheme, ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { createTheme, ThemeProvider } from '@mui/material';
+
+const lightTheme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#008080', // Teal
+      contrastText: '#ffffff'
+    },
+    secondary: {
+      main: '#4db6ac',
+      contrastText: '#ffffff'
+    },
+    background: {
+      default: '#f5f5f5',
+      paper: '#ffffff'
+    },
+    text: {
+      primary: '#333333',
+      secondary: '#555555'
+    }
+  },
+  shape: {
+    borderRadius: 8
+  }
+});
+
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: {
+      main: '#008080', // Teal
+      contrastText: '#ffffff'
+    },
+    secondary: {
+      main: '#4db6ac',
+      contrastText: '#ffffff'
+    },
+    background: {
+      default: '#121212',
+      paper: '#1e1e1e'
+    },
+    text: {
+      primary: '#ffffff',
+      secondary: '#bbbbbb'
+    }
+  },
+  shape: {
+    borderRadius: 8
+  }
+});
 
 function App() {
 
@@ -35,6 +90,8 @@ function App() {
   const [matches, setMatches] = useState(
     window.matchMedia("(min-width: 900px)").matches
   )
+  const [darkMode, setDarkMode] = useState(true);
+
 
   useEffect(() => {
     window
@@ -45,7 +102,7 @@ function App() {
 
   var app =
     <div>
-      
+
       <BackButtonHandler />
 
       <Header />
@@ -65,6 +122,7 @@ function App() {
         <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
           <Route exact path={Constants.DB_CINEMA_ROUTE} element={<Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />} />
           <Route path={Constants.DB_CINEMA_BROWSE_ROUTE} element={<MainPage />} />
+          <Route path={Constants.DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE} element={<DownloadProgressPage />} />
           <Route path={Constants.DB_CINEMA_MOVIES_ROUTE} element={<MoviesPage />} />
           <Route path={Constants.DB_CINEMA_SERIES_ROUTE} element={<SeriesPage />} />
           <Route path={Constants.DB_DONWLOAD_RECORD_ROUTE} element={<DownloadPage />} />
@@ -88,11 +146,14 @@ function App() {
     </div>
 
   return (
-      <Authentication.AuthProvider>
-        <Router>
+    <Authentication.AuthProvider>
+      <Router>
+        <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
+        <CssBaseline />
           {app}
-        </Router>
-      </Authentication.AuthProvider>
+        </ThemeProvider>
+      </Router>
+    </Authentication.AuthProvider>
   )
 }
 

@@ -2,7 +2,6 @@ package com.db.dbworld.config;
 
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
-import com.db.dbworld.services.Impl.DownloadTrackerServiceImpl;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
@@ -30,21 +29,6 @@ public class RedisCacheConfig {
     @Bean
     public LettuceConnectionFactory redisConnectionFactory() {
         return new LettuceConnectionFactory();
-    }
-
-    @Bean
-    public RedisTemplate<String, DownloadTrackerServiceImpl.DownloadStatus> downloadTrackerRedisTemplate() {
-        RedisTemplate<String, DownloadTrackerServiceImpl.DownloadStatus> template = new RedisTemplate<>();
-        template.setConnectionFactory(redisConnectionFactory());
-
-        // Use String serialization for keys
-        template.setKeySerializer(new StringRedisSerializer());
-
-        // Use JSON serialization for values
-        template.setValueSerializer(new GenericJackson2JsonRedisSerializer());
-
-        template.afterPropertiesSet();
-        return template;
     }
 
 

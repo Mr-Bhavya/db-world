@@ -1,5 +1,26 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { 
+  Box, 
+  Button, 
+  Card, 
+  CardContent, 
+  Checkbox, 
+  CircularProgress, 
+  Divider, 
+  FormControl, 
+  FormHelperText, 
+  Grid, 
+  InputLabel, 
+  MenuItem, 
+  Select, 
+  TextField, 
+  Typography,
+  useTheme,
+  createTheme,
+  ThemeProvider
+} from '@mui/material';
+import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import LoadingSpinner from '../LoadingSpinner';
@@ -7,323 +28,468 @@ import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import { updateUserDetails } from '../ApiServices';
 
-function EditProfile(props) {
-  var { user, isFromAdmin } = props;
-  const location = useLocation();
-  const [check, setCheck] = useState(true);
+// Custom teal theme
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#008080', // Teal
+    },
+    secondary: {
+      main: '#006666', // Darker teal
+    },
+    error: {
+      main: '#d32f2f',
+    },
+    background: {
+      default: '#f5f5f5',
+    },
+  },
+});
+
+const EditProfile = ({ user, isFromAdmin }) => {
   const navigate = useNavigate();
-  const [loader, setLoader] = useState(true);
-  const [submitLoader, setSubmitLoader] = useState(false);
-  const [firstNameError, setFirstNameError] = useState(false);
-  const [lastNameError, setLastNameError] = useState(false);
-  const [genderError, setGenderError] = useState(false);
-  const [dobError, setDobError] = useState(false);
-  const [mobileNoError, setMobileNoError] = useState(false);
-  const [emailError, setEmailError] = useState(false);
-  const [passwordError, setPasswordError] = useState(false);
-  const [agreeCheckBoxError, setAgreeCheckBoxError] = useState(false);
-  const [formData, setFormData] = useState({})
+  const location = useLocation();
+  const muiTheme = useTheme();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    userId: '',
+    firstName: '',
+    lastName: '',
+    gender: '',
+    dob: '',
+    age: 0,
+    mobileNo: '',
+    email: '',
+    password: '',
+    agreeCheckBox: false
+  });
+  const [errors, setErrors] = useState({
+    firstName: false,
+    lastName: false,
+    gender: false,
+    dob: false,
+    mobileNo: false,
+    email: false,
+    password: false,
+    agreeCheckBox: false
+  });
 
-  function checkFieldError(name, value) {
-    switch (name) {
-      case "firstName": {
-        if (!value || value === " " || /[" "]{2,}/.test(value)) {
-          setFirstNameError(true)
-        } else {
-          setFirstNameError(false)
-        }
-        break;
-      }
-
-      case "lastName": {
-        if (!value || value === " " || /[" "]{2,}/.test(value)) {
-          setLastNameError(true)
-        } else {
-          setLastNameError(false)
-        }
-        break;
-      }
-
-      case "dob": {
-        var dobPattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
-        let year = value.split("-")[0];
-        let currentYear = new Date().getFullYear();
-        if (!value || !dobPattern.test(value) || year < 1900 || year > currentYear) {
-          setDobError(true)
-        } else {
-          setDobError(false);
-        }
-        break;
-      }
-
-      case "gender": {
-        if (!value || value === " ") {
-          setGenderError(true)
-        } else {
-          setGenderError(false)
-        }
-        break;
-      }
-
-      case "mobileNo": {
-        if (/^[0-9]{10}$/.test(value)) {
-          setMobileNoError(false)
-        } else {
-          setMobileNoError(true)
-        }
-        break;
-      }
-
-      case "email": {
-        if (!value || /[" "]{1,}/.test(value)) {
-          setEmailError(true)
-        } else {
-          setEmailError(false)
-        }
-        break;
-      }
-
-      case "password": {
-        if (!value || /[" "]{1,}/.test(value)) {
-          setPasswordError(true)
-        } else {
-          setPasswordError(false)
-        }
-        break;
-      }
-
-      case "agreeCheckBox": {
-        console.log(value)
-        if (!value || value === " " || value === "false") {
-          setAgreeCheckBoxError(true)
-        } else {
-          setAgreeCheckBoxError(false)
-        }
-        break;
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        when: "beforeChildren"
       }
     }
-  }
+  };
 
-  const validateToken = async () => {
-    let isValidToken = await CommonServices.valiadteToken();
-    if (!isValidToken) {
-      console.log("Token Is invalid")
-      navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-    } else {
-      console.log("Token Is valid")
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100
+      }
     }
-    setLoader(false);
-  }
+  };
 
   useEffect(() => {
-    let userData = null;
-    if (isFromAdmin) {
-      userData = user;
-    } else {
-      userData = location && location.state && location.state.userData
-        ? location.state.userData : null;
-    }
-    console.log(userData.dob)
-    setFormData({
-      userId: userData.userId,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      gender: userData.gender,
-      dob: userData.dob ? userData.dob : "",
-      age: userData.age ? userData.age : 0,
-      mobileNo: userData.mobileNo,
-      email: userData.email,
-      userRole: userData.userRole,
-      agreeCheckBox: userData.agreeCheckBox,
-      password: userData.password
-    })
-    setLoader(false);
-
-  }, [])
-
-  const onFieldChange = (event) => {
-    checkFieldError(event.target.name, event.target.value);
-    setFormData({
-      ...formData, [event.target.name]: event.target.type === 'checkbox' ? event.target.checked : event.target.value
-    })
-  }
-
-  const onCheckBoxChange = (event) => {
-    setCheck(!check);
-    onFieldChange(event);
-  }
-
-  const onSubmitHandle = async (e) => {
-    setSubmitLoader(true);
-    e.preventDefault();
-
-    const { userId, firstName, lastName, gender, dob, mobileNo, email, password } = formData;
-
-    if (!firstName || !lastName || !gender || !dob || !mobileNo || !email || !password) {
-      !firstName && setFirstNameError(true)
-      !lastName && setLastNameError(true)
-      !dob && setDobError(true)
-      !gender && setGenderError(true)
-      !mobileNo && setMobileNoError(true)
-      !email && setEmailError(true)
-      !password && setPasswordError(true)
-      toast.warning("Please Fill all required field.")
-    } else {
-      if (!firstNameError && !lastNameError && !genderError && !dobError && !mobileNoError && !emailError && !passwordError) {
-
-        let updateUserRes = await updateUserDetails({ userId, firstName, lastName, gender, dob, mobileNo, email, password })
-        if (updateUserRes.httpStatusCode === 200) {
-          toast.success("User Profile Edited Successfull.", {
-            onClose: () => {
-              navigate(Constants.USER_PROFILE_ROUTE)
-            },
-            autoClose: 1000
-          });
-        }
-        else if (updateUserRes.httpStatusCode === 401) {
-          toast.error(updateUserRes.message + Constants.RE_LOGIN, {
-            onClose: async () => {
-              navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-            },
-            autoClose: 1000
-          })
-        }
-        else {
-          toast.error(updateUserRes.message)
-        }
-      } else {
-        toast.warning("Please Fill correct data.")
+    const validateToken = async () => {
+      const isValidToken = await CommonServices.valiadteToken();
+      if (!isValidToken) {
+        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       }
+    };
 
+    const initializeForm = () => {
+      let userData = isFromAdmin ? user : (location?.state?.userData || {});
+      setFormData({
+        userId: userData.userId || '',
+        firstName: userData.firstName || '',
+        lastName: userData.lastName || '',
+        gender: userData.gender || '',
+        dob: userData.dob || '',
+        age: userData.age || 0,
+        mobileNo: userData.mobileNo || '',
+        email: userData.email || '',
+        password: userData.password || '',
+        agreeCheckBox: userData.agreeCheckBox || false
+      });
+      setLoading(false);
+    };
+
+    validateToken();
+    initializeForm();
+  }, [isFromAdmin, location, navigate, user]);
+
+  const validateField = (name, value) => {
+    let isValid = true;
+    let newErrors = { ...errors };
+
+    switch (name) {
+      case 'firstName':
+      case 'lastName':
+        isValid = !!value && !/[" "]{2,}/.test(value);
+        newErrors[name] = !isValid;
+        break;
+      case 'dob':
+        const dobPattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+        const year = value?.split('-')[0];
+        const currentYear = new Date().getFullYear();
+        isValid = !!value && dobPattern.test(value) && year >= 1900 && year <= currentYear;
+        newErrors.dob = !isValid;
+        break;
+      case 'gender':
+        isValid = !!value;
+        newErrors.gender = !isValid;
+        break;
+      case 'mobileNo':
+        isValid = /^[0-9]{10}$/.test(value);
+        newErrors.mobileNo = !isValid;
+        break;
+      case 'email':
+        isValid = !!value && !/[" "]{1,}/.test(value);
+        newErrors.email = !isValid;
+        break;
+      case 'password':
+        isValid = !!value && !/[" "]{1,}/.test(value);
+        newErrors.password = !isValid;
+        break;
+      case 'agreeCheckBox':
+        isValid = !!value;
+        newErrors.agreeCheckBox = !isValid;
+        break;
+      default:
+        break;
     }
-    setSubmitLoader(false);
-  }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    const fieldValue = type === 'checkbox' ? checked : value;
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: fieldValue
+    }));
+
+    validateField(name, fieldValue);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    // Validate all fields
+    const isFormValid = Object.entries(formData).every(([key, value]) => {
+      if (key === 'age' || key === 'userId') return true; // Skip non-required fields
+      return validateField(key, value);
+    });
+
+    if (!isFormValid) {
+      Constants.showToast.warning("Please fill all required fields correctly.");
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const { userId, firstName, lastName, gender, dob, mobileNo, email, password } = formData;
+      const updateUserRes = await updateUserDetails({ 
+        userId, firstName, lastName, gender, dob, mobileNo, email, password 
+      });
+
+      if (updateUserRes.httpStatusCode === 200) {
+        Constants.showToast.success("Profile updated successfully!", {
+          onClose: () => navigate(Constants.USER_PROFILE_ROUTE),
+          autoClose: 1000
+        });
+      } else if (updateUserRes.httpStatusCode === 401) {
+        Constants.showToast.error(`${updateUserRes.message} ${Constants.RE_LOGIN}`, {
+          onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } }),
+          autoClose: 1000
+        });
+      } else {
+        Constants.showToast.error(updateUserRes.message);
+      }
+    } catch (error) {
+      Constants.showToast.error("An error occurred while updating your profile");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return <LoadingSpinner />;
 
   return (
-    !loader &&
-    <div>
-      <form className="row g-3 needs-validation mx-3 my-3 rounded-3" method="POST" noValidate style={{ background: "rgba(255 ,255 ,255, 0.9)", border: "2px solid", padding: "1% 2% 2% 2%", borderRadius: "3%" }}>
-        <h1 style={{ borderBottom: "2px solid" }}>Edit User Profile</h1>
+    <ThemeProvider theme={theme}>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          // bgcolor: 'background.default',
+          p: { xs: 2, md: 4 },
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'start'
+        }}
+      >
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+          style={{ width: '100%', maxWidth: '800px' }}
+        >
+          <Card
+            sx={{
+              width: '100%',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              boxShadow: 3
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 4 } }}>
+              <motion.div variants={itemVariants}>
+                <Typography
+                  variant="h4"
+                  component="h1"
+                  gutterBottom
+                  sx={{
+                    fontWeight: 'bold',
+                    color: 'primary.main',
+                    borderBottom: '2px solid',
+                    borderColor: 'primary.main',
+                    pb: 1,
+                    mb: 3
+                  }}
+                >
+                  Edit User Profile
+                </Typography>
+              </motion.div>
 
-        <div className="col-md-4">
-          <label htmlFor="validationCustom01" className="form-label">👤 First name <span className="text-danger">*</span> </label>
-          {
-            firstNameError ?
-              <input type="text" className="form-control is-invalid" name="firstName" value={formData.firstName} onChange={onFieldChange} />
-              :
-              <input type="text" className="form-control" name="firstName" value={formData.firstName} onChange={onFieldChange} />
-          }
-          {firstNameError ? <div className="invalid-feedback">First Name Should not be empty</div> : ""}
-        </div>
-        <div className="col-md-4">
-          <label htmlFor="validationCustom02" className="form-label">👤 Last name <span className="text-danger">*</span> </label>
-          {lastNameError ?
-            <input type="text" className="form-control is-invalid" name="lastName" value={formData.lastName} onChange={onFieldChange} />
-            :
-            <input type="text" className="form-control" name="lastName" value={formData.lastName} onChange={onFieldChange} />
-          }
-          {
-            lastNameError ? <div className="invalid-feedback">Last Name Should not be empty</div> : ""
-          }
-        </div>
-        <div className="col-md-3">
-          <label htmlFor="validationCustom05" className="form-label">📞 Mobile Number <span className="text-danger">*</span> </label>
-          {
-            mobileNoError ?
-              <input type="text" className="form-control is-invalid" name="mobileNo" value={formData.mobileNo} onChange={onFieldChange} />
-              :
-              <input type="text" className="form-control" name="mobileNo" value={formData.mobileNo} onChange={onFieldChange} />
-          }
-          {
-            mobileNoError ?
-              <div className="invalid-feedback">Mobile Number should be 10 Digit</div> : ""
-          }
-        </div>
-        <div className="col-md-3">
-          <label htmlFor="validationCustom04" className="form-label">👫 Gender <span className="text-danger">*</span> </label>
-          {
-            genderError ?
-              <select className="form-select is-invalid" name="gender" value={formData.gender} onChange={onFieldChange}>
-                <option disabled={true} value="">Choose...</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-              : <select className="form-select" name="gender" value={formData.gender} onChange={onFieldChange}>
-                <option disabled={true} value="">Choose...</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-          }
-          {
-            genderError ? <div className="invalid-feedback">Please Select gender</div> : ""
-          }
-        </div>
-        <div className="col-md-2">
-          <label htmlFor="validationCustom05" className="form-label">📅 Date Of Birth <span className="text-danger">*</span> </label>
-          {
-            dobError ? <input type="date" className="form-control is-invalid" value={formData.dob} onChange={onFieldChange} />
-              : <input type="date" className="form-control" value={formData.dob} name="dob" onChange={onFieldChange} />
-          }
-          {
-            dobError && <div className="invalid-feedback">Please enter valid DOB.</div>
-          }
-        </div>
-        <div className="col-md-4">
-          <label htmlFor="validationCustom03" className="form-label">📧 Email ID <span className="text-danger">*</span> </label>
-          {
-            emailError && <><input type="text" className="form-control is-invalid" name="email" value={formData.email} onChange={onFieldChange} />
-              <div className="invalid-feedback">Please enter valid email address</div></>
-            || <input type="text" className="form-control " name="email" value={formData.email} onChange={onFieldChange} />
-          }
+              <Grid container spacing={3}>
+                {/* First Name */}
+                <Grid item xs={12} md={6}>
+                  <motion.div variants={itemVariants}>
+                    <TextField
+                      fullWidth
+                      label="First Name"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      error={errors.firstName}
+                      helperText={errors.firstName && "First name is required"}
+                      variant="outlined"
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ mr: 1, color: 'text.secondary' }}>👤</Box>
+                        ),
+                      }}
+                    />
+                  </motion.div>
+                </Grid>
 
-        </div>
-        <div className="col-md-3">
-          <label htmlFor="validationCustom03" className="form-label">🔐 Password <span className="text-danger">*</span> </label>
-          {
-            passwordError && <>
-              <input type="password" className="form-control is-invalid" name="password" value={formData.password} onChange={onFieldChange} />
-              <div className="invalid-feedback">Please Enter valid Password</div>
-            </> || <input type="password" className="form-control" name="password" value={formData.password} onChange={onFieldChange} />
-          }
-        </div>
+                {/* Last Name */}
+                <Grid item xs={12} md={6}>
+                  <motion.div variants={itemVariants}>
+                    <TextField
+                      fullWidth
+                      label="Last Name"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      error={errors.lastName}
+                      helperText={errors.lastName && "Last name is required"}
+                      variant="outlined"
+                    />
+                  </motion.div>
+                </Grid>
 
-        <div className="col-12">
-          <hr />
-          <div className="form-check">
-            {
-              agreeCheckBoxError && <>
-                <input className="form-check-input is-invalid" type="checkbox"
-                  name="agreeCheckBox" defaultChecked={!check} value={check} onChange={onCheckBoxChange} />
-                <label className="form-chreck-label" htmlFor="invalidCheck">
-                  I agree to terms and conditions <span className="text-danger">*</span>
-                </label>
-                <div className="invalid-feedback">Please accept terms and conditions</div>
-              </> || <><input className="form-check-input" type="checkbox"
-                name="agreeCheckBox" defaultChecked={!check} value={check} onChange={onCheckBoxChange} />
-                <label className="form-chreck-label" htmlFor="invalidCheck">
-                  I agree to terms and conditions <span className="text-danger">*</span>
-                </label>
-              </>
-            }
-          </div>
-        </div>
-        <div className="row">
-          <div className="d-flex justify-content-strat me-3 my-3">
-            {!submitLoader && <button type="submit" className="btn btn-primary" disabled={check} onClick={onSubmitHandle}>Submit 📃</button>
-              || <button className="btn btn-primary btn-sm" type="button" disabled>
-                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                &nbsp;&nbsp;&nbsp;&nbsp; Updating...
-              </button>}
-            <button type="submit" className="btn btn-outline-danger mx-3" onClick={() => navigate(Constants.USER_PROFILE_ROUTE)}>❌ Cancel</button>
-          </div>
-        </div>
-      </form>
-      <hr />
+                {/* Mobile Number */}
+                <Grid item xs={12} md={6}>
+                  <motion.div variants={itemVariants}>
+                    <TextField
+                      fullWidth
+                      label="Mobile Number"
+                      name="mobileNo"
+                      value={formData.mobileNo}
+                      onChange={handleChange}
+                      error={errors.mobileNo}
+                      helperText={errors.mobileNo ? "10 digits required" : ""}
+                      variant="outlined"
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ mr: 1, color: 'text.secondary' }}>📞</Box>
+                        ),
+                      }}
+                    />
+                  </motion.div>
+                </Grid>
+
+                {/* Gender */}
+                <Grid item xs={12} md={6}>
+                  <motion.div variants={itemVariants}>
+                    <FormControl fullWidth error={errors.gender}>
+                      <InputLabel>Gender</InputLabel>
+                      <Select
+                        name="gender"
+                        value={formData.gender}
+                        onChange={handleChange}
+                        label="Gender"
+                      >
+                        <MenuItem value=""><em>Select Gender</em></MenuItem>
+                        <MenuItem value="male">Male</MenuItem>
+                        <MenuItem value="female">Female</MenuItem>
+                      </Select>
+                      {errors.gender && (
+                        <FormHelperText>Please select gender</FormHelperText>
+                      )}
+                    </FormControl>
+                  </motion.div>
+                </Grid>
+
+                {/* Date of Birth */}
+                <Grid item xs={12} md={6}>
+                  <motion.div variants={itemVariants}>
+                    <TextField
+                      fullWidth
+                      label="Date of Birth"
+                      name="dob"
+                      type="date"
+                      value={formData.dob}
+                      onChange={handleChange}
+                      error={errors.dob}
+                      helperText={errors.dob && "Please enter valid DOB"}
+                      variant="outlined"
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ mr: 1, color: 'text.secondary' }}>📅</Box>
+                        ),
+                      }}
+                    />
+                  </motion.div>
+                </Grid>
+
+                {/* Email */}
+                <Grid item xs={12} md={6}>
+                  <motion.div variants={itemVariants}>
+                    <TextField
+                      fullWidth
+                      label="Email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      error={errors.email}
+                      helperText={errors.email && "Please enter valid email"}
+                      variant="outlined"
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ mr: 1, color: 'text.secondary' }}>📧</Box>
+                        ),
+                      }}
+                    />
+                  </motion.div>
+                </Grid>
+
+                {/* Password */}
+                <Grid item xs={12}>
+                  <motion.div variants={itemVariants}>
+                    <TextField
+                      fullWidth
+                      label="Password"
+                      name="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      error={errors.password}
+                      helperText={errors.password && "Please enter valid password"}
+                      variant="outlined"
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ mr: 1, color: 'text.secondary' }}>🔐</Box>
+                        ),
+                      }}
+                    />
+                  </motion.div>
+                </Grid>
+
+                {/* Terms Checkbox */}
+                <Grid item xs={12}>
+                  <motion.div variants={itemVariants}>
+                    <FormControl error={errors.agreeCheckBox}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Checkbox
+                          name="agreeCheckBox"
+                          checked={formData.agreeCheckBox}
+                          onChange={handleChange}
+                          color="primary"
+                        />
+                        <Typography variant="body1">
+                          I agree to terms and conditions <span style={{ color: muiTheme.palette.error.main }}>*</span>
+                        </Typography>
+                      </Box>
+                      {errors.agreeCheckBox && (
+                        <FormHelperText>Please accept terms and conditions</FormHelperText>
+                      )}
+                    </FormControl>
+                  </motion.div>
+                </Grid>
+
+                {/* Buttons */}
+                <Grid item xs={12}>
+                  <motion.div variants={itemVariants}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
+                      <motion.div
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleSubmit}
+                          disabled={submitting || !formData.agreeCheckBox}
+                          size="large"
+                          sx={{ px: 4 }}
+                        >
+                          {submitting ? (
+                            <>
+                              <CircularProgress size={24} color="inherit" />
+                              <Box component="span" sx={{ ml: 1 }}>Updating</Box>
+                            </>
+                          ) : 'Submit'}
+                        </Button>
+                      </motion.div>
+                      <motion.div
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          onClick={() => navigate(Constants.USER_PROFILE_ROUTE)}
+                          size="large"
+                        >
+                          Cancel
+                        </Button>
+                      </motion.div>
+                    </Box>
+                  </motion.div>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </Box>
       {Constants.TOAST_CONTAINER}
-    </div>
-    ||
-    <LoadingSpinner />
-  )
-}
+    </ThemeProvider>
+  );
+};
 
 export default EditProfile;

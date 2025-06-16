@@ -16,6 +16,7 @@
 
 .row-title {
   color: #fff;
+  z-index: 100;
 }
 
 .image-tile {

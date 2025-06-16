@@ -1,172 +1,366 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import "./css/DownloadTracker.css";
-import CommonServices from '../CommonServices';
-import axios from 'axios';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Box,
+  Typography,
+  Paper,
+  Grid,
+  Card,
+  CardContent,
+  LinearProgress,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  IconButton,
+  useTheme,
+  useMediaQuery,
+  Chip
+} from '@mui/material';
+import {
+  Download as DownloadIcon,
+  CloudDownload as CloudDownloadIcon,
+  Movie as MovieIcon,
+  Tv as TvIcon,
+  Person as PersonIcon,
+  DataUsage as DataUsageIcon,
+  Refresh as RefreshIcon,
+  SignalCellularAlt as SignalIcon,
+  Storage as StorageIcon,
+  Search as SearchIcon,
+  PlayArrow as StreamIcon
+} from '@mui/icons-material';
+import { motion } from 'framer-motion';
 
-function DownloadTracker() {
-  const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
-  const navigate = useNavigate();
-  const ws = useRef(null);
-  var tempStatus;
+const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
+// const WEBSOCKET_URL = 'ws://localhost:9000/api/utils/download-tracker';
+const WEBSOCKET_URL = `${WEBSOCKET_BASEURL}/api/utils/download-tracker`;
 
-  useEffect(() => {
-    // For local testing, using a hard-coded URL; otherwise use WEBSOCKET_BASEURL.
-    ws.current = new WebSocket(`${WEBSOCKET_BASEURL}/api/utils/download-tracker`);
-    // ws.current = new WebSocket(`ws://localhost:9000/api/utils/download-tracker`);
-    ws.current.onopen = () => {
-      console.log("WebSocket connection open for status");
-      ws.current.send("");
-    };
-    ws.current.onmessage = (event) => {
-      // Parse the JSON and extract the data object
-      tempStatus = Object.values(JSON.parse(event.data)?.data);
-      // Add a timestamp for UI updates
-      setDownloads(tempStatus.map(element => {
-        element["lastUpdated"] = new Date().toISOString();
-        return element;
-      }));
-    };
-    ws.current.onclose = () => {
-      console.log("WebSocket connection closed for status");
-    };
+const useWebSocket = (url, onMessage) => {
+  const [ws, setWs] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const reconnectTimeoutRef = useRef(null);
+  
+  const connect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
 
-    return () => {
-      if (ws.current) {
-        ws.current.close();
+    const socket = new WebSocket(url);
+    
+    socket.onopen = () => {
+      setIsConnected(true);
+      setWs(socket);
+    };
+    
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onMessage(data);
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
     };
-  }, []);
+    
+    socket.onclose = () => {
+      setIsConnected(false);
+      setWs(null);
+      reconnectTimeoutRef.current = setTimeout(() => connect(), 5000);
+    };
+    
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
 
-  const [downloads, setDownloads] = useState([]);
+    return socket;
+  }, [url, onMessage]);
 
-  // Fetch download status from the backend
-  const fetchDownloadStatus = async () => {
-    try {
-      const response = await axios.get("/api/admin/status/download");
-      // response.data should follow the JSON structure given by the backend
-      const { data } = response.data; 
-      const downloadsArr = Object.values(data);
-      setDownloads(downloadsArr);
-    } catch (error) {
-      console.error("Error fetching download status:", error);
+  useEffect(() => {
+    const socket = connect();
+    return () => {
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (socket) socket.close();
+    };
+  }, [connect]);
+
+  const reconnect = useCallback(() => {
+    if (ws) ws.close();
+    else connect();
+  }, [ws, connect]);
+
+  return { isConnected, reconnect };
+};
+
+const DownloadItem = ({ download }) => {
+  const getFileTypeIcon = (fileName) => {
+    if (fileName?.includes('/movies/')) return <MovieIcon />;
+    if (fileName?.includes('/series/')) return <TvIcon />;
+    return <StorageIcon />;
+  };
+
+  const getEventIcon = (type) => {
+    switch (type) {
+      case 'DOWNLOAD': return <DownloadIcon color="primary" />;
+      case 'STREAM': return <StreamIcon color="success" />;
+      default: return <StorageIcon />;
     }
   };
 
-  // Group downloads by userId
-  const groupDownloadsByUser = (downloads) => {
-    return downloads.reduce((grouped, download) => {
-      const { userId } = download;
-      if (!grouped[userId]) {
-        grouped[userId] = [];
-      }
-      grouped[userId].push(download);
-      return grouped;
-    }, {});
-  };
-
-  // Render download cards for a user
-  const renderDownloadCards = (userDownloads) => {
-    return userDownloads.map((download, index) => {
-      // Use uniqueBytesDownloaded for progress calculations
-      const progress = (download.uniqueBytesDownloaded / download.fileSize) * 100;
-      const fileSize = `${CommonServices.bytesToReadbleFormat(download.fileSize).value} ${CommonServices.bytesToReadbleFormat(download.fileSize).suffix}`;
-      const downloadedSize = `${CommonServices.bytesToReadbleFormat(download.uniqueBytesDownloaded).value} ${CommonServices.bytesToReadbleFormat(download.uniqueBytesDownloaded).suffix}`;
-
-      return (
-        <div key={index} className="card download-card mb-3">
-          <div className="card-header text-black">
-            <strong>{download.fileName}</strong>
-          </div>
-          <div className="card-body">
-            <div className="file-info">
-              <div className="row">
-                <div className="col-md-6">
-                  <p>
-                    <strong>File Size:</strong> {fileSize}
-                  </p>
-                  <p>
-                    <strong>Downloaded:</strong> {downloadedSize}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="progress">
-              <div
-                className="progress-bar progress-bar-striped bg-success"
-                role="progressbar"
-                style={{ width: `${progress}%` }}
-                aria-valuenow={progress}
-                aria-valuemin="0"
-                aria-valuemax="100"
-              >
-                {progress.toFixed(1)}%
-              </div>
-            </div>
-
-            <div className="row">
-              <div className="col-md-4">
-                <span
-                  className={`status-badge ${
-                    download.completed
-                      ? "bg-success"
-                      : download.failed
-                      ? "bg-danger"
-                      : download.paused
-                      ? "bg-secondary"
-                      : "bg-warning"
-                  }`}
-                >
-                  {download.completed
-                    ? "Completed"
-                    : download.failed
-                    ? "Failed"
-                    : download.paused
-                    ? "Paused"
-                    : "In Progress"}
-                </span>
-              </div>
-              <div className="col-md-4 text-center p-1">
-                <span className="text-muted">
-                  {downloadedSize} / {fileSize}
-                </span>
-              </div>
-              <div className="col-md-4 text-end">
-                <span className="text-muted">
-                  Last updated: {new Date(download.lastUpdated).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {download.failed && (
-              <div className="mt-3 alert alert-danger">
-                <strong>Error:</strong> {download.error}
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    });
-  };
-
-  // Group downloads by user and render them
-  const groupedDownloads = groupDownloadsByUser(downloads);
   return (
-    <div className="container mt-5">
-      {(!downloads || downloads.length === 0) && (
-        <div className="my-5 alert alert-warning text-center">
-          No Downloads Found
-        </div>
-      )}
-      {Object.keys(groupedDownloads).map((userId) => (
-        <div key={userId} className="mb-5">
-          <h3>User: {userId}</h3>
-          {renderDownloadCards(groupedDownloads[userId])}
-        </div>
-      ))}
-    </div>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+      <Card variant="outlined" sx={{ mb: 2 }}>
+        <CardContent sx={{pb:2}}>
+          <Box display="flex" alignItems="center">
+            <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
+              {getFileTypeIcon(download.fileName)}
+            </Avatar>
+            <Box>
+              <Typography>
+                {download.fileName?.split('/').pop() || 'Unknown file'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {download.userId}
+              </Typography>
+              <Box mt={1}>
+                <Chip 
+                  icon={getEventIcon(download.type)} 
+                  label={download.type} 
+                  size="small" 
+                  variant="outlined"
+                  sx={{ mr: 1 }}
+                />
+                <Chip 
+                  label={`Last seen: ${new Date(download.lastSeen).toLocaleString()}`}
+                  size="small" 
+                  variant="outlined"
+                  // sx={{ ml: 1 }}
+                />
+              </Box>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
-}
+};
+
+const UserActivity = ({ user, activities }) => {
+  const [expanded, setExpanded] = useState(false);
+  const theme = useTheme();
+
+  const getEventIcon = (event) => {
+    switch (event?.toLowerCase()) {
+      case 'download': return <DownloadIcon fontSize="small" color="primary" />;
+      case 'stream': return <StreamIcon fontSize="small" color="success" />;
+      default: return <StorageIcon fontSize="small" />;
+    }
+  };
+
+  return (
+    <React.Fragment key={user}>
+      <ListItem button onClick={() => setExpanded(!expanded)}>
+        <ListItemAvatar>
+          <Avatar>
+            <PersonIcon />
+          </Avatar>
+        </ListItemAvatar>
+        <ListItemText 
+          primary={user} 
+          secondary={`${activities.length} activities`} 
+        />
+      </ListItem>
+      {expanded && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+        >
+          <List dense sx={{ pl: 0 }}>
+            {activities.map((activity, i) => (
+              <ListItem key={i}>
+                <ListItemAvatar>
+                  <Avatar sx={{ 
+                    bgcolor: theme.palette.background.paper,
+                    width: 24, 
+                    height: 24,
+                  }}>
+                    {getEventIcon(activity.event)}
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    activity.event?.toLowerCase() === 'download' 
+                      ? `Downloaded: ${activity.value?.split('/').pop() || activity.value}` 
+                      : `Streamed: ${activity.value}`
+                  }
+                  secondary={activity.time}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </motion.div>
+      )}
+    </React.Fragment>
+  );
+};
+
+const DownloadTracker = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [data, setData] = useState(null);
+  
+  const handleWebSocketMessage = useCallback((message) => {
+    setData(message.data || message);
+  }, []);
+
+  const { isConnected, reconnect } = useWebSocket(WEBSOCKET_URL, handleWebSocketMessage);
+
+  // Process data for display
+  const activeDownloads = data?.activeDownloads || [];
+  const recentActivities = data?.recentActivities || [];
+  const statistics = data?.statistics || {};
+  const userEngagement = data?.userEngagement || {};
+  const trends = data?.trends || {};
+
+  // Group activities by user
+  const userActivities = recentActivities.reduce((acc, activity) => {
+    if (!activity.user) return acc;
+    if (!acc[activity.user]) acc[activity.user] = [];
+    acc[activity.user].push(activity);
+    return acc;
+  }, {});
+
+  return (
+    <Box sx={{ p: isMobile ? 1 : 3 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">Download & Stream Analytics</Typography>
+        <Box display="flex" alignItems="center">
+          <Box display="flex" alignItems="center" sx={{ 
+            color: isConnected ? theme.palette.success.main : theme.palette.error.main, 
+            mr: 2 
+          }}>
+            <SignalIcon fontSize="small" sx={{ mr: 1 }} />
+            <Typography>{isConnected ? 'Connected' : 'Disconnected'}</Typography>
+          </Box>
+          <IconButton onClick={reconnect}>
+            <RefreshIcon />
+          </IconButton>
+        </Box>
+      </Box>
+
+      {!data ? (
+        <Box display="flex" justifyContent="center" py={10}>
+          <Typography>Loading data...</Typography>
+        </Box>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <Grid container spacing={3} mb={3}>
+            {[
+              { 
+                title: 'Active Downloads', 
+                value: statistics.downloadCount || 0,
+                icon: <DownloadIcon />,
+                color: 'primary.main'
+              },
+              { 
+                title: 'Active Streams', 
+                value: statistics.streamCount || 0,
+                icon: <StreamIcon />,
+                color: 'success.main'
+              },
+              { 
+                title: 'Active Users', 
+                value: statistics.activeUsers || 0,
+                icon: <PersonIcon />,
+                color: 'secondary.main'
+              },
+              { 
+                title: 'Daily Downloads', 
+                value: trends.dailyDownloads || 0,
+                icon: <CloudDownloadIcon />,
+                color: 'info.main'
+              }
+            ].map((item, i) => (
+              <Grid item xs={12} sm={6} md={3} key={i}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" alignItems="center">
+                      <Avatar sx={{ bgcolor: item.color, mr: 2 }}>
+                        {item.icon}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h5">{item.value}</Typography>
+                        <Typography variant="body2">{item.title}</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* Main Content */}
+          <Grid container spacing={3}>
+            {/* Active Downloads */}
+            <Grid item xs={12} md={8}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                  Active Downloads ({activeDownloads.length})
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                {activeDownloads.length > 0 ? (
+                  <List>
+                    {activeDownloads.map((download) => (
+                      <DownloadItem 
+                        key={download.downloadId} 
+                        download={download} 
+                      />
+                    ))}
+                  </List>
+                ) : (
+                  <Typography color="text.secondary">No active downloads</Typography>
+                )}
+              </Paper>
+
+              {/* Statistics */}
+              <Paper sx={{ p: 2, mt: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  Statistics
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="subtitle1">User Engagement</Typography>
+                    <Typography variant="body2">Daily Activity: {userEngagement.dailyActivity}</Typography>
+                    <Typography variant="body2">Daily Active Users: {userEngagement.dailyActiveUsers}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="subtitle1">Trends</Typography>
+                    <Typography variant="body2">Daily Downloads: {trends.dailyDownloads}</Typography>
+                    <Typography variant="body2">Daily Streams: {trends.dailyStreams}</Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+
+            {/* User Activity */}
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Typography variant="h6" gutterBottom>Recent Activities</Typography>
+                <Divider sx={{ mb: 2 }} />
+                <List sx={{ maxHeight: 800, overflow: 'auto' }}>
+                  {Object.entries(userActivities).map(([user, activities]) => (
+                    <UserActivity key={user} user={user} activities={activities} />
+                  ))}
+                </List>
+              </Paper>
+            </Grid>
+          </Grid>
+        </>
+      )}
+    </Box>
+  );
+};
 
 export default DownloadTracker;

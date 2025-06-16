@@ -24,12 +24,6 @@ public class TokenAuthenticationHandler {
         @Override
         public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
             ApiResponse<String> apiResponse = new ApiResponse<>(HttpStatus.UNAUTHORIZED, false, authException.getMessage());
-            String message = "I can see that, you are sending some request like ('/pmd/index.php', '/.aws/credentials', '/www/.git/config', '/?<play>withme</>', '/boaform/admin/formLogin') on my server. " +
-                    "Are you a Hacker? Are you trying to access data by sending some query? " +
-                    "If yes then let me know you are able to access it or not. Also can you please provide some feedback and suggestion" +
-                    " So I can improve my code and security accordingly." +
-                    "Also you can contact me on Email: dbmovies0@gmail.com";
-//            ApiResponse apiResponse = new ApiResponse(HttpStatus.UNAUTHORIZED, false, message);
             response.setStatus(apiResponse.getHttpStatusCode());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write(new Gson().toJson(apiResponse));

@@ -172,10 +172,10 @@ const FileExplorer = () => {
     const handleRenameSubmit = async () => {
         let renameRes = await renameFileApi(renameFile.id, { newName: renameText });
         if (renameRes.httpStatusCode === 200) {
-            toast.success(renameRes.message)
+            Constants.showToast.success(renameRes.message)
             fetchFiles(currentPath);
         } else {
-            toast.error(renameRes.message || renameRes.errorMessage)
+            Constants.showToast.error(renameRes.message || renameRes.errorMessage)
         }
         setShowRenameModal(false);
         setRenameText(null);
@@ -186,10 +186,10 @@ const FileExplorer = () => {
         console.log('Moving:', moveTargets.map((f) => f.fileName), 'to', moveDestPath);
         let renameRes = await moveFileApi(moveTargets[0].id, { newDirectory: moveDestPath });
         if (renameRes.httpStatusCode === 200) {
-            toast.success(renameRes.message)
+            Constants.showToast.success(renameRes.message)
             fetchFiles(currentPath);
         } else {
-            toast.error(renameRes.message || renameRes.errorMessage)
+            Constants.showToast.error(renameRes.message || renameRes.errorMessage)
         }
         setShowMoveModal(false);
         setSelectedFiles([]);
@@ -208,10 +208,10 @@ const FileExplorer = () => {
         let deleteRes = await deleteFileApi(deleteFile.id);
         if (deleteRes.httpStatusCode === 200) {
             setShowDeleteModal(false);
-            toast.success(deleteRes.message);
+            Constants.showToast.success(deleteRes.message);
             fetchFiles(currentPath);
         } else {
-            toast.error(deleteRes.message || deleteRes.errorMessage)
+            Constants.showToast.error(deleteRes.message || deleteRes.errorMessage)
         }
         setShowCopyModal(false);
         setSelectedFiles([]);

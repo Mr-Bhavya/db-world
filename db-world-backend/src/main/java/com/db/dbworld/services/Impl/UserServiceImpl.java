@@ -60,7 +60,7 @@ public class UserServiceImpl implements UserService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserDetails user = (UserDetails) authentication.getPrincipal();
         return this.userRepository.findByEmail(user.getUsername()).orElseThrow(
-                ()->new ResourceNotFoundException("user", "email", user.getUsername())
+                () -> new ResourceNotFoundException("user", "email", user.getUsername())
         );
     }
 
@@ -77,12 +77,12 @@ public class UserServiceImpl implements UserService {
         List<UserEntity> userEntities = this.userRepository.findAll();
         return userEntities.stream().map(userEntity -> {
                     try {
-                        Pageable pageable = PageRequest.of(0,5, Sort.by(Sort.Direction.DESC, "lastLoginDate"));
+                        Pageable pageable = PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "lastLoginDate"));
                         List<LoginDataEntity> loginDataEntities = this.loginDataRepository
                                 .findByUserUserId(userEntity.getUserId(), pageable);
 
-                        pageable = PageRequest.of(0,20, Sort.by(Sort.Direction.DESC, "time"));
-                        List<UserCinemaDataEntity> userCinemaDataEntities = userCinemaDataRepository.findAllByUserUserId(userEntity.getUserId(), pageable);
+                        pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "time"));
+//                        List<UserCinemaDataEntity> userCinemaDataEntities = userCinemaDataRepository.findAllByUserUserId(userEntity.getUserId(), pageable);
 
                         loginDataRepository.totalNumberOfLogin(userEntity.getUserId());
 
@@ -95,32 +95,29 @@ public class UserServiceImpl implements UserService {
 
                         userDto.setNoOfLogin(loginDataRepository.totalNumberOfLogin(userEntity.getUserId()));
 
-                        if(userCinemaDataEntities != null && !userCinemaDataEntities.isEmpty()){
-                            UserDto.CinemaData cinemaData = new UserDto.CinemaData();
-                            List<String> downloads = new ArrayList<>();
-                            List<String> streams = new ArrayList<>();
-                            List<String> searches = new ArrayList<>();
-                            userCinemaDataEntities.forEach(userCinemaDataEntity -> {
-                                if(userCinemaDataEntity != null && userCinemaDataEntity.getEvent() != null && userCinemaDataEntity.getValue() != null) {
-                                    if (userCinemaDataEntity.getEvent().equalsIgnoreCase("DOWNLOAD")) {
-                                        downloads.add(userCinemaDataEntity.getValue());
-                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("STREAM")) {
-                                        streams.add(userCinemaDataEntity.getValue());
-                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("SEARCH")) {
-                                        searches.add(userCinemaDataEntity.getValue());
-                                    }
-                                }
-                            });
-                            Map<String, List<String>> map = new HashMap<>();
-                            map.put("download_files", downloads);
-                            map.put("stream_files", streams);
-                            map.put("search_keywords", searches);
-                            cinemaData.setEvents(map);
-//                            cinemaData.setDownload_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getDownload_file).filter(Objects::nonNull).collect(Collectors.toList()));
-//                            cinemaData.setStream_files(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getStream_file).filter(Objects::nonNull).collect(Collectors.toList()));
-//                            cinemaData.setSearch_keywords(userCinemaDataEntities.stream().map(UserCinemaDataEntity::getSearch_keyword).filter(Objects::nonNull).collect(Collectors.toList()));
-                            userDto.setCinemaData(cinemaData);
-                        }
+//                        if (userCinemaDataEntities != null && !userCinemaDataEntities.isEmpty()) {
+//                            UserDto.CinemaData cinemaData = new UserDto.CinemaData();
+//                            List<String> downloads = new ArrayList<>();
+//                            List<String> streams = new ArrayList<>();
+//                            List<String> searches = new ArrayList<>();
+//                            userCinemaDataEntities.forEach(userCinemaDataEntity -> {
+//                                if (userCinemaDataEntity != null && userCinemaDataEntity.getEvent() != null && userCinemaDataEntity.getValue() != null) {
+//                                    if (userCinemaDataEntity.getEvent().equalsIgnoreCase("DOWNLOAD")) {
+//                                        downloads.add(userCinemaDataEntity.getValue());
+//                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("STREAM")) {
+//                                        streams.add(userCinemaDataEntity.getValue());
+//                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("SEARCH")) {
+//                                        searches.add(userCinemaDataEntity.getValue());
+//                                    }
+//                                }
+//                            });
+//                            Map<String, List<String>> map = new HashMap<>();
+//                            map.put("download_files", downloads);
+//                            map.put("stream_files", streams);
+//                            map.put("search_keywords", searches);
+//                            cinemaData.setEvents(map);
+//                            userDto.setCinemaData(cinemaData);
+//                        }
                         return userDto;
                     } catch (Exception ex) {
                         log.warn(ex.getMessage());
@@ -256,11 +253,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void updateDob(Date dob) {
-        try{
+        try {
             UserEntity userEntity = getUserFromToken();
             userEntity.setDob(dob);
             userRepository.save(userEntity);
-        }catch (Exception ex){
+        } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
         }
     }
@@ -283,7 +280,6 @@ public class UserServiceImpl implements UserService {
 //        return this.modelMapper.map(userCinemaDataEntity, UserCinemaDataDto.class);
         return null;
     }
-
 
 
 }

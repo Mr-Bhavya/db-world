@@ -4,7 +4,6 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.security.JwtHelper;
-import com.db.dbworld.services.Impl.DownloadTrackerServiceImpl;
 import com.db.dbworld.services.MediaFileInfoService;
 import com.db.dbworld.services.StreamService;
 import com.db.dbworld.services.UserService;
@@ -21,20 +20,16 @@ import jakarta.validation.constraints.NotNull;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.InputStreamResource;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 
 @Log4j2
@@ -56,8 +51,6 @@ public class StreamController {
     private MediaFileInfoService mediaFileInfoService;
     @Autowired
     private ModelMapper modelMapper;
-    @Autowired
-    private DownloadTrackerServiceImpl downloadTrackerService;
 
 
     private final Map<Long, String> video_cache = new HashMap<>();
@@ -111,9 +104,9 @@ public class StreamController {
     }
 
     @GetMapping(value = "/watch/{fileId}")
-    public CompletableFuture<ResponseEntity<InputStreamResource>> watchFileOnline(@RequestHeader(value = "Range", required = false) String rangeHeader,
-                                                                                  @PathVariable(name = "fileId") @Valid @NotNull long fileId,
-                                                                                  @RequestParam(name = "t") String token) {
+    public ResponseEntity<Void> watchFileOnline(@RequestHeader(value = "Range", required = false) String rangeHeader,
+                                                @PathVariable(name = "fileId") @Valid @NotNull long fileId,
+                                                @RequestParam(name = "t") String token) {
         String username = dbWorldUtils.getUserFromToken(token);
         if (username == null || username.isBlank()) {
             throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
@@ -131,39 +124,13 @@ public class StreamController {
             video_cache.put(fileId, path.toString());
         }
         // Create User cache and print log for first time user download file.
-        catchUpdate(token, path.toString(), CACHE_TYPE_WATCH);
-        return streamService.getStreamResource(path, rangeHeader);
+        return streamService.downloadFileFromCDN(username, path, rangeHeader, true);
     }
 
-//    @GetMapping(value = "/download/{fileId}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-//    public CompletableFuture<ResponseEntity<InputStreamResource>> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
-//                                                                               @PathVariable(name = "fileId") @Valid @NotNull long fileId,
-//                                                                               @RequestParam("t") String token) {
-//        String username = dbWorldUtils.getUserFromToken(token);
-//        if (username == null || username.isBlank()) {
-//            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
-//        }
-//        Path path = null;
-//        if (video_cache.containsKey(fileId)) {
-//            path = Path.of(video_cache.get(fileId));
-//        } else {
-//            List<File> files = getStreamableFilesRecursive();
-//            List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
-//            if (filteredFiles.isEmpty()) {
-//                throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
-//            }
-//            path = filteredFiles.get(0).toPath();
-//            video_cache.put(fileId, path.toString());
-//        }
-//        // Create User cache and print log for first time user download file.
-//        catchUpdate(token, path.toString(), CACHE_TYPE_DOWNLOAD);
-//        return streamService.getDownloadResource(path, rangeHeader);
-//    }
-
     @GetMapping(value = "/download/{fileId}")
-    public ResponseEntity<StreamingResponseBody> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
-                                                         @PathVariable(name = "fileId") @Valid @NotNull long fileId,
-                                                         @RequestParam("t")  @Valid @NotNull String token) throws IOException {
+    public ResponseEntity<Void> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
+                                             @PathVariable(name = "fileId") @Valid @NotNull long fileId,
+                                             @RequestParam("t") @Valid @NotNull String token) throws IOException {
         String username = dbWorldUtils.getUserFromToken(token);
         if (username == null || username.isBlank()) {
             throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
@@ -181,60 +148,65 @@ public class StreamController {
             if (!rateLimiter.tryAcquire()) {
                 throw new DbWorldException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.");
             }
-            return streamService.downloadFile(username, path, rangeHeader);
+            return streamService.downloadFileFromCDN(username, path, rangeHeader, false);
         } finally {
             rateLimiter.release(); // Release the permit
         }
     }
 
     @GetMapping(value = "/watch/uuid/{fileId}")
-    public CompletableFuture<ResponseEntity<InputStreamResource>> watchFileOnline(@RequestHeader(value = "Range", required = false) String rangeHeader,
-                                                                                  @PathVariable(name = "fileId") @Valid @NotNull String fileId,
-                                                                                  @RequestParam(name = "t") String token) {
+    public ResponseEntity<Void> watchFileOnline(@RequestHeader(value = "Range", required = false) String rangeHeader,
+                                                @PathVariable(name = "fileId") @Valid @NotNull String fileId,
+                                                @RequestParam(name = "t") String token) {
         String username = dbWorldUtils.getUserFromToken(token);
         if (username == null || username.isBlank()) {
             throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
         }
         String filePath = mediaFileInfoService.getFileInfoById(fileId);
-        if(filePath!=null && !filePath.isBlank() && new File(filePath).exists() ){
-            return streamService.getStreamResource(Path.of(filePath), rangeHeader);
-        }else {
+        if (filePath != null && !filePath.isBlank() && new File(filePath).exists()) {
+//            return streamService.getStreamResource(Path.of(filePath), rangeHeader);
+            return streamService.downloadFileFromCDN(username, Path.of(filePath), rangeHeader, true);
+        } else {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "No information found for given ID");
         }
     }
 
-    @GetMapping(value = "/download/uuid/{fileId}")
-    public ResponseEntity<StreamingResponseBody> downloadFile(@RequestHeader(value = "Range", required = false) String rangeHeader,
-                                                              @PathVariable(name = "fileId") @Valid @NotNull String fileId,
-                                                              @RequestParam("t")  @Valid @NotNull String token) throws IOException {
+    @GetMapping("/download/uuid/{fileId}")
+    public ResponseEntity<Void> downloadFile(
+            @RequestHeader(value = "Range", required = false) String rangeHeader,
+            @PathVariable String fileId,
+            @RequestParam("t") String token,
+            @RequestParam(value = "inline", defaultValue = "false") boolean inline) throws IOException {
 
-        String username = dbWorldUtils.getUserFromToken(token);
-        if (username == null || username.isBlank()) {
-            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token is not valid or expired.");
+        // 1) Authenticate
+        String user = dbWorldUtils.getUserFromToken(token);
+        if (user == null || user.isBlank()) {
+            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Token invalid or expired");
         }
+
+        // 2) Resolve file path
         String filePath = mediaFileInfoService.getFileInfoById(fileId);
+        Path path = Path.of(filePath);
+        if (!Files.exists(path)) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, "File not found");
+        }
 
-        if(filePath!=null && !filePath.isBlank() && new File(filePath).exists() ){
-            try {
-                // Acquire a permit from the rate limiter
-                if (!rateLimiter.tryAcquire()) {
-                    throw new DbWorldException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.");
-                }
-                return streamService.downloadFile(username, Path.of(filePath), rangeHeader);
-            } finally {
-                rateLimiter.release(); // Release the permit
-            }
-        }else {
-            throw new DbWorldException(HttpStatus.BAD_REQUEST, "No information found for given ID");
+        // 3) Rate limit
+        if (!rateLimiter.tryAcquire()) {
+            throw new DbWorldException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests");
+        }
+
+        try {
+            return streamService.downloadFileFromCDN(user, path, rangeHeader, inline);
+        } finally {
+            rateLimiter.release();
         }
     }
+
 
     @GetMapping(value = "/search")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<HashMap<String, Object>>> searchFile(@Valid @NotEmpty @RequestParam(value = "q", defaultValue = "search") String query) {
-//        UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
-//        userCinemaDataDto.setSearch_keyword(query);
-//        userService.updateUserCinemaData(userCinemaDataDto, null);
 
         List<File> files = getStreamableFilesRecursive();
         List<HashMap<String, Object>> filteredFiles = files.stream()
@@ -248,14 +220,14 @@ public class StreamController {
 
     @GetMapping(value = "/media-info/{recordId}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<List<MediaFileInfo>> getAllMediaInfoByRecordId(@PathVariable(value = "recordId") Long recordId){
+    public ApiResponse<List<MediaFileInfo>> getAllMediaInfoByRecordId(@PathVariable(value = "recordId") Long recordId) {
         List<MediaFileInfo> mediaFileInfos = mediaFileInfoService.getAllFileInfoByRecordId(recordId);
         return new ApiResponse<>(HttpStatus.OK, true, mediaFileInfos);
     }
 
     @GetMapping(value = "/media-info/file/{fileId}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<List<MediaFileInfo>> getMediaInfoByFile(@PathVariable(value = "fileId") Long fileId){
+    public ApiResponse<List<MediaFileInfo>> getMediaInfoByFile(@PathVariable(value = "fileId") Long fileId) {
         Path path = null;
         if (video_cache.containsKey(fileId)) {
             path = Path.of(video_cache.get(fileId));
@@ -273,7 +245,7 @@ public class StreamController {
             List<MediaFileInfo> mediaFileInfos = new ArrayList<>();
             JsonElement jsonElement = new Gson().fromJson(jsonOutput, JsonElement.class);
 
-            if(jsonElement.isJsonArray()){
+            if (jsonElement.isJsonArray()) {
                 jsonElement.getAsJsonArray().forEach(element -> {
                     try {
                         mediaFileInfos.add(convertJsonObjectToMediaInfo(element.getAsJsonObject()));
@@ -281,11 +253,11 @@ public class StreamController {
                         throw new DbWorldException(e.getMessage());
                     }
                 });
-            }else if(jsonElement.isJsonObject()) {
+            } else if (jsonElement.isJsonObject()) {
                 mediaFileInfos.add(convertJsonObjectToMediaInfo(jsonElement.getAsJsonObject()));
             }
             return new ApiResponse<>(HttpStatus.OK, true, mediaFileInfos);
-        }catch (Exception ex){
+        } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
         }
     }
@@ -331,34 +303,4 @@ public class StreamController {
         files.addAll(streamService.getListRecursive(EXTERNAL_STREAM_HOME_PATH));
         return files;
     }
-
-    private void catchUpdate(String token, String path, String cacheType) {
-        String tempUser = dbWorldUtils.getUserFromToken(token);
-        String username = tempUser != null ? tempUser : "someone";
-        if (cacheType.equals(CACHE_TYPE_DOWNLOAD)) {
-            Map<String, Object> res = catchUpdate(username, download_cache, path);
-            download_cache = (Map<String, List<String>>) res.get("cache");
-            if ((boolean) res.get("print")) {
-                log.info("user '{}' was downloaded file - {}", username, path);
-//                if (!username.equalsIgnoreCase("someone")) {
-//                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
-//                    userCinemaDataDto.setDownload_file(path);
-//                    userService.updateUserCinemaData(userCinemaDataDto, username);
-//                }
-            }
-        } else if (cacheType.equals(CACHE_TYPE_WATCH)) {
-            Map<String, Object> res = catchUpdate(username, watch_cache, path);
-            watch_cache = (Map<String, List<String>>) res.get("cache");
-            if ((boolean) res.get("print")) {
-                log.info("user '{}' is watching file - {}", username, path);
-//                if (!username.equalsIgnoreCase("someone")) {
-//                    UserCinemaDataDto userCinemaDataDto = new UserCinemaDataDto();
-//                    userCinemaDataDto.setStream_file(path);
-//                    userService.updateUserCinemaData(userCinemaDataDto, username);
-//                }
-            }
-        }
-
-    }
-
 }
