@@ -133,18 +133,35 @@ function formatETA(seconds) {
     }
 }
 
-const handleCopy = (text) => {
-    try {
-        const element = document.createElement("textarea");
-        element.value = text;
-        document.body.appendChild(element)
-        element.select();
-        document.execCommand("copy");
-        document.body.removeChild(element);
-    } catch (e) {
-        alert(e)
+function handleCopy(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+      return { success: true, message: 'Copied to clipboard' };
+    } else {
+      // Fallback for older browsers or mobile
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";  // avoid scrolling to bottom on iOS
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      const successful = document.execCommand("copy");
+      document.body.removeChild(textarea);
+
+      if (successful) {
+        return { success: true, message: 'Copied using fallback' };
+      } else {
+        return { success: false, message: 'Fallback copy failed' };
+      }
     }
+  } catch (err) {
+    return { success: false, message: `Copy failed: ${err.message}` };
+  }
 }
+
 
 const handleDownload = (text, isAndroid) => {
     try {
@@ -281,6 +298,98 @@ const convertMediaInfoToCustomFormat = (data, isSearchedFile) => {
     })
 }
 
+const rgbaToHex = (rgba) => {
+    // Parse RGBA values
+    const parts = rgba.substring(rgba.indexOf("(")).split(",");
+    const r = parseInt(parts[0].substring(1).trim());
+    const g = parseInt(parts[1].trim());
+    const b = parseInt(parts[2].trim());
+    const a = parseFloat(parts[3] ? parts[3].substring(0, parts[3].indexOf(")")).trim() : 1);
+
+    // Convert to HEX components
+    const toHex = (n) => {
+        const hex = Math.round(n).toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+    };
+
+    // For fully opaque (alpha = 1), return 6-digit HEX
+    if (a >= 1) return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+
+    // For transparency, convert alpha to 0-255 scale and add to HEX
+    const alphaByte = Math.round(a * 255);
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}${toHex(alphaByte)}`;
+};
+
+const getImageUrlFromTmdb = (tmdb, type, quality = 'original') => {
+    if (!tmdb) return null;
+    let imagePath = null;
+    let images = [];
+
+    // Determine which image array to use based on type
+    if (type === Constants.IMAGE_TYPE_POSTER) {
+        images = tmdb.images?.posters || [];
+    } else if (type === Constants.IMAGE_TYPE_BACKDROP) {
+        images = tmdb.images?.backdrops || [];
+    }
+
+    if (images.length > 0) {
+        // Define priority groups in order
+        const priorityGroups = [
+            ['en'],                                 // First priority: English
+            ['hi'],                                 // Second priority: Hindi
+            ['gu', 'ta', 'te', 'ml', 'kn', 'ko'],    // Third priority: any one from these
+        ];
+
+        let filtered = [];
+
+        // Loop over each group in order and break once we find images
+        for (let group of priorityGroups) {
+            filtered = images.filter(
+                img => group.includes(img.iso_639_1) && img.file_path !== null
+            );
+            if (filtered.length > 0) break;
+        }
+
+        // If no images found in the priority groups, fallback to any available image
+        if (filtered.length === 0) {
+            filtered = images.filter(img => img.file_path !== null);
+        }
+
+        // If we have images, randomly pick one
+        if (filtered.length > 0) {
+            const randomIndex = Math.floor(Math.random() * filtered.length);
+            imagePath = filtered[randomIndex].file_path;
+        }
+    }
+
+    // Final fallback if imagePath still not set
+    if (!imagePath) {
+        imagePath = type === Constants.IMAGE_TYPE_POSTER ? tmdb.poster_path : tmdb.backdrop_path;
+    }
+
+    return Constants.TMDB_IMAGE_BASE_URL
+        .replace('{quality}', quality)
+        .replace('{imagePath}', imagePath);
+};
+
+function parseLogLine(line) {
+    const userMatch = line.match(/User (.+?) is accessing API/);
+    const apiMatch = line.match(/API: (.+?) \|/);
+    const methodMatch = line.match(/\| Method: (.+?) from/);
+    const refererMatch = line.match(/from Referer: (.+?)\. Token/);
+    const tokenMatch = line.match(/Token Validated: (true|false)/);
+
+    return {
+        timestamp: line.substring(0, 23),
+        user: userMatch?.[1] || "Unknown",
+        api: apiMatch?.[1] || "Unknown",
+        method: methodMatch?.[1] || "Unknown",
+        referer: refererMatch?.[1] || "Unknown",
+        tokenValidated: tokenMatch?.[1] === "true",
+    };
+}
+
+
 
 export default {
     getTimeDateFromTimeStamp,
@@ -298,6 +407,9 @@ export default {
     getCurrentUser,
     removeUserFromLocal,
     setUserInLocal,
-    convertMediaInfoToCustomFormat
+    convertMediaInfoToCustomFormat,
+    rgbaToHex,
+    getImageUrlFromTmdb,
+    parseLogLine
     // pageUpdate
 }

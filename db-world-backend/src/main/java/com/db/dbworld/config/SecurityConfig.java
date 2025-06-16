@@ -44,9 +44,10 @@ public class SecurityConfig {
                             authorizationManagerRequestMatcherRegistry ->
                                     authorizationManagerRequestMatcherRegistry
                                             .requestMatchers(DbWorldConstants.PUBLIC_APIS).permitAll()
-                                            .anyRequest().permitAll())
-                    .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-                    .exceptionHandling(ex -> ex.accessDeniedHandler(jwtAccessDeniedHandler))
+                                            .anyRequest().authenticated())
+                    .exceptionHandling(ex -> ex
+                            .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                            .accessDeniedHandler(jwtAccessDeniedHandler))
                     .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                     .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
                     .build();

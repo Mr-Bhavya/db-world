@@ -1,139 +1,253 @@
-import React, { useEffect, useState } from 'react';
-import Status from './Status';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import UserList from '../DB_Users/UserList';
+import UsersData from './UserManagment/UsersData';
+import { 
+  Box, 
+  Card, 
+  CircularProgress, 
+  FormControlLabel, 
+  Switch, 
+  Tab, 
+  Tabs, 
+  useTheme,
+  createTheme,
+  ThemeProvider
+} from '@mui/material';
+import { motion } from 'framer-motion';
 import Constants from '../Constants';
-import queryString from 'query-string';
-import Tab from 'react-bootstrap/Tab';
-import Tabs from 'react-bootstrap/Tabs';
-import SystemInfo from './SystemInfo';
+import { getAllUsers } from '../ApiServices';
+import { useDispatch, useSelector } from 'react-redux';
 import DownloadStuf from './Mirror/Mirror';
 import UserRole from './UserManagment/UserRole';
-import { useDispatch } from 'react-redux';
 import { findAllUsers } from '../../redux/action/allActions';
-import { getAllUsers, getUserRole } from '../ApiServices';
-import UsersData from './UserManagment/UsersData';
 import { Form } from 'react-bootstrap';
 import ApplicationLogs from './ApplicationLogs';
 import DownloadTracker from './DownloadTracker';
 import StatusCopy from './Status';
 import RecordsManagement from './RecordsManagment/RecordsManagement';
-import FileExplorer from './FileExplorer/FileExplorer';
+import FileExplorer from './FileExplorer/FileExplorer'
+import LogDashboard from './LogDashboard';
 
-function AdminTools() {
+// Components
+// import UserDetails from './UserManagment/UserDetails';
+// import RecordsManagement from './RecordsManagment/RecordsManagement';
+// import DownloadManager from './Mirror/DownloadManager';
+// import SystemStatus from './SystemStatus';
+// import DownloadTracker from './DownloadTracker';
+// import LogDashboard from './LogDashboard';
+// import FileExplorer from './FileExplorer/FileExplorer';
+import SystemInfo from './SystemInfo';
+import Status from './Status';
 
-    const dispatch = useDispatch();
-    const [loader, setLoader] = useState(true);
-    const [mainLoader, setMainLoader] = useState(true)
-    const [userData, setUserData] = useState({});
-    const location = useLocation();
-    const navigate = useNavigate();
-    const [key, setKey] = useState('download');
-    const [userRole, setUserRole] = useState();
-    const [tableView, setTableView] = useState(false);
+// Custom teal theme
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#008080', // Teal
+    },
+    secondary: {
+      main: '#006666', // Darker teal
+    },
+    background: {
+      default: '#f5f5f5',
+      paper: '#ffffff',
+    },
+  },
+});
 
-    const tabActiveClassName = 'nav-pills btn-sm bg-dark text-white rounded-3 m-2 text-sm-center text-nowrap'
-    const tabClassName = 'nav-pills btn-sm bg-white border-1 border-dark rounded-3 text-dark m-2 text-nowrap'
+const AdminTools = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('download');
+  const [tableView, setTableView] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [userData, setUserData] = useState(useSelector(state => state.userReducer));
 
-    const navigateToLogin = async () => {
-        navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        when: "beforeChildren"
+      }
     }
+  };
 
-    const setHasKey = () => {
-        if (location.hash.length !== 0) {
-            let hash = queryString.parse(location.hash);
-            setKey(hash.active)
-        }
-        setLoader(false);
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100
+      }
     }
+  };
 
-    const fetchAllUser = async () => {
-
-        let usersRes = await getAllUsers();
-        if (usersRes.httpStatusCode === 200) {
-            dispatch(findAllUsers(usersRes.data))
-        } else if (usersRes.httpStatusCode === 401) {
-            await navigateToLogin();
-        } else if (usersRes.httpStatusCode === 403) {
-            alert("You don't have admin rights.")
-            navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-        }
-        setHasKey();
-        setMainLoader(false);
-
+  const fetchAllUsers = async () => {
+    try {
+      const usersRes = await getAllUsers();
+      if (usersRes.httpStatusCode === 200) {
+        dispatch(findAllUsers(usersRes.data));
+      } else if (usersRes.httpStatusCode === 401) {
+        navigateToLogin();
+      } else if (usersRes.httpStatusCode === 403) {
+        alert("You don't have admin rights.");
+        navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    useEffect(() => {
-        fetchAllUser();
-    }, [])
+  const navigateToLogin = () => {
+    navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+  };
 
-    useEffect(() => {
-        setHasKey();
-    }, [location])
+  useEffect(() => {
+    // Parse hash from URL to set active tab
+    const hash = location.hash.substring(1);
+    if (hash) {
+      const params = new URLSearchParams(hash);
+      const tab = params.get('active');
+      if (tab) setActiveTab(tab);
+    }
+    fetchAllUsers();
+  }, [location]);
 
-    return (
-        <div className="card m-1" style={{ background: "rgba(255 ,255 ,255, 0.9)" }}>
+  const handleTabChange = (event, newValue) => {
+    setLoading(true);
+    setActiveTab(newValue);
+    navigate(`${Constants.DB_ADMIN_TOOLS_ROUTE}#active=${newValue}`);
+    // Simulate loading delay for smoother transition
+    setTimeout(() => setLoading(false), 300);
+  };
 
-            {
-                mainLoader ? Constants.LOADER :
-                    <div>
-                        <div className=''>
-                            <Tabs
-                                defaultActiveKey="Download"
-                                id="controlled-tab"
-                                className="mb-3 flex-nowrap bg-light"
-                                transition={true}
-                                // onMouseOut={()=>setLoader(false)}
-                                activeKey={key}
-                                onSelect={(k) => {
-                                    setLoader(true)
-                                    navigate(`${Constants.DB_ADMIN_TOOLS_ROUTE}#active=${k}`)
-                                }}
-                                style={{ overflowX: "auto" }}
-                            >
-                                <Tab className='m-1'  eventKey="user_data" title="User Details" tabClassName={key === 'user_data' ? tabActiveClassName : tabClassName}>
-                                    <Form>
-                                        <Form.Switch // prettier-ignore
-                                            type="switch"
-                                            id="table_view"
-                                            label="Table View On/Off"
-                                            checked={tableView}
-                                            onChange={() => setTableView(!tableView)}
-                                        />
-                                    </Form>
-                                    {loader ? Constants.LOADER : key === 'user_data' && !tableView ? <UsersData /> : <UserList />}
-                                </Tab>
-                                <Tab className='m-3' eventKey="user_role" title="User_Role" tabClassName={key === 'User Role' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'user_role' && <UserRole userData={userData} />}
-                                </Tab>
-                                <Tab className='m-3' eventKey="records" title="Records Managment" tabClassName={key === 'records' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'records' && <RecordsManagement userRole={userRole} />}
-                                </Tab>
-                                <Tab className='m-3' eventKey="download" title="Download" tabClassName={key === 'download' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'download' && <DownloadStuf />}
-                                </Tab>
-                                <Tab className='m-3' eventKey="status" title="Status" tabClassName={key === 'status' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'status' && <Status />}
-                                </Tab>
-                                <Tab className='m-3' eventKey="download-tracker" title="Download Tracker" tabClassName={key === 'download-tracker' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'download-tracker' && <DownloadTracker />}
-                                </Tab>
-                                <Tab className='m-1' eventKey="logs" title="Logs" tabClassName={key === 'logs' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'logs' && <ApplicationLogs userRole={userRole} />}
-                                </Tab>
-                                <Tab className='m-3' eventKey="file_explorer" title="File Explorer" tabClassName={key === 'file_explorer' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'file_explorer' && <FileExplorer />}
-                                </Tab>
-                                <Tab className='m-3' eventKey="system" title="System Info" tabClassName={key === 'system' ? tabActiveClassName : tabClassName}>
-                                    {loader ? Constants.LOADER : key === 'system' && <SystemInfo />}
-                                </Tab>
-                            </Tabs>
-                        </div>
-                    </div>
-            }
-        </div>
-    )
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'user_data':
+        return (
+          <>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={tableView}
+                  onChange={() => setTableView(!tableView)}
+                  color="primary"
+                />
+              }
+              label="Table View"
+              sx={{ mb: 2 }}
+            />
+            {tableView ? <UserList /> : <UsersData />}
+          </>
+        );
+      case 'user_role':
+        return <UserRole userData={userData} />;
+      case 'records':
+        return <RecordsManagement userRole={userRole} />;
+      case 'download':
+        return <DownloadStuf />;
+      case 'status':
+        return <Status />;
+      case 'download-tracker':
+        return <DownloadTracker />;
+      case 'logs':
+        return <LogDashboard userRole={userRole} />;
+      case 'file_explorer':
+        return <FileExplorer />;
+      case 'system':
+        return <SystemInfo />;
+      default:
+        return <DownloadStuf />;
+    }
+  };
 
-}
+  return (
+    <ThemeProvider theme={theme}>
+      <Box
+        sx={{
+          minHeight: '100vh',
+        //   bgcolor: 'background.default',
+          p: { xs: 1, md: 3 }
+        }}
+      >
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+        >
+          <Card
+            sx={{
+              width: '100%',
+              backgroundColor:'rgba(255, 255, 255, 0.85)',
+              boxShadow: 3
+            }}
+          >
+            <motion.div variants={itemVariants}>
+              <Tabs
+                value={activeTab}
+                onChange={handleTabChange}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '& .MuiTab-root': {
+                    textTransform: 'none',
+                    minWidth: 'unset',
+                    px: 2,
+                    mx: 0.5,
+                    borderRadius: 1,
+                    '&.Mui-selected': {
+                      bgcolor: 'primary.main',
+                      color: 'white'
+                    }
+                  }
+                }}
+              >
+                <Tab label="User Details" value="user_data" />
+                <Tab label="User Role" value="user_role" />
+                <Tab label="Records" value="records" />
+                <Tab label="Downloads" value="download" />
+                <Tab label="Status" value="status" />
+                <Tab label="Download Tracker" value="download-tracker" />
+                <Tab label="Logs" value="logs" />
+                <Tab label="File Explorer" value="file_explorer" />
+                <Tab label="System Info" value="system" />
+              </Tabs>
+            </motion.div>
+
+            <Box sx={{ p: 3 }}>
+              {loading ? (
+                <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+                  <CircularProgress color="primary" />
+                </Box>
+              ) : (
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {renderTabContent()}
+                </motion.div>
+              )}
+            </Box>
+          </Card>
+        </motion.div>
+      </Box>
+    </ThemeProvider>
+  );
+};
 
 export default AdminTools;

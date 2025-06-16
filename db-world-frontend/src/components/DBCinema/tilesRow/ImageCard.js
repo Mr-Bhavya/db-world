@@ -6,8 +6,55 @@ import ModalPortal from "./ModalProtal";
 import RecordPreviewModal from "./RecordPreviewModal";
 import LazyImage from "../components/LazyImage";
 import { CSSTransition, TransitionGroup } from "react-transition-group";
+import CommonServices from "../../CommonServices";
 
-const ImageCard = ({ title, horizontal, requestUrl }) => {
+const ImageCardItem = ({ record, horizontal }) => {
+  const [imageUrl, setImageUrl] = useState(null);
+
+  useEffect(() => {
+    // Compute the image URL only once per record
+    const url = CommonServices.getImageUrlFromTmdb(
+      record?.tmdb,
+      horizontal ? Constants.IMAGE_TYPE_BACKDROP : Constants.IMAGE_TYPE_POSTER,
+      "w500"
+    );
+    setImageUrl(url);
+  }, [record, horizontal]);
+
+  const handleError = () => {
+    let imagePath = !horizontal ? record?.tmdb.poster_path : record?.tmdb.backdrop_path;
+    setImageUrl(
+      Constants.TMDB_IMAGE_BASE_URL
+        .replace('{quality}', 'w500')
+        .replace('{imagePath}', imagePath)
+    )
+  };
+
+  return (
+    <div className="card bg-dark text-white">
+      <LazyImage
+        key={record.id}
+        className={`thumbnail ${horizontal ? "horizontal" : ""} card-img`}
+        skeleton={
+          <div className="item-container">
+            <div className={`skeleton-card ${horizontal ? "horizontal" : ""}`}></div>
+          </div>
+        }
+        src={imageUrl}
+        alt={record.title}
+        horizontal={horizontal}
+        handleError={handleError}
+      />
+      {horizontal && (
+        <div className="card-img-overlay d-flex align-items-end m-0 p-0">
+          <p className="card-title text-sm m-0 p-0">{record?.name}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ImageCard = ({ title, horizontal, requestUrl, category }) => {
   const [activeRecord, setActiveRecord] = useState(null);
   const [trailerUrl, setTrailerUrl] = useState('');
   const [records, setRecords] = useState([]);
@@ -35,7 +82,7 @@ const ImageCard = ({ title, horizontal, requestUrl }) => {
     setLoading(true);
     try {
       const response = await axios.get(
-        `${requestUrl}&page=${page}&size=${isMobile ? 8 : 12}`,
+        `${requestUrl}&page=${page}&size=${isMobile ? 8 : 12}${category ? '&genres=' + category?.id : ''}`,
         { headers: { Authorization: 'Bearer ' + localStorage.getItem("token") } }
       );
       const data = response.data?.data;
@@ -46,7 +93,7 @@ const ImageCard = ({ title, horizontal, requestUrl }) => {
             ? record.movieTmdb
             : record.seriesTmdb
         }));
-        setRecords((prev) =>
+        setRecords(page == 0 ? mappedRecords : (prev) =>
           Array.from(
             new Map([...prev, ...mappedRecords].map(record => [record.recordId, record])).values()
           )
@@ -58,7 +105,7 @@ const ImageCard = ({ title, horizontal, requestUrl }) => {
       console.error("Error fetching records:", error);
     }
     setLoading(false);
-  }, [requestUrl, isMobile]);
+  }, [requestUrl, isMobile, category]);
 
   // Handle horizontal scroll (infinite scroll) and update scrolling state.
   const handleScroll = useCallback(() => {
@@ -146,7 +193,7 @@ const ImageCard = ({ title, horizontal, requestUrl }) => {
   // Initial fetch on component mount.
   useEffect(() => {
     fetchRecords(currentPage);
-  }, [fetchRecords, currentPage]);
+  }, [fetchRecords, currentPage, category]);
 
   // Function to update record data.
   const updateRecord = (updatedRecord) => {
@@ -179,27 +226,7 @@ const ImageCard = ({ title, horizontal, requestUrl }) => {
                   }
                 }}
               >
-                <div className="card bg-dark text-white">
-                  <LazyImage
-                    key={record.id}
-                    className={`thumbnail ${horizontal ? 'horizontal' : ''} card-img`}
-                    skeleton={
-                      <div className="item-container">
-                        <div className={`skeleton-card ${horizontal ? 'horizontal' : ''}`}></div>
-                      </div>
-                    }
-                    src={`https://image.tmdb.org/t/p/${isMobile ? 'original' : 'w500'}${horizontal
-                      ? record?.tmdb?.backdrop_path || record?.tmdb?.poster_path
-                      : record?.tmdb?.poster_path}`}
-                    alt={record.title}
-                    horizontal={horizontal}
-                  />
-                  {horizontal && (
-                    <div className="card-img-overlay d-flex align-items-end m-0 p-0">
-                      <p className="card-title text-sm m-0 p-0">{record?.name}</p>
-                    </div>
-                  )}
-                </div>
+                <ImageCardItem record={record} horizontal={horizontal} />
               </div>
           ))}
 

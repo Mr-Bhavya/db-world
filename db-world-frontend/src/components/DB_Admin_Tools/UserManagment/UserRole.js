@@ -7,10 +7,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 const UserRole = ({ userData }) => {
-
+    
     const users = useSelector(state => state.userReducer.users);
     const [loader, setLoader] = useState(true);
-    const [doer_id, setDoer_id] = useState(userData._id);
+    const [doer_id, setDoer_id] = useState(userData.id);
     const [for_id, setFor_id] = useState(doer_id);
     const [userRole, setUserRole] = useState({});
     const [submitLoader, setSubmitLoader] = useState(false);
@@ -27,7 +27,7 @@ const UserRole = ({ userData }) => {
                 setLoader(false);
             }
         } else {
-            toast.error("Problem in fetching roles.")
+            Constants.showToast.error("Problem in fetching roles.")
         }
     }
 
@@ -39,12 +39,12 @@ const UserRole = ({ userData }) => {
         setSubmitLoader(true);
         let updateRoleRes = await updateUserRoleService(doer_id, for_id, allRoles.filter(role => userRole === role.id).at(0))
         if (updateRoleRes && updateRoleRes.httpStatusCode === 200) {
-            toast.success("Role updated.");
+            Constants.showToast.success("Role updated.");
         }
         else if (updateRoleRes.httpStatusCode === 401) {
             navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
         } else {
-            toast.error(updateRoleRes.message);
+            Constants.showToast.error(updateRoleRes.message);
         }
         setSubmitLoader(false);
     }

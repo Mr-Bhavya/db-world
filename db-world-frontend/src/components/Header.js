@@ -1,200 +1,262 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { motion, AnimatePresence } from 'framer-motion';
+import db_world_icon from '../images/db_world_teal.svg';
+import {
+  AppBar,
+  Toolbar,
+  IconButton,
+  Typography,
+  Box,
+  Menu,
+  MenuItem,
+  Avatar,
+  Divider,
+  useMediaQuery,
+  useTheme,
+  Slide
+} from '@mui/material';
+import {
+  Home as HomeIcon,
+  Person as PersonIcon,
+  Lock as LockIcon,
+  HowToReg as RegisterIcon,
+  AdminPanelSettings as AdminIcon,
+  ExitToApp as LogoutIcon,
+  Cloud as WeatherIcon,
+  Movie as CinemaIcon,
+  SportsEsports as GamesIcon,
+  VpnKey as PasswordIcon,
+  Menu as MenuIcon
+} from '@mui/icons-material';
 import LoadingSpinner from './LoadingSpinner';
 import Constants from './Constants';
-import db_world_icon from '../images/db_world_teal.svg';
 import { getUserRole } from './ApiServices';
 import { addUser } from '../redux/action/allActions';
 import CommonServices from './CommonServices';
 import Authentication from '../contexts/Authentication';
 
+const Header = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+//   const userData = useSelector(state => state.userReducer);
+  const [loading, setLoading] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { auth } = Authentication.useAuth();
+  const isLoggedIn = auth?.isAuthenticated;
+  const userData = auth?.user || null;
 
-function Header() {
-    const [userData, setUserData] = useState(useSelector(state => state.userReducer));
-    const dispatch = useDispatch();
-    const location = useLocation();
-    const [loader, setLoader] = useState(false);
-    const [login, setLogin] = useState(false);
-    const [userRole, SetUserRole] = useState();
-    const { auth } = Authentication.useAuth();
-    const [cardDetails, setCardDetails] = useState([
-        {
-            index: 1,
-            id: "db-world",
-            image: "",
-            title: "DB World",
-            route: Constants.DB_WORLD_HOME_ROUTE,
-        },
-        {
-            index: 2,
-            id: "db-weather",
-            image: "https://img.icons8.com/clouds/500/null/apple-weather.png",
-            title: "Weather & Time",
-            route: Constants.DB_WEATHER_ROUTE,
-            text: <div>It will show weather information from <b>city</b> name and <b>area pincode</b>. It will also show <b>location on google map</b>.</div>
-        },
-        {
-            index: 3,
-            id: "db-password-manager",
-            image: "https://img.icons8.com/clouds/500/null/password-window.png",
-            title: "Password Manager",
-            route: Constants.DB_PASSWORD_MANAGER_ROUTE,
-        },
-        {
-            index: 4,
-            id: "db-cinema",
-            image: "https://img.icons8.com/clouds/500/null/movies-portal.png",
-            title: "DB Cinema",
-            route: Constants.DB_CINEMA_BROWSE_ROUTE,
-        },
-        {
-            index: 5,
-            id: "db-games",
-            image: "https://img.icons8.com/external-others-inmotus-design/500/null/external-Tic-Tac-Toe-round-icons-others-inmotus-design-7.png",
-            title: "Games",
-            route: Constants.DB_GAMES_ROUTE,
-        },
-        {
-            index: 6,
-            id: "db-admin-tool",
-            image: "",
-            title: "Admin Tool",
-            route: Constants.DB_ADMIN_TOOLS_ROUTE,
-        },
-        {
-            index: 7,
-            id: "profile",
-            image: "",
-            title: "Profile",
-            route: Constants.USER_PROFILE_ROUTE,
-        },
-        {
-            index: 8,
-            id: "edit-profile",
-            image: "",
-            title: "Profile",
-            route: Constants.EDIT_USER_PROFILE_ROUTE,
-        },
-    ]);
+  const navItems = [
+    { id: "db-world", title: "DB World", icon: <HomeIcon />, route: Constants.DB_WORLD_HOME_ROUTE, visible: true },
+    { id: "db-weather", title: "Weather & Time", icon: <WeatherIcon />, route: Constants.DB_WEATHER_ROUTE, visible: isLoggedIn },
+    { id: "db-password-manager", title: "Password Manager", icon: <PasswordIcon />, route: Constants.DB_PASSWORD_MANAGER_ROUTE, visible: isLoggedIn },
+    { id: "db-cinema", title: "DB Cinema", icon: <CinemaIcon />, route: Constants.DB_CINEMA_BROWSE_ROUTE, visible: isLoggedIn },
+    { id: "db-games", title: "Games", icon: <GamesIcon />, route: Constants.DB_GAMES_ROUTE, visible: isLoggedIn }
+  ];
 
-    const getCurrentCard = () => {
-        let pathname = location.pathname;
-        let card = {};
-        let filterdCards = cardDetails.filter(card => card.route === pathname);
-        if (filterdCards.length === 0) {
-            card.title = "DB World"
-            card.id = "db-world"
-        } else {
-            card = filterdCards.at(0);
-        }
-        return card;
-    }
+  const profileItems = [
+    { id: "profile", title: "My Profile", icon: <PersonIcon />, route: Constants.USER_PROFILE_ROUTE, visible: true },
+    { id: "admin-tools", title: "Admin Tools", icon: <AdminIcon />, route: Constants.DB_ADMIN_TOOLS_ROUTE, visible: auth?.role === Constants.OWNER_USER_ROLE || auth?.role === Constants.ADMIN_USER_ROLE },
+    { id: "logout", title: "Logout", icon: <LogoutIcon />, route: Constants.LOGOUT_ROUTE, visible: true }
+  ];
 
-    const checkUserRole = async (userId) => {
+  const guestItems = [
+    { id: "home", title: "Home", icon: <HomeIcon />, route: Constants.DB_WORLD_HOME_ROUTE, visible: true },
+    { id: "register", title: "Registration", icon: <RegisterIcon />, route: Constants.REGISTRATION_ROUTE, visible: true },
+    { id: "login", title: "Login", icon: <LockIcon />, route: Constants.LOGIN_ROUTE, visible: true }
+  ];
 
-        let roleRes = await getUserRole(userId);
-        if (roleRes.httpStatusCode === 200) {
-            SetUserRole(roleRes.data.role.name);
-        } else if (roleRes.httpStatusCode === 401) {
-            setLogin(false)
-            dispatch(addUser(null));
-            CommonServices.removeUserFromLocal();
-        }
-    }
+  const handleProfileMenuOpen = (event) => setAnchorEl(event.currentTarget);
+  const handleMenuClose = () => setAnchorEl(null);
+  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
 
-    useEffect(() => {
-        setLoader(true);
-        setLogin(auth.isAuthenticated);
-        setLoader(false);
-    }, [auth, location.pathname])
+  const getCurrentTitle = () => {
+    const currentItem = [...navItems, ...profileItems, ...guestItems].find(item => item.route === location.pathname);
+    return currentItem?.title || "DB World";
+  };
 
-    var menu = "";
+  useEffect(() => {
+    setLoading(false);
+  }, [auth, location.pathname]);
 
-    if (login) {
-        menu = <>
-            <div className="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-                    {
-                        cardDetails.filter(card => card.index <= 5).map(card => {
-                            let currentCard = getCurrentCard();
-                            return (
-                                <li className="nav-item">
-                                    <Link
-                                        className={currentCard.id === card.id ? "nav-link active" : "nav-link"}
-                                        aria-current="page"
-                                        to={card.route}
-                                        tabIndex="-1"
-                                        aria-disabled={currentCard.id === card.id ? "true" : "false"}
-                                        onClick={() => document.title = card.route === Constants.DB_WORLD_HOME_ROUTE ? card.title : "DB World | " + card.title}
-                                    >
-                                        {card.title}
-                                    </Link>
-                                </li>
-                            )
+  if (location.pathname.includes(Constants.DB_CINEMA_ROUTE)) return null;
 
-                        })
+  return (
+    <>
+      <Slide direction="down" in={true} mountOnEnter unmountOnExit>
+        <AppBar position="sticky" sx={{ bgcolor: '#121212', color: '#e0f2f1', boxShadow: 3 }}>
+          <Toolbar>
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+              <Avatar src={db_world_icon} alt="DB World Logo" sx={{ bgcolor: '#00bfa5', width: 50, height: 50, mr: 2 }} onClick={()=>navigate(Constants.DB_WORLD_HOME_ROUTE)}/>
+              <Typography variant="h6" noWrap>{getCurrentTitle()}</Typography>
+            </Box>
+
+            {!isMobile && (
+              <Box sx={{ flexGrow: 1, display: 'flex', ml: 3 }}>
+                {(isLoggedIn ? navItems : guestItems)
+                  .filter(item => item.visible)
+                  .map(item => (
+                    <motion.div
+                      key={item.id}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <IconButton
+                        component={Link}
+                        to={item.route}
+                        sx={{
+                          mx: 1,
+                          color: location.pathname === item.route ? '#00bfa5' : '#e0f2f1',
+                          transition: 'all 0.3s ease',
+                          '&:hover': {
+                            backgroundColor: 'rgba(0,191,165,0.1)',
+                            color: '#00bfa5'
+                          }
+                        }}
+                        onClick={() => document.title = item.route === Constants.DB_WORLD_HOME_ROUTE ? item.title : `DB World | ${item.title}`}
+                      >
+                        {item.icon}
+                        <Typography variant="body2" sx={{ ml: 1 }}>{item.title}</Typography>
+                      </IconButton>
+                    </motion.div>
+                  ))}
+              </Box>
+            )}
+
+            {isLoggedIn && !isMobile && (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <motion.div whileHover={{ scale: 1.1 }}>
+                  <IconButton onClick={handleProfileMenuOpen} color="inherit" sx={{ ml: 'auto' }}>
+                    <Avatar sx={{ bgcolor: '#00bfa5' }}>{userData?.name?.charAt(0) || <PersonIcon />}</Avatar>
+                    <Typography variant="body2" sx={{ ml: 1 }}>{userData?.name}</Typography>
+                  </IconButton>
+                </motion.div>
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={handleMenuClose}
+                  PaperProps={{
+                    elevation: 2,
+                    sx: {
+                      bgcolor: '#1e1e1e',
+                      color: '#e0f2f1',
+                      mt: 1.5,
+                      '& .MuiMenuItem-root:hover': {
+                        bgcolor: '#263238'
+                      }
                     }
-                </ul>
-                <ul className="nav navbar-nav navbar-right me-5">
-                    <li className="nav-item dropdown me-5">
-                        <Link className="nav-link dropdown-toggle" to={Constants.USER_PROFILE_ROUTE} id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            👱‍♂️ {userData?.name}
-                        </Link>
-                        <ul className="dropdown-menu" aria-labelledby="navbarDropdown">
-                            <li><Link className="dropdown-item" to={Constants.USER_PROFILE_ROUTE}>My Profile</Link></li>
-                            {
-                                auth?.role === Constants.OWNER_USER_ROLE || auth?.role === Constants.ADMIN_USER_ROLE ?
-                                    <li><Link className="dropdown-item" to={Constants.DB_ADMIN_TOOLS_ROUTE} state={userRole}>Admin Tools</Link></li>
-                                    : ""
-                            }
-                            <li><Link className="dropdown-item" to={Constants.LOGOUT_ROUTE}>Logout</Link></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </>
-    }
-    else {
-        menu =
-            <div className="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li className="nav-item">
-                        <Link className="nav-link active" aria-current="page" to={Constants.DB_WORLD_HOME_ROUTE}>Home</Link>
-                    </li>
-                    <li className="nav-item">
-                        <Link className="nav-link" to={Constants.REGISTRATION_ROUTE}>Registration 📃</Link>
-                    </li>
-                    <li className="nav-item">
-                        <Link className="nav-link" to={Constants.LOGIN_ROUTE}>Login 🔐</Link>
-                    </li>
-                </ul>
-            </div>
-    }
+                  }}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                  {profileItems.filter(item => item.visible).map(item => (
+                    <motion.div key={item.id} whileHover={{ x: 5 }}>
+                      <MenuItem component={Link} to={item.route} onClick={handleMenuClose}>
+                        {item.icon}
+                        <Typography sx={{ ml: 1 }}>{item.title}</Typography>
+                      </MenuItem>
+                    </motion.div>
+                  ))}
+                </Menu>
+              </Box>
+            )}
 
-    return (
-        <div>
-            {
-                loader ? <LoadingSpinner /> : !location.pathname.includes(Constants.DB_CINEMA_ROUTE) ?
-                    <div>
-                        <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
-                            <div className="container-fluid">
-                                <Link className="navbar-brand" to={Constants.DB_WORLD_HOME_ROUTE}>
-                                    <img src={db_world_icon} className="d-inline-block align-top rounded-circle" width="50" height="50" style={{ backgroundColor: "rgb(203, 237, 232)" }} />
-                                </Link>
-                                <Link className="navbar-brand" to={location.pathname + location.search}>
-                                    <h5 className="d-inline-block align-top"> {getCurrentCard().title} </h5>
-                                </Link>
-                                <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                                    <span className="navbar-toggler-icon"></span>
-                                </button>
-                                {menu}
-                            </div>
-                        </nav>
-                    </div> : ""
-            }
-        </div>
-    )
-}
+            {isMobile && (
+              <IconButton edge="end" color="inherit" aria-label="menu" onClick={toggleMobileMenu} sx={{ ml: 'auto' }}>
+                <MenuIcon />
+              </IconButton>
+            )}
+          </Toolbar>
+        </AppBar>
+      </Slide>
+
+      <AnimatePresence>
+        {isMobile && mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <Box sx={{ bgcolor: '#1c1c1c', boxShadow: 3 }}>
+              {(isLoggedIn ? navItems : guestItems)
+                .filter(item => item.visible)
+                .map(item => (
+                  <motion.div key={item.id} whileTap={{ scale: 0.98 }}>
+                    <MenuItem
+                      component={Link}
+                      to={item.route}
+                      selected={location.pathname === item.route}
+                      onClick={() => {
+                        document.title = item.route === Constants.DB_WORLD_HOME_ROUTE ? item.title : `DB World | ${item.title}`;
+                        setMobileMenuOpen(false);
+                      }}
+                      sx={{
+                        borderLeft: location.pathname === item.route ? `4px solid #00bfa5` : 'none',
+                        color: '#e0f2f1',
+                        '&:hover': {
+                          backgroundColor: 'rgba(0,191,165,0.1)',
+                          color: '#00bfa5'
+                        }
+                      }}
+                    >
+                      {item.icon}
+                      <Typography sx={{ ml: 2 }}>{item.title}</Typography>
+                    </MenuItem>
+                  </motion.div>
+                ))}
+              <Divider sx={{ bgcolor: '#37474f' }} />
+              {isLoggedIn && (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <motion.div whileHover={{ scale: 1.1 }}>
+                  <IconButton onClick={handleProfileMenuOpen} color="inherit" sx={{ ml: 'auto' }}>
+                    <Avatar sx={{ bgcolor: '#00bfa5' }}>{userData?.name?.charAt(0)?.toUpperCase() || <PersonIcon />}</Avatar>
+                    <Typography variant="body2" sx={{ ml: 1, color: '#e0f2f1' }}>{userData?.name}</Typography>
+                  </IconButton>
+                </motion.div>
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={handleMenuClose}
+                  PaperProps={{
+                    elevation: 2,
+                    sx: {
+                      bgcolor: '#1e1e1e',
+                      color: '#e0f2f1',
+                      mt: 1.5,
+                      '& .MuiMenuItem-root:hover': {
+                        bgcolor: '#263238'
+                      }
+                    }
+                  }}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                  {profileItems.filter(item => item.visible).map(item => (
+                    <motion.div key={item.id} whileHover={{ x: 5 }}>
+                      <MenuItem component={Link} to={item.route} onClick={handleMenuClose}>
+                        {item.icon}
+                        <Typography sx={{ ml: 1 }}>{item.title}</Typography>
+                      </MenuItem>
+                    </motion.div>
+                  ))}
+                </Menu>
+              </Box>
+            )}
+            </Box>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {loading && <LoadingSpinner />}
+    </>
+  );
+};
 
 export default Header;

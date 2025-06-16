@@ -19,8 +19,12 @@ public interface MediaFileInfoRepository extends JpaRepository<MediaFileInfoEnti
     @Query(nativeQuery = true, value = "SELECT id, filePath, fileSize FROM MEDIA_FILE_INFO")
     List<Map<String, String>> getAllFilePath();
 
-    @Query(nativeQuery = true, value = "SELECT DISTINCT (INFO.db_cinema_record), INFO.id, INFO.fileName, INFO.filePath, INFO.fileSize FROM MEDIA_FILE_INFO INFO ORDER BY RAND( )")
+    @Query(nativeQuery = true, value = "SELECT INFO.* FROM MEDIA_FILE_INFO INFO " +
+            "INNER JOIN ( SELECT MIN(id) AS id  FROM MEDIA_FILE_INFO GROUP BY db_cinema_record ) AS grouped ON INFO.id = grouped.id " +
+            "ORDER BY RAND()")
     List<MediaFileInfoEntity> getRandom(Pageable pageable);
+
+    List<MediaFileInfoEntity> findAllByFilePath(String filePath);
 
     void deleteAllByFilePath(String filePath);
 }

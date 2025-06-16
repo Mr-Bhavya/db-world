@@ -25,11 +25,11 @@ function Mirror() {
         setFreeMemoryLoder(true);
         let res = await deleteTempFile();
         if(res.httpStatusCode === 200){
-            toast.success(res.message);
+            Constants.showToast.success(res.message);
         }else if(res.httpStatusCode === 401 || res.httpStatusCode === 403){
             navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
         }else{
-            toast.error(res.message);
+            Constants.showToast.error(res.message);
         }        
         setFreeMemoryLoder(false);
     }
@@ -60,7 +60,6 @@ function Mirror() {
                         onChange={(e) => setSelectDownloder(e.target.value)}
                     >
                         <option selected={selectDownloader === "httpFile" ? true : false} value="httpFile">Http File</option>
-                        {/* <option selected={selectDownloader === "clone" ? true : false} value="clone">Clone</option> */}
                         <option selected={selectDownloader === "youtube" ? true : false} value="youtube">Youtube</option>
                     </select>
                 </div>

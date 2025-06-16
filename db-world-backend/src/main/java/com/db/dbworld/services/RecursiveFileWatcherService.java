@@ -34,6 +34,9 @@ public class RecursiveFileWatcherService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Autowired
+    private MediaFileInfoService mediaFileInfoService;
+
     @Value("${dbworld.paths.streamHomePath}")
     private String baseDirectory;
 
@@ -158,9 +161,11 @@ public class RecursiveFileWatcherService {
                                     // Delete any child records as well.
                                     List<FileEntity> children = fileRepository.findByFilePathStartingWith(absolutePath);
                                     fileRepository.deleteAll(children);
+                                    children.forEach(fileEntity -> mediaFileInfoService.deleteInfoByFilePath(fileEntity.getFilePath()));
                                     log.info("Removed child records for deleted folder: {}", absolutePath);
                                 }
                                 fileRepository.delete(entity);
+                                mediaFileInfoService.deleteInfoByFilePath(entity.getFilePath());
                                 log.info("Removed record for deleted path: {}", absolutePath);
                             }
                         }

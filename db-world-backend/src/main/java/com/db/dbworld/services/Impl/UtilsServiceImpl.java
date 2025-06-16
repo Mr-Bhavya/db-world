@@ -392,6 +392,7 @@ public class UtilsServiceImpl implements UtilsService {
             boolean isFileNameFetched = false;
 
             while ((line = reader.readLine()) != null) {
+                log.info(line);
                 if (statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
                     terminateProcess(process, mirrorStatus);
                     return;

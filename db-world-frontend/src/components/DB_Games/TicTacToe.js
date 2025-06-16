@@ -32,7 +32,7 @@ function TicTacToe() {
         let newB = [...b];
         let newBColor = [...buttonColor];
         if (index === "x" || index === "O") {
-            toast.warning("input already taken.")
+            Constants.showToast.warning("input already taken.")
         }
         else {
             if (player === 1) {
@@ -63,15 +63,15 @@ function TicTacToe() {
 
     function onWin() {
         if (count === 9) {
-            toast.error(`Match is Draw !!`);
+            Constants.showToast.error(`Match is Draw !!`);
         }
         else {
             if (player === 1) {
-                toast.success(`Player 2 is win 🎉🎊🎉`);
+                Constants.showToast.success(`Player 2 is win 🎉🎊🎉`);
                 setWinStr("🏆 Player 2 is Win 🏆");
             }
             if (player === 2) {
-                toast.success(`Player 1 is win 🎉🎊🎉`);
+                Constants.showToast.success(`Player 1 is win 🎉🎊🎉`);
                 setWinStr("🏆 Player 1 is Win 🏆");
             }
         }
@@ -145,7 +145,7 @@ function TicTacToe() {
             console.log(play, decision);
         }
         else if (play === "no") {
-            toast.warning("You will be navigate to Home Page.")
+            Constants.showToast.warning("You will be navigate to Home Page.")
             new Promise(resolve => setTimeout(resolve, 2000)).then(r => {
                 // do something
                 navigate(Constants.DB_WORLD_HOME_ROUTE);

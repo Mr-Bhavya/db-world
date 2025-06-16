@@ -1,449 +1,928 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { FaEdit, FaTrash, FaSync, FaAd, FaPlus } from 'react-icons/fa';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
-import './RecordsManagement.css';
-import { AddDbCinemaRecord, changeShowOnTopRecord, deleteDbCinemaRecord, getRecords, searchTmdbByQuery, UpdateDbCinemaRecord } from '../../ApiServices';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardActions,
+  Checkbox,
+  CircularProgress,
+  Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  InputAdornment,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
+  ToggleButton,
+  ToggleButtonGroup,
+  useMediaQuery,
+  useTheme,
+  Divider,
+  DialogContentText,
+  ListItem,
+  ListItemText,
+  Collapse,
+  List,
+  Menu,
+  Tabs,
+  Tab,
+} from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import AddIcon from '@mui/icons-material/Add';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import GridViewIcon from '@mui/icons-material/GridView';
+import SearchIcon from '@mui/icons-material/Search';
+import { motion, useReducedMotion } from 'framer-motion';
+import { useForm } from 'react-hook-form';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { useLocation, useNavigate } from 'react-router-dom';
-import DeleteModal from './DeleteModal';
+import { DataGrid } from '@mui/x-data-grid';
+import { useInfiniteScroll } from './useInfiniteScroll';
+import {
+  AddDbCinemaRecord,
+  changeShowOnTopRecord,
+  deleteDbCinemaRecord,
+  getRecords,
+  searchTmdbByQuery,
+  UpdateDbCinemaRecord
+} from '../../ApiServices';
 import Constants from '../../Constants';
-import RecordModal from './RecordModal';
-import { Button, Col, Container, Row } from 'react-bootstrap';
+import { ChevronRight, Close, ExpandLess, ExpandMore, Folder, MoreVert } from '@mui/icons-material';
+import CommonServices from '../../CommonServices';
 
-function RecordsManagement() {
+const MotionCard = motion(Card);
+const MotionButton = motion(Button);
+const PAGE_SIZE = 20;
+
+const RecordManagement = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const location = useLocation();
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm();
+  const formType = watch('type');
+  const formName = watch('name');
+  const shouldReduceMotion = useReducedMotion();
 
-  // Table data and loading state
-  const [records, setRecords] = useState([]);
-  const [loadingTable, setLoadingTable] = useState(false);
-
-  // Form state for add/edit
+  // State
+  const [allRecords, setAllRecords] = useState([]);
+  const [filteredRecords, setFilteredRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('table');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState(null);
+  const [recordDialogOpen, setRecordDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
-  const [formData, setFormData] = useState({
-    recordId: '',
-    type: '',
-    name: '',
-    releaseYear: '',
-    tmdb: '',
-    showOnTop: false,
-    creationDate: '',
-    lastModifiedDate: ''
+  const [tmdbOptions, setTmdbOptions] = useState([]);
+  const [loadingTmdb, setLoadingTmdb] = useState(false);
+  const [refreshingRecords, setRefreshingRecords] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Infinite scroll for card view
+  const { data: paginatedRecords, loadingMore, loaderRef } = useInfiniteScroll(
+    filteredRecords,
+    PAGE_SIZE
+  );
+
+  const [fileDialog, setFileDialog] = useState({
+    open: false,
+    record: null,
+    files: [],
+    type: null // 'movie' or 'series'
   });
 
-  // TMDB options state (only used in add mode)
-  const [tmdbOptions, setTmdbOptions] = useState([]);
+  const FileManagementDialog = () => {
+    const { open, record, files, type } = fileDialog;
 
-  // Button loading states
-  const [loadingTmdb, setLoadingTmdb] = useState(false);
-  const [loadingSubmit, setLoadingSubmit] = useState(false);
+    const [selectedSeason, setSelectedSeason] = useState(null);
+    const [filesToDelete, setFilesToDelete] = useState([]);
+    const [deleteMode, setDeleteMode] = useState(false);
 
-  // State for delete modal
-  const [deleteModalRecord, setDeleteModalRecord] = useState(null);
+    // Group files by season if it's a series
+    const groupedFiles = useMemo(() => {
+      if (type !== 'series') return { 'All Files': files };
 
-  //add or edit record Modal
-  const [showRecordModal, setShowRecordModal] = useState(false);
-  const handleOpenRecordModal = () => setShowRecordModal(true);
-  const handleCloseRecordModal = () => setShowRecordModal(false);
+      const seasons = {};
+      files.forEach(file => {
+        const season = file.seasonNumber || 'Unknown Season';
+        if (!seasons[season]) seasons[season] = [];
+        seasons[season].push(file);
+      });
+      return seasons;
+    }, [files, type]);
 
-  const gridRef = useRef();
+    const handleClose = () => {
+      setFileDialog({ open: false, record: null, files: [], type: null });
+      setSelectedSeason(null);
+      setFilesToDelete([]);
+      setDeleteMode(false);
+    };
 
-  const getAllRecords = async () => {
-    setLoadingTable(true);
-    const res = await getRecords();
-    if (res.httpStatusCode === 200) {
-      setRecords(res.data);
-    } else {
-      toast.error(res.message);
-    }
-    setLoadingTable(false);
+    const toggleFileSelection = (fileId) => {
+      setFilesToDelete(prev =>
+        prev.includes(fileId)
+          ? prev.filter(id => id !== fileId)
+          : [...prev, fileId]
+      );
+    };
+
+    const handleDelete = async (deleteAll = false) => {
+      try {
+        let fileIds = [];
+
+        if (deleteAll) {
+          fileIds = files.map(f => f.id);
+        } else if (selectedSeason && type === 'series') {
+          fileIds = groupedFiles[selectedSeason].map(f => f.id);
+        } else {
+          fileIds = filesToDelete;
+        }
+        // await deleteFiles(record.id, fileIds);
+        Constants.showToast.success(`${fileIds.length} file${fileIds.length !== 1 ? 's' : ''} deleted`);
+        // refreshData();
+        handleClose();
+      } catch (error) {
+        Constants.showToast.error('Failed to delete files');
+      }
+    };
+
+    return (
+      <Dialog
+        open={open}
+        onClose={handleClose}
+        maxWidth="md"
+        fullWidth
+        scroll="paper"
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <span>Files for {record?.name}</span>
+            <Box>
+              {deleteMode ? (
+                <Button
+                  color="error"
+                  onClick={() => handleDelete()}
+                  disabled={filesToDelete.length === 0}
+                  startIcon={<DeleteIcon />}
+                  size="small"
+                >
+                  Delete Selected ({filesToDelete.length})
+                </Button>
+              ) : (
+                <Button
+                  color="error"
+                  onClick={() => setDeleteMode(true)}
+                  startIcon={<DeleteIcon />}
+                  size="small"
+                >
+                  Delete Files
+                </Button>
+              )}
+              <IconButton onClick={handleClose} sx={{ ml: 1 }}>
+                <Close />
+              </IconButton>
+            </Box>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent dividers>
+          {type === 'series' && (
+            <Box sx={{ mb: 2 }}>
+              <Tabs
+                value={selectedSeason || Object.keys(groupedFiles)[0]}
+                onChange={(e, newValue) => setSelectedSeason(newValue)}
+                variant="scrollable"
+                scrollButtons="auto"
+              >
+                {Object.keys(groupedFiles).map(season => (
+                  <Tab
+                    key={season}
+                    label={`Season ${season}`}
+                    value={season}
+                  />
+                ))}
+              </Tabs>
+            </Box>
+          )}
+
+          <List dense>
+            {(selectedSeason ? groupedFiles[selectedSeason] : files).map(file => (
+              <ListItem
+                key={file.id}
+                secondaryAction={
+                  deleteMode && (
+                    <Checkbox
+                      edge="end"
+                      checked={filesToDelete.includes(file.id)}
+                      onChange={() => toggleFileSelection(file.id)}
+                    />
+                  )
+                }
+              >
+                <ListItemText
+                  primary={file.fileName}
+                  secondary={`${CommonServices.bytesToReadbleFormat(file.fileSize).value} ${CommonServices.bytesToReadbleFormat(file.fileSize).suffix} • ${file.filePath}`}
+                  primaryTypographyProps={{ noWrap: true }}
+                  secondaryTypographyProps={{ noWrap: true }}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+
+        <DialogActions>
+          {type === 'series' && selectedSeason && (
+            <Button
+              color="error"
+              onClick={() => handleDelete(true)}
+              startIcon={<DeleteIcon />}
+            >
+              Delete Entire Season
+            </Button>
+          )}
+          <Button
+            color="error"
+            onClick={() => handleDelete(true)}
+            startIcon={<DeleteIcon />}
+          >
+            Delete All Files
+          </Button>
+          <Button onClick={handleClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    );
   };
 
+
+  // Fetch records on mount and when search changes
   useEffect(() => {
-    getAllRecords();
+    fetchRecords();
   }, []);
 
-  // Action Handlers for table
-  const handleEdit = (record) => {
-    setIsEditing(true);
-    setSelectedRecord(record);
-    setFormData({
-      recordId: record.id,
-      type: record.type,
-      name: record.name,
-      releaseYear: record.releaseYear || '',
-      tmdb: record.tmdb ? record.tmdb : '', // TMDB id as string
-      showOnTop: record.showOnTop,
-      creationDate: record.creationDate ? record.creationDate.substring(0, 16) : '',
-      lastModifiedDate: record.lastModifiedDate ? record.lastModifiedDate.substring(0, 16) : ''
-    });
-    handleOpenRecordModal();
-  };
+  useEffect(() => {
+    const filtered = allRecords.filter(record =>
+      record.id.toString().includes(searchQuery) ||
+      record.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (record.tmdb && record.tmdb.toString().includes(searchQuery))
+    );
+    setFilteredRecords(filtered);
+  }, [searchQuery, allRecords]);
 
-  // Open delete confirmation modal
-  const openDeleteModal = (record) => {
-    setDeleteModalRecord(record);
-  };
-
-  // Called when user confirms deletion from the modal
-  const handleConfirmDelete = async () => {
-    if (deleteModalRecord) {
-      try {
-        let deleteRes = await deleteDbCinemaRecord(deleteModalRecord.id);
-        if (deleteRes.httpStatusCode === 200) {
-          toast.success(deleteRes.message);
-          handleCloseDeleteModal();
-          setRecords(records.filter(record => record.id !== deleteModalRecord.id));
-        } else if (deleteRes.httpStatusCode === 401) {
-          toast.error(deleteRes.message + Constants.RE_LOGIN);
+  const fetchRecords = async () => {
+    setLoading(true);
+    try {
+      const res = await getRecords();
+      if (res.httpStatusCode === 200) {
+        setAllRecords(res.data);
+        setFilteredRecords(res.data);
+      } else {
+        Constants.showToast.error(res.message);
+        if (res.httpStatusCode === 401) {
           navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-        } else {
-          toast.error(deleteRes.message || deleteRes.errorMessage);
         }
-      } catch (err) {
-        console.log(err);
-        alert(err);
       }
+    } catch (error) {
+      Constants.showToast.error('Failed to fetch records');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCloseDeleteModal = () => {
-    setDeleteModalRecord(null);
+  // Responsive columns for DataGrid
+  const columns = useMemo(() => [
+    { field: 'id', headerName: 'ID', flex: isMobile ? 0 : 1, minWidth: 80 },
+    { field: 'type', headerName: 'Type', flex: isMobile ? 0 : 1, minWidth: 80 },
+    { field: 'name', headerName: 'Name', flex: 2, minWidth: 150 },
+    {
+      field: 'tmdb',
+      headerName: 'TMDB',
+      flex: isMobile ? 0 : 1,
+      minWidth: 80,
+      renderCell: (params) => params.value || '-'
+    },
+    {
+      field: 'stream_file_list',
+      headerName: 'Files',
+      flex: isMobile ? 1 : 1.5,
+      minWidth: 120,
+      renderCell: (params) => {
+        const files = params.value || [];
+        if (files.length === 0) return '-';
+
+        const totalSize = files.reduce((sum, file) => sum + (file.fileSize || 0), 0);
+        const formatSize = (bytes) => {
+          if (bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        return (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+              width: '100%'
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setFileDialog({
+                open: true,
+                record: params.row,
+                files: params.row.stream_file_list || [],
+                type: params.row.type
+              });
+            }}
+          >
+            <Folder fontSize="small" color="action" sx={{ mr: 1 }} />
+            <Box sx={{ flexGrow: 0, alignItems: 'start', display: 'flex', flexDirection: 'column', mt: 0.5 }}>
+              <Typography variant="body2">
+                {files.length} file{files.length !== 1 ? 's' : ''}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {formatSize(totalSize)}
+              </Typography>
+            </Box>
+            <ChevronRight fontSize="small" color="action" />
+          </Box>
+        );
+      }
+    },
+    ...(isMobile ? [] : [
+      {
+        field: 'creationDate',
+        headerName: 'Created',
+        flex: 1.5,
+        renderCell: (params) => new Date(params.value).toLocaleDateString()
+      },
+      {
+        field: 'lastModifiedDate',
+        headerName: 'Modified',
+        flex: 1.5,
+        renderCell: (params) => new Date(params.value).toLocaleDateString()
+      }
+    ]),
+    {
+      field: 'showOnTop',
+      headerName: 'Top',
+      width: 80,
+      renderCell: (params) => (
+        <Tooltip title={params.value ? 'Showing on top' : 'Not showing on top'}>
+          <Switch
+            size="small"
+            checked={params.value}
+            onChange={() => toggleShowOnTop(params.row.id, params.value)}
+            color="primary"
+          />
+        </Tooltip>
+      )
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: isMobile ? 120 : 150,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex' }}>
+          <Tooltip title="Refresh TMDB">
+            <IconButton
+              size="small"
+              onClick={() => handleRefreshTmdb(params.row.id)}
+              disabled={refreshingRecords[params.row.id]}
+              sx={{ p: isMobile ? 0.5 : 1 }}
+            >
+              {refreshingRecords[params.row.id] ? (
+                <CircularProgress size={isMobile ? 16 : 24} />
+              ) : (
+                <RefreshIcon fontSize={isMobile ? 'small' : 'medium'} color="action" />
+              )}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Delete">
+            <IconButton
+              size="small"
+              onClick={() => openDeleteDialog(params.row)}
+              sx={{ p: isMobile ? 0.5 : 1 }}
+            >
+              <DeleteIcon fontSize={isMobile ? 'small' : 'medium'} color="error" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )
+    }
+  ], [isMobile, refreshingRecords]);
+
+  // Record Dialog Handlers
+  const openRecordDialog = (record = null) => {
+    if (record) {
+      setIsEditing(true);
+      reset({
+        id: record.id,
+        type: record.type,
+        name: record.name,
+        releaseYear: record.releaseYear || '',
+        tmdb: record.tmdb || '',
+        showOnTop: record.showOnTop || false
+      });
+    } else {
+      setIsEditing(false);
+      reset({
+        type: '',
+        name: '',
+        releaseYear: '',
+        tmdb: '',
+        showOnTop: false
+      });
+    }
+    setRecordDialogOpen(true);
   };
 
-  // Refresh TMDB Handler: marks record as refreshing, simulates API call delay, then resets refreshing flag
-  const handleTmdbRefresh = async (record) => {
-    setRecords(prevRecords =>
-      prevRecords.map(r => r.id === record.id ? { ...r, refreshingTmdb: true } : r)
-    );
+  const closeRecordDialog = () => {
+    setRecordDialogOpen(false);
+    setTmdbOptions([]);
+  };
+
+  // Delete Dialog Handlers
+  const openDeleteDialog = (record) => {
+    setRecordToDelete(record);
+    setDeleteDialogOpen(true);
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setRecordToDelete(null);
+  };
+
+  // Form Submission
+  const onSubmit = async (data) => {
     try {
-      // Simulate API call delay (e.g., 2 seconds)
-      let updateRecordRes = await UpdateDbCinemaRecord(record.id, {
+      if (isEditing) {
+        const res = await UpdateDbCinemaRecord(data.id, {
+          name: data.name,
+          type: data.type,
+          tmdbId: data.tmdb,
+          showOnTop: data.showOnTop
+        });
+        handleApiResponse(res, 'Record updated successfully');
+      } else {
+        const res = await AddDbCinemaRecord(data.name, data.type, data.tmdb);
+        handleApiResponse(res, 'Record added successfully', true);
+      }
+    } catch (error) {
+      Constants.showToast.error('An error occurred');
+    } finally {
+      closeRecordDialog();
+    }
+  };
+
+  const handleApiResponse = (res, successMessage, isAdd = false) => {
+    if (res.httpStatusCode === (isAdd ? 201 : 200)) {
+      Constants.showToast.success(successMessage);
+      if (successMessage !== 'TMDB data refreshed') {
+        fetchRecords();
+      }
+    } else if (res.httpStatusCode === 401) {
+      Constants.showToast.error(res.message + Constants.RE_LOGIN);
+      navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+    } else {
+      Constants.showToast.error(res.message || 'Operation failed');
+    }
+  };
+
+  // TMDB Search
+  const searchTmdb = async () => {
+    if (!formType || !formName) {
+      Constants.showToast.warning('Please fill in both Type and Name fields');
+      return;
+    }
+
+    setLoadingTmdb(true);
+    try {
+      const res = await searchTmdbByQuery(
+        formType,
+        formName,
+        watch('releaseYear')
+      );
+      if (res.httpStatusCode === 200) {
+        setTmdbOptions(res.data);
+      } else if (res.httpStatusCode === 401) {
+        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+      } else {
+        Constants.showToast.error(res.message);
+      }
+    } catch (error) {
+      Constants.showToast.error('Failed to search TMDB');
+    } finally {
+      setLoadingTmdb(false);
+    }
+  };
+
+  // Record Actions
+  const handleRefreshTmdb = async (recordId) => {
+    setRefreshingRecords(prev => ({ ...prev, [recordId]: true }));
+    try {
+      const record = allRecords.find(r => r.id === recordId);
+      const res = await UpdateDbCinemaRecord(recordId, {
         type: record.type,
         name: record.name,
         tmdbId: record.tmdb,
         showOnTop: record.showOnTop
       });
-      if (updateRecordRes.httpStatusCode === 200) {
-        toast.success("TMDB data refreshed successfully for record " + record.id);
-        await getAllRecords();
-        resetForm();
-      } else if (updateRecordRes.httpStatusCode === 401) {
-        toast.error(updateRecordRes.message + Constants.RE_LOGIN, {
-          onClose: async () => {
-            navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-          },
-          autoClose: 1000
-        });
-      } else {
-        toast.error(updateRecordRes.message);
-      }
+      handleApiResponse(res, 'TMDB data refreshed');
     } catch (error) {
-      toast.error("Error refreshing TMDB data for record " + record.id);
+      Constants.showToast.error('Failed to refresh TMDB data');
     } finally {
-      setRecords(prevRecords =>
-        prevRecords.map(r => r.id === record.id ? { ...r, refreshingTmdb: false } : r)
-      );
+      setRefreshingRecords(prev => ({ ...prev, [recordId]: false }));
     }
   };
 
-  // Form Handlers
-  const handleFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value
-    });
+  const handleDelete = async () => {
+    if (!recordToDelete) return;
+
+    try {
+      const res = await deleteDbCinemaRecord(recordToDelete.id);
+      handleApiResponse(res, 'Record deleted successfully');
+    } catch (error) {
+      Constants.showToast.error('Failed to delete record');
+    } finally {
+      closeDeleteDialog();
+    }
   };
 
-  const fetchTmdbResults = async () => {
-    if (!formData.type || !formData.name) {
-      toast.warning('Please fill in both Type and Name fields to search TMDB.');
-      return;
+  const toggleShowOnTop = async (recordId, currentValue) => {
+    try {
+      const res = await changeShowOnTopRecord(recordId, !currentValue);
+      handleApiResponse(res, 'Show on top updated');
+    } catch (error) {
+      Constants.showToast.error('Failed to update show on top');
     }
-    setLoadingTmdb(true);
-    let seachTmdbRes = await searchTmdbByQuery(formData.type, formData.name, formData.releaseYear);
-    if (seachTmdbRes.httpStatusCode === 200) {
-      setTmdbOptions(seachTmdbRes.data);
-    } else if (seachTmdbRes.httpStatusCode === 401) {
-      navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-    } else {
-      toast.error(seachTmdbRes.message);
-    }
-    setLoadingTmdb(false);
   };
 
-  const handleSwitchShowOnTop = async (recordId, showOnTop) => {
-    let updateRecordRes = await changeShowOnTopRecord(recordId, showOnTop);
-    if (updateRecordRes.httpStatusCode === 200) {
-      toast.success("Show On Top updated successfully for record " + recordId);
-      await getAllRecords();
-    } else if (updateRecordRes.httpStatusCode === 401) {
-      toast.error(updateRecordRes.message + Constants.RE_LOGIN, {
-        onClose: async () => {
-          navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-        },
-        autoClose: 1000
-      });
-    } else {
-      toast.error(updateRecordRes.message);
-    }
-  }
-
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-    setLoadingSubmit(true);
-    if (isEditing) {
-      // In edit mode, only update name and showOnTop
-      let updateRecordRes = await UpdateDbCinemaRecord(formData.recordId, {
-        name: formData.name,
-        type: formData.type,
-        tmdbId: formData.tmdb,
-        showOnTop: formData.showOnTop
-      });
-      if (updateRecordRes.httpStatusCode === 200) {
-        toast.success("Record edited successfully.");
-        await getAllRecords();
-        resetForm();
-      } else if (updateRecordRes.httpStatusCode === 401) {
-        toast.error(updateRecordRes.message + Constants.RE_LOGIN, {
-          onClose: async () => {
-            navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-          },
-          autoClose: 1000
-        });
-      } else {
-        toast.error(updateRecordRes.message);
-      }
-    } else {
-      let addRecordRes = await AddDbCinemaRecord(formData.name, formData.type, formData.tmdb);
-      if (addRecordRes.httpStatusCode === 201) {
-        toast.success("Record added, RecordId - " + addRecordRes.data.recordId);
-        await getAllRecords();
-        resetForm();
-      } else if (addRecordRes.httpStatusCode === 401) {
-        toast.error(addRecordRes.message + Constants.RE_LOGIN, {
-          onClose: async () => {
-            navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-          },
-          autoClose: 1000
-        });
-      } else {
-        toast.error(addRecordRes.message);
-      }
-    }
-    setLoadingSubmit(false);
-    handleCloseRecordModal();
-  };
-
-  const resetForm = () => {
-    setIsEditing(false);
-    setSelectedRecord(null);
-    setFormData({
-      recordId: '',
-      type: '',
-      name: '',
-      releaseYear: '',
-      tmdb: '',
-      showOnTop: false,
-      creationDate: '',
-      lastModifiedDate: ''
-    });
-    setTmdbOptions([]);
-  };
-
-  // ag‑Grid Column Definitions
-  const columnDefs = useMemo(() => [
-    { field: 'id', headerName: 'ID', filter: true, sortable: true },
-    { field: 'type', headerName: 'Type', filter: true, sortable: true },
-    { field: 'name', headerName: 'Name', filter: true, sortable: true },
-    {
-      field: 'tmdb',
-      headerName: 'TMDB',
-      filter: true,
-      sortable: true,
-      valueFormatter: params => params.value ? params.value : ''
-    }
-    ,
-    {
-      field: 'creationDate',
-      headerName: 'Creation Date',
-      filter: 'agDateColumnFilter',
-      sortable: true,
-      valueFormatter: params => new Date(params.value).toLocaleString()
-    },
-    {
-      field: 'lastModifiedDate',
-      headerName: 'Last Modified Date',
-      filter: 'agDateColumnFilter',
-      sortable: true,
-      valueFormatter: params => new Date(params.value).toLocaleString()
-    },
-    {
-      field: 'showOnTop',
-      headerName: 'Show On Top',
-      filter: true,
-      sortable: true,
-      cellRenderer: (params) => {
-        const handleToggle = async () => {
-          const updatedValue = !params.value;
-          // Update the underlying data for the 'updating' flag.
-          params.data.updating = true;
-          // Refresh the cell so the spinner appears.
-          params.api.refreshCells({ rowNodes: [params.node], force: true });
-          try {
-            // Call your API to update the value.
-            await handleSwitchShowOnTop(params.data.id, updatedValue);
-            // Now update the 'showOnTop' value.
-            if (params.node) {
-              params.node.setDataValue('showOnTop', updatedValue);
-            } else {
-              params.data.showOnTop = updatedValue;
-              params.api.refreshCells({ force: true });
+  const RecordCard = ({ record }) => (
+    <Grid item xs={4} sm={4} md={4} sx={{ mb: 2 }}>
+      <MotionCard sx={{ border: '1px solid black', borderRadius: '10px' }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Typography variant="h6" component="div" noWrap>
+            {record.name}
+          </Typography>
+          <Typography color="text.secondary" gutterBottom>
+            {record.type} • ID: {record.id}
+          </Typography>
+          <Typography variant="body2" noWrap>
+            TMDB: {record.tmdb || 'Not linked'}
+          </Typography>
+          <Typography variant="caption" display="block">
+            Created: {new Date(record.creationDate).toLocaleDateString()}
+          </Typography>
+          <Typography variant="caption" display="block">
+            Modified: {new Date(record.lastModifiedDate).toLocaleDateString()}
+          </Typography>
+        </CardContent>
+        <CardActions sx={{ justifyContent: 'space-between' }}>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={record.showOnTop}
+                onChange={() => toggleShowOnTop(record.id, record.showOnTop)}
+                color="primary"
+              />
             }
-          } catch (error) {
-            console.error('API update failed: ', error);
-            // Optionally, you could revert the change here.
-          } finally {
-            // Remove the updating flag.
-            params.data.updating = false;
-            if (params.node) {
-              params.api.refreshCells({ rowNodes: [params.node], force: true });
-            } else {
-              params.api.refreshCells({ force: true });
-            }
-          }
-        };
+            label="Top"
+            labelPlacement="start"
+          />
+          <Box>
+            {/* <Tooltip title="Edit">
+                  <IconButton size="small" onClick={() => openRecordDialog(record)}>
+                    <EditIcon fontSize="small" color="primary" />
+                  </IconButton>
+                </Tooltip> */}
+            <Tooltip title="Refresh TMDB">
+              <IconButton
+                size="small"
+                onClick={() => handleRefreshTmdb(record.id)}
+                disabled={refreshingRecords[record.id]}
+              >
+                {refreshingRecords[record.id] ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <RefreshIcon fontSize="small" color="action" />
+                )}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete">
+              <IconButton size="small" onClick={() => openDeleteDialog(record)}>
+                <DeleteIcon fontSize="small" color="error" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </CardActions>
+      </MotionCard>
+    </Grid>
+  );
 
-        // If the row is updating, show a spinner.
-        if (params.data.updating) {
-          return (
-            <span
-              className="spinner-border spinner-border-sm"
-              role="status"
-              aria-hidden="true"
-            ></span>
-          );
-        }
+  // Render Record Card
+  const renderRecordCards = () => (
+    <Grid container spacing={1} sx={{ mb: 2, justifyContent: 'space-between', display: 'flex' }}>
+      {paginatedRecords.map(record => (
+        <RecordCard key={record.id} record={record} />
+      ))}
 
-        // Otherwise, show the interactive switch.
-        return (
-          <div
-            className="form-check form-switch my-2"
-            onClick={handleToggle}
-            title={params.value ? 'Turn Off' : 'Turn On'}
-          >
-            <input
-              className="form-check-input"
-              type="checkbox"
-              role="switch"
-              checked={params.value}
-              readOnly
-            />
-          </div>
-        );
-      }
-    },
-    {
-      headerName: 'Actions',
-      cellRenderer: params => (
-        <div className="rm-action-buttons">
-          <button onClick={() => handleEdit(params.data)} title="Edit">
-            <FaEdit />
-          </button>
-          <button onClick={() => openDeleteModal(params.data)} title="Delete">
-            <FaTrash />
-          </button>
-          <button
-            onClick={() => handleTmdbRefresh(params.data)}
-            disabled={params.data.refreshingTmdb}
-            title="Refresh TMDB"
-          >
-            {params.data.refreshingTmdb ? (
-              <span
-                className="spinner-border spinner-border-sm"
-                role="status"
-                aria-hidden="true"
-              ></span>
-            ) : (
-              <FaSync />
-            )}
-          </button>
-        </div>
-      )
-    }
-  ], [records]);
+      {loadingMore && (
+        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+          <CircularProgress size={24} />
+        </Grid>
+      )}
 
-  // Row class rules to disable a row when refreshing
-  const rowClassRules = {
-    'refreshing-row': params => params.data.refreshingTmdb === true
-  };
+      <Grid item xs={12}>
+        <div ref={loaderRef} style={{ height: 1 }} />
+      </Grid>
 
-  const defaultColDef = {
-    flex: 1,
-    minWidth: 120,
-    filter: true,
-    sortable: true,
-    resizable: true
-  };
+    </Grid>
+  );
 
   return (
-    <Container fluid className="records-management m-0 p-0">
-      {/* Header with Add Record Button */}
-      <Row className="my-3 d-flex flex-column flex-md-row align-items-md-center">
-        {/* Title - Centered on Mobile, Left on Desktop */}
-        <Col xs={12} md={8} className="d-flex justify-content-center text-center text-md-start">
-          <h1 className="mb-2 mb-md-0"><u>Record Management</u></h1>
-        </Col>
-
-        {/* Add Record Button - Centered on Mobile, Right on Desktop */}
-        <Col xs={12} md={4} className="d-flex justify-content-end justify-content-md-end">
-          <Button variant="" className='btn btn-outline-dark btn-sm' onClick={handleOpenRecordModal}>
-            <FaPlus /> <span className='m-1'>Add Record</span>
-          </Button>
-        </Col>
-      </Row>
-
-      {/* Record Modal */}
-      <RecordModal
-        show={showRecordModal}
-        handleClose={handleCloseRecordModal}
-        isEditing={isEditing}
-        formData={formData}
-        handleFormChange={handleFormChange}
-        handleFormSubmit={handleFormSubmit}
-        resetForm={resetForm}
-        loadingSubmit={loadingSubmit}
-        tmdbOptions={tmdbOptions}
-        fetchTmdbResults={fetchTmdbResults}
-        loadingTmdb={loadingTmdb}
-      />
-
-      {/* ag-Grid Table */}
-      <div className="grid-container ag-theme-alpine">
-        <AgGridReact
-          ref={gridRef}
-          rowData={records}
-          columnDefs={columnDefs}
-          defaultColDef={defaultColDef}
-          pagination={true}
+    <Container maxWidth="xl" sx={{ px: 0, m: 0, py: 2 }}>
+      {/* Header with Search and Add */}
+      <Box sx={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'stretch' : 'center',
+        gap: isMobile ? 2 : 0,
+        mb: 3,
+        p: 0
+      }}>
+        <TextField
+          fullWidth={isMobile}
+          sx={{
+            flexGrow: 1,
+            maxWidth: isMobile ? '100%' : '400px',
+            order: isMobile ? 2 : 1
+          }}
+          placeholder="Search by ID, Name, or TMDB ID"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
         />
-      </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteModalRecord && (
-        <DeleteModal
-          record={deleteModalRecord}
-          onConfirm={handleConfirmDelete}
-          onClose={handleCloseDeleteModal}
-        />
+        <Box sx={{
+          display: 'flex',
+          gap: 1,
+          order: isMobile ? 1 : 2,
+          alignSelf: isMobile ? 'flex-end' : 'auto'
+        }}>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, newMode) => newMode && setViewMode(newMode)}
+            size="small"
+          >
+            <ToggleButton value="table" aria-label="table view">
+              <Tooltip title="Table view">
+                <ViewListIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>
+            <ToggleButton value="grid" aria-label="grid view">
+              <Tooltip title="Grid view">
+                <GridViewIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <MotionButton
+            variant="contained"
+            size={isMobile ? 'small' : 'medium'}
+            startIcon={<AddIcon fontSize={isMobile ? 'small' : 'medium'} />}
+            onClick={() => openRecordDialog()}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {isMobile ? 'Add' : 'Add Record'}
+          </MotionButton>
+        </Box>
+      </Box>
+
+      {/* Content */}
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : viewMode === 'table' ? (
+        <Paper sx={{ height: '70vh', width: '100%', overflowX: 'auto' }}>
+          <DataGrid
+            rows={filteredRecords}
+            columns={columns}
+            pageSize={10}
+            rowsPerPageOptions={[10, 25, 50]}
+            disableSelectionOnClick
+            loading={loading}
+            density={isMobile ? 'compact' : 'standard'}
+            components={{
+              NoRowsOverlay: () => (
+                <Box sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: 2
+                }}>
+                  <Typography variant="body1" color="textSecondary">
+                    No records found
+                  </Typography>
+                  {searchQuery && (
+                    <Button
+                      variant="text"
+                      size="small"
+                      onClick={() => setSearchQuery('')}
+                      sx={{ mt: 1 }}
+                    >
+                      Clear search
+                    </Button>
+                  )}
+                </Box>
+              )
+            }}
+          />
+        </Paper>
+      ) : (
+        <>
+          {filteredRecords.length === 0 ? (
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '200px',
+              textAlign: 'center'
+            }}>
+              <Typography variant="body1" color="textSecondary">
+                No records found
+              </Typography>
+              {searchQuery && (
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={() => setSearchQuery('')}
+                  sx={{ mt: 1 }}
+                >
+                  Clear search
+                </Button>
+              )}
+            </Box>
+          ) : (
+            // <Box sx={{ height: '100vh', overflow: 'auto' }}>
+            renderRecordCards()
+            // </Box>
+          )}
+        </>
       )}
+
+      {/* Record Dialog */}
+      <Dialog open={recordDialogOpen} onClose={closeRecordDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>{'Add New Record'}</DialogTitle>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <DialogContent>
+            <Grid container spacing={2}>
+              {/* Type */}
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth sx={{ width: '150px' }}>
+                  <InputLabel>Type</InputLabel>
+                  <Select
+                    label="Type"
+                    {...register('type', { required: 'Type is required' })}
+                    error={!!errors.type}
+                    value={watch('type') || ''}
+                  >
+                    <MenuItem value="movie">Movie</MenuItem>
+                    <MenuItem value="series">TV Show</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* Name */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Name"
+                  {...register('name', { required: 'Name is required' })}
+                  error={!!errors.name}
+                  helperText={errors.name?.message}
+                />
+              </Grid>
+
+              {/* Release Year */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Release Year"
+                  type="number"
+                  {...register('releaseYear')}
+                />
+              </Grid>
+
+              {/* TMDB Select + Search */}
+              <Grid item xs={12}>
+                <Grid container spacing={1}>
+                  <Grid item xs={12} sm={9}>
+                    <FormControl fullWidth sx={{ width: '200px' }}>
+                      <InputLabel>TMDB Results</InputLabel>
+                      <Select
+                        label="TMDB Results"
+                        onChange={(e) => setValue('tmdb', e.target.value)}
+                        value={watch('tmdb') || ''}
+                      >
+                        {tmdbOptions.map((option) => (
+                          <MenuItem key={option.id} value={option.id}>
+                            {option.title} | {option.originalTitle} | {option.releaseDate}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      onClick={searchTmdb}
+                      disabled={loadingTmdb || !formType || !formName}
+                      startIcon={loadingTmdb ? <CircularProgress size={20} /> : <SearchIcon />}
+                    >
+                      Search TMDB
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Grid>
+
+              {/* Show on Top */}
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={<Checkbox {...register('showOnTop')} />}
+                  label="Show on Top"
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+
+          <DialogActions>
+            <Button onClick={closeRecordDialog}>Cancel</Button>
+            <Button type="submit" variant="contained">
+              {'Create'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog}>
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          {recordToDelete && (
+            <Typography>
+              Are you sure you want to delete <strong>{recordToDelete.name}</strong>?
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDeleteDialog}>Cancel</Button>
+          <Button onClick={handleDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <FileManagementDialog />
+
       {Constants.TOAST_CONTAINER}
     </Container>
   );
-}
+};
 
-export default RecordsManagement;
+export default RecordManagement;

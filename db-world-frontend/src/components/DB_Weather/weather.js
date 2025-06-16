@@ -24,10 +24,10 @@ function Weather() {
                 setweatherData(data);
             }
             else {
-                toast.error("City Not Found");
+                Constants.showToast.error("City Not Found");
             }
         } catch (err) {
-            toast.error("failed to get weather report.")
+            Constants.showToast.error("failed to get weather report.")
         }
         setLoader(false);
     }
@@ -42,11 +42,11 @@ function Weather() {
                 setweatherData(data);
             }
             else {
-                toast.error("Location not Found");
+                Constants.showToast.error("Location not Found");
             }
         } catch (err) {
             // console.log("failed to get weather data")
-            toast.error("failed to get weather report.")
+            Constants.showToast.error("failed to get weather report.")
         }
         setLoader(false);
     }
@@ -64,12 +64,12 @@ function Weather() {
                     else {
                         console.log(error);
                     }
-                    toast.error("failed to get current location.")
+                    Constants.showToast.error("failed to get current location.")
                     getWeatherFromCity();
                 }
             )
         } else {
-            toast.error("failed to get current location.")
+            Constants.showToast.error("failed to get current location.")
             getWeatherFromCity();
         }
         console.log(navigator.userAgent);

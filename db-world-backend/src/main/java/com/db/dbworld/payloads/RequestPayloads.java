@@ -3,6 +3,8 @@ package com.db.dbworld.payloads;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.util.List;
+
 public class RequestPayloads {
 
     @Data
@@ -39,8 +41,8 @@ public class RequestPayloads {
 
     @Data
     public static class Mirror{
-        @NotEmpty
         private String url;
+        private List<String> urls;
         private String folderName;
         private String username;
         private String password;
@@ -88,5 +90,4 @@ public class RequestPayloads {
         private String file;
         private String value;
     }
-
 }

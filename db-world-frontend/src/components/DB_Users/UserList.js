@@ -28,12 +28,12 @@ const UserList = () => {
     if (event === 'delete') {
       let deleteUserRes = await deleteUser(cellData.data.userId);
       if (deleteUserRes.httpStatusCode === 200) {
-        toast.success("User Deleted");
+        Constants.showToast.success("User Deleted");
         dispatch(findAllUsers(userData.filter(user => user.userId != cellData.data.userId)));
       } else if (deleteUserRes.httpStatusCode === 401) {
         // 
       } else {
-        toast.error(deleteUserRes?.message || deleteUserRes?.error);
+        Constants.showToast.error(deleteUserRes?.message || deleteUserRes?.error);
       }
     }
   }

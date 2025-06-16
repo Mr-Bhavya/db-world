@@ -31,6 +31,7 @@
   position: relative;
   transition: transform var(--transition-speed) ease;
   cursor: pointer;
+  z-index: 100;
 }
 .item-container.active {
   transform: scale(1);
@@ -45,6 +46,7 @@
   border-radius: 4px;
   transition: all var(--transition-speed) ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  /* z-index: 100; */
 }
 .thumbnail.horizontal {
   width: 380px;
@@ -227,6 +229,7 @@
   background: rgba(0, 0, 0, 0.3);
   border-radius: 5px;
   width: 380px;
+  z-index: 200;
 }
 
 /* Modal Transitions */
@@ -256,6 +259,7 @@
   width: 180px;
   height: 250px;
   animation: pulse 1.5s infinite;
+  z-index: 100;
 }
 .skeleton-card.horizontal {
   width: 380px;

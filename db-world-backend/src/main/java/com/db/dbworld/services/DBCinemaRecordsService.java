@@ -25,6 +25,8 @@ public interface DBCinemaRecordsService {
 
     List<Map<String, Object>> getRecords();
 
+    List<Map<String, Object>> getRecordsWithStreamList();
+
     List<DBCinemaRecordsDto> fetchCoverRecords(int pageNumber, int pageSize);
 
     CustomPageImpl<DBCinemaRecordsDto> findRecords(RecordSearchCriteria recordSearchCriteria);

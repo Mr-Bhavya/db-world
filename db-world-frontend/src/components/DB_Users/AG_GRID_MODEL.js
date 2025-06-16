@@ -22,14 +22,14 @@ const columnDefs = [
             { headerName: 'No Of Login', field: 'noOfLogin' },
         ],
     },
-    {
-        headerName: 'Cinema Data',
-        children: [
-            { headerName: 'download_files', field: 'cinemaData.events.download_files.0' },
-            { headerName: 'stream_files', field: 'cinemaData.events.stream_files.0' },
-            { headerName: 'search_keywords', field: 'cinemaData.events.search_keywords' },
-        ],
-    },
+    // {
+    //     headerName: 'Cinema Data',
+    //     children: [
+    //         { headerName: 'download_files', field: 'cinemaData.events.download_files.0' },
+    //         { headerName: 'stream_files', field: 'cinemaData.events.stream_files.0' },
+    //         { headerName: 'search_keywords', field: 'cinemaData.events.search_keywords' },
+    //     ],
+    // },
     { headerName: "Action", field: "action", minWidth: 150 },
 ];
 

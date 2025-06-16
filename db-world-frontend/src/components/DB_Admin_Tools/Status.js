@@ -39,36 +39,36 @@ function Status() {
     try {
       const deleteRes = await deleteMirror(id);
       if (deleteRes.httpStatusCode === 200) {
-        toast.success(deleteRes.message);
+        Constants.showToast.success(deleteRes.message);
       } else if (deleteRes.httpStatusCode === 401) {
-        toast.error(deleteRes.message + Constants.RE_LOGIN, {
+        Constants.showToast.error(deleteRes.message + Constants.RE_LOGIN, {
           onClose: async () => {
             navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
           },
           autoClose: 1000,
         });
       } else {
-        toast.error(deleteRes.message);
+        Constants.showToast.error(deleteRes.message);
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed.");
+      Constants.showToast.error("Failed.");
     }
   };
 
   const cancelleTask = async (statusId) => {
     const cancelleRes = await cancelledMirror(statusId);
     if (cancelleRes.httpStatusCode === 200) {
-      toast.success(cancelleRes.message);
+      Constants.showToast.success(cancelleRes.message);
     } else if (cancelleRes.httpStatusCode === 401) {
-      toast.error(cancelleRes.message + Constants.RE_LOGIN, {
+      Constants.showToast.error(cancelleRes.message + Constants.RE_LOGIN, {
         onClose: async () => {
           navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
         },
         autoClose: 1000,
       });
     } else {
-      toast.error(cancelleRes.message);
+      Constants.showToast.error(cancelleRes.message);
     }
   };
 
@@ -77,7 +77,7 @@ function Status() {
     if (url) {
       window.open(url, "_blank");
     } else {
-      toast.error("Source URL not available");
+      Constants.showToast.error("Source URL not available");
     }
   };
 

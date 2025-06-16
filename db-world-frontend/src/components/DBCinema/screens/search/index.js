@@ -80,10 +80,10 @@ function SearchOverlay({ onClose }) {
         }
         setIsSearchRecordResDone(true);
       } else if (recordResponse.httpStatusCode === 401) {
-        toast.error(recordResponse.message + Constants.RE_LOGIN);
+        Constants.showToast.error(recordResponse.message + Constants.RE_LOGIN);
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       } else {
-        toast.error(recordResponse.message);
+        Constants.showToast.error(recordResponse.message);
       }
     } catch (err) {
       console.error(err);
@@ -104,10 +104,10 @@ function SearchOverlay({ onClose }) {
         setStreamList(streamResponse.data);
         setIsSearchStreamResDone(true);
       } else if (streamResponse.httpStatusCode === 401) {
-        toast.error(streamResponse.message + Constants.RE_LOGIN);
+        Constants.showToast.error(streamResponse.message + Constants.RE_LOGIN);
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       } else {
-        toast.error(streamResponse.message);
+        Constants.showToast.error(streamResponse.message);
       }
     } catch (err) {
       console.error(err);
@@ -327,8 +327,8 @@ function SearchOverlay({ onClose }) {
 
       {/* Modal for File Details */}
       <FileDetailsModal
-        show={showFileModal}
-        onHide={handleCloseModal}
+        open={showFileModal}
+        onClose={handleCloseModal}
         fileId={selectedFile?.fileId}
       />
     </>

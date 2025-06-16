@@ -20,6 +20,9 @@ public class FileExplorerService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Autowired
+    private MediaFileInfoService mediaFileInfoService;
+
     private final FileRepository fileRepository;
 
     public FileExplorerService(FileRepository fileRepository) {
@@ -38,6 +41,7 @@ public class FileExplorerService {
         Path oldPath = Paths.get(fileEntity.getFilePath());
         Path newPath = oldPath.resolveSibling(newName);
         Files.move(oldPath, newPath, StandardCopyOption.REPLACE_EXISTING);
+        mediaFileInfoService.deleteInfoByFilePath(oldPath.toString());
     }
 
     // Move file to a new relative directory and update metadata.
@@ -48,6 +52,7 @@ public class FileExplorerService {
 //        Files.createDirectories(targetDir);
         Path newPath = targetDir.resolve(fileEntity.getFileName());
         Files.move(oldPath, newPath, StandardCopyOption.REPLACE_EXISTING);
+        mediaFileInfoService.deleteInfoByFilePath(oldPath.toString());
 //        fileRepository.delete(fileEntity);
 //        fileRepository.save(this.modelMapper.map(new FileDto(newPath), FileEntity.class));
     }
@@ -69,6 +74,7 @@ public class FileExplorerService {
         FileEntity fileEntity = getFile(id);
         Path path = Paths.get(fileEntity.getFilePath());
         Files.deleteIfExists(path);
+        mediaFileInfoService.deleteInfoByFilePath(path.toString());
 //        fileRepository.delete(fileEntity);
     }
 

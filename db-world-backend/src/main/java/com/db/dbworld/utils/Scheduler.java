@@ -21,7 +21,7 @@ public class Scheduler {
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
 
-    @Scheduled(fixedRate = 1000*60*30) // Every 30 minutes (in milliseconds)
+//    @Scheduled(fixedRate = 1000*60*30) // Every 30 minutes (in milliseconds)
     public void checkMediaFilePath() {
         log.info("CheckMediaFilePath scheduler is start.");
         AtomicInteger noOfDeletedFiles = new AtomicInteger();

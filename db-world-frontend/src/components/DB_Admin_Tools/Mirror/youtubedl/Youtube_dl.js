@@ -34,17 +34,17 @@ function Youtube_dl() {
                     ? `${result?.series} S${result.season_number}E${result.episode_number} - ${result.title}`
                     : `${result.title}`);
             } else if (ytInfoRes.httpStatusCode === 401) {
-                toast.error(ytInfoRes.message + Constants.RE_LOGIN, {
+                Constants.showToast.error(ytInfoRes.message + Constants.RE_LOGIN, {
                     onClose: async () => {
                         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
                     },
                     autoClose: 1000
                 });
             } else {
-                toast.error(ytInfoRes.message);
+                Constants.showToast.error(ytInfoRes.message);
             }
         } catch (err) {
-            toast.error("Failed to fetch details.");
+            Constants.showToast.error("Failed to fetch details.");
         }
         setGetDetailsLoader(false);
     };
@@ -56,12 +56,12 @@ function Youtube_dl() {
                 url: link, folderName: recordName, fileName: title, fileSize: isNaN(totalSize) ? 0 : totalSize, videoITag, audioITag, onlyAudio
             });
             if (ytDownloadRes.httpStatusCode === 200) {
-                toast.success(ytDownloadRes.message);
+                Constants.showToast.success(ytDownloadRes.message);
             } else {
-                toast.error(ytDownloadRes.message);
+                Constants.showToast.error(ytDownloadRes.message);
             }
         } catch (err) {
-            toast.error("Failed.");
+            Constants.showToast.error("Failed.");
         }
         setSubmitLoader(false);
     };

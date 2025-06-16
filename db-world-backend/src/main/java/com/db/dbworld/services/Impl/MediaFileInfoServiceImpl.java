@@ -97,7 +97,10 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     @Override
     public void deleteInfoByFilePath(String filePath) {
         try {
-            mediaFileInfoRepository.deleteAllByFilePath(filePath);
+            List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.findAllByFilePath(filePath);
+            if(mediaFileInfoEntities != null && !mediaFileInfoEntities.isEmpty()){
+                mediaFileInfoRepository.deleteAll(mediaFileInfoEntities);
+            }
         }catch (Exception ex){
             throw new DbWorldException(ex.getMessage());
         }

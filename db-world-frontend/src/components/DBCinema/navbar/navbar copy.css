@@ -1,0 +1,154 @@
+/* navbar.css */
+:root {
+    --navbar-bg-color: transparent;
+    --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-duration: 0.3s;
+  }
+  
+  /* Navbar Container */
+  .navbar-container {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    backdrop-filter: blur(0px);
+    background: var(--navbar-bg-color);
+    transition: background var(--transition-duration) var(--transition-easing),
+                height var(--transition-duration) var(--transition-easing),
+                backdrop-filter var(--transition-duration) var(--transition-easing);
+  }
+  
+  .navbar-container.scrolled {
+    background: rgba(0, 0, 0, 0.9) !important;
+  }
+  
+  /* Top Line: Logo/Back and Icons */
+  .navbar-top-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    height: 60px;
+    gap: 1rem;
+    transition: padding var(--transition-duration) var(--transition-easing),
+                height var(--transition-duration) var(--transition-easing);
+  }
+
+  .navbar-top-line-categories {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    height: 60px;
+    gap: 1rem;
+    margin: auto;
+    transition: padding var(--transition-duration) var(--transition-easing),
+                height var(--transition-duration) var(--transition-easing);
+  }
+  
+  /* Bottom Line: Categories (Mobile Only) */
+  .navbar-bottom-line {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0 2rem 1rem;
+    height: 40px;
+    /* background: inherit; */
+    transition: transform var(--transition-duration) var(--transition-easing),
+                opacity var(--transition-duration) var(--transition-easing),
+                padding var(--transition-duration) var(--transition-easing);
+  }
+  
+  .navbar-bottom-line.hidden {
+    transform: translateY(-20px);
+    opacity: 0;
+    pointer-events: none;
+    padding: 0;
+    height: 0;
+  }
+  
+  /* Icon Buttons */
+  .nav-icon {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+  }
+  .nav-icon:hover {
+    opacity: 1;
+  }
+  
+  /* Layout for left/right sections */
+  .left-section, .right-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .logo {
+    width: 35px;
+    height: auto;
+    border: 0.5px solid white;
+    border-radius: 50%;
+    transition: opacity 0.3s ease;
+  }
+  
+  /* Category Buttons (Make them slightly smaller on mobile) */
+  .navbar-button-btn {
+    background: transparent;
+    padding: 0rem 0.7rem;
+    height: 1.7rem;
+    border: 1px solid white;
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .navbar-button-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .navbar-button-btn.active {
+    color: white;
+    background: rgba(255, 255, 255, 0.2);
+    font-weight: bold;
+  }
+
+  .close-btn {
+    background: transparent;
+    border: 1px solid white;
+    border-radius: 100%;
+    width: 1.6rem;
+    height: 1.6rem;
+    color: white;
+    padding: auto;
+  }
+  
+  /* Back Button */
+  .back-button {
+    background: transparent;
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    margin: 0;
+    gap: 0.5rem;
+    padding: 0;
+    cursor: pointer;
+    font-family: sans-serif;
+    font-size: 1.5rem;
+  }
+  .back-button i {
+    font-size: 1.3rem;
+  }
+  
+  /* For Desktop: Hide Bottom Line */
+  @media (min-width: 768px) {
+    .navbar-bottom-line {
+      display: none;
+    }
+  }
+  

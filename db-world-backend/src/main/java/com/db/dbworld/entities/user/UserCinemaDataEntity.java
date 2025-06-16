@@ -20,7 +20,7 @@ public class UserCinemaDataEntity {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "USER_CINEMA_DATA_SEQ")
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "user", nullable = false)
     private UserEntity user;
 
