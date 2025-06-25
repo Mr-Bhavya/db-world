@@ -12,15 +12,11 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   FormControlLabel,
   Grid,
   IconButton,
   InputAdornment,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Switch,
   TextField,
   Tooltip,
@@ -29,15 +25,6 @@ import {
   ToggleButtonGroup,
   useMediaQuery,
   useTheme,
-  Divider,
-  DialogContentText,
-  ListItem,
-  ListItemText,
-  Collapse,
-  List,
-  Menu,
-  Tabs,
-  Tab,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -56,13 +43,18 @@ import {
   AddDbCinemaRecord,
   changeShowOnTopRecord,
   deleteDbCinemaRecord,
+  deleteMediaFileInfoById,
   getRecords,
   searchTmdbByQuery,
   UpdateDbCinemaRecord
 } from '../../ApiServices';
 import Constants from '../../Constants';
-import { ChevronRight, Close, ExpandLess, ExpandMore, Folder, MoreVert } from '@mui/icons-material';
+import { Api, ChevronRight, Close, ExpandLess, ExpandMore, Folder, MoreVert } from '@mui/icons-material';
 import CommonServices from '../../CommonServices';
+import CleanMediaFileInfoButton from './CleanMediaFileInfoButton';
+// import AddRecordModal from './AddRecordModaldal';
+import RecordMediaFilesModal from './RecordMediaFilesModal';
+import AddRecordModal from './AddRecordModal';
 
 const MotionCard = motion(Card);
 const MotionButton = motion(Button);
@@ -73,10 +65,6 @@ const RecordManagement = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const location = useLocation();
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm();
-  const formType = watch('type');
-  const formName = watch('name');
-  const shouldReduceMotion = useReducedMotion();
 
   // State
   const [allRecords, setAllRecords] = useState([]);
@@ -86,9 +74,6 @@ const RecordManagement = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [recordDialogOpen, setRecordDialogOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [tmdbOptions, setTmdbOptions] = useState([]);
-  const [loadingTmdb, setLoadingTmdb] = useState(false);
   const [refreshingRecords, setRefreshingRecords] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -102,171 +87,12 @@ const RecordManagement = () => {
     open: false,
     record: null,
     files: [],
-    type: null // 'movie' or 'series'
+    type: null
   });
 
-  const FileManagementDialog = () => {
-    const { open, record, files, type } = fileDialog;
-
-    const [selectedSeason, setSelectedSeason] = useState(null);
-    const [filesToDelete, setFilesToDelete] = useState([]);
-    const [deleteMode, setDeleteMode] = useState(false);
-
-    // Group files by season if it's a series
-    const groupedFiles = useMemo(() => {
-      if (type !== 'series') return { 'All Files': files };
-
-      const seasons = {};
-      files.forEach(file => {
-        const season = file.seasonNumber || 'Unknown Season';
-        if (!seasons[season]) seasons[season] = [];
-        seasons[season].push(file);
-      });
-      return seasons;
-    }, [files, type]);
-
-    const handleClose = () => {
-      setFileDialog({ open: false, record: null, files: [], type: null });
-      setSelectedSeason(null);
-      setFilesToDelete([]);
-      setDeleteMode(false);
-    };
-
-    const toggleFileSelection = (fileId) => {
-      setFilesToDelete(prev =>
-        prev.includes(fileId)
-          ? prev.filter(id => id !== fileId)
-          : [...prev, fileId]
-      );
-    };
-
-    const handleDelete = async (deleteAll = false) => {
-      try {
-        let fileIds = [];
-
-        if (deleteAll) {
-          fileIds = files.map(f => f.id);
-        } else if (selectedSeason && type === 'series') {
-          fileIds = groupedFiles[selectedSeason].map(f => f.id);
-        } else {
-          fileIds = filesToDelete;
-        }
-        // await deleteFiles(record.id, fileIds);
-        Constants.showToast.success(`${fileIds.length} file${fileIds.length !== 1 ? 's' : ''} deleted`);
-        // refreshData();
-        handleClose();
-      } catch (error) {
-        Constants.showToast.error('Failed to delete files');
-      }
-    };
-
-    return (
-      <Dialog
-        open={open}
-        onClose={handleClose}
-        maxWidth="md"
-        fullWidth
-        scroll="paper"
-      >
-        <DialogTitle>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            <span>Files for {record?.name}</span>
-            <Box>
-              {deleteMode ? (
-                <Button
-                  color="error"
-                  onClick={() => handleDelete()}
-                  disabled={filesToDelete.length === 0}
-                  startIcon={<DeleteIcon />}
-                  size="small"
-                >
-                  Delete Selected ({filesToDelete.length})
-                </Button>
-              ) : (
-                <Button
-                  color="error"
-                  onClick={() => setDeleteMode(true)}
-                  startIcon={<DeleteIcon />}
-                  size="small"
-                >
-                  Delete Files
-                </Button>
-              )}
-              <IconButton onClick={handleClose} sx={{ ml: 1 }}>
-                <Close />
-              </IconButton>
-            </Box>
-          </Box>
-        </DialogTitle>
-
-        <DialogContent dividers>
-          {type === 'series' && (
-            <Box sx={{ mb: 2 }}>
-              <Tabs
-                value={selectedSeason || Object.keys(groupedFiles)[0]}
-                onChange={(e, newValue) => setSelectedSeason(newValue)}
-                variant="scrollable"
-                scrollButtons="auto"
-              >
-                {Object.keys(groupedFiles).map(season => (
-                  <Tab
-                    key={season}
-                    label={`Season ${season}`}
-                    value={season}
-                  />
-                ))}
-              </Tabs>
-            </Box>
-          )}
-
-          <List dense>
-            {(selectedSeason ? groupedFiles[selectedSeason] : files).map(file => (
-              <ListItem
-                key={file.id}
-                secondaryAction={
-                  deleteMode && (
-                    <Checkbox
-                      edge="end"
-                      checked={filesToDelete.includes(file.id)}
-                      onChange={() => toggleFileSelection(file.id)}
-                    />
-                  )
-                }
-              >
-                <ListItemText
-                  primary={file.fileName}
-                  secondary={`${CommonServices.bytesToReadbleFormat(file.fileSize).value} ${CommonServices.bytesToReadbleFormat(file.fileSize).suffix} • ${file.filePath}`}
-                  primaryTypographyProps={{ noWrap: true }}
-                  secondaryTypographyProps={{ noWrap: true }}
-                />
-              </ListItem>
-            ))}
-          </List>
-        </DialogContent>
-
-        <DialogActions>
-          {type === 'series' && selectedSeason && (
-            <Button
-              color="error"
-              onClick={() => handleDelete(true)}
-              startIcon={<DeleteIcon />}
-            >
-              Delete Entire Season
-            </Button>
-          )}
-          <Button
-            color="error"
-            onClick={() => handleDelete(true)}
-            startIcon={<DeleteIcon />}
-          >
-            Delete All Files
-          </Button>
-          <Button onClick={handleClose}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    );
-  };
-
+  const setFileDialogData = (data) => {
+    setFileDialog(data);
+  }
 
   // Fetch records on mount and when search changes
   useEffect(() => {
@@ -427,35 +253,6 @@ const RecordManagement = () => {
     }
   ], [isMobile, refreshingRecords]);
 
-  // Record Dialog Handlers
-  const openRecordDialog = (record = null) => {
-    if (record) {
-      setIsEditing(true);
-      reset({
-        id: record.id,
-        type: record.type,
-        name: record.name,
-        releaseYear: record.releaseYear || '',
-        tmdb: record.tmdb || '',
-        showOnTop: record.showOnTop || false
-      });
-    } else {
-      setIsEditing(false);
-      reset({
-        type: '',
-        name: '',
-        releaseYear: '',
-        tmdb: '',
-        showOnTop: false
-      });
-    }
-    setRecordDialogOpen(true);
-  };
-
-  const closeRecordDialog = () => {
-    setRecordDialogOpen(false);
-    setTmdbOptions([]);
-  };
 
   // Delete Dialog Handlers
   const openDeleteDialog = (record) => {
@@ -468,27 +265,6 @@ const RecordManagement = () => {
     setRecordToDelete(null);
   };
 
-  // Form Submission
-  const onSubmit = async (data) => {
-    try {
-      if (isEditing) {
-        const res = await UpdateDbCinemaRecord(data.id, {
-          name: data.name,
-          type: data.type,
-          tmdbId: data.tmdb,
-          showOnTop: data.showOnTop
-        });
-        handleApiResponse(res, 'Record updated successfully');
-      } else {
-        const res = await AddDbCinemaRecord(data.name, data.type, data.tmdb);
-        handleApiResponse(res, 'Record added successfully', true);
-      }
-    } catch (error) {
-      Constants.showToast.error('An error occurred');
-    } finally {
-      closeRecordDialog();
-    }
-  };
 
   const handleApiResponse = (res, successMessage, isAdd = false) => {
     if (res.httpStatusCode === (isAdd ? 201 : 200)) {
@@ -501,34 +277,6 @@ const RecordManagement = () => {
       navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
     } else {
       Constants.showToast.error(res.message || 'Operation failed');
-    }
-  };
-
-  // TMDB Search
-  const searchTmdb = async () => {
-    if (!formType || !formName) {
-      Constants.showToast.warning('Please fill in both Type and Name fields');
-      return;
-    }
-
-    setLoadingTmdb(true);
-    try {
-      const res = await searchTmdbByQuery(
-        formType,
-        formName,
-        watch('releaseYear')
-      );
-      if (res.httpStatusCode === 200) {
-        setTmdbOptions(res.data);
-      } else if (res.httpStatusCode === 401) {
-        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-      } else {
-        Constants.showToast.error(res.message);
-      }
-    } catch (error) {
-      Constants.showToast.error('Failed to search TMDB');
-    } finally {
-      setLoadingTmdb(false);
     }
   };
 
@@ -611,11 +359,6 @@ const RecordManagement = () => {
             labelPlacement="start"
           />
           <Box>
-            {/* <Tooltip title="Edit">
-                  <IconButton size="small" onClick={() => openRecordDialog(record)}>
-                    <EditIcon fontSize="small" color="primary" />
-                  </IconButton>
-                </Tooltip> */}
             <Tooltip title="Refresh TMDB">
               <IconButton
                 size="small"
@@ -663,6 +406,7 @@ const RecordManagement = () => {
   return (
     <Container maxWidth="xl" sx={{ px: 0, m: 0, py: 2 }}>
       {/* Header with Search and Add */}
+
       <Box sx={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -691,12 +435,7 @@ const RecordManagement = () => {
           }}
         />
 
-        <Box sx={{
-          display: 'flex',
-          gap: 1,
-          order: isMobile ? 1 : 2,
-          alignSelf: isMobile ? 'flex-end' : 'auto'
-        }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -718,12 +457,13 @@ const RecordManagement = () => {
             variant="contained"
             size={isMobile ? 'small' : 'medium'}
             startIcon={<AddIcon fontSize={isMobile ? 'small' : 'medium'} />}
-            onClick={() => openRecordDialog()}
+            onClick={() => setRecordDialogOpen(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
             {isMobile ? 'Add' : 'Add Record'}
           </MotionButton>
+          <CleanMediaFileInfoButton />
         </Box>
       </Box>
 
@@ -803,102 +543,7 @@ const RecordManagement = () => {
         </>
       )}
 
-      {/* Record Dialog */}
-      <Dialog open={recordDialogOpen} onClose={closeRecordDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{'Add New Record'}</DialogTitle>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogContent>
-            <Grid container spacing={2}>
-              {/* Type */}
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth sx={{ width: '150px' }}>
-                  <InputLabel>Type</InputLabel>
-                  <Select
-                    label="Type"
-                    {...register('type', { required: 'Type is required' })}
-                    error={!!errors.type}
-                    value={watch('type') || ''}
-                  >
-                    <MenuItem value="movie">Movie</MenuItem>
-                    <MenuItem value="series">TV Show</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Name */}
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Name"
-                  {...register('name', { required: 'Name is required' })}
-                  error={!!errors.name}
-                  helperText={errors.name?.message}
-                />
-              </Grid>
-
-              {/* Release Year */}
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Release Year"
-                  type="number"
-                  {...register('releaseYear')}
-                />
-              </Grid>
-
-              {/* TMDB Select + Search */}
-              <Grid item xs={12}>
-                <Grid container spacing={1}>
-                  <Grid item xs={12} sm={9}>
-                    <FormControl fullWidth sx={{ width: '200px' }}>
-                      <InputLabel>TMDB Results</InputLabel>
-                      <Select
-                        label="TMDB Results"
-                        onChange={(e) => setValue('tmdb', e.target.value)}
-                        value={watch('tmdb') || ''}
-                      >
-                        {tmdbOptions.map((option) => (
-                          <MenuItem key={option.id} value={option.id}>
-                            {option.title} | {option.originalTitle} | {option.releaseDate}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={3}>
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      onClick={searchTmdb}
-                      disabled={loadingTmdb || !formType || !formName}
-                      startIcon={loadingTmdb ? <CircularProgress size={20} /> : <SearchIcon />}
-                    >
-                      Search TMDB
-                    </Button>
-                  </Grid>
-                </Grid>
-              </Grid>
-
-              {/* Show on Top */}
-              <Grid item xs={12}>
-                <FormControlLabel
-                  control={<Checkbox {...register('showOnTop')} />}
-                  label="Show on Top"
-                />
-              </Grid>
-            </Grid>
-          </DialogContent>
-
-          <DialogActions>
-            <Button onClick={closeRecordDialog}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              {'Create'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-
-
+      <AddRecordModal recordDialogOpen={recordDialogOpen} recordDialogClose={() => setRecordDialogOpen(false)} fetchRecords={fetchRecords} />
 
       {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog}>
@@ -917,9 +562,7 @@ const RecordManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-      <FileManagementDialog />
-
+      <RecordMediaFilesModal fileDialog={fileDialog} setFileDialogData={setFileDialogData} />
       {Constants.TOAST_CONTAINER}
     </Container>
   );

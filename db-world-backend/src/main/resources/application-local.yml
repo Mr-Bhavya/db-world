@@ -3,26 +3,39 @@ Server:
   port: 9000
   jetty:
     idle-timeout: 60000 # 60 seconds
+  compression:  # Enable Gzip compression
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/octet-stream,text/plain,text/html,text/css,application/json,application/xml
 
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
-    password: 12121212
+    password: 8526
     url: jdbc:mysql://localhost:3306/db_world?createDatabaseIfNotExist=true&jdbcCompliantTruncation=false
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+#      idle-timeout: 30000
+#      connection-timeout: 30000
+      pool-name: HikariPool-1
   jpa:
     show-sql: false
     generate-ddl: true
+    open-in-view: true
     hibernate:
+      ddl-auto: update
       enable_lazy_load_no_trans: true
       dialect: org.hibernate.dialect.MySQLDialect
       event:
         merge:
           entity_copy_observer: allow
-      ddl-auto: update
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
   mvc:
+    async:
+      request-timeout: -1
     converters:
       preferred-json-mapper: gson
   gson:
@@ -30,11 +43,20 @@ spring:
   servlet:
     multipart:
       enabled: true
-  #live server
-  devtools:
+  cache:
+    type: redis
+    host: localhost
+    port: 6379
+  devtools:   #live server
     livereload:
       enable: false
       port: 35720
+  task:  # Enable async processing
+    execution:
+      pool:
+        core-size: 10
+        max-size: 20
+        queue-capacity: 50
 
 #Swagger
 springdoc:
@@ -63,14 +85,21 @@ tmdb:
 
 dbworld:
   paths:
-    tempDownloadPath: download/
-    logFilePath: logs/dbworld.log
+    tempDownloadPath: D:/Bhavya/Temp/
+    logFilePath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld-json.log
+    log4j2LogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs
+    downloadLogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/download_progress.log
+    integrationFolderPath: D:/Bhavya/ProcessedVideos/
     streamHomePath: D:/Bhavya/Videos
     externalStreamHomePath: F:/Bhavya/Videos
     torrentDownloadPath: "D:/Bhavya/Videos/Torrent Download"
-    ytdlpPath: C:/YTDLP/yt-dlp.exe
+    yt-dlp: yt-dlp
+    mediainfo: D:\Bhavya\Downloads\Compressed\MediaInfo_CLI_24.12_Windows_x64\mediainfo
     hsCookiesPath: D:\\Bhavya\\StartUp_Scripts\\Deployed\\cookies\\HS_COOKIES.txt
     extHDiskPath: /D:/Bhavya
+  api_keys:
+    tmdb: 30061af77dba3722bbe14a2691055544
+
 
 #logging:
 #  config: C:\Users\Bhavya\Documents\Workspace\db-world\db-world-backend\src\main\resources\log4j2-local.xml

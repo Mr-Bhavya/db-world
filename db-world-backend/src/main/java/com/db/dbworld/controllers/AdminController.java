@@ -187,11 +187,18 @@ public class AdminController {
     }
 
 
-    @DeleteMapping(value = "/stream/media-info/file/{fileId}")
+    @DeleteMapping(value = "/stream/media-info/file/{fileIds}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<List<MediaFileInfo>> deleteMediaInfoByFileId(@PathVariable(value = "fileId") String fileId){
-        mediaFileInfoService.deleteInfoById(fileId);
+    public ApiResponse<List<MediaFileInfo>> deleteMediaInfoByFileId(@PathVariable(value = "fileIds") String fileIds){
+        mediaFileInfoService.deleteInfoByIds(Arrays.stream(fileIds.split(",")).toList());
         return new ApiResponse<>(HttpStatus.OK, true, "File info deleted successfully.");
+    }
+
+    @DeleteMapping(value = "/stream/media-info")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<Map<String, Integer>> cleanMediaFileInfo(){
+        Map<String, Integer> response = mediaFileInfoService.cleanMediaFileInfo();
+        return new ApiResponse<>(HttpStatus.OK, true, response);
     }
 
 }

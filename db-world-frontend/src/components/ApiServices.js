@@ -627,6 +627,18 @@ export const deleteMediaFileInfoById = async (id) => {
     return await response.json();
 }
 
+export const cleanMediaFileInfo = async () => {
+    let response = await fetch(`${REACT_APP_BASEURL}/api/admin/stream/media-info`, {
+        method: "DELETE",
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: 'Bearer ' + localStorage.getItem("token")
+        }
+    });
+    return await response.json();
+}
+
 export const renameFileApi = async (id, body) => {
     let response = await fetch(`${REACT_APP_BASEURL}/api/file-explorer/${id}/rename`, {
         method: "PUT",

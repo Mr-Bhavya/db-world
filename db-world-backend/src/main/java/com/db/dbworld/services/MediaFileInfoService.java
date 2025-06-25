@@ -14,10 +14,13 @@ public interface MediaFileInfoService {
 
     String getFileInfoById(String id);
 
-    List<Map<String, String>> getAllFilePath();
+    List<Map<String, Object>> getAllFilePath();
 
     void deleteInfoById(String id);
 
+    void deleteInfoByIds(List<String> ids);
+
     void deleteInfoByFilePath(String filePath);
 
+    Map<String, Integer> cleanMediaFileInfo();
 }

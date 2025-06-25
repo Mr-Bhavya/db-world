@@ -17,7 +17,7 @@ public interface MediaFileInfoRepository extends JpaRepository<MediaFileInfoEnti
     Optional<String> getFileInfoById(@Param("id") String id);
 
     @Query(nativeQuery = true, value = "SELECT id, filePath, fileSize FROM MEDIA_FILE_INFO")
-    List<Map<String, String>> getAllFilePath();
+    List<Map<String, Object>> getAllFilePath();
 
     @Query(nativeQuery = true, value = "SELECT INFO.* FROM MEDIA_FILE_INFO INFO " +
             "INNER JOIN ( SELECT MIN(id) AS id  FROM MEDIA_FILE_INFO GROUP BY db_cinema_record ) AS grouped ON INFO.id = grouped.id " +
