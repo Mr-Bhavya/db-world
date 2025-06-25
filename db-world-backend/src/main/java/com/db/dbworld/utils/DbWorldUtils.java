@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.FileSystemUtils;
 
 import java.io.*;
 import java.net.URLDecoder;
@@ -109,9 +110,23 @@ public class DbWorldUtils {
             log.error("Path is null for delete operation.");
         } else {
             try {
-                Files.delete(Path.of(path));
+                Path filePath = Path.of(path);
+                FileSystemUtils.deleteRecursively(filePath);
             } catch (IOException e) {
                 log.error("Failed to delete file/folder: {}, Error: {}", path, e.getMessage());
+            }
+        }
+    }
+
+    public void deleteFileThrowable(String path) throws IOException {
+        if (path == null || path.isEmpty()) {
+            throw new IOException("Path is null for delete operation.");
+        } else {
+            try {
+                Path filePath = Path.of(path);
+                FileSystemUtils.deleteRecursively(filePath);
+            } catch (IOException e) {
+                throw new IOException("Failed to delete file/folder: "+path+", Error: "+e.getMessage());
             }
         }
     }

@@ -274,27 +274,6 @@ public class StreamController {
         return mediaFileInfo;
     }
 
-    private Map<String, Object> catchUpdate(String username, Map<String, List<String>> cache, String path) {
-        boolean log = false;
-        // Create User cache and print log for first time user download file.
-        if (cache.containsKey(username)) {
-            List<String> filteredPath = cache.get(username).stream().filter(existingPath -> existingPath.equalsIgnoreCase(path)).toList();
-            if (filteredPath.isEmpty()) {
-                cache.get(username).add(path);
-                log = true;
-            }
-        } else {
-            List<String> tempList = new ArrayList<>();
-            tempList.add(path);
-            cache.put(username, tempList);
-            log = true;
-        }
-
-        Map<String, Object> temp = new HashMap<>();
-        temp.put("cache", cache);
-        temp.put("print", log);
-        return temp;
-    }
 
     private List<File> getStreamableFilesRecursive() {
         Path STREAM_HOME_PATH = Path.of(DbWorldConstants.STREAM_HOME_PATH);
