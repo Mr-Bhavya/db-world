@@ -74,7 +74,7 @@ function Status() {
     setConnectionStatus('connecting');
 
     ws.current = new ReconnectingWebSocket(`${WEBSOCKET_BASEURL}/api/utils/status`);
-
+    
     ws.current.onopen = () => {
       console.log("WebSocket connection open for status");
       setConnectionStatus('connected');
