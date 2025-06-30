@@ -363,7 +363,7 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
     e.stopPropagation();
     navigate(
       `${Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', record.recordId)}`,
-      { state: { movie: record, userRole: '' } }
+      { state: {record} }
     );
   };
 

@@ -5,6 +5,7 @@ import Constants from '../../Constants';
 import Reaction from '../icons/reaction';
 import Watchlist from '../icons/watchlist';
 import Watched from '../icons/watched';
+import Download from '../icons/download'; // Using the existing Download component
 import CommonServices from '../../CommonServices';
 import {
   Box,
@@ -18,10 +19,10 @@ import {
   Chip
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { Close, Info, Tv, Download, VolumeUp, VolumeOff } from '@mui/icons-material';
+import { Close, Info, Tv, VolumeUp, VolumeOff } from '@mui/icons-material';
 
 const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = false }) => {
-  const tmdb = record?.tmdb;
+  const tmdb = record?.tmdb || {};
   const navigate = useNavigate();
   const [showProviders, setShowProviders] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -30,46 +31,48 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
   const [expanded, setExpanded] = useState(false);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const providers = record.movieTmdb?.providers;
-  const hasProviders =
-    providers &&
-    ((providers.flatrate && providers.flatrate.length > 0) ||
-      (providers.buy && providers.buy.length > 0) ||
-      (providers.rent && providers.rent.length > 0));
+  const providers = record?.movieTmdb?.providers || {};
+  const hasProviders = (
+    (providers?.flatrate?.length > 0) ||
+    (providers?.buy?.length > 0) ||
+    (providers?.rent?.length > 0)
+  );
 
   const handleReactionUpdate = (newData) => {
-    onUpdateRecord({ ...record, ...newData });
+    if (onUpdateRecord && record) {
+      onUpdateRecord({ ...record, ...newData });
+    }
   };
 
   const handleWatchlistWatchedUpdate = (newData) => {
-    onUpdateRecord({ ...record, ...newData });
+    if (onUpdateRecord && record) {
+      onUpdateRecord({ ...record, ...newData });
+    }
   };
 
   const handleDetailsClick = () => {
-    navigate(
-      record.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
-        ? Constants.DB_MOVIE_DETIALS_ROUTE.replace(
-          ":title",
-          `${record.recordId}-${record.name.toLowerCase().replace(/ /g, "-")}`
-        )
-        : Constants.DB_SERIES_DETIALS_ROUTE.replace(
-          ":title",
-          `${record.recordId}-${record.name.toLowerCase().replace(/ /g, "-")}`
-        )
-    );
+    if (!record?.recordId || !record?.name) return;
+
+    const route = record.type?.toLowerCase() === Constants.RECORD_TYPE_MOVIE
+      ? Constants.DB_MOVIE_DETIALS_ROUTE.replace(
+        ":title",
+        `${record.recordId}-${CommonServices.slugify(record.name)}`
+      )
+      : Constants.DB_SERIES_DETIALS_ROUTE.replace(
+        ":title",
+        `${record.recordId}-${CommonServices.slugify(record.name)}`
+      );
+
+    navigate(route);
   };
 
-  const trailerKey = tmdb?.videos?.find(vid => vid.type === 'Trailer' && vid.official)?.key ||
-    tmdb?.videos[0]?.key;
+  const trailerKey = tmdb?.videos?.find(vid =>
+    vid?.type === 'Trailer' && vid?.official
+  )?.key || tmdb?.videos?.[0]?.key;
 
   const toggleMute = () => {
     if (player) {
-      if (isMuted) {
-        player.unMute();
-        player.playVideo();
-      } else {
-        player.mute();
-      }
+      isMuted ? player.unMute() : player.mute();
       setIsMuted(!isMuted);
     }
   };
@@ -77,6 +80,137 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
   const onPlayerReady = (event) => {
     setPlayer(event.target);
     event.target.mute();
+  };
+
+  const renderTrailerOrBackdrop = () => {
+    if (trailerKey) {
+      return (
+        <>
+          <YouTube
+            videoId={trailerKey}
+            opts={{
+              width: '100%',
+              height: compact ? '100' : '200',
+              playerVars: {
+                autoplay: 1,
+                mute: 1,
+                controls: 0,
+                rel: 0,
+                modestbranding: 1
+              }
+            }}
+            onReady={onPlayerReady}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%'
+            }}
+          />
+          <IconButton
+            onClick={toggleMute}
+            aria-label={isMuted ? "unmute" : "mute"}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              bottom: 8,
+              color: 'common.white',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 10,
+              '&:hover': {
+                backgroundColor: 'rgba(0,0,0,0.8)'
+              }
+            }}
+          >
+            {isMuted ? <VolumeOff /> : <VolumeUp />}
+          </IconButton>
+        </>
+      );
+    }
+
+    const backdropUrl = CommonServices.getImageUrlFromTmdb(tmdb, Constants.IMAGE_TYPE_BACKDROP, "w500");
+    if (backdropUrl) {
+      return (
+        <img
+          src={backdropUrl}
+          alt={tmdb?.title || 'Media backdrop'}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover'
+          }}
+          loading="lazy"
+          onError={(e) => {
+            e.target.style.display = 'none';
+          }}
+        />
+      );
+    }
+
+    return (
+      <Box sx={{
+        width: '100%',
+        height: '100%',
+        backgroundColor: theme.palette.grey[900],
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <Typography color="text.secondary">No preview available</Typography>
+      </Box>
+    );
+  };
+
+  const renderMetadataChips = () => {
+    const chips = [];
+
+    // Release year
+    const releaseYear = tmdb?.release_date?.split("-")?.[0] || tmdb?.first_air_date?.split("-")?.[0];
+    if (releaseYear) {
+      chips.push(<Chip key="year" label={releaseYear} size="small" />);
+    }
+
+    // Runtime
+    if (tmdb?.runtime) {
+      chips.push(<Chip key="runtime" label={`${tmdb.runtime} min`} size="small" />);
+    }
+
+    // Rating
+    if (tmdb?.vote_count > 0) {
+      chips.push(<Chip key="rating" label={`${tmdb.vote_average?.toFixed(1)}/10`} size="small" />);
+    }
+
+    // Genres
+    tmdb?.genres?.forEach(genre => {
+      if (genre?.name) {
+        chips.push(<Chip key={genre.id} label={genre.name} size="small" />);
+      }
+    });
+
+    return chips.length > 0 ? chips : null;
+  };
+
+  const renderProviderLogos = (providerList) => {
+    if (!providerList?.length) return null;
+
+    return providerList.map((provider) => (
+      provider?.logo_path && (
+        <img
+          key={provider.provider_id}
+          src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
+          alt={provider.provider_name || 'Provider logo'}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: '4px',
+          }}
+          onError={(e) => {
+            e.target.style.display = 'none';
+          }}
+        />
+      )
+    )).filter(Boolean);
   };
 
   return (
@@ -121,60 +255,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {trailerKey ? (
-          <>
-            <YouTube
-              videoId={trailerKey}
-              opts={{
-                width: '100%',
-                height: compact ? '100' : '200',
-                playerVars: {
-                  autoplay: 1,
-                  mute: 1,
-                  controls: 0,
-                  rel: 0,
-                  modestbranding: 1
-                }
-              }}
-              onReady={onPlayerReady}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%'
-              }}
-            />
-            <IconButton
-              onClick={toggleMute}
-              aria-label={isMuted ? "unmute" : "mute"}
-              sx={{
-                position: 'absolute',
-                right: 8,
-                bottom: 8,
-                color: 'common.white',
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                zIndex: 10,
-                '&:hover': {
-                  backgroundColor: 'rgba(0,0,0,0.8)'
-                }
-              }}
-            >
-              {isMuted ? <VolumeOff /> : <VolumeUp />}
-            </IconButton>
-          </>
-        ) : (
-          <img
-            src={CommonServices.getImageUrlFromTmdb(tmdb, Constants.IMAGE_TYPE_BACKDROP, "w500")}
-            alt={tmdb.title}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover'
-            }}
-            loading="lazy"
-          />
-        )}
+        {renderTrailerOrBackdrop()}
       </Box>
 
       {/* Content */}
@@ -187,7 +268,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
             color: 'text.primary'
           }}
         >
-          {tmdb.title || tmdb.name}
+          {tmdb?.title || tmdb?.name || 'Untitled Media'}
         </Typography>
 
         {/* Action Buttons */}
@@ -200,25 +281,29 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
           }}
         >
           <Stack direction="row" spacing={1}>
-            <Reaction
-              isLiked={record?.isLiked}
-              recordId={record.recordId}
-              userId={""}
-              onUpdate={handleReactionUpdate}
-              size={compact ? 'small' : 'medium'}
-            />
-            <Watchlist
-              isAddedToWatchList={record?.isWatchListed}
-              recordId={record.recordId}
-              onUpdate={handleWatchlistWatchedUpdate}
-              size={compact ? 'small' : 'medium'}
-            />
-            <Watched
-              isWatched={record?.isWatched}
-              recordId={record.recordId}
-              onUpdate={handleWatchlistWatchedUpdate}
-              size={compact ? 'small' : 'medium'}
-            />
+            {record?.recordId && (
+              <>
+                <Reaction
+                  isLiked={record?.isLiked}
+                  recordId={record.recordId}
+                  userId={""}
+                  onUpdate={handleReactionUpdate}
+                  size={compact ? 'small' : 'medium'}
+                />
+                <Watchlist
+                  isAddedToWatchList={record?.isWatchListed}
+                  recordId={record.recordId}
+                  onUpdate={handleWatchlistWatchedUpdate}
+                  size={compact ? 'small' : 'medium'}
+                />
+                <Watched
+                  isWatched={record?.isWatched}
+                  recordId={record.recordId}
+                  onUpdate={handleWatchlistWatchedUpdate}
+                  size={compact ? 'small' : 'medium'}
+                />
+              </>
+            )}
           </Stack>
 
           <IconButton
@@ -237,68 +322,63 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
 
         {/* Metadata */}
         <Stack direction="row" spacing={0} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
-          <Chip
-            label={tmdb.release_date?.split("-")?.[0] || tmdb.first_air_date?.split("-")?.[0]}
-            size="small"
-          />
-          {tmdb?.runtime && <Chip label={`${tmdb.runtime} min`} size="small" />}
-          {tmdb.vote_count && tmdb.vote_count > 0 && (
-            <Chip label={`${tmdb.vote_average}/10`} size="small" />
-          )}
-          {tmdb.genres?.map(genre => (
-            <Chip key={genre.id} label={genre.name} size="small" />
-          ))}
+          {renderMetadataChips()}
         </Stack>
 
-        {/* Streaming & Download Options in One Line */}
-
-        <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
-          {hasProviders && (<Button
-            variant="outlined"
-            size="small"
-            startIcon={<Tv />}
-            onClick={() => setShowProviders(!showProviders)}
-            sx={{
-              flexGrow: 1,
-              color: theme.palette.text.primary,
-              borderColor: theme.palette.text.primary,
-              '&:hover': {
-                borderColor: 'black',
-                color: 'black',
-                backgroundColor: 'white',
-              }
-            }}
-          >
-            Streaming On
-          </Button>
+        {/* Streaming & Download Options */}
+        <Stack direction="row" spacing={1} sx={{ mb: 2, width: '100%' }}>
+          {hasProviders ? (
+            <>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<Tv />}
+                onClick={() => setShowProviders(!showProviders)}
+                sx={{
+                  flex: 1,  // Takes half width
+                  color: theme.palette.text.primary,
+                  borderColor: theme.palette.text.primary,
+                  '&:hover': {
+                    borderColor: 'black',
+                    color: 'black',
+                    backgroundColor: 'white',
+                  }
+                }}
+              >
+                Streaming On
+              </Button>
+              <Download
+                record={record}
+                variant="button"
+                buttonVariant="outlined"
+                size="medium"
+                color="dark"
+                sx={{
+                  flex: 1,  // Takes half width
+                  '& .MuiButton-startIcon': {
+                    marginRight: '4px'
+                  }
+                }}
+              />
+            </>
+          ) : (
+            <Download
+              record={record}
+              variant="button"
+              buttonVariant="outlined"
+              size="medium"
+              color="dark"
+              sx={{
+                width: '100%',  // Full width when alone
+                '& .MuiButton-startIcon': {
+                  marginRight: '4px'
+                }
+              }}
+            />
           )}
-
-          <Button
-            variant="outlined"
-            color={theme.palette.primary.dark}
-            backgroundColor={theme.palette.primary.dark}
-            size="small"
-            startIcon={<Download />}
-            onClick={() =>
-              navigate(
-                `${Constants.DB_DONWLOAD_RECORD_ROUTE.replace(":recordId", record.recordId)}`,
-                { state: { movie: record, userRole: "" } }
-              )
-            }
-            sx={{
-              flexGrow: 1,
-              color: theme.palette.getContrastText(theme.palette.primary.main),
-              '&:hover': {
-                color: "black",
-                backgroundColor: 'white',
-              }
-            }}
-          >
-            Download
-          </Button>
         </Stack>
 
-        {showProviders && (
+        {showProviders && hasProviders && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -311,18 +391,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
                   Streaming on
                 </Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                  {providers.flatrate.map((provider) => (
-                    <img
-                      key={provider.provider_id}
-                      src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                      alt={provider.provider_name}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '4px',
-                      }}
-                    />
-                  ))}
+                  {renderProviderLogos(providers.flatrate)}
                 </Stack>
               </Box>
             )}
@@ -333,30 +402,8 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
                   Buy/Rent from
                 </Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                  {providers.buy?.map((provider) => (
-                    <img
-                      key={provider.provider_id}
-                      src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                      alt={provider.provider_name}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '4px',
-                      }}
-                    />
-                  ))}
-                  {providers.rent?.map((provider) => (
-                    <img
-                      key={provider.provider_id}
-                      src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                      alt={provider.provider_name}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '4px',
-                      }}
-                    />
-                  ))}
+                  {renderProviderLogos(providers.buy)}
+                  {renderProviderLogos(providers.rent)}
                 </Stack>
               </Box>
             )}
@@ -364,7 +411,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
         )}
 
         {/* Overview */}
-        {!compact && (
+        {!compact && tmdb?.overview && (
           <Box>
             <Typography
               variant="body2"
@@ -379,7 +426,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
             >
               {tmdb.overview}
             </Typography>
-            {tmdb.overview?.length > 150 && (
+            {tmdb.overview.length > 150 && (
               <Button
                 size="small"
                 onClick={() => setExpanded(!expanded)}

@@ -134,32 +134,32 @@ function formatETA(seconds) {
 }
 
 function handleCopy(text) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
-      return { success: true, message: 'Copied to clipboard' };
-    } else {
-      // Fallback for older browsers or mobile
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";  // avoid scrolling to bottom on iOS
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
+    try {
+        if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text);
+            return { success: true, message: 'Copied to clipboard' };
+        } else {
+            // Fallback for older browsers or mobile
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.style.position = "fixed";  // avoid scrolling to bottom on iOS
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
 
-      const successful = document.execCommand("copy");
-      document.body.removeChild(textarea);
+            const successful = document.execCommand("copy");
+            document.body.removeChild(textarea);
 
-      if (successful) {
-        return { success: true, message: 'Copied using fallback' };
-      } else {
-        return { success: false, message: 'Fallback copy failed' };
-      }
+            if (successful) {
+                return { success: true, message: 'Copied using fallback' };
+            } else {
+                return { success: false, message: 'Fallback copy failed' };
+            }
+        }
+    } catch (err) {
+        return { success: false, message: `Copy failed: ${err.message}` };
     }
-  } catch (err) {
-    return { success: false, message: `Copy failed: ${err.message}` };
-  }
 }
 
 
@@ -261,41 +261,132 @@ const convertMediaInfoToCustomFormat = (data, isSearchedFile) => {
 
         mediaFile?.trackInfos?.forEach(track => {
             if (track?.type === "General") {
-                let general = {}
-                general.fileName = mediaFile.fileName;
-                general.fileSize = bytesToReadbleFormat(mediaFile?.fileSize).value + " " + bytesToReadbleFormat(mediaFile?.fileSize).suffix;
-                general.duration = track?.duration;
-                general.overallBitrate = bytesToReadbleFormat(track?.overallBitRate).value + " " + bytesToReadbleFormat(track?.overallBitRate).suffix + "/s";
-                general.Description = track?.Description;
+                const general = {
+                    fileName: mediaFile.fileName,
+                    fileSize: `${bytesToReadbleFormat(track?.fileSize).value} ${bytesToReadbleFormat(track?.fileSize).suffix}`,
+                    duration: track?.duration,
+                    overallBitrate: `${bytesToReadbleFormat(track?.overallBitRate).value} ${bytesToReadbleFormat(track?.overallBitRate).suffix}/s`,
+                    format: track?.format,
+                    formatVersion: track?.formatVersion,
+                    videoCount: track?.videoCount,
+                    audioCount: track?.audioCount,
+                    textCount: track?.textCount,
+                    frameRate: track?.frameRate,
+                    fileCreatedDateLocal: track?.fileCreatedDateLocal,
+                    fileModifiedDateLocal: track?.fileModifiedDateLocal,
+                    encodedApplication: track?.encodedApplication,
+                    encodedLibrary: track?.encodedLibrary,
+                    isStreamable: track?.isStreamable === "Yes"
+                };
+
                 mediaDetails.general = general;
             }
             if (track?.type === "Video") {
-                let video = {}
-                video.resolution = track?.width + "x" + track?.height;
-                video.format = track?.codecID + " | " + track?.format + " | " + track?.formatProfile + " | " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
-                video.hdrDetails = track?.hdrFormat != null && track?.hdrFormat + " | " + track?.hdrFormatVersion + " | " + track?.hdrFormatCompatibility
-                video.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;
+                const video = {
+                    resolution: `${track?.width}x${track?.height}`,
+                    aspectRatio: track?.displayAspectRatio?.toFixed(3) || 'N/A',
+                    format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
+                    formatProfile: track?.formatProfile,
+                    formatLevel: track?.formatLevel,
+                    formatTier: track?.formatTier,
+                    bitRate: track?.bitRate,
+                    frameRate: track?.frameRate,
+                    frameRateMode: track?.frameRateMode,
+                    frameCount: track?.frameCount,
+                    colorSpace: track?.colorSpace,
+                    chromaSubsampling: track?.chromaSubsampling,
+                    bitDepth: track?.bitDepth,
+                    colourPrimaries: track?.colourPrimaries,
+                    transferCharacteristics: track?.transferCharacteristics,
+                    matrixCoefficients: track?.matrixCoefficients,
+                    size: `${bytesToReadbleFormat(track?.streamSize).value} ${bytesToReadbleFormat(track?.streamSize).suffix}`,
+                    duration: formatDuration(track?.duration),
+                    hdrDetails: track?.hdrFormat ? [
+                        track.hdrFormat,
+                        track.hdrFormatVersion,
+                        track.hdrFormatCompatibility
+                    ].filter(Boolean).join(' | ') : null
+                };
+
                 mediaDetails.video = video;
             }
             if (track?.type === "Audio") {
-                let audio = {}
-                audio.language = track?.language;
-                audio.format = track?.codecID + " | " + track?.format + " @ " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
-                // audio.bitrate = track?.bitRate;
-                audio.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;
-                audio.channelInfo = track?.channels + " | " + track?.channelPositions;
+                const audio = {
+                    language: getLanguageName(track?.language),
+                    format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
+                    bitRate: `${bytesToReadbleFormat(track?.bitRate).value} ${bytesToReadbleFormat(track?.bitRate).suffix}/s`,
+                    channels: track?.channels,
+                    channelLayout: track?.channelLayout,
+                    samplingRate: track?.samplingRate,
+                    duration: track?.duration,
+                    size: `${bytesToReadbleFormat(track?.streamSize).value} ${bytesToReadbleFormat(track?.streamSize).suffix}`
+                };
                 mediaDetails.audio.push(audio);
             }
+
             if (track?.type === "Text") {
-                let subtitle = {}
-                subtitle.format = track?.codecID + " " + track?.format + " @ " + bytesToReadbleFormat(track?.bitRate).value + " " + bytesToReadbleFormat(track?.bitRate).suffix + "/s";
-                subtitle.language = track?.language;
-                subtitle.size = bytesToReadbleFormat(track?.streamSize).value + " " + bytesToReadbleFormat(track?.streamSize).suffix;;
+                const subtitle = {
+                    language: track?.language,
+                    format: track?.formatCommercialIfAny || track?.format,
+                    codecID: track?.codecID,
+                    bitRate: track?.bitRate > 0
+                        ? `${bytesToReadbleFormat(track?.bitRate).value} ${bytesToReadbleFormat(track?.bitRate).suffix}/s`
+                        : 'Unknown',
+                    frameCount: track?.frameCount,
+                    duration: track?.duration,
+                    forced: track?.forced,
+                    defaultFlag: track?.defaultFlag
+                };
                 mediaDetails.subtitle.push(subtitle);
             }
         });
         return mediaDetails;
     })
+}
+
+
+// Helper functions
+function getLanguageName(code) {
+    const languages = {
+        'hi': 'Hindi',
+        'en': 'English',
+        'en-US': 'English (US)',
+        'es': 'Spanish',
+        'fr': 'French',
+        'de': 'German',
+        'ja': 'Japanese',
+        // ... other language codes
+    };
+    const baseLang = code?.split('-')[0];
+    return languages[code] || languages[baseLang] || code;
+}
+
+function getChannelDescription(channelCount) {
+    const descriptions = {
+        1: 'Mono',
+        2: 'Stereo',
+        6: '5.1 Surround',
+        8: '7.1 Surround'
+        // ... other channel configurations
+    };
+    return descriptions[channelCount] || `${channelCount} channels`;
+}
+
+function formatDuration(seconds) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${hrs > 0 ? hrs + 'h ' : ''}${mins > 0 ? mins + 'm ' : ''}${secs}s`;
+}
+
+function formatNumber(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString();
 }
 
 const rgbaToHex = (rgba) => {
@@ -389,6 +480,18 @@ function parseLogLine(line) {
     };
 }
 
+const slugify = (str) => {
+    return str
+        ? str.toString()
+            .toLowerCase()
+            .replace(/\s+/g, '-')     // Replace spaces with -
+            .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+            .replace(/\-\-+/g, '-')   // Replace multiple - with single -
+            .replace(/^-+/, '')       // Trim - from start of text
+            .replace(/-+$/, '')       // Trim - from end of text
+        : '';
+}
+
 
 
 export default {
@@ -410,6 +513,11 @@ export default {
     convertMediaInfoToCustomFormat,
     rgbaToHex,
     getImageUrlFromTmdb,
-    parseLogLine
+    parseLogLine,
+    formatDuration,
+    formatDateTime,
+    getLanguageName,
+    getChannelDescription,
+    slugify
     // pageUpdate
 }

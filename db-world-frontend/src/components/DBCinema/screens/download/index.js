@@ -1,130 +1,304 @@
 import React, { useState, useEffect } from "react";
-import "./index.css";
-import { Button, Card, Col, Container, Row } from "react-bootstrap";
+import {
+  Container,
+  Row,
+  Col,
+  Button,
+  Alert,
+  Spinner
+} from "react-bootstrap";
+import {
+  Grid,
+  Box,
+  Typography,
+  Chip,
+  Tabs,
+  Tab,
+  useTheme,
+  alpha
+} from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 import { loadStreamFileInfoByRecordId } from "../../../ApiServices";
-import LoadingSpinner from "../../../LoadingSpinner";
-import Constants from "../../../Constants";
+import { MediaInfoRender } from "../MediaFileInfo/MediaInfoRender";
 import CommonServices from "../../../CommonServices";
-import { Capacitor } from '@capacitor/core';
-import Copy from "../../icons/copy";
-import AndroidPlugins from "../../../../android-app-components/AndroidPlugins";
-import DownloadButton from "./DownloadButton";
-import MediaCard from "./MediaCard";
+import Constants from "../../../Constants";
 
-const DownloadPage = () => {
-  const location = useLocation();
+const MediaDownloadViewer = (props) => {
   const navigate = useNavigate();
-  // Expecting movie via location.state
-  const { movie } = location.state || {};
+  const location = useLocation();
+  const theme = useTheme();
+
+  const record = props.record || location.state?.record;
+  const showBack = props.showBack ?? true;
+  const onBack = props.onBack;
 
   const [mediaFileList, setMediaFileList] = useState([]);
   const [mediaListLoader, setMediaListLoader] = useState(false);
-
-  const [showPlayer, setShowPlayer] = useState(false)
-
-  // Load media files using the record ID
-  const loadMediaFiles = async () => {
-    setMediaListLoader(true);
-    const response = await loadStreamFileInfoByRecordId(movie.recordId);
-    if (response.httpStatusCode === 200) {
-      const formattedFiles = CommonServices.convertMediaInfoToCustomFormat(response.data);
-      // console.log("Formatted Files: ", formattedFiles);
-      setMediaFileList(formattedFiles);
-    }
-    setMediaListLoader(false);
-  };
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
-    if (movie && movie.recordId) {
-      loadMediaFiles();
+    if (record?.recordId) {
+      setMediaListLoader(true);
+      loadStreamFileInfoByRecordId(record.recordId).then((response) => {
+        if (response.httpStatusCode === 200) {
+          const formatted = CommonServices.convertMediaInfoToCustomFormat(response.data);
+          setMediaFileList(formatted);
+        }
+        setMediaListLoader(false);
+      });
     } else {
       navigate(Constants.DB_CINEMA_BROWSE_ROUTE);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [record, navigate]);
 
-  // --- MOVIES SECTION ---
-  function MoviesSection() {
-    return (
-      <MediaCard mediaFileList={mediaFileList} type="movie" />
-    )
-  }
+  const getQualityAndFormat = (fileName, videoInfo) => {
+    const qualityMatch = fileName.match(/(\d{3,4}p|4K|8K)/i);
+    const baseQuality = qualityMatch ? qualityMatch[0] : "Unknown";
+    const hdrDetails = videoInfo?.hdrDetails || '';
+    const videoFormat = videoInfo?.format || '';
+    const isHDR = fileName.includes('HDR') || hdrDetails.includes('HDR');
+    const isDV = fileName.includes('DV') || hdrDetails.includes('DV');
+    const isH265 = videoFormat.includes('HEVC');
+    const isH264 = videoFormat.includes('AVC');
+    const isAV1 = videoFormat.includes('AV1');
+    const formats = [];
 
-  // --- SERIES SECTION (Grouped by Season) ---
-  function SeriesSection() {
-    // Group episodes by season using regex to extract season (e.g., S03)
-    const groupedEpisodes = mediaFileList.reduce((acc, episode) => {
-      const { fileName } = episode.general;
-      const seasonMatch = fileName.match(/S(\d{2})/i);
+    // console.log("File Name:", fileName);
+
+    if (isAV1) formats.push('AV1');
+    else if (isH265) formats.push('H265');
+    else if (isH264) formats.push('H264');
+
+    if (isDV) formats.push('DV');
+    else if (isHDR) formats.push('HDR');
+
+    if (isHDR && isDV) formats.push('HDR+DV');
+
+    return {
+      baseQuality,
+      fullQuality: baseQuality + (formats.length ? ` (${formats.join(' + ')})` : ''),
+      formats
+    };
+  };
+
+  const groupedBySeason = record?.type?.toLowerCase() === "series"
+    ? mediaFileList.reduce((acc, ep) => {
+      const seasonMatch = ep?.general?.fileName?.match(/S(\d{2})/i);
       const season = seasonMatch ? seasonMatch[1] : "Unknown";
-      if (!acc[season]) acc[season] = [];
-      acc[season].push(episode);
+      const { baseQuality, formats } = getQualityAndFormat(ep.general.fileName, ep.video);
+      if (!acc[season]) acc[season] = { qualities: {}, allFormats: new Set() };
+
+      formats.forEach(f => acc[season].allFormats.add(f));
+      if (!acc[season].qualities[baseQuality]) {
+        acc[season].qualities[baseQuality] = { formats: {}, allFiles: [] };
+      }
+
+      acc[season].qualities[baseQuality].allFiles.push(ep);
+      if (formats.length > 0) {
+        const key = formats.join('+');
+        if (!acc[season].qualities[baseQuality].formats[key]) {
+          acc[season].qualities[baseQuality].formats[key] = [];
+        }
+        acc[season].qualities[baseQuality].formats[key].push(ep);
+      }
       return acc;
-    }, {});
+    }, {})
+    : {};
+
+  const RenderQualityGroup = ({ qualityData }) => {
+    const formatKeys = Object.keys(qualityData.formats);
+
+    if (formatKeys.length <= 1) {
+      return (
+        <Grid container spacing={2}>
+          {qualityData.allFiles.map((ep, idx) => (
+            <MediaInfoRender key={idx} mediaInfo={ep} />
+          ))}
+        </Grid>
+      );
+    }
 
     return (
-      <MediaCard mediaFileList={mediaFileList} type="series" />
-    );
-  }
-
-  return !movie ? (
-    <LoadingSpinner />
-  ) : (
-    <div className="download-page">
-      <Container fluid className="p-3">
-        {/* Back Button */}
-        <Button
-          variant="outline-light"
-          onClick={() => navigate(-1)}
-          className="mb-3"
+      <Box sx={{ width: '100%' }}>
+        <Tabs
+          value={activeTab}
+          onChange={(e, newValue) => setActiveTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            mb: 2,
+            '& .MuiTabs-indicator': { backgroundColor: theme.palette.primary.main },
+            '& .MuiTab-root': { color: theme.palette.text.secondary },
+            '& .Mui-selected': { color: theme.palette.primary.main }
+          }}
         >
-          <i className="fas fa-arrow-left me-2"></i> Back
-        </Button>
-        {/* Header: Movie Image and Details */}
+          {formatKeys.map((formatKey, index) => (
+            <Tab
+              key={formatKey}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {formatKey}
+                  <Chip
+                    label={qualityData.formats[formatKey].length}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: '0.65rem',
+                      bgcolor: activeTab === index
+                        ? alpha(theme.palette.primary.main, 0.2)
+                        : alpha(theme.palette.text.secondary, 0.1),
+                      color: activeTab === index ? theme.palette.primary.main : theme.palette.text.secondary
+                    }}
+                  />
+                </Box>
+              }
+              sx={{ textTransform: 'none', minHeight: 'auto', py: 1, px: 1.5, fontSize: '0.875rem' }}
+            />
+          ))}
+        </Tabs>
+
+        <Grid container spacing={2}>
+          {qualityData.formats[formatKeys[activeTab]].map((ep, idx) => (
+            <MediaInfoRender key={idx} mediaInfo={ep} />
+          ))}
+        </Grid>
+      </Box>
+    );
+  };
+
+  const RenderSeries = () => {
+    return Object.keys(groupedBySeason).sort().map((season) => {
+      const seasonData = groupedBySeason[season];
+      const qualityKeys = Object.keys(seasonData.qualities).sort((a, b) => {
+        const order = ['8K', '4K', '2160p', '1440p', '1080p', '720p', '480p'];
+        return order.indexOf(b) - order.indexOf(a);
+      });
+
+      return (
+        <Grid item xs={12} key={season}>
+          <Typography variant="h6" sx={{
+            my: 2,
+            pl: 1,
+            position: 'relative',
+            color: theme.palette.text.primary,
+            '&:before': {
+              content: '""',
+              position: 'absolute',
+              left: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              height: '60%',
+              width: '3px',
+              bgcolor: 'primary.main',
+              borderRadius: '3px'
+            }
+          }}>
+            Season {parseInt(season, 10)}
+          </Typography>
+          {qualityKeys.map(quality => (
+            <Box key={quality} sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" sx={{
+                fontWeight: 600,
+                mb: 2,
+                px: 1,
+                color: theme.palette.text.primary
+              }}>
+                {quality}
+                <Chip
+                  label={`${seasonData.qualities[quality].allFiles.length} files`}
+                  size="small"
+                  sx={{ ml: 1, bgcolor: theme.palette.grey[900] }}
+                />
+              </Typography>
+              <RenderQualityGroup qualityData={seasonData.qualities[quality]} />
+            </Box>
+          ))}
+        </Grid>
+      );
+    });
+  };
+
+  const RenderMovie = () => (
+    <Grid container spacing={2}>
+      {mediaFileList.map((mediaInfo, idx) => (
+        <MediaInfoRender key={idx} mediaInfo={mediaInfo} />
+      ))}
+    </Grid>
+  );
+
+  return (
+    <Box sx={{
+      backgroundColor: '#000000', // Pure black for AMOLED
+      minHeight: '100vh',
+      color: theme.palette.text.primary
+    }}>
+      <Container fluid className="p-3">
+        {showBack && (
+          <Button
+            variant="outline-light"
+            onClick={() => (onBack ? onBack() : navigate(-1))}
+            className="mb-3"
+            style={{ borderColor: theme.palette.primary.main, color: theme.palette.primary.main }}
+          >
+            <i className="fas fa-arrow-left me-2"></i> Back
+          </Button>
+        )}
+
         <Row className="align-items-center mb-4">
           <Col xs={12} md={3} className="text-center">
             <img
-              src={`https://image.tmdb.org/t/p/w300${movie?.tmdb?.poster_path || movie?.tmdb?.backdrop_path
-                }`}
-              alt={movie.title}
+              src={`https://image.tmdb.org/t/p/w300${record?.tmdb?.poster_path || record?.tmdb?.backdrop_path}`}
+              alt={record?.tmdb?.title}
               className="img-fluid rounded"
-              style={{ maxWidth: "200px" }}
+              style={{
+                maxWidth: "200px",
+                boxShadow: `0 0 10px ${theme.palette.primary.main}`
+              }}
             />
           </Col>
-          <Col xs={12} md={9} className="text-light">
-            <h2 className="movie-title">{movie?.tmdb?.title}</h2>
-            {movie?.tmdb?.release_date && (
-              <p>
-                <strong>Release:</strong> {movie?.tmdb?.release_date}
-              </p>
+          <Col xs={12} md={9}>
+            <Typography variant="h4" sx={{ color: theme.palette.text.primary }}>
+              {record?.tmdb?.title}
+            </Typography>
+            {record?.tmdb?.release_date && (
+              <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
+                <strong>Release:</strong> {record?.tmdb?.release_date}
+              </Typography>
             )}
-            {movie?.tmdb?.overview && <p>{movie?.tmdb?.overview}</p>}
+            {record?.tmdb?.overview && (
+              <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
+                {record?.tmdb?.overview}
+              </Typography>
+            )}
           </Col>
         </Row>
-        {/* Media File List Content */}
-        <div className="media-content">
-          <h3 className="section-title">Downloadable Files:</h3>
-          {mediaListLoader ? (
-            <LoadingSpinner />
-          ) : mediaFileList.length === 0 ? (
-            <div className="d-flex justify-content-center align-items-center vh-50">
-              <div className="alert alert-danger text-center" role="alert">
-                No media available to download for this record
-              </div>
-            </div>
-          ) : movie.type.toLowerCase() ===
-            Constants.RECORD_TYPE_MOVIE.toLowerCase() ? (
-            <MoviesSection />
-          ) : (
-            <SeriesSection />
-          )}
-        </div>
+
+        <Typography variant="h5" sx={{
+          color: theme.palette.text.primary,
+          mb: 3,
+          borderBottom: `1px solid ${theme.palette.primary.main}`,
+          pb: 1
+        }}>
+          Downloadable Files
+        </Typography>
+
+        {mediaListLoader ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}>
+            <Spinner animation="border" variant="light" />
+          </Box>
+        ) : mediaFileList.length === 0 ? (
+          <Alert variant="danger" className="text-center my-5">
+            No media available to download for this record
+          </Alert>
+        ) : record.type.toLowerCase() === "series" ? (
+          <Grid container spacing={2}>{RenderSeries()}</Grid>
+        ) : (
+          RenderMovie()
+        )}
       </Container>
       {Constants.TOAST_CONTAINER}
-    </div>
+    </Box>
   );
 };
 
-export default DownloadPage;
+export default MediaDownloadViewer;
