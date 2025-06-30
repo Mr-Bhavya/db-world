@@ -21,15 +21,16 @@ import PrivateRoute from './components/PrivateRoute';
 import MainPage from './components//DBCinema/screens/mainPage/index.js'
 import MoviesPage from './components//DBCinema/screens/movies/index.js'
 import SeriesPage from './components//DBCinema/screens/series/index.js'
-import DownloadPage from './components/DBCinema/screens/download/index.js';
+import MediaDownloadViewer from './components/DBCinema/screens/download/index.js';
 import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.js';
 import BackButtonHandler from './android-app-components/BackButtonHandler.js';
 import SeriesDetailsPage from './components/DBCinema/screens/series-details/SeriesDetailsPage.js';
-import DownloadProgressPage from './components/DBCinema/screens/download/DownloadProgressPage.jsx';
 
 // import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { createTheme, ThemeProvider } from '@mui/material';
+import { StatusBar } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
 
 const lightTheme = createTheme({
   palette: {
@@ -97,6 +98,9 @@ function App() {
     window
       .matchMedia("(min-width: 900px)")
       .addEventListener('change', e => setMatches(e.matches));
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.hide();
+    }
   }, []);
 
 
@@ -122,10 +126,10 @@ function App() {
         <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
           <Route exact path={Constants.DB_CINEMA_ROUTE} element={<Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />} />
           <Route path={Constants.DB_CINEMA_BROWSE_ROUTE} element={<MainPage />} />
-          <Route path={Constants.DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE} element={<DownloadProgressPage />} />
+          {/* <Route path={Constants.DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE} element={<DownloadProgressPage />} /> */}
           <Route path={Constants.DB_CINEMA_MOVIES_ROUTE} element={<MoviesPage />} />
           <Route path={Constants.DB_CINEMA_SERIES_ROUTE} element={<SeriesPage />} />
-          <Route path={Constants.DB_DONWLOAD_RECORD_ROUTE} element={<DownloadPage />} />
+          <Route path={Constants.DB_DONWLOAD_RECORD_ROUTE} element={<MediaDownloadViewer />} />
           <Route path={Constants.DB_ADD_PASSWORD_ROUTE} element={<AddPassword />} />
           <Route path={Constants.DB_GENERATE_PASSWORD_ROUTE} element={<GeneratePassword />} />
           <Route path={Constants.DB_VIEW_PASSWORD_ROUTE} element={<ViewPassword />} />
@@ -143,13 +147,16 @@ function App() {
 
       </Routes>
 
+
+      {Constants.TOAST_CONTAINER}
+
     </div>
 
   return (
     <Authentication.AuthProvider>
       <Router>
         <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
-        <CssBaseline />
+          <CssBaseline />
           {app}
         </ThemeProvider>
       </Router>

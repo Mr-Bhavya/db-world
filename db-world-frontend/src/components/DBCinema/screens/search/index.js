@@ -4,10 +4,105 @@ import CommonServices from '../../../CommonServices';
 import Constants from '../../../Constants';
 import { toast } from 'react-toastify';
 import { useLocation, useNavigate } from 'react-router-dom';
-import './SearchOverlay.css';
 import FileDetailsModal from './FileDetailsModal';
+import { 
+  Box, 
+  Button, 
+  IconButton, 
+  InputBase, 
+  Paper, 
+  Tab, 
+  Tabs, 
+  Typography, 
+  styled,
+  Skeleton
+} from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion';
+import CloseIcon from '@mui/icons-material/Close';
+import { alpha } from '@mui/material/styles';
 
 const PAGE_SIZE = 12; // Number of records per page (for record search)
+
+// Styled components using Farmer (styled-components syntax with MUI)
+const SearchOverlayContainer = styled(Box)(({ theme }) => ({
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  width: '100%',
+  height: '100vh',
+  backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  color: '#fff',
+  zIndex: 5000,
+  padding: theme.spacing(2.5),
+  overflowY: 'auto',
+}));
+
+const SearchHeader = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: theme.spacing(2.5),
+}));
+
+const SearchInput = styled(InputBase)(({ theme }) => ({
+  flex: 1,
+  padding: theme.spacing(1),
+  fontSize: '1rem',
+  backgroundColor: alpha(theme.palette.common.white, 0.15),
+  borderRadius: theme.shape.borderRadius,
+  marginRight: theme.spacing(1.25),
+  color: theme.palette.common.white,
+  '&:hover': {
+    backgroundColor: alpha(theme.palette.common.white, 0.25),
+  },
+}));
+
+const ResultsGrid = styled(Box)(({ theme }) => ({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+  gap: theme.spacing(2),
+  marginTop: theme.spacing(1.25),
+}));
+
+const ResultItem = styled(motion.div)(({ theme }) => ({
+  overflow: 'hidden',
+  borderRadius: theme.shape.borderRadius,
+  cursor: 'pointer',
+  '& img': {
+    width: '100%',
+    display: 'block',
+    borderRadius: theme.shape.borderRadius,
+    transition: 'transform 0.3s ease',
+  },
+  '&:hover img': {
+    transform: 'scale(1.05)',
+  },
+}));
+
+const DirectoryGroup = styled(Paper)(({ theme }) => ({
+  marginBottom: theme.spacing(2.5),
+  padding: theme.spacing(1.25),
+  backgroundColor: theme.palette.grey[900],
+  borderRadius: theme.shape.borderRadius,
+  border: `1px solid ${theme.palette.grey[700]}`,
+}));
+
+const FilesGrid = styled(Box)(({ theme }) => ({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+  gap: theme.spacing(1.25),
+}));
+
+const FileItem = styled(Paper)(({ theme }) => ({
+  backgroundColor: theme.palette.grey[800],
+  padding: theme.spacing(1.25),
+  borderRadius: theme.shape.borderRadius / 2,
+  transition: 'background-color 0.3s ease',
+  cursor: 'pointer',
+  '&:hover': {
+    backgroundColor: theme.palette.grey[700],
+  },
+}));
 
 function SearchOverlay({ onClose }) {
   const [term, setTerm] = useState('');
@@ -33,14 +128,12 @@ function SearchOverlay({ onClose }) {
   const [selectedFile, setSelectedFile] = useState(null);
 
   // --- Helper Functions ---
-  // Format file size in B, KB, or MB.
   const formatFileSize = (size) => {
     if (size < 1024) return size + " B";
     else if (size < 1024 * 1024) return (size / 1024).toFixed(1) + " KB";
     else return (size / (1024 * 1024)).toFixed(1) + " MB";
   };
 
-  // Group stream files by directory (based on filePath).
   const groupByDirectory = (files) => {
     return files.reduce((acc, file) => {
       const lastSlash = file.filePath.lastIndexOf('/');
@@ -52,11 +145,9 @@ function SearchOverlay({ onClose }) {
   };
 
   // --- API Calls per Tab ---
-  // Record search uses pagination.
   const searchRecords = async (page = 0, isLoadMore = false) => {
     try {
       if (!isLoadMore) {
-        // Always reset to page 0 for a new search
         setRecords([]);
         setRecordsPage(0);
         setHasMoreRecords(true);
@@ -90,15 +181,12 @@ function SearchOverlay({ onClose }) {
     }
   };
 
-  // Stream search now fetches all results in one call (no pagination).
   const searchStreams = async () => {
     try {
-      // Reset stream state for a new search
       setStreamList([]);
       setIsSearchStreamResDone(false);
       saveUserEventInfo("SEARCH", term);
       const modifiedQuery = CommonServices.modifySearchQuery(term);
-      // Notice we are no longer passing page and PAGE_SIZE parameters here.
       const streamResponse = await searchStreamFile(modifiedQuery);
       if (streamResponse.httpStatusCode === 200) {
         setStreamList(streamResponse.data);
@@ -129,7 +217,6 @@ function SearchOverlay({ onClose }) {
   // --- Scroll Handler for Infinite Loading (only for records) ---
   const handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
-    // Only apply infinite scroll for records
     if (activeTab === 'records' && scrollHeight - scrollTop <= clientHeight + 100) {
       if (hasMoreRecords && !isLoadingNextRecords) {
         setIsLoadingNextRecords(true);
@@ -180,150 +267,231 @@ function SearchOverlay({ onClose }) {
     setSelectedFile(null);
   };
 
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
   return (
     <>
-      <div className="search-overlay" onScroll={handleScroll}>
-        <div className="search-overlay-header">
-          <input
-            type="text"
+      <SearchOverlayContainer component={motion.div} 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onScroll={handleScroll}
+      >
+        <SearchHeader>
+          <SearchInput
+            placeholder="Search..."
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Search..."
             autoFocus
+            inputProps={{ 'aria-label': 'search' }}
           />
-          <button className="close-search-btn" onClick={onClose}>X</button>
-        </div>
+          <IconButton onClick={onClose} color="inherit">
+            <CloseIcon />
+          </IconButton>
+        </SearchHeader>
 
         {/* Tab Header */}
-        <div className="tab-header">
-          <button
-            className={`tab-button ${activeTab === 'records' ? 'active' : ''}`}
-            onClick={() => setActiveTab('records')}
-          >
-            Records
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'stream' ? 'active' : ''}`}
-            onClick={() => setActiveTab('stream')}
-          >
-            Stream Files
-          </button>
-        </div>
+        <Tabs 
+          value={activeTab} 
+          onChange={handleTabChange}
+          indicatorColor="secondary"
+          textColor="inherit"
+          variant="fullWidth"
+          sx={{ 
+            marginBottom: 2,
+            '& .MuiTabs-indicator': {
+              backgroundColor: 'secondary.main',
+            },
+          }}
+        >
+          <Tab 
+            value="records" 
+            label="Records" 
+            sx={{
+              '&.Mui-selected': {
+                color: 'secondary.main',
+              },
+            }}
+          />
+          <Tab 
+            value="stream" 
+            label="Stream Files" 
+            sx={{
+              '&.Mui-selected': {
+                color: 'secondary.main',
+              },
+            }}
+          />
+        </Tabs>
 
         {/* Tab Content */}
-        <div className="tab-content">
+        <Box sx={{ p: 2 }}>
           {activeTab === 'records' ? (
-            <div className="search-overlay-results">
+            <Box>
               {term ? (
-                <div>
-                  <p>
+                <Box>
+                  <Typography variant="body1" gutterBottom>
                     Showing results for: <strong>{term}</strong>
-                  </p>
+                  </Typography>
                   {isSearchRecordResDone ? (
-                    <div className="results-container">
+                    <Box>
                       {records.length > 0 ? (
-                        <div className="results-grid">
-                          {records.map(record => (
-                            <div className="result-item" key={record.id}>
-                              <img
-                                src={`https://image.tmdb.org/t/p/w500${record.tmdb.poster_path}`}
-                                alt={record.name || record.tmdb.title}
-                                onClick={() =>
-                                  navigate(
-                                    record.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
-                                      ? Constants.DB_MOVIE_DETIALS_ROUTE.replace(
-                                        ":title",
-                                        record.recordId +
-                                        "-" +
-                                        record.name.toLowerCase().replace(/ /g, "-")
-                                      )
-                                      : Constants.DB_SERIES_DETIALS_ROUTE.replace(
-                                        ":title",
-                                        record.recordId +
-                                        "-" +
-                                        record.name.toLowerCase().replace(/ /g, "-")
-                                      )
-                                  )
-                                }
-                              />
-                            </div>
-                          ))}
-                        </div>
+                        <ResultsGrid>
+                          <AnimatePresence>
+                            {records.map(record => (
+                              <ResultItem
+                                key={record.id}
+                                layout
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                              >
+                                <motion.img
+                                  src={`https://image.tmdb.org/t/p/w500${record.tmdb.poster_path}`}
+                                  alt={record.name || record.tmdb.title}
+                                  onClick={() =>
+                                    navigate(
+                                      record.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
+                                        ? Constants.DB_MOVIE_DETIALS_ROUTE.replace(
+                                          ":title",
+                                          record.recordId +
+                                          "-" +
+                                          record.name.toLowerCase().replace(/ /g, "-")
+                                        )
+                                        : Constants.DB_SERIES_DETIALS_ROUTE.replace(
+                                          ":title",
+                                          record.recordId +
+                                          "-" +
+                                          record.name.toLowerCase().replace(/ /g, "-")
+                                        )
+                                    )
+                                  }
+                                  whileHover={{ scale: 1.05 }}
+                                />
+                              </ResultItem>
+                            ))}
+                          </AnimatePresence>
+                        </ResultsGrid>
                       ) : (
-                        <p>No results found.</p>
+                        <Typography variant="body1">No results found.</Typography>
                       )}
                       {isLoadingNextRecords && (
-                        <div className="skeleton-container">
+                        <ResultsGrid>
                           {[...Array(PAGE_SIZE)].map((_, index) => (
-                            <div className="skeleton-item" key={index}></div>
+                            <Skeleton 
+                              key={index} 
+                              variant="rectangular" 
+                              width="100%" 
+                              height={180} 
+                              animation="wave"
+                              sx={{ bgcolor: 'grey.800' }}
+                            />
                           ))}
-                        </div>
+                        </ResultsGrid>
                       )}
-                    </div>
+                    </Box>
                   ) : (
-                    <div className="skeleton-container">
+                    <ResultsGrid>
                       {[...Array(PAGE_SIZE)].map((_, index) => (
-                        <div className="skeleton-item" key={index}></div>
+                        <Skeleton 
+                          key={index} 
+                          variant="rectangular" 
+                          width="100%" 
+                          height={180} 
+                          animation="wave"
+                          sx={{ bgcolor: 'grey.800' }}
+                        />
                       ))}
-                    </div>
+                    </ResultsGrid>
                   )}
-                </div>
+                </Box>
               ) : (
-                <p className="search-prompt">Type to search...</p>
+                <Typography variant="body1" align="center" sx={{ mt: 6 }}>
+                  Type to search...
+                </Typography>
               )}
-            </div>
+            </Box>
           ) : (
-            <div className="search-overlay-results">
+            <Box>
               {term ? (
-                <div>
-                  <p>
+                <Box>
+                  <Typography variant="body1" gutterBottom>
                     Showing results for: <strong>{term}</strong>
-                  </p>
+                  </Typography>
                   {isSearchStreamResDone ? (
-                    <div className="results-container">
+                    <Box>
                       {streamList.length > 0 ? (
-                        <div className="stream-files">
+                        <Box>
                           {Object.entries(groupByDirectory(streamList)).map(([directory, files]) => (
-                            <div className="directory-group" key={directory}>
-                              <h4 className="directory-name">{directory}</h4>
-                              <div className="files-grid">
+                            <DirectoryGroup key={directory}>
+                              <Typography variant="h6" color="secondary" gutterBottom sx={{ borderBottom: '1px solid', borderColor: 'grey.700' }}>
+                                {directory}
+                              </Typography>
+                              <FilesGrid>
                                 {files.map(file => (
-                                  <div className="file-item" key={file.fileId} onClick={() => handleFileClick(file)}>
-                                    <p className="file-name">{file.fileName}</p>
-                                    <p className="file-size">{formatFileSize(file.fileSize)}</p>
-                                  </div>
+                                  <FileItem 
+                                    key={file.fileId} 
+                                    onClick={() => handleFileClick(file)}
+                                    component={motion.div}
+                                    whileHover={{ scale: 1.02 }}
+                                  >
+                                    <Typography variant="body2" fontWeight="bold" color="common.white" sx={{ wordBreak: 'break-all' }}>
+                                      {file.fileName}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {formatFileSize(file.fileSize)}
+                                    </Typography>
+                                  </FileItem>
                                 ))}
-                              </div>
-                            </div>
+                              </FilesGrid>
+                            </DirectoryGroup>
                           ))}
-                        </div>
+                        </Box>
                       ) : (
-                        <p>No stream files found.</p>
+                        <Typography variant="body1">No stream files found.</Typography>
                       )}
-                    </div>
+                    </Box>
                   ) : (
                     // Stream Files Skeleton
-                    <div className="stream-files-skeleton">
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {[...Array(2)].map((_, groupIndex) => (
-                        <div className="directory-group-skeleton" key={groupIndex}>
-                          <div className="directory-name-skeleton skeleton-animation"></div>
-                          <div className="files-grid-skeleton">
+                        <Box key={groupIndex} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Skeleton 
+                            variant="text" 
+                            width={150} 
+                            height={24} 
+                            animation="wave"
+                            sx={{ bgcolor: 'grey.800' }}
+                          />
+                          <FilesGrid>
                             {[...Array(12)].map((_, fileIndex) => (
-                              <div className="file-item-skeleton skeleton-animation" key={fileIndex}></div>
+                              <Skeleton 
+                                key={fileIndex} 
+                                variant="rectangular" 
+                                width="100%" 
+                                height={100} 
+                                animation="wave"
+                                sx={{ bgcolor: 'grey.800' }}
+                              />
                             ))}
-                          </div>
-                        </div>
+                          </FilesGrid>
+                        </Box>
                       ))}
-                    </div>
+                    </Box>
                   )}
-                </div>
+                </Box>
               ) : (
-                <p className="search-prompt">Type to search...</p>
+                <Typography variant="body1" align="center" sx={{ mt: 6 }}>
+                  Type to search...
+                </Typography>
               )}
-            </div>
+            </Box>
           )}
-        </div>
-      </div>
+        </Box>
+      </SearchOverlayContainer>
 
       {/* Modal for File Details */}
       <FileDetailsModal
@@ -331,6 +499,7 @@ function SearchOverlay({ onClose }) {
         onClose={handleCloseModal}
         fileId={selectedFile?.fileId}
       />
+      {Constants.TOAST_CONTAINER}
     </>
   );
 }

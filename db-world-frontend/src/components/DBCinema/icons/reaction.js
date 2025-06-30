@@ -1,101 +1,221 @@
-import React, { useState, useEffect } from "react";
-import {
-  likeRecord,
+import React, { useState, useEffect } from 'react';
+import { 
+  likeRecord, 
   unLikeRecord,
+  // loveRecord,
+  // unLoveRecord,
   // dislikeRecord,
-  // unDislikeRecord,
-} from "../../ApiServices";
+  // unDislikeRecord
+} from '../../ApiServices';
+import { Tooltip, Zoom, IconButton, Box, Popover } from '@mui/material';
+import { motion } from 'framer-motion';
+import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 
-function Reaction({ recordId, userId, isLiked, isDisliked, onUpdate }) {
-  const initialReaction = isLiked ? "like" : isDisliked ? "dislike" : "none";
+const reactions = [
+  { type: 'like', icon: 'fa-thumbs-up', label: 'Like' },
+  { type: 'love', icon: 'fa-heart', label: 'Love' },
+  { type: 'dislike', icon: 'fa-thumbs-down', label: 'Dislike' }
+];
+
+const Reaction = ({ 
+  recordId, 
+  initialReaction = null, 
+  onUpdate, 
+  size = "medium",
+  showLabel = false,
+  color = "inherit"
+}) => {
   const [reaction, setReaction] = useState(initialReaction);
-  const [loader, setLoader] = useState(false);
-  // const { updateRecordById } = useRecordStore();
-  const activeColor = 'white';
+  const [loading, setLoading] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [hoverTimeout, setHoverTimeout] = useState(null);
+
+  const open = Boolean(anchorEl);
 
   useEffect(() => {
-    const newReaction = isLiked ? "like" : isDisliked ? "dislike" : "none";
-    setReaction(newReaction);
-  }, [isLiked, isDisliked]);
+    setReaction(initialReaction);
+  }, [initialReaction]);
 
-  const handleLike = async () => {
-    setLoader(true);
-    if (reaction === "like") {
-      const res = await unLikeRecord(recordId, userId);
-      if (res.httpStatusCode === 200) {
-        setReaction("none");
-        // Directly update the record in the store:
-        onUpdate && onUpdate({ isLiked: false });
-      }
-    } else if (reaction === "none") {
-      const res = await likeRecord(recordId, userId);
-      if (res.httpStatusCode === 200) {
-        setReaction("like");
-        // Directly update the record in the store:
-        onUpdate && onUpdate({ isLiked: true });
-      }
-    } else if (reaction === "dislike") {
-      // const res1 = await unDislikeRecord(recordId, userId);
-      // if (res1.httpStatusCode === 200) {
-      //   const res2 = await likeRecord(recordId, userId);
-      //   if (res2.httpStatusCode === 200) {
-      //     setReaction("like");
-      //     onUpdate && onUpdate({ isLiked: true, isDisliked: false });
-      //   }
-      // }
+  // Immediate UI update with optimistic UI pattern
+  const handleReaction = async (selectedType) => {
+    const previousReaction = reaction;
+    
+    // Immediate UI update
+    if (selectedType === reaction) {
+      setReaction(null);
+      onUpdate?.({ reaction: null });
+    } else {
+      setReaction(selectedType);
+      onUpdate?.({ reaction: selectedType });
     }
-    setLoader(false);
+    
+    setAnchorEl(null); // Close popover immediately
+    
+    try {
+      // Remove previous reaction if exists
+      if (previousReaction) {
+        await removeCurrentReaction(previousReaction);
+      }
+      
+      // Add new reaction if different from previous
+      if (selectedType !== previousReaction) {
+        await addNewReaction(selectedType);
+      }
+    } catch (error) {
+      console.error(error);
+      // Revert on error
+      setReaction(previousReaction);
+      onUpdate?.({ reaction: previousReaction });
+    }
   };
 
-  // const handleDislike = async () => {
-  //   setLoader(true);
-  //   if (reaction === "dislike") {
-  //     const res = await unDislikeRecord(recordId, userId);
-  //     if (res.httpStatusCode === 200) {
-  //       setReaction("none");
-  //       onUpdate && onUpdate({ isDisliked: false });
-  //     }
-  //   } else if (reaction === "none") {
-  //     const res = await dislikeRecord(recordId, userId);
-  //     if (res.httpStatusCode === 200) {
-  //       setReaction("dislike");
-  //       onUpdate && onUpdate({ isDisliked: true });
-  //     }
-  //   } else if (reaction === "like") {
-  //     const res1 = await unLikeRecord(recordId, userId);
-  //     if (res1.httpStatusCode === 200) {
-  //       const res2 = await dislikeRecord(recordId, userId);
-  //       if (res2.httpStatusCode === 200) {
-  //         setReaction("dislike");
-  //         onUpdate && onUpdate({ isLiked: false, isDisliked: true });
-  //       }
-  //     }
-  //   }
-  //   setLoader(false);
-  // };
+  const removeCurrentReaction = async (type) => {
+    switch (type) {
+      case 'like': return unLikeRecord(recordId);
+      // case 'love': return unLoveRecord(recordId);
+      // case 'dislike': return unDislikeRecord(recordId);
+      default: return Promise.resolve();
+    }
+  };
 
-  const iconStyle = { fontSize: "1.5rem", lineHeight: "1.5rem", verticalAlign: "middle" };
+  const addNewReaction = async (type) => {
+    switch (type) {
+      case 'like': return likeRecord(recordId);
+      // case 'love': return loveRecord(recordId);
+      // case 'dislike': return dislikeRecord(recordId);
+      default: return Promise.resolve();
+    }
+  };
 
-  return loader ? (
-    <button className="icon-button">
-      <i className="fas fa-spinner fa-spin" style={{ ...iconStyle, color: activeColor }}></i>
-    </button>
-  ) : (
-    <>
-      <button className="icon-button" aria-label="Like" onClick={handleLike}>
-        <i
-          className="fas fa-thumbs-up"
-          style={{ color: reaction === "like" ? "white" : "rgba(255, 255, 255, 0.2)" }}
-        />
-      </button>
-      {/* <button className="icon-button" aria-label="Dislike" onClick={handleDislike}>
-        <i
-          className="fas fa-thumbs-down"
-          style={{ color: reaction === "dislike" ? "white" : "rgba(255, 255, 255, 0.2)" }}
-        />
-      </button> */}
-    </>
+  const handleMouseEnter = (event) => {
+    clearTimeout(hoverTimeout);
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMouseLeave = () => {
+    const timeout = setTimeout(() => {
+      setAnchorEl(null);
+    }, 300); // Small delay to prevent accidental closing
+    setHoverTimeout(timeout);
+  };
+
+  const currentReaction = reactions.find(r => r.type === reaction);
+
+  return (
+    <Box 
+      sx={{ display: 'flex', alignItems: 'center', position: 'relative' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <Tooltip 
+        title={reaction ? `Remove ${reaction}` : 'Add reaction'} 
+        TransitionComponent={Zoom}
+      >
+        <IconButton
+          size={size}
+          color={color}
+          sx={{
+            '&:hover': {
+              backgroundColor: iconButtonStyles.hoverColor,
+            }
+          }}
+        >
+          {loading ? (
+            spinnerIcon
+          ) : reaction ? (
+            <>
+              <i
+                className={`fas ${currentReaction.icon}`}
+                style={{ 
+                  fontSize: iconButtonStyles.iconSize,
+                  color: iconButtonStyles.activeColor
+                }}
+              />
+              {showLabel && (
+                <span style={{ marginLeft: '8px' }}>
+                  {currentReaction.label}
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <i
+                className="far fa-smile"
+                style={{ 
+                  fontSize: iconButtonStyles.iconSize,
+                  color: iconButtonStyles.inactiveColor
+                }}
+              />
+              {showLabel && (
+                <span style={{ marginLeft: '8px' }}>React</span>
+              )}
+            </>
+          )}
+        </IconButton>
+      </Tooltip>
+
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        disableRestoreFocus
+        sx={{
+          zIndex: 2000,
+          pointerEvents: 'none', // Allows hover through the popover
+          '& .MuiPopover-paper': {
+            pointerEvents: 'auto',
+            borderRadius: '24px',
+            padding: '8px',
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            backdropFilter: 'blur(10px)'
+          }
+        }}
+        onMouseEnter={() => clearTimeout(hoverTimeout)}
+        onMouseLeave={handleMouseLeave}
+      >
+        <Box sx={{ display: 'flex', gap: '8px' }}>
+          {reactions.map(({ type, icon, label }) => (
+            <motion.div
+              key={type}
+              whileHover={{ scale: 1.2 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Tooltip title={label} TransitionComponent={Zoom}>
+                <IconButton
+                  onClick={() => handleReaction(type)}
+                  sx={{
+                    backgroundColor: reaction === type ? 
+                      'rgba(255,255,255,0.2)' : 'transparent',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                >
+                  <i
+                    className={`fas ${icon}`}
+                    style={{
+                      fontSize: iconButtonStyles.iconSize,
+                      color: reaction === type ? 
+                        iconButtonStyles.activeColor : 
+                        iconButtonStyles.inactiveColor
+                    }}
+                  />
+                </IconButton>
+              </Tooltip>
+            </motion.div>
+          ))}
+        </Box>
+      </Popover>
+    </Box>
   );
-}
+};
 
 export default Reaction;

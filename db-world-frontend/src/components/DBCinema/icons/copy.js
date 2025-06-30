@@ -1,38 +1,33 @@
 import React, { useState } from 'react';
 import CommonServices from '../../CommonServices';
-import { toast } from 'react-toastify';
 import Constants from '../../Constants';
-import { 
-  Button, 
+import {
   IconButton,
   Tooltip,
   Zoom,
   styled
 } from '@mui/material';
-import { 
+import {
   ContentCopy as CopyIcon,
   Check as CheckIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
+import { iconButtonStyles } from "./IconButtonStyles";
 
-const CopyButton = styled(Button)(({ theme, copied }) => ({
-  minWidth: 'unset',
-  padding: '6px 12px',
-  transition: 'all 0.3s ease',
-  backgroundColor: copied ? theme.palette.success.main : 'transparent',
-  color: copied ? theme.palette.success.contrastText : theme.palette.text.secondary,
-  '&:hover': {
-    backgroundColor: copied ? theme.palette.success.dark : theme.palette.action.hover,
-  },
-  border: `1px solid ${copied ? theme.palette.success.main : theme.palette.divider}`,
-}));
+const Copy = ({
+  text,
+  label = null,
+  tooltip = "Copy URL",
+  size = "medium",
+  variant = "icon", // 'icon' | 'button' | 'text'
+  color = "inherit"
+}) => {
+  const [copied, setCopied] = useState(false);
 
-const Copy = ({ text, label = "Copy URL" }) => {
-  const [copyText, setCopyText] = useState(null);
-
-  const handleCopy = (text) => {
-    setCopyText(text);
+  const handleCopy = () => {
+    setCopied(true);
     const result = CommonServices.handleCopy(text);
+
     if (result.success) {
       Constants.showToast.success(result.message, {
         position: 'top-center',
@@ -41,28 +36,75 @@ const Copy = ({ text, label = "Copy URL" }) => {
         closeOnClick: true,
         transition: Zoom,
       });
-      setTimeout(() => {
-        setCopyText(null);
-      }, 2000);
+      setTimeout(() => setCopied(false), 2000);
     } else {
       Constants.showToast.error(result.message);
     }
   };
 
+  const renderContent = () => {
+    switch (variant) {
+      case 'button':
+        return (
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <IconButton
+              size={size}
+              color={copied ? "success" : color}
+              variant="contained"
+              onClick={handleCopy}
+              sx={{
+                '&:hover': {
+                  backgroundColor: iconButtonStyles.hoverColor,
+                }
+              }}
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+              {label && <span style={{ marginLeft: '8px' }}>{copied ? 'Copied' : label}</span>}
+            </IconButton>
+          </motion.div>
+        );
+      case 'text':
+        return (
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <span
+              onClick={handleCopy}
+              style={{
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                color: copied ? iconButtonStyles.activeColor : iconButtonStyles.inactiveColor
+              }}
+            >
+              {copied ? <CheckIcon fontSize={size} /> : <CopyIcon fontSize={size} />}
+              {label && <span style={{ marginLeft: '4px' }}>{copied ? 'Copied' : label}</span>}
+            </span>
+          </motion.div>
+        );
+      case 'icon':
+      default:
+        return (
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <IconButton
+              size={size}
+              color={copied ? "success" : color}
+              onClick={handleCopy}
+              sx={{
+                '&:hover': {
+                  backgroundColor: iconButtonStyles.hoverColor,
+                }
+              }}
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+            </IconButton>
+          </motion.div>
+        );
+    }
+  };
+
   return (
-    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-      <Tooltip title={copyText === text ? "Copied!" : `Copy ${label}`}>
-        <CopyButton
-          size="small"
-          variant="outlined"
-          copied={copyText === text}
-          onClick={() => handleCopy(text)}
-          startIcon={copyText === text ? <CheckIcon /> : <CopyIcon />}
-        >
-          {copyText === text ? 'Copied' : label}
-        </CopyButton>
-      </Tooltip>
-    </motion.div>
+    <Tooltip title={copied ? "Copied!" : tooltip} TransitionComponent={Zoom}>
+      {renderContent()}
+    </Tooltip>
   );
 };
 
