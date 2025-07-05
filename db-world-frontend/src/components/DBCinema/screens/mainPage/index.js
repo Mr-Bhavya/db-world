@@ -1,22 +1,75 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import './index.css'
-import Cover from '../../cover'
-import Navbar from '../../navbar'
-import TilesRow from '../../tilesRow'
-import requests from '../../services/requests'
+import React, { useCallback, useEffect, useState } from 'react';
+import { styled, useTheme } from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion';
 import { StatusBar } from '@capacitor/status-bar';
-import { Capacitor } from '@capacitor/core'
-import CommonServices from '../../../CommonServices'
-import Constants from '../../../Constants'
-import { styled } from '@mui/material'
-import { motion } from 'framer-motion'
+import { Capacitor } from '@capacitor/core';
+import Cover from '../../cover';
+import Navbar from '../../navbar';
+import TilesRow from '../../tilesRow';
+import requests from '../../services/requests';
+import CommonServices from '../../../CommonServices';
+import Constants from '../../../Constants';
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      when: "beforeChildren"
+    }
+  }
+};
+
+const tileRowVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      duration: 0.5,
+      ease: "easeOut"
+    }
+  }
+};
+
+// Styled components
+const TopFadeEffect = styled('div')(({ theme }) => ({
+  position: 'absolute',
+  top: 100,
+  left: 0,
+  width: '100%',
+  height: '15%',
+  background: `linear-gradient(to bottom, black, transparent)`,
+  pointerEvents: 'none',
+  zIndex: 2
+}));
+
+const MainContainer = styled(motion.div)(({ theme }) => ({
+  backgroundColor: 'black',
+  overflow: 'hidden',
+  position: 'relative',
+  minHeight: '100vh',
+  transition: 'background-color 0.5s ease-out'
+}));
+
+const CoverWrapper = styled(motion.div)({
+  position: 'relative',
+});
+
+const TilesWrapper = styled(motion.div)(({ theme }) => ({
+  background: 'black',
+  marginTop: -100,
+  position: 'relative',
+  paddingTop: 100,
+  // zIndex: 1
+}));
 
 export default function MainPage() {
-  const [coverColor, setCoverColor] = useState('rgba(0,0,0,0.9)')
-
-  // Add explicit state initialization
+  const theme = useTheme();
+  const [coverColor, setCoverColor] = useState('rgba(0,0,0,0.9)');
   const [navbarCollapsed, setNavbarCollapsed] = useState(() => {
-    // Define categories here or get from props
     const categories = [
       { route: Constants.DB_CINEMA_MOVIES_ROUTE },
       { route: Constants.DB_CINEMA_SERIES_ROUTE }
@@ -24,17 +77,13 @@ export default function MainPage() {
     const initialPath = window.location.pathname;
     return categories.some(cat => initialPath.includes(cat.route));
   });
-
-  // Manage selected category at parent level
   const [selectedCategory, setSelectedCategory] = useState(null);
 
-  // This callback will be passed to Navbar so that when a category is selected,
-  // the parent state is updated.
-  const handleCategorySelect = (category) => {
-    console.log(category)
+  // Handlers
+  const handleCategorySelect = useCallback((category) => {
     setSelectedCategory(category);
-  };
-  // Enhance handleNavbarCollapsed
+  }, []);
+
   const handleNavbarCollapsed = useCallback((collapsed) => {
     setNavbarCollapsed(Boolean(collapsed));
   }, []);
@@ -43,49 +92,69 @@ export default function MainPage() {
     setCoverColor(newColor);
   }, []);
 
-  const TopFadeEffect = styled('div')(({ theme }) => ({
-    position: 'absolute',
-    top: 100,
-    left: 0,
-    width: '100%',
-    height: '15%',
-    background: `linear-gradient(to bottom, var(--navbar-bg-color, rgba(0,0,0,0.7)), transparent)`,
-    pointerEvents: 'none',
-    zIndex: 2
-  }));
+  // Tiles configuration
+  const tilesConfig = [
+    { title: "Newly Added Movies & TV Shows", requestUrl: requests.fetchNewlyAdded },
+    { title: "Movies", requestUrl: requests.fetchAllMovies, horizontal: true, category: selectedCategory },
+    { title: "TV Shows", requestUrl: requests.fetchAllSeries, horizontal: true, category: selectedCategory },
+    { title: "My List", requestUrl: requests.fetchWatchlist },
+    { title: "Bollywood", requestUrl: requests.fetchBollywoodRecords, category: selectedCategory },
+    { title: "Hollywood", requestUrl: requests.fetchHollywoodRecords, category: selectedCategory },
+    { title: "South", requestUrl: requests.fetchSouthRecord, category: selectedCategory },
+    { title: "Gujarati", requestUrl: requests.fetchGujaratiRecords, category: selectedCategory },
+    { title: "K-Drama", requestUrl: requests.fetchKoreanRecords, category: selectedCategory }
+  ];
+
+  // Set status bar color for Capacitor apps
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setBackgroundColor({ color: coverColor });
+    }
+  }, [coverColor]);
 
   return (
-    <div className="container-main-page">
-
+    <MainContainer
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      style={{ '--navbar-bg-color': coverColor }}
+    >
       <Navbar
         onCollapseChange={handleNavbarCollapsed}
         coverColor="transparent"
         onCategorySelect={handleCategorySelect}
       />
 
-      {/* Cover wrapper with fade overlay */}
-      <div className="cover-wrapper">
+      <CoverWrapper>
         <Cover
           isNavbarCollapsed={navbarCollapsed}
           recordCount={5}
-          // The Cover component should call onColorChange when its image changes
           onColorChange={handleColorChange}
         />
-      </div>
+      </CoverWrapper>
 
-      {/* Tiles area which will overlap with the fade */}
-      <div className="tiles-wrapper">
-        <TopFadeEffect />
-        <TilesRow title="Newly Added Movies & TV Shows" requestUrl={requests.fetchNewlyAdded} />
-        <TilesRow title="Movies" requestUrl={requests.fetchAllMovies} horizontal={true} category={selectedCategory} />
-        <TilesRow title="TV Shows" requestUrl={requests.fetchAllSeries} horizontal={true} category={selectedCategory} />
-        <TilesRow title="My List" requestUrl={requests.fetchWatchlist} />
-        <TilesRow title="Bollywood" requestUrl={requests.fetchBollywoodRecords} category={selectedCategory} />
-        <TilesRow title="Hollywood" requestUrl={requests.fetchHollywoodRecords} category={selectedCategory} />
-        <TilesRow title="South" requestUrl={requests.fetchSouthRecord} category={selectedCategory} />
-        <TilesRow title="Gujarati" requestUrl={requests.fetchGujaratiRecords} category={selectedCategory} />
-        <TilesRow title="K-Drama" requestUrl={requests.fetchKoreanRecords} category={selectedCategory} />
-      </div>
-    </div>
-  )
+      <TilesWrapper>
+        {/* <TopFadeEffect /> */}
+        <AnimatePresence>
+          {tilesConfig.map((tile, index) => (
+            <motion.div
+              key={`${tile.title}-${index}`}
+              variants={tileRowVariants}
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              custom={index}
+            >
+              <TilesRow
+                title={tile.title}
+                requestUrl={tile.requestUrl}
+                horizontal={tile.horizontal}
+                category={tile.category}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </TilesWrapper>
+    </MainContainer>
+  );
 }

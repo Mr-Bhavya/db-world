@@ -6,18 +6,21 @@ import {
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 import { Tooltip, Zoom, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
+import useRecordStore from '../../../store/recordStore';
 
-function Watched({ recordId, isWatched = false, onUpdate, size = "medium" }) {
+function Watched({ recordId, isWatched = false, size = "medium" }) {
   const [isWatchedState, setIsWatchedState] = useState(isWatched);
   const [loading, setLoading] = useState(false);
+  const { records: allRecords, updateRecord } = useRecordStore();
+
 
   const handleToggleWatched = async () => {
     setLoading(true);
     try {
-      const response = isWatchedState 
+      const response = isWatchedState
         ? await unmarkRecordWatched(recordId)
         : await markRecordWatched(recordId);
-      
+
       if (response.httpStatusCode === 200) {
         setIsWatchedState(!isWatchedState);
         onUpdate?.({ isWatched: !isWatchedState });
@@ -29,9 +32,24 @@ function Watched({ recordId, isWatched = false, onUpdate, size = "medium" }) {
     }
   };
 
+  const onUpdate = ({ isWatched }) => {
+    let record = allRecords[recordId];
+    if (!record) {
+      console.warn(`Record with ID ${recordId} not found in store.`);
+      return;
+    } else {
+      if (isWatched === true) {
+        record.isWatched = true;
+      } else {
+        record.isWatched = false;
+      }
+    }
+    updateRecord(record);
+  }
+
   return (
-    <Tooltip 
-      title={isWatchedState ? 'Unmark as Watched' : 'Mark as Watched'} 
+    <Tooltip
+      title={isWatchedState ? 'Unmark as Watched' : 'Mark as Watched'}
       TransitionComponent={Zoom}
     >
       <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
@@ -48,19 +66,19 @@ function Watched({ recordId, isWatched = false, onUpdate, size = "medium" }) {
           {loading ? (
             spinnerIcon
           ) : isWatchedState ? (
-            <i 
-              className="fas fa-eye" 
-              style={{ 
+            <i
+              className="fas fa-eye"
+              style={{
                 fontSize: iconButtonStyles.iconSize,
-                color: iconButtonStyles.activeColor 
+                color: iconButtonStyles.activeColor
               }}
             />
           ) : (
-            <i 
-              className="far fa-eye" 
-              style={{ 
+            <i
+              className="far fa-eye"
+              style={{
                 fontSize: iconButtonStyles.iconSize,
-                color: iconButtonStyles.inactiveColor 
+                color: iconButtonStyles.inactiveColor
               }}
             />
           )}

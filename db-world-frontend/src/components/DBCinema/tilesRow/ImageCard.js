@@ -7,6 +7,8 @@ import RecordPreviewModal from "./RecordPreviewModal";
 import LazyImage from "../components/LazyImage";
 import { CSSTransition, TransitionGroup } from "react-transition-group";
 import CommonServices from "../../CommonServices";
+import useRecordStore from "../../../store/recordStore";
+import { shallow } from "zustand/shallow";
 
 const ImageCardItem = ({ record, horizontal }) => {
   const [imageUrl, setImageUrl] = useState(null);
@@ -55,11 +57,13 @@ const ImageCardItem = ({ record, horizontal }) => {
 };
 
 const ImageCard = ({ title, horizontal, requestUrl, category }) => {
+  const { records: allRecords, addRecords, updateRecord } = useRecordStore();
   const [activeRecord, setActiveRecord] = useState(null);
-  const [trailerUrl, setTrailerUrl] = useState('');
-  const [records, setRecords] = useState([]);
+  const [recordIds, setRecordIds] = useState([]);
+  const [records, setRecords] = useState(recordIds.map(id => allRecords[id]).filter(Boolean));
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [modalPosition, setModalPosition] = useState(null);
   const [isScrolling, setIsScrolling] = useState(false);
@@ -93,11 +97,10 @@ const ImageCard = ({ title, horizontal, requestUrl, category }) => {
             ? record.movieTmdb
             : record.seriesTmdb
         }));
-        setRecords(page == 0 ? mappedRecords : (prev) =>
-          Array.from(
-            new Map([...prev, ...mappedRecords].map(record => [record.recordId, record])).values()
-          )
-        );
+        setRecordIds(prev => Array.from(
+          new Map([...prev, ...mappedRecords.map(record => record.recordId)].map(id => [id, id])).values()
+        ));
+        addRecords(mappedRecords);
         setTotalPages(data.totalElements);
         setCurrentPage(page);
       }
@@ -168,13 +171,11 @@ const ImageCard = ({ title, horizontal, requestUrl, category }) => {
     }
     hoverTimeout.current = setTimeout(() => {
       setActiveRecord(null);
-      setTrailerUrl('');
     }, 300);
   };
 
   const handleCloseMobileModal = () => {
     setActiveRecord(null);
-    setTrailerUrl('');
   };
 
   // Prevent background scroll when mobile modal is open.
@@ -190,20 +191,15 @@ const ImageCard = ({ title, horizontal, requestUrl, category }) => {
     };
   }, [activeRecord]);
 
+  useEffect(() => {
+    // Update records whenever recordIds or allRecords change
+    setRecords(recordIds.map(id => allRecords[id]).filter(Boolean));
+  }, [recordIds, allRecords]);
+
   // Initial fetch on component mount.
   useEffect(() => {
     fetchRecords(currentPage);
   }, [fetchRecords, currentPage, category]);
-
-  // Function to update record data.
-  const updateRecord = (updatedRecord) => {
-    setRecords((prev) =>
-      prev.map(r => r.recordId === updatedRecord.recordId ? updatedRecord : r)
-    );
-    if (activeRecord && activeRecord.recordId === updatedRecord.recordId) {
-      setActiveRecord(updatedRecord);
-    }
-  };
 
   return (
     <div className="horizontal-scroll-wrapper">

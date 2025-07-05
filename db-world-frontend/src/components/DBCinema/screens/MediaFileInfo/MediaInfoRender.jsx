@@ -129,7 +129,7 @@ export const MediaInfoRender = ({
               borderTop: `1px solid ${theme.palette.divider}`
             }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Play streamUrl={mediaInfo.streamUrl} mediaId={mediaInfo.id} variant="contained" label="Play" size="small" />
+                <Play streamUrl={mediaInfo.streamUrl} mediaId={mediaInfo.id} variant="contained" label="Play" size="small" onAndroidPlay={AndroidPlugins.MyMedia3Player}  />
                 <Copy text={mediaInfo.streamUrl} variant="icon" label="Copy" tooltip="Copy Stream URL" size="small" />
               </Box>
 

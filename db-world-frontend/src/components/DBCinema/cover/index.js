@@ -312,18 +312,18 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
       const colorThief = new ColorThief();
       const [r, g, b] = colorThief.getColor(img);
       const color = `rgba(${r},${g},${b},0.5)`;
-      document.documentElement.style.setProperty('--navbar-bg-color', color);
-      setCoverColor(color);
+      // document.documentElement.style.setProperty('--navbar-bg-color', color);
+      // setCoverColor(color);
 
       if (Capacitor.getPlatform() === 'android') {
         let hexColor = CommonServices.rgbaToHex(color).slice(0, 7);
-        StatusBar.setBackgroundColor({ color: hexColor });
-        StatusBar.hide({ animation: 'FADE' });
-        StatusBar.setOverlaysWebView({ overlay: true });
+        // StatusBar.setBackgroundColor({ color: hexColor });
+        // StatusBar.hide({ animation: 'FADE' });
+        // StatusBar.setOverlaysWebView({ overlay: true });
       }
 
       if (typeof onColorChange === 'function') {
-        onColorChange(color);
+        // onColorChange(color);
       }
     };
     setIsWatchListed(record?.isWatchListed);

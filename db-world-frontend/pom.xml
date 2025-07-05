@@ -1,83 +1,133 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>com.db</groupId>
         <artifactId>db-world</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
+
     <artifactId>db-world-frontend</artifactId>
     <name>db-world-frontend</name>
-    <version>${revision}</version>
+    <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <java.version>17</java.version>
-        <frontend-maven-plugin.version>1.12.1</frontend-maven-plugin.version>
-        <node.version>v18.16.0</node.version>
-        <npm.version>9.6.5</npm.version>
+        <node.env>production</node.env>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <build>
         <plugins>
+            <!-- 1. NPM CI or fallback to install -->
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+
+                    <execution>
+                        <id>npm-preinstall</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>npm</executable>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>preinstall</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+                    <!-- Clean (optional) -->
+                    <execution>
+                        <id>npm-clean</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>npm</executable>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>clean</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+                    <!-- Try `npm ci` -->
+<!--                    <execution>-->
+<!--                        <id>npm-ci</id>-->
+<!--                        <phase>generate-resources</phase>-->
+<!--                        <goals><goal>exec</goal></goals>-->
+<!--                        <configuration>-->
+<!--                            <executable>npm</executable>-->
+<!--                            <arguments>-->
+<!--                                <argument>ci</argument>-->
+<!--                            </arguments>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+
+                    <!-- Fallback: `npm install` if `ci` fails -->
+                    <execution>
+                        <id>npm-install</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>npm</executable>
+                            <arguments>
+                                <argument>install</argument>
+                                <argument>--legacy-peer-deps</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+                    <!-- 2. Build for production -->
+                    <execution>
+                        <id>npm-build</id>
+                        <phase>compile</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>npm</executable>
+                            <environmentVariables>
+                                <NODE_ENV>${node.env}</NODE_ENV>
+                                <CI>false</CI>
+                                <GENERATE_SOURCEMAP>false</GENERATE_SOURCEMAP>
+                            </environmentVariables>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>build</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 3. Copy frontend build to Spring Boot public folder -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
                 <executions>
                     <execution>
-                        <id>copy-resources</id>
+                        <id>copy-build</id>
                         <phase>process-classes</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
+                        <goals><goal>copy-resources</goal></goals>
                         <configuration>
                             <outputDirectory>${basedir}/../db-world-backend/src/main/resources/public</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${basedir}/../db-world-frontend/build</directory>
+                                    <directory>${basedir}/build</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
                                 </resource>
                             </resources>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>com.github.eirslett</groupId>
-                <artifactId>frontend-maven-plugin</artifactId>
-                <version>${frontend-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>install node</id>
-                        <goals>
-                            <goal>install-node-and-npm</goal>
-                        </goals>
-                        <configuration>
-                            <nodeVersion>${node.version}</nodeVersion>
-                            <npmVersion>${npm.version}</npmVersion>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>npm install</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>generate-resources</phase>
-                        <configuration>
-                            <arguments>install --force</arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>npm build</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>compile</phase>
-                        <configuration>
-                            <arguments>run build:production</arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
         </plugins>
     </build>
-
 </project>

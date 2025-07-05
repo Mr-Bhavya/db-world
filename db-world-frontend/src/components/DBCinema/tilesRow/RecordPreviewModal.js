@@ -40,6 +40,9 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
 
   const handleReactionUpdate = (newData) => {
     if (onUpdateRecord && record) {
+      if( newData?.reaction === 'like') {
+        newData.isLiked = true;
+      }
       onUpdateRecord({ ...record, ...newData });
     }
   };
@@ -284,9 +287,8 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
             {record?.recordId && (
               <>
                 <Reaction
-                  isLiked={record?.isLiked}
                   recordId={record.recordId}
-                  userId={""}
+                  initialReaction={record?.isLiked ? 'like' : null }
                   onUpdate={handleReactionUpdate}
                   size={compact ? 'small' : 'medium'}
                 />

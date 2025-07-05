@@ -429,10 +429,6 @@ public class UtilsServiceImpl implements UtilsService {
                     .replace(" ", "");
             YtProcessStatus ytProcessStatus = new Gson().fromJson(jsonLine, YtProcessStatus.class);
             if (ytProcessStatus != null && ytProcessStatus.getStatus() != null) {
-//                MirrorStatus.DownloadStatus downloadStatus = new MirrorStatus.DownloadStatus(
-//                        ytProcessStatus.getDownloaded_bytes(),
-//                        ytProcessStatus.getTotal_bytes()
-//                );
                 statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), ytProcessStatus.getDownloaded_bytes());
             }
         } catch (JsonSyntaxException ex) {

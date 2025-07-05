@@ -3,18 +3,20 @@ import { watchlistRecord, removeWatchlistRecord } from '../../ApiServices';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 import { Tooltip, Zoom, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
+import useRecordStore from '../../../store/recordStore';
 
-function Watchlist({ recordId, isAddedToWatchList = false, onUpdate, size = "medium" }) {
+function Watchlist({ recordId, isAddedToWatchList = false, size = "medium" }) {
   const [isWatchListed, setIsWatchListed] = useState(isAddedToWatchList);
+  const { records: allRecords, updateRecord } = useRecordStore();
   const [loading, setLoading] = useState(false);
 
   const handleToggleWatchlist = async () => {
     setLoading(true);
     try {
-      const response = isWatchListed 
+      const response = isWatchListed
         ? await removeWatchlistRecord(recordId)
         : await watchlistRecord(recordId);
-      
+
       if (response.httpStatusCode === 200) {
         setIsWatchListed(!isWatchListed);
         onUpdate?.({ isWatchListed: !isWatchListed });
@@ -26,9 +28,24 @@ function Watchlist({ recordId, isAddedToWatchList = false, onUpdate, size = "med
     }
   };
 
+  const onUpdate = ({ isWatchListed }) => {
+    let record = allRecords[recordId];
+    if (!record) {
+      console.warn(`Record with ID ${recordId} not found in store.`);
+      return;
+    } else {
+      if (isWatchListed === true) {
+        record.isWatchListed = true;
+      } else {
+        record.isWatchListed = false;
+      }
+    }
+    updateRecord(record);
+  }
+
   return (
-    <Tooltip 
-      title={isWatchListed ? 'Remove from Watchlist' : 'Add to Watchlist'} 
+    <Tooltip
+      title={isWatchListed ? 'Remove from Watchlist' : 'Add to Watchlist'}
       TransitionComponent={Zoom}
     >
       <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
@@ -45,19 +62,19 @@ function Watchlist({ recordId, isAddedToWatchList = false, onUpdate, size = "med
           {loading ? (
             spinnerIcon
           ) : isWatchListed ? (
-            <i 
-              className="fas fa-bookmark" 
-              style={{ 
+            <i
+              className="fas fa-bookmark"
+              style={{
                 fontSize: iconButtonStyles.iconSize,
-                color: iconButtonStyles.activeColor 
+                color: iconButtonStyles.activeColor
               }}
             />
           ) : (
-            <i 
-              className="far fa-bookmark" 
-              style={{ 
+            <i
+              className="far fa-bookmark"
+              style={{
                 fontSize: iconButtonStyles.iconSize,
-                color: iconButtonStyles.inactiveColor 
+                color: iconButtonStyles.inactiveColor
               }}
             />
           )}
