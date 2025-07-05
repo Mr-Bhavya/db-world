@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  likeRecord, 
+import {
+  likeRecord,
   unLikeRecord,
   // loveRecord,
   // unLoveRecord,
@@ -10,6 +10,8 @@ import {
 import { Tooltip, Zoom, IconButton, Box, Popover } from '@mui/material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
+import useRecordStore from '../../../store/recordStore';
+import { all } from 'axios';
 
 const reactions = [
   { type: 'like', icon: 'fa-thumbs-up', label: 'Like' },
@@ -17,10 +19,9 @@ const reactions = [
   { type: 'dislike', icon: 'fa-thumbs-down', label: 'Dislike' }
 ];
 
-const Reaction = ({ 
-  recordId, 
-  initialReaction = null, 
-  onUpdate, 
+const Reaction = ({
+  recordId,
+  initialReaction = null,
   size = "medium",
   showLabel = false,
   color = "inherit"
@@ -29,6 +30,7 @@ const Reaction = ({
   const [loading, setLoading] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [hoverTimeout, setHoverTimeout] = useState(null);
+  const { records: allRecords, updateRecord } = useRecordStore();
 
   const open = Boolean(anchorEl);
 
@@ -36,10 +38,26 @@ const Reaction = ({
     setReaction(initialReaction);
   }, [initialReaction]);
 
+  const onUpdate = (newReaction) => {
+    console.log(`Updating reaction for record ${recordId} to`, newReaction);
+    let record = allRecords[recordId];
+    if (!record) {
+      console.warn(`Record with ID ${recordId} not found in store.`);
+      return;
+    } else {
+      if (newReaction?.reaction === 'like') {
+        record.isLiked = true;
+      } else {
+        record.isLiked = false;
+      }
+    }
+    updateRecord(record);
+  }
+
   // Immediate UI update with optimistic UI pattern
   const handleReaction = async (selectedType) => {
     const previousReaction = reaction;
-    
+
     // Immediate UI update
     if (selectedType === reaction) {
       setReaction(null);
@@ -48,15 +66,15 @@ const Reaction = ({
       setReaction(selectedType);
       onUpdate?.({ reaction: selectedType });
     }
-    
+
     setAnchorEl(null); // Close popover immediately
-    
+
     try {
       // Remove previous reaction if exists
       if (previousReaction) {
         await removeCurrentReaction(previousReaction);
       }
-      
+
       // Add new reaction if different from previous
       if (selectedType !== previousReaction) {
         await addNewReaction(selectedType);
@@ -102,13 +120,13 @@ const Reaction = ({
   const currentReaction = reactions.find(r => r.type === reaction);
 
   return (
-    <Box 
+    <Box
       sx={{ display: 'flex', alignItems: 'center', position: 'relative' }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <Tooltip 
-        title={reaction ? `Remove ${reaction}` : 'Add reaction'} 
+      <Tooltip
+        title={reaction ? `Remove ${reaction}` : 'Add reaction'}
         TransitionComponent={Zoom}
       >
         <IconButton
@@ -126,7 +144,7 @@ const Reaction = ({
             <>
               <i
                 className={`fas ${currentReaction.icon}`}
-                style={{ 
+                style={{
                   fontSize: iconButtonStyles.iconSize,
                   color: iconButtonStyles.activeColor
                 }}
@@ -141,7 +159,7 @@ const Reaction = ({
             <>
               <i
                 className="far fa-smile"
-                style={{ 
+                style={{
                   fontSize: iconButtonStyles.iconSize,
                   color: iconButtonStyles.inactiveColor
                 }}
@@ -158,6 +176,7 @@ const Reaction = ({
         open={open}
         anchorEl={anchorEl}
         onClose={() => setAnchorEl(null)}
+        disableScrollLock={true}
         anchorOrigin={{
           vertical: 'top',
           horizontal: 'center',
@@ -192,7 +211,7 @@ const Reaction = ({
                 <IconButton
                   onClick={() => handleReaction(type)}
                   sx={{
-                    backgroundColor: reaction === type ? 
+                    backgroundColor: reaction === type ?
                       'rgba(255,255,255,0.2)' : 'transparent',
                     '&:hover': {
                       backgroundColor: 'rgba(255,255,255,0.1)'
@@ -203,8 +222,8 @@ const Reaction = ({
                     className={`fas ${icon}`}
                     style={{
                       fontSize: iconButtonStyles.iconSize,
-                      color: reaction === type ? 
-                        iconButtonStyles.activeColor : 
+                      color: reaction === type ?
+                        iconButtonStyles.activeColor :
                         iconButtonStyles.inactiveColor
                     }}
                   />
