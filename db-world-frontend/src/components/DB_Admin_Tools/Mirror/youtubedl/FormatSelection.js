@@ -1,204 +1,322 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Tab, Tabs } from 'react-bootstrap';
-import { ChevronDown, ChevronUp } from 'react-bootstrap-icons'; // Import icons from Bootstrap Icons
+import React, { useState } from 'react';
+import { 
+  Box, 
+  Button, 
+  Typography, 
+  Card, 
+  CardHeader, 
+  CardContent, 
+  Divider, 
+  Tabs, 
+  Tab, 
+  Chip,
+  Collapse,
+  IconButton,
+  Paper,
+  Grid
+} from '@mui/material';
+import { 
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  CheckCircle,
+  RadioButtonUnchecked
+} from '@mui/icons-material';
+import { motion } from 'framer-motion';
+import { styled } from '@mui/system';
 
-const FormatSelection = ({ formats, onHandleSubmit }) => {
-    const [selectedVideo, setSelectedVideo] = useState(null);
-    const [selectedAudio, setSelectedAudio] = useState(null);
-    const [activeTab, setActiveTab] = useState('video');
-    const [expandedGroups, setExpandedGroups] = useState({
-        video: {},
-        audio: {}
-    });
+const StyledCard = styled(Card)(({ theme, selected }) => ({
+  cursor: 'pointer',
+  transition: 'all 0.3s ease',
+  border: selected ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: theme.shadows[4]
+  }
+}));
 
-    const handleVideoSelection = (format) => {
-        setSelectedVideo(format);
-    };
+const FormatCard = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+  marginBottom: theme.spacing(2),
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    backgroundColor: theme.palette.action.hover
+  }
+}));
 
-    const handleAudioSelection = (format) => {
-        setSelectedAudio(format);
-    };
+const FormatSelection = ({ formats, onHandleSubmit, isLoading }) => {
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [selectedAudio, setSelectedAudio] = useState(null);
+  const [activeTab, setActiveTab] = useState('video');
+  const [expandedGroups, setExpandedGroups] = useState({});
 
-    const handleGroupToggle = (type, key) => {
-        setExpandedGroups((prevState) => ({
-            ...prevState,
-            [type]: {
-                ...prevState[type],
-                [key]: !prevState[type][key]
-            }
-        }));
-    };
+  // Filter and group formats
+  const videoFormats = formats.filter(format => format.video_ext !== 'none');
+  const audioFormats = formats.filter(format => format.video_ext === 'none');
 
-    // Group video formats by resolution
-    const videoFormats = formats.filter((format) => format.video_ext !== 'none');
-    const audioFormats = formats.filter((format) => format.video_ext === 'none');
+  // Group video formats by resolution
+  const groupedVideoFormats = videoFormats.reduce((groups, format) => {
+    const resolution = format.resolution || 'Other';
+    if (!groups[resolution]) {
+      groups[resolution] = [];
+    }
+    groups[resolution].push(format);
+    return groups;
+  }, {});
 
-    // Group video formats by resolution
-    const groupedVideoFormats = videoFormats.reduce((groups, format) => {
-        const resolution = format.resolution || 'N/A';
-        if (!groups[resolution]) {
-            groups[resolution] = [];
-        }
-        groups[resolution].push(format);
-        return groups;
-    }, {});
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
 
-    const handleSubmit = async () => {
-        if (!selectedVideo) {
-            alert('You must select a video format!');
-            return;
-        }
-        console.log(selectedVideo, selectedAudio);
-        // Here you can process the selected formats
-        const dataToSubmit = {
-            video: selectedVideo?.format_id,
-            audio: selectedAudio?.format_id || null
-        };
-        onHandleSubmit(selectedVideo?.format_id, selectedAudio?.format_id || null);
-    };
+  const toggleGroup = (resolution) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [resolution]: !prev[resolution]
+    }));
+  };
 
-    return (
-        <div className="format-selection-container my-3">
-            <h3>Select Video/Audio Quality</h3>
+  const handleSubmit = () => {
+    if (!selectedVideo) {
+      alert('Please select a video format');
+      return;
+    }
+    onHandleSubmit(selectedVideo?.format_id, selectedAudio?.format_id);
+  };
 
-            <Tabs
-                defaultActiveKey="video"
-                id="uncontrolled-tab-example"
-                className="mb-3"
-                activeKey={activeTab}
-                onSelect={(key) => setActiveTab(key)}
-            >
-                <Tab eventKey="video" title="Video Quality">
-                    <div className="formats-section" id='video'>
-                        <h4 className="bg-primary text-white p-2 rounded">Select Video Format (Mandatory)</h4>
-                        {Object.entries(groupedVideoFormats).map(([resolution, formats]) => (
-                            <div key={resolution}>
-                                <div
-                                    className="group-header d-flex justify-content-between align-items-center p-2 mt-2 bg-light rounded"
-                                    onClick={() => handleGroupToggle('video', resolution)}
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <h5 className="m-0">{resolution} Resolution</h5>
-                                    <Button variant="link" className="p-0">
-                                        {expandedGroups.video[resolution] ? <ChevronUp /> : <ChevronDown />}
-                                    </Button>
-                                </div>
-                                {expandedGroups.video[resolution] && (
-                                    <div className="row mt-3">
-                                        {formats.map((format, index) => (
-                                            <div key={index} className="col-12 col-md-4 mb-3">
-                                                <div
-                                                    className={`format-item p-3 border rounded ${selectedVideo === format ? 'bg-dark text-white' : 'bg-light'
-                                                        }`}
-                                                    onClick={() => handleVideoSelection(format)}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <h6>{format.format_note}</h6>
-                                                    <p><strong>Codec:</strong> {format.vcodec}</p>
-                                                    <p><strong>File Size:</strong> {(format.filesize / (1024 * 1024)).toFixed(2)} MB</p>
-                                                    <p><strong>Quality:</strong> {format.quality}</p>
-                                                    <Button
-                                                        variant={selectedVideo === format ? 'outline-light' : 'outline-primary'}
-                                                        className="w-100"
-                                                    >
-                                                        {selectedVideo === format ? 'Selected' : 'Select'}
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </Tab>
-                <Tab eventKey="audio" title="Audio Quality">
-                    <div className="formats-section" id="audio">
-                        <h4 className="bg-primary text-white p-2 rounded">Select Audio Format (Optional)</h4>
-                        <div className="row mt-3">
-                            {audioFormats.map((format, index) => (
-                                <div key={index} className="col-12 col-md-4 mb-3">
-                                    <div
-                                        className={`format-item p-3 border rounded ${selectedAudio === format ? 'bg-primary text-white' : 'bg-light'
-                                            }`}
-                                        onClick={() => handleAudioSelection(format)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <h6>{format.format_note}</h6>
-                                        <p><strong>Audio Codec:</strong> {format.acodec}</p>
-                                        <p><strong>Bitrate:</strong> {format.abr} kbps</p>
-                                        <p><strong>File Size:</strong> {(format.filesize / (1024 * 1024)).toFixed(2)} MB</p>
-                                        <p><strong>Quality:</strong> {format.quality}</p>
-                                        <Button
-                                            variant={selectedAudio === format ? 'outline-light' : 'outline-primary'}
-                                            className="w-100"
-                                        >
-                                            {selectedAudio === format ? 'Selected' : 'Select'}
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </Tab>
-            </Tabs>
+  const formatSize = (bytes) => {
+    if (!bytes) return 'N/A';
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
 
-            {/* Submit Button */}
-            <div className="submit-container mt-3">
-                <Button variant="success" onClick={handleSubmit} className="w-100">
-                    Submit
-                </Button>
-            </div>
+  return (
+    <Box sx={{ mt: 3 }}>
+      <Typography variant="h5" gutterBottom>
+        Select Video/Audio Quality
+      </Typography>
 
-            {/* Selection Summary */}
-            <div className="selection-summary mt-4">
-                <h4>Selection Summary:</h4>
-                <div className="row">
-                    <div className="col-12 col-md-6 mb-3">
-                        <div className="card">
-                            <div className="card-header bg-info text-white">
-                                <strong>Video Format</strong>
-                            </div>
-                            <div className="card-body">
-                                {selectedVideo ? (
-                                    <>
-                                        <h5>{selectedVideo.format_note}</h5>
-                                        <p><strong>Codec:</strong> {selectedVideo.vcodec}</p>
-                                        <p><strong>File Size:</strong> {(selectedVideo.filesize / (1024 * 1024)).toFixed(2)} MB</p>
-                                        <p><strong>Quality:</strong> {selectedVideo.quality}</p>
-                                    </>
+      <Tabs 
+        value={activeTab} 
+        onChange={handleTabChange} 
+        variant="fullWidth"
+        sx={{ mb: 3 }}
+      >
+        <Tab label="Video Quality" value="video" />
+        <Tab label="Audio Quality" value="audio" />
+      </Tabs>
+
+      <Divider sx={{ mb: 3 }} />
+
+      {activeTab === 'video' && (
+        <Box>
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+            Video Formats
+          </Typography>
+
+          {Object.entries(groupedVideoFormats).map(([resolution, formats]) => (
+            <Card key={resolution} sx={{ mb: 2 }}>
+              <CardHeader
+                title={`${resolution} Resolution`}
+                action={
+                  <IconButton onClick={() => toggleGroup(resolution)}>
+                    {expandedGroups[resolution] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
+                }
+                sx={{ cursor: 'pointer' }}
+                onClick={() => toggleGroup(resolution)}
+              />
+              
+              <Collapse in={expandedGroups[resolution]}>
+                <CardContent>
+                  <Grid container spacing={2}>
+                    {formats.map((format, index) => (
+                      <Grid item xs={12} sm={6} md={4} key={index}>
+                        <motion.div whileHover={{ scale: 1.02 }}>
+                          <StyledCard 
+                            selected={selectedVideo?.format_id === format.format_id}
+                            onClick={() => setSelectedVideo(format)}
+                          >
+                            <CardContent>
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography variant="subtitle1">
+                                  {format.format_note || 'Unknown'}
+                                </Typography>
+                                {selectedVideo?.format_id === format.format_id ? (
+                                  <CheckCircle color="primary" />
                                 ) : (
-                                    <p className="text-muted">Not Selected (Mandatory)</p>
+                                  <RadioButtonUnchecked color="disabled" />
                                 )}
-                            </div>
-                        </div>
-                    </div>
+                              </Box>
 
-                    <div className="col-12 col-md-6 mb-3">
-                        <div className="card">
-                            <div className="card-header bg-warning text-dark">
-                                <strong>Audio Format</strong>
-                            </div>
-                            <div className="card-body">
-                                {selectedAudio ? (
-                                    <>
-                                        <h5>{selectedAudio.format_note}</h5>
-                                        <p><strong>Audio Codec:</strong> {selectedAudio.acodec}</p>
-                                        <p><strong>Bitrate:</strong> {selectedAudio.abr} kbps</p>
-                                        <p><strong>File Size:</strong> {(selectedAudio.filesize / (1024 * 1024)).toFixed(2)} MB</p>
-                                        <p><strong>Quality:</strong> {selectedAudio.quality}</p>
-                                    </>
-                                ) : (
-                                    <p className="text-muted">Not Selected</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                              <Divider sx={{ my: 1 }} />
 
-        </div>
-    );
+                              <Typography variant="body2">
+                                <strong>Codec:</strong> {format.vcodec}
+                              </Typography>
+                              <Typography variant="body2">
+                                <strong>Size:</strong> {formatSize(format.filesize)}
+                              </Typography>
+                              <Typography variant="body2">
+                                <strong>Quality:</strong> {format.quality}
+                              </Typography>
+
+                              <Box mt={1}>
+                                <Chip 
+                                  label={selectedVideo?.format_id === format.format_id ? 'Selected' : 'Select'} 
+                                  color={selectedVideo?.format_id === format.format_id ? 'primary' : 'default'}
+                                  size="small"
+                                />
+                              </Box>
+                            </CardContent>
+                          </StyledCard>
+                        </motion.div>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Collapse>
+            </Card>
+          ))}
+        </Box>
+      )}
+
+      {activeTab === 'audio' && (
+        <Box>
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+            Audio Formats
+          </Typography>
+
+          <Grid container spacing={2}>
+            {audioFormats.map((format, index) => (
+              <Grid item xs={12} sm={6} md={4} key={index}>
+                <motion.div whileHover={{ scale: 1.02 }}>
+                  <StyledCard 
+                    selected={selectedAudio?.format_id === format.format_id}
+                    onClick={() => setSelectedAudio(format)}
+                  >
+                    <CardContent>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="subtitle1">
+                          {format.format_note || 'Unknown'}
+                        </Typography>
+                        {selectedAudio?.format_id === format.format_id ? (
+                          <CheckCircle color="primary" />
+                        ) : (
+                          <RadioButtonUnchecked color="disabled" />
+                        )}
+                      </Box>
+
+                      <Divider sx={{ my: 1 }} />
+
+                      <Typography variant="body2">
+                        <strong>Codec:</strong> {format.acodec}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Bitrate:</strong> {format.abr} kbps
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Size:</strong> {formatSize(format.filesize)}
+                      </Typography>
+
+                      <Box mt={1}>
+                        <Chip 
+                          label={selectedAudio?.format_id === format.format_id ? 'Selected' : 'Select'} 
+                          color={selectedAudio?.format_id === format.format_id ? 'primary' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                    </CardContent>
+                  </StyledCard>
+                </motion.div>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
+
+      <Divider sx={{ my: 3 }} />
+
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h6" gutterBottom>
+          Selection Summary
+        </Typography>
+
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader 
+                title="Video Format" 
+                sx={{ bgcolor: 'primary.main', color: 'primary.contrastText' }}
+              />
+              <CardContent>
+                {selectedVideo ? (
+                  <>
+                    <Typography variant="subtitle1" gutterBottom>
+                      {selectedVideo.format_note}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Codec:</strong> {selectedVideo.vcodec}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Size:</strong> {formatSize(selectedVideo.filesize)}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Quality:</strong> {selectedVideo.quality}
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography color="textSecondary">
+                    No video format selected (required)
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader 
+                title="Audio Format" 
+                sx={{ bgcolor: 'secondary.main', color: 'secondary.contrastText' }}
+              />
+              <CardContent>
+                {selectedAudio ? (
+                  <>
+                    <Typography variant="subtitle1" gutterBottom>
+                      {selectedAudio.format_note}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Codec:</strong> {selectedAudio.acodec}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Bitrate:</strong> {selectedAudio.abr} kbps
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Size:</strong> {formatSize(selectedAudio.filesize)}
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography color="textSecondary">
+                    No audio format selected (optional)
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
+
+      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+        <Button 
+          variant="contained" 
+          size="large" 
+          onClick={handleSubmit}
+          disabled={!selectedVideo || isLoading}
+          sx={{ px: 6, py: 1.5 }}
+        >
+          {isLoading ? 'Processing...' : 'Start Download'}
+        </Button>
+      </Box>
+    </Box>
+  );
 };
 
 export default FormatSelection;

@@ -24,6 +24,7 @@ import java.util.Optional;
 public class MirrorStatus {
 
     private String id = String.valueOf(new Date().getTime());
+    private Long pid;
     private String timeStamp = id;
     private Long recordId;
     private String userBy;
@@ -179,5 +180,16 @@ public class MirrorStatus {
             this.totalFileSize = totalFileSize;
             this.fileRemaining = Math.max(0, totalFileSize - fileDownloaded);
         }
+
+        public DownloadStatus(Double speed, Long eta, Long fileDownloaded, Long totalFileSize) {
+            this.speed = speed;
+            this.eta = eta;
+            this.fileDownloaded = fileDownloaded;
+            this.totalFileSize = totalFileSize;
+            this.fileRemaining = (fileDownloaded != null && totalFileSize != null)
+                    ? Math.max(0, totalFileSize - fileDownloaded)
+                    : null;
+        }
+
     }
 }

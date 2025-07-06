@@ -1,10 +1,12 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.services.DownloadStatus;
 import com.db.dbworld.services.StreamService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldUtils;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheConfig;
@@ -13,24 +15,15 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import static org.springframework.util.StreamUtils.BUFFER_SIZE;
 
 @Service
 @Log4j2
@@ -43,153 +36,101 @@ public class StreamServiceImpl implements StreamService {
     @Autowired
     private UserService userService;
 
-    @Async
+    @Autowired
+    private DbWorldUtils dbWorldUtils;
+
     @Override
-    public CompletableFuture<ResponseEntity<InputStreamResource>> getStreamResource(Path path, String range) {
+    public ResponseEntity<Void> streamFileByCdn(String user, Path path, String rangeHeader, boolean inline) {
+        // Validate inputs
+        Objects.requireNonNull(user, "User cannot be null");
+        Objects.requireNonNull(path, "Path cannot be null");
 
-        final Long fileSize = getFileSize(path);
-        long rangeStart = 0;
-        long rangeEnd = Math.min(DbWorldConstants.CHUNK_SIZE, fileSize - 1);
-
-        if (range == null) {
-            return CompletableFuture.completedFuture(ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
-                    .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
-                    .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                    .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(rangeEnd))
-                    .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
-                    .body(readResource(path, rangeStart))); // Read the object and convert it as bytes
-        }
-        String[] ranges = range.split("-");
-        rangeStart = Long.parseLong(ranges[0].substring(6));
-        if (ranges.length > 1) {
-            rangeEnd = Long.parseLong(ranges[1]);
-        } else {
-            rangeEnd = rangeStart + DbWorldConstants.CHUNK_SIZE;
-        }
-
-        rangeEnd = Math.min(rangeEnd, fileSize - 1);
-        final String contentLength = String.valueOf((rangeEnd - rangeStart) + 1);
-        HttpStatus httpStatus = HttpStatus.PARTIAL_CONTENT;
-        if (rangeEnd >= fileSize) {
-            httpStatus = HttpStatus.OK;
-        }
-        return CompletableFuture.completedFuture(ResponseEntity.status(httpStatus)
-                .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
-                .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                .header(DbWorldConstants.CONTENT_LENGTH_HEADER, contentLength)
-                .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
-                .body(readResource(path, rangeStart)));
-    }
-
-    // Service class
-    @Override
-    public ResponseEntity<Void> downloadFileFromCDN(String user, Path path, String rangeHeader, boolean inline) {
-        String downloadId = user + "-" + path.getFileName();
-        long fileSize;
-        long rangeStart = 0;
-        boolean isPartial = false;
+        final String downloadId = createDownloadId(user, path);
+        final DbWorldRecords.FileSizeInfo sizeInfo = dbWorldUtils.getFileSizeInfo(path);
+        final DbWorldRecords.RangeInfo rangeInfo = parseRangeHeader(rangeHeader, sizeInfo.fileSize());
 
         try {
-            fileSize = Files.size(path);
-        } catch (IOException e) {
-            throw new DbWorldException("Failed to determine file size.", e);
-        }
+            HttpHeaders headers = createResponseHeaders(user, path, sizeInfo, rangeInfo, inline, downloadId);
 
-        try {
-            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-                try {
-                    rangeStart = Long.parseLong(rangeHeader.substring(6).split("-")[0].trim());
-                    if (rangeStart > 0) {
-                        isPartial = true;
-                    }
-                } catch (NumberFormatException e) {
-                    throw new DbWorldException("Invalid Range Header format.", e);
-                }
+            // Ensure proper status code for range requests
+            HttpStatus status = HttpStatus.OK;
+            if (rangeHeader != null && rangeInfo.isPartial()) {
+                status = HttpStatus.PARTIAL_CONTENT;
             }
 
-            HttpHeaders headers = new HttpHeaders();
-
-            // Important for range request
-            if (isPartial) {
-                headers.set(HttpHeaders.CONTENT_RANGE, "bytes " + rangeStart + "-" + (fileSize - 1) + "/" + fileSize);
-                headers.setContentLength(fileSize - rangeStart);
-            } else {
-                headers.setContentLength(fileSize);
-            }
-
-            String accelRedirectUrl = String.format("/cdn/stream/%s?userId=%s&downloadId=%s&originalFile=%s&rangeStart=%d&requestId=%s&type=%s",
-                    path,
-                    URLEncoder.encode(user, StandardCharsets.UTF_8),
-                    URLEncoder.encode(downloadId, StandardCharsets.UTF_8),
-                    URLEncoder.encode(path.toString(), StandardCharsets.UTF_8),
-                    rangeStart,
-                    UUID.randomUUID(),
-                    inline ? DownloadStatus.DownloadType.STREAM.toString() : DownloadStatus.DownloadType.DOWNLOAD.toString()
-            );  
-            headers.add("X-Accel-Redirect", accelRedirectUrl);
-
-            // MIME Type
-            String mimeType;
-            try {
-                mimeType = Files.probeContentType(path);
-            } catch (IOException e) {
-                mimeType = null;
-            }
-            headers.setContentType(MediaType.parseMediaType(mimeType != null ? mimeType : "application/octet-stream"));
-
-            // Content-Disposition (attachment = download, inline = stream/play)
-            ContentDisposition disposition = inline ?
-                    ContentDisposition.inline().filename(path.getFileName().toString()).build()
-                    : ContentDisposition.attachment().filename(path.getFileName().toString()).build();
-            headers.setContentDisposition(disposition);
-
-            // Return 206 for partial, otherwise 200
-            return new ResponseEntity<>(headers, isPartial ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK);
-
+            return new ResponseEntity<>(headers, status);
         } catch (Exception e) {
-            log.error("Error during file stream/download: {}", e.getMessage());
-            throw new DbWorldException("Error during streaming/download", e);
+            log.error("Error during file streaming/download for {}: {}", path, e.getMessage());
+            throw new DbWorldException("Error during file streaming/download", e);
         }
     }
 
-
-
-    /**
-     * Checks if an IOException is due to a client disconnect.
-     */
-    private boolean isClientDisconnect(IOException e) {
-        String msg = e.getMessage();
-        return msg != null && (msg.contains("Broken pipe") ||
-                msg.contains("Connection reset") ||
-                msg.contains("Idle timeout"));
-//                || msg.contains("ServletOutputStream failed to write: null"));
+    private String createDownloadId(String user, Path path) {
+        return user + "-" + path.getFileName();
     }
 
 
-    @Override
-    @Async
-    public CompletableFuture<ResponseEntity<InputStreamResource>> getDownloadResource(Path path, String range) {
-        final Long fileSize = getFileSize(path);
-        long rangeStart = 0;
-        long rangeEnd = (fileSize - 1);
-        HttpStatusCode httpStatusCode = HttpStatus.OK;
-        if (range != null) {
-            String[] ranges = range.split("-");
-            rangeStart = Long.parseLong(ranges[0].substring(6));
-            httpStatusCode = HttpStatus.PARTIAL_CONTENT;
+    private DbWorldRecords.RangeInfo parseRangeHeader(String rangeHeader, long fileSize) {
+        if (rangeHeader == null || !rangeHeader.startsWith("bytes=")) {
+            return new DbWorldRecords.RangeInfo(0, false);
         }
-        return CompletableFuture.completedFuture(ResponseEntity.status(httpStatusCode)
-//                    .header(HttpHeaders.TRANSFER_ENCODING, "chunked")
-                .header(DbWorldConstants.ACCEPT_RANGES_HEADER, DbWorldConstants.BYTES)
-                .header(DbWorldConstants.CONTENT_TYPE_HEADER, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                .header(DbWorldConstants.CONTENT_LENGTH_HEADER, String.valueOf(fileSize))
-                .header(DbWorldConstants.CONTENT_DISPOSITION_HEADER, getContentDisposition(path))
-                .header(DbWorldConstants.CONTENT_RANGE_HEADER, DbWorldConstants.BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
-                .body(readResource(path, rangeStart)));
+
+        try {
+            String rangeValue = rangeHeader.substring(6).trim();
+            long start = Long.parseLong(rangeValue.split("-")[0].trim());
+
+            if (start < 0 || start >= fileSize) {
+                throw new DbWorldException("Invalid range start position");
+            }
+
+            return new DbWorldRecords.RangeInfo(start, start > 0);
+        } catch (NumberFormatException e) {
+            throw new DbWorldException("Invalid Range Header format", e);
+        }
+    }
+
+    private HttpHeaders createResponseHeaders(String user, Path path, DbWorldRecords.FileSizeInfo sizeInfo, DbWorldRecords.RangeInfo rangeInfo,
+                                              boolean inline, String downloadId) throws UnsupportedEncodingException {
+        HttpHeaders headers = new HttpHeaders();
+
+        // Set content length and range headers
+        if (rangeInfo.isPartial()) {
+            headers.set(HttpHeaders.CONTENT_RANGE,
+                    String.format("bytes %d-%d/%d",
+                            rangeInfo.rangeStart(),
+                            sizeInfo.fileSize() - 1,
+                            sizeInfo.fileSize()));
+            headers.setContentLength(sizeInfo.fileSize() - rangeInfo.rangeStart());
+        } else {
+            headers.setContentLength(sizeInfo.fileSize());
+        }
+
+        // Set X-Accel-Redirect header
+        headers.add("X-Accel-Redirect", buildAccelRedirectUrl(path, user, downloadId, rangeInfo.rangeStart(), inline));
+
+        // Set content type
+        headers.setContentType(dbWorldUtils.determineContentType(path));
+
+        // Set content disposition
+        headers.setContentDisposition(dbWorldUtils.createContentDisposition(path, inline));
+
+        return headers;
+    }
+
+    private String buildAccelRedirectUrl(Path path, String user, String downloadId,
+                                         long rangeStart, boolean inline) throws UnsupportedEncodingException {
+        return String.format("/cdn/stream/%s?userId=%s&downloadId=%s&originalFile=%s&rangeStart=%d&requestId=%s&type=%s",
+                path,
+                URLEncoder.encode(user, StandardCharsets.UTF_8),
+                URLEncoder.encode(downloadId, StandardCharsets.UTF_8),
+                URLEncoder.encode(path.toString(), StandardCharsets.UTF_8),
+                rangeStart,
+                UUID.randomUUID(),
+                inline ? DownloadStatus.DownloadType.STREAM : DownloadStatus.DownloadType.DOWNLOAD
+        );
     }
 
     @Override
-//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public List<HashMap<String, Object>> getList(String path) {
         Path normalPath = Path.of(DbWorldConstants.STREAM_HOME_PATH + File.separator + path);
         Path externalDiskPath = Path.of(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH + File.separator + path);
@@ -217,7 +158,6 @@ public class StreamServiceImpl implements StreamService {
     }
 
     @Override
-//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public ArrayList<File> getListRecursive(Path dir) {
         ArrayList<File> files = new ArrayList<>();
         if (Files.exists(dir) && Files.isDirectory(dir)) {
@@ -233,7 +173,6 @@ public class StreamServiceImpl implements StreamService {
     }
 
     @Override
-//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public HashMap<String, Object> createDetails(Path path) {
         HashMap<String, Object> hashMap = new LinkedHashMap<>();
         try {
@@ -250,80 +189,6 @@ public class StreamServiceImpl implements StreamService {
             throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
         return hashMap;
-    }
-
-    private StreamingResponseBody readStreamingBody(Path path, long start, long end) {
-
-        return outputStream -> {
-            try (InputStream inputStream = Files.newInputStream(path, StandardOpenOption.READ)) {
-                byte[] buffer = new byte[64 * 1024]; // 64 KB buffer
-                long bytesToRead = end - start + 1;
-                long bytesRead = 0;
-
-                // Skip to the start position
-                inputStream.skip(start);
-
-                while (bytesRead < bytesToRead) {
-                    int bytesToWrite = (int) Math.min(buffer.length, bytesToRead - bytesRead);
-                    int read = inputStream.read(buffer, 0, bytesToWrite);
-                    if (read == -1) {
-                        break; // End of file
-                    }
-                    outputStream.write(buffer, 0, read);
-                    bytesRead += read;
-                }
-                outputStream.flush();
-            } catch (IOException e) {
-                throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, "Error streaming file: " + e.getMessage());
-            }
-        };
-
-//        int bufferSize = 1024 * 1024; // 1 MB buffer size
-//        return os -> {
-//            try (RandomAccessFile file = new RandomAccessFile(path.toString(), "r")) {
-//                byte[] buffer = new byte[bufferSize];
-//                long pos = start;
-//                file.seek(pos);
-//                while (pos < end) {
-//                    int bytesToRead = (int) Math.min(bufferSize, end - pos + 1);
-//                    int bytesRead = file.read(buffer, 0, bytesToRead);
-//                    if (bytesRead == -1) {
-//                        break; // End of file
-//                    }
-//                    os.write(buffer, 0, bytesRead);
-//                    pos += bytesRead;
-//                }
-//                os.flush();
-//            } catch (Exception e) {
-//                throw new DbWorldException(e.getMessage());
-//            }
-//        };
-    }
-
-    private InputStreamResource readResource(Path path, long start) {
-        InputStream inputStream = null;
-        try {
-            inputStream = Files.newInputStream(path);
-            inputStream.skip(start);
-        } catch (IOException e) {
-            throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
-        }
-        return new InputStreamResource(inputStream);
-    }
-
-    public String getContentDisposition(Path path) {
-        return ContentDisposition.builder("attachment")
-                .filename(path.getFileName().toString(), StandardCharsets.UTF_8)
-                .build().toString();
-    }
-
-    public Long getFileSize(Path path) {
-        try {
-            return Files.size(path);
-        } catch (IOException ioException) {
-            log.error("Error while getting the file size. filepath: {}, Error: {}", path.toString(), ioException.getMessage());
-            throw new DbWorldException("Error while getting the file size. filepath: " + path + " Error: " + ioException.getMessage());
-        }
     }
 
 }

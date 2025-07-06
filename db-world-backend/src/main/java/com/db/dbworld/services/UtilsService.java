@@ -14,5 +14,5 @@ public interface UtilsService {
     JsonObject getInfoYtFile(String url);
     void downloadYtFile(MirrorStatus mirrorStatus);
     void deleteTempFiles();
-    HttpHeaders getHeaders(String url);
+//    HttpHeaders getHeaders(String url);
 }

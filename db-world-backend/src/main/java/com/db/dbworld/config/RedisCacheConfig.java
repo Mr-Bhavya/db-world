@@ -31,25 +31,6 @@ public class RedisCacheConfig {
         return new LettuceConnectionFactory();
     }
 
-
-    @Bean
-    public RedisTemplate<String, MirrorStatus> mirrorStatusRedisTemplate() {
-        RedisTemplate<String, MirrorStatus> template = new RedisTemplate<>();
-        template.setConnectionFactory(redisConnectionFactory());
-
-        // Use String serializer for keys
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setHashKeySerializer(new StringRedisSerializer());
-
-        // Use JSON serializer for values
-        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
-        template.setValueSerializer(serializer);
-        template.setHashValueSerializer(serializer);
-
-        template.afterPropertiesSet();
-        return template;
-    }
-
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory redisConnectionFactory) {
 
@@ -69,6 +50,24 @@ public class RedisCacheConfig {
         return RedisCacheManager.builder(redisConnectionFactory)
                 .cacheDefaults(cacheConfig)
                 .build();
+    }
+
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        // Use String serializer for keys
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
+
+        // Use JSON serializer for values
+        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
+        template.setValueSerializer(serializer);
+        template.setHashValueSerializer(serializer);
+
+        template.afterPropertiesSet();
+        return template;
     }
 
     @Bean

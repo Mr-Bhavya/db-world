@@ -1,75 +1,96 @@
-export class ReconnectingWebSocket {
-  constructor(url, protocols = []) {
-    this.url = url;
-    this.protocols = protocols;
-    this.ws = null;
-    this.forcedClose = false;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.reconnectInterval = 5000;
+import { useEffect, useRef, useState, useCallback } from 'react';
 
-    // User-assigned handlers
-    this.onopen = null;
-    this.onmessage = null;
-    this.onclose = null;
-    this.onerror = null;
+export const useReconnectingWebSocket = (url, {
+  pingInterval = 15000,
+  timeout = 30000,
+  reconnectDelay = 2000,
+  onMessage,
+  onOpen,
+  onClose,
+  onError
+} = {}) => {
+  const wsRef = useRef(null);
+  const pingTimer = useRef(null);
+  const timeoutTimer = useRef(null);
+  const reconnectTimer = useRef(null);
+  const [connected, setConnected] = useState(false);
 
-    this.connect();
-  }
+  const stopPing = () => {
+    clearInterval(pingTimer.current);
+    clearTimeout(timeoutTimer.current);
+  };
 
-  connect() {
-    this.ws = new WebSocket(this.url, this.protocols);
-
-    this.ws.onopen = (event) => {
-      this.reconnectAttempts = 0;
-      if (this.onopen) this.onopen(event);
-    };
-
-    this.ws.onmessage = (event) => {
-      if (this.onmessage) this.onmessage(event);
-    };
-
-    this.ws.onclose = (event) => {
-      if (this.onclose) this.onclose(event);
-
-      if (!this.forcedClose && this.reconnectAttempts < this.maxReconnectAttempts) {
-        const delay = Math.min(
-          this.reconnectInterval * Math.pow(2, this.reconnectAttempts),
-          30000
-        );
-
-        setTimeout(() => {
-          this.reconnectAttempts += 1;
-          this.connect();
-        }, delay);
+  const startPing = () => {
+    stopPing();
+    pingTimer.current = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send("ping");
       }
+    }, pingInterval);
+
+    timeoutTimer.current = setTimeout(() => {
+      console.warn("No pong received, closing stale socket");
+      wsRef.current?.close();
+    }, timeout);
+  };
+
+  const connect = useCallback(() => {
+    if (wsRef.current) return;
+
+    wsRef.current = new WebSocket(url);
+
+    wsRef.current.onopen = (event) => {
+      setConnected(true);
+      onOpen?.(event);
+      startPing();
     };
 
-    this.ws.onerror = (error) => {
-      if (this.onerror) this.onerror(error);
+    wsRef.current.onmessage = (event) => {
+      if (event.data === 'pong') return;
+
+      clearTimeout(timeoutTimer.current);
+      timeoutTimer.current = setTimeout(() => {
+        wsRef.current?.close();
+      }, timeout);
+
+      onMessage?.(event);
     };
-  }
 
-  send(data) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(data);
-      return true;
+    wsRef.current.onerror = (error) => {
+      onError?.(error);
+    };
+
+    wsRef.current.onclose = (event) => {
+      setConnected(false);
+      onClose?.(event);
+      stopPing();
+      wsRef.current = null;
+
+      reconnectTimer.current = setTimeout(() => {
+        connect();
+      }, reconnectDelay);
+    };
+  }, [url, onMessage, onOpen, onClose, onError, pingInterval, timeout, reconnectDelay]);
+
+  const send = useCallback((message) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(message);
     }
-    return false;
-  }
+  }, []);
 
-  close() {
-    this.forcedClose = true;
-    if (this.ws) {
-      this.ws.close();
-    }
-  }
+  useEffect(() => {
+    connect();
+    return () => {
+      stopPing();
+      clearTimeout(reconnectTimer.current);
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
+  }, [connect]);
 
-  getReadyState() {
-    return this.ws ? this.ws.readyState : WebSocket.CLOSED;
-  }
-
-  isOpen() {
-    return this.getReadyState() === WebSocket.OPEN;
-  }
-}
+  return {
+    send,
+    connected,
+    readyState: wsRef.current?.readyState ?? WebSocket.CLOSED
+  };
+};
