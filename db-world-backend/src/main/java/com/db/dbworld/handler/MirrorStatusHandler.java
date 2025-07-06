@@ -51,6 +51,6 @@ public class MirrorStatusHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        log.info("WebSocket closed: {}", status);
+        log.debug("WebSocket closed: {}", status);
     }
 }

@@ -100,9 +100,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Autowired
     private MediaFileInfoRepository mediaFileInfoRepository;
 
-    private static final String SEARCH_RECORD_BY_KEYWORD = "SELECT dcr FROM DBCinemaRecordsEntity dcr WHERE dcr.name LIKE (:keyword) OR dcr.tmdb.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC";
-    private static final String ALL_LANGUAGES = "all";
-
     @Autowired
     private UserService userService;
 

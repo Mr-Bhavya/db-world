@@ -13,12 +13,9 @@ import java.util.concurrent.CompletableFuture;
 
 public interface StreamService {
 
-    CompletableFuture<ResponseEntity<InputStreamResource>> getStreamResource(Path path, final String range);
-    ResponseEntity<Void> downloadFileFromCDN(String user, Path path, String rangeHeader, boolean inline);
-//    ResponseEntity<StreamingResponseBody> downloadFile(String user, Path path, String rangeHeader);
-    CompletableFuture<ResponseEntity<InputStreamResource>> getDownloadResource(Path path, String range);
+    ResponseEntity<Void> streamFileByCdn(String user, Path path, String rangeHeader, boolean inline);
     List<HashMap<String, Object>> getList(String path);
     ArrayList<File> getListRecursive(Path dir);
     HashMap<String, Object> createDetails(Path path);
-    Long getFileSize(Path path);
+
 }

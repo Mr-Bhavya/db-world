@@ -8,6 +8,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Log4j2
@@ -27,7 +28,7 @@ public class StatusServiceImpl implements StatusService {
 
     @Override
     public MirrorStatus getStatusById(String id) {
-        return statusMap.get(id);
+        return Optional.ofNullable(statusMap.get(id)).orElse(new MirrorStatus());
     }
 
     @Override
@@ -66,7 +67,17 @@ public class StatusServiceImpl implements StatusService {
     }
 
     @Override
-    public void updateMirrorStatusWithDownloadState(String id, long newBytes) {
+    public void updateMirrorStatusWithDownloadState(String id, MirrorStatus.DownloadStatus newDownloadStatus) {
+        MirrorStatus mirrorStatus = getStatusById(id);
+        if (mirrorStatus != null) {
+            mirrorStatus.setDownloadStatus(newDownloadStatus);
+            mirrorStatus.setCurrentStatus("Downloading...");
+            updateStatus(mirrorStatus);
+        }
+    }
+
+    @Override
+    public void updateMirrorStatusWithNewDownloadBytes(String id, long newBytes) {
         MirrorStatus mirrorStatus = getStatusById(id);
         if (mirrorStatus != null) {
             // Retrieve previous download status; if null, assume 0 bytes downloaded.
@@ -130,7 +141,7 @@ public class StatusServiceImpl implements StatusService {
             mirrorStatus.setCompleted(true);
             mirrorStatus.setMessage(message);
             updateStatus(mirrorStatus);
-            log.info("Task '{}' failed. Filename: {}, Error Message: {}",
+            log.error("Task '{}' failed. Filename: {}, Error Message: {}",
                     mirrorStatus.getId(), mirrorStatus.getFileName(), message);
         }
     }
@@ -143,7 +154,7 @@ public class StatusServiceImpl implements StatusService {
             mirrorStatus.setCancelled(true);
             mirrorStatus.setCompleted(true);
             updateStatus(mirrorStatus);
-            log.info("Task '{}' is cancelled. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
+            log.warn("Task '{}' is cancelled. Filename: {}", mirrorStatus.getId(), mirrorStatus.getFileName());
         }
     }
 

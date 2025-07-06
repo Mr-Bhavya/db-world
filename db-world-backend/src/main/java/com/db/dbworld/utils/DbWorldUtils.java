@@ -1,14 +1,18 @@
 package com.db.dbworld.utils;
 
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.security.JwtHelper;
+import com.db.dbworld.services.Impl.StreamServiceImpl;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileSystemUtils;
@@ -103,6 +107,35 @@ public class DbWorldUtils {
             throw new DbWorldException("Encoded String is null");
         }
         return decodString;
+    }
+
+    public DbWorldRecords.FileSizeInfo getFileSizeInfo(Path path) {
+        try {
+            long size = Files.size(path);
+            if (size <= 0) {
+                throw new DbWorldException("Invalid file size: " + size);
+            }
+            return new DbWorldRecords.FileSizeInfo(size);
+        } catch (IOException e) {
+            throw new DbWorldException("Failed to determine file size for " + path, e);
+        }
+    }
+
+    public MediaType determineContentType(Path path) {
+        try {
+            String mimeType = Files.probeContentType(path);
+            return MediaType.parseMediaType(mimeType != null ? mimeType : "application/octet-stream");
+        } catch (IOException e) {
+            log.warn("Could not determine content type for {}, defaulting to octet-stream", path);
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+    }
+
+    public ContentDisposition createContentDisposition(Path path, boolean inline) {
+        String filename = path.getFileName().toString();
+        return inline ?
+                ContentDisposition.inline().filename(filename).build() :
+                ContentDisposition.attachment().filename(filename).build();
     }
 
     public void deleteFile(String path) {

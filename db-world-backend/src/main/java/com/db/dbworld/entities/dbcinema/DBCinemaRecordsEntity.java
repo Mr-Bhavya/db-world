@@ -1,6 +1,7 @@
 package com.db.dbworld.entities.dbcinema;
 
 import com.db.dbworld.entities.dbcinema.tmdb.TmdbDataEntity;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -38,6 +39,7 @@ public class DBCinemaRecordsEntity implements Serializable {
 
     @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "tmdb", referencedColumnName = "id")
+    @JsonBackReference
     private TmdbDataEntity tmdb;
 
     @Transient
@@ -48,17 +50,5 @@ public class DBCinemaRecordsEntity implements Serializable {
 
     @Transient
     private boolean isWatched;
-
-    private static class Stream{
-        private ArrayList<Format> formats;
-        private static class Format{
-            private String id;
-            private String width;
-            private String height;
-            private String dynamic_range;
-            private String url;
-        }
-    }
-
 
 }

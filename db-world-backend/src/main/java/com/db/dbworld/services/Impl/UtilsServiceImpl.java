@@ -12,6 +12,10 @@ import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.YtProcessStatus;
 import com.db.dbworld.services.StatusService;
 import com.db.dbworld.services.UtilsService;
+import com.db.dbworld.stream.processor.GenericStreamProcessor;
+import com.db.dbworld.stream.processor.StreamLogger;
+import com.db.dbworld.stream.processor.StreamProcessor;
+import com.db.dbworld.stream.processor.YtDlpStreamProcessor;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
@@ -19,6 +23,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -37,15 +42,20 @@ import reactor.core.publisher.Flux;
 
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -83,7 +93,7 @@ public class UtilsServiceImpl implements UtilsService {
                 .headers(httpHeaders -> httpHeaders.set("Host", mirrorStatus.getFileUrl().split("/")[2]))
                 .exchangeToFlux(response -> {
                     long contentLength = response.headers().contentLength().orElse(0);
-                    this.statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), 0L);
+                    this.statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), 0L);
                     return response.bodyToFlux(DataBuffer.class);
                 })
                 .takeUntil(dataBuffer -> statusService.getStatusById(mirrorStatus.getId()).isCancelled());
@@ -149,7 +159,7 @@ public class UtilsServiceImpl implements UtilsService {
 
                 file.write(buffer, 0, bytesRead);
 
-                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), bytesRead);
+                statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), bytesRead);
 
 //                statusService.updateMirrorStatusWithSpeedAndETA(mirrorStatus.getId());
 
@@ -231,8 +241,8 @@ public class UtilsServiceImpl implements UtilsService {
                 client.stop();
                 this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
             } else {
-                this.statusService.updateMirrorStatusWithDownloadState(
-                        mirrorStatus.getId(),torrentSessionState.getLeft() <= 0 ? 0 : mirrorStatus.getFileSize() - torrentSessionState.getLeft()
+                this.statusService.updateMirrorStatusWithNewDownloadBytes(
+                        mirrorStatus.getId(), torrentSessionState.getLeft() <= 0 ? 0 : mirrorStatus.getFileSize() - torrentSessionState.getLeft()
                 );
             }
         };
@@ -243,13 +253,13 @@ public class UtilsServiceImpl implements UtilsService {
             @Override
             public void write(byte[] b, int off, int len) throws IOException {
                 out.write(b, off, len);
-                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), len);
+                statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), len);
             }
 
             @Override
             public void write(int b) throws IOException {
                 out.write(b);
-                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), b);
+                statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), b);
             }
 
             @Override
@@ -281,6 +291,7 @@ public class UtilsServiceImpl implements UtilsService {
                         Files.delete(Path.of(mirrorStatus.getTempFilePath()));
                     } catch (ExtractException ex) {
                         FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
+                        StreamLogger.appendHtmlLine(mirrorStatus, ex.getMessage(), true, statusService);
                         throw new DbWorldException(ex.getMessage());
                     }
                 } else {
@@ -296,67 +307,75 @@ public class UtilsServiceImpl implements UtilsService {
 
     @Override
     public void extract(String mirrorId, String sourcePath, String targetPath, String password) throws IOException {
-
         ProcessBuilder pb = new ProcessBuilder("7z", "x", sourcePath, "-o" + targetPath, "-aou");
         pb.redirectErrorStream(true);
         Process process = pb.start();
 
-        // Start a thread to read and display the output
-        new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    // Print each line of output from the process
-                    if (mirrorId != null) {
-                        String message = statusService.getStatusById(mirrorId).getMessage() == null ? "" : statusService.getStatusById(mirrorId).getMessage();
-                        statusService.updateStatusMessage(mirrorId, message + "\n" + line);
-                    }
-                }
-            } catch (IOException e) {
-                log.error(e.getMessage());
-            }
-        }).start();
+        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
+        StreamProcessor streamProcessor = new GenericStreamProcessor(statusService, mirrorStatus);
 
-        // Wait for the process to finish
+        Thread streamThread = new Thread(() -> streamProcessor.handle(process.getInputStream(), false));
+        streamThread.start();
+
         try {
             int exitCode = process.waitFor();
-            System.out.println("Process exited with code: " + exitCode);
+            streamThread.join(); // Ensure log thread finishes reading
             if (exitCode != 0) {
-                throw new ExtractException("Extraction failed.");
+                throw new ExtractException("Extraction failed. Exit code: " + exitCode);
             }
         } catch (InterruptedException e) {
-            throw new ExtractException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new ExtractException("Extraction interrupted: " + e.getMessage());
         }
-
     }
 
     @Override
     public JsonObject getInfoYtFile(String url) {
-        JsonObject jsonInfoObj = new JsonObject();
-        Process process;
-        try {
-            ProcessBuilder processBuilder = new ProcessBuilder(getYtCommand(url, PROCESS_INFO, null));
-            process = processBuilder.start();
+        List<String> command = getYtCommand(url, PROCESS_INFO, null);
+        Process process = null;
 
-            InputStream inputStream = process.getInputStream();
-            String inputString = new String(inputStream.readAllBytes());
-            if (inputString == null || inputString.isEmpty() || inputString.isBlank() || inputString.equals("null") || inputString.equals("null\n")) {
-                String errorString = new String(process.getErrorStream().readAllBytes());
-                if (!errorString.isBlank()) {
-                    throw new DbWorldException(errorString);
-                }
-            } else {
-                jsonInfoObj = new Gson().fromJson(inputString.replace("null\n", ""), JsonObject.class);
+        try {
+            process = new ProcessBuilder(command).start();
+
+            String output = readStream(process.getInputStream());
+            String errorOutput = readStream(process.getErrorStream());
+
+            int exitCode = process.waitFor();
+
+            if (exitCode != 0) {
+                throw new DbWorldException("yt-dlp exited with code " + exitCode + ": " + errorOutput);
             }
-            process.waitFor();
-            if (jsonInfoObj == null || jsonInfoObj.isEmpty() || jsonInfoObj.isJsonNull()) {
-                throw new DbWorldException("Not able to fetch details from given url: " + url);
+
+            if (isNullOrBlankJson(output)) {
+                throw new DbWorldException("yt-dlp returned empty output for URL: " + url);
             }
+
+            JsonObject result = new Gson().fromJson(output.replace("null\n", ""), JsonObject.class);
+            if (result == null || result.isJsonNull() || result.entrySet().isEmpty()) {
+                throw new DbWorldException("Failed to parse yt-dlp output JSON for URL: " + url);
+            }
+
+            log.info("yt-dlp info fetched successfully for url {}", url);
+            return result;
+
         } catch (IOException | InterruptedException e) {
-            throw new DbWorldException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new DbWorldException("Failed to execute yt-dlp command: " + e.getMessage(), e);
+        } finally {
+            if (process != null) {
+                process.destroyForcibly();
+            }
         }
-        log.info("Process is completed and info fetched with exit code: {}", process.exitValue());
-        return jsonInfoObj;
+    }
+
+    private String readStream(InputStream stream) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            return reader.lines().collect(Collectors.joining("\n"));
+        }
+    }
+
+    private boolean isNullOrBlankJson(String input) {
+        return input == null || input.isBlank() || "null".equalsIgnoreCase(input.trim()) || "{}".equals(input.trim());
     }
 
     @Override
@@ -375,75 +394,57 @@ public class UtilsServiceImpl implements UtilsService {
         statusService.addNewStatus(mirrorStatus);
 
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                    getYtCommand(mirrorStatus.getFileUrl(), PROCESS_DOWNLOAD, mirrorStatus.getId()));
+            ProcessBuilder processBuilder = new ProcessBuilder(getYtCommand(
+                    mirrorStatus.getFileUrl(), PROCESS_DOWNLOAD, mirrorStatus.getId()
+            ));
             Process process = processBuilder.start();
-            process.waitFor();
 
-            new Thread(() -> handleProcessOutput(process, mirrorStatus)).start();
-        } catch (IOException | InterruptedException ex) {
-            handleDownloadError(mirrorStatus, ex);
-        }
-    }
-
-    private void handleProcessOutput(Process process, MirrorStatus mirrorStatus) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            boolean isFileNameFetched = false;
-
-            while ((line = reader.readLine()) != null) {
-                log.info(line);
-                if (statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
-                    terminateProcess(process, mirrorStatus);
-                    return;
+            StreamProcessor stdout = new YtDlpStreamProcessor(statusService, mirrorStatus, () -> {
+                try {
+                    updateFileNames(mirrorStatus);
+                } catch (IOException | InterruptedException e) {
+                    StreamLogger.appendHtmlLine(mirrorStatus, e.getMessage(), true, statusService);
+                    throw new DbWorldException(e.getMessage());
                 }
+            });
+            StreamProcessor stderr = new YtDlpStreamProcessor(statusService, mirrorStatus, () -> {});
 
-                if (line.contains("downloaded_bytes") && line.contains("status")) {
-                    updateDownloadStatus(line, mirrorStatus);
+            new Thread(() -> stdout.handle(process.getInputStream(), false)).start();
+            new Thread(() -> stderr.handle(process.getErrorStream(), true)).start();
 
-                    if (!isFileNameFetched && line.contains("\"status\": \"finished\"")) {
-                        updateFileNames(mirrorStatus);
-                        isFileNameFetched = true;
-                    }
-                }
+            boolean finished = process.waitFor(30, TimeUnit.MINUTES);
+            if (!finished) {
+                process.destroyForcibly();
+                throw new DbWorldException("yt-dlp timed out.");
             }
 
             if (process.exitValue() == 0 || process.exitValue() == 1) {
                 moveDownloadedFile(mirrorStatus);
                 statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
             }
-        } catch (IOException | InterruptedException e) {
-            handleDownloadError(mirrorStatus, e);
-        }
-    }
 
-    private void terminateProcess(Process process, MirrorStatus mirrorStatus) throws IOException {
-        process.destroy();
-        Runtime.getRuntime().exec(new String[]{"kill", "-9", String.valueOf(process.pid())});
-        statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
-    }
-
-    private void updateDownloadStatus(String jsonLine, MirrorStatus mirrorStatus) {
-        try {
-            jsonLine = (jsonLine.startsWith("\"") && jsonLine.endsWith("\"") ? jsonLine.substring(1, jsonLine.length() - 1) : jsonLine)
-                    .replace(" ", "");
-            YtProcessStatus ytProcessStatus = new Gson().fromJson(jsonLine, YtProcessStatus.class);
-            if (ytProcessStatus != null && ytProcessStatus.getStatus() != null) {
-                statusService.updateMirrorStatusWithDownloadState(mirrorStatus.getId(), ytProcessStatus.getDownloaded_bytes());
-            }
-        } catch (JsonSyntaxException ex) {
-            log.error("Failed to parse download progress: {}", ex.getMessage());
+        } catch (Exception ex) {
+            StreamLogger.appendHtmlLine(mirrorStatus, ex.getMessage(), true, statusService);
         }
     }
 
     private void updateFileNames(MirrorStatus mirrorStatus) throws IOException, InterruptedException {
-        String[] tempArray = getYtOutputFileName(mirrorStatus).split("\\.");
-        String fileExtension = "." + tempArray[tempArray.length - 1];
-        mirrorStatus.setFileName(mirrorStatus.getFileName() + fileExtension);
-        mirrorStatus.setFilePath(mirrorStatus.getFilePath() + fileExtension);
-        mirrorStatus.setTempFileName(mirrorStatus.getTempFileName() + fileExtension);
-        mirrorStatus.setTempFilePath(mirrorStatus.getTempFilePath() + fileExtension);
+        String filename = getYtOutputFileName(mirrorStatus);
+        String ext = filename.substring(filename.lastIndexOf("."));
+
+        mirrorStatus.setFileName(mirrorStatus.getFileName() + ext);
+        mirrorStatus.setTempFileName(mirrorStatus.getTempFileName() + ext);
+        mirrorStatus.setFilePath(mirrorStatus.getFilePath() + ext);
+        mirrorStatus.setTempFilePath(mirrorStatus.getTempFilePath() + ext);
         statusService.updateStatus(mirrorStatus);
+    }
+
+    private String getBestAudioFormat(String audioITag) {
+        return (audioITag == null || audioITag.isEmpty() || "0".equals(audioITag)) ? "bestaudio" : audioITag;
+    }
+
+    private String getBestVideoAudioFormat(String videoITag, String audioITag) {
+        return Optional.ofNullable(videoITag).orElse("bestvideo") + "+" + getBestAudioFormat(audioITag) + "/best";
     }
 
     private void moveDownloadedFile(MirrorStatus mirrorStatus) throws IOException {
@@ -452,12 +453,6 @@ public class UtilsServiceImpl implements UtilsService {
                 new File(mirrorStatus.getFilePath()),
                 StandardCopyOption.REPLACE_EXISTING
         );
-    }
-
-    private void handleDownloadError(MirrorStatus mirrorStatus, Exception e) {
-        log.error("Download failed: {}", e.getMessage());
-        statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.getMessage());
-        throw new DbWorldException(e.getMessage());
     }
 
     private String getYtOutputFileName(MirrorStatus mirrorStatus) throws IOException, InterruptedException {
@@ -474,101 +469,76 @@ public class UtilsServiceImpl implements UtilsService {
     }
 
     private List<String> getYtCommand(String url, String processType, String statusId) {
-        MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
-        List<String> cmdList = new ArrayList<>(Arrays.asList(
+        MirrorStatus mirrorStatus = statusService.getStatusById(statusId == null ? "0" : statusId);
+        List<String> cmd = new ArrayList<>(List.of(
                 DbWorldConstants.YT_DLP,
-                "--progress-template", "\"%(progress)j\""
+                "--progress-template", "%(progress)j"
         ));
 
         if (url.contains(DbWorldConstants.HOTSTAR_COM)) {
-            cmdList.addAll(Arrays.asList(DbWorldConstants.YTDLP_COOKIES_CMD, DbWorldConstants.HS_COOKIES_PATH));
+            cmd.addAll(List.of(DbWorldConstants.YTDLP_COOKIES_CMD, DbWorldConstants.HS_COOKIES_PATH));
         }
-
-        // Detect OS
-        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
-
 
         switch (processType) {
             case PROCESS_INFO:
-                cmdList.addAll(Arrays.asList(url, "-J"));
+                cmd.addAll(List.of(url, "-J"));
                 break;
 
             case PROCESS_DOWNLOAD:
-
-                // Properly escape paths for both OS
-                String outputFilePath = mirrorStatus.getTempFilePath() + ".%(ext)s";
-                if (isWindows) {
-                    outputFilePath = "\"" + outputFilePath + "\""; // Double quotes for Windows
-                } else {
-                    outputFilePath = outputFilePath.replace(" ", "\\ "); // Escape spaces for Linux
-                }
-
-                cmdList.add("-f");
-                cmdList.add(getBestVideoAudioFormat(mirrorStatus.getVideoITag(), mirrorStatus.getAudioITag()));
-                cmdList.add("-o");
-                cmdList.add(outputFilePath);
-                cmdList.add(url);
+                cmd.addAll(List.of(
+                        "-f", getBestVideoAudioFormat(mirrorStatus.getVideoITag(), mirrorStatus.getAudioITag()),
+                        "-o", mirrorStatus.getTempFilePath() + ".%(ext)s",
+                        url
+                ));
                 break;
 
             case PROCESS_FILENAME:
-                cmdList.add("-f");
-                cmdList.add(getBestVideoAudioFormat(mirrorStatus.getVideoITag(), mirrorStatus.getAudioITag()));
-                cmdList.add("--get-filename");
-                cmdList.add(url);
+                cmd.addAll(List.of(
+                        "-f", getBestVideoAudioFormat(mirrorStatus.getVideoITag(), mirrorStatus.getAudioITag()),
+                        "--print", "filename",
+                        url
+                ));
                 break;
         }
 
-        cmdList.removeIf(String::isEmpty);
-        log.info("Running [{}] command: {}", processType, String.join(" ", cmdList));
-        return cmdList;
+        log.info("Running [{}] command: {}", processType, String.join(" ", cmd));
+        return cmd;
     }
 
-
-
-    private String getBestAudioFormat(String audioITag) {
-        return (audioITag == null || audioITag.isEmpty() || "0".equals(audioITag)) ? "bestaudio" : audioITag;
-    }
-
-    private String getBestVideoAudioFormat(String videoITag, String audioITag) {
-        return String.format("%s+%s/best",
-                Optional.ofNullable(videoITag).orElse("bestvideo"),
-                getBestAudioFormat(audioITag)
-        );
-    }
-
-
-    @Override
-    public HttpHeaders getHeaders(String httpUrl) {
-
-        try {
-            URL url = new URL(httpUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("HEAD");
-
-            log.info("connection.getResponseMessage(): {}", connection.getResponseMessage());
-            log.info("connection.getResponseCode(): {}", connection.getResponseCode());
-            log.info("connection.getContentLengthLong(): {}", connection.getContentLengthLong());
-            log.info("connection.getErrorStream(): {}", connection.getErrorStream());
-            log.info("connection.getHeaderField(): {}", connection.getHeaderField("Content-Disposition"));
-
-        } catch (Exception ex) {
-            log.error(ex.getMessage());
-            throw new DbWorldException(ex.getMessage());
-        }
-
-        try {
-            RestTemplate restTemplate = new RestTemplate();
-            return restTemplate.execute(httpUrl, HttpMethod.HEAD,
-                    request -> request.getHeaders().set("Host", httpUrl.split("/")[2]),
-                    HttpMessage::getHeaders);
-        } catch (WebClientResponseException ex) {
-            log.error(ex.getMessage());
-            return ex.getHeaders();
-        } catch (ResourceAccessException ex) {
-            log.error(ex.getMessage());
-            return null;
-        }
-    }
+//    @Override
+//    public HttpHeaders getHeaders(String httpUrl) {
+//        try {
+//            URI uri = new URI(httpUrl);
+//            String host = uri.getHost();
+//
+//            RestTemplate restTemplate = new RestTemplate();
+//            return restTemplate.execute(
+//                    httpUrl,
+//                    HttpMethod.HEAD,
+//                    request -> request.getHeaders().set("Host", host),
+//                    response -> {
+//                        HttpHeaders headers = response.getHeaders();
+//                        log.info("Status code: {}", response.getStatusCode());
+//                        log.info("Content-Length: {}", headers.getContentLength());
+//                        log.info("Content-Disposition: {}", headers.getFirst("Content-Disposition"));
+//                        return headers;
+//                    }
+//            );
+//        } catch (URISyntaxException ex) {
+//            log.error("Invalid URI syntax: {}", httpUrl, ex);
+//            throw new DbWorldException("Invalid URL: " + httpUrl, ex);
+//        } catch (WebClientResponseException ex) {
+//            log.error("WebClientResponseException: {}", ex.getMessage(), ex);
+//            return ex.getHeaders(); // can still return headers if available
+//        } catch (ResourceAccessException ex) {
+//            log.error("Connection failed for URL: {}", httpUrl, ex);
+//            return null;
+//        } catch (Exception ex) {
+//            log.error("Unexpected error while getting headers: {}", ex.getMessage(), ex);
+//            throw new DbWorldException("Error fetching headers from: " + httpUrl, ex);
+//        }
+//    }
+//
 
 
 }

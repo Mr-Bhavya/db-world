@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Constants from '../Constants';
 import { cancelledMirror, deleteMirror } from '../ApiServices';
 import { Badge, Button, Card, OverlayTrigger, ProgressBar, Tooltip } from 'react-bootstrap';
 import CommonServices from '../CommonServices';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ReconnectingWebSocket } from '../Utils/ReconnectingWebSocket';
+import { useReconnectingWebSocket } from '../Utils/ReconnectingWebSocket';
 import { SignalCellularAlt } from '@mui/icons-material';
 
 // Animation variants with enhanced effects
@@ -60,33 +60,26 @@ const statItemVariants = {
 function Status() {
   const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
   const [status, setStatus] = useState([]);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState('connecting...');
   const navigate = useNavigate();
   const location = useLocation();
   const ws = useRef(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
-  const reconnectInterval = 5000;
+  const reconnectTimeout = useRef(null);
 
-  // ... (keep all your existing methods like connectWebSocket, deleteStatus, etc.)
+  const connectWebSocket = useCallback(() => {
+    const url = `${WEBSOCKET_BASEURL}/api/utils/status`;
+    // const url = `ws://localhost:9000/api/utils/status`;
+    ws.current = new WebSocket(url);
 
-  const connectWebSocket = () => {
-    setConnectionStatus('connecting');
-
-    ws.current = new ReconnectingWebSocket(`${WEBSOCKET_BASEURL}/api/utils/status`);
-    
     ws.current.onopen = () => {
-      console.log("WebSocket connection open for status");
       setConnectionStatus('connected');
-      reconnectAttempts.current = 0;
-      ws.current.send("");
+      ws.current.send('');
     };
 
     ws.current.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         setStatus(prevStatus => {
-          // Merge updates with existing status to maintain references when possible
           return data.map(newItem => {
             const existingItem = prevStatus.find(item => item.id === newItem.id);
             return existingItem ? { ...existingItem, ...newItem } : newItem;
@@ -97,39 +90,29 @@ function Status() {
       }
     };
 
-    ws.current.onclose = (event) => {
-      console.log("WebSocket connection closed for status", event);
+    ws.current.onerror = (error) => {
+      setConnectionStatus('falied');
+      ws.current.close();
+    };
+
+    ws.current.onclose = () => {
       setConnectionStatus('disconnected');
-
-      if (reconnectAttempts.current < maxReconnectAttempts) {
-        const delay = Math.min(reconnectInterval * (reconnectAttempts.current + 1), 30000);
-        console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-
-        setTimeout(() => {
-          reconnectAttempts.current += 1;
+      if (!reconnectTimeout.current) {
+        reconnectTimeout.current = setTimeout(() => {
           connectWebSocket();
-        }, delay);
-      } else {
-        console.log("Max reconnection attempts reached");
-        setConnectionStatus('failed');
+          reconnectTimeout.current = null;
+        }, 5000);
       }
     };
-
-    ws.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      setConnectionStatus('error');
-    };
-  };
+  }, []);
 
   useEffect(() => {
     connectWebSocket();
-
     return () => {
-      if (ws.current) {
-        ws.current.close();
-      }
+      if (ws.current) ws.current.close();
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
     };
-  }, [WEBSOCKET_BASEURL]);
+  }, [connectWebSocket]);
 
   const openSourceUrl = (url) => {
     if (url) {
@@ -453,7 +436,21 @@ function Status() {
                   borderLeft: '3px solid #dc3545'
                 }}
               >
-                <strong style={{ color: '#dc3545' }}>Error:</strong> {download.message}
+                <strong style={{ color: '#dc3545' }}>Error:</strong>
+                <div
+                  style={{
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    background: '#111',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    marginTop: '0.5rem',
+                    fontSize: '0.875rem',
+                    whiteSpace: 'pre-wrap',
+                    color: '#f8f9fa'
+                  }}
+                  dangerouslySetInnerHTML={{ __html: download.message || "<em>No logs yet...</em>" }}
+                />
               </motion.div>
             )}
 
@@ -473,7 +470,21 @@ function Status() {
                   borderLeft: '3px solid #0d6efd'
                 }}
               >
-                <strong style={{ color: '#0d6efd' }}>Message:</strong> {download.message}
+                <strong style={{ color: '#0d6efd' }}>Logs:</strong>
+                <div
+                  style={{
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    background: '#111',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    marginTop: '0.5rem',
+                    fontSize: '0.875rem',
+                    whiteSpace: 'pre-wrap',
+                    color: '#f8f9fa'
+                  }}
+                  dangerouslySetInnerHTML={{ __html: download.message || "<em>No logs yet...</em>" }}
+                />
               </motion.div>
             )}
           </Card.Body>

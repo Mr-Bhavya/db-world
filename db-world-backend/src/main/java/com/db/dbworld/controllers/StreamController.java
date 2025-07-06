@@ -54,10 +54,6 @@ public class StreamController {
 
 
     private final Map<Long, String> video_cache = new HashMap<>();
-    private Map<String, List<String>> download_cache = new HashMap<>();
-    private Map<String, List<String>> watch_cache = new HashMap<>();
-    public static final String CACHE_TYPE_DOWNLOAD = "CACHE_TYPE_DOWNLOAD";
-    public static final String CACHE_TYPE_WATCH = "CACHE_TYPE_WATCH";
     private final Semaphore rateLimiter = new Semaphore(5); // Allow 5 concurrent downloads
 
     @RequestMapping(value = "/list", method = RequestMethod.GET)
@@ -72,7 +68,7 @@ public class StreamController {
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<String> renameFile(@PathVariable(value = "fileId") long fileId, @RequestBody String newName) {
         List<File> files = getStreamableFilesRecursive();
-        List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
+        List<File> filteredFiles = files.stream().filter(file -> dbWorldUtils.getFileSizeInfo(file.toPath()).fileSize() == fileId).toList();
         if (filteredFiles.isEmpty()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "File is not found for ID: " + fileId + " is not found.");
         }
@@ -93,7 +89,7 @@ public class StreamController {
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<String> deleteFile(@PathVariable(value = "fileId") long fileId) {
         List<File> files = getStreamableFilesRecursive();
-        List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
+        List<File> filteredFiles = files.stream().filter(file -> dbWorldUtils.getFileSizeInfo(file.toPath()).fileSize() == fileId).toList();
         if (filteredFiles.isEmpty()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "File is not found for ID: " + fileId + " is not found.");
         }
@@ -116,7 +112,7 @@ public class StreamController {
             path = Path.of(video_cache.get(fileId));
         } else {
             List<File> files = getStreamableFilesRecursive();
-            List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
+            List<File> filteredFiles = files.stream().filter(file -> dbWorldUtils.getFileSizeInfo(file.toPath()).fileSize() == fileId).toList();
             if (filteredFiles.isEmpty()) {
                 throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
             }
@@ -124,7 +120,7 @@ public class StreamController {
             video_cache.put(fileId, path.toString());
         }
         // Create User cache and print log for first time user download file.
-        return streamService.downloadFileFromCDN(username, path, rangeHeader, true);
+        return streamService.streamFileByCdn(username, path, rangeHeader, true);
     }
 
     @GetMapping(value = "/download/{fileId}")
@@ -137,7 +133,7 @@ public class StreamController {
         }
 
         List<File> files = getStreamableFilesRecursive();
-        List<File> filteredFiles = files.stream().filter(file -> streamService.getFileSize(file.toPath()) == fileId).toList();
+        List<File> filteredFiles = files.stream().filter(file -> dbWorldUtils.getFileSizeInfo(file.toPath()).fileSize() == fileId).toList();
         if (filteredFiles.isEmpty()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
         }
@@ -148,7 +144,7 @@ public class StreamController {
             if (!rateLimiter.tryAcquire()) {
                 throw new DbWorldException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.");
             }
-            return streamService.downloadFileFromCDN(username, path, rangeHeader, false);
+            return streamService.streamFileByCdn(username, path, rangeHeader, false);
         } finally {
             rateLimiter.release(); // Release the permit
         }
@@ -165,7 +161,7 @@ public class StreamController {
         String filePath = mediaFileInfoService.getFileInfoById(fileId);
         if (filePath != null && !filePath.isBlank() && new File(filePath).exists()) {
 //            return streamService.getStreamResource(Path.of(filePath), rangeHeader);
-            return streamService.downloadFileFromCDN(username, Path.of(filePath), rangeHeader, true);
+            return streamService.streamFileByCdn(username, Path.of(filePath), rangeHeader, true);
         } else {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "No information found for given ID");
         }
@@ -197,7 +193,7 @@ public class StreamController {
         }
 
         try {
-            return streamService.downloadFileFromCDN(user, path, rangeHeader, inline);
+            return streamService.streamFileByCdn(user, path, rangeHeader, inline);
         } finally {
             rateLimiter.release();
         }
@@ -233,7 +229,7 @@ public class StreamController {
             path = Path.of(video_cache.get(fileId));
         } else {
             List<File> files = getStreamableFilesRecursive();
-            List<File> filteredFiles = files.stream().filter(file -> Objects.equals(streamService.getFileSize(file.toPath()), fileId)).toList();
+            List<File> filteredFiles = files.stream().filter(file -> Objects.equals(dbWorldUtils.getFileSizeInfo(file.toPath()), fileId)).toList();
             if (filteredFiles.isEmpty()) {
                 throw new DbWorldException(HttpStatus.BAD_REQUEST, "Streamable file is not found.");
             }
