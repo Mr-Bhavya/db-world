@@ -35,7 +35,7 @@ import Constants from './Constants';
 import { getUserRole } from './ApiServices';
 import { addUser } from '../redux/action/allActions';
 import CommonServices from './CommonServices';
-import Authentication from '../contexts/Authentication';
+import Authentication, { useAuth } from '../contexts/Authentication';
 
 const Header = () => {
   const theme = useTheme();
@@ -47,7 +47,7 @@ const Header = () => {
   const [loading, setLoading] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { auth } = Authentication.useAuth();
+  const { auth } = useAuth();
   const isLoggedIn = auth?.isAuthenticated;
   const userData = auth?.user || null;
 

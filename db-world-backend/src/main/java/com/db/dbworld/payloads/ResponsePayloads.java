@@ -1,10 +1,12 @@
 package com.db.dbworld.payloads;
 
+import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.pm.CredentialDto;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.Impl.UserDetailImpl;
 import lombok.*;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -23,12 +25,13 @@ public class ResponsePayloads {
         String token;
         Map<String, Object> user = new HashMap<>();
 
-        public LoginResponse(String token, UserDetailImpl userDetails){
+        public LoginResponse(String token, UserEntity userDetails){
             this.token = token;
             this.user.put("userId", userDetails.getUserId());
-            this.user.put("email", userDetails.getUsername());
+            this.user.put("email", userDetails.getEmail());
             this.user.put("name", userDetails.getFirstName() + " " + userDetails.getLastName());
             this.user.put("dob", userDetails.getDob());
+            this.user.put("role", userDetails.getRole().getName());
         }
 
     }
@@ -83,6 +86,25 @@ public class ResponsePayloads {
         private String id;
         private String host;
         private List<CredentialDto> credentials;
+    }
+
+    @Data
+    public static class PagedResponse<T> {
+        private List<T> content;
+        private int page;
+        private int size;
+        private long totalElements;
+        private int totalPages;
+        private boolean last;
+
+        public PagedResponse(Page<T> page) {
+            this.content = page.getContent();
+            this.page = page.getNumber();
+            this.size = page.getSize();
+            this.totalElements = page.getTotalElements();
+            this.totalPages = page.getTotalPages();
+            this.last = page.isLast();
+        }
     }
 
 }

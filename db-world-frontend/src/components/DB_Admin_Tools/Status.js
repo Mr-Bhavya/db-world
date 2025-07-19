@@ -5,7 +5,6 @@ import { cancelledMirror, deleteMirror } from '../ApiServices';
 import { Badge, Button, Card, OverlayTrigger, ProgressBar, Tooltip } from 'react-bootstrap';
 import CommonServices from '../CommonServices';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useReconnectingWebSocket } from '../Utils/ReconnectingWebSocket';
 import { SignalCellularAlt } from '@mui/icons-material';
 
 // Animation variants with enhanced effects

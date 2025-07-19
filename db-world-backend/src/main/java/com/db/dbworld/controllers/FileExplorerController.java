@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -80,7 +83,7 @@ public class FileExplorerController {
     @GetMapping("/list")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<FileDto>> listFiles(@RequestParam String directory) {
-        List<FileDto> files = fileService.listFiles(directory);
+        List<FileDto> files = fileService.listFiles(URLDecoder.decode(directory));
         return new ApiResponse<>(HttpStatus.OK, true, files);
     }
 }

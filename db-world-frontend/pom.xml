@@ -96,7 +96,7 @@
                             </environmentVariables>
                             <arguments>
                                 <argument>run</argument>
-                                <argument>build</argument>
+                                <argument>build:production</argument>
                             </arguments>
                         </configuration>
                     </execution>

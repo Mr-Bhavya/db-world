@@ -5,13 +5,14 @@ import {
   FormControl, InputLabel, Select, MenuItem, Chip,
   Fab
 } from '@mui/material';
-import { Search, FilterList, Refresh, Code, List, KeyboardArrowDown } from '@mui/icons-material';
+import { Search, FilterList, Refresh, Code, List, KeyboardArrowDown, RefreshRounded } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LineChart, BarChart, PieChart, Line, Bar, Pie,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell
 } from 'recharts';
+import { useWebSocket } from '../Utils/useWebSocket';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d', '#ffc658'];
 const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
@@ -19,8 +20,8 @@ const DEFAULT_LOOKBACK_MINUTES = 60; // 1 hour
 
 const LogDashboard = () => {
   const WEBSOCKET_URL =
-    `${WEBSOCKET_BASEURL}/api/utils/application-logs`
-  // 'ws://localhost:9000/api/utils/application-logs';
+    // `${WEBSOCKET_BASEURL}/api/utils/application-logs?lookback_minutes=${DEFAULT_LOOKBACK_MINUTES}`
+    `ws://localhost:9000/api/utils/application-logs?lookback_minutes=${DEFAULT_LOOKBACK_MINUTES}`;
   const ws = useRef(null);
   const reconnectTimeout = useRef(null);
   const logsEndRef = useRef(null);
@@ -38,9 +39,38 @@ const LogDashboard = () => {
   const [timeRangeFilter, setTimeRangeFilter] = useState('all');
   const [userEmailFilter, setUserEmailFilter] = useState('all');
   const [userList, setUserList] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
   const logKeysSet = useRef(new Set());
   const [isScrolledUp, setIsScrolledUp] = useState(false);
+
+  const handleWebSocketMessage = useCallback(async (msg) => {
+    console.log('Raw WebSocket message:', msg); // Debug log
+    try {
+      // const data = await JSON.parse(msg);
+      // console.log('Parsed WebSocket message:', data); // Debug log
+
+      // Handle both direct log arrays and ApiResponse format
+      let logsData = msg?.data;
+      if (msg && Array.isArray(msg)) {
+        logsData = msg.data;
+      } else if (!Array.isArray(msg)) {
+        logsData = [msg];
+      }
+
+      if (msg.type === 'initial_logs' || msg.type === 'older_logs') {
+        processIncomingLogs(logsData, msg.type === 'older_logs');
+        if (msg.type === 'older_logs' && logsData.length === 0) {
+          setHasMoreLogs(false);
+        }
+      } else {
+        processIncomingLogs(logsData, false);
+      }
+    } catch (error) {
+      console.error('Error parsing WebSocket message:', error, msg);
+    }
+  }, []);
+
+  const { isConnected, reconnect } = useWebSocket(WEBSOCKET_URL, handleWebSocketMessage);
+
 
 
   const scrollToBottom = () => {
@@ -58,8 +88,6 @@ const LogDashboard = () => {
     const isAtBottom = container.scrollHeight - container.scrollTop === container.clientHeight;
     setIsScrolledUp(!isAtBottom);
   };
-
-
 
   // Load older logs (1 hour before current lookback)
   const loadOlderLogs = () => {
@@ -80,64 +108,64 @@ const LogDashboard = () => {
 
 
   // --- WebSocket connect & auto-reconnect ---
-  const connectWebSocket = useCallback(() => {
-    const url = `${WEBSOCKET_URL}?lookback_minutes=${DEFAULT_LOOKBACK_MINUTES}`;
-    ws.current = new WebSocket(url);
+  // const connectWebSocket = useCallback(() => {
+  //   const url = `${WEBSOCKET_URL}?lookback_minutes=${DEFAULT_LOOKBACK_MINUTES}`;
+  //   ws.current = new WebSocket(url);
 
-    ws.current.onopen = () => {
-      setIsConnected(true);
-      setIsLoadingOlderLogs(false);
-    };
+  //   ws.current.onopen = () => {
+  //     setIsConnected(true);
+  //     setIsLoadingOlderLogs(false);
+  //   };
 
-    ws.current.onmessage = (event) => {
-      console.log('Raw WebSocket message:', event.data); // Debug log
-      try {
-        const data = JSON.parse(event.data);
+  //   ws.current.onmessage = (event) => {
+  //     console.log('Raw WebSocket message:', event.data); // Debug log
+  //     try {
+  //       const data = JSON.parse(event.data);
 
-        // Handle both direct log arrays and ApiResponse format
-        let logsData = data;
-        if (data.data && Array.isArray(data.data)) {
-          logsData = data.data;
-        } else if (!Array.isArray(data)) {
-          logsData = [data];
-        }
+  //       // Handle both direct log arrays and ApiResponse format
+  //       let logsData = data;
+  //       if (data.data && Array.isArray(data.data)) {
+  //         logsData = data.data;
+  //       } else if (!Array.isArray(data)) {
+  //         logsData = [data];
+  //       }
 
-        if (data.type === 'initial_logs' || data.type === 'older_logs') {
-          processIncomingLogs(logsData, data.type === 'older_logs');
-          if (data.type === 'older_logs' && logsData.length === 0) {
-            setHasMoreLogs(false);
-          }
-        } else {
-          processIncomingLogs(logsData, false);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error, event.data);
-      }
-    };
+  //       if (data.type === 'initial_logs' || data.type === 'older_logs') {
+  //         processIncomingLogs(logsData, data.type === 'older_logs');
+  //         if (data.type === 'older_logs' && logsData.length === 0) {
+  //           setHasMoreLogs(false);
+  //         }
+  //       } else {
+  //         processIncomingLogs(logsData, false);
+  //       }
+  //     } catch (error) {
+  //       console.error('Error parsing WebSocket message:', error, event.data);
+  //     }
+  //   };
 
-    ws.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      ws.current.close();
-    };
+  //   ws.current.onerror = (error) => {
+  //     console.error('WebSocket error:', error);
+  //     ws.current.close();
+  //   };
 
-    ws.current.onclose = () => {
-      setIsConnected(false);
-      if (!reconnectTimeout.current) {
-        reconnectTimeout.current = setTimeout(() => {
-          connectWebSocket();
-          reconnectTimeout.current = null;
-        }, 5000);
-      }
-    };
-  }, [lookbackMinutes]);
+  //   ws.current.onclose = () => {
+  //     setIsConnected(false);
+  //     if (!reconnectTimeout.current) {
+  //       reconnectTimeout.current = setTimeout(() => {
+  //         connectWebSocket();
+  //         reconnectTimeout.current = null;
+  //       }, 5000);
+  //     }
+  //   };
+  // }, [lookbackMinutes]);
 
-  useEffect(() => {
-    connectWebSocket();
-    return () => {
-      if (ws.current) ws.current.close();
-      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
-    };
-  }, [connectWebSocket]);
+  // useEffect(() => {
+  //   connectWebSocket();
+  //   return () => {
+  //     if (ws.current) ws.current.close();
+  //     if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+  //   };
+  // }, [connectWebSocket]);
 
 
   // Process incoming logs (either append to top or bottom)
@@ -477,7 +505,7 @@ const LogDashboard = () => {
           <IconButton onClick={() => setViewMode(viewMode === 'raw' ? 'formatted' : 'raw')}>
             {viewMode === 'raw' ? <List /> : <Code />}
           </IconButton>
-          <IconButton onClick={() => window.location.reload()}>
+          <IconButton onClick={reconnect}>
             <Refresh />
           </IconButton>
         </Box>

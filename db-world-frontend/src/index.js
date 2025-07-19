@@ -5,15 +5,20 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { Provider } from 'react-redux';
 import store from './store';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { ConfirmProvider } from 'material-ui-confirm';
 
 const container = document.getElementById('root');
 const root = createRoot(container);
 root.render(
-  <React.StrictMode>
     <Provider store={store}>
-        <App />
-    </Provider>
-  </React.StrictMode>
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <ConfirmProvider>
+                <App />
+            </ConfirmProvider>
+        </LocalizationProvider>
+    </Provider >
 )
 
 

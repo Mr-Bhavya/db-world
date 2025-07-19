@@ -9,6 +9,7 @@ import { CSSTransition, TransitionGroup } from "react-transition-group";
 import CommonServices from "../../CommonServices";
 import useRecordStore from "../../../store/recordStore";
 import { shallow } from "zustand/shallow";
+import { loadDbCinemaRecordsFromUrl } from "../../ApiServices";
 
 const ImageCardItem = ({ record, horizontal }) => {
   const [imageUrl, setImageUrl] = useState(null);
@@ -85,11 +86,10 @@ const ImageCard = ({ title, horizontal, requestUrl, category }) => {
   const fetchRecords = useCallback(async (page) => {
     setLoading(true);
     try {
-      const response = await axios.get(
-        `${requestUrl}&page=${page}&size=${isMobile ? 8 : 12}${category ? '&genres=' + category?.id : ''}`,
-        { headers: { Authorization: 'Bearer ' + localStorage.getItem("token") } }
+      const response = await loadDbCinemaRecordsFromUrl(
+        `${requestUrl}&page=${page}&size=${isMobile ? 8 : 12}${category ? '&genres=' + category?.id : ''}`
       );
-      const data = response.data?.data;
+      const data = response.data;
       if (data?.records) {
         const mappedRecords = data.records.map(record => ({
           ...record,

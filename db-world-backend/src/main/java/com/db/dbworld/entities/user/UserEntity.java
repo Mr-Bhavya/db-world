@@ -12,6 +12,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -26,14 +27,21 @@ public class UserEntity implements Serializable {
     @Column(name = "id")
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator="users_seq")
     private long userId;
+
     private String firstName;
+
     private String lastName;
+
     @JsonFormat(pattern = "dd-MM-yyyy")
     private Date dob;
+
     private String gender;
+
     private Long mobileNo;
+
     @Column(unique = true)
     private String email;
+
     private String password;
 
     @JsonProperty
@@ -47,15 +55,14 @@ public class UserEntity implements Serializable {
     @LastModifiedDate
     private Date lastModifiedDate;
 
+    @JsonIgnore
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RefreshTokenEntity> refreshTokens = new ArrayList<>();
 
     @JsonIgnore
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "password_manager", referencedColumnName = "id")
     private List<PasswordManagerEntity> passwordManagerEntities;
-
-//    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-//    @JoinColumn(name = "user", referencedColumnName = "id")
-//    private List<LoginDataEntity> loginDataEntities ;
 
     @Override
     public String toString() {

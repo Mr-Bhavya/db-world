@@ -4,14 +4,15 @@ import com.db.dbworld.dao.user.LoginDataRepository;
 import com.db.dbworld.dao.user.UserCinemaDataRepository;
 import com.db.dbworld.dao.user.UserRepository;
 import com.db.dbworld.dao.user.UserRoleRepository;
+import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
 import com.db.dbworld.entities.user.LoginDataEntity;
-import com.db.dbworld.entities.user.UserCinemaDataEntity;
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.entities.user.UserRoleEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
+import com.db.dbworld.services.RoleService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
@@ -26,7 +27,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -54,21 +60,55 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private DbWorldUtils dbWorldUtils;
 
+    @Autowired
+    private JwtDecoder jwtDecoder;
+
+    @Autowired
+    private RoleService roleService;
+
     @Override
     @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
     public UserEntity getUserFromToken() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        UserDetails user = (UserDetails) authentication.getPrincipal();
-        return this.userRepository.findByEmail(user.getUsername()).orElseThrow(
-                () -> new ResourceNotFoundException("user", "email", user.getUsername())
-        );
+        String username;
+
+        if (authentication == null) {
+            throw new DbWorldException("Unauthenticated access");
+        }
+
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof UserDetails userDetails) {
+            username = userDetails.getUsername();
+        } else if (principal instanceof Jwt jwt) {
+            username = jwt.getSubject(); // or jwt.getClaim("sub")
+        } else if (principal instanceof String str) {
+            username = str; // Sometimes principal is a String username
+        } else {
+            throw new DbWorldException("Unknown principal type: " + principal.getClass());
+        }
+
+        return this.userRepository.findByEmail(username)
+                .orElseThrow(() -> new ResourceNotFoundException("user", "email", username));
+    }
+
+    @Override
+    public String getUserFromToken(String token) {
+        try {
+            Jwt jwt =  jwtDecoder.decode(token);
+            return jwt.getSubject(); // or jwt.getClaimAsString("email")
+        } catch (JwtException e) {
+            throw new DbWorldException("Invalid JWT token: " + e.getMessage());
+        }
     }
 
     @Override
     public Long getUserIdFromToken() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        UserDetailImpl user = (UserDetailImpl) authentication.getPrincipal();
-        return user.getUserId();
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            return jwt.getClaim("userId");
+        }
+        throw new IllegalStateException("Invalid authentication token");
     }
 
     @Override
@@ -125,6 +165,11 @@ public class UserServiceImpl implements UserService {
                     }
                 }
         ).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserSearchProjection> searchUsersByQuery(String query, int limit) {
+        return userRepository.searchUsers(query, limit);
     }
 
     @Override
@@ -189,16 +234,75 @@ public class UserServiceImpl implements UserService {
                 () -> new ResourceNotFoundException("User", "userId", userId)
         );
         try {
-            userEntity.setFirstName(userDto.getFirstName());
-            userEntity.setLastName(userDto.getLastName());
-            userEntity.setEmail(userDto.getEmail());
-            userEntity.setGender(userDto.getGender());
-            userEntity.setMobileNo(userDto.getMobileNo());
-            userEntity.setDob(userDto.getDob());
-            userEntity.setPassword(userDto.getPassword());
+            updateUserFields(userEntity, userDto);
             return this.modelMapper.map(this.userRepository.save(userEntity), UserDto.class);
         } catch (Exception ex) {
             throw new DbWorldException(ex.getMessage());
+        }
+    }
+
+    @Transactional
+    @Override
+    public UserDto updateUserWithRole(UserDto userDto, Long userId) {
+        // 1. Input validation
+        Objects.requireNonNull(userDto, "UserDto cannot be null");
+
+        // 2. Fetch existing user
+        UserEntity userEntity = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "userId", userId));
+
+        try {
+            // 3. Update basic user fields
+            updateUserFields(userEntity, userDto);
+
+            // 4. Handle role update only if provided
+            if (userDto.getUserRole() != null) {
+                updateUserRole(userEntity, userDto.getUserRole());
+            }
+
+            // 5. Save and return
+            UserEntity updatedUser = userRepository.save(userEntity);
+            return modelMapper.map(updatedUser, UserDto.class);
+
+        } catch (ResourceNotFoundException ex) {
+            throw ex; // Re-throw specific exceptions
+        } catch (Exception ex) {
+            throw new DbWorldException("Failed to update user: " + ex.getMessage(), ex);
+        }
+    }
+
+    private void updateUserFields(UserEntity userEntity, UserDto userDto) {
+        userEntity.setFirstName(userDto.getFirstName());
+        userEntity.setLastName(userDto.getLastName());
+        userEntity.setEmail(userDto.getEmail());
+        userEntity.setGender(userDto.getGender());
+        userEntity.setMobileNo(userDto.getMobileNo());
+        userEntity.setDob(userDto.getDob());
+
+        // Only update password if provided and not empty
+        if (StringUtils.hasText(userDto.getPassword())) {
+            userEntity.setPassword(userDto.getPassword());
+        }
+    }
+
+    private void updateUserRole(UserEntity userEntity, UserDto.UserRole roleDto) {
+        // Validate role ID
+        if (!StringUtils.hasText(roleDto.getId())) {
+            throw new IllegalArgumentException("Role ID cannot be null or empty");
+        }
+
+        // Verify role exists
+        UserDto.UserRole existingRole = roleService.getRoleByName(roleDto.getName());
+        if (existingRole == null) {
+            throw new ResourceNotFoundException("Role", "name", roleDto.getName());
+        }
+
+        // Only update if role is different
+        if (userEntity.getRole() == null ||
+                userEntity.getRole().getId() != (Integer.parseInt(existingRole.getId()))) {
+
+            UserRoleEntity roleEntity = modelMapper.map(existingRole, UserRoleEntity.class);
+            userEntity.setRole(roleEntity);
         }
     }
 

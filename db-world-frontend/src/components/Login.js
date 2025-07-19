@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Constants from './Constants';
 import { doLogin, updateDobForUser } from './ApiServices';
-import Authentication from '../contexts/Authentication';
+// import Authentication from '../contexts/Authentication';
 import loginImage from '../images/login.png';
 
 // MUI Components
@@ -41,6 +41,7 @@ import {
 
 // Animation
 import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/Authentication';
 
 // Styles
 const modalStyle = {
@@ -60,7 +61,7 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
-  const { login, logout } = Authentication.useAuth();
+  const { login, logout } = useAuth();
 
   // State
   const [formData, setFormData] = useState({
@@ -78,9 +79,9 @@ const Login = () => {
   const [user, setUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
-//   useEffect(() => {
-//     logout(); // Clear auth state on mount
-//   }, [logout]);
+  // useEffect(() => {
+  //   logout(); // Clear auth state on mount
+  // }, [logout]);
 
   // Helpers
   const getRedirectPath = () => {
@@ -99,7 +100,7 @@ const Login = () => {
 
   const validateField = (name, value) => {
     let isValid = true;
-    
+
     if (name === 'email') {
       isValid = !!value && !/\s/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
       setErrors(prev => ({ ...prev, email: !isValid }));
@@ -113,48 +114,40 @@ const Login = () => {
       isValid = !!value && dobPattern.test(value) && year >= 1900 && year <= currentYear;
       setDobError(!isValid);
     }
-    
+
     return isValid;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+
     // Validate all fields
     const isEmailValid = validateField('email', formData.email);
     const isPasswordValid = validateField('password', formData.password);
-    
+
     if (!isEmailValid || !isPasswordValid) {
       Constants.showToast.warning('Please fill all required fields correctly.');
       setLoading(false);
       return;
     }
-    
-    try {
-      const loginRes = await doLogin(formData.email, formData.password);
-      
-      if (loginRes.httpStatusCode === 200) {
-        Constants.showToast.success('Login successful!', {
-          autoClose: 1000,
-          onClose: () => {
-            login(loginRes.data.token, loginRes.data.user);
-            if (!loginRes.data.user.dob) {
-              setUser(loginRes.data.user);
-              setDobModalOpen(true);
-            } else {
-              navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-            }
+
+    const loginRes = await doLogin(formData.email, formData.password);
+    if (loginRes && loginRes.httpStatusCode === 200) {
+      Constants.showToast.success('Login successful!', {
+        autoClose: 1000,
+        onClose: () => {
+          login(loginRes.data.token, loginRes.data.user, loginRes.data.user.role);
+          if (!loginRes.data.user.dob) {
+            setUser(loginRes.data.user);
+            setDobModalOpen(true);
+          } else {
+            navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
           }
-        });
-      } else {
-        Constants.showToast.error(loginRes.message || 'Login failed');
-      }
-    } catch (err) {
-      Constants.showToast.error('No response from server');
-    } finally {
-      setLoading(false);
+        }
+      });
     }
+    setLoading(false);
   };
 
   const handleDobSubmit = async () => {
@@ -162,7 +155,7 @@ const Login = () => {
       Constants.showToast.warning('Please enter a valid date of birth');
       return;
     }
-    
+
     try {
       const res = await updateDobForUser(dob);
       if (res.httpStatusCode === 200) {
@@ -205,7 +198,7 @@ const Login = () => {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Toast container */}
       {Constants.TOAST_CONTAINER}
-      
+
       {/* Login Card */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -216,7 +209,7 @@ const Login = () => {
           {/* Image Section */}
           <CardMedia
             component="img"
-            sx={{ 
+            sx={{
               width: { xs: 0, md: '35%' },
               objectFit: 'cover',
               display: { xs: 'none', md: 'block' }
@@ -224,7 +217,7 @@ const Login = () => {
             image={loginImage}
             alt="Login illustration"
           />
-          
+
           {/* Form Section */}
           <Box sx={{ flex: 1 }}>
             <CardContent sx={{ p: 4 }}>
@@ -242,7 +235,7 @@ const Login = () => {
                   </Typography>
                   <Divider sx={{ my: 3 }} />
                 </motion.div>
-                
+
                 <Box component="form" onSubmit={handleSubmit} noValidate>
                   <motion.div variants={itemVariants}>
                     <FormControl fullWidth margin="normal" error={errors.email}>
@@ -267,7 +260,7 @@ const Login = () => {
                       />
                     </FormControl>
                   </motion.div>
-                  
+
                   <motion.div variants={itemVariants}>
                     <FormControl fullWidth margin="normal" error={errors.password}>
                       <TextField
@@ -300,7 +293,7 @@ const Login = () => {
                       />
                     </FormControl>
                   </motion.div>
-                  
+
                   <motion.div variants={itemVariants}>
                     <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
                       <Button
@@ -319,7 +312,7 @@ const Login = () => {
                           </>
                         ) : 'Sign In'}
                       </Button>
-                      
+
                       <Button
                         variant="outlined"
                         color="secondary"
@@ -332,7 +325,7 @@ const Login = () => {
                     </Box>
                   </motion.div>
                 </Box>
-                
+
                 <motion.div variants={itemVariants}>
                   <Divider sx={{ my: 3 }} />
                   <Typography variant="body2" align="center" sx={{ mb: 2 }}>
@@ -354,7 +347,7 @@ const Login = () => {
           </Box>
         </Card>
       </motion.div>
-      
+
       {/* DOB Modal */}
       <Modal
         open={dobModalOpen}
@@ -375,11 +368,11 @@ const Login = () => {
                 <CloseIcon />
               </IconButton>
             </Box>
-            
+
             <Typography variant="body1" sx={{ mb: 3 }}>
               Please provide your date of birth to continue. This information is required.
             </Typography>
-            
+
             <TextField
               fullWidth
               type="date"
@@ -402,7 +395,7 @@ const Login = () => {
               helperText={dobError ? 'Please enter a valid date (YYYY-MM-DD)' : ''}
               sx={{ mb: 3 }}
             />
-            
+
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 variant="contained"

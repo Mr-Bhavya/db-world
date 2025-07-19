@@ -1,10 +1,11 @@
 package com.db.dbworld.config;
 
+import com.db.dbworld.payloads.dbcinema.stream.PathAdapter;
 import com.db.dbworld.utils.DbWorldConstants;
-import com.google.gson.ExclusionStrategy;
-import com.google.gson.FieldAttributes;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.google.gson.*;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -29,6 +30,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
+import java.lang.reflect.Type;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
 
 @Configuration
 public class BeanConfig {
@@ -78,11 +82,6 @@ public class BeanConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration builder) throws Exception {
-        return builder.getAuthenticationManager();
-    }
-
-    @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
     }
@@ -103,6 +102,8 @@ public class BeanConfig {
                         return false;
                     }
                 })
+                .registerTypeAdapter(Path.class, new PathAdapter())
+                .registerTypeAdapter(LocalDateTime.class, (JsonSerializer<LocalDateTime>) (src, type, jsonSerializationContext) -> new JsonPrimitive(src.toString()))
                 .serializeNulls().setPrettyPrinting().create();
     }
 
@@ -120,6 +121,15 @@ public class BeanConfig {
                 .pathsToMatch("/api/**")
                 .displayName("DB-WORLD Backend REST API")
                 .build();
+    }
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        // Prevent serialization of dates as timestamps
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper;
     }
 
 }

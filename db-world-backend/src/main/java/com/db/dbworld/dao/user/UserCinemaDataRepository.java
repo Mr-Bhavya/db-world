@@ -1,16 +1,13 @@
 package com.db.dbworld.dao.user;
 
-//import com.db.dbworld.entities.user.UserCinemaDataEntity;
 import com.db.dbworld.entities.user.UserCinemaDataEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.Instant;
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 
 public interface UserCinemaDataRepository extends JpaRepository<UserCinemaDataEntity, Long> {
 
@@ -44,5 +41,4 @@ public interface UserCinemaDataRepository extends JpaRepository<UserCinemaDataEn
     default List<UserCinemaDataEntity> findRecentActivities(Date cutoff, int limit) {
         return findRecentActivities(cutoff, org.springframework.data.domain.PageRequest.of(0, limit));
     }
-
 }
