@@ -16,7 +16,7 @@ import AdminTools from './components/DB_Admin_Tools/AdminTools';
 import ViewPassword from './components/DB_Password_Management/ViewPassword';
 import Profile from './components/DB_Users/Profile';
 import EditProfile from './components/DB_Users/EditProfile';
-import Authentication from './contexts/Authentication';
+import { AuthProvider } from './contexts/Authentication';
 import PrivateRoute from './components/PrivateRoute';
 import MainPage from './components//DBCinema/screens/mainPage/index.js'
 import MoviesPage from './components//DBCinema/screens/movies/index.js'
@@ -153,14 +153,14 @@ function App() {
     </div>
 
   return (
-    <Authentication.AuthProvider>
+    <AuthProvider>
       <Router>
         <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
           <CssBaseline />
           {app}
         </ThemeProvider>
       </Router>
-    </Authentication.AuthProvider>
+    </AuthProvider>
   )
 }
 

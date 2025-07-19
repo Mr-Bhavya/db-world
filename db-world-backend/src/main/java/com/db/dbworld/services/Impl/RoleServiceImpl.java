@@ -2,6 +2,7 @@ package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.user.UserRoleRepository;
 import com.db.dbworld.entities.user.UserRoleEntity;
+import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.RoleService;
 import org.modelmapper.ModelMapper;
@@ -39,12 +40,14 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public UserDto.UserRole getRoleById(String roleId) {
-        return null;
+        return this.modelMapper.map(userRoleRepository.findById(Integer.valueOf(roleId)).orElseThrow(
+                ()-> new ResourceNotFoundException("Role", "id", roleId)
+        ), UserDto.UserRole.class);
     }
 
     @Override
     public UserDto.UserRole getRoleByName(String roleName) {
-        return null;
+        return this.modelMapper.map(userRoleRepository.findByName(roleName), UserDto.UserRole.class);
     }
 
     @Override

@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Box, 
-  Button, 
-  Card, 
-  CardContent, 
-  Checkbox, 
-  CircularProgress, 
-  Divider, 
-  FormControl, 
-  FormHelperText, 
-  Grid, 
-  InputLabel, 
-  MenuItem, 
-  Select, 
-  TextField, 
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  CircularProgress,
+  Divider,
+  FormControl,
+  FormHelperText,
+  Grid,
+  InputLabel,
+  MenuItem,
+  Select,
+  TextField,
   Typography,
   useTheme,
   createTheme,
@@ -27,6 +27,8 @@ import LoadingSpinner from '../LoadingSpinner';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import { updateUserDetails } from '../ApiServices';
+import { handleApiSuccess } from '../Utils/successHandler';
+import { handleApiError } from '../Utils/errorHandler';
 
 // Custom teal theme
 const theme = createTheme({
@@ -176,7 +178,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
     const fieldValue = type === 'checkbox' ? checked : value;
-    
+
     setFormData(prev => ({
       ...prev,
       [name]: fieldValue
@@ -203,22 +205,18 @@ const EditProfile = ({ user, isFromAdmin }) => {
 
     try {
       const { userId, firstName, lastName, gender, dob, mobileNo, email, password } = formData;
-      const updateUserRes = await updateUserDetails({ 
-        userId, firstName, lastName, gender, dob, mobileNo, email, password 
-      });
-
-      if (updateUserRes.httpStatusCode === 200) {
-        Constants.showToast.success("Profile updated successfully!", {
-          onClose: () => navigate(Constants.USER_PROFILE_ROUTE),
-          autoClose: 1000
+      try {
+        const updateUserRes = await updateUserDetails({
+          userId, firstName, lastName, gender, dob, mobileNo, email, password
         });
-      } else if (updateUserRes.httpStatusCode === 401) {
-        Constants.showToast.error(`${updateUserRes.message} ${Constants.RE_LOGIN}`, {
-          onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } }),
-          autoClose: 1000
-        });
-      } else {
-        Constants.showToast.error(updateUserRes.message);
+        // Usage:
+        handleApiSuccess(
+          "Profile updated successfully!",
+          navigate,
+          Constants.USER_PROFILE_ROUTE
+        );
+      } catch (error) {
+        handleApiError(error, navigate, location);
       }
     } catch (error) {
       Constants.showToast.error("An error occurred while updating your profile");

@@ -3,7 +3,7 @@ import { addUser } from '../redux/action/allActions';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import Constants from './Constants';
-import Authentication from '../contexts/Authentication';
+import { useAuth } from '../contexts/Authentication';
 // import { Authentication } from '../contexts/Authentication';
 
 function LogOut() {
@@ -11,16 +11,16 @@ function LogOut() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const [loader, setLoader] = useState(true)
-    const { logout } = Authentication.useAuth();
+    const { logout } = useAuth();
 
     useEffect(() => {
         dispatch(addUser(null));
 
         // Local Storage
-        // localStorage.setItem('login',false);
-        // localStorage.setItem('user', null);
-        // localStorage.setItem('token', null);
-        // localStorage.clear();
+        localStorage.setItem('login',false);
+        localStorage.setItem('user', null);
+        localStorage.setItem('token', null);
+        localStorage.clear();
         logout();
         navigate(Constants.LOGIN_ROUTE, { replace: true });
         

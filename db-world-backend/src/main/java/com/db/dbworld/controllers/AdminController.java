@@ -1,23 +1,34 @@
 package com.db.dbworld.controllers;
 
+import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
+import com.db.dbworld.entities.user.UserActivityLogEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
+import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
+import com.db.dbworld.payloads.user.UserActivityLogDto;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.DBCinemaRecordsService;
 import com.db.dbworld.services.MediaFileInfoService;
+import com.db.dbworld.services.UserActivityLogService;
 import com.db.dbworld.services.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.validation.Valid;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,6 +50,9 @@ public class AdminController {
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
 
+    @Autowired
+    private UserActivityLogService logService;
+
     @GetMapping("/user")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<UserDto>> getAllUsers() {
@@ -46,12 +60,41 @@ public class AdminController {
         return new ApiResponse<>(HttpStatus.OK, true, userDtoList);
     }
 
+    @GetMapping("/user/search")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<List<Map<String, Object>>> getUserByQuery(@RequestParam String query,
+                                                                 @RequestParam(defaultValue = "10") int limit) {
+        List<UserSearchProjection> users = this.userService.searchUsersByQuery(query, limit);
+
+        // Convert projection to a list of maps
+        List<Map<String, Object>> mappedUsers = users.stream().map(user -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("firstName", user.getFirstName());
+            map.put("lastName", user.getLastName());
+            map.put("email", user.getEmail());
+            map.put("fullName", user.getFullName());
+            return map;
+        }).toList();
+
+        return new ApiResponse<>(HttpStatus.OK, true, mappedUsers);
+    }
+
     @PostMapping("/user")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<UserDto>> createUser(List<RequestPayloads.UserRequest> userRequestList) {
-            List<UserDto> userDtoList = userRequestList.stream().map(userRequest -> modelMapper.map(userRequest, UserDto.class)).collect(Collectors.toList());
+        List<UserDto> userDtoList = userRequestList.stream().map(userRequest -> modelMapper.map(userRequest, UserDto.class)).collect(Collectors.toList());
         List<UserDto> createdUsers = this.userService.createUser(userDtoList);
         return new ApiResponse<>(HttpStatus.CREATED, true, createdUsers);
+    }
+
+    @PutMapping("/user/{userId}")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<String> updateUser(@Valid
+                                          @RequestBody UserDto userDto,
+                                          @PathVariable(value = "userId") Long userId) {
+        this.userService.updateUserWithRole(userDto, userId);
+        String message = "User with userId " + userId + " is updated successfully.";
+        return new ApiResponse<>(HttpStatus.OK, true, message);
     }
 
     @DeleteMapping("/user/{userId}")
@@ -87,9 +130,9 @@ public class AdminController {
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<Map<String, Object>>> getDbCinemaRecords(@RequestParam(value = "streamList", defaultValue = "true") boolean streamList) {
         List<Map<String, Object>> dbCinemaRecords;
-        if(!streamList){
+        if (!streamList) {
             dbCinemaRecords = dbCinemaRecordsService.getRecords();
-        }else{
+        } else {
             dbCinemaRecords = dbCinemaRecordsService.getRecordsWithStreamList();
         }
         return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecords);
@@ -112,7 +155,7 @@ public class AdminController {
                         successIds.add(record.getTmdbId());
                         log.info("Completed - {} Last TMDB: {}", dbCinemaRecordsDtos.size(), record.getTmdbId());
                         Thread.sleep(500);
-                    }catch (Exception ex){
+                    } catch (Exception ex) {
                         failedIds.put(record.getTmdbId(), ex.getMessage());
                         log.error("Failed ID: {} Error Message: {}", record.getTmdbId(), ex.getMessage());
                     }
@@ -126,12 +169,12 @@ public class AdminController {
 
     @PutMapping("/cinema/records")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> updateTmdbWithLatest (){
-        if(this.dbCinemaRecordsService.getStatusOfRecordsUpdate().containsKey("running") && (Boolean) this.dbCinemaRecordsService.getStatusOfRecordsUpdate().get("running")){
+    public ApiResponse<Map<String, Object>> updateTmdbWithLatest() {
+        if (this.dbCinemaRecordsService.getStatusOfRecordsUpdate().containsKey("running") && (Boolean) this.dbCinemaRecordsService.getStatusOfRecordsUpdate().get("running")) {
             throw new DbWorldException(HttpStatus.ALREADY_REPORTED, "Updating records is already running");
         }
         this.dbCinemaRecordsService.updateTmdbWithLatest();
-        return new ApiResponse<>(HttpStatus.OK, true, "Records is updating." ,this.dbCinemaRecordsService.getStatusOfRecordsUpdate());
+        return new ApiResponse<>(HttpStatus.OK, true, "Records is updating.", this.dbCinemaRecordsService.getStatusOfRecordsUpdate());
     }
 
     @PutMapping("/cinema/record/{recordId}")
@@ -139,7 +182,7 @@ public class AdminController {
     public ApiResponse<DBCinemaRecordsDto> updateDbCinemaRecordById(
             @Valid @PathVariable Long recordId,
             @Valid @RequestBody RequestPayloads.AddRecord record
-    ){
+    ) {
         DBCinemaRecordsDto updatedDbCinemaRecordsDto = dbCinemaRecordsService.updateRecord(recordId, record);
         return new ApiResponse<>(HttpStatus.OK, true, updatedDbCinemaRecordsDto);
     }
@@ -149,9 +192,9 @@ public class AdminController {
     public ApiResponse<DBCinemaRecordsDto> switchShowOnTopRecord(
             @Valid @PathVariable Long recordId,
             @Valid @PathVariable boolean showOnTop
-    ){
+    ) {
         dbCinemaRecordsService.switchShowOnTopRecord(recordId, showOnTop);
-        return new ApiResponse<>(HttpStatus.OK, true, "Record Id: "+ recordId + " is updated successfully.");
+        return new ApiResponse<>(HttpStatus.OK, true, "Record Id: " + recordId + " is updated successfully.");
     }
 
     @DeleteMapping("/cinema/record/{recordId}")
@@ -174,14 +217,14 @@ public class AdminController {
             @PathVariable String type,
             @RequestParam("q") String query,
             @RequestParam(value = "year", required = false, defaultValue = "0") Integer year
-    ){
+    ) {
         List<HashMap<String, Object>> list = this.dbCinemaRecordsService.getTmdbByQuery(type, query, year);
         return new ApiResponse<>(HttpStatus.OK, true, list);
     }
 
     @GetMapping("/cinema/records/status")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> getStatusOfRecordUpdate(){
+    public ApiResponse<Map<String, Object>> getStatusOfRecordUpdate() {
         Map<String, Object> map = this.dbCinemaRecordsService.getStatusOfRecordsUpdate();
         return new ApiResponse<>(HttpStatus.OK, true, map);
     }
@@ -189,16 +232,55 @@ public class AdminController {
 
     @DeleteMapping(value = "/stream/media-info/file/{fileIds}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<List<MediaFileInfo>> deleteMediaInfoByFileId(@PathVariable(value = "fileIds") String fileIds){
+    public ApiResponse<List<MediaFileInfo>> deleteMediaInfoByFileId(@PathVariable(value = "fileIds") String fileIds) {
         mediaFileInfoService.deleteInfoByIds(Arrays.stream(fileIds.split(",")).toList());
         return new ApiResponse<>(HttpStatus.OK, true, "File info deleted successfully.");
     }
 
     @DeleteMapping(value = "/stream/media-info")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<Map<String, Integer>> cleanMediaFileInfo(){
+    public ApiResponse<Map<String, Integer>> cleanMediaFileInfo() {
         Map<String, Integer> response = mediaFileInfoService.cleanMediaFileInfo();
         return new ApiResponse<>(HttpStatus.OK, true, response);
     }
+
+
+        @GetMapping("/activity-logs")
+        public ResponseEntity<ResponsePayloads.PagedResponse<UserActivityLogDto>> getActivityLogs(
+                @RequestParam(required = false) String username,
+                @RequestParam(required = false) String method,
+                @RequestParam(required = false) Integer status,
+                @RequestParam(required = false) String uri,
+                @RequestParam(required = false) String ip,
+                @RequestParam(required = false) String requestId,
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+                @RequestParam(defaultValue = "0") int page,
+                @RequestParam(defaultValue = "10") int size,
+                @RequestParam(defaultValue = "timestamp,desc") String[] sort) {
+
+            PageRequest pageRequest = PageRequest.of(page, size, parseSort(sort));
+            Page<UserActivityLogEntity> logs = logService.getFilteredLogs(
+                    username, method, status, uri, ip, requestId, startDate, endDate, pageRequest);
+
+            // Convert to DTO page
+            ResponsePayloads.PagedResponse<UserActivityLogDto> dtoPage = new ResponsePayloads.PagedResponse<>(logs.map(UserActivityLogDto::new));
+
+            return ResponseEntity.ok(dtoPage);
+        }
+
+        private Sort parseSort(String[] sort) {
+            if (sort.length > 1) {
+                return Sort.by(Sort.Order.by(sort[0]).with(Sort.Direction.fromString(sort[1])));
+            } else if (sort.length == 1) {
+                // Handle default direction if only field is provided
+                String[] parts = sort[0].split(",");
+                if (parts.length > 1) {
+                    return Sort.by(Sort.Order.by(parts[0]).with(Sort.Direction.fromString(parts[1])));
+                }
+                return Sort.by(Sort.Order.asc(parts[0]));
+            }
+            return Sort.unsorted();
+        }
 
 }

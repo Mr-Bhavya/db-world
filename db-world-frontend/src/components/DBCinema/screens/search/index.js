@@ -1,19 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { saveUserEventInfo, searchRecord, searchStreamFile } from '../../../ApiServices';
 import CommonServices from '../../../CommonServices';
 import Constants from '../../../Constants';
-import { toast } from 'react-toastify';
+import { debounce } from 'lodash';
 import { useLocation, useNavigate } from 'react-router-dom';
 import FileDetailsModal from './FileDetailsModal';
-import { 
-  Box, 
-  Button, 
-  IconButton, 
-  InputBase, 
-  Paper, 
-  Tab, 
-  Tabs, 
-  Typography, 
+import {
+  Box,
+  Button,
+  IconButton,
+  InputBase,
+  Paper,
+  Tab,
+  Tabs,
+  Typography,
   styled,
   Skeleton
 } from '@mui/material';
@@ -106,6 +106,7 @@ const FileItem = styled(Paper)(({ theme }) => ({
 
 function SearchOverlay({ onClose }) {
   const [term, setTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -133,6 +134,14 @@ function SearchOverlay({ onClose }) {
     else if (size < 1024 * 1024) return (size / 1024).toFixed(1) + " KB";
     else return (size / (1024 * 1024)).toFixed(1) + " MB";
   };
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce((searchValue) => {
+      setSearchTerm(searchValue);
+    }, 800), // 800ms delay
+    []
+  );
 
   const groupByDirectory = (files) => {
     return files.reduce((acc, file) => {
@@ -204,15 +213,28 @@ function SearchOverlay({ onClose }) {
 
   // --- Trigger Search on Term or Tab Change ---
   useEffect(() => {
-    if (term.trim() !== '') {
+    if (searchTerm.trim() !== '') {
       if (activeTab === 'records') {
         searchRecords(0, false);
       } else if (activeTab === 'stream') {
         searchStreams();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term, activeTab]);
+  }, [searchTerm, activeTab]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [debouncedSearch]);
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setTerm(value);
+    debouncedSearch(value);
+  };
+
 
   // --- Scroll Handler for Infinite Loading (only for records) ---
   const handleScroll = (e) => {
@@ -273,7 +295,7 @@ function SearchOverlay({ onClose }) {
 
   return (
     <>
-      <SearchOverlayContainer component={motion.div} 
+      <SearchOverlayContainer component={motion.div}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -283,7 +305,7 @@ function SearchOverlay({ onClose }) {
           <SearchInput
             placeholder="Search..."
             value={term}
-            onChange={(e) => setTerm(e.target.value)}
+            onChange={handleSearchChange}
             autoFocus
             inputProps={{ 'aria-label': 'search' }}
           />
@@ -293,31 +315,31 @@ function SearchOverlay({ onClose }) {
         </SearchHeader>
 
         {/* Tab Header */}
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onChange={handleTabChange}
           indicatorColor="secondary"
           textColor="inherit"
           variant="fullWidth"
-          sx={{ 
+          sx={{
             marginBottom: 2,
             '& .MuiTabs-indicator': {
               backgroundColor: 'secondary.main',
             },
           }}
         >
-          <Tab 
-            value="records" 
-            label="Records" 
+          <Tab
+            value="records"
+            label="Records"
             sx={{
               '&.Mui-selected': {
                 color: 'secondary.main',
               },
             }}
           />
-          <Tab 
-            value="stream" 
-            label="Stream Files" 
+          <Tab
+            value="stream"
+            label="Stream Files"
             sx={{
               '&.Mui-selected': {
                 color: 'secondary.main',
@@ -381,11 +403,11 @@ function SearchOverlay({ onClose }) {
                       {isLoadingNextRecords && (
                         <ResultsGrid>
                           {[...Array(PAGE_SIZE)].map((_, index) => (
-                            <Skeleton 
-                              key={index} 
-                              variant="rectangular" 
-                              width="100%" 
-                              height={180} 
+                            <Skeleton
+                              key={index}
+                              variant="rectangular"
+                              width="100%"
+                              height={180}
                               animation="wave"
                               sx={{ bgcolor: 'grey.800' }}
                             />
@@ -396,11 +418,11 @@ function SearchOverlay({ onClose }) {
                   ) : (
                     <ResultsGrid>
                       {[...Array(PAGE_SIZE)].map((_, index) => (
-                        <Skeleton 
-                          key={index} 
-                          variant="rectangular" 
-                          width="100%" 
-                          height={180} 
+                        <Skeleton
+                          key={index}
+                          variant="rectangular"
+                          width="100%"
+                          height={180}
                           animation="wave"
                           sx={{ bgcolor: 'grey.800' }}
                         />
@@ -432,8 +454,8 @@ function SearchOverlay({ onClose }) {
                               </Typography>
                               <FilesGrid>
                                 {files.map(file => (
-                                  <FileItem 
-                                    key={file.fileId} 
+                                  <FileItem
+                                    key={file.fileId}
                                     onClick={() => handleFileClick(file)}
                                     component={motion.div}
                                     whileHover={{ scale: 1.02 }}
@@ -459,20 +481,20 @@ function SearchOverlay({ onClose }) {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {[...Array(2)].map((_, groupIndex) => (
                         <Box key={groupIndex} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Skeleton 
-                            variant="text" 
-                            width={150} 
-                            height={24} 
+                          <Skeleton
+                            variant="text"
+                            width={150}
+                            height={24}
                             animation="wave"
                             sx={{ bgcolor: 'grey.800' }}
                           />
                           <FilesGrid>
                             {[...Array(12)].map((_, fileIndex) => (
-                              <Skeleton 
-                                key={fileIndex} 
-                                variant="rectangular" 
-                                width="100%" 
-                                height={100} 
+                              <Skeleton
+                                key={fileIndex}
+                                variant="rectangular"
+                                width="100%"
+                                height={100}
                                 animation="wave"
                                 sx={{ bgcolor: 'grey.800' }}
                               />

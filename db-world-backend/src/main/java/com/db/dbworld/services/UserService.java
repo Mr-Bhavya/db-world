@@ -1,8 +1,12 @@
 package com.db.dbworld.services;
 
+import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
+import com.db.dbworld.utils.DbWorldConstants;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -11,9 +15,13 @@ public interface UserService {
 
     UserEntity getUserFromToken();
 
+    String getUserFromToken(String token);
+
     Long getUserIdFromToken();
 
     List<UserDto> getAllUsers();
+
+    List<UserSearchProjection> searchUsersByQuery(String query, int limit);
 
     List<UserDto> createUser(List<UserDto> userDtoList);
 
@@ -28,6 +36,9 @@ public interface UserService {
     long getUserIdByUsername(String username); //username = email
 
     UserDto updateUser(UserDto userDto, Long userId);
+
+    @Transactional
+    UserDto updateUserWithRole(UserDto userDto, Long userId);
 
     void deleteUserById(Long id);
 

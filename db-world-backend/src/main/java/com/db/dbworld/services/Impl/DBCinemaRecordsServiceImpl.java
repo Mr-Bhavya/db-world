@@ -18,6 +18,7 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.DuplicateResourceException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.exceptions.TmdbApiException;
+import com.db.dbworld.helpers.CacheLogger;
 import com.db.dbworld.payloads.CustomPageImpl;
 import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.RequestPayloads;
@@ -41,13 +42,17 @@ import jakarta.persistence.EntityManager;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
@@ -56,6 +61,8 @@ import org.springframework.security.authentication.AuthenticationServiceExceptio
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -103,13 +110,20 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Autowired
     private UserService userService;
 
-    private Map<String, Object> updateRecordsFromTmdb = new HashMap<>();
+    @Autowired
+    private CacheManager cacheManager;
 
-    public boolean isRecordsUpdatingFromTmdb = false;
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private CacheLogger cacheLogger;
+
+    private Map<String, Object> updateRecordsFromTmdb = new HashMap<>();
 
     @Transactional
     @Override
-    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
+    @CacheEvict(allEntries = true)
     public DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record) {
         if (this.dbCinemaRecordsRepository.findByTmdbId(record.getTmdbId()).isEmpty()) {
             try {
@@ -126,10 +140,11 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                     dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(pojoConverter.seriesTmdbDtoToEntity(seriesTmdbDataDto, new SeriesTmdbDataEntity())));
                 }
                 DBCinemaRecordsEntity newDbCinemaRecordEntity = entityManager.merge(dbCinemaRecordsEntity);
+                evictRecordCaches(newDbCinemaRecordEntity.getId());
                 return pojoConverter.dbCinemaRecordsEntityToDto(newDbCinemaRecordEntity);
             } catch (Exception ex) {
-                log.error(ex);
-                throw new DbWorldException(ex.getMessage());
+                log.error("Error adding record: {}", ex.getMessage(), ex);
+                throw new DbWorldException("Failed to add record", ex);
             }
         } else {
             throw new DuplicateResourceException("DBCinemaRecordsEntity", "tmdbId", Long.toString(record.getTmdbId()));
@@ -138,77 +153,80 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Transactional
     @Override
-    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
+    @CacheEvict(key = "'record:' + #recordId")
     public DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record) {
         try {
-            TmdbDataEntity tmdbDataEntity = null;
-            DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId).orElseThrow(
-                    () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
-            );
+            DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId)
+                    .orElseThrow(() -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString()));
+
             if (record.getTmdbId() != dbCinemaRecordsEntity.getTmdb().getId()) {
                 throw new DbWorldException(HttpStatus.BAD_REQUEST, "Tmdb Id is different from existing.");
             }
-            if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-                tmdbDataEntity = updateTmdbForMovie(dbCinemaRecordsEntity.getTmdb());
-            } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-                tmdbDataEntity = updateTmdbForSeries(dbCinemaRecordsEntity.getTmdb());
-            } else {
-                throw new ResourceNotFoundException("Db Cinema Record", "record type", record.getType());
-            }
+
+            TmdbDataEntity tmdbDataEntity = record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ?
+                    updateTmdbForMovie(dbCinemaRecordsEntity.getTmdb()) :
+                    updateTmdbForSeries(dbCinemaRecordsEntity.getTmdb());
+
             dbCinemaRecordsEntity.setTmdb(tmdbDataEntity);
-            dbCinemaRecordsEntity.setName(Objects.requireNonNull(tmdbDataEntity).getTitle());
+            dbCinemaRecordsEntity.setName(tmdbDataEntity.getTitle());
             dbCinemaRecordsEntity.setShowOnTop(record.isShowOnTop());
-            DBCinemaRecordsEntity newDbCinemaRecordsEntity = entityManager.merge(dbCinemaRecordsEntity);
-            return pojoConverter.dbCinemaRecordsEntityToDto(newDbCinemaRecordsEntity);
+
+            DBCinemaRecordsEntity updatedEntity = entityManager.merge(dbCinemaRecordsEntity);
+            evictRecordCaches(recordId);
+            return pojoConverter.dbCinemaRecordsEntityToDto(updatedEntity);
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
         } catch (Exception ex) {
-            log.error(ex);
-            throw new DbWorldException(ex.getMessage());
+            log.error("Error updating record {}: {}", recordId, ex.getMessage(), ex);
+            throw new DbWorldException("Failed to update record", ex);
         }
     }
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
+    @CacheEvict(key = "'record:' + #recordId")
     public void switchShowOnTopRecord(Long recordId, boolean showOnTop) {
         try {
-            TmdbDataEntity tmdbDataEntity = null;
-            DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId).orElseThrow(
-                    () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
-            );
-            if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
-                tmdbDataEntity = updateTmdbForMovie(dbCinemaRecordsEntity.getTmdb());
-            } else if (dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
-                tmdbDataEntity = updateTmdbForSeries(dbCinemaRecordsEntity.getTmdb());
-            } else {
-                throw new ResourceNotFoundException("Db Cinema Record", "record type", dbCinemaRecordsEntity.getType());
-            }
+            DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsRepository.findById(recordId)
+                    .orElseThrow(() -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString()));
+
+            TmdbDataEntity tmdbDataEntity = dbCinemaRecordsEntity.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ?
+                    updateTmdbForMovie(dbCinemaRecordsEntity.getTmdb()) :
+                    updateTmdbForSeries(dbCinemaRecordsEntity.getTmdb());
+
             dbCinemaRecordsEntity.setShowOnTop(showOnTop);
             dbCinemaRecordsEntity.setTmdb(tmdbDataEntity);
             entityManager.merge(dbCinemaRecordsEntity);
+            evictRecordCaches(recordId);
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
         } catch (Exception ex) {
-            log.error(ex);
-            throw new DbWorldException(ex.getMessage());
+            log.error("Error switching show on top for record {}: {}", recordId, ex.getMessage(), ex);
+            throw new DbWorldException("Failed to switch show on top", ex);
         }
     }
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "DB-Cinema::DBCinemaRecordsServiceImpl", allEntries = true)
+    @CacheEvict(key = "'record:' + #recordId")
     public void deleteRecord(Long recordId) {
         if (this.dbCinemaRecordsRepository.existsById(recordId)) {
             this.userRecordDataRepository.deleteByDbCinemaRecordId(recordId);
             this.dbCinemaRecordsRepository.deleteById(recordId);
+            evictRecordCaches(recordId);
         } else {
             throw new ResourceNotFoundException("db_cinema_record", "id", recordId.toString());
         }
     }
 
     @Override
+    @Cacheable(value = "DB-Cinema-Short", key = "'all-records'")
     public List<Map<String, Object>> getRecords() {
         return dbCinemaRecordsRepository.findRecords();
     }
 
     @Override
+//    @Cacheable(value = "DB-Cinema-Short", key = "'all-records-with-streams'")
     public List<Map<String, Object>> getRecordsWithStreamList() {
         List<Map<String, Object>> dbCinemaRecords = dbCinemaRecordsRepository.findRecords();
         return dbCinemaRecords.stream().map(stringObjectMap -> {
@@ -217,15 +235,16 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                     .stream().map(mediaFileInfoEntity -> modelMapper.map(mediaFileInfoEntity, MediaFileInfo.class)).collect(Collectors.toList());
             temp.put("stream_file_list", mediaFileInfos);
             return temp;
-        }).toList();
+        }).collect(Collectors.toList());
     }
 
     @Override
+//    @Cacheable(value = "DB-Cinema-Short", key = "'cover-records'")
     public List<DBCinemaRecordsDto> fetchCoverRecords(int pageNumber, int pageSize) {
         List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.getRandom(PageRequest.of(pageNumber, pageSize));
         return mediaFileInfoEntities.stream().map(
                 mediaFileInfoEntity -> pojoConverter.dbCinemaRecordsEntityToDto(mediaFileInfoEntity.getDbCinemaRecord())
-        ).toList();
+        ).collect(Collectors.toList());
     }
 
     /**
@@ -235,24 +254,24 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
      * @param recordSearchCriteria recordSearchCriteria
      */
     @Override
-    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
+    @Cacheable(key = "'search:' + #recordSearchCriteria.hashCode()")
     public CustomPageImpl<DBCinemaRecordsDto> findRecords(RecordSearchCriteria recordSearchCriteria) {
+        String cacheKey = "search:" + recordSearchCriteria.hashCode();
+        return cacheLogger.logCacheAccess("DB-Cinema", cacheKey, () -> {
+            Pageable pageable = PageRequest.of(recordSearchCriteria.getPageNumber(), recordSearchCriteria.getPageSize());
+            Page<DBCinemaRecordsDto> page = dbCinemaRecordsRepository
+                    .findAll(DBSpecifications.findRecord(recordSearchCriteria), pageable)
+                    .map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity));
 
-        Pageable pageable = PageRequest.of(recordSearchCriteria.getPageNumber(), recordSearchCriteria.getPageSize());
-
-        Page<DBCinemaRecordsDto> dbCinemaRecordsDtoPage = dbCinemaRecordsRepository.findAll(DBSpecifications.findRecord(recordSearchCriteria), pageable)
-                .map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity));
-
-        return new CustomPageImpl<>(
-                dbCinemaRecordsDtoPage.getNumber(), dbCinemaRecordsDtoPage.getSize(), dbCinemaRecordsDtoPage.getTotalElements(),
-                dbCinemaRecordsDtoPage.isEmpty(), dbCinemaRecordsDtoPage.isFirst(), dbCinemaRecordsDtoPage.isLast(),
-                dbCinemaRecordsDtoPage.getContent()
-        );
+            return new CustomPageImpl<>(
+                    page.getNumber(), page.getSize(), page.getTotalElements(),
+                    page.isEmpty(), page.isFirst(), page.isLast(),
+                    page.getContent()
+            );
+        });
     }
 
-
     @Override
-    @Cacheable(keyGenerator = "addUsersDbCinemaDataKey")
     public DBCinemaRecordsDto addUsersDbCinemaData(DBCinemaRecordsDto dbCinemaRecordsDto) {
         Long userId = this.userService.getUserIdFromToken();
         UserRecordDataEntity userRecordDataEntity = userRecordDataRepository.findByUserUserIdAndDbCinemaRecordId(userId, dbCinemaRecordsDto.getRecordId()).orElse(null);
@@ -263,12 +282,16 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
+    @Cacheable(key = "'record:' + #recordId", unless = "#result == null")
     public DBCinemaRecordsDto getRecordById(Long recordId) {
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = getRecordEntityById(recordId);
-        return pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity));
+        return cacheLogger.logCacheAccess("DB-Cinema", "record:" + recordId, () -> {
+            DBCinemaRecordsEntity dbCinemaRecordsEntity = getRecordEntityById(recordId);
+            return pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity));
+        });
     }
 
     @Override
+    @Cacheable(key = "'record-entity:' + #recordId", unless = "#result == null")
     public DBCinemaRecordsEntity getRecordEntityById(Long recordId) {
         return dbCinemaRecordsRepository.findById(recordId).orElseThrow(
                 () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())
@@ -276,6 +299,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
+    @Cacheable(key = "'search-keyword:' + #keyword.hashCode() + ':' + #pageable.hashCode()")
     public List<DBCinemaRecordsDto> searchRecordByKeywordWithPagination(String keyword, Pageable pageable) {
         try {
             List<DBCinemaRecordsEntity> dbCinemaRecordsEntityList = dbCinemaRecordsRepository.findRecords("%" + keyword + "%", pageable);
@@ -283,83 +307,109 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                     dbCinemaRecordsEntity -> this.pojoConverter.dbCinemaRecordsEntityToDto(addUsersDbCinemaData(dbCinemaRecordsEntity))
             ).toList();
         } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
+            log.error("Error searching records by keyword {}: {}", keyword, ex.getMessage(), ex);
+            throw new DbWorldException("Failed to search records", ex);
         }
     }
 
     @Override
+    @Cacheable(key = "'count-keyword:' + #keyword.hashCode()")
     public Integer countRecordsByKeyword(String keyword) {
         try {
             return dbCinemaRecordsRepository.countRecordsByKeyword("%" + keyword + "%").orElse(0L).intValue();
         } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
+            log.error("Error counting records by keyword {}: {}", keyword, ex.getMessage(), ex);
+            throw new DbWorldException("Failed to count records", ex);
         }
     }
 
     @Override
+    @Cacheable(key = "'search-simple:' + #keyword.hashCode()")
     public List<Map<String, String>> searchRecordByKeyword(String keyword) {
         try {
             return dbCinemaRecordsRepository.findRecords("%" + keyword + "%");
         } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
+            log.error("Error in simple search by keyword {}: {}", keyword, ex.getMessage(), ex);
+            throw new DbWorldException("Failed to perform simple search", ex);
         }
     }
 
     @Override
     @Transactional
-    @CacheEvict(keyGenerator = "addUsersDbCinemaDataKey")
+    @CacheEvict(cacheNames = "DB-Cinema", key = "'record:' + #recordId")
     public DBCinemaRecordsDto userRecordDataProcess(Long recordId, String process) {
         try {
+            UserEntity userEntity = userService.getUserFromToken();
+            Long userId = userEntity.getUserId();
+
+            // Process user action
             if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_UN_LIKE)) {
-                this.userRecordDataRepository.setIsLikeAsFalseByUserIdRecordId(this.userService.getUserIdFromToken(), recordId);
+                this.userRecordDataRepository.setIsLikeAsFalseByUserIdRecordId(userId, recordId);
             } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_UN_WATCH)) {
-                this.userRecordDataRepository.setIsWatchAsFalseByUserIdRecordId(this.userService.getUserIdFromToken(), recordId);
+                this.userRecordDataRepository.setIsWatchAsFalseByUserIdRecordId(userId, recordId);
             } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_UN_WATCHLIST)) {
-                this.userRecordDataRepository.setIsWatchListedAsFalseByUserIdRecordId(this.userService.getUserIdFromToken(), recordId);
-            } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_LIKE)
-                    || process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCH)
-                    || process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCHLIST)) {
-                UserEntity userEntity = this.userService.getUserFromToken();
+                this.userRecordDataRepository.setIsWatchListedAsFalseByUserIdRecordId(userId, recordId);
+            } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_LIKE) ||
+                    process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCH) ||
+                    process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCHLIST)) {
+
                 UserRecordDataEntity userRecordDataEntity = this.userRecordDataRepository
-                        .findByUserUserIdAndDbCinemaRecordId(userEntity.getUserId(), recordId)
+                        .findByUserUserIdAndDbCinemaRecordId(userId, recordId)
                         .orElseGet(() -> {
-                            UserRecordDataEntity newUserRecordDataEntity = new UserRecordDataEntity();
-                            newUserRecordDataEntity.setDbCinemaRecord(getRecordEntityById(recordId));
-                            newUserRecordDataEntity.setUser(userEntity);
-                            return newUserRecordDataEntity;
+                            UserRecordDataEntity newEntity = new UserRecordDataEntity();
+                            newEntity.setDbCinemaRecord(getRecordEntityById(recordId));
+                            newEntity.setUser(userEntity);
+                            return newEntity;
                         });
-                if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_LIKE)) {
-                    userRecordDataEntity.setLiked(true);
-                } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCH)) {
-                    userRecordDataEntity.setWatched(true);
-                } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCHLIST)) {
-                    userRecordDataEntity.setWatchListed(true);
+
+                switch (process) {
+                    case DbWorldConstants.PROCESS_LIKE:
+                        userRecordDataEntity.setLiked(true);
+                        break;
+                    case DbWorldConstants.PROCESS_WATCH:
+                        userRecordDataEntity.setWatched(true);
+                        break;
+                    case DbWorldConstants.PROCESS_WATCHLIST:
+                        userRecordDataEntity.setWatchListed(true);
+                        break;
                 }
                 this.userRecordDataRepository.save(userRecordDataEntity);
             }
             return getRecordById(recordId);
+        } catch (AuthenticationException ex) {
+            throw new AuthenticationServiceException("Token is not valid. Please login again.");
         } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
+            log.error("Error processing user action {} on record {}: {}", process, recordId, ex.getMessage(), ex);
+            throw new DbWorldException("Failed to process user action", ex);
+        }finally {
+            evictAllWatchlistCacheForUser(userService.getUserIdFromToken());
         }
     }
 
     @Override
+//    @Cacheable(key = "'watchlist:' + #userId + ':' + #pageNumber + ':' + #pageSize")
     public CustomPageImpl<DBCinemaRecordsDto> getWatchListCinemaRecords(int pageNumber, int pageSize) {
-        try {
-            Page<DBCinemaRecordsDto> dbCinemaRecordsDtoPage = userRecordDataRepository
-                    .findAll(DBSpecifications.findUserWatchListedRecords(this.userService.getUserFromToken().getUserId()), PageRequest.of(pageNumber, pageSize))
-                    .map(UserRecordDataEntity::getDbCinemaRecord).map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity));
+        Long userId = this.userService.getUserIdFromToken();
+        String cacheKey = "watchlist:" + userId + ":" + pageNumber + ":" + pageSize;
 
-            return new CustomPageImpl<>(
-                    dbCinemaRecordsDtoPage.getNumber(), dbCinemaRecordsDtoPage.getSize(), dbCinemaRecordsDtoPage.getTotalElements(),
-                    dbCinemaRecordsDtoPage.isEmpty(), dbCinemaRecordsDtoPage.isFirst(), dbCinemaRecordsDtoPage.isLast(),
-                    dbCinemaRecordsDtoPage.getContent()
-            );
-        } catch (AuthenticationException ex) {
-            throw new AuthenticationServiceException("Token is not valid. Please do login again.");
-        } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
-        }
+        return cacheLogger.logCacheAccess("DB-Cinema", cacheKey, () -> {
+            try {
+                Page<DBCinemaRecordsDto> page = userRecordDataRepository
+                        .findAll(DBSpecifications.findUserWatchListedRecords(userId),
+                                PageRequest.of(pageNumber, pageSize))
+                        .map(UserRecordDataEntity::getDbCinemaRecord)
+                        .map(dbCinemaRecordsEntity -> pojoConverter.dbCinemaRecordsEntityToDto(dbCinemaRecordsEntity));
+
+                return new CustomPageImpl<>(
+                        page.getNumber(), page.getSize(), page.getTotalElements(),
+                        page.isEmpty(), page.isFirst(), page.isLast(),
+                        page.getContent()
+                );
+            } catch (Exception ex) {
+                log.error("Error fetching watchlist: {}", ex.getMessage(), ex);
+                throw new DbWorldException("Failed to fetch watchlist", ex);
+            }
+        });
     }
 
     @Async
@@ -639,6 +689,36 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
             recordDetailsJson.add(DbWorldConstants.TMDB_ORIGINAL_TITLE_PROPERTY_KEY, recordDetailsJson.get(DbWorldConstants.TMDB_ORIGINAL_NAME_PROPERTY_KEY));
         }
         return recordDetailsJson;
+    }
+
+    private void evictRecordCaches(Long recordId) {
+        Cache cache = cacheManager.getCache("DB-Cinema");
+        if (cache != null) {
+            String recordKey = "record:" + recordId;
+            String entityKey = "record-entity:" + recordId;
+
+            cache.evict(recordKey);
+            log.info("Evicted Redis cache for record key: {}", recordKey);
+
+            cache.evict(entityKey);
+            log.info("Evicted Redis cache for entity key: {}", entityKey);
+        }
+    }
+
+    private void evictAllWatchlistCacheForUser(Long userId) {
+        try {
+            String pattern = "DB-Cinema::watchlist:" + userId + ":*";
+            Set<String> keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.info("Evicted {} watchlist cache entries for user {}", keys.size(), userId);
+                keys.forEach(key -> log.info("Evicted key: {}", key));
+            } else {
+                log.info("No watchlist cache keys found for user {}", userId);
+            }
+        } catch (Exception ex) {
+            log.error("Failed to evict watchlist cache for user {}: {}", userId, ex.getMessage());
+        }
     }
 
 }

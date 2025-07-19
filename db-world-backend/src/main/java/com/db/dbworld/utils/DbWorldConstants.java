@@ -65,7 +65,7 @@ public class DbWorldConstants {
             "/api/utils/download-tracker",
             "/api/stream/watch/**",
             "/api/stream/download/**",
-            "/*", "/db-world/**", "/static/**"
+            "/*", "/db-world/**", "/static/**", "/api/metrics/**", "/actuator/**"
     };
 
     public static String TMDB_API_KEY;
@@ -87,6 +87,10 @@ public class DbWorldConstants {
     public static String TORRENT_DOWNLOAD_HOME_PATH;
     public static String HS_COOKIES_PATH;
     public static String YT_DLP;
+
+    public enum FileAccessType {
+        STREAM, DOWNLOAD
+    }
 
     @PostConstruct
     public void initConstants() {

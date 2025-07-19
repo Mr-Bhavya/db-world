@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import UserList from '../DB_Users/UserList';
-import UsersData from './UserManagment/UsersData';
 import { 
   Box, 
   Card, 
@@ -19,35 +17,27 @@ import Constants from '../Constants';
 import { getAllUsers } from '../ApiServices';
 import { useDispatch, useSelector } from 'react-redux';
 import DownloadStuf from './Mirror/Mirror';
-import UserRole from './UserManagment/UserRole';
 import { findAllUsers } from '../../redux/action/allActions';
 import { Form } from 'react-bootstrap';
 import ApplicationLogs from './ApplicationLogs';
 import DownloadTracker from './DownloadTracker';
 import StatusCopy from './Status';
-import RecordsManagement from './RecordsManagment/RecordsManagement';
+import RecordsManagement from './RecordsManagment';
 import FileExplorer from './FileExplorer/FileExplorer'
 import LogDashboard from './LogDashboard';
-
-// Components
-// import UserDetails from './UserManagment/UserDetails';
-// import RecordsManagement from './RecordsManagment/RecordsManagement';
-// import DownloadManager from './Mirror/DownloadManager';
-// import SystemStatus from './SystemStatus';
-// import DownloadTracker from './DownloadTracker';
-// import LogDashboard from './LogDashboard';
-// import FileExplorer from './FileExplorer/FileExplorer';
 import SystemInfo from './SystemInfo';
 import Status from './Status';
+import RedisManager from './RedisManager';
+import UserManagement from './UserManagment';
+import UserActivityLogs from './UserActivity/UserActivityLogs';
 
-// Custom teal theme
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#008080', // Teal
+      main: '#008080',
     },
     secondary: {
-      main: '#006666', // Darker teal
+      main: '#006666',
     },
     background: {
       default: '#f5f5f5',
@@ -57,17 +47,11 @@ const theme = createTheme({
 });
 
 const AdminTools = () => {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('download');
-  const [tableView, setTableView] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [userData, setUserData] = useState(useSelector(state => state.userReducer));
 
-
-  // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -91,28 +75,6 @@ const AdminTools = () => {
     }
   };
 
-  const fetchAllUsers = async () => {
-    try {
-      const usersRes = await getAllUsers();
-      if (usersRes.httpStatusCode === 200) {
-        dispatch(findAllUsers(usersRes.data));
-      } else if (usersRes.httpStatusCode === 401) {
-        navigateToLogin();
-      } else if (usersRes.httpStatusCode === 403) {
-        alert("You don't have admin rights.");
-        navigate(Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-      }
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const navigateToLogin = () => {
-    navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-  };
-
   useEffect(() => {
     // Parse hash from URL to set active tab
     const hash = location.hash.substring(1);
@@ -121,40 +83,27 @@ const AdminTools = () => {
       const tab = params.get('active');
       if (tab) setActiveTab(tab);
     }
-    fetchAllUsers();
+    
+    // Set loading to false after initial render
+    const timer = setTimeout(() => setLoading(false), 300);
+    return () => clearTimeout(timer);
   }, [location]);
 
   const handleTabChange = (event, newValue) => {
     setLoading(true);
     setActiveTab(newValue);
     navigate(`${Constants.DB_ADMIN_TOOLS_ROUTE}#active=${newValue}`);
-    // Simulate loading delay for smoother transition
     setTimeout(() => setLoading(false), 300);
   };
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'user_data':
-        return (
-          <>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={tableView}
-                  onChange={() => setTableView(!tableView)}
-                  color="primary"
-                />
-              }
-              label="Table View"
-              sx={{ mb: 2 }}
-            />
-            {tableView ? <UserList /> : <UsersData />}
-          </>
-        );
-      case 'user_role':
-        return <UserRole userData={userData} />;
+      case 'users':
+        return <UserManagement />;
+      case 'users-logs':
+        return <UserActivityLogs />;
       case 'records':
-        return <RecordsManagement userRole={userRole} />;
+        return <RecordsManagement />;
       case 'download':
         return <DownloadStuf />;
       case 'status':
@@ -162,11 +111,13 @@ const AdminTools = () => {
       case 'download-tracker':
         return <DownloadTracker />;
       case 'logs':
-        return <LogDashboard userRole={userRole} />;
+        return <LogDashboard />;
       case 'file_explorer':
         return <FileExplorer />;
       case 'system':
         return <SystemInfo />;
+      case 'redis-cache':
+        return <RedisManager />;
       default:
         return <DownloadStuf />;
     }
@@ -174,25 +125,17 @@ const AdminTools = () => {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box
-        sx={{
-          minHeight: '100vh',
-        //   bgcolor: 'background.default',
-          p: { xs: 1, md: 3 }
-        }}
-      >
+      <Box sx={{ minHeight: '100vh', py: 3, px: 1 }}>
         <motion.div
           initial="hidden"
           animate="visible"
           variants={containerVariants}
         >
-          <Card
-            sx={{
-              width: '100%',
-              backgroundColor:'rgba(255, 255, 255, 0.85)',
-              boxShadow: 3
-            }}
-          >
+          <Card sx={{ 
+            width: '100%',
+            backgroundColor: 'rgba(255, 255, 255, 0.85)',
+            boxShadow: 3
+          }}>
             <motion.div variants={itemVariants}>
               <Tabs
                 value={activeTab}
@@ -215,8 +158,8 @@ const AdminTools = () => {
                   }
                 }}
               >
-                <Tab label="User Details" value="user_data" />
-                <Tab label="User Role" value="user_role" />
+                <Tab label="User Details" value="users" />
+                <Tab label="User Logs" value="users-logs" />
                 <Tab label="Records" value="records" />
                 <Tab label="Downloads" value="download" />
                 <Tab label="Status" value="status" />
@@ -224,10 +167,11 @@ const AdminTools = () => {
                 <Tab label="Logs" value="logs" />
                 <Tab label="File Explorer" value="file_explorer" />
                 <Tab label="System Info" value="system" />
+                <Tab label="Redis Cache" value="redis-cache" />
               </Tabs>
             </motion.div>
 
-            <Box sx={{ p: 3 }}>
+            <Box sx={{ p: 1 }}>
               {loading ? (
                 <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
                   <CircularProgress color="primary" />

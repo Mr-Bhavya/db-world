@@ -23,7 +23,7 @@ import { deleteMediaFileInfoById } from '../../ApiServices';
 import Constants from '../../Constants';
 import CommonServices from '../../CommonServices';
 
-function RecordMediaFilesModal({ fileDialog, setFileDialogData }) {
+function RecordMediaFilesModal({ fileDialog, setFileDialog }) {
     const { open, record, files, type } = fileDialog;
     const [selectedSeason, setSelectedSeason] = useState(null);
     const [filesToDelete, setFilesToDelete] = useState([]);
@@ -68,7 +68,7 @@ function RecordMediaFilesModal({ fileDialog, setFileDialogData }) {
     }, [type, groupedFiles]);
 
     const handleClose = () => {
-        setFileDialogData({ open: false, record: null, files: [], type: null });
+        setFileDialog({ open: false, record: null, files: [], type: null });
         setSelectedSeason(null);
         setFilesToDelete([]);
         setDeleteMode(false);
@@ -196,13 +196,18 @@ function RecordMediaFilesModal({ fileDialog, setFileDialogData }) {
                                 )
                             }
                         >
-                            <ListItemText
-                                primary={file.fileName}
-                                secondary={`${CommonServices.bytesToReadbleFormat(file.fileSize).value} ${CommonServices.bytesToReadbleFormat(file.fileSize).suffix
-                                    } • ${file.filePath}`}
-                                primaryTypographyProps={{ noWrap: true }}
-                                secondaryTypographyProps={{ noWrap: true }}
-                            />
+                            <Box sx={{
+                                width: '100%',
+                                overflowX: 'auto',
+                                whiteSpace: 'nowrap',
+                                '&::-webkit-scrollbar': { height: '3px' }
+                            }}>
+                                <ListItemText
+                                    primary={file.fileName}
+                                    secondary={`${CommonServices.bytesToReadbleFormat(file.fileSize).value} ${CommonServices.bytesToReadbleFormat(file.fileSize).suffix
+                                        } • ${file.filePath}`}
+                                />
+                            </Box>
                         </ListItem>
                     ))}
                 </List>

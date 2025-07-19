@@ -5,7 +5,7 @@ import { useSwipeable } from 'react-swipeable';
 import ColorThief from 'colorthief';
 import requests from '../services/requests';
 import Constants from '../../Constants';
-import { removeWatchlistRecord, watchlistRecord } from '../../ApiServices';
+import { loadCoverRecords, removeWatchlistRecord, watchlistRecord } from '../../ApiServices';
 import CommonServices from '../../CommonServices';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar } from '@capacitor/status-bar';
@@ -45,9 +45,9 @@ const CoverContainer = styled(motion.div)(({ theme }) => ({
   overflow: 'hidden',
   // transition: `margin-top ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}, 
   //             height ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}`,
-              
+
   transition: 'background-color var(--color-transition)',
-  
+
   '&.collapsed': {
     height: 'calc(100vh - 50px)'
   },
@@ -55,7 +55,7 @@ const CoverContainer = styled(motion.div)(({ theme }) => ({
   [theme.breakpoints.down('md')]: {
     height: 'calc(100vh - 250px)',
     marginTop: '100px',
-    
+
     '&.collapsed': {
       height: 'calc(100vh - 250px)'
     }
@@ -71,7 +71,7 @@ const CoverMain = styled(motion.div)(({ theme }) => ({
   backgroundPosition: 'center center',
   transition: `background-image ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}, 
               background-color ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}`,
-  
+
   [theme.breakpoints.down('md')]: {
     margin: theme.spacing(2),
     border: '1px solid white',
@@ -91,7 +91,7 @@ const CoverContents = styled(motion.div)(({ theme }) => ({
   lineHeight: 1.6,
   color: theme.palette.common.white,
   zIndex: 2,
-  
+
   [theme.breakpoints.down('md')]: {
     marginLeft: 'auto',
     marginRight: 'auto',
@@ -105,7 +105,7 @@ const MovieTitle = styled(motion.div)(({ theme }) => ({
   fontSize: '80px',
   lineHeight: 'normal',
   textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
-  
+
   [theme.breakpoints.down('md')]: {
     fontSize: '32px'
   }
@@ -116,7 +116,7 @@ const MovieOverview = styled(motion.div)(({ theme }) => ({
   fontWeight: 'normal',
   marginTop: '10px',
   textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
-  
+
   [theme.breakpoints.down('md')]: {
     fontSize: '16px'
   }
@@ -129,7 +129,7 @@ const ActionButton = styled(Button)(({ theme }) => ({
   fontWeight: 'bold',
   marginRight: '8px',
   textTransform: 'none',
-  
+
   '&.play': {
     backgroundColor: theme.palette.common.white,
     color: theme.palette.text.primary,
@@ -138,7 +138,7 @@ const ActionButton = styled(Button)(({ theme }) => ({
       backgroundColor: theme.palette.common.white
     }
   },
-  
+
   '&.more': {
     backgroundColor: '#545455',
     color: theme.palette.common.white,
@@ -148,7 +148,7 @@ const ActionButton = styled(Button)(({ theme }) => ({
       backgroundColor: '#545455'
     }
   },
-  
+
   [theme.breakpoints.down('md')]: {
     fontSize: '14px',
     width: '43%',
@@ -163,7 +163,7 @@ const CoverControls = styled(motion.div)(({ theme }) => ({
   display: 'flex',
   gap: '10px',
   zIndex: 3,
-  
+
   '& button': {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     border: 'none',
@@ -172,7 +172,7 @@ const CoverControls = styled(motion.div)(({ theme }) => ({
     borderRadius: '4px',
     fontSize: '16px'
   },
-  
+
   [theme.breakpoints.down('md')]: {
     display: 'none'
   }
@@ -201,7 +201,7 @@ const BottomFadeEffect = styled('div')(({ theme }) => ({
 }));
 
 
-function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} }) {
+function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => { } }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [records, setRecords] = useState([]);
@@ -252,12 +252,9 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
 
   useEffect(() => {
     async function fetchCoverMovies() {
-      try {
-        const response = await axios.get(requests.fetchCoverRecord, {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
-          params: { pageSize: recordCount }
-        });
-        const recordsData = response.data.data.records.map((record) => {
+      const response = await loadCoverRecords(requests.fetchCoverRecord, { pageSize: recordCount });
+      if (response && response.data) {
+        const recordsData = response.data?.records?.map((record) => {
           record.tmdb =
             record.type === Constants.RECORD_TYPE_MOVIE
               ? record.movieTmdb
@@ -265,9 +262,6 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
           return record;
         });
         setRecords(recordsData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching cover movies:', error);
         setLoading(false);
       }
     }
@@ -354,7 +348,7 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
     const route = record.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
       ? Constants.DB_MOVIE_DETIALS_ROUTE
       : Constants.DB_SERIES_DETIALS_ROUTE;
-  
+
     const slug = `${record.recordId}-${record.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     navigate(route.replace(':title', slug));
   };
@@ -363,7 +357,7 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
     e.stopPropagation();
     navigate(
       `${Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', record.recordId)}`,
-      { state: {record} }
+      { state: { record } }
     );
   };
 
@@ -377,10 +371,10 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
       transition={{ duration: 0.5 }}
     >
 
-{/* <TopFadeEffect /> */}
-{/* <BottomFadeEffect /> */}
-    {/* <Box sx={{ height: isMobile ? '20px' : '20px', backgroundColor: coverColor }} /> */}
-    <AnimatePresence mode="wait">
+      {/* <TopFadeEffect /> */}
+      {/* <BottomFadeEffect /> */}
+      {/* <Box sx={{ height: isMobile ? '20px' : '20px', backgroundColor: coverColor }} /> */}
+      <AnimatePresence mode="wait">
         <CoverMain
           key={currentIndex}
           initial={{ opacity: 0 }}
@@ -406,14 +400,14 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
               <MovieTitle>
                 {record.tmdb.title || record.tmdb.name || record.tmdb.original_name}
               </MovieTitle>
-              
+
               <MovieOverview>
                 {record.tmdb.overview &&
                   (record.tmdb.overview.length > 200
                     ? record.tmdb.overview.substring(0, 200) + '...'
                     : record.tmdb.overview)}
               </MovieOverview>
-              
+
               <Box sx={{ display: 'flex', mt: 2 }}>
                 <ActionButton
                   className="play text-dark"
@@ -435,50 +429,50 @@ function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => {} })
             </CoverContents>
           )}
 
-          
+
         </CoverMain>
 
         {isMobile && (
-            <Box
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 16,
+              left: 0,
+              right: 0,
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 1
+            }}
+          >
+            <ActionButton
+              className="play text-dark"
+              variant="contained"
+              size="small"
+              startIcon={<DownloadIcon />}
+              onClick={navigateToDownload}
+            >
+              Download
+            </ActionButton>
+            <ActionButton
+              variant={isWatchListed ? "contained" : "outlined"}
+              color={isWatchListed ? "success" : "inherit"}
+              size="small"
+              startIcon={isWatchListed ? <CheckIcon /> : <AddIcon />}
+              onClick={onToggleWatchlist}
               sx={{
-                position: 'absolute',
-                bottom: 16,
-                left: 0,
-                right: 0,
-                display: 'flex',
-                justifyContent: 'center',
-                gap: 1
+                color: isWatchListed ? 'common.white' : 'common.white',
+                borderColor: 'common.white'
               }}
             >
-              <ActionButton
-                className="play text-dark"
-                variant="contained"
-                size="small"
-                startIcon={<DownloadIcon />}
-                onClick={navigateToDownload}
-              >
-                Download
-              </ActionButton>
-              <ActionButton
-                variant={isWatchListed ? "contained" : "outlined"}
-                color={isWatchListed ? "success" : "inherit"}
-                size="small"
-                startIcon={isWatchListed ? <CheckIcon /> : <AddIcon />}
-                onClick={onToggleWatchlist}
-                sx={{
-                  color: isWatchListed ? 'common.white' : 'common.white',
-                  borderColor: 'common.white'
-                }}
-              >
-                {isWatchListed ? 'Listed' : 'My List'}
-              </ActionButton>
-            </Box>
-          )}
+              {isWatchListed ? 'Listed' : 'My List'}
+            </ActionButton>
+          </Box>
+        )}
 
       </AnimatePresence>
 
       {/* <FadedBottom /> */}
-      
+
       <CoverControls>
         <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
           <IconButton onClick={handlePrev} size="large">
@@ -517,7 +511,7 @@ function CoverSkeleton() {
         height="100%"
         animation="wave"
       />
-      
+
       {!isMobile && (
         <Box
           sx={{

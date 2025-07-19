@@ -59,13 +59,6 @@ const AddPassword = () => {
         setInputField(prev => ({ ...prev, [id]: value }));
     };
 
-    const checkUserRole = async (userId) => {
-        let roleRes = await getUserRole(userId);
-        if (roleRes.httpStatusCode === 401) {
-            navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-        }
-    };
-
     const getAllHost = async () => {
         let hostRes = await findAllHost();
         if (hostRes.httpStatusCode === 200) {

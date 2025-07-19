@@ -13,7 +13,7 @@ public class PathAdapter extends TypeAdapter<Path> {
     @Override
     public void write(JsonWriter out, Path value) throws IOException {
         if (value != null) {
-            out.value(value.toString());  // Serialize Path as a string
+            out.value(value.toAbsolutePath().toString());  // Serialize Path as a string
         } else {
             out.nullValue();  // Handle null value for Path
         }

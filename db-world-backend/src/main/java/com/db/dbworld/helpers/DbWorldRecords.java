@@ -1,5 +1,9 @@
 package com.db.dbworld.helpers;
 
+import com.db.dbworld.entities.user.UserEntity;
+
+import java.time.Duration;
+
 /**
  * Utility class containing record definitions for common data structures.
  * All records are immutable and include validation.
@@ -31,8 +35,20 @@ public final class DbWorldRecords {
         }
     }
 
+    public record AuthTokens(String accessToken, String refreshToken, Duration refreshTokenTtl, UserEntity userEntity) {
+
+        public static final String REFRESH_TOKEN_COOKIE_NAME = "RefreshToken";
+
+    }
+
+    public record StreamableFileInfo(String fileName, String filePath, boolean isDirectory, boolean isFile, long fileSize,
+                                     String fileId) {
+    }
+
     // Private constructor to prevent instantiation
     private DbWorldRecords() {
         throw new AssertionError("Utility class should not be instantiated");
     }
+
+
 }

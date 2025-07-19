@@ -156,6 +156,42 @@
             </DefaultRolloverStrategy>
         </RollingFile>
 
+        <!-- Debug Log File (Text) -->
+        <RollingFile name="DebugFile" fileName="${LOG_FILE_PATH}/dbworld-debug.log"
+                     filePattern="${LOG_FILE_PATH}/old/dbworld-debug-%d{yyyy-MM-dd}.log">
+            <PatternLayout pattern="${LOG_FILE_PATTERN}"/>
+            <Filters>
+                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+            </Policies>
+            <DefaultRolloverStrategy max="7">
+                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
+                    <IfFileName glob="dbworld-debug-*.log"/>
+                    <IfLastModified age="7d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+
+        <!-- Debug Log File (JSON) -->
+        <RollingFile name="DebugFileJson" fileName="${LOG_FILE_PATH}/dbworld-debug-json.log"
+                     filePattern="${LOG_FILE_PATH}/old/dbworld-debug-json-%d{yyyy-MM-dd}.log">
+            <JsonLayout compact="true" eventEol="true"/>
+            <Filters>
+                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+            </Policies>
+            <DefaultRolloverStrategy max="7">
+                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
+                    <IfFileName glob="dbworld-debug-json-*.log"/>
+                    <IfLastModified age="7d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+
     </Appenders>
 
     <!-- Define Loggers -->
