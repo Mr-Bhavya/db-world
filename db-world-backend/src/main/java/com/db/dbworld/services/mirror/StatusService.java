@@ -1,4 +1,4 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.mirror;
 
 import com.db.dbworld.payloads.MirrorStatus;
 
@@ -9,6 +9,8 @@ public interface StatusService {
     Map<String, MirrorStatus> cacheMirrorStatus = new HashMap<>();
     Map<String, MirrorStatus> getAllStatus();
     MirrorStatus getStatusById(String id);
+
+    MirrorStatus getMirrorStatusByGid(String gid);
 
     void addNewStatus(MirrorStatus mirrorStatus);
 

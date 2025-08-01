@@ -4,10 +4,9 @@ import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.LoginRequest;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.security.JwtHelper;
-import com.db.dbworld.services.AuthenticationService;
-import com.db.dbworld.services.LoginDataService;
-import com.db.dbworld.services.UserService;
+import com.db.dbworld.services.auth.AuthenticationService;
+import com.db.dbworld.services.auth.LoginDataService;
+import com.db.dbworld.services.user.UserService;
 import jakarta.validation.Valid;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -41,13 +40,7 @@ public class AuthController {
     private AuthenticationManager authenticationManager;
 
     @Autowired
-    private JwtHelper helper;
-
-    @Autowired
     private UserService userService;
-
-    @Autowired
-    private JwtHelper jwtHelper;
 
     @Autowired
     private LoginDataService loginDataService;

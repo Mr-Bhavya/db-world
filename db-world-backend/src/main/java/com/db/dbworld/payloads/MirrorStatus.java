@@ -25,6 +25,7 @@ public class MirrorStatus {
 
     private String id = String.valueOf(new Date().getTime());
     private Long pid;
+    private String gid;
     private String timeStamp = id;
     private Long recordId;
     private String userBy;

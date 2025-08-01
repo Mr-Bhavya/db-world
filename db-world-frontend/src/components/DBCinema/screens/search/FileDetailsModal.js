@@ -17,6 +17,7 @@ import Constants from '../../../Constants';
 import CommonServices from '../../../CommonServices';
 import { MediaInfoRender } from '../MediaFileInfo/MediaInfoRender';
 import LoadingSpinner from '../../../LoadingSpinner';
+import { toast } from '../../../Toast';
 
 const FileDetailsModal = ({ open, onClose, fileId }) => {
   const theme = useTheme();
@@ -32,18 +33,18 @@ const FileDetailsModal = ({ open, onClose, fileId }) => {
         try {
           const mediaInfoRes = await loadStreamFileInfoByFiledId(fileId);
           if (mediaInfoRes.httpStatusCode === 200) {
-            const converted = CommonServices.convertMediaInfoToCustomFormat(mediaInfoRes.data, true);
+            const converted = CommonServices.convertMediaInfoToCustomFormat(fileId, mediaInfoRes.data, true);
             if (converted.length > 0) {
               setMediaInfo(converted[0]);
             }
           } else if (mediaInfoRes.httpStatusCode === 401 || mediaInfoRes.httpStatusCode === 403) {
             navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
           } else {
-            Constants.showToast.error(mediaInfoRes.message);
+            toast.error(mediaInfoRes.message);
           }
         } catch (error) {
           console.error(error);
-          Constants.showToast.error('Failed to load media info');
+          toast.error('Failed to load media info');
         } finally {
           setLoading(false);
         }

@@ -1,23 +1,21 @@
 import React, { useState, useEffect } from "react";
 import {
   Container,
-  Row,
-  Col,
-  Button,
-  Alert,
-  Spinner
-} from "react-bootstrap";
-import {
   Grid,
   Box,
   Typography,
   Chip,
   Tabs,
   Tab,
+  Button,
   useTheme,
-  alpha
+  alpha,
+  Avatar,
+  CircularProgress,
+  Alert
 } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { loadStreamFileInfoByRecordId } from "../../../ApiServices";
 import { MediaInfoRender } from "../MediaFileInfo/MediaInfoRender";
 import CommonServices from "../../../CommonServices";
@@ -41,7 +39,8 @@ const MediaDownloadViewer = (props) => {
       setMediaListLoader(true);
       loadStreamFileInfoByRecordId(record.recordId).then((response) => {
         if (response.httpStatusCode === 200) {
-          const formatted = CommonServices.convertMediaInfoToCustomFormat(response.data);
+          const formatted = CommonServices.convertMediaInfoToCustomFormat(null, response.data);
+          console.log("Formatted Media List:", formatted);
           setMediaFileList(formatted);
         }
         setMediaListLoader(false);
@@ -62,8 +61,6 @@ const MediaDownloadViewer = (props) => {
     const isH264 = videoFormat.includes('AVC');
     const isAV1 = videoFormat.includes('AV1');
     const formats = [];
-
-    // console.log("File Name:", fileName);
 
     if (isAV1) formats.push('AV1');
     else if (isH265) formats.push('H265');
@@ -176,42 +173,55 @@ const MediaDownloadViewer = (props) => {
 
       return (
         <Grid item xs={12} key={season}>
-          <Typography variant="h6" sx={{
-            my: 2,
-            pl: 1,
-            position: 'relative',
-            color: theme.palette.text.primary,
-            '&:before': {
-              content: '""',
-              position: 'absolute',
-              left: 0,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              height: '60%',
-              width: '3px',
-              bgcolor: 'primary.main',
-              borderRadius: '3px'
-            }
-          }}>
-            Season {parseInt(season, 10)}
-          </Typography>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Typography variant="h6" sx={{
+              my: 2,
+              pl: 1,
+              position: 'relative',
+              color: theme.palette.text.primary,
+              '&:before': {
+                content: '""',
+                position: 'absolute',
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                height: '60%',
+                width: '3px',
+                bgcolor: 'primary.main',
+                borderRadius: '3px'
+              }
+            }}>
+              Season {parseInt(season, 10)}
+            </Typography>
+          </motion.div>
           {qualityKeys.map(quality => (
-            <Box key={quality} sx={{ mb: 4 }}>
-              <Typography variant="subtitle1" sx={{
-                fontWeight: 600,
-                mb: 2,
-                px: 1,
-                color: theme.palette.text.primary
-              }}>
-                {quality}
-                <Chip
-                  label={`${seasonData.qualities[quality].allFiles.length} files`}
-                  size="small"
-                  sx={{ ml: 1, bgcolor: theme.palette.grey[900] }}
-                />
-              </Typography>
-              <RenderQualityGroup qualityData={seasonData.qualities[quality]} />
-            </Box>
+            <motion.div
+              key={quality}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+            >
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="subtitle1" sx={{
+                  fontWeight: 600,
+                  mb: 2,
+                  px: 1,
+                  color: theme.palette.text.primary
+                }}>
+                  {quality}
+                  <Chip
+                    label={`${seasonData.qualities[quality].allFiles.length} files`}
+                    size="small"
+                    sx={{ ml: 1, bgcolor: theme.palette.grey[900] }}
+                  />
+                </Typography>
+                <RenderQualityGroup qualityData={seasonData.qualities[quality]} />
+              </Box>
+            </motion.div>
           ))}
         </Grid>
       );
@@ -221,82 +231,175 @@ const MediaDownloadViewer = (props) => {
   const RenderMovie = () => (
     <Grid container spacing={2}>
       {mediaFileList.map((mediaInfo, idx) => (
-        <MediaInfoRender key={idx} mediaInfo={mediaInfo} />
+        <motion.div
+          key={idx}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: idx * 0.05 }}
+          style={{ width: '100%' }}
+        >
+          <MediaInfoRender mediaInfo={mediaInfo} />
+        </motion.div>
       ))}
     </Grid>
   );
 
   return (
     <Box sx={{
-      backgroundColor: '#000000', // Pure black for AMOLED
+      backgroundColor: theme.palette.background.default,
       minHeight: '100vh',
-      color: theme.palette.text.primary
+      color: theme.palette.text.primary,
+      py: 3
     }}>
-      <Container fluid className="p-3">
+      <Container maxWidth="lg">
         {showBack && (
-          <Button
-            variant="outline-light"
-            onClick={() => (onBack ? onBack() : navigate(-1))}
-            className="mb-3"
-            style={{ borderColor: theme.palette.primary.main, color: theme.palette.primary.main }}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
           >
-            <i className="fas fa-arrow-left me-2"></i> Back
-          </Button>
+            <Button
+              variant="outlined"
+              onClick={() => (onBack ? onBack() : navigate(-1))}
+              sx={{
+                mb: 3,
+                borderColor: theme.palette.primary.main,
+                color: theme.palette.primary.main,
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1)
+                }
+              }}
+              startIcon={
+                <motion.span
+                  animate={{ x: [-2, 2, -2] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                >
+                  ←
+                </motion.span>
+              }
+            >
+              Back
+            </Button>
+          </motion.div>
         )}
 
-        <Row className="align-items-center mb-4">
-          <Col xs={12} md={3} className="text-center">
-            <img
-              src={`https://image.tmdb.org/t/p/w300${record?.tmdb?.poster_path || record?.tmdb?.backdrop_path}`}
-              alt={record?.tmdb?.title}
-              className="img-fluid rounded"
-              style={{
-                maxWidth: "200px",
-                boxShadow: `0 0 10px ${theme.palette.primary.main}`
-              }}
-            />
-          </Col>
-          <Col xs={12} md={9}>
-            <Typography variant="h4" sx={{ color: theme.palette.text.primary }}>
-              {record?.tmdb?.title}
-            </Typography>
-            {record?.tmdb?.release_date && (
-              <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-                <strong>Release:</strong> {record?.tmdb?.release_date}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} md={3} sx={{ display: 'flex', justifyContent: 'center' }}>
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Avatar
+                src={`https://image.tmdb.org/t/p/w300${record?.tmdb?.poster_path || record?.tmdb?.backdrop_path}`}
+                alt={record?.tmdb?.title}
+                variant="rounded"
+                sx={{
+                  width: 200,
+                  height: 300,
+                  boxShadow: `0 0 15px ${alpha(theme.palette.primary.main, 0.5)}`
+                }}
+              />
+            </motion.div>
+          </Grid>
+          <Grid item xs={12} md={9}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Typography variant="h4" sx={{ 
+                color: theme.palette.text.primary,
+                mb: 1
+              }}>
+                {record?.tmdb?.title}
               </Typography>
-            )}
-            {record?.tmdb?.overview && (
-              <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-                {record?.tmdb?.overview}
-              </Typography>
-            )}
-          </Col>
-        </Row>
+              {record?.tmdb?.release_date && (
+                <Typography variant="body1" sx={{ 
+                  color: theme.palette.text.secondary,
+                  mb: 1
+                }}>
+                  <strong>Release:</strong> {record?.tmdb?.release_date}
+                </Typography>
+              )}
+              {record?.tmdb?.overview && (
+                <Typography variant="body1" sx={{ 
+                  color: theme.palette.text.secondary,
+                  lineHeight: 1.6
+                }}>
+                  {record?.tmdb?.overview}
+                </Typography>
+              )}
+            </motion.div>
+          </Grid>
+        </Grid>
 
-        <Typography variant="h5" sx={{
-          color: theme.palette.text.primary,
-          mb: 3,
-          borderBottom: `1px solid ${theme.palette.primary.main}`,
-          pb: 1
-        }}>
-          Downloadable Files
-        </Typography>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <Typography variant="h5" sx={{
+            color: theme.palette.text.primary,
+            mb: 3,
+            borderBottom: `1px solid ${theme.palette.primary.main}`,
+            pb: 1
+          }}>
+            Downloadable Files
+          </Typography>
+        </motion.div>
 
         {mediaListLoader ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}>
-            <Spinner animation="border" variant="light" />
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            my: 5 
+          }}>
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+            >
+              <CircularProgress 
+                thickness={4}
+                size={50}
+                sx={{ color: theme.palette.primary.main }}
+              />
+            </motion.div>
           </Box>
         ) : mediaFileList.length === 0 ? (
-          <Alert variant="danger" className="text-center my-5">
-            No media available to download for this record
-          </Alert>
-        ) : record.type.toLowerCase() === "series" ? (
-          <Grid container spacing={2}>{RenderSeries()}</Grid>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert 
+              severity="error" 
+              sx={{ 
+                my: 5,
+                backgroundColor: alpha(theme.palette.error.main, 0.2),
+                color: theme.palette.error.contrastText
+              }}
+            >
+              No media available to download for this record
+            </Alert>
+          </motion.div>
+        ) : record?.type?.toLowerCase() === "series" ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Grid container spacing={2}>{RenderSeries()}</Grid>
+          </motion.div>
         ) : (
-          RenderMovie()
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {RenderMovie()}
+          </motion.div>
         )}
       </Container>
-      {Constants.TOAST_CONTAINER}
     </Box>
   );
 };

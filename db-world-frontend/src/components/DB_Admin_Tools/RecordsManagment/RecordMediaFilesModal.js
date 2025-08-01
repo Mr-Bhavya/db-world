@@ -22,6 +22,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { deleteMediaFileInfoById } from '../../ApiServices';
 import Constants from '../../Constants';
 import CommonServices from '../../CommonServices';
+import { toast } from '../../Toast';
 
 function RecordMediaFilesModal({ fileDialog, setFileDialog }) {
     const { open, record, files, type } = fileDialog;
@@ -88,17 +89,17 @@ function RecordMediaFilesModal({ fileDialog, setFileDialog }) {
 
             const response = await deleteMediaFileInfoById(filesToDelete.join(','));
             if (response.httpStatusCode === 200) {
-                Constants.showToast.success(`${filesToDelete.length} file(s) deleted`);
+                toast.success(`${filesToDelete.length} file(s) deleted`);
             } else if ([401, 403].includes(response.httpStatusCode)) {
-                Constants.showToast.error(response.message + Constants.RE_LOGIN);
+                toast.error(response.message + Constants.RE_LOGIN);
                 navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
             } else {
-                Constants.showToast.error(response.message || 'Failed to delete files');
+                toast.error(response.message || 'Failed to delete files');
             }
 
             handleClose();
         } catch (error) {
-            Constants.showToast.error('Failed to delete files');
+            toast.error('Failed to delete files');
         }
     };
 

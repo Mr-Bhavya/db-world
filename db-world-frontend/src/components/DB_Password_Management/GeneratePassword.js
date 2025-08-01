@@ -25,7 +25,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import CommonServices from '../CommonServices';
-import { toast } from 'react-toastify';
+import { toast } from '../Toast';
 
 const GeneratePassword = () => {
     const [generatedPassword, setGeneratedPassword] = useState("");
@@ -49,7 +49,7 @@ const GeneratePassword = () => {
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 1000);
         } else {
-            Constants.showToast.error(result.message);
+            toast.error(result.message);
         }
     };
 

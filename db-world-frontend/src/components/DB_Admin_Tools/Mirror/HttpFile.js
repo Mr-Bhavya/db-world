@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import Constants from '../../Constants';
 import { adminSearchRecord, mirror } from '../../ApiServices';
 import { motion } from 'framer-motion';
@@ -26,6 +25,7 @@ import {
     Chip,
     Autocomplete
 } from '@mui/material';
+import { toast } from '../../Toast';
 
 function HttpFile() {
     const [links, setLinks] = useState([""]);
@@ -50,7 +50,7 @@ function HttpFile() {
             );
 
             if (invalidLinks.length > 0) {
-                Constants.showToast.error("Some links are not supported for cloning");
+                toast.error("Some links are not supported for cloning");
                 return;
             }
 
@@ -68,20 +68,20 @@ function HttpFile() {
             });
 
             if (mirrorRes.httpStatusCode === 200) {
-                Constants.showToast.success(mirrorRes.message);
+                toast.success(mirrorRes.message);
             } else if (mirrorRes.httpStatusCode === 401) {
-                Constants.showToast.error(mirrorRes.message + Constants.RE_LOGIN, {
+                toast.error(mirrorRes.message + Constants.RE_LOGIN, {
                     onClose: async () => {
                         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
                     },
                     autoClose: 1000
                 });
             } else {
-                Constants.showToast.error(mirrorRes.message);
+                toast.error(mirrorRes.message);
             }
         } catch (err) {
             console.error(err);
-            Constants.showToast.error("Failed to process request");
+            toast.error("Failed to process request");
         } finally {
             setSubmitLoader(false);
         }
@@ -387,7 +387,7 @@ function HttpFile() {
                     </Grid>
                 </CardContent>
             </Card>
-            {Constants.TOAST_CONTAINER}
+            
         </motion.div>
     );
 }

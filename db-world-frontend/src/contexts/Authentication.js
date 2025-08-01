@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { useDispatch } from 'react-redux';
 import { addUser } from '../redux/action/allActions';
 import axiosInstance from '../components/Utils/AxiosInstants';
+import { logOut, verify } from '../components/ApiServices';
 
 const AuthContext = createContext();
 
@@ -34,7 +35,7 @@ const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     try {
-      await axiosInstance.post('/api/auth/log-out', {}, { _retry: true });
+      await logOut()
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -65,8 +66,8 @@ const AuthProvider = ({ children }) => {
       }
 
       try {
-        const response = await axiosInstance.get('/api/auth/verify');
-        const roles = response?.data?.roles || [];
+        const response =await verify()
+        const roles = response?.roles || [];
         const role = roles[0] || null;
 
         if (role) {

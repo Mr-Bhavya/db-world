@@ -21,10 +21,9 @@ import {
   ThemeProvider
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import Constants from '../Constants';
 import { register } from '../ApiServices';
+import { toast } from '../Toast';
 
 // Custom teal theme
 const theme = createTheme({
@@ -161,7 +160,7 @@ const Registration = () => {
     });
 
     if (!isFormValid) {
-      Constants.showToast.warning("Please fill all required fields correctly.");
+      toast.warning("Please fill all required fields correctly.");
       setLoading(false);
       return;
     }
@@ -171,15 +170,15 @@ const Registration = () => {
       const registerRes = await register({ firstName, lastName, gender, dob, mobileNo, email, password });
 
       if (registerRes.httpStatusCode === 200 || registerRes.httpStatusCode === 201) {
-        Constants.showToast.success("Registration successful! Redirecting to login...", {
+        toast.success("Registration successful! Redirecting to login...", {
           onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } }),
           autoClose: 1000
         });
       } else {
-        Constants.showToast.error(registerRes?.message || registerRes?.error || "Registration failed");
+        toast.error(registerRes?.message || registerRes?.error || "Registration failed");
       }
     } catch (error) {
-      Constants.showToast.error("An error occurred during registration");
+      toast.error("An error occurred during registration");
     } finally {
       setLoading(false);
     }

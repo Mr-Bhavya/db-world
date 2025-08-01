@@ -2,7 +2,7 @@ package com.db.dbworld.controllers;
 
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.services.RoleService;
+import com.db.dbworld.services.auth.RoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;

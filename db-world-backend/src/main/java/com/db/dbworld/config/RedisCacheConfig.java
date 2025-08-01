@@ -1,10 +1,9 @@
 package com.db.dbworld.config;
 
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
-import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
-import com.db.dbworld.services.UserService;
+import com.db.dbworld.services.user.UserService;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
@@ -23,7 +22,6 @@ import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Arrays;

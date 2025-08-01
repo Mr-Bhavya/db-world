@@ -6,7 +6,7 @@ import com.db.dbworld.entities.user.LoginDataEntity;
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.user.LoginDataDto;
-import com.db.dbworld.services.LoginDataService;
+import com.db.dbworld.services.auth.LoginDataService;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;

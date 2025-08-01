@@ -1,4 +1,5 @@
 import Constants from "../Constants";
+import { toast } from "../Toast";
 
 export const handleApiError = (error, navigate, location) => {
   // Default error message
@@ -54,7 +55,7 @@ export const handleApiError = (error, navigate, location) => {
   }
 
   console.error('API Error:', message);
-  Constants.showToast.error(message, toastConfig);
+  toast.error(message, toastConfig);
 
   // Return the error for further handling if needed
   return error;

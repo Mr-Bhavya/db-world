@@ -35,8 +35,8 @@ import { motion } from 'framer-motion';
 import { useWebSocket } from '../Utils/useWebSocket';
 
 const WEBSOCKET_BASEURL = process.env.REACT_APP_WEBSOCKET_BASEURL;
-// const WEBSOCKET_URL = 'ws://localhost:9000/api/utils/download-tracker';
-const WEBSOCKET_URL = `${WEBSOCKET_BASEURL}/api/utils/download-tracker`;
+// const WEBSOCKET_URL = 'ws://localhost:9000/ws/download-tracker';
+const WEBSOCKET_URL = `${WEBSOCKET_BASEURL}/ws/download-tracker`;
 
 const DownloadItem = ({ download }) => {
   const getFileTypeIcon = (fileName) => {

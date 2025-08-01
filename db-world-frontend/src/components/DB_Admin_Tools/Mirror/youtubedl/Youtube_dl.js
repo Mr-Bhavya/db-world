@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { toast } from 'react-toastify';
 import { motion } from "framer-motion";
 import Constants from "../../../Constants";
 import { 
@@ -21,6 +20,7 @@ import {
 import { styled } from "@mui/system";
 import { ytDownload, ytInfo, adminSearchRecord } from "../../../ApiServices";
 import FormatSelection from "./FormatSelection";
+import { toast } from "../../../Toast";
 
 const StyledContainer = styled(Container)(({ theme }) => ({
   paddingTop: theme.spacing(4),
@@ -279,7 +279,7 @@ function YoutubeDownloader() {
           </motion.div>
         )}
       </motion.div>
-      {Constants.TOAST_CONTAINER}
+      
     </StyledContainer>
   );
 }

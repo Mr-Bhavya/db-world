@@ -1,11 +1,9 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.user;
 
 import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.utils.DbWorldConstants;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;

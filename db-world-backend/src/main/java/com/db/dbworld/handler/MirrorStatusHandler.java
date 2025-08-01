@@ -1,7 +1,7 @@
 package com.db.dbworld.handler;
 
 import com.db.dbworld.payloads.MirrorStatus;
-import com.db.dbworld.services.StatusService;
+import com.db.dbworld.services.mirror.StatusService;
 import com.google.gson.Gson;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;

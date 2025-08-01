@@ -1,9 +1,11 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.explorer;
 
 import com.db.dbworld.dao.fileexplorer.FileRepository;
 import com.db.dbworld.entities.fileexplorer.FileEntity;
 import com.db.dbworld.payloads.fileexplorer.FileDto;
+import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldUtils;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,9 @@ public class FileExplorerService {
 
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
+
+    @Autowired
+    private DbWorldUtils dbWorldUtils;
 
     private final FileRepository fileRepository;
 
@@ -73,7 +78,7 @@ public class FileExplorerService {
     public void deleteFile(UUID id) throws IOException {
         FileEntity fileEntity = getFile(id);
         Path path = Paths.get(fileEntity.getFilePath());
-        Files.deleteIfExists(path);
+        dbWorldUtils.deleteFileThrowable(path.toString());
         mediaFileInfoService.deleteInfoByFilePath(path.toString());
 //        fileRepository.delete(fileEntity);
     }

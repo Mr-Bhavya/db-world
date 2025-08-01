@@ -5,6 +5,7 @@ import { AddDbCinemaRecord, searchTmdbByQuery, UpdateDbCinemaRecord } from '../.
 import Constants from '../../Constants';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Search } from '@mui/icons-material';
+import { toast } from '../../Toast';
 
 function AddRecordModal({
     recordDialogOpen,
@@ -40,7 +41,7 @@ function AddRecordModal({
             const res = await AddDbCinemaRecord(data.name, data.type, data.tmdb);
             handleApiResponse(res, 'Record added successfully', true);
         } catch (error) {
-            Constants.showToast.error('An error occurred');
+            toast.error('An error occurred');
         } finally {
             setNewRecordLoader(false);
             closeRecordDialog();
@@ -49,22 +50,22 @@ function AddRecordModal({
 
     const handleApiResponse = (res, successMessage, isAdd = false) => {
         if (res.httpStatusCode === (isAdd ? 201 : 200)) {
-            Constants.showToast.success(successMessage);
+            toast.success(successMessage);
             if (successMessage !== 'TMDB data refreshed') {
                 fetchRecords();
             }
         } else if (res.httpStatusCode === 401) {
-            Constants.showToast.error(res.message + Constants.RE_LOGIN);
+            toast.error(res.message + Constants.RE_LOGIN);
             navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
         } else {
-            Constants.showToast.error(res.message || 'Operation failed');
+            toast.error(res.message || 'Operation failed');
         }
     };
 
     // TMDB Search
     const searchTmdb = async () => {
         if (!formType || !formName) {
-            Constants.showToast.warning('Please fill in both Type and Name fields');
+            toast.warning('Please fill in both Type and Name fields');
             return;
         }
 
@@ -80,10 +81,10 @@ function AddRecordModal({
             } else if (res.httpStatusCode === 401) {
                 navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
             } else {
-                Constants.showToast.error(res.message);
+                toast.error(res.message);
             }
         } catch (error) {
-            Constants.showToast.error('Failed to search TMDB');
+            toast.error('Failed to search TMDB');
         } finally {
             setLoadingTmdb(false);
         }

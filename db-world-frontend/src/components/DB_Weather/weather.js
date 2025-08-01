@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import Map from './Map';
+import { toast } from '../Toast';
 
 
 function Weather() {
@@ -24,10 +23,10 @@ function Weather() {
                 setweatherData(data);
             }
             else {
-                Constants.showToast.error("City Not Found");
+                toast.error("City Not Found");
             }
         } catch (err) {
-            Constants.showToast.error("failed to get weather report.")
+            toast.error("failed to get weather report.")
         }
         setLoader(false);
     }
@@ -42,11 +41,11 @@ function Weather() {
                 setweatherData(data);
             }
             else {
-                Constants.showToast.error("Location not Found");
+                toast.error("Location not Found");
             }
         } catch (err) {
             // console.log("failed to get weather data")
-            Constants.showToast.error("failed to get weather report.")
+            toast.error("failed to get weather report.")
         }
         setLoader(false);
     }
@@ -64,12 +63,12 @@ function Weather() {
                     else {
                         console.log(error);
                     }
-                    Constants.showToast.error("failed to get current location.")
+                    toast.error("failed to get current location.")
                     getWeatherFromCity();
                 }
             )
         } else {
-            Constants.showToast.error("failed to get current location.")
+            toast.error("failed to get current location.")
             getWeatherFromCity();
         }
         console.log(navigator.userAgent);
@@ -161,7 +160,7 @@ function Weather() {
                     </>
                 }
             </div>
-            {Constants.TOAST_CONTAINER}
+            
         </div>
     )
 }

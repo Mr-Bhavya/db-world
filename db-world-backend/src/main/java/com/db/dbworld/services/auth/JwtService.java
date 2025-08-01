@@ -1,19 +1,11 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.auth;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
 import com.db.dbworld.entities.user.UserEntity;
-import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -45,19 +37,6 @@ public class JwtService {
                 .build();
 
         return jwtEncoder.encode(JwtEncoderParameters.from(claimsSet)).getTokenValue();
-    }
-
-
-    //retrieve username from jwt token
-    public String getUsernameFromToken(String token) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-//            String email = jwt.getClaimAsString("sub");
-//            String role = jwt.getClaimAsString("role");
-//            String custom = jwt.getClaimAsString("customClaim");
-            return jwt.getClaimAsString("sub"); // or "username" or "email"
-        }
-        return null;
     }
 
 }

@@ -1,4 +1,4 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.auth;
 
 import com.db.dbworld.payloads.user.UserDto;
 

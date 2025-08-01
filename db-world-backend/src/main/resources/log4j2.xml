@@ -1,213 +1,155 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN" shutdownHook="disable">
-    <!-- Define Properties -->
+
     <Properties>
+        <!-- Define Active Profile -->
+        <Property name="ACTIVE_PROFILE">${sys:spring.profiles.active:-prod}</Property>
+
+        <!-- Define both paths as separate properties -->
+        <Property name="LOG_BASE_PATH_LOCAL">D:/home/dbworld_admin/ext_hdisk/dbworld/logs</Property>
+        <Property name="LOG_BASE_PATH_PROD">/app/db_world/logs</Property>
+
+        <!-- Use direct property reference without ternary in path -->
+        <Property name="LOG_BASE_PATH">${sys:LOG_BASE_PATH}</Property>
+
+        <!-- Remove duplicate LOG_FILE_PATH definition -->
+        <Property name="LOG_FILE_PATH">${LOG_BASE_PATH_PROD}</Property>
+
+        <!-- Retain logs for X days -->
+        <Property name="LOG_RETENTION_DAYS">7</Property>
+
+        <!-- Console output format -->
         <Property name="CONSOLE_LOG_PATTERN">
-            %style{%d{dd/MM/yyyy|HH:mm:ss.SSS a}{IST}{ISO8601}}{magenta} [%highlight{%-5level}] %style{%C{2.}.%M}{yellow}%style{(line:%L)}{blue}: %msg%n%throwable
+            %style{%d{dd/MM/yyyy HH:mm:ss.SSS a}{IST}}{magenta} [%highlight{%-5level}] %style{%C{1}.%M():%L}{yellow} %replace{%replace{%replace{
+            [user=%X{user}] [method=%X{method}] [uri=%X{uri}] [query=%X{query}] [status=%X{status}] [duration=%X{duration}]
+            }{(\[\w+=(null|N/A|)\])}{}}{(\[\w+=\])}{}}{(\s\s+)}{} %msg%n%throwable
         </Property>
-        <Property name="LOG_FILE_PATTERN">
-            %d{dd/MM/yyyy HH:mm:ss.SSS a}{IST}{ISO8601} [%-5level] %C{2.}.%M(line:%L): %msg%n%throwable
+
+        <!-- File output format -->
+        <Property name="FILE_LOG_PATTERN">
+            %d{dd/MM/yyyy HH:mm:ss.SSS a}{IST} [%-5level] %C{1}.%M():%L %replace{%replace{%replace{
+            [user=%X{user}] [method=%X{method}] [uri=%X{uri}] [query=%X{query}] [status=%X{status}] [duration=%X{duration}]
+            }{(\[\w+=(null|N/A|)\])}{}}{(\[\w+=\])}{}}{(\s\s+)}{} %msg%n%throwable
         </Property>
-        <Property name="LOG_FILE_PATH">
-            /app/db_world/logs
-<!--            D:\home\dbworld_admin\ext_hdisk\dbworld\logs-->
-        </Property>
+
+        <!-- Shared pattern for base usage -->
+        <Property name="BASE_LOG_PATTERN">${FILE_LOG_PATTERN}</Property>
     </Properties>
 
-    <!-- Define Appenders -->
     <Appenders>
-        <!-- Console Appender for Text Format -->
+
+        <!-- Console Appender -->
         <Console name="Console" target="SYSTEM_OUT" follow="true">
             <PatternLayout pattern="${CONSOLE_LOG_PATTERN}" disableAnsi="false"/>
         </Console>
 
-        <!-- Console Appender for JSON Format -->
-<!--        <Console name="ConsoleJson" target="SYSTEM_OUT" follow="true">-->
-<!--            <JsonLayout compact="true" eventEol="true"/>-->
-<!--        </Console>-->
-
-        <!-- Main Log File for Text Format -->
-        <RollingFile name="MainFile" fileName="${LOG_FILE_PATH}/dbworld.log" filePattern="${LOG_FILE_PATH}/old/dbworld-%d{yyyy-MM-dd}.log">
-            <PatternLayout pattern="${LOG_FILE_PATTERN}"/>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Main Log File for JSON Format -->
-        <RollingFile name="MainFileJson" fileName="${LOG_FILE_PATH}/dbworld-json.log" filePattern="${LOG_FILE_PATH}/old/dbworld-json-%d{yyyy-MM-dd}.log">
-            <JsonLayout compact="true" eventEol="true"/>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-json-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Info Log File for Text Format -->
-        <RollingFile name="InfoFile" fileName="${LOG_FILE_PATH}/dbworld-info.log" filePattern="${LOG_FILE_PATH}/old/dbworld-info-%d{yyyy-MM-dd}.log">
-            <PatternLayout pattern="${LOG_FILE_PATTERN}"/>
-            <Filters>
-                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-info-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Info Log File for JSON Format -->
-        <RollingFile name="InfoFileJson" fileName="${LOG_FILE_PATH}/dbworld-info-json.log" filePattern="${LOG_FILE_PATH}/old/dbworld-info-json-%d{yyyy-MM-dd}.log">
-            <JsonLayout compact="true" eventEol="true"/>
-            <Filters>
-                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-info-json-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Warn Log File for Text Format -->
-        <RollingFile name="WarnFile" fileName="${LOG_FILE_PATH}/dbworld-warn.log" filePattern="${LOG_FILE_PATH}/old/dbworld-warn-%d{yyyy-MM-dd}.log">
-            <PatternLayout pattern="${LOG_FILE_PATTERN}"/>
-            <Filters>
-                <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-warn-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Warn Log File for JSON Format -->
-        <RollingFile name="WarnFileJson" fileName="${LOG_FILE_PATH}/dbworld-warn-json.log" filePattern="${LOG_FILE_PATH}/old/dbworld-warn-json-%d{yyyy-MM-dd}.log">
-            <JsonLayout compact="true" eventEol="true"/>
-            <Filters>
-                <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-warn-json-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Error Log File for Text Format -->
-        <RollingFile name="ErrorFile" fileName="${LOG_FILE_PATH}/dbworld-error.log" filePattern="${LOG_FILE_PATH}/old/dbworld-error-%d{yyyy-MM-dd}.log">
-            <PatternLayout pattern="${LOG_FILE_PATTERN}"/>
-            <Filters>
-                <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-error-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Error Log File for JSON Format -->
-        <RollingFile name="ErrorFileJson" fileName="${LOG_FILE_PATH}/dbworld-error-json.log" filePattern="${LOG_FILE_PATH}/old/dbworld-error-json-%d{yyyy-MM-dd}.log">
-            <JsonLayout compact="true" eventEol="true"/>
-            <Filters>
-                <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/> <!-- Rotate daily -->
-            </Policies>
-            <DefaultRolloverStrategy max="7"> <!-- Delete logs older than 1 week -->
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-error-json-*.log" />
-                    <IfLastModified age="7d" />
-                </Delete>
-            </DefaultRolloverStrategy>
-        </RollingFile>
-
-        <!-- Debug Log File (Text) -->
-        <RollingFile name="DebugFile" fileName="${LOG_FILE_PATH}/dbworld-debug.log"
-                     filePattern="${LOG_FILE_PATH}/old/dbworld-debug-%d{yyyy-MM-dd}.log">
-            <PatternLayout pattern="${LOG_FILE_PATTERN}"/>
-            <Filters>
-                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
+        <!-- Main File Appender -->
+        <RollingFile name="MainFile"
+                     fileName="${LOG_FILE_PATH}/dbworld.log"
+                     filePattern="${LOG_FILE_PATH}/archived/dbworld-%d{yyyy-MM-dd}-%i.log">
+            <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="100 MB"/>
             </Policies>
-            <DefaultRolloverStrategy max="7">
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-debug-*.log"/>
-                    <IfLastModified age="7d"/>
+            <DefaultRolloverStrategy max="${LOG_RETENTION_DAYS}">
+                <Delete basePath="${LOG_FILE_PATH}/archived" maxDepth="1">
+                    <IfFileName glob="dbworld-*.log"/>
+                    <IfLastModified age="${LOG_RETENTION_DAYS}d"/>
                 </Delete>
             </DefaultRolloverStrategy>
         </RollingFile>
 
-        <!-- Debug Log File (JSON) -->
-        <RollingFile name="DebugFileJson" fileName="${LOG_FILE_PATH}/dbworld-debug-json.log"
-                     filePattern="${LOG_FILE_PATH}/old/dbworld-debug-json-%d{yyyy-MM-dd}.log">
-            <JsonLayout compact="true" eventEol="true"/>
-            <Filters>
-                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
-            </Filters>
+        <!-- JSON Log Appender -->
+        <RollingFile name="JsonFile"
+                     fileName="${LOG_FILE_PATH}/dbworld.json"
+                     filePattern="${LOG_FILE_PATH}/archived/dbworld-%d{yyyy-MM-dd}-%i.json">
+            <JsonLayout compact="true" eventEol="true" includeStacktrace="true">
+                <KeyValuePair key="user" value="$${ctx:user:-null}"/>
+                <KeyValuePair key="method" value="$${ctx:method:-null}"/>
+                <KeyValuePair key="uri" value="$${ctx:uri:-null}"/>
+                <KeyValuePair key="query" value="$${ctx:query:-null}"/>
+                <KeyValuePair key="status" value="$${ctx:status:-null}"/>
+                <KeyValuePair key="duration" value="$${ctx:duration:-null}"/>
+            </JsonLayout>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="100 MB"/>
             </Policies>
-            <DefaultRolloverStrategy max="7">
-                <Delete basePath="${LOG_FILE_PATH}" maxDepth="1">
-                    <IfFileName glob="dbworld-debug-json-*.log"/>
-                    <IfLastModified age="7d"/>
+            <DefaultRolloverStrategy max="${LOG_RETENTION_DAYS}">
+                <Delete basePath="${LOG_FILE_PATH}/archived" maxDepth="1">
+                    <IfFileName glob="dbworld-*.json"/>
+                    <IfLastModified age="${LOG_RETENTION_DAYS}d"/>
                 </Delete>
             </DefaultRolloverStrategy>
         </RollingFile>
+
+        <!-- Routing Appender for per-level log files -->
+        <Routing name="LevelBasedRouting">
+            <Routes pattern="$${sys:logLevel}">
+                <Route key="DEBUG">
+                    <RollingFile name="DebugFile"
+                                 fileName="${LOG_FILE_PATH}/debug.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/debug-%d{yyyy-MM-dd}-%i.log">
+                        <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
+                        <Filters>
+                            <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+                        </Filters>
+                        <Policies>
+                            <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                        </Policies>
+                    </RollingFile>
+                </Route>
+                <Route key="INFO">
+                    <RollingFile name="InfoFile"
+                                 fileName="${LOG_FILE_PATH}/info.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/info-%d{yyyy-MM-dd}-%i.log">
+                        <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
+                        <Filters>
+                            <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+                        </Filters>
+                        <Policies>
+                            <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                        </Policies>
+                    </RollingFile>
+                </Route>
+                <Route key="WARN">
+                    <RollingFile name="WarnFile"
+                                 fileName="${LOG_FILE_PATH}/warn.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/warn-%d{yyyy-MM-dd}-%i.log">
+                        <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
+                        <Filters>
+                            <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
+                        </Filters>
+                        <Policies>
+                            <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                        </Policies>
+                    </RollingFile>
+                </Route>
+                <Route key="ERROR">
+                    <RollingFile name="ErrorFile"
+                                 fileName="${LOG_FILE_PATH}/error.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/error-%d{yyyy-MM-dd}-%i.log">
+                        <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
+                        <Filters>
+                            <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+                        </Filters>
+                        <Policies>
+                            <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                        </Policies>
+                    </RollingFile>
+                </Route>
+            </Routes>
+        </Routing>
 
     </Appenders>
 
-    <!-- Define Loggers -->
     <Loggers>
-        <!-- Root Logger -->
         <Root level="info">
             <AppenderRef ref="Console"/>
-            <AppenderRef ref="ConsoleJson"/>
             <AppenderRef ref="MainFile"/>
-            <AppenderRef ref="MainFileJson"/>
-            <AppenderRef ref="InfoFile"/>
-            <AppenderRef ref="InfoFileJson"/>
-            <AppenderRef ref="WarnFile"/>
-            <AppenderRef ref="WarnFileJson"/>
-            <AppenderRef ref="ErrorFile"/>
-            <AppenderRef ref="ErrorFileJson"/>
+            <AppenderRef ref="JsonFile"/>
+            <AppenderRef ref="LevelBasedRouting"/>
         </Root>
     </Loggers>
 </Configuration>

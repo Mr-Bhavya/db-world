@@ -22,6 +22,7 @@ import { handleApiError } from '../../Utils/errorHandler';
 import RecordsCardView from './RecordsCardView';
 import RecordsTableView from './RecordsTableView';
 import { confirm } from 'material-ui-confirm';
+import { toast } from '../../Toast';
 
 const MotionButton = motion(Button);
 const PAGE_SIZE = 20;
@@ -69,7 +70,7 @@ const RecordManagement = () => {
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       }
     } catch (error) {
-      if (isMounted) Constants.showToast.error('Failed to fetch records');
+      if (isMounted) toast.error('Failed to fetch records');
     } finally {
       if (isMounted) setLoading(false);
     }
@@ -79,18 +80,18 @@ const RecordManagement = () => {
 
   const handleApiResponse = (res, successMessage) => {
     if (!res) {
-      Constants.showToast.error('No response from server');
+      toast.error('No response from server');
       return;
     }
 
     if (res.httpStatusCode >= 200 && res.httpStatusCode < 300) {
-      Constants.showToast.success(res.message || successMessage);
+      toast.success(res.message || successMessage);
       fetchRecords();
     } else if (res.httpStatusCode === 401) {
-      Constants.showToast.error(res.message + Constants.RE_LOGIN);
+      toast.error(res.message + Constants.RE_LOGIN);
       navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
     } else {
-      Constants.showToast.error(res.message || 'Operation failed');
+      toast.error(res.message || 'Operation failed');
     }
   };
 
@@ -121,7 +122,7 @@ const RecordManagement = () => {
       });
       handleApiResponse(res, 'TMDB data refreshed for record - ' + recordId);
     } catch (error) {
-      Constants.showToast.error('Failed to refresh TMDB data for record - ' + recordId);
+      toast.error('Failed to refresh TMDB data for record - ' + recordId);
     } finally {
       setRefreshingRecords(prev => ({ ...prev, [recordId]: false }));
     }
@@ -251,7 +252,7 @@ const RecordManagement = () => {
         recordDialogClose={() => setRecordDialogOpen(false)}
         fetchRecords={fetchRecords}
       />
-      {Constants.TOAST_CONTAINER}
+      
     </Container>
   );
 };

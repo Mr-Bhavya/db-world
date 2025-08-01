@@ -10,10 +10,10 @@ import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.payloads.user.UserActivityLogDto;
 import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.services.DBCinemaRecordsService;
-import com.db.dbworld.services.MediaFileInfoService;
-import com.db.dbworld.services.UserActivityLogService;
-import com.db.dbworld.services.UserService;
+import com.db.dbworld.services.cinema.DBCinemaRecordsService;
+import com.db.dbworld.services.media.MediaFileInfoService;
+import com.db.dbworld.services.user.UserActivityLogService;
+import com.db.dbworld.services.user.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.validation.Valid;
 import lombok.extern.log4j.Log4j2;
@@ -245,42 +245,42 @@ public class AdminController {
     }
 
 
-        @GetMapping("/activity-logs")
-        public ResponseEntity<ResponsePayloads.PagedResponse<UserActivityLogDto>> getActivityLogs(
-                @RequestParam(required = false) String username,
-                @RequestParam(required = false) String method,
-                @RequestParam(required = false) Integer status,
-                @RequestParam(required = false) String uri,
-                @RequestParam(required = false) String ip,
-                @RequestParam(required = false) String requestId,
-                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-                @RequestParam(defaultValue = "0") int page,
-                @RequestParam(defaultValue = "10") int size,
-                @RequestParam(defaultValue = "timestamp,desc") String[] sort) {
+    @GetMapping("/activity-logs")
+    public ResponseEntity<ResponsePayloads.PagedResponse<UserActivityLogDto>> getActivityLogs(
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String method,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String uri,
+            @RequestParam(required = false) String ip,
+            @RequestParam(required = false) String requestId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "timestamp,desc") String[] sort) {
 
-            PageRequest pageRequest = PageRequest.of(page, size, parseSort(sort));
-            Page<UserActivityLogEntity> logs = logService.getFilteredLogs(
-                    username, method, status, uri, ip, requestId, startDate, endDate, pageRequest);
+        PageRequest pageRequest = PageRequest.of(page, size, parseSort(sort));
+        Page<UserActivityLogEntity> logs = logService.getFilteredLogs(
+                username, method, status, uri, ip, requestId, startDate, endDate, pageRequest);
 
-            // Convert to DTO page
-            ResponsePayloads.PagedResponse<UserActivityLogDto> dtoPage = new ResponsePayloads.PagedResponse<>(logs.map(UserActivityLogDto::new));
+        // Convert to DTO page
+        ResponsePayloads.PagedResponse<UserActivityLogDto> dtoPage = new ResponsePayloads.PagedResponse<>(logs.map(UserActivityLogDto::new));
 
-            return ResponseEntity.ok(dtoPage);
-        }
+        return ResponseEntity.ok(dtoPage);
+    }
 
-        private Sort parseSort(String[] sort) {
-            if (sort.length > 1) {
-                return Sort.by(Sort.Order.by(sort[0]).with(Sort.Direction.fromString(sort[1])));
-            } else if (sort.length == 1) {
-                // Handle default direction if only field is provided
-                String[] parts = sort[0].split(",");
-                if (parts.length > 1) {
-                    return Sort.by(Sort.Order.by(parts[0]).with(Sort.Direction.fromString(parts[1])));
-                }
-                return Sort.by(Sort.Order.asc(parts[0]));
+    private Sort parseSort(String[] sort) {
+        if (sort.length > 1) {
+            return Sort.by(Sort.Order.by(sort[0]).with(Sort.Direction.fromString(sort[1])));
+        } else if (sort.length == 1) {
+            // Handle default direction if only field is provided
+            String[] parts = sort[0].split(",");
+            if (parts.length > 1) {
+                return Sort.by(Sort.Order.by(parts[0]).with(Sort.Direction.fromString(parts[1])));
             }
-            return Sort.unsorted();
+            return Sort.by(Sort.Order.asc(parts[0]));
         }
+        return Sort.unsorted();
+    }
 
 }

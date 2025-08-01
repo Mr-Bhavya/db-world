@@ -1,7 +1,7 @@
 package com.db.dbworld.config;
 
 
-import com.db.dbworld.services.JwtService;
+import com.db.dbworld.services.auth.JwtService;
 import com.nimbusds.jose.jwk.*;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;

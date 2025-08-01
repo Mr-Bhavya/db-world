@@ -1,8 +1,9 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.explorer;
 
 import com.db.dbworld.dao.fileexplorer.FileRepository;
 import com.db.dbworld.entities.fileexplorer.FileEntity;
 import com.db.dbworld.payloads.fileexplorer.FileDto;
+import com.db.dbworld.services.media.MediaFileInfoService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;

@@ -1,4 +1,4 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.pm;
 
 import com.db.dbworld.payloads.pm.CredentialDto;
 import com.db.dbworld.payloads.pm.PasswordManagerDto;
@@ -18,6 +18,7 @@ public interface PasswordManagerService {
     CredentialDto getCredentialById(String credential);
 
     void deleteCredentialById(String credentialId);
+
     List<String> getAllHosts();
 
 }

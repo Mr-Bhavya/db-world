@@ -198,7 +198,7 @@ const UsersCardView = ({ users, onUpdate, onDelete }) => {
                 onSave={handleSave}
             />
 
-            {Constants.TOAST_CONTAINER}
+            
         </Container>
     );
 };

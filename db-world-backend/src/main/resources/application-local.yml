@@ -9,6 +9,8 @@ Server:
     mime-types: application/octet-stream,text/plain,text/html,text/css,application/json,application/xml
 
 spring:
+  application:
+    name: db-world
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
@@ -69,7 +71,9 @@ springdoc:
 #Security
 jwt:
   token:
-    validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
+    validity: 36000000  # validity in millisecond 10*60*60*1000 ~ 10hour
+    access-token-ttl: 5m
+    refresh-token-ttl: 30d
     secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
 # Jasypt Configuration
@@ -83,10 +87,18 @@ tmdb:
   api:
     key: 30061af77dba3722bbe14a2691055544
 
+# Aria2 Configuration
+aria2:
+  rpc:
+    url: http://localhost:6800/jsonrpc
+    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
+  ws:
+    url: ws://localhost:6800/jsonrpc
+
 dbworld:
   paths:
     tempDownloadPath: D:/Bhavya/Temp/
-    logFilePath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld-json.log
+    logFilePath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld.json
     log4j2LogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs
     downloadLogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/download_progress.log
     integrationFolderPath: D:/Bhavya/ProcessedVideos/
@@ -100,6 +112,31 @@ dbworld:
   api_keys:
     tmdb: 30061af77dba3722bbe14a2691055544
 
+logging:
+  config: classpath:log4j2.xml
+  file:
+    path: D:/home/dbworld_admin/ext_hdisk/dbworld/logs
+  retention-days: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics, prometheus, httptrace
+      base-path: /actuator
+  metrics:
+    distribution:
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
+      sla:
+        http.server.requests: 100ms,500ms,1s
+    tags:
+      application: db-world
+  endpoint:
+    health:
+      show-details: always
+    httptrace:
+      enabled: true
 
 #logging:
 #  config: C:\Users\Bhavya\Documents\Workspace\db-world\db-world-backend\src\main\resources\log4j2-local.xml

@@ -4,7 +4,7 @@ import com.db.dbworld.dao.user.UserRoleRepository;
 import com.db.dbworld.entities.user.UserRoleEntity;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.services.RoleService;
+import com.db.dbworld.services.auth.RoleService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

@@ -10,10 +10,12 @@ Server:
 
 #MySQL Database
 spring:
+  application:
+    name: db-world
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: dbworld_admin
-    password: BD@pi#2024
+    password: BD@pi
     url: jdbc:mysql://localhost:3306/db_world?createDatabaseIfNotExist=true&jdbcCompliantTruncation=false
   jpa:
     show-sql: false
@@ -53,6 +55,8 @@ spring:
 jwt:
   token:
     validity: 36000000  # validity in millisecond 10*60*60*1000 ~ 10hour
+    access-token-ttl: 5m
+    refresh-token-ttl: 30d
     secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
 # Jasypt Configuration
@@ -68,6 +72,14 @@ springdoc:
     path: /api/dbworld-api-doc
   swagger-ui:
     path: /dbworld-api-doc.html
+
+# Aria2 Configuration
+aria2:
+  rpc:
+    url: http://localhost:6800/jsonrpc
+    secret: a848164f47fef2b99169e6046ce4c1997d628c62
+  ws:
+    url: ws://localhost:6800/jsonrpc
 
 dbworld:
   paths:
@@ -85,3 +97,9 @@ dbworld:
     extHDiskPath: /ext_hdisk
   api_keys:
     tmdb: 30061af77dba3722bbe14a2691055544
+
+logging:
+  config: classpath:log4j2.xml
+  file:
+    path: D:/home/dbworld_admin/ext_hdisk/dbworld/logs
+  retention-days: 10

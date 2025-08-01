@@ -5,6 +5,7 @@ import { Capacitor } from "@capacitor/core";
 import Constants from "../../Constants";
 import AndroidPlugins from "../../../android-app-components/AndroidPlugins";
 import { CapacitorVideoPlayer } from "capacitor-video-player"; // Ensure this is installed and linked properly
+import { toast } from "../../Toast";
 
 const Play = ({
   streamUrl,
@@ -27,7 +28,7 @@ const Play = ({
 
     if (!streamUrl) {
       const errorMsg = "Stream URL is not available.";
-      onError ? onError(errorMsg) : Constants.showToast.error(errorMsg);
+      onError ? onError(errorMsg) : toast.error(errorMsg);
       return;
     }
 
@@ -69,7 +70,7 @@ const Play = ({
     } catch (error) {
       const errorMsg = "Error playing media";
       console.error(`${errorMsg}:`, error);
-      onError ? onError(errorMsg) : Constants.showToast.error(errorMsg);
+      onError ? onError(errorMsg) : toast.error(errorMsg);
       window.open(streamUrl, "_blank"); // Fallback
     }
   };

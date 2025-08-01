@@ -5,8 +5,8 @@ import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.payloads.dbcinema.stream.TrackInfo;
 import com.db.dbworld.services.DownloadStatus;
-import com.db.dbworld.services.StreamService;
-import com.db.dbworld.services.UserService;
+import com.db.dbworld.services.media.StreamService;
+import com.db.dbworld.services.user.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -163,13 +163,11 @@ public class StreamServiceImpl implements StreamService {
         }
     }
 
-
-
     @Override
     public List<DbWorldRecords.StreamableFileInfo> getAllStreamableFiles() {
         List<DbWorldRecords.StreamableFileInfo> list = new ArrayList<>();
         list.addAll(getListRecursive(Path.of(DbWorldConstants.STREAM_HOME_PATH)));
-        list.addAll(getListRecursive(Path.of(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH)));
+//        list.addAll(getListRecursive(Path.of(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH)));
         return list;
     }
 

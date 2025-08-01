@@ -4,10 +4,9 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
-import com.db.dbworld.security.JwtHelper;
-import com.db.dbworld.services.MediaFileInfoService;
-import com.db.dbworld.services.StreamService;
-import com.db.dbworld.services.UserService;
+import com.db.dbworld.services.media.MediaFileInfoService;
+import com.db.dbworld.services.media.StreamService;
+import com.db.dbworld.services.user.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import jakarta.validation.Valid;
@@ -24,8 +23,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
@@ -37,7 +34,6 @@ public class StreamController {
 
     @Autowired private StreamService streamService;
     @Autowired private DbWorldUtils dbWorldUtils;
-    @Autowired private JwtHelper jwtHelper;
     @Autowired private UserService userService;
     @Autowired private MediaFileInfoService mediaFileInfoService;
 
@@ -66,7 +62,6 @@ public class StreamController {
                                              @RequestParam(value = "inline", defaultValue = "false") boolean inline) throws IOException {
         String user = userService.getUserFromToken(token);
         Path path = resolveFilePath(fileId);
-//        log.info("User [{}] is downloading file [{}] at [{}], inline={}, Range={}", user, fileId, path, inline, range);
         acquirePermit();
         try {
             ResponseEntity<Void> response = streamService.streamFileByCdn(user, path, range, inline);
