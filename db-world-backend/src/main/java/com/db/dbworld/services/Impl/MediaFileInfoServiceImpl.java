@@ -5,7 +5,7 @@ import com.db.dbworld.entities.dbcinema.stream.*;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.dbcinema.stream.*;
-import com.db.dbworld.services.MediaFileInfoService;
+import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.utils.DbWorldUtils;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;

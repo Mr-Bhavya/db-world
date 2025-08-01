@@ -3,7 +3,7 @@ package com.db.dbworld.controllers;
 import com.db.dbworld.entities.fileexplorer.FileEntity;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.fileexplorer.FileDto;
-import com.db.dbworld.services.FileExplorerService;
+import com.db.dbworld.services.explorer.FileExplorerService;
 import com.db.dbworld.utils.DbWorldConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -13,8 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.util.List;
 import java.util.Map;

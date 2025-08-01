@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import {
     Box,
     Button,
@@ -44,6 +43,7 @@ import { deleteCredentialByCredentialId, deleteHostById, getCredential, updateCr
 import { teal } from '@mui/material/colors';
 import { max } from 'rxjs';
 import CommonServices from '../CommonServices';
+import { toast } from '../Toast';
 
 const ViewPassword = () => {
     const theme = useTheme();
@@ -130,19 +130,19 @@ const ViewPassword = () => {
             });
 
             if (updateCredentialRes.httpStatusCode === 200) {
-                Constants.showToast.success(updateCredentialRes.message);
+                toast.success(updateCredentialRes.message);
                 await getUserCredentials();
                 setOpenEditDialog(false);
             } else if (updateCredentialRes.httpStatusCode === 401) {
-                Constants.showToast.error(updateCredentialRes.message, {
+                toast.error(updateCredentialRes.message, {
                     autoClose: 1000,
                     onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } })
                 });
             } else {
-                Constants.showToast.error(updateCredentialRes.message);
+                toast.error(updateCredentialRes.message);
             }
         } catch (error) {
-            Constants.showToast.error("An error occurred while updating credential");
+            toast.error("An error occurred while updating credential");
         } finally {
             setIsUpdating(false);
         }
@@ -158,10 +158,10 @@ const ViewPassword = () => {
             } else if (getCredentialRes.httpStatusCode === 401) {
                 navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
             } else {
-                Constants.showToast.error(getCredentialRes.message);
+                toast.error(getCredentialRes.message);
             }
         } catch (error) {
-            Constants.showToast.error("Failed to fetch credentials");
+            toast.error("Failed to fetch credentials");
         } finally {
             setLoading(false);
             setIsFetching(false);
@@ -187,16 +187,16 @@ const ViewPassword = () => {
         try {
             const deleteCredentialRes = await deleteCredentialByCredentialId(formCredential?.credentialId);
             if (deleteCredentialRes.httpStatusCode === 200) {
-                Constants.showToast.success(deleteCredentialRes.message);
+                toast.success(deleteCredentialRes.message);
                 await getUserCredentials();
                 setOpenDeleteDialog(false);
             } else if (deleteCredentialRes.httpStatusCode === 401) {
                 navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
             } else {
-                Constants.showToast.error(deleteCredentialRes.message);
+                toast.error(deleteCredentialRes.message);
             }
         } catch (error) {
-            Constants.showToast.error("An error occurred while deleting credential");
+            toast.error("An error occurred while deleting credential");
         } finally {
             setIsDeleting(false);
         }
@@ -207,16 +207,16 @@ const ViewPassword = () => {
         try {
             const deleteHostRes = await deleteHostById(formCredential.pmId);
             if (deleteHostRes.httpStatusCode === 200) {
-                Constants.showToast.success(deleteHostRes.message);
+                toast.success(deleteHostRes.message);
                 await getUserCredentials();
                 setOpenDeleteHostDialog(false);
             } else if (deleteHostRes.status === 401) {
                 navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
             } else {
-                Constants.showToast.error(deleteHostRes.message);
+                toast.error(deleteHostRes.message);
             }
         } catch (error) {
-            Constants.showToast.error("An error occurred while deleting host");
+            toast.error("An error occurred while deleting host");
         } finally {
             setIsDeletingHost(false);
         }
@@ -225,9 +225,9 @@ const ViewPassword = () => {
     const copyToClipboard = (text) => {
         const result = CommonServices.handleCopy(text);
         if (result.success) {
-            Constants.showToast.success(result.message);
+            toast.success(result.message);
         } else {
-            Constants.showToast.error(result.message);
+            toast.error(result.message);
         }
     };
 
@@ -848,7 +848,7 @@ const ViewPassword = () => {
                     </DialogActions>
                 </Dialog>
             </Container>
-            {Constants.TOAST_CONTAINER}
+            
         </Box>
     );
 };

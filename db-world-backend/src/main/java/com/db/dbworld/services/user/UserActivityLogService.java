@@ -1,4 +1,4 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.user;
 
 import com.db.dbworld.dao.user.UserActivityLogRepository;
 import com.db.dbworld.entities.user.UserActivityLogEntity;

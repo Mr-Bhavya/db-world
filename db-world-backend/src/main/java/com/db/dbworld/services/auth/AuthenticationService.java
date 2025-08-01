@@ -1,4 +1,4 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.auth;
 
 import static java.time.Duration.between;
 
@@ -7,17 +7,15 @@ import com.db.dbworld.entities.user.RefreshTokenEntity;
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.user.LoginDataDto;
-import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.security.JwtHelper;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
-import jakarta.validation.constraints.NotEmpty;
+import com.db.dbworld.services.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

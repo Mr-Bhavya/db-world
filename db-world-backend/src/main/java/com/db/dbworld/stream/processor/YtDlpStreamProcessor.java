@@ -3,7 +3,7 @@ package com.db.dbworld.stream.processor;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.YtProcessStatus;
-import com.db.dbworld.services.StatusService;
+import com.db.dbworld.services.mirror.StatusService;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import lombok.extern.log4j.Log4j2;

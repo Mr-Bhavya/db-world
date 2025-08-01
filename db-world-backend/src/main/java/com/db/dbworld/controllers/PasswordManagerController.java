@@ -6,7 +6,7 @@ import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.payloads.pm.CredentialDto;
 import com.db.dbworld.payloads.pm.PasswordManagerDto;
-import com.db.dbworld.services.PasswordManagerService;
+import com.db.dbworld.services.pm.PasswordManagerService;
 import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;

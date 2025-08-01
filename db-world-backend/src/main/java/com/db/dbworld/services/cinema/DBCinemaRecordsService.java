@@ -1,4 +1,4 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.cinema;
 
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.payloads.CustomPageImpl;
@@ -31,17 +31,9 @@ public interface DBCinemaRecordsService {
 
     CustomPageImpl<DBCinemaRecordsDto> findRecords(RecordSearchCriteria recordSearchCriteria);
 
-//    List<DBCinemaRecordsDto> fetchDbCinemaRecords(String recordType, Pageable pageable, String languages, String genres);
-//
-//    Integer fetchCountOfDbCinemaRecords();
-//
-//    Integer fetchCountOfDbCinemaRecords(String recordType, String languages, String genres);
-
     DBCinemaRecordsDto getRecordById(Long recordId);
 
     DBCinemaRecordsEntity getRecordEntityById(Long recordId);
-
-//    List<DBCinemaRecordsDto> searchRecordByKeywordWithUserData(String keyword);
 
     List<DBCinemaRecordsDto> searchRecordByKeywordWithPagination(String keyword, Pageable pageable);
 

@@ -1,8 +1,3 @@
-import { Bounce, Flip, Slide, toast, ToastContainer, Zoom } from "react-toastify";
-import { css } from "styled-components";
-import { v1 as uuidv1 } from 'uuid';
-import { showToast } from "./showToast";
-
 const RE_LOGIN = " Please Relogin";
 const ADD_RECORD_API = "/api/media/add/record";
 const ADD_USER_API = "/api/auth/add";
@@ -70,119 +65,6 @@ const BUTTON_LOADER = (buttonColor, diaplayText) => {
     </button>)
 }
 
-const TOAST_CONTAINER = <ToastContainer
-    // containerId={`toast_` + uuidv1()}
-    position="top-right"
-    autoClose={5000}
-    hideProgressBar={false}
-    newestOnTop={true}
-    closeOnClick
-    rtl={false}
-    pauseOnFocusLoss
-    draggable
-    pauseOnHover
-/>
-
-const isMobile = window.innerWidth <= 768;
-
-const CustomToastContainer = () => (
-    <ToastContainer
-        position={window.innerWidth <= 768 ? "top-center" : "top-right"}
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        draggablePercent={60}
-        pauseOnHover
-        transition={window.innerWidth <= 768 ? Slide : Bounce}
-        theme="colored"
-        toastClassName={() => css`
-      @media (max-width: 768px) {
-        width: 90%;
-        margin: 0 auto 1rem;
-        border-radius: 12px;
-      }
-    `}
-        bodyClassName={() => css`
-      font-family: 'Inter', sans-serif;
-      font-size: ${isMobile ? '14px' : '16px'};
-    `}
-        progressClassName={() => css`
-      background: rgba(255, 255, 255, 0.4);
-    `}
-    />
-);
-
-// export const showToast = {
-//     info: (message, options = {}) => {
-//         const defaultOptions = {
-//             icon: 'ℹ️',
-//             style: {
-//                 background: '#3182ce',
-//                 boxShadow: '0 4px 12px rgba(49, 130, 206, 0.3)'
-//             },
-//             transition: window.innerWidth <= 768 ? Slide : Flip,
-//             autoClose: 5000,
-//         };
-
-//         return toast.info(message, {
-//             ...defaultOptions,
-//             ...options
-//         });
-//     },
-//     success: (message, options = {}) => {
-//         const defaultOptions = {
-//             icon: '✅',
-//             style: {
-//                 background: '#38a169',
-//                 boxShadow: '0 4px 12px rgba(56, 161, 105, 0.3)'
-//             },
-//             transition: isMobile ? Slide : Flip,
-//             autoClose: 5000,
-//         };
-
-//         return toast.success(message, {
-//             ...defaultOptions,
-//             ...options
-//         });
-//     },
-//     error: (message, options = {}) => {
-//         const defaultOptions = {
-//             icon: '❌',
-//             style: {
-//                 background: '#e53e3e',
-//                 boxShadow: '0 4px 12px rgba(229, 62, 62, 0.3)'
-//             },
-//             transition: window.innerWidth <= 768 ? Slide : Zoom,
-//             autoClose: 5000,
-//         };
-
-//         return toast.error(message, {
-//             ...defaultOptions,
-//             ...options
-//         });
-//     },
-//     warning: (message, options = {}) => {
-//         const defaultOptions = {
-//             icon: '⚠️',
-//             style: {
-//                 background: '#dd6b20',
-//                 boxShadow: '0 4px 12px rgba(221, 107, 32, 0.3)'
-//             },
-//             transition: window.innerWidth <= 768 ? Slide : Bounce,
-//             autoClose: 5000,
-//         };
-
-//         return toast.warning(message, {
-//             ...defaultOptions,
-//             ...options
-//         });
-//     }
-// };
-
 export default {
     RE_LOGIN,
     ADD_RECORD_API,
@@ -230,9 +112,6 @@ export default {
     KIB, MIB, GIB,
     LOADER,
     BUTTON_LOADER,
-    TOAST_CONTAINER,
-    CustomToastContainer,
-    showToast,
     RECORD_TYPE_SERIES,
     RECORD_TYPE_MOVIE,
     IMAGE_TYPE_POSTER,

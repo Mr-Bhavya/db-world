@@ -1,18 +1,12 @@
 package com.db.dbworld.services.Impl;
 
-import bt.Bt;
-import bt.BtException;
-import bt.data.file.FileSystemStorage;
-import bt.runtime.BtClient;
-import bt.runtime.Config;
-import bt.torrent.TorrentSessionState;
 import com.db.dbworld.exceptions.DbWorldException;
-import com.db.dbworld.exceptions.ExtractException;
+import com.db.dbworld.helpers.MirrorHelper;
 import com.db.dbworld.payloads.MirrorStatus;
-import com.db.dbworld.payloads.YtProcessStatus;
-import com.db.dbworld.services.StatusService;
-import com.db.dbworld.services.UtilsService;
-import com.db.dbworld.stream.processor.GenericStreamProcessor;
+import com.db.dbworld.services.aria2.Aria2RpcService;
+import com.db.dbworld.services.aria2.Aria2WebSocketClientService;
+import com.db.dbworld.services.mirror.StatusService;
+import com.db.dbworld.services.mirror.UtilsService;
 import com.db.dbworld.stream.processor.StreamLogger;
 import com.db.dbworld.stream.processor.StreamProcessor;
 import com.db.dbworld.stream.processor.YtDlpStreamProcessor;
@@ -20,42 +14,18 @@ import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DataBufferUtils;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMessage;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.reactive.function.client.ExchangeStrategies;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Flux;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -68,6 +38,15 @@ public class UtilsServiceImpl implements UtilsService {
     @Autowired
     private StatusService statusService;
 
+    @Autowired
+    private Aria2RpcService aria2RpcService;
+
+    @Autowired
+    private MirrorHelper mirrorHelper;
+
+    @Autowired
+    private Aria2WebSocketClientService wsClientService;
+
     private static final String PROCESS_DOWNLOAD = "PROCESS_DOWNLOAD";
     private static final String PROCESS_AUDIO = "PROCESS_AUDIO";
     private static final String PROCESS_INFO = "PROCESS_INFO";
@@ -75,257 +54,36 @@ public class UtilsServiceImpl implements UtilsService {
 
     @Async
     @Override
-    public void downloadHttpFile(MirrorStatus mirrorStatus) {
-
-        this.statusService.addNewStatus(mirrorStatus);
-
-        File file = new File(mirrorStatus.getTempFilePath());
-
-        WebClient webClient = WebClient.builder()
-                .baseUrl(mirrorStatus.getFileUrl())
-                .exchangeStrategies(ExchangeStrategies.builder()
-                        .codecs(clientCodecConfigurer -> clientCodecConfigurer.defaultCodecs().maxInMemorySize(100 * 1024 * 1024))
-                        .build()
-                )
-                .clientConnector(new ReactorClientHttpConnector())
-                .build();
-        Flux<DataBuffer> flux = webClient.get()
-                .headers(httpHeaders -> httpHeaders.set("Host", mirrorStatus.getFileUrl().split("/")[2]))
-                .exchangeToFlux(response -> {
-                    long contentLength = response.headers().contentLength().orElse(0);
-                    this.statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), 0L);
-                    return response.bodyToFlux(DataBuffer.class);
-                })
-                .takeUntil(dataBuffer -> statusService.getStatusById(mirrorStatus.getId()).isCancelled());
-
+    public void downloadFileUsingAria2c(MirrorStatus mirrorStatus) {
         try {
-            FileOutputStream fileOutputStream = new FileOutputStream(file);
-            OutputStream outputStream = getOutputStream(fileOutputStream, mirrorStatus);
-            DataBufferUtils.write(flux, outputStream)
-                    .takeUntil(dataBuffer -> statusService.getStatusById(mirrorStatus.getId()).isCancelled())
-                    .doOnComplete(() -> log.info("Download Completed for file: {}", mirrorStatus.getFileName()))
-                    .doOnError(throwable -> this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), throwable.getMessage()))
-                    .doFinally((signalType) -> {
-                        try {
-                            fileOutputStream.close();
-                            outputStream.close();
-                        } catch (IOException e) {
-                            log.error(e.getMessage());
-                        }
-                        postDownloadTasks(mirrorStatus.getId());
-                    })
-                    .subscribe(DataBufferUtils.releaseConsumer());
-        } catch (Exception ex) {
-            System.out.println("In Exception.");
-            this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), "In Exception: " + ex.getMessage());
-        }
-    }
+            // Register the download first
+            statusService.addNewStatus(mirrorStatus);
 
-    @Async
-    @Override
-    public void downloadHttpFile_1(MirrorStatus mirrorStatus) {
-        try {
-            HttpURLConnection connection = getHttpURLConnection(mirrorStatus);
+            // Prepare download options
+            Map<String, Object> options = new HashMap<>();
+            options.put("dir", Paths.get(mirrorStatus.getTempFilePath()).getParent().toString());
 
-            InputStream inputStream = connection.getInputStream();
-            RandomAccessFile file = new RandomAccessFile(mirrorStatus.getTempFilePath(), "rw");
+            if (mirrorStatus.getFileUrl().startsWith("http")) {
+                options.put("out", Paths.get(mirrorStatus.getTempFilePath()).getFileName().toString());
 
-            // If resuming, move to the position where the download was paused
-            if (mirrorStatus.getDownloadStatus() != null && mirrorStatus.getDownloadStatus().getFileDownloaded() > 0) {
-                file.seek(mirrorStatus.getDownloadStatus().getFileDownloaded());
+                // Set range header if resuming
+                if (mirrorStatus.getDownloadStatus() != null &&
+                        mirrorStatus.getDownloadStatus().getFileDownloaded() > 0) {
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Range", "bytes=" + mirrorStatus.getDownloadStatus().getFileDownloaded() + "-");
+                    options.put("header", headers);
+                }
             }
 
-            byte[] buffer = new byte[4096];
-            int bytesRead;
+            // Start the download via Aria2 RPC
+            String gid = aria2RpcService.addUri(mirrorStatus.getFileUrl(), options).block();
 
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                mirrorStatus = statusService.getStatusById(mirrorStatus.getId());
+            // Register for WebSocket updates
+            wsClientService.startDownloadMonitoring(gid, mirrorStatus.getId());
 
-                if (mirrorStatus.isCancelled()) {
-                    statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
-                    break;
-                }
-                if (mirrorStatus.isPause()) {
-                    statusService.updateMirrorStatusWithPause(mirrorStatus.getId());
-                    while (mirrorStatus.isPause() && !mirrorStatus.isCancelled()) {
-                        // Wait until paused is set to false
-                        Thread.sleep(1000);
-                    }
-                    if (mirrorStatus.isCancelled()) {
-                        statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
-                        break;
-                    }
-                }
-
-                file.write(buffer, 0, bytesRead);
-
-                statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), bytesRead);
-
-//                statusService.updateMirrorStatusWithSpeedAndETA(mirrorStatus.getId());
-
-                // If download completes, change state to COMPLETED
-                if (statusService.getStatusById(mirrorStatus.getId()).getDownloadStatus().getFileDownloaded() >= statusService.getStatusById(mirrorStatus.getId()).getFileSize()) {
-                    statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
-                    break;
-                }
-            }
-            file.close();
-            inputStream.close();
-            connection.disconnect();
-            postDownloadTasks(mirrorStatus.getId());
-        } catch (IOException | InterruptedException | DbWorldException e) {
-            log.error(e.getMessage());
+        } catch (Exception e) {
+            log.error("Download failed: {}", e.getMessage(), e);
             statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.getMessage());
-        }
-    }
-
-    private static HttpURLConnection getHttpURLConnection(MirrorStatus mirrorStatus) throws IOException {
-        try {
-            URL url = new URL(mirrorStatus.getFileUrl());
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-
-            // If the download was paused and needs to resume, use the "Range" header
-            if (mirrorStatus.getDownloadStatus() != null && mirrorStatus.getDownloadStatus().getFileDownloaded() > 0) {
-                connection.setRequestProperty("Range", "bytes=" + mirrorStatus.getDownloadStatus().getFileDownloaded() + "-");
-            }
-            return connection;
-        } catch (Exception ex) {
-            log.error(ex.getMessage());
-            throw new DbWorldException(ex.getMessage());
-        }
-    }
-
-    @Async
-    @Override
-    public void downloadMagnetFile(MirrorStatus mirrorStatus) {
-        try {
-            this.statusService.addNewStatus(mirrorStatus);
-            Config config = new Config() {
-                @Override
-                public int getNumOfHashingThreads() {
-                    return Runtime.getRuntime().availableProcessors() * 2;
-                }
-            };
-
-            // create client with a private runtime
-            BtClient client = Bt.client()
-                    .config(config)
-                    .storage(new FileSystemStorage(Path.of(DbWorldConstants.TORRENT_DOWNLOAD_HOME_PATH)))
-                    .magnet(mirrorStatus.getFileUrl())
-                    .autoLoadModules()
-                    .stopWhenDownloaded()
-                    .afterTorrentFetched(torrent -> {
-                        MirrorStatus temp = this.statusService.getStatusById(mirrorStatus.getId());
-                        temp.setFileSize(torrent.getSize());
-                        temp.setFileName(torrent.getName());
-                        this.statusService.updateStatus(temp);
-                        log.info("Fetched Torrent File: {}, size: {} and files: {}", torrent.getName(), torrent.getSize(),
-                                torrent.getFiles().stream().map(torrentFile -> torrentFile.getPathElements() + ":" + torrentFile.getSize()).collect(Collectors.joining()));
-                    })
-                    .build();
-            // launch
-            client.startAsync(torrentSessionStateConsumer(client, mirrorStatus), 5000).join();
-        } catch (BtException ex) {
-            log.error(ex.getMessage());
-        }
-    }
-
-    private Consumer<TorrentSessionState> torrentSessionStateConsumer(BtClient client, MirrorStatus mirrorStatus) {
-        return torrentSessionState -> {
-            if (this.statusService.getStatusById(mirrorStatus.getId()).isCancelled()) {
-                client.stop();
-                dbWorldUtils.deleteFile(mirrorStatus.getFilePath());
-                this.statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
-            } else if (torrentSessionState.getPiecesRemaining() == 0) {
-                client.stop();
-                this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
-            } else {
-                this.statusService.updateMirrorStatusWithNewDownloadBytes(
-                        mirrorStatus.getId(), torrentSessionState.getLeft() <= 0 ? 0 : mirrorStatus.getFileSize() - torrentSessionState.getLeft()
-                );
-            }
-        };
-    }
-
-    private OutputStream getOutputStream(FileOutputStream fileOutputStream, MirrorStatus mirrorStatus) {
-        return new FilterOutputStream(fileOutputStream) {
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                out.write(b, off, len);
-                statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), len);
-            }
-
-            @Override
-            public void write(int b) throws IOException {
-                out.write(b);
-                statusService.updateMirrorStatusWithNewDownloadBytes(mirrorStatus.getId(), b);
-            }
-
-            @Override
-            public void close() throws IOException {
-                fileOutputStream.close();
-                super.close();
-            }
-        };
-    }
-
-    private void postDownloadTasks(String statusId) {
-        MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
-        try {
-            if (mirrorStatus.isCancelled()) {
-                Files.delete(Path.of(mirrorStatus.getTempFilePath()));
-                this.statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
-            } else if (mirrorStatus.isFailed()) {
-                this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), mirrorStatus.getMessage());
-                Files.delete(Path.of(mirrorStatus.getTempFilePath()));
-            } else {
-                if (mirrorStatus.isExtract()) {
-                    this.statusService.updateMirrorStatusWithExtracting(mirrorStatus.getId());
-                    try {
-                        this.extract(mirrorStatus.getId(), mirrorStatus.getTempFilePath(), mirrorStatus.getTempExtractedFilePath(), null);
-                        this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
-                        log.info("Extract Completed for file: {}", mirrorStatus.getFileName());
-                        log.info("Moving folder \"{}\" ===> \"{}\".", mirrorStatus.getTempExtractedFilePath(), mirrorStatus.getExtractedFileName());
-                        FileUtils.moveDirectory(new File(mirrorStatus.getTempExtractedFilePath()), new File(mirrorStatus.getExtractedFilePath()));
-                        Files.delete(Path.of(mirrorStatus.getTempFilePath()));
-                    } catch (ExtractException ex) {
-                        FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
-                        StreamLogger.appendHtmlLine(mirrorStatus, ex.getMessage(), true, statusService);
-                        throw new DbWorldException(ex.getMessage());
-                    }
-                } else {
-                    FileUtils.moveFile(new File(mirrorStatus.getTempFilePath()), new File(mirrorStatus.getFilePath()));
-                    this.statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
-                }
-            }
-        } catch (IOException | DbWorldException ex) {
-            this.statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), ex.getMessage());
-            log.error(ex);
-        }
-    }
-
-    @Override
-    public void extract(String mirrorId, String sourcePath, String targetPath, String password) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder("7z", "x", sourcePath, "-o" + targetPath, "-aou");
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
-
-        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
-        StreamProcessor streamProcessor = new GenericStreamProcessor(statusService, mirrorStatus);
-
-        Thread streamThread = new Thread(() -> streamProcessor.handle(process.getInputStream(), false));
-        streamThread.start();
-
-        try {
-            int exitCode = process.waitFor();
-            streamThread.join(); // Ensure log thread finishes reading
-            if (exitCode != 0) {
-                throw new ExtractException("Extraction failed. Exit code: " + exitCode);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ExtractException("Extraction interrupted: " + e.getMessage());
         }
     }
 
@@ -407,7 +165,8 @@ public class UtilsServiceImpl implements UtilsService {
                     throw new DbWorldException(e.getMessage());
                 }
             });
-            StreamProcessor stderr = new YtDlpStreamProcessor(statusService, mirrorStatus, () -> {});
+            StreamProcessor stderr = new YtDlpStreamProcessor(statusService, mirrorStatus, () -> {
+            });
 
             new Thread(() -> stdout.handle(process.getInputStream(), false)).start();
             new Thread(() -> stderr.handle(process.getErrorStream(), true)).start();

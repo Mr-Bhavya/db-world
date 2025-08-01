@@ -1,4 +1,4 @@
-import Constants from "../Constants";
+import { toast } from "../Toast";
 
 export const handleApiSuccess = (message, navigate, redirectPath = null, autoClose = 1000) => {
   const toastConfig = { autoClose };
@@ -7,5 +7,5 @@ export const handleApiSuccess = (message, navigate, redirectPath = null, autoClo
     toastConfig.onClose = () => navigate(redirectPath);
   }
 
-  Constants.showToast.success(message, toastConfig);
+  toast.success(message, toastConfig);
 };

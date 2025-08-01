@@ -5,7 +5,7 @@ import com.db.dbworld.payloads.CustomPageImpl;
 import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
-import com.db.dbworld.services.DBCinemaRecordsService;
+import com.db.dbworld.services.cinema.DBCinemaRecordsService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import jakarta.validation.Valid;

@@ -2,8 +2,8 @@ package com.db.dbworld.handler;
 
 import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
 import com.db.dbworld.exceptions.DbWorldException;
-import com.db.dbworld.services.DBCinemaRecordsService;
-import com.db.dbworld.services.MediaFileInfoService;
+import com.db.dbworld.services.cinema.DBCinemaRecordsService;
+import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -15,7 +15,6 @@ import com.google.gson.JsonObject;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.IOException;

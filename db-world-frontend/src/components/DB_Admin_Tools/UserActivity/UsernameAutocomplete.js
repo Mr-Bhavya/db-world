@@ -10,6 +10,7 @@ import {
 import { Person as PersonIcon, Error as ErrorIcon } from '@mui/icons-material';
 import debounce from 'lodash/debounce';
 import axiosInstance from '../../Utils/AxiosInstants';
+import { findUserByQuery } from '../../ApiServices';
 
 const UsernameAutocomplete = ({ value, onChange, onInputChange, error, helperText }) => {
     const [options, setOptions] = useState([]);
@@ -21,9 +22,7 @@ const UsernameAutocomplete = ({ value, onChange, onInputChange, error, helperTex
         setLoading(true);
         setFetchError(null);
         try {
-            const response = await axiosInstance.get('/api/admin/user/search', {
-                params: { query, limit: 10 }
-            });
+            const response = await findUserByQuery(query);
             
             // Check if response.data exists and is an array
             if (response.data && Array.isArray(response.data)) {

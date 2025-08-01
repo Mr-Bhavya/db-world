@@ -21,14 +21,13 @@ import {
   ThemeProvider
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import LoadingSpinner from '../LoadingSpinner';
 import Constants from '../Constants';
 import CommonServices from '../CommonServices';
 import { updateUserDetails } from '../ApiServices';
 import { handleApiSuccess } from '../Utils/successHandler';
 import { handleApiError } from '../Utils/errorHandler';
+import { toast } from '../Toast';
 
 // Custom teal theme
 const theme = createTheme({
@@ -198,7 +197,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
     });
 
     if (!isFormValid) {
-      Constants.showToast.warning("Please fill all required fields correctly.");
+      toast.warning("Please fill all required fields correctly.");
       setSubmitting(false);
       return;
     }
@@ -219,7 +218,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
         handleApiError(error, navigate, location);
       }
     } catch (error) {
-      Constants.showToast.error("An error occurred while updating your profile");
+      toast.error("An error occurred while updating your profile");
     } finally {
       setSubmitting(false);
     }
@@ -485,7 +484,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
           </Card>
         </motion.div>
       </Box>
-      {Constants.TOAST_CONTAINER}
+      
     </ThemeProvider>
   );
 };

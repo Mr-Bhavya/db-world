@@ -6,7 +6,7 @@ import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.services.InformationCollectorService;
-import com.db.dbworld.services.UserService;
+import com.db.dbworld.services.user.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

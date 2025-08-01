@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles } from "./IconButtonStyles";
+import { toast } from '../../Toast';
 
 const Copy = ({
   text,
@@ -29,7 +30,7 @@ const Copy = ({
     const result = CommonServices.handleCopy(text);
 
     if (result.success) {
-      Constants.showToast.success(result.message, {
+      toast.success(result.message, {
         position: 'top-center',
         autoClose: 2000,
         hideProgressBar: true,
@@ -38,7 +39,7 @@ const Copy = ({
       });
       setTimeout(() => setCopied(false), 2000);
     } else {
-      Constants.showToast.error(result.message);
+      toast.error(result.message);
     }
   };
 

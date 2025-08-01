@@ -8,6 +8,7 @@ import store from './store';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ConfirmProvider } from 'material-ui-confirm';
+import { ToastInitializer, ToastProvider } from './components/Toast';
 
 const container = document.getElementById('root');
 const root = createRoot(container);
@@ -15,7 +16,10 @@ root.render(
     <Provider store={store}>
         <LocalizationProvider dateAdapter={AdapterDateFns}>
             <ConfirmProvider>
-                <App />
+                <ToastProvider>
+                    <ToastInitializer />
+                    <App />
+                </ToastProvider>
             </ConfirmProvider>
         </LocalizationProvider>
     </Provider >

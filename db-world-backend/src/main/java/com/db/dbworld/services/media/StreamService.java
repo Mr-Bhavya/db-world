@@ -1,4 +1,4 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.media;
 
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;

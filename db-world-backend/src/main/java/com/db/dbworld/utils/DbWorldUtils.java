@@ -3,10 +3,6 @@ package com.db.dbworld.utils;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.RequestPayloads;
-import com.db.dbworld.security.JwtHelper;
-import com.db.dbworld.services.Impl.StreamServiceImpl;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.MalformedJwtException;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,9 +31,6 @@ public class DbWorldUtils {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private JwtHelper jwtHelper;
 
     @Autowired
     private ModelMapper modelMapper;
@@ -187,27 +180,6 @@ public class DbWorldUtils {
         } catch (Exception e){
             throw new DbWorldException("Error While running mediainfo command: "+e.getMessage());
         }
-    }
-
-    public String getUserFromToken(String token) {
-        String username = null;
-        String errorMessage = null;
-        try {
-            username = this.jwtHelper.getUsernameFromToken(token);
-        } catch (IllegalArgumentException e) {
-            errorMessage = "Illegal Argument while fetching the username !!";
-        } catch (ExpiredJwtException e) {
-            errorMessage = "Given jwt token is expired !!";
-        } catch (MalformedJwtException e) {
-            errorMessage = "Some changed has done in token !! Invalid Token";
-        } catch (Exception e) {
-            errorMessage = e.getMessage();
-        }
-
-        if (errorMessage != null) {
-            throw new DbWorldException(HttpStatus.UNAUTHORIZED, errorMessage);
-        }
-        return username;
     }
 
     public ZonedDateTime getISTDateTime(){

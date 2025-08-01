@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import Constants from "../Constants";
+import { toast } from "../Toast";
 
 function TicTacToe() {
 
@@ -32,7 +31,7 @@ function TicTacToe() {
         let newB = [...b];
         let newBColor = [...buttonColor];
         if (index === "x" || index === "O") {
-            Constants.showToast.warning("input already taken.")
+            toast.warning("input already taken.")
         }
         else {
             if (player === 1) {
@@ -63,15 +62,15 @@ function TicTacToe() {
 
     function onWin() {
         if (count === 9) {
-            Constants.showToast.error(`Match is Draw !!`);
+            toast.error(`Match is Draw !!`);
         }
         else {
             if (player === 1) {
-                Constants.showToast.success(`Player 2 is win 🎉🎊🎉`);
+                toast.success(`Player 2 is win 🎉🎊🎉`);
                 setWinStr("🏆 Player 2 is Win 🏆");
             }
             if (player === 2) {
-                Constants.showToast.success(`Player 1 is win 🎉🎊🎉`);
+                toast.success(`Player 1 is win 🎉🎊🎉`);
                 setWinStr("🏆 Player 1 is Win 🏆");
             }
         }
@@ -145,7 +144,7 @@ function TicTacToe() {
             console.log(play, decision);
         }
         else if (play === "no") {
-            Constants.showToast.warning("You will be navigate to Home Page.")
+            toast.warning("You will be navigate to Home Page.")
             new Promise(resolve => setTimeout(resolve, 2000)).then(r => {
                 // do something
                 navigate(Constants.DB_WORLD_HOME_ROUTE);
@@ -218,7 +217,7 @@ function TicTacToe() {
     return (
         <div className="card text-dark mx-3 my-3" style={{ background: "rgba(255,255,255,0.9)" }}>
             {decisionStr}
-            {Constants.TOAST_CONTAINER}
+            
         </div>
     )
 }

@@ -2,6 +2,7 @@ package com.db.dbworld.services;
 
 import com.db.dbworld.dao.user.UserCinemaDataRepository;
 import com.db.dbworld.entities.user.UserCinemaDataEntity;
+import com.db.dbworld.services.user.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;

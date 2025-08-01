@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import Constants from './Constants';
 import { doLogin, updateDobForUser } from './ApiServices';
 // import Authentication from '../contexts/Authentication';
@@ -42,6 +40,7 @@ import {
 // Animation
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/Authentication';
+import { toast } from './Toast';
 
 // Styles
 const modalStyle = {
@@ -127,15 +126,15 @@ const Login = () => {
     const isPasswordValid = validateField('password', formData.password);
 
     if (!isEmailValid || !isPasswordValid) {
-      Constants.showToast.warning('Please fill all required fields correctly.');
+      toast.warning('Please fill all required fields correctly.');
       setLoading(false);
       return;
     }
 
     const loginRes = await doLogin(formData.email, formData.password);
     if (loginRes && loginRes.httpStatusCode === 200) {
-      Constants.showToast.success('Login successful!', {
-        autoClose: 1000,
+      toast.success('Login successful!', {
+        duration: 1000, // MUI uses 'duration' instead of 'autoClose'
         onClose: () => {
           login(loginRes.data.token, loginRes.data.user, loginRes.data.user.role);
           if (!loginRes.data.user.dob) {
@@ -152,21 +151,21 @@ const Login = () => {
 
   const handleDobSubmit = async () => {
     if (!validateField('dob', dob)) {
-      Constants.showToast.warning('Please enter a valid date of birth');
+      toast.warning('Please enter a valid date of birth');
       return;
     }
 
     try {
       const res = await updateDobForUser(dob);
       if (res.httpStatusCode === 200) {
-        Constants.showToast.success('Date of birth updated successfully');
+        toast.success('Date of birth updated successfully');
         setDobModalOpen(false);
         navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE);
       } else {
-        Constants.showToast.error(res.message || 'Failed to update date of birth');
+        toast.error(res.message || 'Failed to update date of birth');
       }
     } catch (err) {
-      Constants.showToast.error('Error updating date of birth');
+      toast.error('Error updating date of birth');
     }
   };
 
@@ -197,7 +196,7 @@ const Login = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Toast container */}
-      {Constants.TOAST_CONTAINER}
+      
 
       {/* Login Card */}
       <motion.div

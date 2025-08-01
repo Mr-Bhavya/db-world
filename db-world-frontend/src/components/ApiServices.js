@@ -5,6 +5,16 @@ import axiosInstance from './Utils/AxiosInstants';
 import { handleApiError } from './Utils/errorHandler';
 const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
 
+export const register = async (user) => {
+  const response = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    }, body: JSON.stringify(user)
+  })
+  return response.json();
+}
+
 export const doLogin = async (email, password) => {
   try {
     // Use the axiosInstance for consistency
@@ -20,28 +30,24 @@ export const doLogin = async (email, password) => {
   }
 };
 
-export const logout = async () => {
+export const verify = async () => {
   try {
-    await axiosInstance.post('/api/auth/logout', {}, {
-      _retry: true // Bypass the interceptor for logout
-    });
+    const response = await axiosInstance.get('/api/auth/verify');
+    return response.data;
   } catch (error) {
-    console.error('Logout error:', error);
-  } finally {
-    localStorage.clear();
-    // Redirect or update state as needed
+    console.error('Auth verification failed:', error);
+    handleApiError(error);
   }
 };
 
-export const register = async (user) => {
-  const response = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    }, body: JSON.stringify(user)
-  })
-  return response.json();
-}
+export const logOut = async () => {
+  try {
+    await axiosInstance.post('/api/auth/log-out', {}, { _retry: true });
+  } catch (error) {
+    console.error('Logout error:', error);
+    handleApiError(error);
+  }
+};
 
 export const findAllUsersService = async () => {
   return await axiosInstance.get(REACT_APP_BASEURL + "/api/admin/user");
@@ -58,6 +64,18 @@ export const updateDobForUser = async (dob) => {
     return response.data;
   } catch (error) {
     console.error('Error updating DOB:', error);
+    throw error;
+  }
+};
+
+export const findUserByQuery = async (query) => {
+  try {
+    const response = await axiosInstance.get('/api/admin/user/search', {
+                params: { query, limit: 10 }
+            });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching users:', error);
     throw error;
   }
 };
@@ -489,17 +507,6 @@ export const deleteCredentialByCredentialId = async (credentialId) => {
   }
 };
 
-// System Utilities APIs
-export const applicationLogsApi = async () => {
-  try {
-    const response = await axiosInstance.get('/api/utils/logs');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching application logs:', error);
-    throw error;
-  }
-};
-
 export const mirror = async (body) => {
   try {
     const response = await axiosInstance.post('/api/utils/mirror', body);
@@ -510,9 +517,39 @@ export const mirror = async (body) => {
   }
 };
 
+export const pauseMirror = async (gid) => {
+  try {
+    const response = axiosInstance.post(`/api/downloads/${gid}/pause`);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating mirror:', error);
+    throw error;
+  }
+};
+
+export const resumeMirror = async (gid) => {
+  try {
+    const response = await axiosInstance.post(`/api/downloads/${gid}/resume`);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating mirror:', error);
+    throw error;
+  }
+};
+
 export const cancelledMirror = async (statusId) => {
   try {
     const response = await axiosInstance.delete(`/api/utils/mirror/${statusId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error cancelling mirror:', error);
+    throw error;
+  }
+};
+
+export const cancelledMirrorByGID = async (gid) => {
+  try {
+    const response = await axiosInstance.post(`/api/downloads/${gid}/cancel`);
     return response.data;
   } catch (error) {
     console.error('Error cancelling mirror:', error);

@@ -5,8 +5,8 @@ import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.RequestPayloads;
-import com.db.dbworld.services.StatusService;
-import com.db.dbworld.services.UtilsService;
+import com.db.dbworld.services.mirror.StatusService;
+import com.db.dbworld.services.mirror.UtilsService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.JsonObject;
@@ -29,7 +29,6 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 @RestController
 @Log4j2
@@ -123,7 +122,7 @@ public class UtilsController {
                     0L,
                     mirror.isExtract()
             );
-            utilsService.downloadMagnetFile(mirrorStatus);
+            utilsService.downloadFileUsingAria2c(mirrorStatus);
             return;
         }
 
@@ -166,7 +165,7 @@ public class UtilsController {
 
         log.info("Queueing file for download: '{}' from '{}'", mirrorStatus.getFileName(), url);
         statusService.addNewStatus(mirrorStatus);
-        utilsService.downloadHttpFile_1(mirrorStatus);
+        utilsService.downloadFileUsingAria2c(mirrorStatus);
     }
 
     private String processAuthUrl(String url, RequestPayloads.Mirror mirror) {

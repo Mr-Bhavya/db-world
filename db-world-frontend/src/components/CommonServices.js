@@ -238,34 +238,43 @@ const JSONToHTMLTable = (props) => {
     )
 }
 
-const convertMediaInfoToCustomFormat = (data, isSearchedFile) => {
-    return data?.map(mediaFile => {
-        let mediaDetails = {
-            id: "",
+const convertMediaInfoToCustomFormat = (id, data, isSearchedFile) => {
+    if (!data) return [];
+
+    const baseUrl = window.location.origin;
+    // const port = window.location.port === "3000" ? "9000" : window.location.port;
+    const basePath = isSearchedFile ? "/api/stream/watch/" : "/api/stream/watch/uuid/";
+    const token = localStorage.getItem("token");
+
+    return data.map(mediaFile => {
+        const mediaId = id ?? mediaFile.id;
+        const urlBase = `${baseUrl}${basePath}${mediaId}?t=${token}`;
+        
+        const mediaDetails = {
+            id: mediaId,
             general: {},
             video: {},
             audio: [],
             subtitle: [],
-            downloadUrl: "",
-            streamUrl: ""
-        }
-        mediaDetails.id = mediaFile.id
-
-        let tempUrl = `${window.location.origin}${isSearchedFile ? "/api/stream/watch/" : "/api/stream/watch/uuid/"}${mediaFile.id}?t=${localStorage.getItem("token")}`;
-        if (window.location.port === "3000") {
-            tempUrl = tempUrl.replace("3000", "9000")
-        }
-        mediaDetails.streamUrl = tempUrl;
-        tempUrl = tempUrl.replace("/watch", "/download")
-        mediaDetails.downloadUrl = tempUrl
+            downloadUrl: urlBase.replace("/watch", "/download"),
+            streamUrl: urlBase
+        };
 
         mediaFile?.trackInfos?.forEach(track => {
-            if (track?.type === "General") {
-                const general = {
+            if (!track?.type) return;
+
+            const type = track.type;
+            const bytesToReadable = (value) => {
+                const result = bytesToReadbleFormat(value);
+                return `${result.value} ${result.suffix}`;
+            };
+
+            if (type === "General") {
+                mediaDetails.general = {
                     fileName: mediaFile.fileName,
-                    fileSize: `${bytesToReadbleFormat(track?.fileSize).value} ${bytesToReadbleFormat(track?.fileSize).suffix}`,
+                    fileSize: bytesToReadable(track?.fileSize),
                     duration: track?.duration,
-                    overallBitrate: `${bytesToReadbleFormat(track?.overallBitRate).value} ${bytesToReadbleFormat(track?.overallBitRate).suffix}/s`,
+                    overallBitrate: `${bytesToReadable(track?.overallBitRate)}/s`,
                     format: track?.format,
                     formatVersion: track?.formatVersion,
                     videoCount: track?.videoCount,
@@ -278,11 +287,9 @@ const convertMediaInfoToCustomFormat = (data, isSearchedFile) => {
                     encodedLibrary: track?.encodedLibrary,
                     isStreamable: track?.isStreamable === "Yes"
                 };
-
-                mediaDetails.general = general;
-            }
-            if (track?.type === "Video") {
-                const video = {
+            } 
+            else if (type === "Video") {
+                mediaDetails.video = {
                     resolution: `${track?.width}x${track?.height}`,
                     aspectRatio: track?.displayAspectRatio?.toFixed(3) || 'N/A',
                     format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
@@ -299,7 +306,7 @@ const convertMediaInfoToCustomFormat = (data, isSearchedFile) => {
                     colourPrimaries: track?.colourPrimaries,
                     transferCharacteristics: track?.transferCharacteristics,
                     matrixCoefficients: track?.matrixCoefficients,
-                    size: `${bytesToReadbleFormat(track?.streamSize).value} ${bytesToReadbleFormat(track?.streamSize).suffix}`,
+                    size: bytesToReadable(track?.streamSize),
                     duration: formatDuration(track?.duration),
                     hdrDetails: track?.hdrFormat ? [
                         track.hdrFormat,
@@ -307,42 +314,38 @@ const convertMediaInfoToCustomFormat = (data, isSearchedFile) => {
                         track.hdrFormatCompatibility
                     ].filter(Boolean).join(' | ') : null
                 };
-
-                mediaDetails.video = video;
-            }
-            if (track?.type === "Audio") {
-                const audio = {
+            } 
+            else if (type === "Audio") {
+                mediaDetails.audio.push({
                     language: getLanguageName(track?.language),
                     format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
-                    bitRate: `${bytesToReadbleFormat(track?.bitRate).value} ${bytesToReadbleFormat(track?.bitRate).suffix}/s`,
+                    bitRate: `${bytesToReadable(track?.bitRate)}/s`,
                     channels: track?.channels,
                     channelLayout: track?.channelLayout,
                     samplingRate: track?.samplingRate,
                     duration: track?.duration,
-                    size: `${bytesToReadbleFormat(track?.streamSize).value} ${bytesToReadbleFormat(track?.streamSize).suffix}`
-                };
-                mediaDetails.audio.push(audio);
-            }
-
-            if (track?.type === "Text") {
-                const subtitle = {
+                    size: bytesToReadable(track?.streamSize)
+                });
+            } 
+            else if (type === "Text") {
+                mediaDetails.subtitle.push({
                     language: track?.language,
                     format: track?.formatCommercialIfAny || track?.format,
                     codecID: track?.codecID,
-                    bitRate: track?.bitRate > 0
-                        ? `${bytesToReadbleFormat(track?.bitRate).value} ${bytesToReadbleFormat(track?.bitRate).suffix}/s`
+                    bitRate: track?.bitRate > 0 
+                        ? `${bytesToReadable(track?.bitRate)}/s` 
                         : 'Unknown',
                     frameCount: track?.frameCount,
                     duration: track?.duration,
                     forced: track?.forced,
                     defaultFlag: track?.defaultFlag
-                };
-                mediaDetails.subtitle.push(subtitle);
+                });
             }
         });
+
         return mediaDetails;
-    })
-}
+    });
+};
 
 
 // Helper functions

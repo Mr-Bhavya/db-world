@@ -26,6 +26,7 @@ import UsersCardView from './UsersCardView';
 import { handleApiError } from '../../Utils/errorHandler';
 import { useConfirm } from 'material-ui-confirm';
 import Constants from '../../Constants';
+import { toast } from '../../Toast';
 
 const UserManagement = () => {
     const navigate = useNavigate();
@@ -87,7 +88,7 @@ const UserManagement = () => {
             const deleteRes = await deleteUser(user.userId);
             if (deleteRes?.httpStatusCode === 200) {
                 setUsers(prevUsers => prevUsers.filter(prevUser => prevUser.userId !== user.userId));
-                Constants.showToast.success('User deleted successfully');
+                toast.success('User deleted successfully');
             }
         } catch (error) {
             handleApiError(error, navigate, location);
@@ -105,7 +106,7 @@ const UserManagement = () => {
                         user.userId === updatedUser.userId ? updatedUser : user
                     )
                 );
-                Constants.showToast.success('User updated successfully');
+                toast.success('User updated successfully');
             }
         } catch (error) {
             handleApiError(error, navigate, location);
@@ -222,7 +223,7 @@ const UserManagement = () => {
                     </motion.div>
                 </AnimatePresence>
             </motion.div>
-            {Constants.TOAST_CONTAINER}
+            
         </Container>
     );
 };

@@ -1,7 +1,7 @@
 package com.db.dbworld.stream.processor;
 
 import com.db.dbworld.payloads.MirrorStatus;
-import com.db.dbworld.services.StatusService;
+import com.db.dbworld.services.mirror.StatusService;
 
 import java.util.Map;
 

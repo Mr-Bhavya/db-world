@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import CommonServices from '../CommonServices';
 import Constants from '../Constants';
 import { addCredential, findAllHost, getUserRole } from '../ApiServices';
@@ -34,6 +33,7 @@ import {
     ArrowDropDown
 } from '@mui/icons-material';
 import { color, motion } from 'framer-motion';
+import { toast } from '../Toast';
 
 const AddPassword = () => {
     const navigate = useNavigate();
@@ -83,11 +83,11 @@ const AddPassword = () => {
     const validateInputField = () => {
         const { url, username, password } = inputField;
         if (!url || !username || !password) {
-            Constants.showToast.warning("Please fill all required fields.");
+            toast.warning("Please fill all required fields.");
             return false;
         }
         if (!isValidUrl) {
-            Constants.showToast.warning("Please enter a valid URL.");
+            toast.warning("Please enter a valid URL.");
             return false;
         }
         return true;
@@ -111,7 +111,7 @@ const AddPassword = () => {
             const addCredentialRes = await addCredential(payload);
 
             if (addCredentialRes.httpStatusCode === 201) {
-                Constants.showToast.success(addCredentialRes.message);
+                toast.success(addCredentialRes.message);
                 setInputField({
                     url: '',
                     username: '',
@@ -121,17 +121,17 @@ const AddPassword = () => {
                 });
                 getAllHost();
             } else if (addCredentialRes.httpStatusCode === 401) {
-                Constants.showToast.error(addCredentialRes.message, {
+                toast.error(addCredentialRes.message, {
                     autoClose: 1000,
                     onClose: () => {
                         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
                     }
                 });
             } else {
-                Constants.showToast.error(addCredentialRes.message);
+                toast.error(addCredentialRes.message);
             }
         } catch (error) {
-            Constants.showToast.error("An error occurred while saving the credential.");
+            toast.error("An error occurred while saving the credential.");
         } finally {
             setSubmitLoader(false);
         }
@@ -447,7 +447,7 @@ const AddPassword = () => {
                 </motion.div>
             </CardContent>
         </Card>
-        {Constants.TOAST_CONTAINER}
+        
     </motion.div>
 );
 

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { toast } from 'react-toastify';
 import Youtube_dl from './youtubedl/Youtube_dl';
 import { deleteTempFile } from '../../ApiServices';
 import Constants from '../../Constants';
 import { useLocation, useNavigate } from 'react-router-dom';
 import HttpFile from './HttpFile';
+import { toast } from '../../Toast';
 
 
 function Mirror() {
@@ -25,11 +25,11 @@ function Mirror() {
         setFreeMemoryLoder(true);
         let res = await deleteTempFile();
         if(res.httpStatusCode === 200){
-            Constants.showToast.success(res.message);
+            toast.success(res.message);
         }else if(res.httpStatusCode === 401 || res.httpStatusCode === 403){
             navigate(Constants.LOGIN_ROUTE, {state: {from: location}});
         }else{
-            Constants.showToast.error(res.message);
+            toast.error(res.message);
         }        
         setFreeMemoryLoder(false);
     }
@@ -65,7 +65,7 @@ function Mirror() {
                 </div>
                 {returnStuf}
             </div>
-            {Constants.TOAST_CONTAINER}
+            
         </div>
     )
 

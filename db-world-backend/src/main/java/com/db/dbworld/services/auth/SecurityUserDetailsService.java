@@ -1,7 +1,8 @@
-package com.db.dbworld.services;
+package com.db.dbworld.services.auth;
 
 import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.services.Impl.UserDetailImpl;
+import com.db.dbworld.services.user.UserService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;

@@ -23,14 +23,14 @@ import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.file.FileReadingMessageSource;
 import org.springframework.integration.file.dsl.Files;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
+import org.springframework.web.socket.client.WebSocketClient;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
 import java.io.File;
-import java.lang.reflect.Type;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 
@@ -130,6 +130,11 @@ public class BeanConfig {
         // Prevent serialization of dates as timestamps
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return mapper;
+    }
+
+    @Bean
+    public WebSocketClient webSocketClient() {
+        return new StandardWebSocketClient();
     }
 
 }

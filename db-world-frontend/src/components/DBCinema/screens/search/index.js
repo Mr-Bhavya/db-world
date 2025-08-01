@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import CloseIcon from '@mui/icons-material/Close';
 import { alpha } from '@mui/material/styles';
+import { toast } from '../../../Toast';
 
 const PAGE_SIZE = 12; // Number of records per page (for record search)
 
@@ -180,10 +181,10 @@ function SearchOverlay({ onClose }) {
         }
         setIsSearchRecordResDone(true);
       } else if (recordResponse.httpStatusCode === 401) {
-        Constants.showToast.error(recordResponse.message + Constants.RE_LOGIN);
+        toast.error(recordResponse.message + Constants.RE_LOGIN);
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       } else {
-        Constants.showToast.error(recordResponse.message);
+        toast.error(recordResponse.message);
       }
     } catch (err) {
       console.error(err);
@@ -201,10 +202,10 @@ function SearchOverlay({ onClose }) {
         setStreamList(streamResponse.data);
         setIsSearchStreamResDone(true);
       } else if (streamResponse.httpStatusCode === 401) {
-        Constants.showToast.error(streamResponse.message + Constants.RE_LOGIN);
+        toast.error(streamResponse.message + Constants.RE_LOGIN);
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       } else {
-        Constants.showToast.error(streamResponse.message);
+        toast.error(streamResponse.message);
       }
     } catch (err) {
       console.error(err);
@@ -521,7 +522,7 @@ function SearchOverlay({ onClose }) {
         onClose={handleCloseModal}
         fileId={selectedFile?.fileId}
       />
-      {Constants.TOAST_CONTAINER}
+      
     </>
   );
 }

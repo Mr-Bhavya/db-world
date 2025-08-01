@@ -60,9 +60,9 @@ public class DbWorldConstants {
             "/test/**",
             "/dbworld-api-doc.html",
             "/swagger-ui/**",
-            "/api/utils/status",
-            "/api/utils/application-logs",
-            "/api/utils/download-tracker",
+            "/ws/status",
+            "/ws/application-logs",
+            "/ws/download-tracker",
             "/api/stream/watch/**",
             "/api/stream/download/**",
             "/*", "/db-world/**", "/static/**", "/api/metrics/**", "/actuator/**"

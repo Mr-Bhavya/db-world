@@ -20,7 +20,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Bean
     AuthorizationManager<Message<?>> messageAuthorizationManager(MessageMatcherDelegatingAuthorizationManager.Builder messages) {
-        messages.simpDestMatchers("/api/utils/**").hasAnyAuthority("VIEWER")
+        messages.simpDestMatchers("/ws/**").hasAnyAuthority("VIEWER")
                 .anyMessage().authenticated();
         ;
         return messages.build();
@@ -38,14 +38,15 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(mirrorStatusHandler, "/api/utils/status")
+        registry.addHandler(mirrorStatusHandler, "/ws/status")
                 .setAllowedOrigins("*");
 
-        registry.addHandler(applicationLogsHandler, "/api/utils/application-logs")
+        registry.addHandler(applicationLogsHandler, "/ws/application-logs")
                 .setAllowedOrigins("*");
 
-        registry.addHandler(downloadTrackerHandler, "/api/utils/download-tracker")
+        registry.addHandler(downloadTrackerHandler, "/ws/download-tracker")
                 .setAllowedOrigins("*");
     }
+
 }
 
