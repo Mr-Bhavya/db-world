@@ -148,7 +148,7 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
             log.debug("[DB] Deleting MediaFileInfoEntity with id={}", id); // 🔍 Added Log
             mediaFileInfoRepository.delete(mediaFileInfo);
 
-            dbWorldUtils.deleteFile(mediaFileInfo.getFilePath());
+            dbWorldUtils.deleteFileOrDirectory(mediaFileInfo.getFilePath(), false);
             log.debug("[FS] Deleted file from disk: {}", mediaFileInfo.getFilePath()); // 🔍 Added Log
         } catch (Exception ex) {
             log.error("Error deleting media file with ID {}: {}", id, ex.getMessage());
@@ -172,7 +172,7 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
             mediaFileInfoRepository.deleteAll(mediaFileInfos);
 
             mediaFileInfos.forEach(mfi -> {
-                dbWorldUtils.deleteFile(mfi.getFilePath());
+                dbWorldUtils.deleteFileOrDirectory(mfi.getFilePath(), false);
                 log.debug("[FS] Deleted file: {}", mfi.getFilePath()); // 🔍 Added Log
             });
         } catch (Exception ex) {

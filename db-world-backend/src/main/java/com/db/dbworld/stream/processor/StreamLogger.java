@@ -2,9 +2,11 @@ package com.db.dbworld.stream.processor;
 
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.services.mirror.StatusService;
+import lombok.extern.log4j.Log4j2;
 
 import java.util.Map;
 
+@Log4j2
 public class StreamLogger {
 
     private static final Map<Character, String> HTML_ESCAPE_MAP = Map.of(
@@ -14,6 +16,11 @@ public class StreamLogger {
     );
 
     public static void appendHtmlLine(MirrorStatus mirrorStatus, String raw, boolean isError, StatusService statusService) {
+        // Handle null raw input
+        if (raw == null) {
+            raw = "[null]";
+        }
+
         StringBuilder escaped = new StringBuilder(raw.length() + 20);
         for (char c : raw.toCharArray()) {
             escaped.append(HTML_ESCAPE_MAP.getOrDefault(c, String.valueOf(c)));
@@ -27,12 +34,18 @@ public class StreamLogger {
                 color, tag, escaped
         );
 
+        // Safely handle null message
         String prev = mirrorStatus.getMessage() != null ? mirrorStatus.getMessage() : "";
-        if(isError) {
-            statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), prev + html);
-        }else{
-            statusService.updateStatusMessage(mirrorStatus.getId(), prev + html);
+
+        try {
+            if (isError) {
+                statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), prev + html);
+            } else {
+                statusService.updateStatusMessage(mirrorStatus.getId(), prev + html);
+            }
+        } catch (Exception e) {
+            // Log the error or handle it appropriately
+            log.error("Failed to update mirror status: {}", e.getMessage());
         }
     }
 }
-

@@ -73,9 +73,12 @@ function Status() {
   const reconnectTimeout = useRef(null);
 
   const connectWebSocket = useCallback(() => {
-    const url = `${WEBSOCKET_BASEURL}/ws/status`;
-    // const url = `ws://localhost:9000/ws/status`;
-    ws.current = new WebSocket(url);
+
+    const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_BASEURL
+      ? `${process.env.REACT_APP_WEBSOCKET_BASEURL}/ws/status`
+      : 'ws://localhost:9000/ws/status';
+      
+    ws.current = new WebSocket(WEBSOCKET_URL);
 
     ws.current.onopen = () => {
       setConnectionStatus('connected');
@@ -267,7 +270,7 @@ function Status() {
         >
           <AnimatePresence>
             {status.map((download => (
-              <StatusCard download={download}/>
+              <StatusCard download={download} />
             )))}
           </AnimatePresence>
         </motion.div>
@@ -290,7 +293,7 @@ function Status() {
           transition: width 0.6s ease;
         }
       `}</style>
-      
+
     </div>
   );
 }

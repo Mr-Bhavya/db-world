@@ -100,7 +100,7 @@ dbworld:
     tempDownloadPath: D:/Bhavya/Temp/
     logFilePath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld.json
     log4j2LogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs
-    downloadLogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/download_progress.log
+    downloadLogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/downloads.log
     integrationFolderPath: D:/Bhavya/ProcessedVideos/
     streamHomePath: D:/Bhavya/Videos
     externalStreamHomePath: F:/Bhavya/Videos

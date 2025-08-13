@@ -24,32 +24,39 @@ public class UserActivityLogService {
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     public void logActivity(HttpServletRequest request, HttpServletResponse response, long duration, UserEntity userEntity, String requestBody) {
+        // Extract required values before the async task
+        String method = request.getMethod();
+        String uri = request.getRequestURI();
+        String query = request.getQueryString();
+        String ip = request.getRemoteAddr();
+        String userAgent = request.getHeader("User-Agent");
+        int status = response.getStatus();
+        String requestId = request.getHeader("X-Request-ID");
+        LocalDateTime timestamp = LocalDateTime.now();
+
         executor.submit(() -> {
             try {
-                String ip = request.getRemoteAddr();
-                String userAgent = request.getHeader("User-Agent");
-                String requestId = request.getHeader("X-Request-ID");
-
                 UserActivityLogEntity logEntry = UserActivityLogEntity.builder()
                         .user(userEntity)
-                        .method(request.getMethod())
-                        .uri(request.getRequestURI())
-                        .query(request.getQueryString())
+                        .method(method)
+                        .uri(uri)
+                        .query(query)
                         .ip(ip)
                         .userAgent(userAgent)
-                        .status(response.getStatus())
+                        .status(status)
                         .duration(duration)
-                        .timestamp(LocalDateTime.now())
+                        .timestamp(timestamp)
                         .requestId(requestId)
                         .requestBody(requestBody)
                         .build();
 
                 logRepository.save(logEntry);
             } catch (Exception e) {
-                log.error("Async logging failed: {}", e.getMessage());
+                log.error("Async logging failed", e);
             }
         });
     }
+
 
     public Page<UserActivityLogEntity> getFilteredLogs(String username, String method, Integer status,
                                                        String uri, String ip, String requestId,

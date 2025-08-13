@@ -19,6 +19,8 @@ import com.db.dbworld.exceptions.DuplicateResourceException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.exceptions.TmdbApiException;
 import com.db.dbworld.helpers.CacheLogger;
+import com.db.dbworld.helpers.DbWorldRecords;
+import com.db.dbworld.helpers.TmdbUpdateStatusTracker;
 import com.db.dbworld.payloads.CustomPageImpl;
 import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.RequestPayloads;
@@ -108,6 +110,9 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     private UserService userService;
 
     @Autowired
+    private TmdbUpdateStatusTracker tmdbUpdateStatusTracker;
+
+    @Autowired
     private CacheManager cacheManager;
 
     @Autowired
@@ -115,8 +120,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Autowired
     private CacheLogger cacheLogger;
-
-    private Map<String, Object> updateRecordsFromTmdb = new HashMap<>();
 
     @Transactional
     @Override
@@ -322,9 +325,17 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Override
     @Cacheable(key = "'search-simple:' + #keyword.hashCode()")
-    public List<Map<String, String>> searchRecordByKeyword(String keyword) {
+    public List<DbWorldRecords.CinemaRecordDto> searchRecordByKeyword(String keyword) {
         try {
-            return dbCinemaRecordsRepository.findRecords("%" + keyword + "%");
+            return dbCinemaRecordsRepository.findRecords("%" + keyword + "%")
+                    .stream()
+                    .map(map -> new DbWorldRecords.CinemaRecordDto(
+                            (Long) map.get("recordId"),
+                            (String) map.get("name"),
+                            (String) map.get("type"),
+                            (Long) map.get("tmdb")
+                    ))
+                    .collect(Collectors.toList());
         } catch (Exception ex) {
             log.error("Error in simple search by keyword {}: {}", keyword, ex.getMessage(), ex);
             throw new DbWorldException("Failed to perform simple search", ex);
@@ -412,37 +423,92 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Async
     @Override
     @Transactional
-    public void updateTmdbWithLatest() {
+    public void updateTmdbWithLatest(Integer limit, boolean all) {
         try {
-            updateRecordsFromTmdb = new HashMap<>();
-            updateRecordsFromTmdb.put("start_time", dbWorldUtils.getISTDateTime().toLocalDateTime().toString());
-            updateRecordsFromTmdb.put("running", true);
-
-            List<TmdbDataEntity> tmdbDataEntities = tmdbDataRepository.findAll();
-            Map<Long, String> failedIds = new HashMap<>();
-            List<Long> successIds = new ArrayList<>();
-            tmdbDataEntities.forEach(tmdbDataEntity -> {
-                try {
-                    if (tmdbDataEntity instanceof MovieTmdbDataEntity) {
-                        updateTmdbForMovie(tmdbDataEntity);
-                    } else if (tmdbDataEntity instanceof SeriesTmdbDataEntity) {
-                        updateTmdbForSeries(tmdbDataEntity);
-                    }
-                    successIds.add(tmdbDataEntity.getId());
-                    updateRecordsFromTmdb.put("success", successIds);
-                    log.info("Success TMDB ID: {}", tmdbDataEntity.getId());
-                    Thread.sleep(200);
-                } catch (Exception ex) {
-                    failedIds.put(tmdbDataEntity.getId(), ex.getMessage());
-                    updateRecordsFromTmdb.put("failed", failedIds);
-                    log.error("Failed ID: {} Error Message: {}", tmdbDataEntity.getId(), ex.getMessage());
-                }
-            });
+            if (all) {
+                processAllRecordsInBatches();
+            } else {
+                processLimitedRecords(limit != null ? limit : 50);
+            }
         } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage(), updateRecordsFromTmdb);
+            if (!tmdbUpdateStatusTracker.isCancelled()) {
+                log.error("Update process failed: {}", ex.getMessage());
+                throw new DbWorldException("Update failed: " + ex.getMessage(),
+                        tmdbUpdateStatusTracker.getCurrentStatus());
+            }
         } finally {
-            updateRecordsFromTmdb.put("end_time", dbWorldUtils.getISTDateTime().toLocalDateTime().toString());
-            updateRecordsFromTmdb.put("running", false);
+            tmdbUpdateStatusTracker.completeProcess();
+        }
+    }
+
+    @Override
+    public void cancelUpdateTmdbWithLatest() {
+        tmdbUpdateStatusTracker.cancelProcess();
+    }
+
+    private void processAllRecordsInBatches() {
+        int batchSize = 500;
+        int totalCount = (int) tmdbDataRepository.count();
+        tmdbUpdateStatusTracker.startProcess(totalCount);
+
+        int page = 0;
+        boolean hasMore = true;
+
+        while (hasMore && !tmdbUpdateStatusTracker.isCancelled()) {
+            Pageable pageable = PageRequest.of(page, batchSize);
+            Page<TmdbDataEntity> entityPage = tmdbDataRepository.findAll(pageable);
+            List<TmdbDataEntity> entities = entityPage.getContent();
+
+            if (processEntitiesBatch(entities)) {
+                // If batch processing was interrupted by cancellation
+                break;
+            }
+
+            hasMore = entityPage.hasNext();
+            page++;
+
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        if (tmdbUpdateStatusTracker.isCancelled()) {
+            log.info("Update process was cancelled by user");
+        }
+    }
+
+    private void processLimitedRecords(int limit) {
+        List<TmdbDataEntity> entities = tmdbDataRepository.findRecentRecords(limit);
+        tmdbUpdateStatusTracker.startProcess(entities.size());
+        processEntitiesBatch(entities);
+    }
+
+    private boolean processEntitiesBatch(List<TmdbDataEntity> entities) {
+        for (TmdbDataEntity entity : entities) {
+            if (tmdbUpdateStatusTracker.isCancelled()) {
+                return true; // Indicate processing was interrupted
+            }
+
+            try {
+                processEntity(entity);
+                tmdbUpdateStatusTracker.recordSuccess();
+                Thread.sleep(200);
+            } catch (Exception ex) {
+                tmdbUpdateStatusTracker.recordFailure(entity.getId(), ex.getMessage());
+                log.error("Failed ID: {} Error Message: {}", entity.getId(), ex.getMessage());
+            }
+        }
+        return false;
+    }
+
+    private void processEntity(TmdbDataEntity entity) {
+        if (entity instanceof MovieTmdbDataEntity) {
+            updateTmdbForMovie((MovieTmdbDataEntity) entity);
+        } else if (entity instanceof SeriesTmdbDataEntity) {
+            updateTmdbForSeries((SeriesTmdbDataEntity) entity);
         }
     }
 
@@ -461,13 +527,13 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public Map<String, Object> getStatusOfRecordsUpdate() {
-        return updateRecordsFromTmdb;
+    public DbWorldRecords.TmdbUpdateProcessStatus getStatusOfRecordsUpdate() {
+        return tmdbUpdateStatusTracker.getCurrentStatus();
     }
 
     @Override
     public boolean isRecordsUpdateRunning() {
-        return updateRecordsFromTmdb.containsKey("running") && (Boolean) updateRecordsFromTmdb.get("running");
+        return tmdbUpdateStatusTracker.isRunning();
     }
 
     @Override

@@ -21,6 +21,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -144,64 +145,100 @@ public class Aria2WebSocketClientService {
                 }
             }
 
-            private void handleInitialInfoResponse(String gid, JsonNode result) {
+            public void handleInitialInfoResponse(String gid, JsonNode result) {
                 String mirrorId = activeDownloads.get(gid);
                 if (mirrorId == null) return;
 
                 MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
-                if (mirrorStatus == null) return;
-
-                boolean updated = false;
+                if (mirrorStatus == null || !mirrorStatus.isMagnet()) return;
 
                 try {
-                    String url = mirrorStatus.getFileUrl();
-
-                    // ✅ Skip HTTPS/HTTP links – already have name
-                    if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-                        return;
-                    }
-
-                    // ✅ Try to get name from .torrent info
-                    JsonNode torrentNode = result.path("bittorrent").path("info").path("name");
-                    if (!torrentNode.isMissingNode() && !torrentNode.asText().isBlank()) {
-                        String torrentName = torrentNode.asText();
-                        if (mirrorStatus.getFileName() == null || mirrorStatus.getFileName().isBlank()) {
-                            mirrorStatus.setFileName(torrentName);
-                            log.info("🎯 Set torrent name from Aria2 response: {}", torrentName);
-                            updated = true;
-                        }
-                    }
-
-                    // ✅ If file list is present, check first file name or folder size
-                    ArrayNode files = (ArrayNode) result.path("files");
-                    if (files != null && !files.isEmpty()) {
-                        if (files.size() == 1) {
-                            String filePath = files.get(0).path("path").asText();
-                            String actualFileName = Paths.get(filePath).getFileName().toString();
-                            if (mirrorStatus.getFileName() == null || mirrorStatus.getFileName().isBlank()) {
-                                mirrorStatus.setFileName(actualFileName);
-                                log.info("📄 Set single file name from files array: {}", actualFileName);
-                                updated = true;
-                            }
-                        } else {
-                            long totalSize = StreamSupport.stream(files.spliterator(), false)
-                                    .mapToLong(f -> f.path("length").asLong())
-                                    .sum();
-                            if (mirrorStatus.getFileSize() != totalSize) {
-                                mirrorStatus.setFileSize(totalSize);
-                                log.info("📁 Set folder total size: {} bytes", totalSize);
-                                updated = true;
-                            }
-                        }
-                    }
+                    boolean updated = processTorrentInfo(result, mirrorStatus)
+                            | processFilesInfo(result, mirrorStatus);
 
                     if (updated) {
                         statusService.updateStatus(mirrorStatus);
                     }
-
                 } catch (Exception e) {
-                    log.error("❌ Failed to process initial info for GID {} → {}", gid, e.getMessage(), e);
+                    log.error("Failed to process initial info for GID {} → {}", gid, e.getMessage(), e);
                 }
+            }
+
+            private boolean processTorrentInfo(JsonNode result, MirrorStatus mirrorStatus) {
+                JsonNode torrentNode = result.path("bittorrent").path("info").path("name");
+                if (torrentNode.isMissingNode() || torrentNode.asText().isBlank()) {
+                    return false;
+                }
+
+                String torrentName = torrentNode.asText();
+                if (mirrorStatus.isMagnet()) {
+                    mirrorStatus.setFileName(torrentName);
+                    mirrorStatus.setTempFileName(torrentName);
+                    log.info("Set torrent name from response: {}", torrentName);
+                    return true;
+                }
+                return false;
+            }
+
+            private boolean processFilesInfo(JsonNode result, MirrorStatus mirrorStatus) {
+                ArrayNode files = (ArrayNode) result.path("files");
+                if (files == null || files.isEmpty()) {
+                    return false;
+                }
+
+                return files.size() == 1
+                        ? processSingleFile(files.get(0), mirrorStatus)
+                        : processMultipleFiles(files, mirrorStatus);
+            }
+
+            private boolean processSingleFile(JsonNode file, MirrorStatus mirrorStatus) {
+                boolean updated = false;
+                String filePath = file.path("path").asText();
+                String actualFileName = Paths.get(filePath).getFileName().toString();
+
+                if (mirrorStatus.isMagnet()) {
+                    mirrorStatus.setFileName(actualFileName);
+                    mirrorStatus.setTempFileName(actualFileName);
+                    log.info("Set single file name: {}", actualFileName);
+                    updated = true;
+                }
+
+                long fileSize = file.path("length").asLong();
+                if (mirrorStatus.getFileSize() != fileSize) {
+                    mirrorStatus.setFileSize(fileSize);
+                    log.info("Set single file size: {} bytes", fileSize);
+                    updated = true;
+                }
+
+                return updated;
+            }
+
+            private boolean processMultipleFiles(ArrayNode files, MirrorStatus mirrorStatus) {
+                boolean updated = false;
+
+                // Calculate total size
+                long totalSize = StreamSupport.stream(files.spliterator(), false)
+                        .mapToLong(f -> f.path("length").asLong())
+                        .sum();
+
+                if (mirrorStatus.getFileSize() != totalSize) {
+                    mirrorStatus.setFileSize(totalSize);
+                    log.info("Set folder total size: {} bytes", totalSize);
+                    updated = true;
+                }
+
+                // Set folder name
+                String firstFilePath = files.get(0).path("path").asText();
+                Path parentFolder = Paths.get(firstFilePath).getParent();
+                if (parentFolder != null && mirrorStatus.isMagnet()) {
+                    String folderName = parentFolder.getFileName().toString();
+                    mirrorStatus.setFileName(folderName);
+                    mirrorStatus.setTempFileName(folderName);
+                    log.info("Set folder name: {}", folderName);
+                    updated = true;
+                }
+
+                return updated;
             }
 
             @Override
@@ -411,7 +448,6 @@ public class Aria2WebSocketClientService {
 
         // Store original file info
         String originalFileName = mirrorStatus.getFileName();
-        String originalFilePath = mirrorStatus.getFilePath();
 
         // Always update download status
         statusService.updateMirrorStatusWithDownloadState(mirrorId, downloadStatus);
@@ -419,8 +455,6 @@ public class Aria2WebSocketClientService {
         // Update size if changed
         if (total > 0 && mirrorStatus.getFileSize() != total) {
             mirrorStatus.setFileSize(total);
-            mirrorStatus.setFileName(originalFileName); // restore
-            mirrorStatus.setFilePath(originalFilePath);
             statusService.updateStatus(mirrorStatus);
         }
 

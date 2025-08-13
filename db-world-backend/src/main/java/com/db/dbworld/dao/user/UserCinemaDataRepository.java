@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 public interface UserCinemaDataRepository extends JpaRepository<UserCinemaDataEntity, Long> {
 
@@ -41,4 +42,24 @@ public interface UserCinemaDataRepository extends JpaRepository<UserCinemaDataEn
     default List<UserCinemaDataEntity> findRecentActivities(Date cutoff, int limit) {
         return findRecentActivities(cutoff, org.springframework.data.domain.PageRequest.of(0, limit));
     }
+
+    List<UserCinemaDataEntity> findTop10ByUserEmailOrderByTimeDesc(String email);
+
+    boolean existsByUserEmailAndValueAndEvent(String userId, String fileName, String string);
+
+    @Query(value = """
+    SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY user ORDER BY time DESC) AS rn
+        FROM db_world.USER_CINEMA_DATA
+    ) ranked
+    WHERE rn <= 10
+    """, nativeQuery = true)
+    List<UserCinemaDataEntity> findTop10EventsPerExistingUser();
+
+    Optional<UserCinemaDataEntity> findByDownloadId(String downloadId);
+
+    Optional<UserCinemaDataEntity> findByDownloadIdAndStatus(String downloadId, UserCinemaDataEntity.Status status);
+
+    boolean existsByDownloadIdAndStatus(String downloadId, UserCinemaDataEntity.Status status);
+
 }

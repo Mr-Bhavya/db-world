@@ -9,7 +9,6 @@ import {
 } from '@mui/material';
 import { Person as PersonIcon, Error as ErrorIcon } from '@mui/icons-material';
 import debounce from 'lodash/debounce';
-import axiosInstance from '../../Utils/AxiosInstants';
 import { findUserByQuery } from '../../ApiServices';
 
 const UsernameAutocomplete = ({ value, onChange, onInputChange, error, helperText }) => {

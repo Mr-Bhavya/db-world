@@ -103,20 +103,32 @@ const UserActivityLogs = () => {
         method: '',
         username: ''
     });
+    const [error, setError] = useState(null);
     const usernameSearchInProgress = useRef(false);
 
     const fetchLogs = useCallback(async (params) => {
         setLoading(true);
+        setError(null);
         try {
-            const response = await axiosInstance.get('/api/admin/activity-logs', { params });
+            const response = await axiosInstance.get('/api/admin/activity-logs', {
+                params: {
+                    ...params,
+                    page: params.page || 0,
+                    size: params.size || rowsPerPage,
+                    sort: 'timestamp,desc'
+                }
+            });
             setLogs(response.data.content || []);
             setTotalItems(response.data.totalElements || 0);
         } catch (error) {
             console.error('Error fetching logs:', error);
+            setError('Failed to fetch logs. Please try again.');
+            setLogs([]);
+            setTotalItems(0);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [rowsPerPage]);
 
     const debouncedFetchLogs = useMemo(() =>
         debounce((params) => {
@@ -127,16 +139,15 @@ const UserActivityLogs = () => {
         [fetchLogs]
     );
 
-    // Initial fetch on mount
+    // Initial fetch on mount and when rowsPerPage changes
     useEffect(() => {
         fetchLogs({
             page: 0,
-            size: rowsPerPage,
-            sort: 'timestamp,desc'
+            size: rowsPerPage
         });
     }, [fetchLogs, rowsPerPage]);
 
-    // Debounced fetch when filters or searchTerm changes
+    // Fetch logs when filters, search term, or page changes
     useEffect(() => {
         const params = {
             page,
@@ -144,54 +155,55 @@ const UserActivityLogs = () => {
             ...(searchTerm && { search: searchTerm }),
             ...(filters.method && { method: filters.method }),
             ...(filters.status && { status: filters.status }),
-            ...(filters.username && { username: filters.username }),
-            sort: 'timestamp,desc'
+            ...(filters.username && { username: filters.username })
         };
 
         debouncedFetchLogs(params);
         return () => debouncedFetchLogs.cancel();
-    }, [page, rowsPerPage, searchTerm, filters.method, filters.status, debouncedFetchLogs]);
+    }, [page, rowsPerPage, searchTerm, filters, debouncedFetchLogs]);
 
-    // Handle username filter change separately
     const handleUsernameChange = (value) => {
-        usernameSearchInProgress.current = false;
-        setFilters(prev => ({ ...prev, username: value?.value || '' }));
+        setFilters(prev => ({
+            ...prev,
+            username: value?.value || ''
+        }));
         setPage(0);
     };
 
-    const handleUsernameInputChange = (inputValue) => {
+    const handleUsernameInputChange = useCallback((inputValue) => {
         usernameSearchInProgress.current = !!inputValue;
-    };
+    }, []);
 
     const handleExpandRow = (id) => {
         setExpandedRow(expandedRow === id ? null : id);
     };
 
     const handleChangePage = (_, newPage) => setPage(newPage);
+
     const handleChangeRowsPerPage = (e) => {
         setRowsPerPage(parseInt(e.target.value, 10));
         setPage(0);
     };
+
     const handleSearchChange = (e) => {
         setSearchTerm(e.target.value);
         setPage(0);
     };
+
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
         setPage(0);
     };
 
     const handleRefresh = () => {
-        const params = {
+        fetchLogs({
             page,
             size: rowsPerPage,
             ...(searchTerm && { search: searchTerm }),
             ...(filters.method && { method: filters.method }),
             ...(filters.status && { status: filters.status }),
-            ...(filters.username && { username: filters.username }),
-            sort: 'timestamp,desc'
-        };
-        fetchLogs(params);
+            ...(filters.username && { username: filters.username })
+        });
     };
 
     const renderRowDetails = (log) => (
@@ -200,11 +212,11 @@ const UserActivityLogs = () => {
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 3 }}>
                 {[
                     { icon: <PersonIcon />, label: 'User', value: log.username },
-                    { icon: <PublicIcon />, label: 'IP Address', value: log.ip },
+                    // { icon: <PublicIcon />, label: 'IP Address', value: log.ip },
                     { icon: <ComputerIcon />, label: 'User Agent', value: log.userAgent },
                     { icon: <QueryStatsIcon />, label: 'Performance', value: `${log.duration}ms` },
                     { icon: <ScheduleIcon />, label: 'Timestamp', value: new Date(log.timestamp).toLocaleString() },
-                    { icon: <HttpIcon />, label: 'Request ID', value: log.requestId }
+                    // { icon: <HttpIcon />, label: 'Request ID', value: log.requestId }
                 ].map((item, i) => (
                     <Paper key={i} sx={{ p: 2 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -247,6 +259,12 @@ const UserActivityLogs = () => {
                     </Tooltip>
                 </Box>
 
+                {error && (
+                    <Paper sx={{ mb: 3, p: 2, backgroundColor: theme.palette.error.light }}>
+                        <Typography color="error">{error}</Typography>
+                    </Paper>
+                )}
+
                 <Paper sx={{ mb: 3, p: 2 }}>
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                         <TextField
@@ -263,7 +281,7 @@ const UserActivityLogs = () => {
                             }}
                             sx={{ flexGrow: 1, maxWidth: 400 }}
                         />
-                        <FormControl size="small">
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
                             <Select
                                 value={filters.method}
                                 onChange={(e) => handleFilterChange('method', e.target.value)}
@@ -274,7 +292,7 @@ const UserActivityLogs = () => {
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl size="small">
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
                             <Select
                                 value={filters.status}
                                 onChange={(e) => handleFilterChange('status', e.target.value)}
