@@ -1,6 +1,7 @@
 package com.db.dbworld.services.cinema;
 
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
+import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.CustomPageImpl;
 import com.db.dbworld.payloads.RecordSearchCriteria;
 import com.db.dbworld.payloads.RequestPayloads;
@@ -39,7 +40,7 @@ public interface DBCinemaRecordsService {
 
     Integer countRecordsByKeyword(String keyword);
 
-    List<Map<String, String>> searchRecordByKeyword(String keyword);
+    List<DbWorldRecords.CinemaRecordDto> searchRecordByKeyword(String keyword);
 
     List<HashMap<String, Object>> getTmdbByQuery(String recordType, String query, int year);
 
@@ -51,9 +52,11 @@ public interface DBCinemaRecordsService {
 
     CustomPageImpl<DBCinemaRecordsDto> getWatchListCinemaRecords(int pageNumber, int pageSize);
 
-    void updateTmdbWithLatest();
+    void updateTmdbWithLatest(Integer limit, boolean all);
 
-    Map<String, Object> getStatusOfRecordsUpdate();
+    void cancelUpdateTmdbWithLatest();
+
+    DbWorldRecords.TmdbUpdateProcessStatus getStatusOfRecordsUpdate();
 
     boolean isRecordsUpdateRunning();
 

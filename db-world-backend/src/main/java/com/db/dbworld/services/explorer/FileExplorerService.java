@@ -2,6 +2,7 @@ package com.db.dbworld.services.explorer;
 
 import com.db.dbworld.dao.fileexplorer.FileRepository;
 import com.db.dbworld.entities.fileexplorer.FileEntity;
+import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.fileexplorer.FileDto;
 import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.utils.DbWorldConstants;
@@ -75,10 +76,10 @@ public class FileExplorerService {
     }
 
     // Delete file from disk and remove metadata.
-    public void deleteFile(UUID id) throws IOException {
+    public void deleteFile(UUID id) throws DbWorldException {
         FileEntity fileEntity = getFile(id);
         Path path = Paths.get(fileEntity.getFilePath());
-        dbWorldUtils.deleteFileThrowable(path.toString());
+        dbWorldUtils.deleteFileOrDirectory(path.toString(), true);
         mediaFileInfoService.deleteInfoByFilePath(path.toString());
 //        fileRepository.delete(fileEntity);
     }

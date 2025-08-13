@@ -3,6 +3,8 @@ package com.db.dbworld.controllers;
 import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
 import com.db.dbworld.entities.user.UserActivityLogEntity;
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.helpers.DbWorldRecords;
+import com.db.dbworld.helpers.TmdbUpdateStatusTracker;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
@@ -169,12 +171,30 @@ public class AdminController {
 
     @PutMapping("/cinema/records")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> updateTmdbWithLatest() {
-        if (this.dbCinemaRecordsService.getStatusOfRecordsUpdate().containsKey("running") && (Boolean) this.dbCinemaRecordsService.getStatusOfRecordsUpdate().get("running")) {
+    public ApiResponse<DbWorldRecords.TmdbUpdateProcessStatus> updateTmdbWithLatest(
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false, defaultValue = "false") boolean all) {
+
+        if (dbCinemaRecordsService.isRecordsUpdateRunning()) {
             throw new DbWorldException(HttpStatus.ALREADY_REPORTED, "Updating records is already running");
         }
-        this.dbCinemaRecordsService.updateTmdbWithLatest();
-        return new ApiResponse<>(HttpStatus.OK, true, "Records is updating.", this.dbCinemaRecordsService.getStatusOfRecordsUpdate());
+
+        dbCinemaRecordsService.updateTmdbWithLatest(limit, all);
+        return new ApiResponse<>(HttpStatus.OK, true, "Records update started",
+                dbCinemaRecordsService.getStatusOfRecordsUpdate());
+    }
+
+    @PostMapping("/cinema/records/cancel-update")
+    public ResponseEntity<?> cancelUpdateTmdbWithLatest() {
+        dbCinemaRecordsService.cancelUpdateTmdbWithLatest();
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/cinema/records/status")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<DbWorldRecords.TmdbUpdateProcessStatus> getUpdateStatus() {
+        return new ApiResponse<>(HttpStatus.OK, true, "Current process status",
+                dbCinemaRecordsService.getStatusOfRecordsUpdate());
     }
 
     @PutMapping("/cinema/record/{recordId}")
@@ -206,8 +226,8 @@ public class AdminController {
 
     @GetMapping("/cinema/record/search")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<List<Map<String, String>>> searchRecordByKeyword(@RequestParam(value = "q") String query) {
-        List<Map<String, String>> dbCinemaRecords = dbCinemaRecordsService.searchRecordByKeyword(query);
+    public ApiResponse<List<DbWorldRecords.CinemaRecordDto>> searchRecordByKeyword(@RequestParam(value = "q") String query) {
+        List<DbWorldRecords.CinemaRecordDto> dbCinemaRecords = dbCinemaRecordsService.searchRecordByKeyword(query);
         return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecords);
     }
 
@@ -220,13 +240,6 @@ public class AdminController {
     ) {
         List<HashMap<String, Object>> list = this.dbCinemaRecordsService.getTmdbByQuery(type, query, year);
         return new ApiResponse<>(HttpStatus.OK, true, list);
-    }
-
-    @GetMapping("/cinema/records/status")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> getStatusOfRecordUpdate() {
-        Map<String, Object> map = this.dbCinemaRecordsService.getStatusOfRecordsUpdate();
-        return new ApiResponse<>(HttpStatus.OK, true, map);
     }
 
 

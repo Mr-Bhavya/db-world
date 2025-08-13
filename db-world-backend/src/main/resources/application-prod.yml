@@ -84,9 +84,9 @@ aria2:
 dbworld:
   paths:
     tempDownloadPath: /ext_hdisk/dbworld/download/
-    logFilePath: /app/db_world/logs/dbworld-json.log
+    logFilePath: /app/db_world/logs/dbworld.json
     log4j2LogPath: /app/db_world/logs
-    downloadLogPath: /app/db_world/logs/download_progress.log
+    downloadLogPath: /app/db_world/logs/nginx/download_tracker.log
     integrationFolderPath: /ext_hdisk/dbworld/integration/
     streamHomePath: /ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos

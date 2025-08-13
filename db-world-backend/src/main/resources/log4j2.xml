@@ -89,8 +89,8 @@
             <Routes pattern="$${sys:logLevel}">
                 <Route key="DEBUG">
                     <RollingFile name="DebugFile"
-                                 fileName="${LOG_FILE_PATH}/debug.log"
-                                 filePattern="${LOG_FILE_PATH}/archived/debug-%d{yyyy-MM-dd}-%i.log">
+                                 fileName="${LOG_FILE_PATH}/dbworld-debug.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/dbworld-debug-%d{yyyy-MM-dd}-%i.log">
                         <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
                         <Filters>
                             <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
@@ -102,8 +102,8 @@
                 </Route>
                 <Route key="INFO">
                     <RollingFile name="InfoFile"
-                                 fileName="${LOG_FILE_PATH}/info.log"
-                                 filePattern="${LOG_FILE_PATH}/archived/info-%d{yyyy-MM-dd}-%i.log">
+                                 fileName="${LOG_FILE_PATH}/dbworld-info.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/dbworld-info-%d{yyyy-MM-dd}-%i.log">
                         <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
                         <Filters>
                             <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
@@ -115,8 +115,8 @@
                 </Route>
                 <Route key="WARN">
                     <RollingFile name="WarnFile"
-                                 fileName="${LOG_FILE_PATH}/warn.log"
-                                 filePattern="${LOG_FILE_PATH}/archived/warn-%d{yyyy-MM-dd}-%i.log">
+                                 fileName="${LOG_FILE_PATH}/dbworld-warn.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/dbworld-warn-%d{yyyy-MM-dd}-%i.log">
                         <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
                         <Filters>
                             <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
@@ -128,8 +128,8 @@
                 </Route>
                 <Route key="ERROR">
                     <RollingFile name="ErrorFile"
-                                 fileName="${LOG_FILE_PATH}/error.log"
-                                 filePattern="${LOG_FILE_PATH}/archived/error-%d{yyyy-MM-dd}-%i.log">
+                                 fileName="${LOG_FILE_PATH}/dbworld-error.log"
+                                 filePattern="${LOG_FILE_PATH}/archived/dbworld-error-%d{yyyy-MM-dd}-%i.log">
                         <PatternLayout pattern="${BASE_LOG_PATTERN}"/>
                         <Filters>
                             <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>

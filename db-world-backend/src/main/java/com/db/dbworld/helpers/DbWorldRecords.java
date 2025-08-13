@@ -3,6 +3,8 @@ package com.db.dbworld.helpers;
 import com.db.dbworld.entities.user.UserEntity;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Utility class containing record definitions for common data structures.
@@ -43,6 +45,13 @@ public final class DbWorldRecords {
 
     public record StreamableFileInfo(String fileName, String filePath, boolean isDirectory, boolean isFile, long fileSize,
                                      String fileId) {
+    }
+
+    public record TmdbUpdateProcessStatus(boolean running, LocalDateTime startTime, LocalDateTime endTime, int processedCount,
+                                          int successCount, int failedCount, int totalCounts, Map<Long, String> failedRecords) {
+    }
+
+    public record CinemaRecordDto(Long recordId, String name, String type, Long tmdb ) {
     }
 
     // Private constructor to prevent instantiation

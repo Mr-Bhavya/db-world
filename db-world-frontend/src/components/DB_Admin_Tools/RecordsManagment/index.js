@@ -7,7 +7,8 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon, Refresh as RefreshIcon, ViewList as ViewListIcon,
-  GridView as GridViewIcon, Search as SearchIcon
+  GridView as GridViewIcon, Search as SearchIcon,
+  Update
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -23,6 +24,7 @@ import RecordsCardView from './RecordsCardView';
 import RecordsTableView from './RecordsTableView';
 import { confirm } from 'material-ui-confirm';
 import { toast } from '../../Toast';
+import TMDBUpdateStatusModal from './TMDBUpdateStatusModal';
 
 const MotionButton = motion(Button);
 const PAGE_SIZE = 20;
@@ -41,6 +43,7 @@ const RecordManagement = () => {
   const [recordDialogOpen, setRecordDialogOpen] = useState(false);
   const [refreshingRecords, setRefreshingRecords] = useState({});
   const [loadingStates, setLoadingStates] = useState({});
+  const [tmdbUpdateDialogOpen, setTmdbUpdateDialogOpen] = useState(false);
 
 
   // Filter records based on search query
@@ -185,6 +188,17 @@ const RecordManagement = () => {
           </ToggleButtonGroup>
           <MotionButton
             variant="contained"
+            color="secondary"
+            size={isMobile ? 'small' : 'medium'}
+            startIcon={<Update fontSize={isMobile ? 'small' : 'medium'} />}
+            onClick={() => setTmdbUpdateDialogOpen(true)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {isMobile ? 'TMDB' : 'TMDB Update'}
+          </MotionButton>
+          <MotionButton
+            variant="contained"
             size={isMobile ? 'small' : 'medium'}
             startIcon={<AddIcon fontSize={isMobile ? 'small' : 'medium'} />}
             onClick={() => setRecordDialogOpen(true)}
@@ -247,12 +261,17 @@ const RecordManagement = () => {
         </>
       )}
 
+      <TMDBUpdateStatusModal
+        open={tmdbUpdateDialogOpen}
+        onClose={() => setTmdbUpdateDialogOpen(false)}
+      />
+
       <AddRecordModal
         recordDialogOpen={recordDialogOpen}
         recordDialogClose={() => setRecordDialogOpen(false)}
         fetchRecords={fetchRecords}
       />
-      
+
     </Container>
   );
 };

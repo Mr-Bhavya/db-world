@@ -1,6 +1,7 @@
 package com.db.dbworld.dao.dbcinema;
 
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
+import com.db.dbworld.helpers.DbWorldRecords;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -28,8 +29,39 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
     @Query(value = "SELECT count(*) FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb WHERE dcr.name LIKE (:keyword) OR td.original_title LIKE (:keyword)", nativeQuery = true)
     Optional<Long> countRecordsByKeyword(@Param("keyword") String keyword);
 
-    @Query(value = "SELECT dcr.id as recordId, dcr.name, dcr.type, dcr.tmdb FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb WHERE dcr.name LIKE (:keyword) OR td.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC", nativeQuery = true)
-    List<Map<String, String>> findRecords(@Param("keyword") String keyword);
+    @Query(value = """
+            SELECT
+                dcr.id as recordId,
+                dcr.name,
+                dcr.type,
+                dcr.tmdb as tmdb
+            FROM db_cinema_records dcr
+            JOIN tmdb_data td ON td.id = dcr.tmdb
+            WHERE dcr.name LIKE %:keyword% OR td.original_title LIKE %:keyword%
+            ORDER BY dcr.creationDate DESC""",
+            nativeQuery = true)
+    List<Map<String, Object>> findRecords(@Param("keyword") String keyword);
+
+//    @Query(value = """
+//    SELECT
+//        dcr.id as recordId,
+//        dcr.name as name,
+//        dcr.type as type,
+//        dcr.tmdb as tmdb
+//    FROM db_cinema_records dcr
+//    JOIN tmdb_data td ON td.id = dcr.tmdb
+//    WHERE dcr.name LIKE %:keyword% OR td.original_title LIKE %:keyword%
+//    ORDER BY dcr.creationDate DESC""",
+//            nativeQuery = true)
+//    List<DbWorldRecords.CinemaRecordDto> findRecords(@Param("keyword") String keyword);
+
+    public interface CinemaRecordProjection {
+        Long getRecordId();
+        String getName();
+        String getType();
+        Long getTmdb();
+    }
+
 
     @Query(value = "SELECT dcr.* FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb WHERE dcr.name LIKE (:keyword) OR td.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC", nativeQuery = true)
     List<DBCinemaRecordsEntity> findRecords(@Param("keyword") String keyword, Pageable pageable);

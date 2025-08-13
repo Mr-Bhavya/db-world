@@ -1,0 +1,53 @@
+/* Animation styles */
+.log-entry {
+    transition: all 0.3s ease;
+  }
+  
+  .log-entry:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .log-card {
+      padding: 8px;
+    }
+    
+    .log-message {
+      font-size: 0.8rem;
+    }
+  }
+  
+  /* Highlight important logs */
+  .error-log {
+    border-left: 4px solid #f44336 !important;
+  }
+  
+  .warning-log {
+    border-left: 4px solid #ff9800 !important;
+  }
+  
+  .info-log {
+    border-left: 4px solid #4caf50 !important;
+  }

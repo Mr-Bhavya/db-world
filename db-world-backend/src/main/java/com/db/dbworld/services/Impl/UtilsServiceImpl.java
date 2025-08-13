@@ -61,9 +61,9 @@ public class UtilsServiceImpl implements UtilsService {
 
             // Prepare download options
             Map<String, Object> options = new HashMap<>();
-            options.put("dir", Paths.get(mirrorStatus.getTempFilePath()).getParent().toString());
+            options.put("dir", Paths.get(mirrorStatus.getTempRecordIdPath()).toString());
 
-            if (mirrorStatus.getFileUrl().startsWith("http")) {
+            if (!mirrorStatus.isMagnet()) {
                 options.put("out", Paths.get(mirrorStatus.getTempFilePath()).getFileName().toString());
 
                 // Set range header if resuming
@@ -141,7 +141,7 @@ public class UtilsServiceImpl implements UtilsService {
         File[] listFiles = new File(DbWorldConstants.TEMP_DOWNLOAD_PATH).listFiles();
         if (listFiles != null && listFiles.length != 0) {
             Arrays.stream(listFiles).forEach(file -> {
-                dbWorldUtils.deleteFile(file.getAbsolutePath());
+                dbWorldUtils.deleteFileOrDirectory(file.getAbsolutePath(), false);
             });
         }
     }

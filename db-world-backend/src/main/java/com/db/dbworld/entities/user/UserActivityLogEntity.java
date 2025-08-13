@@ -22,7 +22,6 @@ public class UserActivityLogEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user")
-//    @JsonIgnore // prevents full user from being serialized
     private UserEntity user;
 
     private String method;

@@ -13,7 +13,6 @@ import {
 import { motion } from 'framer-motion';
 import Constants from '../Constants';
 import DownloadStuf from './Mirror/Mirror';
-import DownloadTracker from './DownloadTracker';
 import RecordsManagement from './RecordsManagment';
 import FileExplorer from './FileExplorer/FileExplorer'
 import LogDashboard from './LogDashboard/LogDashboard';
@@ -22,6 +21,7 @@ import Status from './Status';
 import RedisManager from './RedisManager';
 import UserManagement from './UserManagment';
 import UserActivityLogs from './UserActivity/UserActivityLogs';
+import DownloadTracker from './DownloadTraker';
 
 const theme = createTheme({
   palette: {
