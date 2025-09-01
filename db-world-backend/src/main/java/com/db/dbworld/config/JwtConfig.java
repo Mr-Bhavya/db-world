@@ -1,34 +1,44 @@
 package com.db.dbworld.config;
 
-
 import com.db.dbworld.services.auth.JwtService;
-import com.nimbusds.jose.jwk.*;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+
 import java.io.InputStream;
 import java.security.KeyFactory;
-import java.security.interfaces.*;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.*;
 import java.time.Duration;
 import java.util.Base64;
 
 @Configuration
-@ConfigurationProperties(prefix = "jwt.token")
 public class JwtConfig {
+
+    private static final String RSA = "RSA";
 
     private final RSAPublicKey publicKey;
     private final RSAPrivateKey privateKey;
     private final Duration accessTokenTtl = Duration.ofDays(1);
 
-    public JwtConfig() throws Exception {
-        this.publicKey = loadPublicKey("keys/rsa-public.key");
-        this.privateKey = loadPrivateKey("keys/rsa-private.key");
+    public JwtConfig(@Value("${jwt.key.public:}") String publicKeyStr,
+                     @Value("${jwt.key.private:}") String privateKeyStr) throws Exception {
+        if (!publicKeyStr.isBlank() && !privateKeyStr.isBlank()) {
+            this.publicKey = loadKeyFromString(publicKeyStr, RSAPublicKey.class);
+            this.privateKey = loadKeyFromString(privateKeyStr, RSAPrivateKey.class);
+        } else {
+            this.publicKey = loadKeyFromResource("keys/rsa-public.key", RSAPublicKey.class);
+            this.privateKey = loadKeyFromResource("keys/rsa-private.key", RSAPrivateKey.class);
+        }
     }
 
     @Bean
@@ -45,35 +55,43 @@ public class JwtConfig {
     }
 
     @Bean
-    public JwtService jwtService(@Value("${spring.application.name}") final String appName, final JwtEncoder jwtEncoder) {
+    public JwtService jwtService(@Value("${spring.application.name}") String appName,
+                                 JwtEncoder jwtEncoder) {
         return new JwtService(appName, accessTokenTtl, jwtEncoder);
     }
 
-    private RSAPublicKey loadPublicKey(String path) throws Exception {
-        String key = readKey(path);
-        byte[] decoded = Base64.getDecoder().decode(key);
-        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(decoded);
-        return (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(keySpec);
+    private <T> T loadKeyFromResource(String path, Class<T> keyType) throws Exception {
+        String keyContent = readKey(new ClassPathResource(path));
+        return loadKey(keyContent, keyType);
     }
 
-    private RSAPrivateKey loadPrivateKey(String path) throws Exception {
-        String key = readKey(path);
-        byte[] decoded = Base64.getDecoder().decode(key);
-        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decoded);
-        return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(keySpec);
+    private <T> T loadKeyFromString(String pem, Class<T> keyType) throws Exception {
+        String keyContent = stripPemHeaders(pem);
+        return loadKey(keyContent, keyType);
     }
 
-    private String readKey(String resourcePath) throws Exception {
-        ClassPathResource resource = new ClassPathResource(resourcePath);
-        try (InputStream is = resource.getInputStream()) {
-            return new String(is.readAllBytes())
-                    .replaceAll("\\r", "")
-                    .replaceAll("\\n", "")
-                    .replace("-----BEGIN PUBLIC KEY-----", "")
-                    .replace("-----END PUBLIC KEY-----", "")
-                    .replace("-----BEGIN PRIVATE KEY-----", "")
-                    .replace("-----END PRIVATE KEY-----", "")
-                    .trim();
+    private <T> T loadKey(String base64Key, Class<T> keyType) throws Exception {
+        byte[] decoded = Base64.getDecoder().decode(base64Key);
+        KeyFactory keyFactory = KeyFactory.getInstance(RSA);
+
+        if (RSAPublicKey.class.equals(keyType)) {
+            return keyType.cast(keyFactory.generatePublic(new X509EncodedKeySpec(decoded)));
+        } else if (RSAPrivateKey.class.equals(keyType)) {
+            return keyType.cast(keyFactory.generatePrivate(new PKCS8EncodedKeySpec(decoded)));
         }
+        throw new IllegalArgumentException("Unsupported key type: " + keyType);
+    }
+
+    private String readKey(ClassPathResource resource) throws Exception {
+        try (InputStream is = resource.getInputStream()) {
+            return stripPemHeaders(new String(is.readAllBytes()));
+        }
+    }
+
+    private String stripPemHeaders(String pem) {
+        return pem.replaceAll("-----\\w+ PRIVATE KEY-----", "")
+                .replaceAll("-----\\w+ PUBLIC KEY-----", "")
+                .replaceAll("\\s", "")
+                .trim();
     }
 }
