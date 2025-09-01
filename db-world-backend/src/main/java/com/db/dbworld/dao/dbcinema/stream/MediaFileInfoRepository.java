@@ -13,18 +13,23 @@ import java.util.Optional;
 public interface MediaFileInfoRepository extends JpaRepository<MediaFileInfoEntity, String> {
     List<MediaFileInfoEntity> findAllByDbCinemaRecordId(Long recordId);
 
-    @Query(nativeQuery = true, value = "SELECT filePath FROM MEDIA_FILE_INFO WHERE ID=:id")
+    @Query(nativeQuery = true, value = "SELECT file_path FROM MEDIA_FILE_INFO WHERE ID=:id")
     Optional<String> getFileInfoById(@Param("id") String id);
 
-    @Query(nativeQuery = true, value = "SELECT id, filePath, fileSize FROM MEDIA_FILE_INFO")
+    @Query(nativeQuery = true, value = "SELECT id, file_path, file_size FROM MEDIA_FILE_INFO")
     List<Map<String, Object>> getAllFilePath();
 
     @Query(nativeQuery = true, value = "SELECT INFO.* FROM MEDIA_FILE_INFO INFO " +
-            "INNER JOIN ( SELECT MIN(id) AS id  FROM MEDIA_FILE_INFO GROUP BY db_cinema_record ) AS grouped ON INFO.id = grouped.id " +
+            "INNER JOIN (SELECT MIN(id) AS id FROM MEDIA_FILE_INFO GROUP BY db_cinema_record) AS grouped " +
+            "ON INFO.id = grouped.id " +
+            "INNER JOIN db_cinema_records CINEMA ON INFO.db_cinema_record = CINEMA.id " +
+            "WHERE (:recordTypes IS NULL OR CINEMA.type IN (:recordTypes)) " +
             "ORDER BY RAND()")
-    List<MediaFileInfoEntity> getRandom(Pageable pageable);
+    List<MediaFileInfoEntity> getRandom(@Param("recordTypes") String[] recordTypes, Pageable pageable);
 
     List<MediaFileInfoEntity> findAllByFilePath(String filePath);
+
+    List<MediaFileInfoEntity> findAllByDbCinemaRecordIdIn(List<Long> recordIds);
 
     void deleteAllByFilePath(String filePath);
 }

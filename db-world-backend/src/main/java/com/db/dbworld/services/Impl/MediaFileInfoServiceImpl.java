@@ -21,6 +21,7 @@ import org.springframework.util.CollectionUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 
 @Log4j2
 @Service
+@Transactional
 @CacheConfig(cacheNames = "media-file")
 public class MediaFileInfoServiceImpl implements MediaFileInfoService {
 
@@ -48,7 +50,6 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     }
 
     @Override
-    @Transactional
     public MediaFileInfoEntity save(MediaFileInfoEntity mediaFileInfoEntity) {
         try {
             log.debug("[DB] Saving MediaFileInfoEntity for recordId={}...", mediaFileInfoEntity.getDbCinemaRecord().getId()); // 🔍 Added Log
@@ -77,32 +78,53 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
                     .collect(Collectors.toList());
         } catch (Exception ex) {
             log.error("Error retrieving media files for record {}: {}", recordId, ex.getMessage());
-            throw new DbWorldException("Failed to retrieve media files", ex);
+            throw new DbWorldException("Failed to retrieve media files", ex.getMessage());
         }
     }
 
 
     private MediaFileInfo mapToMediaFileInfoDto(MediaFileInfoEntity entity) {
-        MediaFileInfo dto = modelMapper.map(entity, MediaFileInfo.class);
-        dto.setTrackInfos(entity.getTrackInfos().stream()
-                .map(this::mapToTrackInfoDto)
-                .collect(Collectors.toList()));
-        return dto;
+        try {
+            MediaFileInfo dto = modelMapper.map(entity, MediaFileInfo.class);
+
+            // Safely handle trackInfos conversion
+            if (entity.getTrackInfos() != null) {
+                dto.setTrackInfos(entity.getTrackInfos().stream()
+                        .map(this::mapToTrackInfoDto)
+                        .collect(Collectors.toList()));
+            } else {
+                dto.setTrackInfos(Collections.emptyList());
+            }
+
+            return dto;
+        } catch (Exception e) {
+            log.error("Mapping error for MediaFileInfoEntity ID: {}", entity.getId(), e);
+            throw new DbWorldException("Mapping error", e.getMessage());
+        }
     }
 
     private TrackInfo mapToTrackInfoDto(TrackInfoEntity entity) {
-        if (entity instanceof GeneralInfoEntity) {
-            return modelMapper.map(entity, GeneralInfo.class);
-        } else if (entity instanceof VideoInfoEntity) {
-            return modelMapper.map(entity, VideoInfo.class);
-        } else if (entity instanceof AudioInfoEntity) {
-            return modelMapper.map(entity, AudioInfo.class);
-        } else if (entity instanceof TextInfoEntity) {
-            return modelMapper.map(entity, TextInfo.class);
-        } else if (entity instanceof MenuInfoEntity) {
-            return modelMapper.map(entity, MenuInfo.class);
+        try {
+            if (entity == null) {
+                return null;
+            }
+
+            if (entity instanceof GeneralInfoEntity) {
+                return modelMapper.map(entity, GeneralInfo.class);
+            } else if (entity instanceof VideoInfoEntity) {
+                return modelMapper.map(entity, VideoInfo.class);
+            } else if (entity instanceof AudioInfoEntity) {
+                return modelMapper.map(entity, AudioInfo.class);
+            } else if (entity instanceof TextInfoEntity) {
+                return modelMapper.map(entity, TextInfo.class);
+            } else if (entity instanceof MenuInfoEntity) {
+                return modelMapper.map(entity, MenuInfo.class);
+            }
+            return modelMapper.map(entity, TrackInfo.class);
+        } catch (Exception e) {
+            log.error("Mapping error for TrackInfoEntity ID: {}", entity.getId(), e);
+            throw new DbWorldException("Track info mapping error", e.getMessage());
         }
-        return modelMapper.map(entity, TrackInfo.class);
     }
 
     @Override
@@ -136,7 +158,6 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
 
     @Override
     @CacheEvict(key = "'file:' + #id")
-    @Transactional
     public void deleteInfoById(String id) {
         try {
             log.debug("[DB] Looking up MediaFileInfoEntity for deletion with id={}", id); // 🔍 Added Log
@@ -157,7 +178,6 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     }
 
     @Override
-    @Transactional
     public void deleteInfoByIds(List<String> ids) {
         try {
             log.debug("[DB] Fetching MediaFileInfoEntities for deletion (ids={})", ids); // 🔍 Added Log
@@ -188,7 +208,6 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     }
 
     @Override
-    @Transactional
     public void deleteInfoByFilePath(String filePath) {
         try {
             log.debug("[DB] Fetching MediaFileInfoEntities by filePath={}", filePath); // 🔍 Added Log
@@ -210,7 +229,6 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     }
 
     @Override
-    @Transactional
     @CacheEvict(value = {"filePaths"}, allEntries = true)
     public Map<String, Integer> cleanMediaFileInfo() {
         log.info("[TASK] Starting media file cleanup...");

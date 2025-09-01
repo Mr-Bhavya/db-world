@@ -51,8 +51,8 @@ const RecordCard = React.memo(({
           <FormControlLabel
             control={
               <SwitchWithLoader
-                checked={record.showOnTop}
-                onChange={() => onToggleShowOnTop(record.id, record.showOnTop)}
+                checked={record.show_on_top}
+                onChange={() => onToggleShowOnTop(record.id, record.show_on_top)}
                 loading={isLoading}
               />
             }

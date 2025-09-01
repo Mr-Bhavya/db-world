@@ -27,8 +27,10 @@ public class UserActivityLogEntity {
     private String method;
     private String uri;
     @Lob
+    @Column(columnDefinition = "TEXT")
     private String query;
     @Lob
+    @Column(columnDefinition = "TEXT")
     private String requestBody;
     private String ip;
     private String userAgent;

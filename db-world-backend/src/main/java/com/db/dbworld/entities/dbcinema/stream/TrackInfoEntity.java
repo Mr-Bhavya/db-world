@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.data.redis.core.RedisHash;
 
 @Getter
 @Setter
@@ -31,6 +32,6 @@ public class TrackInfoEntity {
     private String type;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "mediaFileInfo", referencedColumnName = "id")
+    @JoinColumn(name = "media_file_info", referencedColumnName = "id")
     private MediaFileInfoEntity mediaFileInfo;
 }

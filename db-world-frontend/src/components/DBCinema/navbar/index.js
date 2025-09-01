@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Constants from '../../Constants';
 import useWindowSize from '../utils/hooks/useWindowSize';
@@ -35,8 +35,9 @@ import {
 
 // Framer Motion
 import { motion, AnimatePresence } from 'framer-motion';
+import CategoryModal from './CategoryModal';
 
-// Custom Styles
+// Styled Components
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   background: 'var(--navbar-bg-color)',
   backdropFilter: 'blur(10px)',
@@ -45,7 +46,7 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   transition: 'background-color var(--color-transition)',
 
   '&.scrolled': {
-    background: 'rgba(0, 0, 0, 0.3) !important', // dark black with transparency
+    background: 'rgba(0, 0, 0, 0.3) !important',
     backdropFilter: 'blur(12px)',
     boxShadow: theme.shadows[4],
     '& .MuiToolbar-root': {
@@ -81,88 +82,7 @@ const NavButton = styled(Button)(({ theme }) => ({
   }
 }));
 
-const CategoryModal = ({ open, onClose, onSelect, categoryList }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  return (
-    <Menu
-      open={open}
-      onClose={onClose}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'center'
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'center'
-      }}
-      PaperProps={{
-        sx: {
-          width: isMobile ? '100%' : 450,
-          maxHeight: 500,
-          p: 1,
-          background: theme.palette.background.paper,
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: '12px',
-          boxShadow: theme.shadows[8]
-        }
-      }}
-    >
-      <Typography variant="h6" sx={{ px: 2, py: 1, color: theme.palette.text.primary }}>
-        Select Category
-      </Typography>
-      <Divider />
-      <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
-        {categoryList.map((cat) => (
-          <MenuItem
-            key={cat.id}
-            onClick={() => onSelect(cat)}
-            sx={{
-              borderRadius: '8px',
-              my: 0.5,
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover
-              }
-            }}
-          >
-            <Typography variant="body1">{cat.name}</Typography>
-          </MenuItem>
-        ))}
-      </Box>
-      <Divider />
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1, gap: 1 }}>
-        <Button
-          onClick={() => onSelect(null)}
-          variant="outlined"
-          fullWidth
-          sx={{ borderRadius: '8px' }}
-        >
-          Clear
-        </Button>
-        <Button
-          onClick={onClose}
-          variant="contained"
-          fullWidth
-          sx={{ borderRadius: '8px' }}
-        >
-          Close
-        </Button>
-      </Box>
-    </Menu>
-  );
-};
-
-const FadeEffect = styled('div')(({ theme }) => ({
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  width: '100%',
-  height: '100%',
-  background: `linear-gradient(to top, var(--navbar-bg-color, rgba(0,0,0,7)), transparent)`,
-  pointerEvents: 'none',
-  zIndex: 1
-}));
 
 function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) {
   const theme = useTheme();
@@ -171,7 +91,6 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
   const navigate = useNavigate();
   const location = useLocation();
   const screenSize = useWindowSize();
-
 
   const containerRef = useRef(null);
   const selectedRef = useRef(null);
@@ -182,13 +101,14 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
   const [selectedCategoryOption, setSelectedCategoryOption] = useState(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
-  const [categoryAnchorEl, setCategoryAnchorEl] = useState(null);
+  const [categoryAnchorEl, setCategoryAnchorEl] = useState(false);
 
-  const navbarButtons = [
+  // Memoized navbar buttons configuration
+  const navbarButtons = useMemo(() => [
     { id: 1, title: 'Movies', route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
     { id: 2, title: 'TV Shows', route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
     { id: 3, title: 'Categories', icon: <CategoryIcon /> }
-  ];
+  ], []);
 
   // Update selected navbarButton based on current location
   useEffect(() => {
@@ -199,7 +119,7 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
     if (typeof onCollapseChange === 'function') {
       onCollapseChange(Boolean(currentNavbarButton));
     }
-  }, [location, onCollapseChange]);
+  }, [location, onCollapseChange, navbarButtons]);
 
   // Toggle "scrolled" class based on scroll position
   useEffect(() => {
@@ -208,7 +128,6 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
       setIsScrolled(scrollTop > 55);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
-    fetchCategory();
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -220,14 +139,19 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
     );
   }, [coverColor]);
 
-  const fetchCategory = async () => {
-    let response = await getGenresList();
+  // Fetch categories
+  const fetchCategory = useCallback(async () => {
+    const response = await getGenresList();
     if (response.httpStatusCode === 200) {
       setCategoryList(response.data);
     }
-  };
+  }, []);
 
-  const handleNavbarButtonSelect = (navbarButton, event) => {
+  useEffect(() => {
+    fetchCategory();
+  }, [fetchCategory]);
+
+  const handleNavbarButtonSelect = useCallback((navbarButton, event) => {
     if (navbarButton.id === 3) {
       setCategoryAnchorEl(event.currentTarget);
     } else {
@@ -237,26 +161,36 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
       } else {
         navigate(navbarButton.route);
       }
+      // Close category modal when selecting a different tab
+      setCategoryAnchorEl(false);
     }
-  };
+  }, [navigate, selectedCategoryOption]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     setSelectedCategory(null);
+    setSelectedCategoryOption(null); // Clear category selection when going back
     navigate(Constants.DB_CINEMA_BROWSE_ROUTE);
     if (typeof onCollapseChange === 'function') {
       onCollapseChange(false);
     }
-  };
+  }, [navigate, onCollapseChange]);
 
-  const handleCategorySelect = (category) => {
+  const handleCategorySelect = useCallback((category) => {
     setSelectedCategoryOption(category);
-    setCategoryAnchorEl(null);
+    setCategoryAnchorEl(false); // FIX: Close the modal after selection
     onCategorySelect(category);
+    
+    // If we're on a specific tab, navigate with the category
     if (selectedNavbarButton && selectedNavbarButton.route) {
       navigate(`${selectedNavbarButton.route}?genre=${category.id}`);
     }
-  };
+  }, [selectedNavbarButton, navigate, onCategorySelect]);
 
+  const handleCloseCategoryModal = useCallback(() => {
+    setCategoryAnchorEl(false);
+  }, []);
+
+  // Scroll selected button into view
   useEffect(() => {
     if (selectedNavbarButton && buttonRefs.current[selectedNavbarButton.id]) {
       buttonRefs.current[selectedNavbarButton.id].scrollIntoView({
@@ -265,17 +199,9 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
         block: 'nearest',
       });
     }
-    if (selectedRef.current) {
-      selectedRef.current.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest',
-      });
-    }
   }, [selectedNavbarButton]);
 
-  const renderNavbarButtons = () => {
-
+  const renderNavbarButtons = useCallback(() => {
     return (
       <Box
         ref={containerRef}
@@ -327,8 +253,7 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
         ))}
       </Box>
     );
-  };
-
+  }, [navbarButtons, selectedNavbarButton, selectedCategoryOption, handleNavbarButtonSelect]);
 
   return (
     <>
@@ -385,19 +310,6 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isAndroidApp && (
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                <IconButton
-                  color="inherit"
-                  onClick={() => navigate(Constants.DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE)}
-                  size="large"
-                >
-                  <Badge color="secondary">
-                    <DownloadIcon />
-                  </Badge>
-                </IconButton>
-              </motion.div>
-            )}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
               <IconButton
                 color="inherit"
@@ -410,103 +322,96 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
           </Box>
         </Toolbar>
 
-        {/* </StyledAppBar> */}
-
         {isMobile && !isScrolled && !selectedNavbarButton && (
           <Toolbar sx={{ justifyContent: 'center', py: 1, gap: 1 }}>
             {renderNavbarButtons()}
           </Toolbar>
         )}
 
-        {isMobile && !isScrolled && selectedNavbarButton && (() => {
-          return (
-            <Toolbar
-              sx={{
-                justifyContent: 'flex-start',
-                py: 1,
-                px: 1,
-                overflowX: 'auto',
-                scrollbarWidth: 'none',
-                '&::-webkit-scrollbar': {
-                  display: 'none',
-                },
-              }}
-              ref={containerRef}
-            >
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                <IconButton onClick={handleBack} color="inherit" size="small">
-                  <CloseIcon />
-                </IconButton>
-              </motion.div>
+        {isMobile && !isScrolled && selectedNavbarButton && (
+          <Toolbar
+            sx={{
+              justifyContent: 'flex-start',
+              py: 1,
+              px: 1,
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              '&::-webkit-scrollbar': {
+                display: 'none',
+              },
+            }}
+            ref={containerRef}
+          >
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <IconButton onClick={handleBack} color="inherit" size="small">
+                <CloseIcon />
+              </IconButton>
+            </motion.div>
 
-              {navbarButtons.map((navbarButton) =>
-                navbarButton?.id === selectedNavbarButton?.id ? (
-                  <motion.div
-                    key={navbarButton.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    ref={selectedRef}
-                    style={{ marginLeft: 8 }}
-                  >
-                    <NavButton
-                      className="active"
-                      onClick={(e) => handleNavbarButtonSelect(navbarButton, e)}
-                      sx={{
-                        borderRadius: '999px',
-                        border: '1px solid',
-                        borderColor: 'primary.main',
-                        px: 2,
-                        py: 0.5,
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        color: 'primary.main',
-                        backgroundColor: 'background.paper',
-                        '&:hover': {
-                          backgroundColor: 'primary.light',
-                          borderColor: 'primary.dark',
-                        },
-                      }}
-                    >
-                      {navbarButton.title}
-                    </NavButton>
-                  </motion.div>
-                ) : null
-              )}
-
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <NavButton
-                  onClick={(e) => setCategoryAnchorEl(e.currentTarget)}
-                  endIcon={<ExpandMoreIcon />}
-                  sx={{
-                    borderRadius: '999px',
-                    px: 2,
-                    py: 0.5,
-                    textTransform: 'none',
-                    ml: 1,
-                  }}
+            {navbarButtons.map((navbarButton) =>
+              navbarButton?.id === selectedNavbarButton?.id ? (
+                <motion.div
+                  key={navbarButton.id}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  ref={selectedRef}
+                  style={{ marginLeft: 8 }}
                 >
-                  {navbarButtons.find((cat) => cat.id === 3)?.title}
-                  {selectedCategoryOption && (
-                    <Typography
-                      component="span"
-                      sx={{ ml: 1, color: 'primary.main' }}
-                    >
-                      {selectedCategoryOption.name}
-                    </Typography>
-                  )}
-                </NavButton>
-              </motion.div>
-            </Toolbar>
-          );
-        })()}
-        {/* <FadeEffect /> */}
-      </StyledAppBar >
+                  <NavButton
+                    className="active"
+                    onClick={(e) => handleNavbarButtonSelect(navbarButton, e)}
+                    sx={{
+                      borderRadius: '999px',
+                      border: '1px solid',
+                      borderColor: 'primary.main',
+                      px: 2,
+                      py: 0.5,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      color: 'primary.main',
+                      backgroundColor: 'background.paper',
+                      '&:hover': {
+                        backgroundColor: 'primary.light',
+                        borderColor: 'primary.dark',
+                      },
+                    }}
+                  >
+                    {navbarButton.title}
+                  </NavButton>
+                </motion.div>
+              ) : null
+            )}
 
-      {/* <Box sx={{ height: isMobile ? '10px' : '10px', backgroundColor: 'var(--navbar-bg-color, transparent)' }} /> */}
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <NavButton
+                onClick={(e) => setCategoryAnchorEl(e.currentTarget)}
+                endIcon={<ExpandMoreIcon />}
+                sx={{
+                  borderRadius: '999px',
+                  px: 2,
+                  py: 0.5,
+                  textTransform: 'none',
+                  ml: 1,
+                }}
+              >
+                {navbarButtons.find((cat) => cat.id === 3)?.title}
+                {selectedCategoryOption && (
+                  <Typography
+                    component="span"
+                    sx={{ ml: 1, color: 'primary.main' }}
+                  >
+                    {selectedCategoryOption.name}
+                  </Typography>
+                )}
+              </NavButton>
+            </motion.div>
+          </Toolbar>
+        )}
+      </StyledAppBar>
 
       <CategoryModal
         open={Boolean(categoryAnchorEl)}
-        onClose={() => setCategoryAnchorEl(null)}
+        onClose={handleCloseCategoryModal}
         onSelect={handleCategorySelect}
         categoryList={categoryList}
       />
@@ -527,4 +432,4 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
   );
 }
 
-export default Navbar;
+export default React.memo(Navbar);

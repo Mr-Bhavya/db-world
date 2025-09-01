@@ -12,69 +12,67 @@ import lombok.Setter;
 @Entity
 @DiscriminatorValue("Text")
 public class TextInfoEntity extends TrackInfoEntity {
-    @Column(name = "UniqueID")
+    @Column(name = "unique_id")
     @JsonProperty("UniqueID")
     private String uniqueID;
 
-    @Column(name = "StreamOrder")
+    @Column(name = "stream_order")
     @JsonProperty("StreamOrder")
     private String streamOrder;
 
-    @Column(name = "Format")
+    @Column(name = "format")
     @JsonProperty("Format")
     private String format;
 
-    @Column(name = "CodecID")
+    @Column(name = "codec_id")
     @JsonProperty("CodecID")
     private String codecID;
 
-    @Column(name = "Duration")
+    @Column(name = "duration")
     @JsonProperty("Duration")
     private Double duration;
 
-    @Column(name = "Title")
+    @Column(name = "title")
     @JsonProperty("Title")
     private String title;
 
-    @Column(name = "Encoded_Library")
+    @Column(name = "encoded_library")
     @JsonProperty("Encoded_Library")
     private String encodedLibrary;
 
-    @Column(name = "Language")
+    @Column(name = "language")
     @JsonProperty("Language")
     private String language;
 
-    @Column(name = "`Default`")
+    @Column(name = "default_value")
     @JsonProperty("Default")
     private String defaultValue;
 
-    @Column(name = "Forced")
+    @Column(name = "forced")
     @JsonProperty("Forced")
     private String forced;
 
-    @Column(name = "BitRate")
+    @Column(name = "bit_rate")
     @JsonProperty("BitRate")
     private String bitRate;
 
-    @Column(name = "FrameRate")
+    @Column(name = "frame_rate")
     @JsonProperty("FrameRate")
     private String frameRate;
 
-    @Column(name = "FrameCount")
+    @Column(name = "frame_count")
     @JsonProperty("FrameCount")
     private String frameCount;
 
-    @Column(name = "StreamSize")
+    @Column(name = "stream_size")
     @JsonProperty("StreamSize")
     private String streamSize;
 
-    @Column(name = "Compression_Mode")
+    @Column(name = "compression_mode")
     @JsonProperty("Compression_Mode")
     private String compressionMode;
 
-    @Column(name = "ElementCount")
+    @Column(name = "element_count")
     @JsonProperty("ElementCount")
     private String elementCount;
-
 }
-

@@ -4,6 +4,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.services.mirror.StatusService;
+import com.db.dbworld.stream.processor.StreamLogger;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
@@ -160,7 +161,7 @@ public class StatusServiceImpl implements StatusService {
             status.setCurrentStatus("Failed ❌");
             status.setFailed(true);
             status.setCompleted(true);
-            status.setMessage(message);
+//            status.setMessage(message);
             log.error("Task '{}' failed. Filename: {}, Error Message: {}",
                     status.getId(), status.getFileName(), message);
         });
@@ -192,5 +193,17 @@ public class StatusServiceImpl implements StatusService {
             status.setPause(false);
             log.info("Task '{}' is resumed. Filename: {}", status.getId(), status.getFileName());
         });
+    }
+
+    @Override
+    public void logAndAppendHtml(MirrorStatus mirrorStatus, String message, boolean isError) {
+        if (mirrorStatus != null) {
+            StreamLogger.appendHtmlLine(mirrorStatus, message, isError, this);
+        }
+        if (isError) {
+            log.error(message);
+        } else {
+            log.info(message);
+        }
     }
 }

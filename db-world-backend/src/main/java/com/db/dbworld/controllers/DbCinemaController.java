@@ -73,11 +73,12 @@ public class DbCinemaController {
     @GetMapping("/record/cover")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<HashMap<Object, Object>> fetchCoverRecords(
+            @RequestParam(value = "recordTypes") String[] recordTypes,
             @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
             @RequestParam(value = "size", required = false, defaultValue = "5") int pageSize
     ) {
         HashMap<Object, Object> map = new HashMap<>();
-        map.put("records", dbCinemaRecordsService.fetchCoverRecords(pageNumber, pageSize).stream()
+        map.put("records", dbCinemaRecordsService.fetchCoverRecords(recordTypes,pageNumber, pageSize).stream()
                 .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
         return new ApiResponse<>(HttpStatus.OK, true, map);
     }

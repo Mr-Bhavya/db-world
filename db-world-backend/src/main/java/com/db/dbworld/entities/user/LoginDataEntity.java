@@ -27,7 +27,7 @@ public class LoginDataEntity {
     @Column(nullable = false)
     private Date lastLoginDate;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String loginAgent;
 
 }

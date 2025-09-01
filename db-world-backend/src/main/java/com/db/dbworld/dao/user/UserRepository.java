@@ -18,14 +18,14 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     @Query(value = """
         SELECT
-            u.firstName as firstName,
-            u.lastName as lastName,
+            u.first_name as firstName,
+            u.last_name as lastName,
             u.email
         FROM
             db_world.users u
         WHERE
-            LOWER(u.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR
-            LOWER(u.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR
+            LOWER(u.first_name) LIKE LOWER(CONCAT('%', :query, '%')) OR
+            LOWER(u.last_name) LIKE LOWER(CONCAT('%', :query, '%')) OR
             LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
         LIMIT :limit
         """, nativeQuery = true)

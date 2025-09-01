@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 @Service
 @Log4j2
 @EnableAsync
+@Transactional
 @CacheConfig(cacheNames = "DB-Cinema")
 public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
@@ -121,7 +122,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Autowired
     private CacheLogger cacheLogger;
 
-    @Transactional
+    
     @Override
     @CacheEvict(allEntries = true)
     public DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record) {
@@ -151,7 +152,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         }
     }
 
-    @Transactional
+    
     @Override
     @CacheEvict(key = "'record:' + #recordId")
     public DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record) {
@@ -183,7 +184,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    @Transactional
     @CacheEvict(key = "'record:' + #recordId")
     public void switchShowOnTopRecord(Long recordId, boolean showOnTop) {
         try {
@@ -207,7 +207,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    @Transactional
     @CacheEvict(key = "'record:' + #recordId")
     public void deleteRecord(Long recordId) {
         if (this.dbCinemaRecordsRepository.existsById(recordId)) {
@@ -229,19 +228,33 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 //    @Cacheable(value = "DB-Cinema-Short", key = "'all-records-with-streams'")
     public List<Map<String, Object>> getRecordsWithStreamList() {
         List<Map<String, Object>> dbCinemaRecords = dbCinemaRecordsRepository.findRecords();
-        return dbCinemaRecords.stream().map(stringObjectMap -> {
-            Map<String, Object> temp = new HashMap<>(stringObjectMap);
-            List<MediaFileInfo> mediaFileInfos = mediaFileInfoRepository.findAllByDbCinemaRecordId((Long) temp.get("id"))
-                    .stream().map(mediaFileInfoEntity -> modelMapper.map(mediaFileInfoEntity, MediaFileInfo.class)).collect(Collectors.toList());
-            temp.put("stream_file_list", mediaFileInfos);
+
+        // Collect all IDs
+        List<Long> recordIds = dbCinemaRecords.stream()
+                .map(r -> ((Number) r.get("id")).longValue())  // safe cast
+                .collect(Collectors.toList());
+
+        // Fetch all media files in one query
+        List<MediaFileInfoEntity> allMediaFiles = mediaFileInfoRepository.findAllByDbCinemaRecordIdIn(recordIds);
+
+        // Group by recordId
+        Map<Long, List<MediaFileInfo>> groupedMediaFiles = allMediaFiles.stream()
+                .map(entity -> modelMapper.map(entity, MediaFileInfo.class))
+                .collect(Collectors.groupingBy(MediaFileInfo::getDbCinemaRecordId));
+
+        // Attach files to each record
+        return dbCinemaRecords.stream().map(record -> {
+            Map<String, Object> temp = new HashMap<>(record);
+            Long id = ((Number) temp.get("id")).longValue();
+            temp.put("stream_file_list", groupedMediaFiles.getOrDefault(id, Collections.emptyList()));
             return temp;
         }).collect(Collectors.toList());
     }
 
     @Override
 //    @Cacheable(value = "DB-Cinema-Short", key = "'cover-records'")
-    public List<DBCinemaRecordsDto> fetchCoverRecords(int pageNumber, int pageSize) {
-        List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.getRandom(PageRequest.of(pageNumber, pageSize));
+    public List<DBCinemaRecordsDto> fetchCoverRecords(String[] recordTypes, int pageNumber, int pageSize) {
+        List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.getRandom(recordTypes, PageRequest.of(pageNumber, pageSize));
         return mediaFileInfoEntities.stream().map(
                 mediaFileInfoEntity -> pojoConverter.dbCinemaRecordsEntityToDto(mediaFileInfoEntity.getDbCinemaRecord())
         ).collect(Collectors.toList());
@@ -343,7 +356,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    @Transactional
     @CacheEvict(cacheNames = "DB-Cinema", key = "'record:' + #recordId")
     public DBCinemaRecordsDto userRecordDataProcess(Long recordId, String process) {
         try {
@@ -422,7 +434,6 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     @Async
     @Override
-    @Transactional
     public void updateTmdbWithLatest(Integer limit, boolean all) {
         try {
             if (all) {
@@ -583,7 +594,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         return new Gson().fromJson(recordDetailsJson, SeriesTmdbDataDto.class);
     }
 
-    @Transactional
+    
     private TmdbDataEntity mergeTmdbEntity(TmdbDataEntity tmdbDataEntity) {
 
         if (tmdbDataEntity.getSpoken_languages() != null) {

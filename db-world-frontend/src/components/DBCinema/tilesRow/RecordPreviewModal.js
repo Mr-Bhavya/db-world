@@ -31,7 +31,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
   const [expanded, setExpanded] = useState(false);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const providers = record?.movieTmdb?.providers || {};
+  const providers = record?.tmdb?.providers || record?.movieTmdb?.providers || record?.seriesTmdb?.providers || {};
   const hasProviders = (
     (providers?.flatrate?.length > 0) ||
     (providers?.buy?.length > 0) ||
@@ -40,7 +40,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
 
   const handleReactionUpdate = (newData) => {
     if (onUpdateRecord && record) {
-      if( newData?.reaction === 'like') {
+      if (newData?.reaction === 'like') {
         newData.isLiked = true;
       }
       onUpdateRecord({ ...record, ...newData });
@@ -288,7 +288,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
               <>
                 <Reaction
                   recordId={record.recordId}
-                  initialReaction={record?.isLiked ? 'like' : null }
+                  initialReaction={record?.isLiked ? 'like' : null}
                   onUpdate={handleReactionUpdate}
                   size={compact ? 'small' : 'medium'}
                 />
@@ -328,40 +328,106 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
         </Stack>
 
         {/* Streaming & Download Options */}
-        <Stack direction="row" spacing={1} sx={{ mb: 2, width: '100%' }}>
+        <Box sx={{ mb: 2, width: '100%' }}>
           {hasProviders ? (
             <>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<Tv />}
-                onClick={() => setShowProviders(!showProviders)}
+              {/* For normal screens - providers on left, download on right */}
+              <Box
                 sx={{
-                  flex: 1,  // Takes half width
-                  color: theme.palette.text.primary,
-                  borderColor: theme.palette.text.primary,
-                  '&:hover': {
-                    borderColor: 'black',
-                    color: 'black',
-                    backgroundColor: 'white',
-                  }
+                  display: { xs: 'none', sm: 'flex' },
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 1,
+                  flexWrap: 'wrap'
                 }}
               >
-                Streaming On
-              </Button>
-              <Download
-                record={record}
-                variant="button"
-                buttonVariant="outlined"
-                size="medium"
-                color="dark"
+                {/* Streaming providers section */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 1,
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  <Tv sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                    Streaming on:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {renderProviderLogos(providers.flatrate?.slice(0, 3))}
+                    {providers.flatrate?.length > 3 && (
+                      <Typography variant="body2" color="text.secondary">
+                        +{providers.flatrate.length - 3} more
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+
+                {/* Download button */}
+                <Download
+                  record={record}
+                  variant="button"
+                  buttonVariant="outlined"
+                  size="medium"
+                  color="dark"
+                  sx={{
+                    flexShrink: 0,
+                    '& .MuiButton-startIcon': {
+                      marginRight: '4px'
+                    }
+                  }}
+                />
+              </Box>
+
+              {/* For small screens - vertical layout */}
+              <Box
                 sx={{
-                  flex: 1,  // Takes half width
-                  '& .MuiButton-startIcon': {
-                    marginRight: '4px'
-                  }
+                  display: { xs: 'flex', sm: 'none' },
+                  flexDirection: 'column',
+                  gap: 1
                 }}
-              />
+              >
+                {/* Streaming providers section */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 0.5
+                  }}
+                >
+                  <Tv sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Streaming on:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {renderProviderLogos(providers.flatrate?.slice(0, 2))}
+                    {providers.flatrate?.length > 2 && (
+                      <Typography variant="body2" color="text.secondary">
+                        +{providers.flatrate.length - 2} more
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+
+                {/* Download button */}
+                <Download
+                  record={record}
+                  variant="button"
+                  buttonVariant="outlined"
+                  size="medium"
+                  color="dark"
+                  sx={{
+                    width: '100%',
+                    '& .MuiButton-startIcon': {
+                      marginRight: '4px'
+                    }
+                  }}
+                />
+              </Box>
             </>
           ) : (
             <Download
@@ -371,15 +437,16 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
               size="medium"
               color="dark"
               sx={{
-                width: '100%',  // Full width when alone
+                width: '100%',
                 '& .MuiButton-startIcon': {
                   marginRight: '4px'
                 }
               }}
             />
           )}
-        </Stack>
+        </Box>
 
+        {/* Expanded providers view when clicked (optional) */}
         {showProviders && hasProviders && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -390,23 +457,37 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
             {providers.flatrate?.length > 0 && (
               <Box sx={{ mb: 1 }}>
                 <Typography variant="caption" color="text.secondary">
-                  Streaming on
+                  All streaming providers:
                 </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 0.5
+                  }}
+                >
                   {renderProviderLogos(providers.flatrate)}
-                </Stack>
+                </Box>
               </Box>
             )}
 
             {(providers.buy?.length > 0 || providers.rent?.length > 0) && (
               <Box sx={{ mb: 1 }}>
                 <Typography variant="caption" color="text.secondary">
-                  Buy/Rent from
+                  Buy/Rent from:
                 </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 0.5
+                  }}
+                >
                   {renderProviderLogos(providers.buy)}
                   {renderProviderLogos(providers.rent)}
-                </Stack>
+                </Box>
               </Box>
             )}
           </motion.div>

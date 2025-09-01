@@ -8,12 +8,13 @@ import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.user.LoginDataDto;
 import com.db.dbworld.services.auth.LoginDataService;
 import jakarta.persistence.EntityManager;
-import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional
 public class LoginDataServiceImpl implements LoginDataService {
 
     @Autowired
@@ -29,7 +30,6 @@ public class LoginDataServiceImpl implements LoginDataService {
     private EntityManager entityManager;
 
     @Override
-    @Transactional
     public LoginDataDto addAgentByUserId(String agent, Long userId) {
 //        LoginDataEntity loginDataEntity = this.modelMapper.map(loginDataDto, LoginDataEntity.class);
         UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(

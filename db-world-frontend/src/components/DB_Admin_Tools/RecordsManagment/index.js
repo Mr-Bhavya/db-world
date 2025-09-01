@@ -104,7 +104,7 @@ const RecordManagement = () => {
       const res = await changeShowOnTopRecord(recordId, !currentValue);
       handleApiResponse(res, 'Show on top updated for record - ' + recordId);
       setAllRecords(prev => prev.map(record =>
-        record.id === recordId ? { ...record, showOnTop: !currentValue } : record
+        record.id === recordId ? { ...record, show_on_top: !currentValue } : record
       ));
     } catch (error) {
       handleApiError(error, navigate, location);
@@ -121,7 +121,7 @@ const RecordManagement = () => {
         type: record.type,
         name: record.name,
         tmdbId: record.tmdb,
-        showOnTop: record.showOnTop
+        showOnTop: record.show_on_top
       });
       handleApiResponse(res, 'TMDB data refreshed for record - ' + recordId);
     } catch (error) {

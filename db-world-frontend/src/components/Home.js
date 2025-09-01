@@ -12,7 +12,9 @@ import {
   Container,
   Grid,
   Typography,
-  Divider
+  Divider,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 
 // Icons
@@ -26,6 +28,9 @@ import {
 
 const Home = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMediumScreen = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const cardDetails = [
     {
@@ -109,17 +114,24 @@ const Home = () => {
         backgroundImage: 'url(/your-background-image.jpg)', // Add your background image path
         backgroundSize: 'cover',
         backgroundAttachment: 'fixed',
-        pt: 4,
-        pb: 8
+        backgroundPosition: 'center',
+        pt: { xs: 2, sm: 4 },
+        pb: { xs: 4, sm: 8 }
       }}
     >
-      <Container maxWidth="lg">
+      <Container 
+        maxWidth="lg" 
+        sx={{ 
+          px: { xs: 1, sm: 2, md: 3 } // Responsive padding
+        }}
+      >
         <Box
           sx={{
-            backgroundColor: 'rgba(255, 255, 255, 0.85)', // Dark semi-transparent
-            borderRadius: 4,
-            p: 4,
-            backdropFilter: 'blur(4px)'
+            backgroundColor: 'rgba(255, 255, 255, 0.85)',
+            borderRadius: { xs: 2, sm: 4 },
+            p: { xs: 2, sm: 3, md: 4 },
+            backdropFilter: 'blur(4px)',
+            mx: 'auto'
           }}
         >
           <motion.div
@@ -128,47 +140,58 @@ const Home = () => {
             variants={container}
           >
             {/* Header */}
-            <Box textAlign="center" mb={4}>
+            <Box textAlign="center" mb={{ xs: 2, sm: 4 }}>
               <Typography 
-                variant="h3" 
+                variant={isSmallScreen ? "h4" : "h3"}
                 component="h1"
                 color="#008080"
                 fontWeight="bold"
                 gutterBottom
+                sx={{ 
+                  fontSize: { xs: '1.8rem', sm: '2.4rem', md: '3rem' } 
+                }}
               >
                 DB World Portal
               </Typography>
-              <Typography variant="subtitle1" color="text.secondary">
+              <Typography 
+                variant="subtitle1" 
+                color="text.secondary"
+                sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}
+              >
                 Your gateway to digital services
               </Typography>
-              <Divider sx={{ my: 3, bgcolor: '#008080' }} />
+              <Divider sx={{ my: { xs: 2, sm: 3 }, bgcolor: '#008080' }} />
             </Box>
 
             {/* Cards Grid - Responsive layout */}
-            <Grid container spacing={3} justifyContent="center">
+            <Grid 
+              container 
+              spacing={{ xs: 1.5, sm: 2, md: 3 }} 
+              justifyContent="center"
+              sx={{ mx: 'auto' }}
+            >
               {cardDetails.map((card) => (
                 <Grid 
                   item 
                   key={card.id}
-                  xs={12}   // Full width on mobile
-                  sm={6}    // 2 per row on small tablets
-                  md={3}    // 3 per row on medium screens
-                  lg={2.4}  // 5 per row on large screens
+                  xs={6}   // 2 per row on mobile
+                  sm={4}   // 3 per row on small tablets
+                  md={3}   // 4 per row on medium screens
+                  lg={2.4} // 5 per row on large screens
                   sx={{
                     display: 'flex',
-                    // justifyContent: 'center'
+                    justifyContent: 'center'
                   }}
                 >
                   <motion.div
                     variants={item}
                     whileHover="hover"
-                    style={{ width: '100%', minWidth: '250px', maxWidth: '300px' }}
+                    style={{ width: '100%', maxWidth: '300px' }}
                   >
                     <Card
                       sx={{
                         height: '100%',
                         bgcolor: 'rgba(255, 255, 255, 0.7)',
-                        // maxWidthwidth: '100%',
                         border: '1px solid #008080',
                         transition: 'all 0.3s ease',
                         '&:hover': {
@@ -181,7 +204,7 @@ const Home = () => {
                         onClick={() => handleCardClick(card)}
                         sx={{
                           height: '100%',
-                          p: 2,
+                          p: { xs: 1, sm: 2 },
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
@@ -190,25 +213,32 @@ const Home = () => {
                       >
                         <Box
                           sx={{
-                            width: 60,
-                            height: 60,
+                            width: { xs: 50, sm: 60 },
+                            height: { xs: 50, sm: 60 },
                             borderRadius: '50%',
                             bgcolor: `${card.color}30`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            mb: 2
+                            mb: { xs: 1, sm: 2 }
                           }}
                         >
                           {React.cloneElement(card.icon, {
-                            sx: { color: card.color }
+                            sx: { 
+                              color: card.color,
+                              fontSize: { xs: '1.5rem', sm: '2rem' } 
+                            }
                           })}
                         </Box>
                         <CardContent sx={{ p: 0 }}>
                           <Typography 
-                            variant="h6" 
+                            variant={isSmallScreen ? "subtitle1" : "h6"}
                             gutterBottom
                             color="#008080"
+                            sx={{ 
+                              fontSize: { xs: '0.9rem', sm: '1rem' },
+                              fontWeight: 'bold'
+                            }}
                           >
                             {card.title}
                           </Typography>
@@ -216,7 +246,7 @@ const Home = () => {
                             variant="body2" 
                             color="rgba(0,0,0,0.7)"
                             sx={{
-                              fontSize: '0.8rem',
+                              fontSize: { xs: '0.7rem', sm: '0.8rem' },
                               lineHeight: 1.3
                             }}
                           >

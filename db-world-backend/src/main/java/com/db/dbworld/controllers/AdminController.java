@@ -28,6 +28,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -257,7 +258,7 @@ public class AdminController {
         return new ApiResponse<>(HttpStatus.OK, true, response);
     }
 
-
+    @Transactional
     @GetMapping("/activity-logs")
     public ResponseEntity<ResponsePayloads.PagedResponse<UserActivityLogDto>> getActivityLogs(
             @RequestParam(required = false) String username,
@@ -274,7 +275,8 @@ public class AdminController {
 
         PageRequest pageRequest = PageRequest.of(page, size, parseSort(sort));
         Page<UserActivityLogEntity> logs = logService.getFilteredLogs(
-                username, method, status, uri, ip, requestId, startDate, endDate, pageRequest);
+                username, method, status, uri, ip, requestId, startDate, endDate, pageRequest
+        );
 
         // Convert to DTO page
         ResponsePayloads.PagedResponse<UserActivityLogDto> dtoPage = new ResponsePayloads.PagedResponse<>(logs.map(UserActivityLogDto::new));

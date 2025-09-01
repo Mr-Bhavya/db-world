@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Service
+@Transactional
 public class PasswordManagerServiceImpl implements PasswordManagerService {
 
     @Autowired

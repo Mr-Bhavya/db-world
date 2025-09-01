@@ -24,7 +24,8 @@ import {
   Modal,
   TextField,
   Typography,
-  useTheme
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Lock as LockIcon,
@@ -48,10 +49,11 @@ const modalStyle = {
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
-  width: 400,
+  width: { xs: '90%', sm: 400 },
+  maxWidth: '400px',
   bgcolor: 'background.paper',
   boxShadow: 24,
-  p: 4,
+  p: { xs: 2, sm: 3, md: 4 },
   borderRadius: 2
 };
 
@@ -61,6 +63,8 @@ const Login = () => {
   const location = useLocation();
   const theme = useTheme();
   const { login, logout } = useAuth();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMediumScreen = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   // State
   const [formData, setFormData] = useState({
@@ -194,7 +198,13 @@ const Login = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        py: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2 }
+      }}
+    >
       {/* Toast container */}
       
 
@@ -204,14 +214,20 @@ const Login = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Card sx={{ display: 'flex', borderRadius: 4, overflow: 'hidden' }}>
+        <Card sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', md: 'row' },
+          borderRadius: { xs: 2, sm: 4 }, 
+          overflow: 'hidden',
+          minHeight: { xs: 'auto', md: '400px' }
+        }}>
           {/* Image Section */}
           <CardMedia
             component="img"
             sx={{
-              width: { xs: 0, md: '35%' },
+              width: { xs: '100%', md: '35%' },
+              height: { xs: '200px', md: 'auto' },
               objectFit: 'cover',
-              display: { xs: 'none', md: 'block' }
             }}
             image={loginImage}
             alt="Login illustration"
@@ -219,20 +235,36 @@ const Login = () => {
 
           {/* Form Section */}
           <Box sx={{ flex: 1 }}>
-            <CardContent sx={{ p: 4 }}>
+            <CardContent sx={{ 
+              p: { xs: 2, sm: 3, md: 4 },
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              minHeight: { xs: 'auto', md: '400px' }
+            }}>
               <motion.div
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
               >
                 <motion.div variants={itemVariants}>
-                  <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                  <Typography 
+                    variant={isSmallScreen ? "h5" : "h4"} 
+                    component="h1" 
+                    gutterBottom 
+                    sx={{ fontWeight: 'bold' }}
+                  >
                     Welcome Back
                   </Typography>
-                  <Typography variant="body1" color="text.secondary" gutterBottom>
+                  <Typography 
+                    variant="body1" 
+                    color="text.secondary" 
+                    gutterBottom
+                    sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}
+                  >
                     Sign in to continue to your account
                   </Typography>
-                  <Divider sx={{ my: 3 }} />
+                  <Divider sx={{ my: { xs: 2, sm: 3 } }} />
                 </motion.div>
 
                 <Box component="form" onSubmit={handleSubmit} noValidate>
@@ -256,6 +288,7 @@ const Login = () => {
                         }}
                         error={errors.email}
                         helperText={errors.email ? 'Please enter a valid email' : ''}
+                        size={isSmallScreen ? "small" : "medium"}
                       />
                     </FormControl>
                   </motion.div>
@@ -281,6 +314,7 @@ const Login = () => {
                               <IconButton
                                 onClick={() => setShowPassword(!showPassword)}
                                 edge="end"
+                                size={isSmallScreen ? "small" : "medium"}
                               >
                                 {showPassword ? <VisibilityOff /> : <Visibility />}
                               </IconButton>
@@ -289,20 +323,30 @@ const Login = () => {
                         }}
                         error={errors.password}
                         helperText={errors.password ? 'Password cannot be empty or contain spaces' : ''}
+                        size={isSmallScreen ? "small" : "medium"}
                       />
                     </FormControl>
                   </motion.div>
 
                   <motion.div variants={itemVariants}>
-                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
+                    <Box sx={{ 
+                      mt: 3, 
+                      display: 'flex', 
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      justifyContent: 'space-between',
+                      gap: { xs: 2, sm: 0 }
+                    }}>
                       <Button
                         type="submit"
                         variant="contained"
                         color="primary"
-                        size="large"
-                        startIcon={<LoginIcon />}
+                        size={isSmallScreen ? "medium" : "large"}
+                        startIcon={!isSmallScreen && <LoginIcon />}
                         disabled={loading}
-                        sx={{ minWidth: 120 }}
+                        sx={{ 
+                          minWidth: { xs: '100%', sm: 120 },
+                          order: { xs: 1, sm: 0 }
+                        }}
                       >
                         {loading ? (
                           <>
@@ -315,9 +359,13 @@ const Login = () => {
                       <Button
                         variant="outlined"
                         color="secondary"
-                        size="large"
+                        size={isSmallScreen ? "medium" : "large"}
                         onClick={() => navigate(Constants.DB_WORLD_HOME_ROUTE)}
-                        startIcon={<CloseIcon />}
+                        startIcon={!isSmallScreen && <CloseIcon />}
+                        sx={{ 
+                          minWidth: { xs: '100%', sm: 120 },
+                          order: { xs: 0, sm: 1 }
+                        }}
                       >
                         Cancel
                       </Button>
@@ -326,15 +374,23 @@ const Login = () => {
                 </Box>
 
                 <motion.div variants={itemVariants}>
-                  <Divider sx={{ my: 3 }} />
-                  <Typography variant="body2" align="center" sx={{ mb: 2 }}>
+                  <Divider sx={{ my: { xs: 2, sm: 3 } }} />
+                  <Typography 
+                    variant="body2" 
+                    align="center" 
+                    sx={{ 
+                      mb: 2,
+                      fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                    }}
+                  >
                     Don't have an account?
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                     <Button
                       variant="outlined"
                       color="primary"
-                      startIcon={<PersonAddIcon />}
+                      size={isSmallScreen ? "medium" : "large"}
+                      startIcon={!isSmallScreen && <PersonAddIcon />}
                       onClick={() => navigate(Constants.REGISTRATION_ROUTE)}
                     >
                       Create Account
@@ -363,12 +419,15 @@ const Login = () => {
               <Typography id="dob-modal-title" variant="h6" component="h2">
                 Update Your Date of Birth
               </Typography>
-              <IconButton onClick={() => setDobModalOpen(false)}>
+              <IconButton 
+                onClick={() => setDobModalOpen(false)}
+                size={isSmallScreen ? "small" : "medium"}
+              >
                 <CloseIcon />
               </IconButton>
             </Box>
 
-            <Typography variant="body1" sx={{ mb: 3 }}>
+            <Typography variant="body1" sx={{ mb: 3, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
               Please provide your date of birth to continue. This information is required.
             </Typography>
 
@@ -393,6 +452,7 @@ const Login = () => {
               error={dobError}
               helperText={dobError ? 'Please enter a valid date (YYYY-MM-DD)' : ''}
               sx={{ mb: 3 }}
+              size={isSmallScreen ? "small" : "medium"}
             />
 
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -400,6 +460,7 @@ const Login = () => {
                 variant="contained"
                 onClick={handleDobSubmit}
                 startIcon={<CalendarIcon />}
+                size={isSmallScreen ? "medium" : "large"}
               >
                 Submit
               </Button>

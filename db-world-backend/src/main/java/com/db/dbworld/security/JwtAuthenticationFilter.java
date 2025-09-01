@@ -11,6 +11,7 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 
@@ -24,7 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> EXCLUDED_URI_PATTERNS = List.of(
             "/favicon.ico", "/logo", "/js/bootstrap.min.js",
-            "/static/", "/manifest.json", "/actuator/health"
+            "/static/", "/manifest.json", "/actuator/health", "/ws"
     );
 
     private static final List<String> TRACKED_METHODS = List.of("POST", "PUT", "DELETE", "PATCH");

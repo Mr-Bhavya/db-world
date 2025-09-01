@@ -2,7 +2,9 @@ package com.db.dbworld.handler;
 
 import com.db.dbworld.dao.fileexplorer.FileRepository;
 import com.db.dbworld.entities.fileexplorer.FileEntity;
+import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.payloads.fileexplorer.FileDto;
+import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -20,8 +22,8 @@ import java.util.stream.Stream;
 @Component
 public class FileImporter {
 
-    @Value("${dbworld.paths.streamHomePath}")
-    private String baseDirectory;
+    @Value("${app.stream-path}")
+    private final String baseDirectory = DbWorldConstants.STREAM_HOME_PATH;
 
     @Autowired
     private ModelMapper modelMapper;
@@ -50,8 +52,9 @@ public class FileImporter {
                         FileEntity fileEntity = modelMapper.map(fileDto, FileEntity.class);
                         fileRepository.save(fileEntity);
                         log.info("Imported file: {}", absolutePath);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
+                    } catch (Exception e) {
+                        log.error(e.getMessage());
+//                        throw new DbWorldException(e.getMessage(), e);
                     }
                 }
             });

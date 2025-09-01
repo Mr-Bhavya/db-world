@@ -13,135 +13,135 @@ import lombok.Setter;
 @DiscriminatorValue("Video")
 public class VideoInfoEntity extends TrackInfoEntity {
 
-    @Column(name = "UniqueID")
+    @Column(name = "unique_id")
     @JsonProperty("UniqueID")
     private String uniqueID;
 
-    @Column(name = "StreamOrder")
+    @Column(name = "stream_order")
     @JsonProperty("StreamOrder")
     private String streamOrder;
 
-    @Column(name = "Format")
+    @Column(name = "format")
     @JsonProperty("Format")
     private String format;
 
-    @Column(name = "Format_Profile")
+    @Column(name = "format_profile")
     @JsonProperty("Format_Profile")
     private String formatProfile;
 
-    @Column(name = "Format_Level")
+    @Column(name = "format_level")
     @JsonProperty("Format_Level")
     private String formatLevel;
 
-    @Column(name = "Format_Tier")
+    @Column(name = "format_tier")
     @JsonProperty("Format_Tier")
     private String formatTier;
 
-    @Column(name = "HDR_Format")
+    @Column(name = "hdr_format")
     @JsonProperty("HDR_Format")
     private String hdrFormat;
 
-    @Column(name = "HDR_Format_Version")
+    @Column(name = "hdr_format_version")
     @JsonProperty("HDR_Format_Version")
     private String hdrFormatVersion;
 
-    @Column(name = "HDR_Format_Compatibility")
+    @Column(name = "hdr_format_compatibility")
     @JsonProperty("HDR_Format_Compatibility")
     private String hdrFormatCompatibility;
 
-    @Column(name = "CodecID")
+    @Column(name = "codec_id")
     @JsonProperty("CodecID")
     private String codecID;
 
-    @Column(name = "Duration")
+    @Column(name = "duration")
     @JsonProperty("Duration")
     private Double duration;
 
-    @Column(name = "BitRate")
+    @Column(name = "bit_rate")
     @JsonProperty("BitRate")
     private Integer bitRate;
 
-    @Column(name = "Width")
+    @Column(name = "width")
     @JsonProperty("Width")
     private Integer width;
 
-    @Column(name = "Height")
+    @Column(name = "height")
     @JsonProperty("Height")
     private Integer height;
 
-    @Column(name = "Sampled_Width")
+    @Column(name = "sampled_width")
     @JsonProperty("Sampled_Width")
     private Integer sampledWidth;
 
-    @Column(name = "Sampled_Height")
+    @Column(name = "sampled_height")
     @JsonProperty("Sampled_Height")
     private Integer sampledHeight;
 
-    @Column(name = "PixelAspectRatio")
+    @Column(name = "pixel_aspect_ratio")
     @JsonProperty("PixelAspectRatio")
     private Double pixelAspectRatio;
 
-    @Column(name = "DisplayAspectRatio")
+    @Column(name = "display_aspect_ratio")
     @JsonProperty("DisplayAspectRatio")
     private Double displayAspectRatio;
 
-    @Column(name = "FrameRate_Mode")
+    @Column(name = "frame_rate_mode")
     @JsonProperty("FrameRate_Mode")
     private String frameRateMode;
 
-    @Column(name = "FrameRate")
+    @Column(name = "frame_rate")
     @JsonProperty("FrameRate")
     private Double frameRate;
 
-    @Column(name = "FrameRate_Num")
+    @Column(name = "frame_rate_num")
     @JsonProperty("FrameRate_Num")
     private Integer frameRateNum;
 
-    @Column(name = "FrameRate_Den")
+    @Column(name = "frame_rate_den")
     @JsonProperty("FrameRate_Den")
     private Integer frameRateDen;
 
-    @Column(name = "FrameCount")
+    @Column(name = "frame_count")
     @JsonProperty("FrameCount")
     private Integer frameCount;
 
-    @Column(name = "ColorSpace")
+    @Column(name = "color_space")
     @JsonProperty("ColorSpace")
     private String colorSpace;
 
-    @Column(name = "ChromaSubsampling")
+    @Column(name = "chroma_subsampling")
     @JsonProperty("ChromaSubsampling")
     private String chromaSubsampling;
 
-    @Column(name = "ChromaSubsampling_Position")
+    @Column(name = "chroma_subsampling_position")
     @JsonProperty("ChromaSubsampling_Position")
     private String chromaSubsamplingPosition;
 
-    @Column(name = "BitDepth")
+    @Column(name = "bit_depth")
     @JsonProperty("BitDepth")
     private Integer bitDepth;
 
-    @Column(name = "Delay")
+    @Column(name = "delay")
     @JsonProperty("Delay")
     private Double delay;
 
-    @Column(name = "Delay_Source")
+    @Column(name = "delay_source")
     @JsonProperty("Delay_Source")
     private String delaySource;
 
-    @Column(name = "StreamSize")
+    @Column(name = "stream_size")
     @JsonProperty("StreamSize")
     private Long streamSize;
 
-    @Column(name = "Encoded_Library")
+    @Column(name = "encoded_library")
     @JsonProperty("Encoded_Library")
     private String encodedLibrary;
 
-    @Column(name = "`Default`")
+    @Column(name = "default_value")
     @JsonProperty("Default")
     private String defaultValue;
 
-    @Column(name = "Forced")
+    @Column(name = "forced")
     @JsonProperty("Forced")
     private String forced;
 
@@ -149,7 +149,7 @@ public class VideoInfoEntity extends TrackInfoEntity {
     @JsonProperty("colour_description_present")
     private String colourDescriptionPresent;
 
-    @Column(name = "colour_description_present_Source")
+    @Column(name = "colour_description_present_source")
     @JsonProperty("colour_description_present_Source")
     private String colourDescriptionPresentSource;
 
@@ -157,7 +157,7 @@ public class VideoInfoEntity extends TrackInfoEntity {
     @JsonProperty("colour_range")
     private String colourRange;
 
-    @Column(name = "colour_range_Source")
+    @Column(name = "colour_range_source")
     @JsonProperty("colour_range_Source")
     private String colourRangeSource;
 
@@ -165,7 +165,7 @@ public class VideoInfoEntity extends TrackInfoEntity {
     @JsonProperty("colour_primaries")
     private String colourPrimaries;
 
-    @Column(name = "colour_primaries_Source")
+    @Column(name = "colour_primaries_source")
     @JsonProperty("colour_primaries_Source")
     private String colourPrimariesSource;
 
@@ -173,7 +173,7 @@ public class VideoInfoEntity extends TrackInfoEntity {
     @JsonProperty("transfer_characteristics")
     private String transferCharacteristics;
 
-    @Column(name = "transfer_characteristics_Source")
+    @Column(name = "transfer_characteristics_source")
     @JsonProperty("transfer_characteristics_Source")
     private String transferCharacteristicsSource;
 
@@ -181,41 +181,39 @@ public class VideoInfoEntity extends TrackInfoEntity {
     @JsonProperty("matrix_coefficients")
     private String matrixCoefficients;
 
-    @Column(name = "matrix_coefficients_Source")
+    @Column(name = "matrix_coefficients_source")
     @JsonProperty("matrix_coefficients_Source")
     private String matrixCoefficientsSource;
 
-    @Column(name = "MasteringDisplay_ColorPrimaries")
+    @Column(name = "mastering_display_color_primaries")
     @JsonProperty("MasteringDisplay_ColorPrimaries")
     private String masteringDisplayColorPrimaries;
 
-    @Column(name = "MasteringDisplay_ColorPrimaries_Source")
+    @Column(name = "mastering_display_color_primaries_source")
     @JsonProperty("MasteringDisplay_ColorPrimaries_Source")
     private String masteringDisplayColorPrimariesSource;
 
-    @Column(name = "MasteringDisplay_Luminance")
+    @Column(name = "mastering_display_luminance")
     @JsonProperty("MasteringDisplay_Luminance")
     private String masteringDisplayLuminance;
 
-    @Column(name = "MasteringDisplay_Luminance_Source")
+    @Column(name = "mastering_display_luminance_source")
     @JsonProperty("MasteringDisplay_Luminance_Source")
     private String masteringDisplayLuminanceSource;
 
-    @Column(name = "MaxCLL")
+    @Column(name = "max_cll")
     @JsonProperty("MaxCLL")
     private String maxCLL;
 
-    @Column(name = "MaxCLL_Source")
+    @Column(name = "max_cll_source")
     @JsonProperty("MaxCLL_Source")
     private String maxCLLSource;
 
-    @Column(name = "MaxFALL")
+    @Column(name = "max_fall")
     @JsonProperty("MaxFALL")
     private String maxFALL;
 
-    @Column(name = "MaxFALL_Source")
+    @Column(name = "max_fall_source")
     @JsonProperty("MaxFALL_Source")
     private String maxFALLSource;
-
 }
-

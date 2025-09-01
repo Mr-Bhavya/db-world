@@ -4,6 +4,7 @@ import com.db.dbworld.dao.fileexplorer.FileRepository;
 import com.db.dbworld.entities.fileexplorer.FileEntity;
 import com.db.dbworld.payloads.fileexplorer.FileDto;
 import com.db.dbworld.services.media.MediaFileInfoService;
+import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -38,7 +39,7 @@ public class RecursiveFileWatcherService {
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
 
-    @Value("${dbworld.paths.streamHomePath}")
+    @Value("${app.stream-path}")
     private String baseDirectory;
 
     public RecursiveFileWatcherService(FileRepository fileRepository) throws IOException {
@@ -83,7 +84,7 @@ public class RecursiveFileWatcherService {
     private void register(Path dir) throws IOException {
         WatchKey key = dir.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
         watchKeys.put(key, dir);
-        log.info("Registered directory: {}", dir);
+        log.debug("Registered directory: {}", dir);
     }
 
     /**

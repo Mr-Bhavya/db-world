@@ -1,5 +1,5 @@
 // src/store/recordStore.js
-import { create } from 'zustand';
+import {create} from 'zustand';
 
 const useRecordStore = create((set) => ({
   records: {}, // { [recordId]: record }
@@ -13,7 +13,6 @@ const useRecordStore = create((set) => ({
           [updated.recordId]: { ...current, ...updated },
         },
       };
-//      console.log('Updated record:', updatedRecords.records[updated.recordId]);
       return updatedRecords;
     }),
 
@@ -23,8 +22,6 @@ const useRecordStore = create((set) => ({
       newRecords.forEach((r) => {
         merged[r.recordId] = { ...merged[r.recordId], ...r };
       });
-//      console.log('Added records:', Object.keys(merged).length);
-//      console.log('Merged records:', merged);
       return { records: merged };
     }),
 }));

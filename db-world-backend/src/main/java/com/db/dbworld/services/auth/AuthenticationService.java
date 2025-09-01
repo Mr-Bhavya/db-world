@@ -56,7 +56,6 @@ public class AuthenticationService {
         final var refreshTokenEntity = refreshTokenRepository.findByIdAndExpiryAfter(validateRefreshTokenFormat(refreshToken), Instant.now())
                 .orElseThrow(() -> new BadCredentialsException("Invalid or expired refresh token"));
 
-//        final var newAccessToken = jwtService.generateToken(refreshTokenEntity.getUser().getEmail());
         final var newAccessToken = jwtService.generateToken(refreshTokenEntity.getUser());
 
         return new DbWorldRecords.AuthTokens(newAccessToken, refreshToken, between(Instant.now(), refreshTokenEntity.getExpiry()), refreshTokenEntity.getUser());
@@ -67,7 +66,6 @@ public class AuthenticationService {
     }
 
     private DbWorldRecords.AuthTokens authenticate(final UserEntity user) {
-//        final var accessToken = jwtService.generateToken(user.getEmail());
         final var accessToken = jwtService.generateToken(user);
 
         RefreshTokenEntity refreshTokenEntity = new RefreshTokenEntity();

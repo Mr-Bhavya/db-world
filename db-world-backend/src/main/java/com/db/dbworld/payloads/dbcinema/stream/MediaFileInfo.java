@@ -1,5 +1,6 @@
 package com.db.dbworld.payloads.dbcinema.stream;
 
+import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -32,6 +33,7 @@ public class MediaFileInfo {
                     .withZone(ZoneId.systemDefault());
 
     private String id;
+    private Long dbCinemaRecordId;
     private String fileName;
     private Long fileSize;
     private String fileType;

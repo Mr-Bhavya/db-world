@@ -14,7 +14,9 @@ import {
   useTheme,
   useMediaQuery,
   alpha,
-  Chip
+  Chip,
+  Stack,
+  Tooltip
 } from "@mui/material";
 import { Capacitor } from "@capacitor/core";
 import { motion } from "framer-motion";
@@ -39,6 +41,7 @@ export const MediaInfoRender = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isLargeScreen = useMediaQuery(theme.breakpoints.up('md'));
   const [expandedCards, setExpandedCards] = useState({ [mediaInfo.id]: expandCard });
   const [showPlayerFor, setShowPlayerFor] = useState(null);
 
@@ -71,7 +74,7 @@ export const MediaInfoRender = ({
           {showHeader && (
             <CardHeader
               sx={{
-                px: 2,
+                px: { xs: 1, sm: 2 },
                 py: 1,
                 bgcolor: alpha(theme.palette.background.default, 0.5),
                 borderBottom: expandedCards[mediaInfo.id] ? `1px solid ${theme.palette.divider}` : 'none',
@@ -98,7 +101,8 @@ export const MediaInfoRender = ({
                       WebkitLineClamp: isMobile ? 2 : 1,
                       WebkitBoxOrient: 'vertical',
                       whiteSpace: 'normal',
-                      lineHeight: 1.3
+                      lineHeight: 1.3,
+                      fontSize: { xs: '0.875rem', sm: '0.9rem', md: '1rem' }
                     }}
                   >
                     {mediaInfo.general?.fileName?.replace(/[._]/g, ' ') || 'Media File'}
@@ -123,24 +127,78 @@ export const MediaInfoRender = ({
           {showActions && (
             <CardActions sx={{
               justifyContent: 'space-between',
-              px: 2,
+              px: { xs: 1, sm: 2 },
               py: 1,
               bgcolor: alpha(theme.palette.background.default, 0.3),
-              borderTop: `1px solid ${theme.palette.divider}`
+              borderTop: `1px solid ${theme.palette.divider}`,
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: { xs: 1, sm: 0 }
             }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Play streamUrl={mediaInfo.streamUrl} mediaId={mediaInfo.id} variant="contained" label="Play" size="small" onAndroidPlay={AndroidPlugins.MyMedia3Player}  />
-                <Copy text={mediaInfo.streamUrl} variant="icon" label="Copy" tooltip="Copy Stream URL" size="small" />
+              {/* Play & Copy Group */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: { xs: 'space-between', sm: 'flex-start' }
+              }}>
+                <Play 
+                  streamUrl={mediaInfo.streamUrl} 
+                  mediaId={mediaInfo.id} 
+                  variant="contained" 
+                  // label={isMobile ? "" : "Play"} 
+                  label="Play"
+                  size="small" 
+                  onAndroidPlay={AndroidPlugins.MyMedia3Player} 
+                  sx={{ 
+                    mr: { xs: 0.5, sm: 1 },
+                    minWidth: { xs: 'auto', sm: '80px' }
+                  }}
+                />
+                <Copy 
+                  text={mediaInfo.streamUrl} 
+                  variant={isMobile ? "icon" : "button"} 
+                  label={isMobile ? "" : "Copy URL"} 
+                  tooltip="Copy Stream URL" 
+                  size="small" 
+                  sx={{ 
+                    ml: { xs: 0.5, sm: 1 },
+                    minWidth: { xs: 'auto', sm: '100px' }
+                  }}
+                />
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {/* Download & Copy Group */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: { xs: 'space-between', sm: 'flex-start' }
+              }}>
                 <Download
                   downloadUrl={mediaInfo.downloadUrl}
-                  mode="direct" variant="button"
-                  label="Download" tooltip="Download File"
+                  mode="direct" 
+                  variant="button"
+                  // label={isMobile ? "" : "Download"} 
+                  lable="Download"
+                  tooltip="Download File"
                   fileName={mediaInfo?.fileName}
-                  color="success" />
-                <Copy text={mediaInfo.downloadUrl} variant="icon" label="Copy" tooltip="Copy Download URL" size="small" />
+                  color="success" 
+                  sx={{ 
+                    mr: { xs: 0.5, sm: 1 },
+                    minWidth: { xs: 'auto', sm: '110px' }
+                  }}
+                />
+                <Copy 
+                  text={mediaInfo.downloadUrl} 
+                  variant={isMobile ? "icon" : "button"} 
+                  label={isMobile ? "" : "Copy DL"} 
+                  tooltip="Copy Download URL" 
+                  size="small" 
+                  sx={{ 
+                    ml: { xs: 0.5, sm: 1 },
+                    minWidth: { xs: 'auto', sm: '100px' }
+                  }}
+                />
               </Box>
             </CardActions>
           )}

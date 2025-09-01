@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@Transactional
 @CacheConfig(cacheNames = "User")
 public class UserServiceImpl implements UserService {
 
