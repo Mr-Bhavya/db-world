@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState, useRef } from "react";
-import axios from "../services/axios";
 import "./ImageCard.css";
 import Constants from "../../Constants";
 import ModalPortal from "./ModalProtal";
@@ -8,7 +7,6 @@ import LazyImage from "../components/LazyImage";
 import { CSSTransition, TransitionGroup } from "react-transition-group";
 import CommonServices from "../../CommonServices";
 import useRecordStore from "../../../store/recordStore";
-import { shallow } from "zustand/shallow";
 import { loadDbCinemaRecordsFromUrl } from "../../ApiServices";
 
 const ImageCardItem = ({ record, horizontal }) => {
@@ -86,9 +84,9 @@ const ImageCard = ({ title, horizontal, requestUrl, category }) => {
   const fetchRecords = useCallback(async (page) => {
     setLoading(true);
     try {
-      const response = await loadDbCinemaRecordsFromUrl(
-        `${requestUrl}&page=${page}&size=${isMobile ? 8 : 12}${category ? '&genres=' + category?.id : ''}`
-      );
+      const response = await loadDbCinemaRecordsFromUrl(requestUrl, {
+        page, size: isMobile ? 8 : 12, genres: category?.id
+      });      
       const data = response.data;
       if (data?.records) {
         const mappedRecords = data.records.map(record => ({

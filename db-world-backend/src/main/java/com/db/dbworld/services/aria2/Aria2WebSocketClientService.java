@@ -109,10 +109,10 @@ public class Aria2WebSocketClientService {
                 switch (method) {
                     case "aria2.onDownloadStart" -> handleDownloadStart(gid);
                     case "aria2.onDownloadComplete", "aria2.onDownloadError", "aria2.onBtDownloadComplete" -> {
-                        log.info("📦 Aria2 Event: {} for GID {}", method, gid);
+                        statusService.logAndAppendHtml(getMirrorStatusForGid(gid), "📦 Aria2 Event: " + method + " for GID " + gid, false);
                         requestFinalStatus(gid);
                     }
-                    default -> log.debug("📨 Received {} for GID {}", method, gid);
+                    default -> statusService.logAndAppendHtml(null, "📨 Received " + method + " for GID " + gid, false);
                 }
             }
 
@@ -130,7 +130,7 @@ public class Aria2WebSocketClientService {
                 try {
                     session.sendMessage(new TextMessage(request.toString()));
                 } catch (IOException e) {
-                    log.error("Failed to request initial info for GID: {}", gid, e);
+                    statusService.logAndAppendHtml(getMirrorStatusForGid(gid), "Failed to request initial info for GID: " + gid, true);
                 }
             }
 
@@ -160,7 +160,7 @@ public class Aria2WebSocketClientService {
                         statusService.updateStatus(mirrorStatus);
                     }
                 } catch (Exception e) {
-                    log.error("Failed to process initial info for GID {} → {}", gid, e.getMessage(), e);
+                    statusService.logAndAppendHtml(mirrorStatus, "Failed to process initial info for GID " + gid + " → " + e.getMessage(), true);
                 }
             }
 
@@ -174,7 +174,7 @@ public class Aria2WebSocketClientService {
                 if (mirrorStatus.isMagnet()) {
                     mirrorStatus.setFileName(torrentName);
                     mirrorStatus.setTempFileName(torrentName);
-                    log.info("Set torrent name from response: {}", torrentName);
+                    statusService.logAndAppendHtml(mirrorStatus, "Set torrent name from response: " + torrentName, false);
                     return true;
                 }
                 return false;
@@ -199,14 +199,14 @@ public class Aria2WebSocketClientService {
                 if (mirrorStatus.isMagnet()) {
                     mirrorStatus.setFileName(actualFileName);
                     mirrorStatus.setTempFileName(actualFileName);
-                    log.info("Set single file name: {}", actualFileName);
+                    statusService.logAndAppendHtml(mirrorStatus, "Set single file name: " + actualFileName, false);
                     updated = true;
                 }
 
                 long fileSize = file.path("length").asLong();
                 if (mirrorStatus.getFileSize() != fileSize) {
                     mirrorStatus.setFileSize(fileSize);
-                    log.info("Set single file size: {} bytes", fileSize);
+                    statusService.logAndAppendHtml(mirrorStatus, "Set single file size: " + fileSize + " bytes", false);
                     updated = true;
                 }
 
@@ -223,7 +223,7 @@ public class Aria2WebSocketClientService {
 
                 if (mirrorStatus.getFileSize() != totalSize) {
                     mirrorStatus.setFileSize(totalSize);
-                    log.info("Set folder total size: {} bytes", totalSize);
+                    statusService.logAndAppendHtml(mirrorStatus, "Set folder total size: " + totalSize + " bytes", false);
                     updated = true;
                 }
 
@@ -234,7 +234,7 @@ public class Aria2WebSocketClientService {
                     String folderName = parentFolder.getFileName().toString();
                     mirrorStatus.setFileName(folderName);
                     mirrorStatus.setTempFileName(folderName);
-                    log.info("Set folder name: {}", folderName);
+                    statusService.logAndAppendHtml(mirrorStatus, "Set folder name: " + folderName, false);
                     updated = true;
                 }
 
@@ -243,13 +243,13 @@ public class Aria2WebSocketClientService {
 
             @Override
             public void handleTransportError(WebSocketSession session, Throwable exception) {
-                log.debug("WebSocket transport error", exception);
+                statusService.logAndAppendHtml(null, "WebSocket transport error: " + exception.getMessage(), true);
                 isConnected.set(false);
             }
 
             @Override
             public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-                log.debug("WebSocket closed: {}. Reconnecting...", status);
+                statusService.logAndAppendHtml(null, "WebSocket closed: " + status + ". Reconnecting...", false);
                 isConnected.set(false);
                 new Thread(() -> {
                     try {
@@ -277,7 +277,7 @@ public class Aria2WebSocketClientService {
         try {
             session.sendMessage(new TextMessage(request.toString()));
         } catch (IOException e) {
-            log.error("Failed to request final status for GID: {}", gid, e);
+            statusService.logAndAppendHtml(getMirrorStatusForGid(gid), "Failed to request final status for GID: " + gid, true);
         }
     }
 
@@ -288,13 +288,13 @@ public class Aria2WebSocketClientService {
             mirrorStatus.setGid(gid);
             statusService.updateStatus(mirrorStatus);
         }
-        log.info("🔍 Started monitoring GID {} for mirror {}", gid, mirrorId);
+        statusService.logAndAppendHtml(mirrorStatus, "🔍 Started monitoring GID " + gid + " for mirror " + mirrorId, false);
     }
 
     public void stopMonitoring(String gid) {
         String mirrorId = activeDownloads.remove(gid);
         if (mirrorId != null) {
-            log.info("⏹️ Stopped monitoring GID {} for mirror {}", gid, mirrorId);
+            statusService.logAndAppendHtml(statusService.getStatusById(mirrorId), "⏹️ Stopped monitoring GID " + gid + " for mirror " + mirrorId, false);
         }
     }
 
@@ -315,7 +315,7 @@ public class Aria2WebSocketClientService {
             try {
                 session.sendMessage(new TextMessage(request.toString()));
             } catch (IOException e) {
-                log.error("Failed to poll status for GID: {}", gid, e);
+                statusService.logAndAppendHtml(statusService.getStatusById(mirrorId), "Failed to poll status for GID: " + gid, true);
             }
         });
     }
@@ -351,6 +351,9 @@ public class Aria2WebSocketClientService {
         String mirrorId = activeDownloads.get(gid);
         if (mirrorId == null) return;
 
+        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
+        if (mirrorStatus == null) return;
+
         String statusText = status.path("status").asText();
         long downloaded = status.path("completedLength").asLong();
         long total = status.path("totalLength").asLong();
@@ -359,7 +362,7 @@ public class Aria2WebSocketClientService {
 
         // Metadata-only check
         if (isMetadataOnly(status, downloaded, total)) {
-            log.info("⚠️ Ignoring metadata-only download for {}", mirrorId);
+            statusService.logAndAppendHtml(mirrorStatus, "⚠️ Ignoring metadata-only download", false);
             if ("complete".equals(statusText)) {
                 handleMetadataCompletion(gid, mirrorId, status);
             }
@@ -381,13 +384,17 @@ public class Aria2WebSocketClientService {
                 case "waiting", "active" ->
                         handleActiveStatus(mirrorId, gid, downloadStatus, total, downloaded, progress);
                 case "removed" -> handleCancelledStatus(mirrorId, gid);
-                default -> log.warn("⚠️ Unknown status '{}' for mirror {}", statusText, mirrorId);
+                default -> statusService.logAndAppendHtml(mirrorStatus, "⚠️ Unknown status '" + statusText + "'", true);
             }
         } catch (Exception e) {
-            log.error("🚨 Failed to update status for {}", mirrorId, e);
+            statusService.logAndAppendHtml(mirrorStatus, "🚨 Failed to update status: " + e.getMessage(), true);
         }
     }
 
+    private MirrorStatus getMirrorStatusForGid(String gid) {
+        String mirrorId = activeDownloads.get(gid);
+        return mirrorId != null ? statusService.getStatusById(mirrorId) : null;
+    }
 
     // Helper methods for each status case
     private void handleMetadataCompletion(String gid, String mirrorId, JsonNode status) {
@@ -401,7 +408,7 @@ public class Aria2WebSocketClientService {
                 if (mirrorStatus != null) {
                     mirrorStatus.setGid(realGid);
                     statusService.updateStatus(mirrorStatus);
-                    log.info("🔄 Found follow-up GID {} for mirror {}", realGid, mirrorId);
+                    statusService.logAndAppendHtml(mirrorStatus, "🔄 Found follow-up GID " + realGid, false);
                 }
             }
         }
@@ -410,17 +417,19 @@ public class Aria2WebSocketClientService {
 
     private void handleCompleteStatus(String mirrorId, String gid,
                                       MirrorStatus.DownloadStatus downloadStatus) {
+        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
         statusService.updateMirrorStatusWithDownloadState(mirrorId, downloadStatus);
         activeDownloads.remove(gid);
-        log.info("✅ Completed download for {}", mirrorId);
+        statusService.logAndAppendHtml(mirrorStatus, "✅ Completed download", false);
         mirrorHelper.postDownloadTasks(mirrorId);
     }
 
     private void handleErrorStatus(String mirrorId, String gid, JsonNode status) {
+        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
         String errorMessage = status.path("errorMessage").asText("Download failed");
         statusService.updateMirrorStatusWithFailed(mirrorId, errorMessage);
         activeDownloads.remove(gid);
-        log.error("❌ Download failed for {}: {}", mirrorId, errorMessage);
+        statusService.logAndAppendHtml(mirrorStatus, "❌ Download failed: " + errorMessage, true);
     }
 
     private void handlePausedStatus(String mirrorId, MirrorStatus.DownloadStatus downloadStatus) {
@@ -428,7 +437,7 @@ public class Aria2WebSocketClientService {
         if (!mirrorStatus.isPause()) {
             statusService.updateMirrorStatusWithDownloadState(mirrorId, downloadStatus);
             statusService.updateMirrorStatusWithPause(mirrorId);
-            log.info("⏸️ Download paused for {}", mirrorId);
+            statusService.logAndAppendHtml(mirrorStatus, "⏸️ Download paused", false);
         } else {
             // Optional: update progress while paused
             statusService.updateMirrorStatusWithDownloadState(mirrorId, downloadStatus);
@@ -442,12 +451,9 @@ public class Aria2WebSocketClientService {
         MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
         if (mirrorStatus == null) {
             activeDownloads.remove(gid);
-            log.warn("⚠️ Mirror status not found for active GID {} (mirror {})", gid, mirrorId);
+            statusService.logAndAppendHtml(null, "⚠️ Mirror status not found for active GID " + gid + " (mirror " + mirrorId + ")", true);
             return;
         }
-
-        // Store original file info
-        String originalFileName = mirrorStatus.getFileName();
 
         // Always update download status
         statusService.updateMirrorStatusWithDownloadState(mirrorId, downloadStatus);
@@ -461,7 +467,7 @@ public class Aria2WebSocketClientService {
         // Resume handling
         if (mirrorStatus.isPause()) {
             statusService.updateMirrorStatusWithResume(mirrorId);
-            log.info("▶️ Download resumed for {} (filename: {})", mirrorId, originalFileName);
+            statusService.logAndAppendHtml(mirrorStatus, "▶️ Download resumed", false);
         }
 
         if (log.isDebugEnabled()) {
@@ -471,9 +477,10 @@ public class Aria2WebSocketClientService {
     }
 
     private void handleCancelledStatus(String mirrorId, String gid) {
+        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
         statusService.updateMirrorStatusWithCancelled(mirrorId);
         activeDownloads.remove(gid);
-        log.info("⏹️ Download cancelled for {}", mirrorId);
+        statusService.logAndAppendHtml(mirrorStatus, "⏹️ Download cancelled", false);
     }
 
     private boolean isMetadataOnly(JsonNode status, long downloaded, long total) {

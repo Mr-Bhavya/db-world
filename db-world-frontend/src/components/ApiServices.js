@@ -247,9 +247,9 @@ export const loadDbCinemaRecords = async (industry, type, genres, pageNumber) =>
 
 }
 
-export const loadDbCinemaRecordsFromUrl = async (url) => {
+export const loadDbCinemaRecordsFromUrl = async (url, params) => {
   try {
-    const response = await axiosInstance.get(url)
+    const response = await axiosInstance.get(url, {params})
     return response.data;
   } catch (error) {
     console.error('Error loading cinema records:', error);
@@ -259,7 +259,7 @@ export const loadDbCinemaRecordsFromUrl = async (url) => {
 
 export const loadCoverRecords = async (url, params) => {
   try {
-    const response = await axiosInstance.get(url, params);
+    const response = await axiosInstance.get(url, {params});
     return response.data;
   } catch (error) {
     console.error('Error loading cover records:', error);

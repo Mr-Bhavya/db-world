@@ -1,79 +1,72 @@
-import React, { useEffect, useState } from 'react';
-import axios from '../services/axios';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSwipeable } from 'react-swipeable';
-import ColorThief from 'colorthief';
 import requests from '../services/requests';
 import Constants from '../../Constants';
 import { loadCoverRecords, removeWatchlistRecord, watchlistRecord } from '../../ApiServices';
 import CommonServices from '../../CommonServices';
-import { Capacitor } from '@capacitor/core';
-import { StatusBar } from '@capacitor/status-bar';
 
 // MUI Components
 import {
-  Box,
-  Button,
-  Typography,
   IconButton,
   useTheme,
   useMediaQuery,
-  Skeleton,
+  Box,
   styled
 } from '@mui/material';
 import {
-  PlayArrow as PlayIcon,
-  Info as InfoIcon,
-  Download as DownloadIcon,
-  Add as AddIcon,
-  Check as CheckIcon,
   ChevronLeft as PrevIcon,
   ChevronRight as NextIcon
 } from '@mui/icons-material';
 
 // Framer Motion
 import { motion, AnimatePresence } from 'framer-motion';
+import CoverSkeleton from './CoverSkeleton';
+import MobileOverlay from './MobileOverlay';
+import DesktopContent from './DesktopContent';
 
-// Styled Components
-const CoverContainer = styled(motion.div)(({ theme }) => ({
+// Constants
+const AUTO_CYCLE_INTERVAL = 5000; // 5s
+
+// Styled Components with MUI transitions
+const CoverContainer = styled(Box)(({ theme }) => ({
   position: 'relative',
   width: '100%',
   marginTop: '50px',
-  height: 'calc(100vh - 160px)',
+  // height: 'calc(100vh - 160px)',
   backgroundColor: 'var(--navbar-bg-color)',
   zIndex: 900,
   overflow: 'hidden',
-  // transition: `margin-top ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}, 
-  //             height ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}`,
-
-  transition: 'background-color var(--color-transition)',
 
   '&.collapsed': {
-    height: 'calc(100vh - 50px)'
+    // height: 'calc(100vh - 160px)'
   },
 
   [theme.breakpoints.down('md')]: {
-    height: 'calc(100vh - 250px)',
+    // height: 'calc(100vh - 160px)',
     marginTop: '100px',
 
     '&.collapsed': {
-      height: 'calc(100vh - 250px)'
+      // height: 'calc(100vh - 160px)'
     }
   }
 }));
 
-const CoverMain = styled(motion.div)(({ theme }) => ({
+const CoverMain = styled(Box)(({ theme, ismobile }) => ({
   position: 'relative',
   display: 'flex',
-  height: '100%',
-  objectFit: 'cover',
   backgroundSize: 'cover',
   backgroundPosition: 'center center',
-  transition: `background-image ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}, 
-              background-color ${theme.transitions.duration.standard}ms ${theme.transitions.easing.easeInOut}`,
+  height: ismobile === 'true' ? '40vh' : '80vh',
+  minHeight: ismobile === 'true' ? '568px' : '800px',
+  maxHeight: '100vh',
+  overflow: 'hidden',
+  marginLeft: ismobile === 'true' ? '30px' : '0px',
+  marginRight: ismobile === 'true' ? '30px' : '0px',
 
   [theme.breakpoints.down('md')]: {
-    margin: theme.spacing(2),
+    marginTop: theme.spacing(2),
+    marginBottom: theme.spacing(0),
     border: '1px solid white',
     borderRadius: '15px',
     boxShadow: theme.shadows[8],
@@ -81,84 +74,9 @@ const CoverMain = styled(motion.div)(({ theme }) => ({
   }
 }));
 
-const CoverContents = styled(motion.div)(({ theme }) => ({
-  marginLeft: '60px',
-  paddingBottom: '30px',
-  width: '600px',
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'flex-end',
-  lineHeight: 1.6,
-  color: theme.palette.common.white,
-  zIndex: 2,
-
-  [theme.breakpoints.down('md')]: {
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    width: '320px',
-    padding: theme.spacing(1),
-    textAlign: 'center'
-  }
-}));
-
-const MovieTitle = styled(motion.div)(({ theme }) => ({
-  fontSize: '80px',
-  lineHeight: 'normal',
-  textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
-
-  [theme.breakpoints.down('md')]: {
-    fontSize: '32px'
-  }
-}));
-
-const MovieOverview = styled(motion.div)(({ theme }) => ({
-  fontSize: '18px',
-  fontWeight: 'normal',
-  marginTop: '10px',
-  textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
-
-  [theme.breakpoints.down('md')]: {
-    fontSize: '16px'
-  }
-}));
-
-const ActionButton = styled(Button)(({ theme }) => ({
-  borderRadius: '4px',
-  fontSize: '18px',
-  padding: '8px 18px',
-  fontWeight: 'bold',
-  marginRight: '8px',
-  textTransform: 'none',
-
-  '&.play': {
-    backgroundColor: theme.palette.common.white,
-    color: theme.palette.text.primary,
-    '&:hover': {
-      opacity: 0.8,
-      backgroundColor: theme.palette.common.white
-    }
-  },
-
-  '&.more': {
-    backgroundColor: '#545455',
-    color: theme.palette.common.white,
-    opacity: 0.8,
-    '&:hover': {
-      opacity: 1,
-      backgroundColor: '#545455'
-    }
-  },
-
-  [theme.breakpoints.down('md')]: {
-    fontSize: '14px',
-    width: '43%',
-    margin: 'auto'
-  }
-}));
-
-const CoverControls = styled(motion.div)(({ theme }) => ({
+const CoverControls = styled(Box)(({ theme }) => ({
   position: 'absolute',
-  bottom: '20px',
+  bottom: '30px',
   right: '20px',
   display: 'flex',
   gap: '10px',
@@ -178,384 +96,247 @@ const CoverControls = styled(motion.div)(({ theme }) => ({
   }
 }));
 
-const TopFadeEffect = styled('div')(({ theme }) => ({
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  width: '100%',
-  height: '100%',
-  background: `linear-gradient(to bottom, var(--navbar-bg-color, rgba(0,0,0,0.0)), transparent)`,
-  pointerEvents: 'none',
-  zIndex: 2
-}));
+// Animation variants for Framer Motion
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.5 } }
+};
 
-const BottomFadeEffect = styled('div')(({ theme }) => ({
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  width: '100%',
-  height: '30%',
-  background: `linear-gradient(to top, var(--navbar-bg-color, rgba(0,0,0,0.7)), transparent)`,
-  pointerEvents: 'none',
-  zIndex: 2
-}));
+const slideVariants = {
+  enter: (direction) => ({
+    opacity: 0,
+    x: direction > 0 ? 1000 : -1000
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      opacity: { duration: 0.5 },
+      x: { type: "spring", stiffness: 300, damping: 30 }
+    }
+  },
+  exit: (direction) => ({
+    opacity: 0,
+    x: direction < 0 ? 1000 : -1000,
+    transition: { duration: 0.5 }
+  })
+};
 
-
-function Cover({ recordCount = 5, isNavbarCollapsed, onColorChange = () => { } }) {
+function Cover({ recordCount = 5, isNavbarCollapsed, recordTypes = ["movie", "series"] }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [records, setRecords] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [animating, setAnimating] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [coverColor, setCoverColor] = useState('rgba(0,0,0,0.9)');
-  const navigate = useNavigate();
   const [isWatchListed, setIsWatchListed] = useState(false);
+  const [direction, setDirection] = useState(0); // 1 for next, -1 for prev
+  const navigate = useNavigate();
+  const autoCycleRef = useRef(null);
 
-  const onToggleWatchlist = async (e) => {
-    e.stopPropagation();
-    const record = records[currentIndex];
-    if (!isWatchListed) {
-      setIsWatchListed(true);
-      const response = await watchlistRecord(record.recordId);
-      if (response.httpStatusCode === 200) {
-        setRecords((prev) => {
-          return prev.map((prevRecord) => {
-            if (prevRecord.recordId === record.recordId) {
-              return { ...prevRecord, isWatchListed: true };
-            }
-            return prevRecord;
-          });
-        });
-      } else {
-        setIsWatchListed(false);
-        console.log(response.message);
-      }
-    } else {
-      setIsWatchListed(false);
-      const response = await removeWatchlistRecord(record.recordId);
-      if (response.httpStatusCode === 200) {
-        setRecords((prev) => {
-          return prev.map((prevRecord) => {
-            if (prevRecord.recordId === record.recordId) {
-              return { ...prevRecord, isWatchListed: false };
-            }
-            return prevRecord;
-          });
-        });
-      } else {
-        setIsWatchListed(true);
-        console.log(response.message);
-      }
-    }
-  };
+  // Memoized record data
+  const currentRecord = useMemo(() => records[currentIndex], [records, currentIndex]);
+  const isMovie = useMemo(() => currentRecord?.type?.toLowerCase() === Constants.RECORD_TYPE_MOVIE, [currentRecord]);
 
+  // Fetch cover records
   useEffect(() => {
-    async function fetchCoverMovies() {
-      const response = await loadCoverRecords(requests.fetchCoverRecord, { pageSize: recordCount });
-      if (response && response.data) {
-        const recordsData = response.data?.records?.map((record) => {
-          record.tmdb =
-            record.type === Constants.RECORD_TYPE_MOVIE
-              ? record.movieTmdb
-              : record.seriesTmdb;
-          return record;
+    const fetchCoverMovies = async () => {
+      try {
+        const response = await loadCoverRecords(requests.fetchCoverRecord, {
+          recordTypes,
+          pageSize: recordCount
         });
-        setRecords(recordsData);
+
+        if (response?.data?.records) {
+          const recordsData = response.data.records.map(record => ({
+            ...record,
+            tmdb: record.type === Constants.RECORD_TYPE_MOVIE
+              ? record.movieTmdb
+              : record.seriesTmdb
+          }));
+          setRecords(recordsData);
+        }
+      } catch (error) {
+        console.error('Failed to load cover records:', error);
+      } finally {
         setLoading(false);
       }
-    }
-    fetchCoverMovies();
-  }, [recordCount]);
-
-  const animationDuration = 500; // ms
-
-  const handleNext = (e) => {
-    // if (e) e.stopPropagation();
-    if (records.length === 0 || animating) return;
-    setAnimating(true);
-    setTimeout(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % records.length);
-      setAnimating(false);
-    }, animationDuration);
-  };
-
-  const handlePrev = (e) => {
-    // if (e) e.stopPropagation();
-    if (records.length === 0 || animating) return;
-    setAnimating(true);
-    setTimeout(() => {
-      setCurrentIndex((prevIndex) => (prevIndex - 1 + records.length) % records.length);
-      setAnimating(false);
-    }, animationDuration);
-  };
-
-  // Extract dominant color and update navbar CSS variable
-  useEffect(() => {
-    if (!records.length) return;
-    const record = records[currentIndex];
-    if (!record?.tmdb) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = CommonServices.getImageUrlFromTmdb(
-      record?.tmdb,
-      isMobile ? Constants.IMAGE_TYPE_POSTER : Constants.IMAGE_TYPE_BACKDROP,
-      'original'
-    );
-    img.onload = () => {
-      const colorThief = new ColorThief();
-      const [r, g, b] = colorThief.getColor(img);
-      const color = `rgba(${r},${g},${b},0.5)`;
-      // document.documentElement.style.setProperty('--navbar-bg-color', color);
-      // setCoverColor(color);
-
-      if (Capacitor.getPlatform() === 'android') {
-        let hexColor = CommonServices.rgbaToHex(color).slice(0, 7);
-        // StatusBar.setBackgroundColor({ color: hexColor });
-        // StatusBar.hide({ animation: 'FADE' });
-        // StatusBar.setOverlaysWebView({ overlay: true });
-      }
-
-      if (typeof onColorChange === 'function') {
-        // onColorChange(color);
-      }
     };
-    setIsWatchListed(record?.isWatchListed);
-  }, [records, currentIndex, isMobile]);
 
-  // Auto-cycle slides every 10 seconds
+    fetchCoverMovies();
+  }, []);
+
+  // Reset & setup auto-cycle
+  const resetAutoCycle = useCallback(() => {
+    if (autoCycleRef.current) clearInterval(autoCycleRef.current);
+    autoCycleRef.current = setInterval(() => {
+      setDirection(1);
+      setCurrentIndex(prev => (prev + 1) % records.length);
+    }, AUTO_CYCLE_INTERVAL);
+  }, [records.length]);
+
   useEffect(() => {
-    if (!records.length) return;
-    const interval = setInterval(() => {
-      handleNext();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [records, animating]);
+    if (records.length > 0) resetAutoCycle();
+    return () => clearInterval(autoCycleRef.current);
+  }, [records.length, resetAutoCycle]);
 
-  const handlers = useSwipeable({
-    onSwipedLeft: handleNext,
-    onSwipedRight: handlePrev,
-    trackMouse: true
-  });
-
-  if (loading) return <CoverSkeleton />;
-
-  const record = records[currentIndex];
-  if (!record) return null;
-
-  const navigateToDetails = (e) => {
+  // Navigation handlers
+  const handleNext = useCallback((e) => {
     e?.stopPropagation();
-    const route = record.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
+    if (records.length === 0) return;
+    setDirection(1);
+    setCurrentIndex(prev => (prev + 1) % records.length);
+    resetAutoCycle();
+  }, [records.length, resetAutoCycle]);
+
+  const handlePrev = useCallback((e) => {
+    e?.stopPropagation();
+    if (records.length === 0) return;
+    setDirection(-1);
+    setCurrentIndex(prev => (prev - 1 + records.length) % records.length);
+    resetAutoCycle();
+  }, [records.length, resetAutoCycle]);
+
+  // Watchlist toggle
+  const onToggleWatchlist = useCallback(async (e) => {
+    e.stopPropagation();
+    if (!currentRecord) return;
+
+    const wasWatchListed = isWatchListed;
+    setIsWatchListed(!wasWatchListed);
+
+    try {
+      const response = wasWatchListed
+        ? await removeWatchlistRecord(currentRecord.recordId)
+        : await watchlistRecord(currentRecord.recordId);
+
+      if (response.httpStatusCode === 200) {
+        setRecords(prev => prev.map(record =>
+          record.recordId === currentRecord.recordId
+            ? { ...record, isWatchListed: !wasWatchListed }
+            : record
+        ));
+      } else {
+        setIsWatchListed(wasWatchListed);
+        console.error(response.message);
+      }
+    } catch (error) {
+      setIsWatchListed(wasWatchListed);
+      console.error('Failed to update watchlist:', error);
+    }
+  }, [currentRecord, isWatchListed]);
+
+  // Navigation to details
+  const navigateToDetails = useCallback((e) => {
+    e?.stopPropagation();
+    if (!currentRecord) return;
+
+    const route = isMovie
       ? Constants.DB_MOVIE_DETIALS_ROUTE
       : Constants.DB_SERIES_DETIALS_ROUTE;
 
-    const slug = `${record.recordId}-${record.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    const slug = `${currentRecord.recordId}-${currentRecord.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     navigate(route.replace(':title', slug));
-  };
+  }, [currentRecord, isMovie, navigate]);
 
-  const navigateToDownload = (e) => {
+  const navigateToDownload = useCallback((e) => {
     e.stopPropagation();
+    if (!currentRecord) return;
+
     navigate(
-      `${Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', record.recordId)}`,
-      { state: { record } }
+      `${Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', currentRecord.recordId)}`,
+      { state: { record: currentRecord } }
     );
-  };
+  }, [currentRecord, navigate]);
+
+  // Update watchlist state when record changes
+  useEffect(() => {
+    setIsWatchListed(currentRecord?.isWatchListed ?? false);
+  }, [currentRecord]);
+
+  // Swipe handlers
+  const handlers = useSwipeable({
+    onSwipedLeft: handleNext,
+    onSwipedRight: handlePrev,
+    trackMouse: true,
+    preventDefaultTouchmoveEvent: true
+  });
+
+  // Memoized image URL
+  const imageUrl = useMemo(() =>
+    currentRecord?.tmdb
+      ? CommonServices.getImageUrlFromTmdb(
+        currentRecord.tmdb,
+        isMobile ? Constants.IMAGE_TYPE_POSTER : Constants.IMAGE_TYPE_BACKDROP,
+        'original'
+      )
+      : '',
+    [currentRecord, isMobile]);
+
+  if (loading) return <CoverSkeleton />;
+  if (!currentRecord) return null;
 
   return (
     <CoverContainer
       {...handlers}
       className={isNavbarCollapsed ? 'collapsed' : ''}
-      style={{ background: coverColor }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
+      component={motion.div}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
     >
-
-      {/* <TopFadeEffect /> */}
-      {/* <BottomFadeEffect /> */}
-      {/* <Box sx={{ height: isMobile ? '20px' : '20px', backgroundColor: coverColor }} /> */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence custom={direction} mode="wait">
         <CoverMain
           key={currentIndex}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-          style={{
-            backgroundImage: `url("${CommonServices.getImageUrlFromTmdb(
-              record?.tmdb,
-              isMobile ? Constants.IMAGE_TYPE_POSTER : Constants.IMAGE_TYPE_BACKDROP,
-              'original'
-            )}")`,
-            backgroundColor: coverColor
-          }}
+          component={motion.div}
+          custom={direction}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          style={{ backgroundImage: `url("${imageUrl}")` }}
+          ismobile={isMobile.toString()}
           onClick={navigateToDetails}
         >
-          {!isMobile && (
-            <CoverContents
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              <MovieTitle>
-                {record.tmdb.title || record.tmdb.name || record.tmdb.original_name}
-              </MovieTitle>
-
-              <MovieOverview>
-                {record.tmdb.overview &&
-                  (record.tmdb.overview.length > 200
-                    ? record.tmdb.overview.substring(0, 200) + '...'
-                    : record.tmdb.overview)}
-              </MovieOverview>
-
-              <Box sx={{ display: 'flex', mt: 2 }}>
-                <ActionButton
-                  className="play text-dark"
-                  variant="contained"
-                  startIcon={<DownloadIcon />}
-                  onClick={navigateToDownload}
-                >
-                  Download
-                </ActionButton>
-                <ActionButton
-                  className="more"
-                  variant="contained"
-                  startIcon={<InfoIcon />}
-                  onClick={navigateToDetails}
-                >
-                  More Info
-                </ActionButton>
-              </Box>
-            </CoverContents>
+          {/* Mobile Overlay */}
+          {isMobile && (
+            <MobileOverlay
+              record={currentRecord}
+              isWatchListed={isWatchListed}
+              onToggleWatchlist={onToggleWatchlist}
+              navigateToDownload={navigateToDownload}
+            />
           )}
 
-
+          {/* Desktop Content */}
+          {!isMobile && (
+            <DesktopContent
+              record={currentRecord}
+              isWatchListed={isWatchListed}
+              onToggleWatchlist={onToggleWatchlist}
+              navigateToDetails={navigateToDetails}
+              navigateToDownload={navigateToDownload}
+            />
+          )}
         </CoverMain>
-
-        {isMobile && (
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 16,
-              left: 0,
-              right: 0,
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 1
-            }}
-          >
-            <ActionButton
-              className="play text-dark"
-              variant="contained"
-              size="small"
-              startIcon={<DownloadIcon />}
-              onClick={navigateToDownload}
-            >
-              Download
-            </ActionButton>
-            <ActionButton
-              variant={isWatchListed ? "contained" : "outlined"}
-              color={isWatchListed ? "success" : "inherit"}
-              size="small"
-              startIcon={isWatchListed ? <CheckIcon /> : <AddIcon />}
-              onClick={onToggleWatchlist}
-              sx={{
-                color: isWatchListed ? 'common.white' : 'common.white',
-                borderColor: 'common.white'
-              }}
-            >
-              {isWatchListed ? 'Listed' : 'My List'}
-            </ActionButton>
-          </Box>
-        )}
-
       </AnimatePresence>
 
-      {/* <FadedBottom /> */}
-
-      <CoverControls>
-        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-          <IconButton onClick={handlePrev} size="large">
-            <PrevIcon />
-          </IconButton>
-        </motion.div>
-        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-          <IconButton onClick={handleNext} size="large">
-            <NextIcon />
-          </IconButton>
-        </motion.div>
-      </CoverControls>
+      {/* Navigation Controls */}
+      {!isMobile && (
+        <CoverControls>
+          <NavigationButton icon={<PrevIcon />} onClick={handlePrev} />
+          <NavigationButton icon={<NextIcon />} onClick={handleNext} />
+        </CoverControls>
+      )}
     </CoverContainer>
   );
 }
 
-function CoverSkeleton() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+const NavigationButton = ({ icon, onClick }) => (
+  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+    <IconButton onClick={onClick} size="large" sx={{ color: 'white' }}>
+      {icon}
+    </IconButton>
+  </motion.div>
+);
 
-  return (
-    <Box
-      sx={{
-        position: 'relative',
-        width: '100%',
-        marginTop: isMobile ? '100px' : '50px',
-        height: isMobile ? 'calc(100vh - 250px)' : 'calc(100vh - 120px)',
-        backgroundColor: 'grey.900',
-        overflow: 'hidden',
-        zIndex: 900
-      }}
-    >
-      <Skeleton
-        variant="rectangular"
-        width="100%"
-        height="100%"
-        animation="wave"
-      />
-
-      {!isMobile && (
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: '30px',
-            left: '60px',
-            color: 'common.white',
-            zIndex: 2
-          }}
-        >
-          <Skeleton
-            variant="text"
-            width="60%"
-            height="80px"
-            animation="wave"
-            sx={{ mb: 1 }}
-          />
-          <Skeleton
-            variant="text"
-            width="80%"
-            height="40px"
-            animation="wave"
-            sx={{ mb: 2 }}
-          />
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Skeleton
-              variant="rectangular"
-              width="140px"
-              height="40px"
-              animation="wave"
-              sx={{ borderRadius: 1 }}
-            />
-            <Skeleton
-              variant="rectangular"
-              width="140px"
-              height="40px"
-              animation="wave"
-              sx={{ borderRadius: 1 }}
-            />
-          </Box>
-        </Box>
-      )}
-    </Box>
-  );
-}
-
-export default Cover;
+export default React.memo(Cover);

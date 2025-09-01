@@ -125,7 +125,7 @@ export const MediaInfoContent = ({ mediaInfo }) => {
                 <Grid item xs={12} md={6}>
                     <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Audio</Typography>
                     <Box sx={{ maxHeight: 300, overflowY: 'auto', pr: 1 }}>
-                        {mediaInfo.audio?.slice(0, 3).map((a, i) => (
+                        {mediaInfo.audio?.slice(0, 6).map((a, i) => (
                             <InfoSection key={i} color="info">
                                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
@@ -139,9 +139,9 @@ export const MediaInfoContent = ({ mediaInfo }) => {
                                 {a.samplingRate && <InfoRow label="Sample Rate" value={`${Math.round(a.samplingRate / 1000)} kHz`} />}
                             </InfoSection>
                         ))}
-                        {mediaInfo.audio?.length > 3 && (
+                        {mediaInfo.audio?.length > 6 && (
                             <Typography variant="caption" color="text.secondary">
-                                +{mediaInfo.audio.length - 3} more audio tracks
+                                +{mediaInfo.audio.length - 6} more audio tracks
                             </Typography>
                         )}
                     </Box>

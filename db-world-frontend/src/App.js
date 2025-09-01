@@ -18,9 +18,6 @@ import Profile from './components/DB_Users/Profile';
 import EditProfile from './components/DB_Users/EditProfile';
 import { AuthProvider } from './contexts/Authentication';
 import PrivateRoute from './components/PrivateRoute';
-import MainPage from './components//DBCinema/screens/mainPage/index.js'
-import MoviesPage from './components//DBCinema/screens/movies/index.js'
-import SeriesPage from './components//DBCinema/screens/series/index.js'
 import MediaDownloadViewer from './components/DBCinema/screens/download/index.js';
 import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.js';
 import BackButtonHandler from './android-app-components/BackButtonHandler.js';
@@ -31,6 +28,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { createTheme, ThemeProvider } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
+import { CINEMA_PAGE_TILES } from './components/DBCinema/components/CinemaTiles.js';
+import { CinemaPageWithDefaults } from './components/DBCinema/screens/CinemaPage/CinemaPage.js';
 
 const lightTheme = createTheme({
   palette: {
@@ -84,10 +83,6 @@ const darkTheme = createTheme({
 
 function App() {
 
-  // const loginReducer = useSelector(state => state.loginReducer);
-  // const userReducer = useSelector(state => state.userReducer);
-  // const [userData, setUserData] = useState({});
-  // const [loader, setLoader] = useState(false);
   const [matches, setMatches] = useState(
     window.matchMedia("(min-width: 900px)").matches
   )
@@ -125,10 +120,37 @@ function App() {
         {/* Protected Routes */}
         <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
           <Route exact path={Constants.DB_CINEMA_ROUTE} element={<Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />} />
-          <Route path={Constants.DB_CINEMA_BROWSE_ROUTE} element={<MainPage />} />
-          {/* <Route path={Constants.DB_CINEMA_DOWNLOAD_PROGRESS_ROUTE} element={<DownloadProgressPage />} /> */}
-          <Route path={Constants.DB_CINEMA_MOVIES_ROUTE} element={<MoviesPage />} />
-          <Route path={Constants.DB_CINEMA_SERIES_ROUTE} element={<SeriesPage />} />
+          <Route path={Constants.DB_CINEMA_BROWSE_ROUTE}
+            element={
+              <CinemaPageWithDefaults
+                tilesConfig={CINEMA_PAGE_TILES.BROWSE}
+                showTopFade={true}
+                pageTitle="Browse All"
+                key="browse"
+              />
+            }
+          />
+          <Route path={Constants.DB_CINEMA_MOVIES_ROUTE}
+            element={
+              <CinemaPageWithDefaults
+                tilesConfig={CINEMA_PAGE_TILES.MOVIES}
+                showTopFade={false}
+                showCover={true}
+                pageTitle="Movies"
+                key="movies"
+              />
+            }
+          />
+          <Route path={Constants.DB_CINEMA_SERIES_ROUTE}
+            element={
+              <CinemaPageWithDefaults
+                tilesConfig={CINEMA_PAGE_TILES.SERIES}
+                showTopFade={true}
+                pageTitle="TV Shows"
+                key="series"
+              />
+            }
+          />
           <Route path={Constants.DB_DONWLOAD_RECORD_ROUTE} element={<MediaDownloadViewer />} />
           <Route path={Constants.DB_ADD_PASSWORD_ROUTE} element={<AddPassword />} />
           <Route path={Constants.DB_GENERATE_PASSWORD_ROUTE} element={<GeneratePassword />} />
@@ -148,7 +170,7 @@ function App() {
       </Routes>
 
 
-      
+
 
     </div>
 

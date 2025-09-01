@@ -3,6 +3,7 @@ package com.db.dbworld.services;
 import com.db.dbworld.dao.user.UserCinemaDataRepository;
 import com.db.dbworld.entities.user.UserCinemaDataEntity;
 import com.db.dbworld.services.user.UserService;
+import com.db.dbworld.utils.DbWorldConstants;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
@@ -73,9 +74,6 @@ public class DownloadTrackerService {
         }
     });
 
-    @Value("${dbworld.paths.downloadLogPath}")
-    private String logFilePath;
-
     public DownloadTrackerService(UserCinemaDataRepository repo, UserService userService, ObjectMapper mapper) {
         this.repo = repo;
         this.userService = userService;
@@ -118,7 +116,7 @@ public class DownloadTrackerService {
     }
 
     private void processLogFile() throws IOException {
-        Path path = Path.of(logFilePath);
+        Path path = Path.of(DbWorldConstants.DOWNLOAD_LOG_PATH);
         if (!Files.exists(path)) return;
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
@@ -358,7 +356,7 @@ public class DownloadTrackerService {
         repo.findByDownloadId(downloadId).ifPresent(entity -> {
             entity.setStatus(status);
             repo.save(entity);
-            log.info("Marked download as {}: {}", status, downloadId);
+            log.debug("Marked download as {}: {}", status, downloadId);
         });
     }
 

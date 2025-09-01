@@ -23,7 +23,7 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
     @Query(value = "SELECT DCR.* FROM DB_CINEMA_RECORDS DCR INNER JOIN TMDB_DATA TD ON DCR.TMDB = TD.ID WHERE DCR.type = :recordType AND TD.original_language IN :languages", nativeQuery = true)
     List<DBCinemaRecordsEntity> findByType(@Param("recordType") String recordType, @Param("languages") List<String> languages, Pageable pageable);
 
-    @Query(value = "SELECT DCR.* FROM DB_CINEMA_RECORDS DCR INNER JOIN USER_RECORD_DATA URD ON DCR.ID = URD.DB_CINEMA_RECORD WHERE URD.USER=:userId and URD.isWatchListed=TRUE ORDER BY URD.ID DESC", nativeQuery = true)
+    @Query(value = "SELECT DCR.* FROM DB_CINEMA_RECORDS DCR INNER JOIN USER_RECORD_DATA URD ON DCR.ID = URD.DB_CINEMA_RECORD WHERE URD.USER=:userId and URD.is_watchListed=TRUE ORDER BY URD.ID DESC", nativeQuery = true)
     List<DBCinemaRecordsEntity> findUserWatchListCinemaRecords(@Param("userId") Long userId, Pageable pageable);
 
     @Query(value = "SELECT count(*) FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb WHERE dcr.name LIKE (:keyword) OR td.original_title LIKE (:keyword)", nativeQuery = true)
@@ -38,7 +38,7 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
             FROM db_cinema_records dcr
             JOIN tmdb_data td ON td.id = dcr.tmdb
             WHERE dcr.name LIKE %:keyword% OR td.original_title LIKE %:keyword%
-            ORDER BY dcr.creationDate DESC""",
+            ORDER BY dcr.creation_date DESC""",
             nativeQuery = true)
     List<Map<String, Object>> findRecords(@Param("keyword") String keyword);
 
@@ -63,7 +63,7 @@ public interface DBCinemaRecordsRepository extends JpaRepository<DBCinemaRecords
     }
 
 
-    @Query(value = "SELECT dcr.* FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb WHERE dcr.name LIKE (:keyword) OR td.original_title LIKE (:keyword) ORDER BY dcr.creationDate DESC", nativeQuery = true)
+    @Query(value = "SELECT dcr.* FROM db_cinema_records dcr JOIN tmdb_data td ON td.id = dcr.tmdb WHERE dcr.name LIKE (:keyword) OR td.original_title LIKE (:keyword) ORDER BY dcr.creation_date DESC", nativeQuery = true)
     List<DBCinemaRecordsEntity> findRecords(@Param("keyword") String keyword, Pageable pageable);
 
 

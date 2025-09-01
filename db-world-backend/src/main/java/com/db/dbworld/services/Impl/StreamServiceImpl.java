@@ -18,6 +18,7 @@ import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
 
 import java.io.*;
@@ -31,6 +32,7 @@ import java.util.stream.Stream;
 
 @Service
 @Log4j2
+@Transactional
 @CacheConfig(cacheNames = "DB-Stream")
 public class StreamServiceImpl implements StreamService {
 

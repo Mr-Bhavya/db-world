@@ -3,10 +3,11 @@ import {
     Paper, Box, Typography, Button, IconButton, Tooltip, CircularProgress
 } from '@mui/material';
 import { ChevronRight, Delete as DeleteIcon, Folder, Refresh as RefreshIcon } from '@mui/icons-material';
-import { DataGrid } from '@mui/x-data-grid';
+// import { DataGrid } from '@mui/x-data-grid';
 import SwitchWithLoader from './SwitchWithLoader';
 import CommonServices from '../../CommonServices';
 import RecordMediaFilesModal from './RecordMediaFilesModal';
+import { DataGrid } from '@mui/x-data-grid';
 
 const RecordsTableView = ({
     records,
@@ -108,7 +109,7 @@ const RecordsTableView = ({
             }
         ]),
         {
-            field: 'showOnTop',
+            field: 'show_on_top',
             headerName: 'Top',
             width: 80,
             renderCell: (params) => (

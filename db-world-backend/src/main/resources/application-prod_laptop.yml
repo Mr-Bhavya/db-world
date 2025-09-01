@@ -3,49 +3,102 @@ Server:
   port: 9090
   jetty:
     idle-timeout: 60000 # 60 seconds
+  compression:  # Enable Gzip compression
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/octet-stream,text/plain,text/html,text/css,application/json,application/xml
+
 
 spring:
+  application:
+    name: db-world
+
+  # Database Configuration
   datasource:
+    url: jdbc:mysql://localhost:3306/db_world?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: dbworld_admin
+    password: BD@pi
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 12121212
-    url: jdbc:mysql://dbworldpi:3306/db_world?createDatabaseIfNotExist=true&jdbcCompliantTruncation=false
+    hikari:
+      pool-name: DBWorldPool
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      connection-test-query: SELECT 1
+
+  # JPA/Hibernate Configuration
   jpa:
     show-sql: false
     generate-ddl: true
+    open-in-view: false
     hibernate:
-      enable_lazy_load_no_trans: true
-      event:
-        merge:
-          entity_copy_observer: allow
       ddl-auto: update
       naming:
-        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+    properties:
+      hibernate:
+        # Removed explicit dialect (let Hibernate auto-detect)
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        transaction:
+          coordinator_class: jdbc # Explicitly specify non-JTA transactions
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+
+  # Redis Configuration
+  data:
+    redis:
+      repositories:
+        enabled: false
+  cache:
+    type: redis
+    redis:
+      host: localhost
+      port: 6379
+      time-to-live: 60000  # 1 minute cache expiration
+
+  # Web Configuration
   mvc:
+    async:
+      request-timeout: -1
     converters:
       preferred-json-mapper: gson
-  gson:
-    enable-complex-map-key-serialization: true
   servlet:
     multipart:
       enabled: true
-  #live server
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  # GSON Configuration
+  gson:
+    enable-complex-map-key-serialization: true
+
+  # DevTools Configuration
   devtools:
     livereload:
-      enable: false
+      enabled: false
       port: 35720
 
-#Swagger
-springdoc:
-  api-docs:
-    path: /api/dbworld-api-doc
-  swagger-ui:
-    path: /dbworld-api-doc.html
+  # Async Task Execution
+  task:
+    execution:
+      pool:
+        core-size: 10
+        max-size: 20
+        queue-capacity: 50
 
 #Security
 jwt:
   token:
-    validity: 36000000  # validity in milisec 10*60*60*1000 ~ 10hour
+    validity: 36000000  # validity in millisecond 10*60*60*1000 ~ 10hour
+    access-token-ttl: 5m
+    refresh-token-ttl: 30d
     secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
 # Jasypt Configuration
@@ -55,17 +108,41 @@ jasypt:
     algorithm: PBEWithMD5AndDES
     password: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
-tmdb:
-  api:
-    key: 30061af77dba3722bbe14a2691055544
+#Swagger
+springdoc:
+  api-docs:
+    path: /api/dbworld-api-doc
+  swagger-ui:
+    path: /dbworld-api-doc.html
+
+# Aria2 Configuration
+aria2:
+  rpc:
+    url: http://localhost:6800/jsonrpc
+    secret: a848164f47fef2b99169e6046ce4c1997d628c62
+  ws:
+    url: ws://localhost:6800/jsonrpc
 
 dbworld:
   paths:
-    tempDownloadPath: download/
-    logFilePath: logs/dbworld.log
-    streamHomePath: D:/Bhavya/Videos
-    externalStreamHomePath: F:/Bhavya/Videos
-    torrentDownloadPath: D:/Bhavya/Videos/Torrent Download
-    ytdlpPath: C:/YTDLP/yt-dlp.exe
-    hsCookiesPath: D:\\Bhavya\\StartUp_Scripts\\Deployed\\cookies\\HS_COOKIES.txt
-    extHDiskPath: /D:/Bhavya
+    tempDownloadPath: /ext_hdisk/dbworld/download/
+    logFilePath: /app/db_world/logs/dbworld.json
+    log4j2LogPath: /app/db_world/logs
+    downloadLogPath: /app/db_world/logs/nginx/download_tracker.log
+    integrationFolderPath: /ext_hdisk/dbworld/integration/
+    streamHomePath: /ext_hdisk/videos
+    externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
+    torrentDownloadPath: /ext_hdisk/videos/Torrent Download
+    yt-dlp: yt-dlp
+    mediainfo: mediainfo
+    hsCookiesPath: /app/db_world/config/HS_COOKIES.txt
+    extHDiskPath: /ext_hdisk
+  api_keys:
+    tmdb: 30061af77dba3722bbe14a2691055544
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    org.springframework: WARN
+    com.db.dbworld: INFO

@@ -10,6 +10,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +18,7 @@ import java.util.concurrent.Executors;
 
 @Log4j2
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class UserActivityLogService {
 
@@ -58,6 +60,7 @@ public class UserActivityLogService {
     }
 
 
+    @Transactional
     public Page<UserActivityLogEntity> getFilteredLogs(String username, String method, Integer status,
                                                        String uri, String ip, String requestId,
                                                        LocalDateTime startDate, LocalDateTime endDate,

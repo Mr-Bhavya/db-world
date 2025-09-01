@@ -37,4 +37,6 @@ public interface StatusService {
     void updateMirrorStatusWithPause(String id);
 
     void updateMirrorStatusWithResume(String id);
+
+    void logAndAppendHtml(MirrorStatus mirrorStatus, String message, boolean isError);
 }

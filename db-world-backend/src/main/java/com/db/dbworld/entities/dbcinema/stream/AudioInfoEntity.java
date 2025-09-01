@@ -12,111 +12,111 @@ import lombok.Setter;
 @Entity
 @DiscriminatorValue("Audio")
 public class AudioInfoEntity extends TrackInfoEntity {
+    @Column(name = "unique_id")
     @JsonProperty("UniqueID")
     private String uniqueID;
 
-    @Column(name = "StreamOrder")
+    @Column(name = "stream_order")
     @JsonProperty("StreamOrder")
     private String streamOrder;
 
-    @Column(name = "Format")
+    @Column(name = "format")
     @JsonProperty("Format")
     private String format;
 
-    @Column(name = "Format_Commercial_IfAny")
+    @Column(name = "format_commercial_if_any")
     @JsonProperty("Format_Commercial_IfAny")
     private String formatCommercialIfAny;
 
-    @Column(name = "Format_Settings_Endianness")
+    @Column(name = "format_settings_endianness")
     @JsonProperty("Format_Settings_Endianness")
     private String formatSettingsEndianness;
 
-    @Column(name = "CodecID")
+    @Column(name = "codec_id")
     @JsonProperty("CodecID")
     private String codecID;
 
-    @Column(name = "Duration")
+    @Column(name = "duration")
     @JsonProperty("Duration")
     private Double duration;
 
-    @Column(name = "BitRate_Mode")
+    @Column(name = "bit_rate_mode")
     @JsonProperty("BitRate_Mode")
     private String bitRateMode;
 
-    @Column(name = "BitRate")
+    @Column(name = "bit_rate")
     @JsonProperty("BitRate")
     private Integer bitRate;
 
-    @Column(name = "Channels")
+    @Column(name = "channels")
     @JsonProperty("Channels")
     private Integer channels;
 
-    @Column(name = "ChannelPositions")
+    @Column(name = "channel_positions")
     @JsonProperty("ChannelPositions")
     private String channelPositions;
 
-    @Column(name = "ChannelLayout")
+    @Column(name = "channel_layout")
     @JsonProperty("ChannelLayout")
     private String channelLayout;
 
-    @Column(name = "SamplesPerFrame")
+    @Column(name = "samples_per_frame")
     @JsonProperty("SamplesPerFrame")
     private Integer samplesPerFrame;
 
-    @Column(name = "SamplingRate")
+    @Column(name = "sampling_rate")
     @JsonProperty("SamplingRate")
     private Integer samplingRate;
 
-    @Column(name = "SamplingCount")
+    @Column(name = "sampling_count")
     @JsonProperty("SamplingCount")
     private Long samplingCount;
 
-    @Column(name = "FrameRate")
+    @Column(name = "frame_rate")
     @JsonProperty("FrameRate")
     private Double frameRate;
 
-    @Column(name = "BitDepth")
+    @Column(name = "bit_depth")
     @JsonProperty("BitDepth")
     private Integer bitDepth;
 
-    @Column(name = "Compression_Mode")
+    @Column(name = "compression_mode")
     @JsonProperty("Compression_Mode")
     private String compressionMode;
 
-    @Column(name = "Delay")
+    @Column(name = "delay")
     @JsonProperty("Delay")
     private Double delay;
 
-    @Column(name = "Delay_Source")
+    @Column(name = "delay_source")
     @JsonProperty("Delay_Source")
     private String delaySource;
 
-    @Column(name = "Video_Delay")
+    @Column(name = "video_delay")
     @JsonProperty("Video_Delay")
     private Double videoDelay;
 
-    @Column(name = "StreamSize")
+    @Column(name = "stream_size")
     @JsonProperty("StreamSize")
     private Long streamSize;
 
-    @Column(name = "Title")
+    @Column(name = "title")
     @JsonProperty("Title")
     private String title;
 
-    @Column(name = "Language")
+    @Column(name = "language")
     @JsonProperty("Language")
     private String language;
 
-    @Column(name = "ServiceKind")
+    @Column(name = "service_kind")
     @JsonProperty("ServiceKind")
     private String serviceKind;
 
-    @Column(name = "`Default`")
+    @Column(name = "default_value")
     @JsonProperty("Default")
     private String defaultValue;
 
-    @Column(name = "Forced")
+    @Column(name = "forced")
     @JsonProperty("Forced")
     private String forced;
 }
-

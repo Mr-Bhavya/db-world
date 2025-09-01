@@ -65,7 +65,7 @@ const TilesRow = React.memo(({ title, requestUrl, horizontal = false, category }
       component={motion.div}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, margin: isMobile ? "0px" : "-100px" }}
+      // viewport={{ once: true, margin: isMobile ? "0px" : "-100px" }}
       variants={rowVariants}
       sx={containerStyles}
     >

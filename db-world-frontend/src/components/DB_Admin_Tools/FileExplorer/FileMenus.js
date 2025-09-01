@@ -7,12 +7,14 @@ import {
   Tooltip
 } from '@mui/material';
 import {
-  DriveFileMoveOutline,
+  DriveFileMove,
   ContentCopy as CopyIcon,
   Delete as DeleteIcon,
   Close as CloseIcon,
-  DriveFileRenameOutline as RenameIcon,
-  Info as InfoIcon
+  // DriveFileMoveRounded as DriveFileMove,
+  // DriveFileMoved as DriveFileMove,
+  // DriveFileRenameOutline as DriveFileMove,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 
 export const FileContextMenu = ({
@@ -32,10 +34,10 @@ export const FileContextMenu = ({
       }
     >
       <MenuItem onClick={() => { handleOpenModal('rename'); setContextMenu(null); }}>
-        <RenameIcon sx={{ mr: 1, fontSize: 20 }} /> Rename
+        <DriveFileMove sx={{ mr: 1, fontSize: 20 }} /> Rename
       </MenuItem>
       <MenuItem onClick={() => { handleOpenModal('move'); setContextMenu(null); }}>
-        <DriveFileMoveOutline sx={{ mr: 1, fontSize: 20 }} /> Move
+        <DriveFileMove sx={{ mr: 1, fontSize: 20 }} /> Move
       </MenuItem>
       <MenuItem onClick={() => { handleOpenModal('copy'); setContextMenu(null); }}>
         <CopyIcon sx={{ mr: 1, fontSize: 20 }} /> Copy
@@ -62,10 +64,10 @@ export const FileActionMenu = ({
       onClose={() => setFileMenuAnchor(null)}
     >
       <MenuItem onClick={() => { handleOpenModal('rename'); setFileMenuAnchor(null); }}>
-        <RenameIcon sx={{ mr: 1, fontSize: 20 }} /> Rename
+        <DriveFileMove sx={{ mr: 1, fontSize: 20 }} /> Rename
       </MenuItem>
       <MenuItem onClick={() => { handleOpenModal('move'); setFileMenuAnchor(null); }}>
-        <DriveFileMoveOutline sx={{ mr: 1, fontSize: 20 }} /> Move
+        <DriveFileMove sx={{ mr: 1, fontSize: 20 }} /> Move
       </MenuItem>
       <MenuItem onClick={() => { handleOpenModal('copy'); setFileMenuAnchor(null); }}>
         <CopyIcon sx={{ mr: 1, fontSize: 20 }} /> Copy
@@ -103,7 +105,7 @@ export const FileSelectMenu = ({
     >
       <Tooltip title="Move selected">
         <IconButton onClick={() => handleOpenModal('move')}>
-          <DriveFileMoveOutline />
+          <DriveFileMove />
         </IconButton>
       </Tooltip>
       <Tooltip title="Copy selected">

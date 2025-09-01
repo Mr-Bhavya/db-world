@@ -37,10 +37,9 @@ public class MediaFileInfoEntity {
 
     @JsonProperty("track")
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JoinColumn(name = "mediaFileInfo", referencedColumnName = "id")
+    @JoinColumn(name = "media_file_info", referencedColumnName = "id")
     private List<TrackInfoEntity> trackInfos;
 
-//    @PostConstruct
     public MediaFileInfoEntity initialize(DBCinemaRecordsEntity dbCinemaRecordsEntity) {
         if (this.filePath != null) {
             String[] filePathArray = filePath.replace("\\","/").split("/");

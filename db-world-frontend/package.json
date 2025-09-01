@@ -51,7 +51,7 @@
     "lodash": "^4.17.21",
     "lodash-es": "^4.17.21",
     "material-ui-confirm": "^4.0.0",
-    "node": "^18.0.0",
+    "node": "^21.0.0",
     "notistack": "^3.0.2",
     "npm": "^11.4.2",
     "query-string": "^9.1.0",
@@ -83,8 +83,6 @@
     "zustand": "^5.0.6"
   },
   "scripts": {
-    "preinstall": "npm install rimraf --force",
-    "clean": "rimraf build",
     "start:local": "env-cmd -f .env.local react-scripts start",
     "start:production": "env-cmd -f .env.production react-scripts start",
     "build:local": "env-cmd -f .env.local react-scripts build",
