@@ -22,7 +22,7 @@ app:
 
   tools:
     yt-dlp: yt-dlp
-    mediainfo: mediainfo
+    mediainfo: D:\Bhavya\Downloads\Compressed\MediaInfo_CLI_24.12_Windows_x64\mediainfo
     hs-cookies: ${app.paths.config}/HS_COOKIES.txt
 
   api-keys:

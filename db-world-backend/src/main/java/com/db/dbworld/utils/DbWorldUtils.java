@@ -289,7 +289,7 @@ public class DbWorldUtils {
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             Process process = processBuilder.start();
-            log.info("MediaInfo command : {}",process.info().commandLine());
+            log.info("MediaInfo command : {}",process.info().command());
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 StringBuilder output = new StringBuilder();
                 String line;
