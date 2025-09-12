@@ -496,10 +496,10 @@ public class MediaFileHandler {
         if (language != null && !language.isBlank() && !"und".equals(language)) {
             spokenLanguageRepository.findById(language).ifPresentOrElse(
                     spokenLanguageEntity -> {
-                        if(spokenLanguageEntity.getName() != null && !spokenLanguageEntity.getName().isBlank()){
+                        if(spokenLanguageEntity.getEnglish_name() != null && !spokenLanguageEntity.getEnglish_name().isBlank()){
                             audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name());
                         }else{
-                            audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name());
+                            audioBuilder.append(" ").append(language.toUpperCase());
                         }
                     }, () -> audioBuilder.append(" ").append(language.toUpperCase())
             );

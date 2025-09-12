@@ -47,34 +47,34 @@ export const DownloadItem = ({ download }) => {
         <CardContent>
           <Box display="flex" alignItems="flex-start">
             <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
-              {getFileTypeIcon(download.filePath)}
+              {getFileTypeIcon(download?.filePath)}
             </Avatar>
             <Box flexGrow={1}>
               <Typography variant="subtitle1" noWrap>
-                {download.fileName || download.filePath?.split('/').pop() || 'Unknown file'}
+                {download?.fileName || download?.filePath?.split('/').pop() || 'Unknown file'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {download.userId}
+                {download?.userId}
               </Typography>
               
               <Box mt={1} display="flex" flexWrap="wrap" gap={1}>
                 <Chip 
-                  icon={getEventIcon(download.type)} 
-                  label={download.type} 
+                  icon={getEventIcon(download?.type)} 
+                  label={download?.type} 
                   size="small" 
                   variant="outlined"
                 />
-                <Chip 
+                {/* <Chip 
                   icon={<SpeedIcon />}
-                  label={formatSpeed(download.getTransferSpeed())}
+                  label={formatSpeed(download.getTransferSpeed)}
                   size="small"
-                />
+                /> */}
                 <Chip 
                   icon={<DataUsageIcon />}
-                  label={`${formatBytes(download.bytesTransferred)} of ${formatBytes(download.fileSize)}`}
+                  label={`${formatBytes(download?.bytesTransferred)} of ${formatBytes(download?.fileSize)}`}
                   size="small"
                 />
-                {download.completed && (
+                {download?.completed && (
                   <Chip 
                     icon={<CompleteIcon />}
                     label="Completed"
@@ -96,7 +96,7 @@ export const DownloadItem = ({ download }) => {
                       {download.getCompletionPercentage().toFixed(1)}% Complete
                     </Typography>
                     <Typography variant="caption">
-                      {formatBytes(download.bytesTransferred)} / {formatBytes(download.fileSize)}
+                      {formatBytes(download?.bytesTransferred)} / {formatBytes(download?.fileSize)}
                     </Typography>
                   </Box>
                 </Box>
