@@ -341,11 +341,60 @@ public class MediaFileHandler {
             VideoInfoEntity videoInfo = videoInfoOpt.get();
 
             // Add resolution
-            fileNameBuilder.append(" [").append(videoInfo.getHeight()).append("p]");
+            appendResolutionInfo(fileNameBuilder, videoInfo);
+
+            // Convert format codes to more readable names
+            appendCodecInfo(fileNameBuilder, videoInfo);
+
+            // Add bit depth info from format profile
+            appendBitInfo(fileNameBuilder, videoInfo);
 
             // Add HDR info
             appendHdrInfo(fileNameBuilder, videoInfo);
         }
+    }
+
+    private void appendBitInfo(StringBuilder fileNameBuilder, VideoInfoEntity videoInfo){
+        Integer bitDepth = videoInfo.getBitDepth();
+        if (bitDepth != null) {
+            if (bitDepth == 10) {
+                fileNameBuilder.append(" [10Bit]");
+            }else if (bitDepth == 12) {
+                fileNameBuilder.append(" [12Bit]");
+            } else if (bitDepth == 8) {
+                fileNameBuilder.append(" [8Bit]");
+            }
+        }
+    }
+
+    private void appendResolutionInfo(StringBuilder fileNameBuilder, VideoInfoEntity videoInfo){
+        int height = videoInfo.getHeight();
+        String resolution;
+        if (height > 2160) {
+            resolution = "4320p"; // 8K (anything above 4K)
+        } else if (height > 1080) {
+            resolution = "2160p"; // 4K (1081-2160)
+        } else if (height > 720) {
+            resolution = "1080p"; // Full HD (721-1080)
+        } else if (height > 480) {
+            resolution = "720p"; // HD (481-720)
+        } else if (height > 360) {
+            resolution = "480p"; // SD (361-480)
+        } else {
+            resolution = "360p"; // Low quality (360 and below)
+        }
+        fileNameBuilder.append(" [").append(resolution).append("]");
+    }
+
+    private void appendCodecInfo(StringBuilder fileNameBuilder, VideoInfoEntity videoInfo){
+        String format = videoInfo.getFormat().toUpperCase();
+        String formatDisplayName = switch (format) {
+            case "HEVC" -> "H265";
+            case "AVC" -> "H264";
+            case "AV1" -> "AV1";
+            default -> format;
+        };
+        fileNameBuilder.append(" [").append(formatDisplayName).append("]");
     }
 
     private Optional<VideoInfoEntity> getFirstVideoTrack(MediaFileInfoEntity entity) {
@@ -448,7 +497,7 @@ public class MediaFileHandler {
             spokenLanguageRepository.findById(language).ifPresentOrElse(
                     spokenLanguageEntity -> {
                         if(spokenLanguageEntity.getName() != null && !spokenLanguageEntity.getName().isBlank()){
-                            audioBuilder.append(" ").append(spokenLanguageEntity.getName());
+                            audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name());
                         }else{
                             audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name());
                         }
