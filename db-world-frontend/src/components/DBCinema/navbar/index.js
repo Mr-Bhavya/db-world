@@ -5,6 +5,7 @@ import useWindowSize from '../utils/hooks/useWindowSize';
 import SearchOverlay from '../screens/search';
 import { Capacitor } from '@capacitor/core';
 import { getGenresList } from '../../ApiServices';
+import DB_WORLD_TEAL_SVG from '../../../images/db_world_teal.svg';
 
 // MUI Components
 import {
@@ -294,7 +295,7 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onCategorySelect }) 
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <img
                     className="logo"
-                    src="https://db-world.in/static/media/db_world_teal.0e35515b2b6f8921003029df632aab7f.svg"
+                    src={DB_WORLD_TEAL_SVG}
                     alt="Logo"
                     style={{ height: '40px' }}
                   />
