@@ -2,10 +2,9 @@ package com.db.dbworld.handler;
 
 import com.db.dbworld.dao.dbcinema.tmdb.SpokenLanguageRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
-import com.db.dbworld.entities.dbcinema.stream.AudioInfoEntity;
-import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
-import com.db.dbworld.entities.dbcinema.stream.VideoInfoEntity;
+import com.db.dbworld.entities.dbcinema.stream.*;
 import com.db.dbworld.entities.dbcinema.tmdb.MovieTmdbDataEntity;
+import com.db.dbworld.entities.dbcinema.tmdb.SeriesTmdbDataEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.SpokenLanguageEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.services.cinema.DBCinemaRecordsService;
@@ -55,6 +54,18 @@ public class MediaFileHandler {
     private static final String MOVIES_FOLDER = "movies";
     private static final String SERIES_FOLDER = "series";
     private static final String UNASSIGNED_FOLDER = "unassigned";
+    private static final Map<String, String> FORMAT_EXTENSION_MAP = Map.ofEntries(
+            Map.entry("mpeg-4", ".mp4"),
+            Map.entry("mpeg4", ".mp4"),
+            Map.entry("mpeg-2", ".mpg"),
+            Map.entry("mpeg2", ".mpg"),
+            Map.entry("webm", ".webm"),
+            Map.entry("wmv", ".wmv"),
+            Map.entry("windows media", ".wmv"),
+            Map.entry("quicktime", ".mov"),
+            Map.entry("flash video", ".flv"),
+            Map.entry("matroska", ".mkv"),
+            Map.entry("avi", ".avi"));
 
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("([sS]\\d{2}[eE]\\d{2})");
     private static final Pattern BASE_FOLDER_PATTERN = Pattern.compile("\\d+-[a-zA-Z0-9 .:'\\-]+");
@@ -308,7 +319,7 @@ public class MediaFileHandler {
             buildSeriesFileName(fileDetails, fileNameBuilder, dbCinemaRecordsEntity, entity);
         }
 
-        appendFileExtension(fileNameBuilder, fileDetails);
+        appendFileExtension(fileNameBuilder, fileDetails, entity);
         String sanitizeFileName = pathSanitizer.sanitizeFilename(fileNameBuilder.toString());
         entity.setFileName(sanitizeFileName);
         entity.setFilePath(Path.of(Path.of(fileDetails.streamFilePath).getParent().toString(), sanitizeFileName).toString());
@@ -324,16 +335,13 @@ public class MediaFileHandler {
                                      MediaFileInfoEntity entity) {
         fileNameBuilder.append(dbCinemaRecordsEntity.getName())
                 .append(" ").append(fileDetails.season).append(fileDetails.episode);
-        appendVideoInfo(fileNameBuilder, entity, null);
+        appendVideoInfo(fileNameBuilder, entity, dbCinemaRecordsEntity);
         appendAudioInfo(fileNameBuilder, entity);
     }
 
     private void appendVideoInfo(StringBuilder fileNameBuilder, MediaFileInfoEntity entity, DBCinemaRecordsEntity dbCinemaRecordsEntity) {
 
-        // Add year for movies
-        if (dbCinemaRecordsEntity != null && dbCinemaRecordsEntity.getTmdb() instanceof MovieTmdbDataEntity) {
-            appendMovieYear(fileNameBuilder, (MovieTmdbDataEntity) dbCinemaRecordsEntity.getTmdb());
-        }
+        appendYearInfo(fileNameBuilder, dbCinemaRecordsEntity);
 
         Optional<VideoInfoEntity> videoInfoOpt = getFirstVideoTrack(entity);
 
@@ -351,6 +359,22 @@ public class MediaFileHandler {
 
             // Add HDR info
             appendHdrInfo(fileNameBuilder, videoInfo);
+        }
+    }
+
+    private void appendYearInfo(StringBuilder fileNameBuilder, DBCinemaRecordsEntity dbCinemaRecordsEntity) {
+        if (dbCinemaRecordsEntity != null && dbCinemaRecordsEntity.getTmdb() != null) {
+            if (dbCinemaRecordsEntity.getTmdb() instanceof MovieTmdbDataEntity movieTmdbData) {
+                if (movieTmdbData.getRelease_date() != null && movieTmdbData.getRelease_date().length() >= 4) {
+                    String year = movieTmdbData.getRelease_date().substring(0, 4);
+                    fileNameBuilder.append(" (").append(year).append(")");
+                }
+            } else if (dbCinemaRecordsEntity.getTmdb() instanceof SeriesTmdbDataEntity tvTmdbData) {
+                if (tvTmdbData.getFirst_air_date() != null && tvTmdbData.getFirst_air_date().length() >= 4) {
+                    String year = tvTmdbData.getFirst_air_date().substring(0, 4);
+                    fileNameBuilder.append(" (").append(year).append(")");
+                }
+            }
         }
     }
 
@@ -404,13 +428,6 @@ public class MediaFileHandler {
                 .findFirst();
     }
 
-    private void appendMovieYear(StringBuilder fileNameBuilder, MovieTmdbDataEntity movieTmdbData) {
-        if (movieTmdbData.getRelease_date() != null && movieTmdbData.getRelease_date().length() >= 4) {
-            String year = movieTmdbData.getRelease_date().substring(0, 4);
-            fileNameBuilder.append(" (").append(year).append(")");
-        }
-    }
-
     private void appendHdrInfo(StringBuilder fileNameBuilder, VideoInfoEntity videoInfo) {
         String hdr = videoInfo.getHdrFormat();
         if (hdr != null && !hdr.isBlank()) {
@@ -447,16 +464,70 @@ public class MediaFileHandler {
                 .collect(Collectors.toList());
     }
 
-    private void appendFileExtension(StringBuilder fileNameBuilder, FileDetails fileDetails) {
-        String originalFileName = fileDetails.streamFilePath;
-        if (originalFileName != null && originalFileName.contains(".")) {
-            String extension = originalFileName.substring(originalFileName.lastIndexOf('.'));
-            fileNameBuilder.append(extension);
-        }
+    private void appendFileExtension(StringBuilder fileNameBuilder, FileDetails fileDetails, MediaFileInfoEntity mediaFileInfo) {
+        Optional.ofNullable(mediaFileInfo)
+                .flatMap(this::getExtensionFromMediaFileInfo)
+                .or(() -> Optional.ofNullable(fileDetails)
+                        .map(FileDetails::streamFilePath)
+                        .flatMap(this::getExtensionFromFileName))
+                .ifPresent(fileNameBuilder::append);
+    }
+
+    private Optional<String> getExtensionFromMediaFileInfo(MediaFileInfoEntity mediaFileInfo) {
+        return Optional.ofNullable(mediaFileInfo)
+                .map(MediaFileInfoEntity::getTrackInfos)
+                .stream()
+                .flatMap(Collection::stream)
+                .filter(GeneralInfoEntity.class::isInstance)
+                .map(GeneralInfoEntity.class::cast)
+                .findFirst()
+                .map(GeneralInfoEntity::getFormat)
+                .flatMap(this::getExtensionFromFormat);
+    }
+
+    private Optional<String> getExtensionFromFileName(String fileName) {
+        return Optional.ofNullable(fileName)
+                .filter(name -> name.contains("."))
+                .map(name -> {
+                    int lastDotIndex = name.lastIndexOf('.');
+                    return lastDotIndex > 0 && lastDotIndex < name.length() - 1 ?
+                            name.substring(lastDotIndex) : null;
+                });
+    }
+
+    private Optional<String> getExtensionFromFormat(String format) {
+        return Optional.ofNullable(format)
+                .filter(f -> !f.isBlank())
+                .map(f -> f.toLowerCase().trim())
+                .flatMap(this::findExtensionForFormat);
+    }
+
+    private Optional<String> findExtensionForFormat(String format) {
+        return Optional.ofNullable(FORMAT_EXTENSION_MAP.get(format.toLowerCase()))
+                .or(() ->
+                        FORMAT_EXTENSION_MAP.entrySet().stream()
+                                .filter(entry -> format.toLowerCase().contains(entry.getKey()))
+                                .findFirst()
+                                .map(Map.Entry::getValue)
+                );
     }
 
     private String formatAudioInfo(AudioInfoEntity audio) {
         StringBuilder audioBuilder = new StringBuilder();
+
+        // Language
+        String language = audio.getLanguage();
+        if (language != null && !language.isBlank() && !"und".equals(language)) {
+            spokenLanguageRepository.findById(language).ifPresentOrElse(
+                    spokenLanguageEntity -> {
+                        if(spokenLanguageEntity.getEnglish_name() != null && !spokenLanguageEntity.getEnglish_name().isBlank()){
+                            audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name());
+                        }else{
+                            audioBuilder.append(" ").append(language.toUpperCase());
+                        }
+                    }, () -> audioBuilder.append(" ").append(language.toUpperCase())
+            );
+        }
 
         // Format
         String format = audio.getFormat();
@@ -491,19 +562,6 @@ public class MediaFileHandler {
             }
         }
 
-        // Language
-        String language = audio.getLanguage();
-        if (language != null && !language.isBlank() && !"und".equals(language)) {
-            spokenLanguageRepository.findById(language).ifPresentOrElse(
-                    spokenLanguageEntity -> {
-                        if(spokenLanguageEntity.getEnglish_name() != null && !spokenLanguageEntity.getEnglish_name().isBlank()){
-                            audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name());
-                        }else{
-                            audioBuilder.append(" ").append(language.toUpperCase());
-                        }
-                    }, () -> audioBuilder.append(" ").append(language.toUpperCase())
-            );
-        }
         return audioBuilder.toString();
     }
 

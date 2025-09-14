@@ -111,7 +111,7 @@ const DownloadTracker = () => {
       ) : (
         <>
           {/* Summary Cards */}
-          <Grid container spacing={3} mb={3}>
+          {/* <Grid container spacing={3} mb={3}>
             <Grid item xs={12} sm={6} md={3}>
               <StatCard 
                 title="Active Downloads" 
@@ -145,12 +145,10 @@ const DownloadTracker = () => {
                 secondary={`Avg: ${statistics.avgSpeed || '0 B/s'}`}
               />
             </Grid>
-          </Grid>
+          </Grid> */}
 
-          {/* Main Content */}
           <Grid container spacing={3}>
-            {/* Active Downloads */}
-            <Grid item xs={12} md={8}>
+            {/* <Grid item xs={12} md={8}>
               <Paper sx={{ p: 2 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
                   <Typography variant="h6">
@@ -175,7 +173,6 @@ const DownloadTracker = () => {
                 )}
               </Paper>
 
-              {/* Statistics */}
               <Paper sx={{ p: 2, mt: 3 }}>
                 <Typography variant="h6" gutterBottom>
                   Transfer Statistics
@@ -208,7 +205,7 @@ const DownloadTracker = () => {
                   </Grid>
                 </Grid>
               </Paper>
-            </Grid>
+            </Grid> */}
 
             {/* User Activity */}
             <Grid item xs={12} md={4}>
