@@ -521,11 +521,11 @@ public class MediaFileHandler {
             spokenLanguageRepository.findById(language).ifPresentOrElse(
                     spokenLanguageEntity -> {
                         if(spokenLanguageEntity.getEnglish_name() != null && !spokenLanguageEntity.getEnglish_name().isBlank()){
-                            audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name());
+                            audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name()).append(" ");
                         }else{
-                            audioBuilder.append(" ").append(language.toUpperCase());
+                            audioBuilder.append(" ").append(language.toUpperCase()).append(" ");
                         }
-                    }, () -> audioBuilder.append(" ").append(language.toUpperCase())
+                    }, () -> audioBuilder.append(" ").append(language.toUpperCase()).append(" ")
             );
         }
 
