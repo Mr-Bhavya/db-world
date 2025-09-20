@@ -7,8 +7,10 @@ import com.db.dbworld.entities.dbcinema.tmdb.MovieTmdbDataEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.SeriesTmdbDataEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.SpokenLanguageEntity;
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.payloads.mediafile.MediaFileDetails;
 import com.db.dbworld.services.cinema.DBCinemaRecordsService;
 import com.db.dbworld.services.media.MediaFileInfoService;
+import com.db.dbworld.services.media.MediaInfoCommandService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.db.dbworld.utils.PathSanitizer;
@@ -51,6 +53,9 @@ public class MediaFileHandler {
     @Autowired
     private PathSanitizer pathSanitizer;
 
+    @Autowired
+    private MediaInfoCommandService mediaInfoCommandService;
+
     private static final String MOVIES_FOLDER = "movies";
     private static final String SERIES_FOLDER = "series";
     private static final String UNASSIGNED_FOLDER = "unassigned";
@@ -78,15 +83,15 @@ public class MediaFileHandler {
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    private record FileDetails(
-            String streamFilePath,
-            String recordIdFolder,
-            String recordType,
-            Long recordId,
-            String season,
-            String episode
-    ) {
-    }
+//    private record FileDetails(
+//            String streamFilePath,
+//            String recordIdFolder,
+//            String recordType,
+//            Long recordId,
+//            String season,
+//            String episode
+//    ) {
+//    }
 
     public void processFile(File file) {
         try {
@@ -164,7 +169,7 @@ public class MediaFileHandler {
 
     private void processAssignedFile(File file) {
         try {
-            FileDetails fileDetails = extractBaseFolder(file.getPath())
+            MediaFileDetails fileDetails = extractBaseFolder(file.getPath())
                     .orElseThrow(() -> new DbWorldException("Unable to retrieve recordId from folder path: " + file.getPath()));
 
             if (file.exists()) {
@@ -177,7 +182,7 @@ public class MediaFileHandler {
         }
     }
 
-    private void processExistingAssignedFile(File file, FileDetails fileDetails) {
+    private void processExistingAssignedFile(File file, MediaFileDetails fileDetails) {
         String sourcePath = file.getPath();
         List<MediaFileInfoEntity> mediaFileInfoEntities = getMediaFileInfo(fileDetails, file.toPath());
 
@@ -186,10 +191,10 @@ public class MediaFileHandler {
             dbWorldUtils.moveFileOrDir(sourcePath, mediaFileInfoEntity.getFilePath(), true);
         });
 
-        log.info("Processed {} files for recordId: {}", mediaFileInfoEntities.size(), fileDetails.recordId);
+        log.info("Processed {} files for recordId: {}", mediaFileInfoEntities.size(), fileDetails.getRecordId());
     }
 
-    private Optional<FileDetails> extractBaseFolder(String filePath) {
+    private Optional<MediaFileDetails> extractBaseFolder(String filePath) {
         String normalizedPath = normalizePath(filePath);
         Path path = Paths.get(normalizedPath);
         String baseDirectory = normalizePath(DbWorldConstants.INTEGRATION_FOLDER_PATH);
@@ -221,7 +226,7 @@ public class MediaFileHandler {
         return matcher.find() ? matcher.group() : null;
     }
 
-    private Optional<FileDetails> buildSeriesFileDetails(Path filePath, String baseFolder, Long recordId, String seasonEpisode) {
+    private Optional<MediaFileDetails> buildSeriesFileDetails(Path filePath, String baseFolder, Long recordId, String seasonEpisode) {
         String season = seasonEpisode.substring(0, 3);
         String episode = seasonEpisode.substring(3);
         String streamFilePath = String.format("%s/%s/%s/%s/%s",
@@ -231,19 +236,25 @@ public class MediaFileHandler {
                 season,
                 filePath.getFileName().toString());
 
-        return Optional.of(new FileDetails(
+        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
+
+        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
+                dbCinemaRecordsEntity.getName(), getYearInfo(dbCinemaRecordsEntity),
                 streamFilePath, baseFolder, DbWorldConstants.RECORD_TYPE_SERIES, recordId, season, episode
         ));
     }
 
-    private Optional<FileDetails> buildMovieFileDetails(Path filePath, String baseFolder, Long recordId) {
+    private Optional<MediaFileDetails> buildMovieFileDetails(Path filePath, String baseFolder, Long recordId) {
         String streamFilePath = String.format("%s/%s/%s/%s",
                 normalizePath(DbWorldConstants.STREAM_HOME_PATH),
                 MOVIES_FOLDER,
                 baseFolder,
                 filePath.getFileName().toString());
 
-        return Optional.of(new FileDetails(
+        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
+
+        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
+                dbCinemaRecordsEntity.getName(), getYearInfo(dbCinemaRecordsEntity),
                 streamFilePath, baseFolder, DbWorldConstants.RECORD_TYPE_MOVIE, recordId, null, null
         ));
     }
@@ -265,16 +276,16 @@ public class MediaFileHandler {
         }
     }
 
-    private List<MediaFileInfoEntity> getMediaFileInfo(FileDetails fileDetails, Path sourcePath) {
+    private List<MediaFileInfoEntity> getMediaFileInfo(MediaFileDetails fileDetails, Path sourcePath) {
         try {
-            String jsonOutput = dbWorldUtils.runMediaInfoCommand(sourcePath);
+            String jsonOutput = mediaInfoCommandService.runMediaInfoCommand(sourcePath, true, fileDetails);
             return parseMediaInfoJson(fileDetails, jsonOutput);
         } catch (Exception e) {
-            throw new DbWorldException("Error storing media info for recordId: " + fileDetails.recordId, e);
+            throw new DbWorldException("Error storing media info for recordId: " + fileDetails.getRecordId(), e);
         }
     }
 
-    private List<MediaFileInfoEntity> parseMediaInfoJson(FileDetails fileDetails, String jsonOutput) {
+    private List<MediaFileInfoEntity> parseMediaInfoJson(MediaFileDetails fileDetails, String jsonOutput) {
         try {
             JsonElement jsonElement = new Gson().fromJson(jsonOutput, JsonElement.class);
             List<MediaFileInfoEntity> mediaFileInfos = new ArrayList<>();
@@ -292,56 +303,55 @@ public class MediaFileHandler {
         }
     }
 
-    private MediaFileInfoEntity jsonObjectToMediaFileInfoEntity(FileDetails fileDetails, JsonObject jsonObject) {
+    private MediaFileInfoEntity jsonObjectToMediaFileInfoEntity(MediaFileDetails fileDetails, JsonObject jsonObject) {
         try {
             MediaFileInfoEntity entity = convertJsonObjectToMediaInfo(jsonObject);
 
-            if (fileDetails.recordId != null) {
-                DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(fileDetails.recordId);
-                entity = entity.initialize(dbCinemaRecordsEntity);
-                buildFileNameAndPath(fileDetails, entity, dbCinemaRecordsEntity);
+            if (fileDetails.getRecordId() != null) {
+                entity = entity.initialize(fileDetails.getDbCinemaRecordsEntity());
+                buildFileNameAndPath(fileDetails, entity, fileDetails.getDbCinemaRecordsEntity());
             }
 
             return entity;
         } catch (Exception e) {
-            log.error("Error parsing media info JSON for recordId: {}, {}", fileDetails.recordId, e.getMessage());
-            throw new DbWorldException("Error parsing media info JSON for recordId: " + fileDetails.recordId, e);
+            log.error("Error parsing media info JSON for recordId: {}, {}", fileDetails.getRecordId(), e.getMessage());
+            throw new DbWorldException("Error parsing media info JSON for recordId: " + fileDetails.getRecordId(), e);
         }
     }
 
-    private void buildFileNameAndPath(FileDetails fileDetails, MediaFileInfoEntity entity, DBCinemaRecordsEntity dbCinemaRecordsEntity) {
+    private void buildFileNameAndPath(MediaFileDetails fileDetails, MediaFileInfoEntity entity, DBCinemaRecordsEntity dbCinemaRecordsEntity) {
         StringBuilder fileNameBuilder = new StringBuilder();
         String recordType = dbCinemaRecordsEntity.getType();
 
         if (DbWorldConstants.RECORD_TYPE_MOVIE.equalsIgnoreCase(recordType)) {
-            buildMovieFileName(fileNameBuilder, dbCinemaRecordsEntity, entity);
+            buildMovieFileName(fileNameBuilder, fileDetails, entity);
         } else if (DbWorldConstants.RECORD_TYPE_SERIES.equalsIgnoreCase(recordType)) {
-            buildSeriesFileName(fileDetails, fileNameBuilder, dbCinemaRecordsEntity, entity);
+            buildSeriesFileName(fileDetails, fileNameBuilder, entity);
         }
 
         appendFileExtension(fileNameBuilder, fileDetails, entity);
         String sanitizeFileName = pathSanitizer.sanitizeFilename(fileNameBuilder.toString());
         entity.setFileName(sanitizeFileName);
-        entity.setFilePath(Path.of(Path.of(fileDetails.streamFilePath).getParent().toString(), sanitizeFileName).toString());
+        entity.setFilePath(Path.of(Path.of(fileDetails.getStreamFilePath()).getParent().toString(), sanitizeFileName).toString());
     }
 
-    private void buildMovieFileName(StringBuilder fileNameBuilder, DBCinemaRecordsEntity dbCinemaRecordsEntity, MediaFileInfoEntity entity) {
-        fileNameBuilder.append(dbCinemaRecordsEntity.getName());
-        appendVideoInfo(fileNameBuilder, entity, dbCinemaRecordsEntity);
+    private void buildMovieFileName(StringBuilder fileNameBuilder, MediaFileDetails fileDetails, MediaFileInfoEntity entity) {
+        fileNameBuilder.append(fileDetails.getName());
+        appendVideoInfo(fileNameBuilder, entity, fileDetails);
         appendAudioInfo(fileNameBuilder, entity);
     }
 
-    private void buildSeriesFileName(FileDetails fileDetails, StringBuilder fileNameBuilder, DBCinemaRecordsEntity dbCinemaRecordsEntity,
+    private void buildSeriesFileName(MediaFileDetails fileDetails, StringBuilder fileNameBuilder,
                                      MediaFileInfoEntity entity) {
-        fileNameBuilder.append(dbCinemaRecordsEntity.getName())
-                .append(" ").append(fileDetails.season).append(fileDetails.episode);
-        appendVideoInfo(fileNameBuilder, entity, dbCinemaRecordsEntity);
+        fileNameBuilder.append(fileDetails.getName())
+                .append(" ").append(fileDetails.getSeason()).append(fileDetails.getEpisode());
+        appendVideoInfo(fileNameBuilder, entity, fileDetails);
         appendAudioInfo(fileNameBuilder, entity);
     }
 
-    private void appendVideoInfo(StringBuilder fileNameBuilder, MediaFileInfoEntity entity, DBCinemaRecordsEntity dbCinemaRecordsEntity) {
+    private void appendVideoInfo(StringBuilder fileNameBuilder, MediaFileInfoEntity entity, MediaFileDetails fileDetails) {
 
-        appendYearInfo(fileNameBuilder, dbCinemaRecordsEntity);
+        fileNameBuilder.append(" (").append(fileDetails.getYear()).append(")");
 
         Optional<VideoInfoEntity> videoInfoOpt = getFirstVideoTrack(entity);
 
@@ -362,20 +372,19 @@ public class MediaFileHandler {
         }
     }
 
-    private void appendYearInfo(StringBuilder fileNameBuilder, DBCinemaRecordsEntity dbCinemaRecordsEntity) {
+    private String getYearInfo(DBCinemaRecordsEntity dbCinemaRecordsEntity) {
         if (dbCinemaRecordsEntity != null && dbCinemaRecordsEntity.getTmdb() != null) {
             if (dbCinemaRecordsEntity.getTmdb() instanceof MovieTmdbDataEntity movieTmdbData) {
                 if (movieTmdbData.getRelease_date() != null && movieTmdbData.getRelease_date().length() >= 4) {
-                    String year = movieTmdbData.getRelease_date().substring(0, 4);
-                    fileNameBuilder.append(" (").append(year).append(")");
+                    return movieTmdbData.getRelease_date().substring(0, 4);
                 }
             } else if (dbCinemaRecordsEntity.getTmdb() instanceof SeriesTmdbDataEntity tvTmdbData) {
                 if (tvTmdbData.getFirst_air_date() != null && tvTmdbData.getFirst_air_date().length() >= 4) {
-                    String year = tvTmdbData.getFirst_air_date().substring(0, 4);
-                    fileNameBuilder.append(" (").append(year).append(")");
+                    return tvTmdbData.getFirst_air_date().substring(0, 4);
                 }
             }
         }
+        return "";
     }
 
     private void appendBitInfo(StringBuilder fileNameBuilder, VideoInfoEntity videoInfo){
@@ -464,11 +473,11 @@ public class MediaFileHandler {
                 .collect(Collectors.toList());
     }
 
-    private void appendFileExtension(StringBuilder fileNameBuilder, FileDetails fileDetails, MediaFileInfoEntity mediaFileInfo) {
+    private void appendFileExtension(StringBuilder fileNameBuilder, MediaFileDetails fileDetails, MediaFileInfoEntity mediaFileInfo) {
         Optional.ofNullable(mediaFileInfo)
                 .flatMap(this::getExtensionFromMediaFileInfo)
                 .or(() -> Optional.ofNullable(fileDetails)
-                        .map(FileDetails::streamFilePath)
+                        .map(MediaFileDetails::getStreamFilePath)
                         .flatMap(this::getExtensionFromFileName))
                 .ifPresent(fileNameBuilder::append);
     }
@@ -521,11 +530,11 @@ public class MediaFileHandler {
             spokenLanguageRepository.findById(language).ifPresentOrElse(
                     spokenLanguageEntity -> {
                         if(spokenLanguageEntity.getEnglish_name() != null && !spokenLanguageEntity.getEnglish_name().isBlank()){
-                            audioBuilder.append(" ").append(spokenLanguageEntity.getEnglish_name()).append(" ");
+                            audioBuilder.append(spokenLanguageEntity.getEnglish_name()).append(" ");
                         }else{
-                            audioBuilder.append(" ").append(language.toUpperCase()).append(" ");
+                            audioBuilder.append(language.toUpperCase()).append(" ");
                         }
-                    }, () -> audioBuilder.append(" ").append(language.toUpperCase()).append(" ")
+                    }, () -> audioBuilder.append(language.toUpperCase()).append(" ")
             );
         }
 
@@ -575,12 +584,5 @@ public class MediaFileHandler {
 
     private String normalizePath(String path) {
         return path.replace("\\", "/");
-    }
-
-    private String createFolderName(String originalName) {
-        // Replace ": " with "- "
-        String safeName = originalName.replace(": ", "- ");
-        // Replace other restricted characters with "-"
-        return safeName.replaceAll("[:*?\"<>|\\\\/]", "-");
     }
 }
