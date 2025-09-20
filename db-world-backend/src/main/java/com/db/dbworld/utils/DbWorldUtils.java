@@ -1,8 +1,14 @@
 package com.db.dbworld.utils;
 
+import com.db.dbworld.dao.dbcinema.tmdb.SpokenLanguageRepository;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.RequestPayloads;
+import com.db.dbworld.payloads.mediafile.MediaFileDetails;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.Level;
 import org.modelmapper.ModelMapper;
@@ -13,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileSystemUtils;
+import org.springframework.util.StringUtils;
 
 import java.io.*;
 import java.net.URLDecoder;
@@ -22,8 +29,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 @Service
 @Log4j2
@@ -301,6 +307,259 @@ public class DbWorldUtils {
             }
         } catch (Exception e){
             throw new DbWorldException("Error While running mediainfo command: "+e.getMessage());
+        }
+    }
+
+    public String runMediaInfoCommand(Path path, boolean modifyTitles, MediaFileDetails fileDetails) {
+        try {
+            // First get current media info to analyze tracks
+            String initialJson = runMediaInfoCommand(path);
+
+            // If title modification is requested, analyze and modify the file
+            if (modifyTitles && fileDetails != null) {
+                Map<String, String> titleModifications = generateTitleModifications(initialJson, fileDetails);
+                modifyMediaTitles(path, titleModifications);
+            }
+
+            // Now get the updated media info
+            return runMediaInfoCommand(path);
+
+        } catch (Exception e) {
+            throw new DbWorldException("Error While running mediainfo command: " + e.getMessage());
+        }
+    }
+
+    private Map<String, String> generateTitleModifications(String mediaInfoJson, MediaFileDetails fileDetails) {
+        Map<String, String> modifications = new HashMap<>();
+
+        try {
+            JsonObject mediaInfo = JsonParser.parseString(mediaInfoJson).getAsJsonObject();
+            JsonArray tracks = mediaInfo.getAsJsonObject("media").getAsJsonArray("track");
+
+            // Generate general title based on record type
+            String generalTitle = generateGeneralTitle(fileDetails);
+            modifications.put("general", generalTitle);
+
+            // Process video track
+            processVideoTrack(tracks, modifications);
+
+            // Process audio tracks
+            processAudioTracks(tracks, modifications);
+
+            // Process subtitle tracks
+            processSubtitleTracks(tracks, modifications);
+
+        } catch (Exception e) {
+            log.warn("Failed to generate title modifications automatically: {}", e.getMessage());
+        }
+
+        return modifications;
+    }
+
+    private String generateGeneralTitle(MediaFileDetails fileDetails) {
+        if ("series".equalsIgnoreCase(fileDetails.getRecordType())) {
+            // Series format: "Show Name S01E03 - Episode Title"
+            String season = fileDetails.getSeason() != null ? fileDetails.getSeason() : "S01";
+            String episode = fileDetails.getEpisode() != null ? fileDetails.getSeason() : "E01";
+            return String.format("%s %s%s", fileDetails.getName(), season, episode);
+        } else {
+            // Movie format: "Movie Name (Year)"
+            return String.format("%s (%s)", fileDetails.getName(), fileDetails.getYear());
+        }
+    }
+
+    private void processVideoTrack(JsonArray tracks, Map<String, String> modifications) {
+        for (JsonElement trackElement : tracks) {
+            JsonObject track = trackElement.getAsJsonObject();
+            if ("Video".equals(track.get("@type").getAsString())) {
+                String format = track.get("Format").getAsString();
+                String profile = track.has("Format_Profile") ? track.get("Format_Profile").getAsString() : "";
+                String bitDepth = track.has("BitDepth") ? track.get("BitDepth").getAsString() + "bit" : "";
+                String resolution = track.has("Height") ? track.get("Height").getAsString() + "p" : "";
+
+                String videoTitle = String.format("%s %s %s %s", format, profile, bitDepth, resolution)
+                        .replaceAll("\\s+", " ")
+                        .trim();
+                modifications.put("video", videoTitle.isEmpty() ? "Main Video" : videoTitle);
+                break;
+            }
+        }
+    }
+
+    private void processAudioTracks(JsonArray tracks, Map<String, String> modifications) {
+        int audioIndex = 0;
+        for (JsonElement trackElement : tracks) {
+            JsonObject track = trackElement.getAsJsonObject();
+            if ("Audio".equals(track.get("@type").getAsString())) {
+                String format = track.get("Format").getAsString();
+                String language = track.has("Language") ? track.get("Language").getAsString() : "";
+                String channels = track.has("Channels") ? track.get("Channels").getAsString() + "ch" : "";
+                String bitrate = track.has("BitRate") ? formatBitrate(track.get("BitRate").getAsString()) : "";
+
+                String languageName = getLanguageName(language);
+                String audioTitle = String.format("%s %s %s %s", languageName, format, channels, bitrate)
+                        .replaceAll("\\s+", " ")
+                        .trim();
+
+                modifications.put("audio_" + audioIndex, audioTitle);
+                audioIndex++;
+            }
+        }
+    }
+
+    private void processSubtitleTracks(JsonArray tracks, Map<String, String> modifications) {
+        int subtitleIndex = 0;
+        for (JsonElement trackElement : tracks) {
+            JsonObject track = trackElement.getAsJsonObject();
+            if ("Text".equals(track.get("@type").getAsString())) {
+                String language = track.has("Language") ? track.get("Language").getAsString() : "";
+                String format = track.get("Format").getAsString();
+                String title = track.has("Title") ? track.get("Title").getAsString() : "";
+                boolean forced = track.has("Forced") && "Yes".equals(track.get("Forced").getAsString());
+
+                String languageName = getLanguageName(language);
+                String subtitleTitle;
+
+                if (!title.isEmpty() && !title.equals("SDH")) {
+                    subtitleTitle = String.format("%s %s", languageName, title);
+                } else if (forced) {
+                    subtitleTitle = String.format("%s %s [Forced]", languageName, format);
+                } else if ("SDH".equals(title)) {
+                    subtitleTitle = String.format("%s SDH", languageName);
+                } else {
+                    subtitleTitle = String.format("%s %s", languageName, format);
+                }
+
+                modifications.put("subtitle_id_" + subtitleIndex, subtitleTitle);
+                subtitleIndex++;
+            }
+        }
+    }
+
+    private String formatBitrate(String bitrate) {
+        try {
+            int bitrateValue = Integer.parseInt(bitrate);
+            if (bitrateValue >= 1000000) {
+                return String.format("%.1f Mbps", bitrateValue / 1000000.0);
+            } else if (bitrateValue >= 1000) {
+                return String.format("%d kbps", bitrateValue / 1000);
+            } else {
+                return bitrate + " bps";
+            }
+        } catch (NumberFormatException e) {
+            return bitrate;
+        }
+    }
+
+    @Autowired
+    SpokenLanguageRepository spokenLanguageRepository;
+
+    private String getLanguageName(String languageCode) {
+        return spokenLanguageRepository.findById(languageCode)
+                .map(entity -> StringUtils.hasText(entity.getName()) ?
+                        entity.getName() : entity.getEnglish_name())
+                .orElse(languageCode);
+    }
+
+    // Overload for backward compatibility
+    public String runMediaInfoCommand(Path path, boolean modifyTitles, Map<String, String> titleModifications) {
+        try {
+            if (modifyTitles && titleModifications != null && !titleModifications.isEmpty()) {
+                modifyMediaTitles(path, titleModifications);
+            }
+
+            List<String> command = Arrays.asList(
+                    DbWorldConstants.MEDIAINFO,
+                    "--output=JSON",
+                    path.toString()
+            );
+
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            Process process = processBuilder.start();
+            log.info("MediaInfo command : {}", process.info().command());
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line);
+                }
+                process.waitFor();
+                return output.toString();
+            }
+        } catch (Exception e) {
+            throw new DbWorldException("Error While running mediainfo command: " + e.getMessage());
+        }
+    }
+
+    private void modifyMediaTitles(Path inputPath, Map<String, String> titleModifications) {
+        try {
+            // Create temporary output file
+            Path tempOutput = Files.createTempFile("modified_", ".mkv");
+
+            List<String> command = new ArrayList<>();
+            command.add("ffmpeg");
+            command.add("-i");
+            command.add(inputPath.toString());
+            command.add("-c");
+            command.add("copy");
+
+            // Add metadata modifications based on the titleModifications map
+            if (titleModifications.containsKey("general")) {
+                command.add("-metadata");
+                command.add("title=" + titleModifications.get("general"));
+            }
+
+            if (titleModifications.containsKey("video")) {
+                command.add("-metadata:s:v:0");
+                command.add("title=" + titleModifications.get("video"));
+            }
+
+            // Audio tracks
+            for (int i = 0; i < 3; i++) { // Support up to 3 audio tracks
+                String audioKey = "audio_" + i;
+                if (titleModifications.containsKey(audioKey)) {
+                    command.add("-metadata:s:a:" + i);
+                    command.add("title=" + titleModifications.get(audioKey));
+                }
+            }
+
+            // Subtitle tracks (by ID)
+            for (String key : titleModifications.keySet()) {
+                if (key.startsWith("subtitle_id_")) {
+                    String subtitleId = key.replace("subtitle_id_", "");
+                    command.add("-metadata:s:s:" + subtitleId);
+                    command.add("title=" + titleModifications.get(key));
+                }
+            }
+
+            command.add("-y"); // Overwrite output file without asking
+            command.add(tempOutput.toString());
+
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            Process process = processBuilder.start();
+
+            // Read error stream for debugging
+            try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                String errorLine;
+                while ((errorLine = errorReader.readLine()) != null) {
+                    log.debug("FFmpeg error output: {}", errorLine);
+                }
+            }
+
+            int exitCode = process.waitFor();
+
+            if (exitCode == 0) {
+                // Replace original file with modified file
+                Files.move(tempOutput, inputPath, StandardCopyOption.REPLACE_EXISTING);
+                log.info("Successfully modified media titles for: {}", inputPath);
+            } else {
+                Files.deleteIfExists(tempOutput);
+                throw new DbWorldException("FFmpeg failed with exit code: " + exitCode);
+            }
+
+        } catch (Exception e) {
+            throw new DbWorldException("Error modifying media titles: " + e.getMessage());
         }
     }
 
