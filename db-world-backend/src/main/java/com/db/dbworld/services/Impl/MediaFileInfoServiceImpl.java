@@ -7,6 +7,7 @@ import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.dbcinema.stream.*;
 import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.utils.DbWorldUtils;
+import jakarta.persistence.EntityManager;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,10 +22,7 @@ import org.springframework.util.CollectionUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -37,6 +35,9 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     private final ModelMapper modelMapper;
     private final DbWorldUtils dbWorldUtils;
     private final RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Autowired
     public MediaFileInfoServiceImpl(MediaFileInfoRepository mediaFileInfoRepository,
@@ -52,17 +53,30 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     @Override
     public MediaFileInfoEntity save(MediaFileInfoEntity mediaFileInfoEntity) {
         try {
-            log.debug("[DB] Saving MediaFileInfoEntity for recordId={}...", mediaFileInfoEntity.getDbCinemaRecord().getId()); // 🔍 Added Log
+            log.debug("[DB] Saving MediaFileInfoEntity for recordId={}...",
+                    mediaFileInfoEntity.getDbCinemaRecord().getId());
+
+            // Merge each track individually
+            List<TrackInfoEntity> managedTracks = new ArrayList<>();
+            if (mediaFileInfoEntity.getTrackInfos() != null) {
+                for (TrackInfoEntity track : mediaFileInfoEntity.getTrackInfos()) {
+                    managedTracks.add(entityManager.merge(track));
+                }
+            }
+            mediaFileInfoEntity.setTrackInfos(managedTracks);
+
+            // Save the media file info
             MediaFileInfoEntity savedEntity = mediaFileInfoRepository.save(mediaFileInfoEntity);
-            log.debug("[DB] Saved MediaFileInfoEntity with id={}", savedEntity.getId()); // 🔍 Added Log
+            log.debug("[DB] Saved MediaFileInfoEntity with id={}", savedEntity.getId());
 
             clearCacheForRecord(savedEntity.getDbCinemaRecord().getId());
             return savedEntity;
         } catch (Exception ex) {
-            log.error("Error saving media file info: {}", ex.getMessage());
+            log.error("Error saving media file info: {}", ex.getMessage(), ex);
             throw new DbWorldException("Failed to save media file information", ex);
         }
     }
+
 
     @Override
     @Cacheable(key = "'record:' + #recordId", unless = "#result == null || #result.isEmpty()")

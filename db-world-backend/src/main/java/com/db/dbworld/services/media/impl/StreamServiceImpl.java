@@ -1,4 +1,4 @@
-package com.db.dbworld.services.Impl;
+package com.db.dbworld.services.media.impl;
 
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;

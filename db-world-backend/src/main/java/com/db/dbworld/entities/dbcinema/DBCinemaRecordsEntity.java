@@ -2,6 +2,7 @@ package com.db.dbworld.entities.dbcinema;
 
 import com.db.dbworld.entities.dbcinema.tmdb.TmdbDataEntity;
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -39,7 +40,6 @@ public class DBCinemaRecordsEntity implements Serializable {
 
     @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "tmdb", referencedColumnName = "id")
-    @JsonBackReference
     private TmdbDataEntity tmdb;
 
     @Transient

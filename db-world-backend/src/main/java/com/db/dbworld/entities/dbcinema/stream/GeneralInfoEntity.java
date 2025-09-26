@@ -106,4 +106,9 @@ public class GeneralInfoEntity extends TrackInfoEntity {
     @Column(name = "encoded_library")
     @JsonProperty("Encoded_Library")
     private String encodedLibrary;
+
+    @Column(name = "encoded_date", columnDefinition = "TEXT")
+    @JsonProperty("Encoded_Date")
+    private String encodedDate;
+
 }
