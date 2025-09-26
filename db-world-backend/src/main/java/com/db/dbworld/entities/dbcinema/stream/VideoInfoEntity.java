@@ -1,5 +1,6 @@
 package com.db.dbworld.entities.dbcinema.stream;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
@@ -11,6 +12,7 @@ import lombok.Setter;
 @Setter
 @Entity
 @DiscriminatorValue("Video")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class VideoInfoEntity extends TrackInfoEntity {
 
     @Column(name = "unique_id")

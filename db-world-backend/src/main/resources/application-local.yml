@@ -89,7 +89,7 @@ spring:
     generate-ddl: false
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: false

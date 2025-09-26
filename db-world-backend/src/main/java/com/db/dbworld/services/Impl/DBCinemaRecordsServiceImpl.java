@@ -304,7 +304,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    @Cacheable(key = "'record-entity:' + #recordId", unless = "#result == null")
+//    @Cacheable(key = "'record-entity:' + #recordId", unless = "#result == null")
     public DBCinemaRecordsEntity getRecordEntityById(Long recordId) {
         return dbCinemaRecordsRepository.findById(recordId).orElseThrow(
                 () -> new ResourceNotFoundException("DB Cinema Record", "record id", recordId.toString())

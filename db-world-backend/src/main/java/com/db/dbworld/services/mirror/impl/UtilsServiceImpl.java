@@ -1,4 +1,4 @@
-package com.db.dbworld.services.Impl;
+package com.db.dbworld.services.mirror.impl;
 
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.helpers.MirrorHelper;
@@ -263,41 +263,5 @@ public class UtilsServiceImpl implements UtilsService {
         log.info("Running [{}] command: {}", processType, String.join(" ", cmd));
         return cmd;
     }
-
-//    @Override
-//    public HttpHeaders getHeaders(String httpUrl) {
-//        try {
-//            URI uri = new URI(httpUrl);
-//            String host = uri.getHost();
-//
-//            RestTemplate restTemplate = new RestTemplate();
-//            return restTemplate.execute(
-//                    httpUrl,
-//                    HttpMethod.HEAD,
-//                    request -> request.getHeaders().set("Host", host),
-//                    response -> {
-//                        HttpHeaders headers = response.getHeaders();
-//                        log.info("Status code: {}", response.getStatusCode());
-//                        log.info("Content-Length: {}", headers.getContentLength());
-//                        log.info("Content-Disposition: {}", headers.getFirst("Content-Disposition"));
-//                        return headers;
-//                    }
-//            );
-//        } catch (URISyntaxException ex) {
-//            log.error("Invalid URI syntax: {}", httpUrl, ex);
-//            throw new DbWorldException("Invalid URL: " + httpUrl, ex);
-//        } catch (WebClientResponseException ex) {
-//            log.error("WebClientResponseException: {}", ex.getMessage(), ex);
-//            return ex.getHeaders(); // can still return headers if available
-//        } catch (ResourceAccessException ex) {
-//            log.error("Connection failed for URL: {}", httpUrl, ex);
-//            return null;
-//        } catch (Exception ex) {
-//            log.error("Unexpected error while getting headers: {}", ex.getMessage(), ex);
-//            throw new DbWorldException("Error fetching headers from: " + httpUrl, ex);
-//        }
-//    }
-//
-
 
 }

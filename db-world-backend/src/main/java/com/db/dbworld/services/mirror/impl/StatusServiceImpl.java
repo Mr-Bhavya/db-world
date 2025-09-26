@@ -1,4 +1,4 @@
-package com.db.dbworld.services.Impl;
+package com.db.dbworld.services.mirror.impl;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
