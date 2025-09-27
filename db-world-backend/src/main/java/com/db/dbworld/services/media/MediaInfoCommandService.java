@@ -294,9 +294,9 @@ public class MediaInfoCommandService {
         int audioTrackCount = 0;
 
         for (TrackInfoEntity track : mediaFileInfo.getTrackInfos()) {
-            if ("Audio".equals(track.getType())) {
+            if (track instanceof AudioInfoEntity || "Audio".equalsIgnoreCase(track.getType())) {
                 log.debug("Audio track found at position {}, generating title", audioIndex);
-                String audioTitle = generateAudioTitle(track);
+                String audioTitle = generateAudioTitle((AudioInfoEntity) track);
                 modifications.put("audio_" + audioIndex, audioTitle);
                 log.debug("Audio track {} title: {}", audioIndex, audioTitle);
                 audioIndex++;
@@ -307,32 +307,28 @@ public class MediaInfoCommandService {
         log.info("Processed {} audio tracks", audioTrackCount);
     }
 
-    private String generateAudioTitle(TrackInfoEntity track) {
-        log.debug("Generating audio title for track: {}", track);
+    private String generateAudioTitle(AudioInfoEntity audioInfoTrack) {
+        log.debug("Generating audio title for track: {}", audioInfoTrack);
         List<String> titleParts = new ArrayList<>();
 
-        if (track instanceof AudioInfoEntity audioInfoTrack) {
-            log.debug("Processing AudioInfoEntity for title generation");
-            String language = audioInfoTrack.getLanguage() != null ? getLanguageName(audioInfoTrack.getLanguage()) : "";
-            if (!language.isEmpty()) {
-                titleParts.add(language);
-                log.trace("Added language: {}", language);
-            }
-            if (audioInfoTrack.getFormat() != null) {
-                titleParts.add(audioInfoTrack.getFormat());
-                log.trace("Added format: {}", audioInfoTrack.getFormat());
-            }
-            if (audioInfoTrack.getChannels() != null) {
-                titleParts.add(audioInfoTrack.getChannels() + "ch");
-                log.trace("Added channels: {}ch", audioInfoTrack.getChannels());
-            }
-            if (audioInfoTrack.getBitRate() != null) {
-                String formattedBitrate = formatBitrate(String.valueOf(audioInfoTrack.getBitRate()));
-                titleParts.add(formattedBitrate);
-                log.trace("Added bitrate: {}", formattedBitrate);
-            }
-        } else {
-            log.warn("Track is not an AudioInfoEntity, type: {}", track.getType());
+        log.debug("Processing AudioInfoEntity for title generation");
+        String language = audioInfoTrack.getLanguage() != null ? getLanguageName(audioInfoTrack.getLanguage()) : "";
+        if (!language.isEmpty()) {
+            titleParts.add(language);
+            log.trace("Added language: {}", language);
+        }
+        if (audioInfoTrack.getFormat() != null) {
+            titleParts.add(audioInfoTrack.getFormat());
+            log.trace("Added format: {}", audioInfoTrack.getFormat());
+        }
+        if (audioInfoTrack.getChannels() != null) {
+            titleParts.add(audioInfoTrack.getChannels() + "ch");
+            log.trace("Added channels: {}ch", audioInfoTrack.getChannels());
+        }
+        if (audioInfoTrack.getBitRate() != null) {
+            String formattedBitrate = formatBitrate(String.valueOf(audioInfoTrack.getBitRate()));
+            titleParts.add(formattedBitrate);
+            log.trace("Added bitrate: {}", formattedBitrate);
         }
 
         String title = String.join(" ", titleParts).trim();

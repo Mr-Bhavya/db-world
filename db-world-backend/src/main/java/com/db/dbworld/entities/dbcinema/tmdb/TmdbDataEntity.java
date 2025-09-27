@@ -5,7 +5,6 @@ import com.db.dbworld.entities.dbcinema.tmdb.credits.CreditsEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.images.ImagesEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.providers.ProvidersEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,7 +22,6 @@ public class TmdbDataEntity implements Serializable {
     @Id
     private long id;
 
-//    @JsonManagedReference
     @JsonIgnore
     @OneToOne(mappedBy = "tmdb", cascade = CascadeType.ALL, orphanRemoval = true)
     private DBCinemaRecordsEntity dbCinemaRecordsEntity;

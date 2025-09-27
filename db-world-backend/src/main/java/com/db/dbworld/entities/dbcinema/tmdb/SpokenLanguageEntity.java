@@ -16,7 +16,7 @@ import java.util.List;
 @Table(name="SPOKEN_LANGUAGES", schema = "db_world")
 public class SpokenLanguageEntity implements Serializable {
     @Id
-    @Column(name = "iso_639_1", nullable = false, unique = true)
+    @Column(name = "iso_639_1", nullable = false, unique = true, updatable = false)
     private String iso_639_1;
 
     private String english_name;

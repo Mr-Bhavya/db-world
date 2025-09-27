@@ -24,12 +24,11 @@ public class ImagesEntity implements Serializable {
     @JoinColumn(name = "tmdb", referencedColumnName = "id")
     private TmdbDataEntity tmdbDataEntity;
 
-//    private String type;
     private double aspect_ratio;
     private long height;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "iso_639_1", referencedColumnName = "iso_639_1")
+    @JoinColumn(name = "iso_639_1", referencedColumnName = "iso_639_1", updatable = false)
     private SpokenLanguageEntity iso_639_1;
 
     private String file_path;

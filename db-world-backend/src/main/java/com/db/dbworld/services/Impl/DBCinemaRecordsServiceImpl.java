@@ -122,7 +122,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     @Autowired
     private CacheLogger cacheLogger;
 
-    
+
     @Override
     @CacheEvict(allEntries = true)
     public DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record) {
@@ -134,11 +134,15 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                 if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE)) {
                     MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(record);
                     dbCinemaRecordsEntity.setName(movieTmdbDataDto.getTitle());
-                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(pojoConverter.movieTmdbDtoToEntity(movieTmdbDataDto, new MovieTmdbDataEntity())));
+                    MovieTmdbDataEntity movieTmdbDataEntity = new MovieTmdbDataEntity();
+                    pojoConverter.movieTmdbDtoToEntity(movieTmdbDataDto, movieTmdbDataEntity);
+                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(movieTmdbDataEntity));
                 } else if (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
                     SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(record);
                     dbCinemaRecordsEntity.setName(seriesTmdbDataDto.getTitle());
-                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(pojoConverter.seriesTmdbDtoToEntity(seriesTmdbDataDto, new SeriesTmdbDataEntity())));
+                    SeriesTmdbDataEntity seriesTmdbDataEntity = new SeriesTmdbDataEntity();
+                    pojoConverter.seriesTmdbDtoToEntity(seriesTmdbDataDto, seriesTmdbDataEntity);
+                    dbCinemaRecordsEntity.setTmdb(mergeTmdbEntity(seriesTmdbDataEntity));
                 }
                 DBCinemaRecordsEntity newDbCinemaRecordEntity = entityManager.merge(dbCinemaRecordsEntity);
                 evictRecordCaches(newDbCinemaRecordEntity.getId());
@@ -152,7 +156,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         }
     }
 
-    
+
     @Override
     @CacheEvict(key = "'record:' + #recordId")
     public DBCinemaRecordsDto updateRecord(Long recordId, RequestPayloads.AddRecord record) {
@@ -517,9 +521,9 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
 
     private void processEntity(TmdbDataEntity entity) {
         if (entity instanceof MovieTmdbDataEntity) {
-            updateTmdbForMovie((MovieTmdbDataEntity) entity);
+            updateTmdbForMovie(entity);
         } else if (entity instanceof SeriesTmdbDataEntity) {
-            updateTmdbForSeries((SeriesTmdbDataEntity) entity);
+            updateTmdbForSeries(entity);
         }
     }
 
@@ -527,14 +531,18 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         SeriesTmdbDataDto seriesTmdbDataDto = getTMDBDetailsForSeriesById(new RequestPayloads.AddRecord(
                 tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_SERIES, false
         ));
-        return mergeTmdbEntity(pojoConverter.seriesTmdbDtoToEntity(seriesTmdbDataDto, (SeriesTmdbDataEntity) tmdbDataEntity));
+        SeriesTmdbDataEntity seriesTmdbDataEntity =  (SeriesTmdbDataEntity) tmdbDataEntity;
+        pojoConverter.seriesTmdbDtoToEntity(seriesTmdbDataDto, seriesTmdbDataEntity);
+        return mergeTmdbEntity(seriesTmdbDataEntity);
     }
 
     private TmdbDataEntity updateTmdbForMovie(TmdbDataEntity tmdbDataEntity) {
         MovieTmdbDataDto movieTmdbDataDto = getTMDBDetailsForMovieById(new RequestPayloads.AddRecord(
                 tmdbDataEntity.getTitle(), tmdbDataEntity.getId(), DbWorldConstants.RECORD_TYPE_MOVIE, false
         ));
-        return mergeTmdbEntity(pojoConverter.movieTmdbDtoToEntity(movieTmdbDataDto, (MovieTmdbDataEntity) tmdbDataEntity));
+        MovieTmdbDataEntity movieTmdbDataEntity =  (MovieTmdbDataEntity) tmdbDataEntity;
+        pojoConverter.movieTmdbDtoToEntity(movieTmdbDataDto, movieTmdbDataEntity);
+        return mergeTmdbEntity(movieTmdbDataEntity);
     }
 
     @Override
@@ -594,7 +602,7 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         return new Gson().fromJson(recordDetailsJson, SeriesTmdbDataDto.class);
     }
 
-    
+
     private TmdbDataEntity mergeTmdbEntity(TmdbDataEntity tmdbDataEntity) {
 
         if (tmdbDataEntity.getSpoken_languages() != null) {
