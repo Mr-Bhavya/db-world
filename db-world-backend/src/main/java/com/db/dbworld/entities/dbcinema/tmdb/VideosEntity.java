@@ -15,11 +15,11 @@ public class VideosEntity implements Serializable {
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "iso_3166_1", referencedColumnName = "iso_3166_1")
+    @JoinColumn(name = "iso_3166_1", referencedColumnName = "iso_3166_1", updatable = false)
     private ProductionCountriesEntity iso_3166_1;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "iso_639_1", referencedColumnName = "iso_639_1")
+    @JoinColumn(name = "iso_639_1", referencedColumnName = "iso_639_1", updatable = false)
     private SpokenLanguageEntity iso_639_1;
 
     @ManyToOne(fetch = FetchType.LAZY)
