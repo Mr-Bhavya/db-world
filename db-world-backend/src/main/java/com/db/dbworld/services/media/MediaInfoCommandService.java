@@ -59,13 +59,13 @@ public class MediaInfoCommandService {
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             Process process = processBuilder.start();
             log.info("MediaInfo command constructed: {}", String.join(" ", command));
-            log.debug("Process builder directory: {}", processBuilder.directory());
-            log.debug("Process builder environment: {}", processBuilder.environment());
+            log.info("Process builder directory: {}", processBuilder.directory());
+            log.info("Process builder environment: {}", processBuilder.environment());
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 StringBuilder output = new StringBuilder();
                 String line;
-                log.debug("Starting to read MediaInfo output...");
+                log.info("Starting to read MediaInfo output...");
                 int lineCount = 0;
                 while ((line = reader.readLine()) != null) {
                     output.append(line);
@@ -74,7 +74,7 @@ public class MediaInfoCommandService {
                         log.trace("MediaInfo output line {}: {}", lineCount, line);
                     }
                 }
-                log.debug("Finished reading MediaInfo output. Total lines: {}", lineCount);
+                log.info("Finished reading MediaInfo output. Total lines: {}", lineCount);
 
                 int exitCode = process.waitFor();
                 log.info("MediaInfo process completed with exit code: {}", exitCode);
@@ -84,7 +84,7 @@ public class MediaInfoCommandService {
                 }
 
                 String result = output.toString();
-                log.debug("MediaInfo raw output length: {} characters", result.length());
+                log.info("MediaInfo raw output length: {} characters", result.length());
                 log.info("MediaInfo command execution completed successfully in {} ms",
                         System.currentTimeMillis() - startTime);
                 return result;
@@ -104,11 +104,11 @@ public class MediaInfoCommandService {
         long startTime = System.currentTimeMillis();
 
         try {
-            log.debug("Step 1: Running initial MediaInfo command");
+            log.info("Step 1: Running initial MediaInfo command");
             String initialJson = runMediaInfoCommand(path);
-            log.debug("Initial MediaInfo JSON obtained, length: {}", initialJson.length());
+            log.info("Initial MediaInfo JSON obtained, length: {}", initialJson.length());
 
-            log.debug("Step 2: Parsing MediaInfo JSON");
+            log.info("Step 2: Parsing MediaInfo JSON");
             List<MediaFileInfoEntity> mediaFileInfos = mediaInfoUtils.parseMediaInfoJson(fileDetails, initialJson);
             if (mediaFileInfos.isEmpty()) {
                 log.warn("No MediaFileInfoEntity parsed from JSON");
@@ -116,13 +116,13 @@ public class MediaInfoCommandService {
             }
 
             MediaFileInfoEntity mediaFileInfo = mediaFileInfos.get(0);
-            log.debug("MediaFileInfoEntity parsed successfully with {} tracks",
+            log.info("MediaFileInfoEntity parsed successfully with {} tracks",
                     mediaFileInfo.getTrackInfos().size());
 
             if (modifyTitles && fileDetails != null) {
                 log.info("Step 3: Title modification requested, generating modifications");
                 Map<String, String> titleModifications = generateTitleModifications(mediaFileInfo, fileDetails);
-                log.debug("Generated {} title modifications", titleModifications.size());
+                log.info("Generated {} title modifications", titleModifications.size());
 
                 if (!titleModifications.isEmpty()) {
                     log.info("Step 4: Applying title modifications and track filtering");
@@ -139,7 +139,7 @@ public class MediaInfoCommandService {
             entityManager.detach(mediaFileInfo);
 //            entityManager.clear();
 
-            log.debug("Step 6: Running final MediaInfo command after modifications");
+            log.info("Step 6: Running final MediaInfo command after modifications");
             String finalJson = runMediaInfoCommand(path);
             log.info("Enhanced MediaInfo command execution completed successfully in {} ms",
                     System.currentTimeMillis() - startTime);
@@ -159,9 +159,9 @@ public class MediaInfoCommandService {
         long startTime = System.currentTimeMillis();
 
         try {
-            log.debug("Building new filename using mediaInfoUtils");
+            log.info("Building new filename using mediaInfoUtils");
             String newFilename = mediaInfoUtils.buildFileNameAndPath(fileDetails, mediaFileInfo);
-            log.debug("New filename generated: {}", newFilename);
+            log.info("New filename generated: {}", newFilename);
 
             Path newPath = path.resolveSibling(newFilename);
             log.info("Attempting to rename file from {} to {}", path, newPath);
@@ -185,22 +185,22 @@ public class MediaInfoCommandService {
         Map<String, String> modifications = new HashMap<>();
 
         try {
-            log.debug("Step 1: Generating general title");
+            log.info("Step 1: Generating general title");
             modifications.put("general", generateGeneralTitle(fileDetails));
-            log.debug("General title generated: {}", modifications.get("general"));
+            log.info("General title generated: {}", modifications.get("general"));
 
-            log.debug("Step 2: Finding and processing video track");
+            log.info("Step 2: Finding and processing video track");
             findAndProcessVideoTrack(mediaFileInfo, modifications);
-            log.debug("Video title generated: {}", modifications.get("video"));
+            log.info("Video title generated: {}", modifications.get("video"));
 
-            log.debug("Step 3: Processing audio tracks");
+            log.info("Step 3: Processing audio tracks");
             processAudioTracks(mediaFileInfo, modifications);
-            log.debug("Generated {} audio track modifications",
+            log.info("Generated {} audio track modifications",
                     modifications.keySet().stream().filter(k -> k.startsWith("audio_")).count());
 
-            log.debug("Step 4: Processing subtitle tracks");
+            log.info("Step 4: Processing subtitle tracks");
             processSubtitleTracks(mediaFileInfo, modifications);
-            log.debug("Generated {} subtitle track modifications",
+            log.info("Generated {} subtitle track modifications",
                     modifications.keySet().stream().filter(k -> k.startsWith("subtitle_id_")).count());
 
             log.info("Title modifications generation completed. Total modifications: {} in {} ms",
@@ -214,7 +214,7 @@ public class MediaInfoCommandService {
     }
 
     private String generateGeneralTitle(MediaFileDetails fileDetails) {
-        log.debug("Generating general title for recordType: {}",
+        log.info("Generating general title for recordType: {}",
                 fileDetails != null ? fileDetails.getRecordType() : "null");
 
         if (fileDetails == null) {
@@ -227,23 +227,23 @@ public class MediaInfoCommandService {
             String season = StringUtils.hasText(fileDetails.getSeason()) ? fileDetails.getSeason() : "S01";
             String episode = StringUtils.hasText(fileDetails.getEpisode()) ? fileDetails.getEpisode() : "E01";
             title = String.format("%s %s%s", fileDetails.getName(), season, episode);
-            log.debug("Series title generated: {}", title);
+            log.info("Series title generated: {}", title);
         } else {
             String year = StringUtils.hasText(fileDetails.getYear()) ? fileDetails.getYear() : "";
             title = year.isEmpty() ? fileDetails.getName() : String.format("%s (%s)", fileDetails.getName(), year);
-            log.debug("Movie title generated: {}", title);
+            log.info("Movie title generated: {}", title);
         }
         return title;
     }
 
     private void findAndProcessVideoTrack(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
-        log.debug("Searching for video track in {} tracks",
+        log.info("Searching for video track in {} tracks",
                 mediaFileInfo.getTrackInfos().size());
 
         boolean videoTrackFound = false;
         for (TrackInfoEntity track : mediaFileInfo.getTrackInfos()) {
             if ("Video".equals(track.getType())) {
-                log.debug("Video track found at index: {}", mediaFileInfo.getTrackInfos().indexOf(track));
+                log.info("Video track found at index: {}", mediaFileInfo.getTrackInfos().indexOf(track));
                 modifications.put("video", generateVideoTitle(track));
                 videoTrackFound = true;
                 break;
@@ -256,11 +256,11 @@ public class MediaInfoCommandService {
     }
 
     private String generateVideoTitle(TrackInfoEntity track) {
-        log.debug("Generating video title for track: {}", track);
+        log.info("Generating video title for track: {}", track);
         List<String> titleParts = new ArrayList<>();
 
         if (track instanceof VideoInfoEntity videoInfoTrack) {
-            log.debug("Processing VideoInfoEntity for title generation");
+            log.info("Processing VideoInfoEntity for title generation");
             if (videoInfoTrack.getFormat() != null) {
                 titleParts.add(videoInfoTrack.getFormat());
                 log.trace("Added format: {}", videoInfoTrack.getFormat());
@@ -282,36 +282,74 @@ public class MediaInfoCommandService {
         }
 
         String title = String.join(" ", titleParts).trim();
-        log.debug("Generated video title: '{}' from {} parts", title, titleParts.size());
+        log.info("Generated video title: '{}' from {} parts", title, titleParts.size());
         return title.isEmpty() ? "Main Video" : title;
     }
 
+//    private void processAudioTracks(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
+//        log.info("Processing audio tracks from {} total tracks",
+//                mediaFileInfo.getTrackInfos().size());
+//
+//        int audioIndex = 0;
+//        int audioTrackCount = 0;
+//
+//        for (TrackInfoEntity track : mediaFileInfo.getTrackInfos()) {
+//            if (track instanceof AudioInfoEntity || "Audio".equalsIgnoreCase(track.getType())) {
+//                log.info("Audio track found at position {}, generating title", audioIndex);
+//                String audioTitle = generateAudioTitle((AudioInfoEntity) track);
+//                modifications.put("audio_" + audioIndex, audioTitle);
+//                log.info("Audio track {} title: {}", audioIndex, audioTitle);
+//                audioIndex++;
+//                audioTrackCount++;
+//            }
+//        }
+//
+//        log.info("Processed {} audio tracks", audioTrackCount);
+//    }
+
     private void processAudioTracks(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
-        log.debug("Processing audio tracks from {} total tracks",
+        log.info("Processing audio tracks from {} total tracks",
                 mediaFileInfo.getTrackInfos().size());
+
+        // Get the audio tracks to keep based on your filtering rules
+        Set<Integer> audioTracksToKeep = getAudioTracksToKeep(mediaFileInfo.getTrackInfos());
+        log.info("Audio tracks to keep: {}", audioTracksToKeep);
 
         int audioIndex = 0;
         int audioTrackCount = 0;
+        int currentAudioPosition = 0;
 
         for (TrackInfoEntity track : mediaFileInfo.getTrackInfos()) {
             if (track instanceof AudioInfoEntity || "Audio".equalsIgnoreCase(track.getType())) {
-                log.debug("Audio track found at position {}, generating title", audioIndex);
-                String audioTitle = generateAudioTitle((AudioInfoEntity) track);
-                modifications.put("audio_" + audioIndex, audioTitle);
-                log.debug("Audio track {} title: {}", audioIndex, audioTitle);
-                audioIndex++;
-                audioTrackCount++;
+                // Only process tracks that are in the keep set
+                if (audioTracksToKeep.contains(currentAudioPosition)) {
+                    log.info("Audio track found at position {} (original index {}), generating title",
+                            audioIndex, currentAudioPosition);
+                    String audioTitle = generateAudioTitle((AudioInfoEntity) track);
+
+                    // Use the ORIGINAL track index, not the sequential index
+                    modifications.put("audio_" + currentAudioPosition, audioTitle);
+                    log.info("Audio track {} (original index {}) title: {}",
+                            audioIndex, currentAudioPosition, audioTitle);
+                    audioIndex++;
+                    audioTrackCount++;
+                } else {
+                    log.info("Skipping audio track at original position {} (not in keep set)",
+                            currentAudioPosition);
+                }
+                currentAudioPosition++;
             }
         }
 
-        log.info("Processed {} audio tracks", audioTrackCount);
+        log.info("Processed {} audio tracks (filtered from {} total audio tracks)",
+                audioTrackCount, currentAudioPosition);
     }
 
     private String generateAudioTitle(AudioInfoEntity audioInfoTrack) {
-        log.debug("Generating audio title for track: {}", audioInfoTrack);
+        log.info("Generating audio title for track: {}", audioInfoTrack);
         List<String> titleParts = new ArrayList<>();
 
-        log.debug("Processing AudioInfoEntity for title generation");
+        log.info("Processing AudioInfoEntity for title generation");
         String language = audioInfoTrack.getLanguage() != null ? getLanguageName(audioInfoTrack.getLanguage()) : "";
         if (!language.isEmpty()) {
             titleParts.add(language);
@@ -332,12 +370,12 @@ public class MediaInfoCommandService {
         }
 
         String title = String.join(" ", titleParts).trim();
-        log.debug("Generated audio title: '{}' from {} parts", title, titleParts.size());
+        log.info("Generated audio title: '{}' from {} parts", title, titleParts.size());
         return title;
     }
 
     private void processSubtitleTracks(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
-        log.debug("Processing subtitle tracks from {} total tracks",
+        log.info("Processing subtitle tracks from {} total tracks",
                 mediaFileInfo.getTrackInfos().size());
 
         int subtitleIndex = 0;
@@ -345,10 +383,10 @@ public class MediaInfoCommandService {
 
         for (TrackInfoEntity track : mediaFileInfo.getTrackInfos()) {
             if ("Text".equals(track.getType())) {
-                log.debug("Subtitle track found at position {}, generating title", subtitleIndex);
+                log.info("Subtitle track found at position {}, generating title", subtitleIndex);
                 String subtitleTitle = generateSubtitleTitle(track);
                 modifications.put("subtitle_id_" + subtitleIndex, subtitleTitle);
-                log.debug("Subtitle track {} title: {}", subtitleIndex, subtitleTitle);
+                log.info("Subtitle track {} title: {}", subtitleIndex, subtitleTitle);
                 subtitleIndex++;
                 subtitleTrackCount++;
             }
@@ -358,31 +396,31 @@ public class MediaInfoCommandService {
     }
 
     private String generateSubtitleTitle(TrackInfoEntity track) {
-        log.debug("Generating subtitle title for track: {}", track);
+        log.info("Generating subtitle title for track: {}", track);
 
         if (track instanceof TextInfoEntity textInfoTrack) {
-            log.debug("Processing TextInfoEntity for subtitle title generation");
+            log.info("Processing TextInfoEntity for subtitle title generation");
             String language = textInfoTrack.getLanguage() != null ? getLanguageName(textInfoTrack.getLanguage()) : "";
             String format = textInfoTrack.getFormat() != null ? textInfoTrack.getFormat() : "";
             String existingTitle = textInfoTrack.getTitle() != null ? textInfoTrack.getTitle() : "";
             boolean forced = textInfoTrack.getForced() != null && "Yes".equals(textInfoTrack.getForced());
 
-            log.debug("Subtitle properties - language: {}, format: {}, existingTitle: {}, forced: {}",
+            log.info("Subtitle properties - language: {}, format: {}, existingTitle: {}, forced: {}",
                     language, format, existingTitle, forced);
 
             String title;
             if (StringUtils.hasText(existingTitle) && !"SDH".equals(existingTitle)) {
                 title = String.format("%s %s", language, existingTitle);
-                log.debug("Using existing title with language: {}", title);
+                log.info("Using existing title with language: {}", title);
             } else if (forced) {
                 title = String.format("%s %s [Forced]", language, format);
-                log.debug("Generated forced subtitle title: {}", title);
+                log.info("Generated forced subtitle title: {}", title);
             } else if ("SDH".equals(existingTitle)) {
                 title = String.format("%s SDH", language);
-                log.debug("Generated SDH subtitle title: {}", title);
+                log.info("Generated SDH subtitle title: {}", title);
             } else {
                 title = String.format("%s %s", language, format);
-                log.debug("Generated basic subtitle title: {}", title);
+                log.info("Generated basic subtitle title: {}", title);
             }
             return title;
         } else {
@@ -392,7 +430,7 @@ public class MediaInfoCommandService {
     }
 
     private String formatBitrate(String bitrate) {
-        log.debug("Formatting bitrate: {}", bitrate);
+        log.info("Formatting bitrate: {}", bitrate);
         try {
             int bitrateValue = Integer.parseInt(bitrate);
             String formatted;
@@ -403,7 +441,7 @@ public class MediaInfoCommandService {
             } else {
                 formatted = bitrate + " bps";
             }
-            log.debug("Formatted bitrate: {} -> {}", bitrate, formatted);
+            log.info("Formatted bitrate: {} -> {}", bitrate, formatted);
             return formatted;
         } catch (NumberFormatException e) {
             log.warn("Failed to parse bitrate: {}, returning original", bitrate, e);
@@ -412,7 +450,7 @@ public class MediaInfoCommandService {
     }
 
     private String getLanguageName(String languageCode) {
-        log.debug("Looking up language name for code: {}", languageCode);
+        log.info("Looking up language name for code: {}", languageCode);
         if (!StringUtils.hasText(languageCode)) {
             log.warn("Empty language code provided");
             return languageCode;
@@ -423,7 +461,7 @@ public class MediaInfoCommandService {
                     .map(entity -> {
                         String name = StringUtils.hasText(entity.getName()) ?
                                 entity.getName() : entity.getEnglish_name();
-                        log.debug("Found language name: {} for code: {}", name, languageCode);
+                        log.info("Found language name: {} for code: {}", name, languageCode);
                         return name;
                     })
                     .orElseGet(() -> {
@@ -451,21 +489,21 @@ public class MediaInfoCommandService {
                 return;
             }
 
-            log.debug("Title modifications to apply: {}", titleModifications);
+            log.info("Title modifications to apply: {}", titleModifications);
 
             if (!Files.exists(inputPath)) {
                 throw new DbWorldException("Input file does not exist: " + inputPath);
             }
 
-            log.debug("Creating temporary output file");
+            log.info("Creating temporary output file");
             tempOutput = Files.createTempFile(inputPath.getParent(), "modified_", ".mkv");
-            log.debug("Temporary file created: {}", tempOutput);
+            log.info("Temporary file created: {}", tempOutput);
 
-            log.debug("Building FFmpeg command");
+            log.info("Building FFmpeg command");
             List<String> command = buildFfmpegCommand(inputPath, tempOutput, titleModifications, mediaFileInfo.getTrackInfos());
-            log.debug("FFmpeg command built with {} arguments", command.size());
+            log.info("FFmpeg command built with {} arguments", command.size());
 
-            log.debug("Executing FFmpeg command");
+            log.info("Executing FFmpeg command");
             executeFfmpegCommand(command, inputPath, tempOutput);
 
             log.info("Successfully modified media titles and filtered tracks for: {} in {} ms",
@@ -481,18 +519,18 @@ public class MediaInfoCommandService {
     private void cleanupTempFile(Path tempOutput) {
         if (tempOutput != null) {
             try {
-                log.debug("Attempting to clean up temporary file: {}", tempOutput);
+                log.info("Attempting to clean up temporary file: {}", tempOutput);
                 boolean deleted = Files.deleteIfExists(tempOutput);
                 if (deleted) {
-                    log.debug("Temporary file deleted successfully: {}", tempOutput);
+                    log.info("Temporary file deleted successfully: {}", tempOutput);
                 } else {
-                    log.debug("Temporary file did not exist or could not be deleted: {}", tempOutput);
+                    log.info("Temporary file did not exist or could not be deleted: {}", tempOutput);
                 }
             } catch (IOException e) {
                 log.warn("Failed to delete temporary file: {}", tempOutput, e);
             }
         } else {
-            log.debug("No temporary file to clean up");
+            log.info("No temporary file to clean up");
         }
     }
 
@@ -504,39 +542,42 @@ public class MediaInfoCommandService {
         command.add("ffmpeg");
         command.add("-i");
         command.add(inputPath.toString());
-        log.debug("Added input parameter: {}", inputPath);
+        log.info("Added input parameter: {}", inputPath);
 
-        log.debug("Adding track filtering maps");
+        log.info("Adding track filtering maps");
         addTrackFilteringMaps(command, trackInfoEntities);
 
         command.add("-c");
         command.add("copy");
-        log.debug("Added copy codec parameter");
+        log.info("Added copy codec parameter");
 
-        log.debug("Adding metadata flags");
-        addMetadataFlags(command, titleModifications);
+        log.info("Adding metadata flags");
+        addMetadataFlags(command, titleModifications, trackInfoEntities); // Pass trackInfoEntities here
 
         command.add("-y");
         command.add(outputPath.toString());
-        log.debug("Added output parameter: {}", outputPath);
+        log.info("Added output parameter: {}", outputPath);
 
         log.info("FFmpeg command built with {} arguments", command.size());
         if (log.isDebugEnabled()) {
-            log.debug("Full FFmpeg command: {}", String.join(" ", command));
+            log.info("Full FFmpeg command: {}", String.join(" ", command));
         }
 
         return command;
     }
 
-    private void addMetadataFlags(List<String> command, Map<String, String> titleModifications) {
-        log.debug("Adding metadata flags for {} modifications", titleModifications.size());
+    private void addMetadataFlags(List<String> command, Map<String, String> titleModifications,
+                                  List<TrackInfoEntity> trackInfoEntities) {
+        log.info("Adding metadata flags for {} modifications", titleModifications.size());
+
+        Set<Integer> audioTracksToKeep = getAudioTracksToKeep(trackInfoEntities);
 
         addMetadataFlagIfPresent(command, "general", "title", titleModifications);
         addMetadataFlagIfPresent(command, "video", "s:v:0", "title", titleModifications);
-        addAudioMetadataFlags(command, titleModifications);
+        addAudioMetadataFlags(command, titleModifications, audioTracksToKeep);
         addSubtitleMetadataFlags(command, titleModifications);
 
-        log.debug("Metadata flags added successfully");
+        log.info("Metadata flags added successfully");
     }
 
     private void addMetadataFlagIfPresent(List<String> command, String modificationKey,
@@ -545,7 +586,7 @@ public class MediaInfoCommandService {
             String value = titleModifications.get(modificationKey);
             command.add("-metadata");
             command.add(ffmpegFlag + "=" + value);
-            log.debug("Added metadata flag for {}: {}", modificationKey, value);
+            log.info("Added metadata flag for {}: {}", modificationKey, value);
         } else {
             log.trace("Modification key not found: {}", modificationKey);
         }
@@ -558,36 +599,54 @@ public class MediaInfoCommandService {
             String value = titleModifications.get(modificationKey);
             command.add("-metadata:" + streamType);
             command.add(valueKey + "=" + value);
-            log.debug("Added metadata flag for {}:{}: {}", streamType, modificationKey, value);
+            log.info("Added metadata flag for {}:{}: {}", streamType, modificationKey, value);
         } else {
             log.trace("Modification key not found: {}", modificationKey);
         }
     }
 
-    private void addAudioMetadataFlags(List<String> command, Map<String, String> titleModifications) {
-        log.debug("Adding audio metadata flags");
+    private void addAudioMetadataFlags(List<String> command, Map<String, String> titleModifications,
+                                       Set<Integer> audioTracksToKeep) {
+        log.info("Adding audio metadata flags for {} tracks to keep", audioTracksToKeep.size());
         int audioFlagCount = 0;
+
+        // Sort the tracks to maintain consistent order with mapping
+        List<Integer> sortedTracks = audioTracksToKeep.stream()
+                .sorted().collect(Collectors.toList());
+
+        // Create mapping from original index to new sequential index
+        Map<Integer, Integer> originalToNewIndexMap = new HashMap<>();
+        for (int i = 0; i < sortedTracks.size(); i++) {
+            originalToNewIndexMap.put(sortedTracks.get(i), i);
+        }
 
         for (Map.Entry<String, String> entry : titleModifications.entrySet()) {
             if (entry.getKey().startsWith("audio_")) {
-                String audioIndex = entry.getKey().replace("audio_", "");
+                String originalIndexStr = entry.getKey().replace("audio_", "");
                 try {
-                    int index = Integer.parseInt(audioIndex);
-                    command.add("-metadata:s:a:" + index);
-                    command.add("title=" + entry.getValue());
-                    audioFlagCount++;
-                    log.debug("Added audio metadata for track {}: {}", index, entry.getValue());
+                    int originalIndex = Integer.parseInt(originalIndexStr);
+                    Integer newSequentialIndex = originalToNewIndexMap.get(originalIndex);
+
+                    if (newSequentialIndex != null) {
+                        command.add("-metadata:s:a:" + newSequentialIndex);
+                        command.add("title=" + entry.getValue());
+                        audioFlagCount++;
+                        log.info("Added audio metadata for track {} (original {}): {}",
+                                newSequentialIndex, originalIndex, entry.getValue());
+                    } else {
+                        log.warn("Original audio index {} not found in tracks to keep", originalIndex);
+                    }
                 } catch (NumberFormatException e) {
-                    log.warn("Invalid audio index format: {}", audioIndex, e);
+                    log.warn("Invalid audio index format: {}", originalIndexStr, e);
                 }
             }
         }
 
-        log.debug("Added {} audio metadata flags", audioFlagCount);
+        log.info("Added {} audio metadata flags", audioFlagCount);
     }
 
     private void addSubtitleMetadataFlags(List<String> command, Map<String, String> titleModifications) {
-        log.debug("Adding subtitle metadata flags");
+        log.info("Adding subtitle metadata flags");
         int subtitleFlagCount = 0;
 
         for (Map.Entry<String, String> entry : titleModifications.entrySet()) {
@@ -598,14 +657,14 @@ public class MediaInfoCommandService {
                     command.add("-metadata:s:s:" + index);
                     command.add("title=" + entry.getValue());
                     subtitleFlagCount++;
-                    log.debug("Added subtitle metadata for track {}: {}", index, entry.getValue());
+                    log.info("Added subtitle metadata for track {}: {}", index, entry.getValue());
                 } catch (NumberFormatException e) {
                     log.warn("Invalid subtitle index format: {}", subtitleIndex, e);
                 }
             }
         }
 
-        log.debug("Added {} subtitle metadata flags", subtitleFlagCount);
+        log.info("Added {} subtitle metadata flags", subtitleFlagCount);
     }
 
     private void executeFfmpegCommand(List<String> command, Path inputPath, Path tempOutput)
@@ -613,11 +672,11 @@ public class MediaInfoCommandService {
         log.info("Executing FFmpeg command for input: {}", inputPath);
         long startTime = System.currentTimeMillis();
 
-        log.debug("Full FFmpeg command: {}", String.join(" ", command));
+        log.info("Full FFmpeg command: {}", String.join(" ", command));
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
 
-        log.debug("Starting FFmpeg process");
+        log.info("Starting FFmpeg process");
         Process process = processBuilder.start();
 
         log.info("FFMPEG Command: [{}]", String.join(" ", processBuilder.command()));
@@ -626,7 +685,7 @@ public class MediaInfoCommandService {
         int lineCount = 0;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
-            log.debug("Reading FFmpeg output...");
+            log.info("Reading FFmpeg output...");
             while ((line = reader.readLine()) != null) {
                 output.append(line).append("\n");
                 lineCount++;
@@ -634,7 +693,7 @@ public class MediaInfoCommandService {
                     log.trace("FFmpeg output line {}: {}", lineCount, line);
                 }
             }
-            log.debug("Finished reading FFmpeg output. Total lines: {}", lineCount);
+            log.info("Finished reading FFmpeg output. Total lines: {}", lineCount);
         }
 
         int exitCode = process.waitFor();
@@ -649,19 +708,19 @@ public class MediaInfoCommandService {
             ));
         }
 
-        log.debug("FFmpeg execution successful, moving temporary file to original location");
+        log.info("FFmpeg execution successful, moving temporary file to original location");
         dbWorldUtils.moveFileOrDir(tempOutput.toString(), inputPath.toString(), true);
         log.info("File modification completed successfully");
     }
 
     private void addTrackFilteringMaps(List<String> command, List<TrackInfoEntity> trackInfoEntities) {
-        log.debug("Adding track filtering maps for {} tracks", trackInfoEntities.size());
+        log.info("Adding track filtering maps for {} tracks", trackInfoEntities.size());
 
         Set<Integer> audioTracksToKeep = getAudioTracksToKeep(trackInfoEntities);
         Set<Integer> subtitleTracksToKeep = getSubtitleTracksToKeep(trackInfoEntities);
 
-        log.debug("Audio tracks to keep: {}", audioTracksToKeep);
-        log.debug("Subtitle tracks to keep: {}", subtitleTracksToKeep);
+        log.info("Audio tracks to keep: {}", audioTracksToKeep);
+        log.info("Subtitle tracks to keep: {}", subtitleTracksToKeep);
 
         addAudioMapCommand(command, audioTracksToKeep);
         addSubtitleMapCommand(command, subtitleTracksToKeep);
@@ -669,28 +728,34 @@ public class MediaInfoCommandService {
         // Always add video track
         command.add("-map");
         command.add("0:v");
-        log.debug("Added video track mapping");
+        log.info("Added video track mapping");
     }
 
     private void addAudioMapCommand(List<String> command, Set<Integer> audioTracksToKeep) {
-        log.debug("Adding audio map command for {} tracks", audioTracksToKeep.size());
+        log.info("Adding audio map command for {} tracks", audioTracksToKeep.size());
 
         if (!audioTracksToKeep.isEmpty()) {
-            for (int trackIndex : audioTracksToKeep) {
+            // Sort the tracks to maintain consistent order
+            List<Integer> sortedTracks = audioTracksToKeep.stream()
+                    .sorted()
+                    .collect(Collectors.toList());
+
+            for (int trackIndex : sortedTracks) {
                 command.add("-map");
                 command.add("0:a:" + trackIndex);
                 log.trace("Added audio map for track index: {}", trackIndex);
             }
-            log.debug("Added {} specific audio track mappings", audioTracksToKeep.size());
+            log.info("Added {} specific audio track mappings in sorted order: {}",
+                    sortedTracks.size(), sortedTracks);
         } else {
             command.add("-map");
             command.add("0:a");
-            log.debug("Added all audio tracks mapping");
+            log.info("Added all audio tracks mapping");
         }
     }
 
     private void addSubtitleMapCommand(List<String> command, Set<Integer> subtitleTracksToKeep) {
-        log.debug("Adding subtitle map command for {} tracks", subtitleTracksToKeep.size());
+        log.info("Adding subtitle map command for {} tracks", subtitleTracksToKeep.size());
 
         if (!subtitleTracksToKeep.isEmpty()) {
             for (int trackIndex : subtitleTracksToKeep) {
@@ -698,16 +763,16 @@ public class MediaInfoCommandService {
                 command.add("0:s:" + trackIndex);
                 log.trace("Added subtitle map for track index: {}", trackIndex);
             }
-            log.debug("Added {} specific subtitle track mappings", subtitleTracksToKeep.size());
+            log.info("Added {} specific subtitle track mappings", subtitleTracksToKeep.size());
         } else {
             command.add("-map");
             command.add("0:s");
-            log.debug("Added all subtitle tracks mapping");
+            log.info("Added all subtitle tracks mapping");
         }
     }
 
     private Set<Integer> getAudioTracksToKeep(List<TrackInfoEntity> trackInfoEntities) {
-        log.debug("Determining audio tracks to keep from {} tracks", trackInfoEntities.size());
+        log.info("Determining audio tracks to keep from {} tracks", trackInfoEntities.size());
         Map<String, List<Integer>> languageTracks = new HashMap<>();
         int audioIndex = 0;
         int audioTrackCount = 0;
@@ -722,14 +787,14 @@ public class MediaInfoCommandService {
             }
         }
 
-        log.debug("Found {} audio tracks with languages: {}", audioTrackCount, languageTracks.keySet());
+        log.info("Found {} audio tracks with languages: {}", audioTrackCount, languageTracks.keySet());
         Set<Integer> result = filterAudioTracksByCustomRules(languageTracks);
-        log.debug("Audio tracks to keep after filtering: {}", result);
+        log.info("Audio tracks to keep after filtering: {}", result);
         return result;
     }
 
     private Set<Integer> getSubtitleTracksToKeep(List<TrackInfoEntity> trackInfoEntities) {
-        log.debug("Determining subtitle tracks to keep from {} tracks", trackInfoEntities.size());
+        log.info("Determining subtitle tracks to keep from {} tracks", trackInfoEntities.size());
         Map<String, List<Integer>> languageTracks = new HashMap<>();
         int subtitleIndex = 0;
         int subtitleTrackCount = 0;
@@ -744,9 +809,9 @@ public class MediaInfoCommandService {
             }
         }
 
-        log.debug("Found {} subtitle tracks with languages: {}", subtitleTrackCount, languageTracks.keySet());
+        log.info("Found {} subtitle tracks with languages: {}", subtitleTrackCount, languageTracks.keySet());
         Set<Integer> result = filterAudioTracksByCustomRules(languageTracks);
-        log.debug("Subtitle tracks to keep after filtering: {}", result);
+        log.info("Subtitle tracks to keep after filtering: {}", result);
         return result;
     }
 
@@ -766,21 +831,21 @@ public class MediaInfoCommandService {
 
 
     private Set<Integer> filterAudioTracksByCustomRules(Map<String, List<Integer>> languageTracks) {
-        log.debug("Filtering tracks by custom rules. Language tracks: {}", languageTracks);
+        log.info("Filtering tracks by custom rules. Language tracks: {}", languageTracks);
         long startTime = System.currentTimeMillis();
         Set<Integer> tracksToKeep = new LinkedHashSet<>();
 
         // --- Guard clause: null or empty map ---
         if (languageTracks == null || languageTracks.isEmpty()) {
-            log.debug("Language tracks is null or empty, returning empty set");
+            log.info("Language tracks is null or empty, returning empty set");
             return tracksToKeep; // nothing to keep
         }
 
         int total = languageTracks.values().stream().mapToInt(list -> list != null ? list.size() : 0).sum();
-        log.debug("Total tracks found: {}", total);
+        log.info("Total tracks found: {}", total);
 
         if (total == 0) {
-            log.debug("No tracks present, returning empty set");
+            log.info("No tracks present, returning empty set");
             return tracksToKeep; // no tracks present
         }
 
@@ -789,76 +854,76 @@ public class MediaInfoCommandService {
                 .filter(Objects::nonNull)
                 .filter(k -> !k.isBlank())
                 .collect(Collectors.toSet());
-        log.debug("Languages after filtering: {}", langs);
+        log.info("Languages after filtering: {}", langs);
 
         // --- If langs is empty after cleaning ---
         if (langs.isEmpty()) {
-            log.debug("No valid languages found, keeping all tracks");
+            log.info("No valid languages found, keeping all tracks");
             // We don't know the languages → safest option: keep all
             languageTracks.values().forEach(tracksToKeep::addAll);
-            log.debug("Tracks to keep after keeping all: {}", tracksToKeep);
+            log.info("Tracks to keep after keeping all: {}", tracksToKeep);
             return tracksToKeep;
         }
 
         // --- Single audio ---
         if (total == 1) {
-            log.debug("Single track found, keeping it");
+            log.info("Single track found, keeping it");
             languageTracks.values().forEach(tracksToKeep::addAll);
             return tracksToKeep;
         }
 
         // --- Dual audio ---
         if (total == 2) {
-            log.debug("Dual tracks found, applying dual track rules");
+            log.info("Dual tracks found, applying dual track rules");
             if (langs.contains(LANG_HINDI) && langs.contains(LANG_ENGLISH)) {
-                log.debug("Hindi and English tracks found, keeping both");
+                log.info("Hindi and English tracks found, keeping both");
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
             } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJRATI)) {
-                log.debug("Hindi and Gujarati tracks found, keeping both");
+                log.info("Hindi and Gujarati tracks found, keeping both");
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
             } else if (langs.contains(LANG_HINDI)) {
-                log.debug("Only Hindi tracks found, keeping Hindi");
+                log.info("Only Hindi tracks found, keeping Hindi");
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
             } else if (langs.contains(LANG_GUJRATI) && langs.contains(LANG_UND)) {
-                log.debug("Gujarati and undefined tracks found, keeping Gujarati");
+                log.info("Gujarati and undefined tracks found, keeping Gujarati");
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
             } else {
-                log.debug("No preferred language combination found, keeping all tracks");
+                log.info("No preferred language combination found, keeping all tracks");
                 languageTracks.values().forEach(tracksToKeep::addAll);
             }
-            log.debug("Dual track filtering result: {}", tracksToKeep);
+            log.info("Dual track filtering result: {}", tracksToKeep);
             return tracksToKeep;
         }
 
         // --- Multi audio (> 2) ---
-        log.debug("Multi-track scenario ({} tracks), applying multi-track rules", total);
+        log.info("Multi-track scenario ({} tracks), applying multi-track rules", total);
         if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJRATI) && langs.contains(LANG_ENGLISH)) {
-            log.debug("Hindi, Gujarati and English tracks found, keeping all three");
+            log.info("Hindi, Gujarati and English tracks found, keeping all three");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
         } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_ENGLISH)) {
-            log.debug("Hindi and English tracks found, keeping both");
+            log.info("Hindi and English tracks found, keeping both");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
         } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJRATI)) {
-            log.debug("Hindi and Gujarati tracks found, keeping both");
+            log.info("Hindi and Gujarati tracks found, keeping both");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
         } else if (langs.contains(LANG_HINDI)) {
-            log.debug("Only Hindi tracks found, keeping Hindi");
+            log.info("Only Hindi tracks found, keeping Hindi");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
         } else if (langs.contains(LANG_GUJRATI) && langs.contains(LANG_UND)) {
-            log.debug("Gujarati and undefined tracks found, keeping Gujarati");
+            log.info("Gujarati and undefined tracks found, keeping Gujarati");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
         } else {
-            log.debug("No preferred language combination found, keeping all tracks");
+            log.info("No preferred language combination found, keeping all tracks");
             languageTracks.values().forEach(tracksToKeep::addAll);
         }
 
-        log.debug("Multi-track filtering completed in {} ms. Tracks to keep: {}",
+        log.info("Multi-track filtering completed in {} ms. Tracks to keep: {}",
                 System.currentTimeMillis() - startTime, tracksToKeep);
         return tracksToKeep;
     }
