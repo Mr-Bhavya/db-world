@@ -46,9 +46,6 @@ public class MediaFileHandler {
     private SpokenLanguageRepository spokenLanguageRepository;
 
     @Autowired
-    private PathSanitizer pathSanitizer;
-
-    @Autowired
     private MediaInfoUtils mediaInfoUtils;
 
     @Autowired
@@ -84,7 +81,7 @@ public class MediaFileHandler {
         }
     }
 
-    private void processUnassignedFile(File file) {
+    public void processUnassignedFile(File file) {
         try {
             String sourceFile = file.getPath();
             Path sourceFilePath = file.toPath();
@@ -158,7 +155,7 @@ public class MediaFileHandler {
         }
     }
 
-    private void processExistingAssignedFile(File file, MediaFileDetails fileDetails) {
+    public void processExistingAssignedFile(File file, MediaFileDetails fileDetails) {
         String sourcePath = file.getPath();
         List<MediaFileInfoEntity> mediaFileInfoEntities = getMediaFileInfo(fileDetails, file.toPath());
 
@@ -184,7 +181,7 @@ public class MediaFileHandler {
         String seasonEpisode = extractPattern(relativePath, SEASON_EPISODE_EXTRACT_PATTERN);
 
         if (baseFolder != null) {
-            String processedBaseFolder = pathSanitizer.sanitizePath(baseFolder);
+            String processedBaseFolder = PathSanitizer.sanitizePath(baseFolder);
             Long recordId = parseRecordId(processedBaseFolder);
 
             if (seasonEpisode != null) {
@@ -216,7 +213,7 @@ public class MediaFileHandler {
 
         return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
                 dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
-                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYPE_SERIES, recordId, season, episode
+                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, season, episode
         ));
     }
 
@@ -231,7 +228,7 @@ public class MediaFileHandler {
 
         return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
                 dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
-                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYPE_MOVIE, recordId, null, null
+                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, null, null
         ));
     }
 

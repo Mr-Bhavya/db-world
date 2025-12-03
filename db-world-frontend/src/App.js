@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import Header from './components/Header';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, redirect } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from './components/Login';
 import LogOut from './components/LogOut';
 import Registration from './components/DB_Users/registration';
@@ -22,20 +22,107 @@ import MediaDownloadViewer from './components/DBCinema/screens/download/index.js
 import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.js';
 import BackButtonHandler from './android-app-components/BackButtonHandler.js';
 import SeriesDetailsPage from './components/DBCinema/screens/series-details/SeriesDetailsPage.js';
-
-// import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { createTheme, ThemeProvider } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { CINEMA_PAGE_TILES } from './components/DBCinema/components/CinemaTiles.js';
-import { CinemaPageWithDefaults } from './components/DBCinema/screens/CinemaPage/CinemaPage.js';
 
+// Import CinemaPage components correctly
+import CinemaPage from './components/DBCinema/screens/CinemaPage/CinemaPage.js';
+import { CategoryProvider } from './components/DBCinema/navbar/CategoryContext.js';
+
+// Lazy load heavy components for better performance
+const LazyAdminTools = lazy(() => import('./components/DB_Admin_Tools/AdminTools'));
+const LazyMediaDownloadViewer = lazy(() => import('./components/DBCinema/screens/download/index.js'));
+const LazyMovieDetailsPage = lazy(() => import('./components/DBCinema/screens/movie-details/index.js'));
+const LazySeriesDetailsPage = lazy(() => import('./components/DBCinema/screens/series-details/SeriesDetailsPage.js'));
+
+// Lazy load cinema pages to avoid circular dependencies
+const LazyCinemaPage = lazy(() => import('./components/DBCinema/screens/CinemaPage/CinemaPage.js'));
+
+// Loading Component
+const LoadingFallback = () => (
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '50vh',
+    flexDirection: 'column',
+    gap: '1rem'
+  }}>
+    <div style={{
+      width: '40px',
+      height: '40px',
+      border: '4px solid #f3f3f3',
+      borderTop: '4px solid #008080',
+      borderRadius: '50%',
+      animation: 'spin 1s linear infinite'
+    }} />
+    <p style={{ color: '#008080', margin: 0 }}>Loading...</p>
+    <style>
+      {`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}
+    </style>
+  </div>
+);
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '2rem',
+          textAlign: 'center',
+          color: '#d32f2f'
+        }}>
+          <h2>Something went wrong</h2>
+          <p>Please try refreshing the page</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#008080',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Themes
 const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#008080', // Teal
+      main: '#008080',
       contrastText: '#ffffff'
     },
     secondary: {
@@ -53,6 +140,9 @@ const lightTheme = createTheme({
   },
   shape: {
     borderRadius: 8
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
   }
 });
 
@@ -60,7 +150,7 @@ const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#008080', // Teal
+      main: '#008080',
       contrastText: '#ffffff'
     },
     secondary: {
@@ -78,112 +168,187 @@ const darkTheme = createTheme({
   },
   shape: {
     borderRadius: 8
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
   }
 });
 
-function App() {
+// Simple CinemaPage wrapper to avoid import issues
+const CinemaPageWrapper = ({ tilesConfig, showTopFade, pageTitle, showCover = true }) => (
+  <LazyCinemaPage
+    tilesConfig={tilesConfig}
+    showTopFade={showTopFade}
+    pageTitle={pageTitle}
+    showCover={showCover}
+  />
+);
 
+// Route configuration for better maintainability
+const routeConfig = {
+  public: [
+    { path: '/', element: <Navigate to={Constants.DB_WORLD_HOME_ROUTE} />, exact: true },
+    { path: Constants.DB_WORLD_HOME_ROUTE, element: <Home /> },
+    { path: Constants.LOGIN_ROUTE, element: <Login /> },
+    { path: Constants.DB_WEATHER_ROUTE, element: <Weather /> },
+    { path: Constants.REGISTRATION_ROUTE, element: <Registration /> },
+    { path: Constants.DB_GAMES_ROUTE, element: <TicTacToe /> },
+    { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
+  ],
+  protected: [
+    { path: Constants.DB_CINEMA_ROUTE, element: <Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />, exact: true },
+    {
+      path: Constants.DB_CINEMA_BROWSE_ROUTE,
+      element: (
+        <CinemaPageWrapper
+          tilesConfig={CINEMA_PAGE_TILES.BROWSE}
+          showTopFade={true}
+          pageTitle="Browse All"
+          key="browse"
+        />
+      )
+    },
+    {
+      path: Constants.DB_CINEMA_MOVIES_ROUTE,
+      element: (
+        <CinemaPageWrapper
+          tilesConfig={CINEMA_PAGE_TILES.MOVIES}
+          showTopFade={false}
+          showCover={true}
+          pageTitle="Movies"
+          key="movies"
+        />
+      )
+    },
+    {
+      path: Constants.DB_CINEMA_SERIES_ROUTE,
+      element: (
+        <CinemaPageWrapper
+          tilesConfig={CINEMA_PAGE_TILES.SERIES}
+          showTopFade={true}
+          pageTitle="TV Shows"
+          key="series"
+        />
+      )
+    },
+    { path: Constants.DB_DONWLOAD_RECORD_ROUTE, element: <LazyMediaDownloadViewer /> },
+    { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
+    { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
+    { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
+    { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
+    { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyMovieDetailsPage /> },
+    { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazySeriesDetailsPage /> },
+    { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
+    { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
+  ],
+  admin: [
+    { path: Constants.DB_ADMIN_TOOLS_ROUTE, element: <LazyAdminTools /> },
+  ]
+};
+
+function App() {
   const [matches, setMatches] = useState(
     window.matchMedia("(min-width: 900px)").matches
-  )
+  );
   const [darkMode, setDarkMode] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-
+  // Initialize app
   useEffect(() => {
-    window
-      .matchMedia("(min-width: 900px)")
-      .addEventListener('change', e => setMatches(e.matches));
-    if (Capacitor.isNativePlatform()) {
-      StatusBar.hide();
-    }
+    const initializeApp = async () => {
+      try {
+        // Set up media query listener
+        const mediaQuery = window.matchMedia("(min-width: 900px)");
+        const handleMediaChange = (e) => setMatches(e.matches);
+
+        mediaQuery.addEventListener('change', handleMediaChange);
+
+        // Hide status bar for native platforms
+        if (Capacitor.isNativePlatform()) {
+          try {
+            await StatusBar.hide();
+          } catch (error) {
+            console.warn('StatusBar hide failed:', error);
+          }
+        }
+
+        // Simulate initial loading (you can replace this with actual initialization)
+        const initTimer = setTimeout(() => {
+          setLoading(false);
+        }, 1000);
+
+        return () => {
+          mediaQuery.removeEventListener('change', handleMediaChange);
+          clearTimeout(initTimer);
+        };
+      } catch (error) {
+        console.error('App initialization error:', error);
+        setLoading(false);
+      }
+    };
+
+    initializeApp();
   }, []);
 
+  // Render routes based on configuration
+  const renderRoutes = (routes, wrapper = null) => {
+    return routes.map((route, index) => {
+      const routeElement = wrapper ? (
+        React.cloneElement(wrapper, { key: index }, route.element)
+      ) : (
+        <Route key={index} path={route.path} element={route.element} exact={route.exact} />
+      );
 
-  var app =
-    <div>
+      return routeElement;
+    });
+  };
 
-      <BackButtonHandler />
-
-      <Header />
-
-      <Routes>
-        {/* Public Routes */}
-        <Route exact path="/" element={<Navigate to={Constants.DB_WORLD_HOME_ROUTE} />} />
-        <Route children path={Constants.DB_WORLD_HOME_ROUTE} element={<Home />} />
-        <Route path={Constants.LOGIN_ROUTE} element={<Login />} />
-        <Route path={Constants.DB_WEATHER_ROUTE} element={<Weather />} />
-        <Route path={Constants.REGISTRATION_ROUTE} element={<Registration />} />
-        <Route path={Constants.DB_GAMES_ROUTE} element={<TicTacToe />} />
-        <Route exact path={Constants.DB_PASSWORD_MANAGER_ROUTE} element={<PasswordManagment />} />
-        <Route path="*" element={<ErrorPage />} />
-
-        {/* Protected Routes */}
-        <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-          <Route exact path={Constants.DB_CINEMA_ROUTE} element={<Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />} />
-          <Route path={Constants.DB_CINEMA_BROWSE_ROUTE}
-            element={
-              <CinemaPageWithDefaults
-                tilesConfig={CINEMA_PAGE_TILES.BROWSE}
-                showTopFade={true}
-                pageTitle="Browse All"
-                key="browse"
-              />
-            }
-          />
-          <Route path={Constants.DB_CINEMA_MOVIES_ROUTE}
-            element={
-              <CinemaPageWithDefaults
-                tilesConfig={CINEMA_PAGE_TILES.MOVIES}
-                showTopFade={false}
-                showCover={true}
-                pageTitle="Movies"
-                key="movies"
-              />
-            }
-          />
-          <Route path={Constants.DB_CINEMA_SERIES_ROUTE}
-            element={
-              <CinemaPageWithDefaults
-                tilesConfig={CINEMA_PAGE_TILES.SERIES}
-                showTopFade={true}
-                pageTitle="TV Shows"
-                key="series"
-              />
-            }
-          />
-          <Route path={Constants.DB_DONWLOAD_RECORD_ROUTE} element={<MediaDownloadViewer />} />
-          <Route path={Constants.DB_ADD_PASSWORD_ROUTE} element={<AddPassword />} />
-          <Route path={Constants.DB_GENERATE_PASSWORD_ROUTE} element={<GeneratePassword />} />
-          <Route path={Constants.DB_VIEW_PASSWORD_ROUTE} element={<ViewPassword />} />
-          <Route path={Constants.EDIT_USER_PROFILE_ROUTE} element={<EditProfile />} />
-          <Route path={Constants.DB_MOVIE_DETIALS_ROUTE} element={<MovieDetailsPage />} />
-          <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<SeriesDetailsPage />} />
-          <Route path={Constants.USER_PROFILE_ROUTE} element={<Profile />} />
-          <Route path={Constants.LOGOUT_ROUTE} element={<LogOut />} />
-        </Route>
-
-        {/* Protected Routes for only admin and owner */}
-        <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-          <Route path={Constants.DB_ADMIN_TOOLS_ROUTE} element={<AdminTools />} />
-        </Route>
-
-      </Routes>
-
-
-
-
-    </div>
+  if (loading) {
+    return (
+      <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
+        <CssBaseline />
+        <LoadingFallback />
+      </ThemeProvider>
+    );
+  }
 
   return (
-    <AuthProvider>
-      <Router>
-        <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
-          <CssBaseline />
-          {app}
-        </ThemeProvider>
-      </Router>
-    </AuthProvider>
-  )
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router>
+          <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
+            <CssBaseline />
+            <CategoryProvider>
+              <div>
+                <BackButtonHandler />
+                <Header />
+
+                <Suspense fallback={<LoadingFallback />}>
+                  <Routes>
+                    {/* Public Routes */}
+                    {renderRoutes(routeConfig.public)}
+
+                    {/* Protected Routes */}
+                    <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                      {renderRoutes(routeConfig.protected)}
+                    </Route>
+
+                    {/* Admin Routes */}
+                    <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                      {renderRoutes(routeConfig.admin)}
+                    </Route>
+
+                    {/* 404 Route */}
+                    <Route path="*" element={<ErrorPage />} />
+                  </Routes>
+                </Suspense>
+              </div>
+            </CategoryProvider>
+          </ThemeProvider>
+        </Router>
+      </AuthProvider>
+    </ErrorBoundary>
+  );
 }
 
 export default App;

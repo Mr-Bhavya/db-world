@@ -2,7 +2,6 @@ package com.db.dbworld.services.user;
 
 import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
 import com.db.dbworld.entities.user.UserEntity;
-import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,7 +52,5 @@ public interface UserService {
     void updateDob(Date dob);
 
     UserDto updateRoleByUserId(String userId);
-
-    UserCinemaDataDto updateUserCinemaData(UserCinemaDataDto userCinemaDataDto, String username);
 
 }

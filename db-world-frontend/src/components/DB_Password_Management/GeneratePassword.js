@@ -43,8 +43,8 @@ const GeneratePassword = () => {
         setPasswordLength(value);
     };
 
-    const copyPassword = () => {
-        const result = CommonServices.handleCopy(generatedPassword);
+    const copyPassword = async () => {
+        const result = await CommonServices.handleCopy(generatedPassword);
         if (result.success) {
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 1000);

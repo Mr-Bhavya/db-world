@@ -23,6 +23,8 @@ public class DbWorldPropertiesConfig {
 
     private ApiKeys apiKeys;
 
+    private Tokens tokens;
+
     @Getter
     @Setter
     public static class Paths {
@@ -49,6 +51,12 @@ public class DbWorldPropertiesConfig {
     @Getter
     @Setter
     public static class ApiKeys {
+        private String tmdb;
+    }
+
+    @Getter
+    @Setter
+    public static class Tokens {
         private String tmdb;
     }
 

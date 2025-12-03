@@ -28,6 +28,31 @@ app:
   api-keys:
     tmdb: ${TMDB_API_KEY}
 
+  tokens:
+    tmdb: ${TMDB_ACCESS_TOKEN}
+
+  static:
+    cache:
+      max-age: 31536000  # 1 year for versioned assets
+      public-resources: true
+    compression:
+      enabled: true
+    versioning:
+      enabled: true
+    security:
+      headers:
+        enabled: true
+    monitoring:
+      enabled: true
+
+# CORS configuration for static resources
+cors:
+  allowed-origins: "https://dn-world.in"
+  allowed-methods: "GET,HEAD"
+  allowed-headers: "*"
+  allow-credentials: false
+  max-age: 3600
+
 # ===========================
 # Server Configuration
 # ===========================
@@ -228,6 +253,7 @@ logging:
     com.db.dbworld: INFO
     org.hibernate: WARN
     org.springframework: INFO
+    com.db.dbworld.config.SinglePageAppConfig: DEBUG
 
 dbworld:
   paths:

@@ -3,6 +3,7 @@ package com.db.dbworld.controllers;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
 import com.db.dbworld.payloads.ApiResponse;
+import com.db.dbworld.payloads.MirrorState;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.services.mirror.StatusService;
@@ -26,7 +27,9 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -59,36 +62,100 @@ public class UtilsController {
     @PostMapping("/mirror")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<String> mirror(@RequestBody RequestPayloads.Mirror mirror) {
-        List<String> validUrls = new ArrayList<>();
-        List<String> invalidUrls = new ArrayList<>();
+        List<String> allUrls = mirror.getUrls();
+        log.info("[MIRROR] Received {} URLs for download", allUrls.size());
 
-        // 1. Validate all URLs
-        for (String url : mirror.getUrls()) {
-            if (isValidUrl(url, mirror)) {
-                validUrls.add(url);
-            } else {
-                invalidUrls.add(url);
+        int successCount = 0;
+        int errorCount = 0;
+        List<String> errorMessages = new ArrayList<>();
+
+        for (String url : allUrls) {
+            try {
+                if (url.startsWith("magnet:?")) {
+                    // 🔹 Magnet links → process immediately
+                    processMagnetUrl(url, mirror);
+                    successCount++;
+                } else if (url.startsWith("http://") || url.startsWith("https://")) {
+                    // 🔹 HTTP/HTTPS → processed sequentially (aria2c handles queue)
+                    processHttpUrl(url, mirror);
+                    successCount++;
+                } else {
+                    log.warn("Skipping unsupported URL: {}", url);
+                    errorCount++;
+                    errorMessages.add("Unsupported URL: " + url);
+                }
+            } catch (Exception e) {
+                log.error("Error processing URL: {}", url, e);
+                errorCount++;
+                errorMessages.add("Failed to process URL: " + url + " - " + e.getMessage());
             }
         }
 
-        // 2. Return immediate response
-        String summary = String.format("Total: %d, Valid: %d, Invalid: %d", mirror.getUrls().size(), validUrls.size(), invalidUrls.size());
-        log.info("[MIRROR] Validation Summary: {}", summary);
+        String message;
+        if (errorCount == 0) {
+            message = String.format("All %d URLs queued successfully", successCount);
+        } else {
+            message = String.format("Processed %d URLs, %d failed. Errors: %s",
+                    successCount, errorCount, String.join("; ", errorMessages));
+        }
 
-        // 3. Begin processing valid URLs in a queue (sequentially)
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.submit(() -> {
-            for (String url : validUrls) {
-                try {
-                    processSingleUrl(url, mirror);
-                } catch (Exception e) {
-                    log.error("Error processing URL: {}", url, e);
-                }
-            }
-        });
-
-        return new ApiResponse<>(HttpStatus.OK, true, summary + ". Download started for valid URLs.");
+        return new ApiResponse<>(
+                HttpStatus.OK,
+                errorCount == 0,
+                message
+        );
     }
+
+    private void processMagnetUrl(String url, RequestPayloads.Mirror mirror) {
+        String fileName = Arrays.stream(url.split("&"))
+                .filter(s -> s.contains("dn="))
+                .map(s -> s.replace("dn=", ""))
+                .findFirst()
+                .orElse("magnet_file");
+
+        MirrorStatus mirrorStatus = new MirrorStatus(
+                mirror.getFolderName(),
+                url,
+                dbWorldUtils.decodeFileName(fileName),
+                0L,
+                mirror.isExtract()
+        );
+
+        log.info("Starting magnet download: {}", mirrorStatus.getFileName());
+        utilsService.downloadFileUsingAria2c(mirrorStatus);
+    }
+
+    private void processHttpUrl(String url, RequestPayloads.Mirror mirror) throws Exception {
+        String processedUrl = processAuthUrl(url, mirror);
+
+        // Determine file name — if user enabled rename, use it
+        String fileName = mirror.isRename()
+                ? mirror.getFileName()
+                : extractFileNameFromUrl(processedUrl);
+
+        MirrorStatus mirrorStatus = new MirrorStatus(
+                mirror.getFolderName(),
+                processedUrl,
+                fileName,
+                0L,
+                mirror.isExtract()
+        );
+
+        log.info("Queued HTTP file for aria2c download: '{}' -> '{}'", fileName, processedUrl);
+        statusService.addNewStatus(mirrorStatus);
+        utilsService.downloadFileUsingAria2c(mirrorStatus);
+    }
+
+    private String extractFileNameFromUrl(String url) {
+        try {
+            String path = new URL(url).getPath();
+            String name = Paths.get(path).getFileName().toString();
+            return StringUtils.isNotBlank(name) ? dbWorldUtils.decodeFileName(name) : "unknown_file";
+        } catch (Exception e) {
+            return "unknown_file";
+        }
+    }
+
 
     private boolean isValidUrl(String url, RequestPayloads.Mirror mirror) {
         if (url.startsWith("magnet:?")) return true;
@@ -183,10 +250,9 @@ public class UtilsController {
     @RequestMapping(value = "/mirror/{mirrorId}", method = RequestMethod.DELETE)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<String> mirrorCancelled(@PathVariable String mirrorId) {
-        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
-        mirrorStatus.setCancelled(true);
-        statusService.updateStatus(mirrorStatus);
-        return new ApiResponse<>(HttpStatus.OK, true, "Task Cancelled.");
+        boolean updated = statusService.updateMirrorState(mirrorId, MirrorState.CANCELLED);
+        if(updated) return new ApiResponse<>(HttpStatus.OK, true, "Task Cancelled.");
+        else return new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR, false, "Failed in cancelling task.");
     }
 
     @GetMapping(value = "/mirror/status")

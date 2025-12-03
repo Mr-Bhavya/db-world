@@ -71,8 +71,8 @@ export const updateDobForUser = async (dob) => {
 export const findUserByQuery = async (query) => {
   try {
     const response = await axiosInstance.get('/api/admin/user/search', {
-                params: { query, limit: 10 }
-            });
+      params: { query, limit: 10 }
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -249,7 +249,7 @@ export const loadDbCinemaRecords = async (industry, type, genres, pageNumber) =>
 
 export const loadDbCinemaRecordsFromUrl = async (url, params) => {
   try {
-    const response = await axiosInstance.get(url, {params})
+    const response = await axiosInstance.get(url, { params })
     return response.data;
   } catch (error) {
     console.error('Error loading cinema records:', error);
@@ -259,7 +259,7 @@ export const loadDbCinemaRecordsFromUrl = async (url, params) => {
 
 export const loadCoverRecords = async (url, params) => {
   try {
-    const response = await axiosInstance.get(url, {params});
+    const response = await axiosInstance.get(url, { params });
     return response.data;
   } catch (error) {
     console.error('Error loading cover records:', error);
@@ -413,15 +413,17 @@ export const getGenresList = async () => {
     throw error;
   }
 };
-export const getRecords = async () => {
+
+export const getRecords = async (params) => {
   try {
-    const response = await axiosInstance.get('/api/admin/cinema/record');
+    const response = await axiosInstance.get('/api/admin/cinema/record', {params});
     return response.data;
   } catch (error) {
     console.error('Error fetching records:', error);
     throw error;
   }
 };
+
 
 export const getRecordDetailsbyId = async (recordId) => {
   try {
@@ -519,7 +521,7 @@ export const mirror = async (body) => {
 
 export const pauseMirror = async (gid) => {
   try {
-    const response = axiosInstance.post(`/api/downloads/${gid}/pause`);
+    const response = await axiosInstance.post(`/api/downloads/${gid}/pause`);
     return response.data;
   } catch (error) {
     console.error('Error creating mirror:', error);
@@ -670,6 +672,235 @@ export const deleteFileApi = async (id) => {
     return response.data;
   } catch (error) {
     console.error('Error deleting file:', error);
+    throw error;
+  }
+}
+
+/**
+* Get all recent activities (Admin only)
+*/
+export const getAllRecentActivitiesApi = async (params = {}) => {
+  try {
+    const { limit = 100, hours = 24, activityType } = params;
+    const queryParams = new URLSearchParams({
+      limit: limit.toString(),
+      hours: hours.toString(),
+      ...(activityType && { activityType })
+    }).toString();
+
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/all-recent?${queryParams}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting all recent activities:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get activities for a specific user (Admin only)
+ */
+export const getUserActivitiesApi = async (userEmail, params = {}) => {
+  try {
+    const { limit = 50, hours = 24, activityType } = params;
+    const queryParams = new URLSearchParams({
+      userEmail,
+      limit: limit.toString(),
+      hours: hours.toString(),
+      ...(activityType && { activityType })
+    }).toString();
+
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/user-activities?${queryParams}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting user activities:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get activity statistics for all users (Admin only)
+ */
+export const getActivityStatsAllApi = async (days = 7) => {
+  try {
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/activity-stats?days=${days}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting activity stats:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get active users list (Admin only)
+ */
+export const getUserListApi = async (hours = 24) => {
+  try {
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/user-list?hours=${hours}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting user list:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get dashboard statistics (Admin only)
+ */
+export const getDashboardStatsApi = async (days = 7) => {
+  try {
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/dashboard-stats?days=${days}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting dashboard stats:', error);
+    throw error;
+  }
+};
+
+// User Endpoints
+
+/**
+ * Get current user's activities
+ */
+export const getMyActivitiesApi = async (params = {}) => {
+  try {
+    const { limit = 50, hours = 24, activityType } = params;
+    const queryParams = new URLSearchParams({
+      limit: limit.toString(),
+      hours: hours.toString(),
+      ...(activityType && { activityType })
+    }).toString();
+
+    const response = await axiosInstance.get(`/api/user-cinema-activity/user/my-activities?${queryParams}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting my activities:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get initial data (user role and basic info)
+ */
+export const getInitialDataApi = async () => {
+  try {
+    const response = await axiosInstance.get('/api/user-cinema-activity/initial-data');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting initial data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get total activities count (Admin only)
+ */
+export const getTotalActivitiesCountApi = async (hours = 24) => {
+  try {
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/total-count?hours=${hours}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting total activities count:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get active users count (Admin only)
+ */
+export const getActiveUsersCountApi = async (hours = 24) => {
+  try {
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/active-users-count?hours=${hours}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting active users count:', error);
+    throw error;
+  }
+};
+
+// Activity Management (if needed in future)
+
+/**
+ * Create a new activity (for tracking user actions)
+ */
+export const createActivityApi = async (activityData) => {
+  try {
+    const response = await axiosInstance.post('/api/user-cinema-activity', activityData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating activity:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get activity by ID
+ */
+export const getActivityByIdApi = async (id) => {
+  try {
+    const response = await axiosInstance.get(`/api/user-cinema-activity/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting activity by ID:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete activity (Admin only)
+ */
+export const deleteActivityApi = async (id) => {
+  try {
+    const response = await axiosInstance.delete(`/api/user-cinema-activity/admin/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    throw error;
+  }
+};
+
+/**
+ * Bulk delete activities (Admin only)
+ */
+export const bulkDeleteActivitiesApi = async (activityIds) => {
+  try {
+    const response = await axiosInstance.post('/api/user-cinema-activity/admin/bulk-delete', { activityIds });
+    return response.data;
+  } catch (error) {
+    console.error('Error bulk deleting activities:', error);
+    throw error;
+  }
+};
+
+// Analytics Endpoints
+
+/**
+ * Get activity trends over time
+ */
+export const getActivityTrendsApi = async (params = {}) => {
+  try {
+    const { days = 7, groupBy = 'day' } = params;
+    const queryParams = new URLSearchParams({
+      days: days.toString(),
+      groupBy
+    }).toString();
+
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/activity-trends?${queryParams}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting activity trends:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get user activity summary
+ */
+export const getUserActivitySummaryApi = async (userId, days = 7) => {
+  try {
+    const response = await axiosInstance.get(`/api/user-cinema-activity/admin/user-summary/${userId}?days=${days}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting user activity summary:', error);
     throw error;
   }
 };

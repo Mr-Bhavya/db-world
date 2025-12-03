@@ -2,7 +2,9 @@ package com.db.dbworld.handler;
 
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.services.mirror.StatusService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,19 +35,22 @@ public class MirrorStatusHandler extends TextWebSocketHandler {
     public void handleTextMessage(WebSocketSession session, TextMessage message) {
         executorService.execute(() -> {
             try {
+                ObjectMapper objectMapper = new ObjectMapper();
+
                 while (session.isOpen()) {
                     Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
                     List<MirrorStatus> mirrorStatuses = mirrorStatusMap.values().stream()
                             .sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp()))
                             .toList();
 
-                    session.sendMessage(new TextMessage(new Gson().toJson(mirrorStatuses)));
-                    Thread.sleep(3000); // Reduce CPU load
+                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(mirrorStatuses)));
+                    Thread.sleep(3000);
                 }
             } catch (IOException | InterruptedException e) {
                 log.error("WebSocket Error: {}", e.getMessage());
                 Thread.currentThread().interrupt();
             }
+
         });
     }
 

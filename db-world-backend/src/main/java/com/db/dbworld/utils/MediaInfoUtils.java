@@ -40,9 +40,6 @@ public class MediaInfoUtils {
             Map.entry("avi", ".avi"));
 
     @Autowired
-    private PathSanitizer pathSanitizer;
-
-    @Autowired
     private SpokenLanguageRepository spokenLanguageRepository;
 
     @Autowired
@@ -53,14 +50,14 @@ public class MediaInfoUtils {
         DBCinemaRecordsEntity dbCinemaRecordsEntity = fileDetails.getDbCinemaRecordsEntity();
         String recordType = dbCinemaRecordsEntity.getType();
 
-        if (DbWorldConstants.RECORD_TYPE_MOVIE.equalsIgnoreCase(recordType)) {
+        if (DbWorldConstants.RECORD_TYE.MOVIE.name().equalsIgnoreCase(recordType)) {
             buildMovieFileName(fileNameBuilder, fileDetails, mediaFileInfoEntity);
-        } else if (DbWorldConstants.RECORD_TYPE_SERIES.equalsIgnoreCase(recordType)) {
+        } else if (DbWorldConstants.RECORD_TYE.SERIES.name().equalsIgnoreCase(recordType)) {
             buildSeriesFileName(fileDetails, fileNameBuilder, mediaFileInfoEntity);
         }
 
         appendFileExtension(fileNameBuilder, fileDetails, mediaFileInfoEntity);
-        return pathSanitizer.sanitizeFilename(fileNameBuilder.toString());
+        return PathSanitizer.sanitizeFilename(fileNameBuilder.toString());
     }
 
     public String buildFileNameAndPath(MediaFileDetails fileDetails, String json) {

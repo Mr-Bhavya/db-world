@@ -1,6 +1,8 @@
 package com.db.dbworld.payloads;
 
 import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldUtils;
+import com.db.dbworld.utils.PathSanitizer;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -19,6 +21,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -52,17 +55,120 @@ public class MirrorStatus {
     private String tempRecordIdPath;
     private String statusFilePath;
     private Long fileSize;
-    private String currentStatus = "Downloading ...";
+
+    // Thread-safe state management
+    private final AtomicReference<MirrorState> currentState = new AtomicReference<>(MirrorState.DOWNLOAD);
     private DownloadStatus downloadStatus;
+
     private String videoITag;
     private String audioITag;
     private boolean onlyAudio;
-    private boolean pause;
-    private boolean failed;
-    private boolean cancelled;
-    private boolean success;
-    private boolean completed;
     private String message;
+
+    // Derived boolean fields based on state
+    public boolean isPause() {
+        return currentState.get() == MirrorState.PAUSE;
+    }
+
+    public boolean isFailed() {
+        return currentState.get() == MirrorState.FAILED;
+    }
+
+    public boolean isCancelled() {
+        return currentState.get() == MirrorState.CANCELLED;
+    }
+
+    public boolean isSuccess() {
+        return currentState.get() == MirrorState.SUCCESS;
+    }
+
+    public boolean isCompleted() {
+        MirrorState state = currentState.get();
+        return state == MirrorState.SUCCESS || state == MirrorState.FAILED || state == MirrorState.CANCELLED;
+    }
+
+    // Thread-safe state transitions
+    public boolean transitionTo(MirrorState newState) {
+        MirrorState current = currentState.get();
+
+        if (isValidTransition(current, newState)) {
+            return currentState.compareAndSet(current, newState);
+        }
+        return false;
+    }
+
+    public boolean transitionTo(MirrorState newState, String message) {
+        if (transitionTo(newState)) {
+            this.message = message;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isValidTransition(MirrorState current, MirrorState newState) {
+        // Define valid state transitions
+        switch (current) {
+            case DOWNLOAD:
+                return newState == MirrorState.PAUSE || newState == MirrorState.CANCELLED ||
+                        newState == MirrorState.FAILED || newState == MirrorState.EXTRACT ||
+                        newState == MirrorState.MERGE || newState == MirrorState.FFMPEG;
+
+            case PAUSE:
+                return newState == MirrorState.RESUME || newState == MirrorState.CANCELLED;
+
+            case RESUME:
+                return newState == MirrorState.DOWNLOAD || newState == MirrorState.PAUSE ||
+                        newState == MirrorState.CANCELLED;
+
+            case EXTRACT:
+            case MERGE:
+            case FFMPEG:
+                return newState == MirrorState.SUCCESS || newState == MirrorState.FAILED ||
+                        newState == MirrorState.CANCELLED;
+
+            case SUCCESS:
+            case FAILED:
+            case CANCELLED:
+                return false; // Terminal states
+
+            default:
+                return true;
+        }
+    }
+
+    // Getters and setters for state
+    public MirrorState getCurrentState() {
+        return currentState.get();
+    }
+
+    public void setCurrentState(MirrorState state) {
+        this.currentState.set(state);
+    }
+
+    public String getCurrentStatus() {
+        return getStatusDisplay(currentState.get());
+    }
+
+//    public void setCurrentStatus(String status) {
+//        // This is for backward compatibility, but state should be managed via enum
+//        // Parse string to enum if needed, or leave for display purposes only
+//    }
+
+    private String getStatusDisplay(MirrorState state) {
+        switch (state) {
+            case DOWNLOAD: return "Downloading...";
+            case EXTRACT: return "Extracting...";
+            case MERGE: return "Merging...";
+            case FFMPEG: return "Processing Media...";
+            case COMPLETE: return "Completed ✅";
+            case FAILED: return "Failed ❌";
+            case CANCELLED: return "Cancelled 🚮";
+            case PAUSE: return "Paused ⏸";
+            case RESUME: return "Resumed ▶";
+            case SUCCESS: return "Success ✅";
+            default: return state.toString();
+        }
+    }
 
     public MirrorStatus(String folderName, String fileUrl, String fileName, Long fileSize, boolean extract) {
         this.id = String.valueOf(new Date().getTime());
@@ -70,10 +176,10 @@ public class MirrorStatus {
         this.folderName = determineFolderName(folderName);
         this.recordId = extractRecordId(folderName);
         this.tempFileName = timeStamp;
-        this.currentStatus = "Downloading ...";
+        this.currentState.set(MirrorState.DOWNLOAD);
         this.fileUrl = fileUrl;
         this.magnet = isMagnetLink(fileUrl);
-        this.fileName = sanitizeFileName(fileName);
+        this.fileName = PathSanitizer.sanitizeFilename(fileName);
         this.fileSize = fileSize;
         this.extract = extract;
 
@@ -95,7 +201,7 @@ public class MirrorStatus {
     }
 
     private String determineFolderName(String folderName) {
-        return (folderName == null || folderName.isEmpty()) ? "unassigned" : folderName;
+        return (folderName == null || folderName.isEmpty()) ? "unassigned" : PathSanitizer.sanitizePathComponent(folderName);
     }
 
     private Long extractRecordId(String folderName) {
@@ -144,7 +250,6 @@ public class MirrorStatus {
                 .toArray(String[]::new);
 
         String path = Paths.get(base, safeParts).toString();
-        log.info("Build Path: {}, Base: {}, parts: {}", path, base, String.join("-", safeParts));
         return path;
     }
 
@@ -224,6 +329,16 @@ public class MirrorStatus {
     public void setTempFileName(String tempFileName) {
         this.tempFileName = tempFileName;
         this.tempFilePath = buildPath(tempRecordIdPath, tempFileName);
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+        this.filePath = buildPath(recordIdPath, fileName);
+        if (this.extract) {
+            this.extractedFileName = extractFileName(fileName);
+            this.tempExtractedFilePath = buildPath(tempRecordIdPath, extractedFileName);
+            this.extractedFilePath = buildPath(recordIdPath, extractedFileName);
+        }
     }
 
     @Getter

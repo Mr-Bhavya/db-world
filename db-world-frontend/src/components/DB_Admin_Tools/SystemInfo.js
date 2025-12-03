@@ -2,241 +2,494 @@ import React, { useEffect, useState } from 'react';
 import CommonServices from '../CommonServices';
 import { systemInfo } from '../ApiServices';
 import { Doughnut } from 'react-chartjs-2';
-import {Chart, ArcElement} from 'chart.js'
-import Constants from '../Constants';
-import { Table } from '@mui/material';
+import { Chart, ArcElement, Tooltip, Legend } from 'chart.js';
+import { 
+  Grid, 
+  Card, 
+  CardContent, 
+  Typography, 
+  LinearProgress, 
+  Box, 
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+  Container,
+  Alert,
+  CircularProgress
+} from '@mui/material';
+import { 
+  Memory, 
+  Storage, 
+  Computer, 
+  Architecture, 
+  Speed,
+  Dashboard
+} from '@mui/icons-material';
 import { toast } from '../Toast';
-Chart.register(ArcElement);
+
+Chart.register(ArcElement, Tooltip, Legend);
 
 const SystemInfo = () => {
-
   const [systemData, setSystemData] = useState({});
-  const [loder, setLoder] = useState(true);
-  const [ram, setRam] = useState();
-  const [rom, setRom] = useState();
-  const [cpu, setCpu] = useState();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Safe percentage calculation function
+  const calculatePercentage = (used, total) => {
+    if (!used || !total || total === 0) return 0;
+    
+    const usedNum = typeof used === 'number' ? used : Number(used);
+    const totalNum = typeof total === 'number' ? total : Number(total);
+    
+    if (isNaN(usedNum) || isNaN(totalNum) || totalNum === 0) return 0;
+    
+    return (usedNum / totalNum) * 100;
+  };
 
   const createChartData = (label, data) => {
-    console.log(data)
+    if (!data || !data.usedSpace || !data.totalSpace) {
+      return {
+        labels: ['Used', 'Available'],
+        datasets: [{
+          label: label,
+          data: [0, 100],
+          backgroundColor: ['#dfe6e9', '#dfe6e9'],
+          borderColor: ['#fff', '#fff'],
+          borderWidth: 2,
+          hoverOffset: 8,
+          borderRadius: 4
+        }]
+      };
+    }
+
+    const usedPercentage = calculatePercentage(data.usedSpace, data.totalSpace);
+    const usedValue = CommonServices.bytesToReadbleFormat(data.usedSpace)?.value || 0;
+    const freeValue = CommonServices.bytesToReadbleFormat(data.freeSpace)?.value || 0;
+
     return {
-      labels: [
-        'Used',
-        'Avalabile'
-      ],
+      labels: ['Used', 'Available'],
       datasets: [{
         label: label,
-        data: [CommonServices.bytesToReadbleFormat(data.usedSpace).value,
-        CommonServices.bytesToReadbleFormat(data.freeSpace).value],
+        data: [usedValue, freeValue],
         backgroundColor: [
-          CommonServices.getPercentage(data.usedSpace, data.totalSpace) > 75 ? 'red' : 'teal',
-          'silver',
-          'rgb(255, 205, 86)'
+          usedPercentage > 90 ? '#ff4444' : 
+          usedPercentage > 75 ? '#ffaa00' : '#00b894',
+          '#dfe6e9'
         ],
-        hoverOffset: 4
+        borderColor: ['#fff', '#fff'],
+        borderWidth: 2,
+        hoverOffset: 8,
+        borderRadius: 4
       }]
-    }
-  }
+    };
+  };
 
-  const convertObjectToRedable = (sysInfo) => {
-
-    sysInfo.ram.totalSpace = CommonServices.bytesToReadbleFormat(sysInfo?.ram?.totalSpace).value
-      + " " + CommonServices.bytesToReadbleFormat(sysInfo?.ram?.totalSpace).suffix;
-    sysInfo.ram.freeSpace = CommonServices.bytesToReadbleFormat(sysInfo?.ram?.freeSpace).value
-      + " " + CommonServices.bytesToReadbleFormat(sysInfo?.ram?.freeSpace).suffix;
-    sysInfo.ram.usedSpace = CommonServices.bytesToReadbleFormat(sysInfo?.ram?.usedSpace).value
-      + " " + CommonServices.bytesToReadbleFormat(sysInfo?.ram?.usedSpace).suffix;
-    sysInfo.ram.committedVirtualSpace = CommonServices.bytesToReadbleFormat(sysInfo?.ram?.committedVirtualSpace).value
-      + " " + CommonServices.bytesToReadbleFormat(sysInfo?.ram?.committedVirtualSpace).suffix;
-    sysInfo.ram.freeSwapSpace = CommonServices.bytesToReadbleFormat(sysInfo?.ram?.freeSwapSpace).value
-      + " " + CommonServices.bytesToReadbleFormat(sysInfo?.ram?.freeSwapSpace).suffix;
-
-    sysInfo.rom = sysInfo.rom.map(rom => {
-      return {
-        name: rom.name,
-        totalSpace: CommonServices.bytesToReadbleFormat(rom?.totalSpace).value
-          + " " + CommonServices.bytesToReadbleFormat(rom?.totalSpace).suffix,
-        freeSpace: CommonServices.bytesToReadbleFormat(rom?.freeSpace).value
-          + " " + CommonServices.bytesToReadbleFormat(rom?.freeSpace).suffix,
-        usedSpace: CommonServices.bytesToReadbleFormat(rom?.usedSpace).value
-          + " " + CommonServices.bytesToReadbleFormat(rom?.usedSpace).suffix
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          usePointStyle: true,
+          padding: 15
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const value = context.parsed;
+            const label = context.label;
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+            return `${label}: ${value} (${percentage}%)`;
+          }
+        }
       }
-    })
-    return sysInfo;
-  }
+    },
+    cutout: '65%'
+  };
+
+  const getCpuLoadColor = (load) => {
+    const loadNum = typeof load === 'number' ? load : Number(load) || 0;
+    if (loadNum > 80) return '#ff4444';
+    if (loadNum > 60) return '#ffaa00';
+    return '#00b894';
+  };
+
+  const getUsageColor = (used, total) => {
+    const percentage = calculatePercentage(used, total);
+    if (percentage > 90) return '#ff4444';
+    if (percentage > 75) return '#ffaa00';
+    return '#00b894';
+  };
+
+  const formatBytes = (bytes) => {
+    if (!bytes && bytes !== 0) return { value: 0, suffix: 'B' };
+    
+    try {
+      const result = CommonServices.bytesToReadbleFormat(bytes);
+      return {
+        value: result?.value || 0,
+        suffix: result?.suffix || 'B'
+      };
+    } catch (error) {
+      return { value: 0, suffix: 'B' };
+    }
+  };
+
+  const safeCpuLoad = (cpuData) => {
+    if (!cpuData || !cpuData.cpuLoad) return 0;
+    const load = typeof cpuData.cpuLoad === 'number' ? cpuData.cpuLoad : Number(cpuData.cpuLoad);
+    return isNaN(load) ? 0 : load * 100;
+  };
 
   async function getSystemInfo() {
-    let infoRes = await systemInfo();
-    if (infoRes.httpStatusCode === 200) {
-      setRam(infoRes.data.ram);
-      setRom(infoRes.data.rom);
-      setCpu(infoRes.data.cpu);
-      setSystemData(infoRes.data);
+    try {
+      setLoading(true);
+      setError(null);
+      const infoRes = await systemInfo();
+      
+      if (infoRes?.httpStatusCode === 200) {
+        setSystemData(infoRes.data || {});
+      } else {
+        const errorMessage = infoRes?.message || 'Failed to fetch system information';
+        setError(errorMessage);
+        toast.error(errorMessage);
+      }
+    } catch (err) {
+      const errorMessage = err?.message || 'Failed to fetch system information';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
-    else {
-      toast.error(infoRes.message);
-    }
-    setLoder(false);
   }
 
   useEffect(() => {
     getSystemInfo();
-  }, [])
+  }, []);
 
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="50vh">
+          <CircularProgress size={60} thickness={4} sx={{ mb: 3, color: '#1976d2' }} />
+          <Typography variant="h6" color="text.secondary">
+            Loading System Information...
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
+  if (error || !systemData) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3 }}
+          action={
+            <Chip 
+              label="Retry" 
+              onClick={getSystemInfo} 
+              variant="outlined"
+              size="small"
+            />
+          }
+        >
+          {error || 'No system data available'}
+        </Alert>
+      </Container>
+    );
+  }
+
+  const { ram, rom, cpu, name, arch } = systemData;
+
+  // Safe data checks
+  const safeRam = ram || {};
+  const safeRom = Array.isArray(rom) ? rom : [];
+  const safeCpu = cpu || {};
+  const safeName = name || 'Unknown System';
+  const safeArch = arch || 'Unknown Architecture';
+
+  const cpuLoadValue = safeCpuLoad(safeCpu);
 
   return (
-    <div className='m-1'>
-      {
-        loder &&
-        <div className="col-md-8">
-          <div className='d-flex justify-content-center'>
-            <div className="spinner-border text-danger m-5" role="status">
-              <span className="sr-only text-center" />
-            </div>
-          </div>
-        </div>
-        ||
-        <div>
-          <div className='row'>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ 
+          fontWeight: 'bold',
+          background: 'linear-gradient(45deg, #1976d2, #00b894)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          color: 'transparent'
+        }}>
+          System Dashboard
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary">
+          Real-time system resource monitoring and analysis
+        </Typography>
+      </Box>
 
-            <div className='card col-sm my-1'>
-              <div className='card-title'>
-                <h5 className='mt-3 text-center'>Basic Info</h5>
-              </div>
-              <hr />
-              <div className='card-body'>
-                <div className='row'>
-                  <div className='col-sm'>
-                    <Table>
-                      <tbody>
-                        <tr>
-                          <th>Server OS: </th>
-                          <td>{systemData.name}</td>
-                        </tr>
-                        <tr>
-                          <th>Arch: </th>
-                          <td>{systemData.arch}</td>
-                        </tr>
-                        <tr>
-                          <th>Processer Count: </th>
-                          <td>{systemData.cpu.availableProcessors}</td>
-                        </tr>
-                        <tr>
-                          <th>CPU Load: </th>
-                          <td>{systemData.cpu.cpuLoad}</td>
-                        </tr>
-                      </tbody>
-                    </Table>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <Grid container spacing={3}>
+        
+        {/* System Overview Card */}
+        <Grid item xs={12} md={6} lg={4}>
+          <Card sx={{ 
+            height: '100%',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white'
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={2}>
+                <Dashboard sx={{ mr: 2, fontSize: 32 }} />
+                <Typography variant="h5" component="h2">
+                  System Overview
+                </Typography>
+              </Box>
+              
+              <Table size="small">
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>
+                      <Box display="flex" alignItems="center">
+                        <Computer sx={{ mr: 1, fontSize: 20 }} />
+                        Operating System
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>
+                      <Chip label={safeName} size="small" sx={{ background: 'rgba(255,255,255,0.2)' }} />
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>
+                      <Box display="flex" alignItems="center">
+                        <Architecture sx={{ mr: 1, fontSize: 20 }} />
+                        Architecture
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>
+                      <Chip label={safeArch} size="small" sx={{ background: 'rgba(255,255,255,0.2)' }} />
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>
+                      <Box display="flex" alignItems="center">
+                        <Speed sx={{ mr: 1, fontSize: 20 }} />
+                        Processors
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>
+                      <Chip 
+                        label={safeCpu.availableProcessors || 'Unknown'} 
+                        size="small" 
+                        sx={{ background: 'rgba(255,255,255,0.2)' }} 
+                      />
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </Grid>
 
-            <div className='card col-sm my-1'>
-              <div className='card-title'>
-                <h5 className='mt-3 text-center'>RAM</h5>
-              </div>
-              <hr />
-              <div className='card-body'>
+        {/* CPU Usage Card */}
+        <Grid item xs={12} md={6} lg={4}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Speed sx={{ mr: 2, color: 'primary.main', fontSize: 32 }} />
+                <Typography variant="h5" component="h2">
+                  CPU Usage
+                </Typography>
+              </Box>
+              
+              <Box textAlign="center" mb={3}>
+                <Typography variant="h2" component="div" sx={{ 
+                  color: getCpuLoadColor(cpuLoadValue),
+                  fontWeight: 'bold',
+                  mb: 1
+                }}>
+                  {cpuLoadValue.toFixed(1)}%
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Current Load
+                </Typography>
+              </Box>
 
-                <div className='row'>
-                  <div className='col-sm'>
-                    <Table>
-                      <tbody>
-                        <tr>
-                          <th>Total: </th>
-                          <td>{CommonServices.bytesToReadbleFormat(ram.totalSpace).value + " " + CommonServices.bytesToReadbleFormat(ram.totalSpace).suffix}</td>
-                          {/* <td rowSpan={5}> <Doughnut data={createChartData("RAM", ram)} /></td> */}
-                        </tr>
-                        <tr>
-                          <th>Avalaible: </th>
-                          <td>{CommonServices.bytesToReadbleFormat(ram.freeSpace).value + " " + CommonServices.bytesToReadbleFormat(ram.freeSpace).suffix}</td>
-                        </tr>
-                        <tr>
-                          <th>Used: </th>
-                          <td>{CommonServices.bytesToReadbleFormat(ram.usedSpace).value + " " + CommonServices.bytesToReadbleFormat(ram.usedSpace).suffix}</td>
-                        </tr>
-                        <tr>
-                          <th>Virtual: </th>
-                          <td>{CommonServices.bytesToReadbleFormat(ram.committedVirtualSpace).value + " " + CommonServices.bytesToReadbleFormat(ram.committedVirtualSpace).suffix}</td>
-                        </tr>
-                        <tr>
-                          <th>Free Swap: </th>
-                          <td>{CommonServices.bytesToReadbleFormat(ram.freeSwapSpace).value + " " + CommonServices.bytesToReadbleFormat(ram.freeSwapSpace).suffix}</td>
-                        </tr>
-                      </tbody>
-                    </Table>
-                    {/* <Doughnut data={createChartData("RAM", ram)} /> */}
-                  </div>
-                  <div className='col-sm w-100'>
-                    <Doughnut data={createChartData("RAM", ram)} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-
-          <div className='row'>
-            <div className='card col-sm-12 my-1'>
-              <div className='card-title'>
-                <h5 className='mt-3 text-center'>ROM</h5>
-              </div>
-              <hr />
-              <div className='card-body'>
-                <div className='row'>
-                  {
-                    rom.map(tempRom => {
-                      return (
-                        <div className='card my-1 col-sm'>
-                          <div className='card-title'>
-                            <h5 className='mt-3 text-center'>Drive - {tempRom.name}</h5>
-                          </div>
-                          <div className='row'>
-                            <div className='col-sm'>
-                              <Table>
-                                <tbody>
-                                  <tr>
-                                    <th>Name: </th>
-                                    <td>{tempRom.name}</td>
-                                  </tr>
-                                  <tr>
-                                    <th>Total: </th>
-                                    <td>{CommonServices.bytesToReadbleFormat(tempRom.totalSpace).value + " " + CommonServices.bytesToReadbleFormat(tempRom.totalSpace).suffix}</td>
-                                  </tr>
-                                  <tr>
-                                    <th>Avalaible: </th>
-                                    <td>{CommonServices.bytesToReadbleFormat(tempRom.freeSpace).value + " " + CommonServices.bytesToReadbleFormat(tempRom.freeSpace).suffix}</td>
-                                  </tr>
-                                  <tr>
-                                    <th>Used: </th>
-                                    <td>{CommonServices.bytesToReadbleFormat(tempRom.usedSpace).value + " " + CommonServices.bytesToReadbleFormat(tempRom.usedSpace).suffix}</td>
-                                  </tr>
-                                </tbody>
-                              </Table>
-                            </div>
-                            <div className='col-sm my-3'>
-                              <Doughnut data={createChartData(`ROM-${tempRom.name}`, tempRom)} />
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })
-
+              <LinearProgress 
+                variant="determinate" 
+                value={cpuLoadValue} 
+                sx={{ 
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: '#f0f0f0',
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: getCpuLoadColor(cpuLoadValue),
+                    borderRadius: 4
                   }
-                </div>
-              </div>
-            </div>
+                }}
+              />
+              
+              <Box display="flex" justifyContent="space-between" mt={1}>
+                <Typography variant="caption" color="text.secondary">
+                  0%
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  100%
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
+        {/* RAM Usage Card */}
+        <Grid item xs={12} md={6} lg={4}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={2}>
+                <Memory sx={{ mr: 2, color: 'primary.main', fontSize: 32 }} />
+                <Typography variant="h5" component="h2">
+                  Memory Usage
+                </Typography>
+              </Box>
+              
+              <Box sx={{ height: 200, mb: 2 }}>
+                <Doughnut data={createChartData("RAM", safeRam)} options={chartOptions} />
+              </Box>
+              
+              <Table size="small">
+                <TableBody>
+                  <TableRow>
+                    <TableCell>Total</TableCell>
+                    <TableCell align="right">
+                      {formatBytes(safeRam.totalSpace).value} {formatBytes(safeRam.totalSpace).suffix}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Used</TableCell>
+                    <TableCell align="right" sx={{ 
+                      color: getUsageColor(safeRam.usedSpace, safeRam.totalSpace),
+                      fontWeight: 'bold'
+                    }}>
+                      {formatBytes(safeRam.usedSpace).value} {formatBytes(safeRam.usedSpace).suffix}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Available</TableCell>
+                    <TableCell align="right">
+                      {formatBytes(safeRam.freeSpace).value} {formatBytes(safeRam.freeSpace).suffix}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </Grid>
 
-          </div>
-
-
-          {/* <CommonServices.JSONToHTMLTable data={systemData} style={{ overflowX: "auto", width: "100%", display: "block" }} /> */}
-        </div>
-      }
-    </div >
-  )
-
-}
+        {/* Storage Drives */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <Storage sx={{ mr: 2, color: 'primary.main', fontSize: 32 }} />
+                <Typography variant="h5" component="h2">
+                  Storage Drives
+                </Typography>
+              </Box>
+              
+              {safeRom.length === 0 ? (
+                <Alert severity="info">
+                  No storage drives information available.
+                </Alert>
+              ) : (
+                <Grid container spacing={3}>
+                  {safeRom.map((drive, index) => {
+                    const usedPercentage = calculatePercentage(drive.usedSpace, drive.totalSpace);
+                    const percentageNumber = typeof usedPercentage === 'number' ? usedPercentage : 0;
+                    
+                    return (
+                      <Grid item xs={12} md={6} lg={4} key={drive.name || index}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                              <Typography variant="h6" component="h3">
+                                Drive {drive.name || 'Unknown'}
+                              </Typography>
+                              <Chip 
+                                label={`${percentageNumber.toFixed(1)}%`}
+                                size="small"
+                                color={
+                                  percentageNumber > 90 ? 'error' : 
+                                  percentageNumber > 75 ? 'warning' : 'success'
+                                }
+                              />
+                            </Box>
+                            
+                            <Box sx={{ height: 120, mb: 2 }}>
+                              <Doughnut 
+                                data={createChartData(`Drive ${drive.name}`, drive)} 
+                                options={chartOptions} 
+                              />
+                            </Box>
+                            
+                            <Table size="small">
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Total</TableCell>
+                                  <TableCell align="right">
+                                    {formatBytes(drive.totalSpace).value} {formatBytes(drive.totalSpace).suffix}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Used</TableCell>
+                                  <TableCell align="right" sx={{ 
+                                    color: getUsageColor(drive.usedSpace, drive.totalSpace),
+                                    fontWeight: 'bold'
+                                  }}>
+                                    {formatBytes(drive.usedSpace).value} {formatBytes(drive.usedSpace).suffix}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Free</TableCell>
+                                  <TableCell align="right">
+                                    {formatBytes(drive.freeSpace).value} {formatBytes(drive.freeSpace).suffix}
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                            
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={percentageNumber}
+                              sx={{ 
+                                mt: 2,
+                                height: 6,
+                                borderRadius: 3,
+                                backgroundColor: '#f0f0f0',
+                                '& .MuiLinearProgress-bar': {
+                                  backgroundColor: getUsageColor(drive.usedSpace, drive.totalSpace),
+                                  borderRadius: 3
+                                }
+                              }}
+                            />
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
+  );
+};
 
 export default SystemInfo;

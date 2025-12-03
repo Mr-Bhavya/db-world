@@ -4,14 +4,16 @@ import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.payloads.dbcinema.stream.TrackInfo;
-import com.db.dbworld.services.DownloadStatus;
+import com.db.dbworld.services.DownloadType;
 import com.db.dbworld.services.media.StreamService;
+import com.db.dbworld.services.user.UserCinemaActivityService;
 import com.db.dbworld.services.user.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.*;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheConfig;
@@ -20,6 +22,8 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.*;
 import java.net.URLEncoder;
@@ -45,31 +49,76 @@ public class StreamServiceImpl implements StreamService {
     @Autowired
     private DbWorldUtils dbWorldUtils;
 
+    @Autowired
+    private UserCinemaActivityService userCinemaActivityService;
+
     @Override
     public ResponseEntity<Void> streamFileByCdn(String user, Path path, String rangeHeader, boolean inline) {
         Objects.requireNonNull(user, "User cannot be null");
         Objects.requireNonNull(path, "Path cannot be null");
 
-        final String downloadId = createDownloadId(user, path);
-        log.info("Start streaming: user={}, file={}, rangeHeader={}, inline={}", user, path, rangeHeader, inline);
-
         final DbWorldRecords.FileSizeInfo sizeInfo = dbWorldUtils.getFileSizeInfo(path);
         final DbWorldRecords.RangeInfo rangeInfo = parseRangeHeader(rangeHeader, sizeInfo.fileSize());
 
         try {
-            HttpHeaders headers = createResponseHeaders(user, path, sizeInfo, rangeInfo, inline, downloadId);
+            HttpHeaders headers = createResponseHeaders(user, path, sizeInfo, rangeInfo, inline, "");
+            HttpStatus status = rangeHeader != null && rangeInfo.isPartial() ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK;
 
-            HttpStatus status = HttpStatus.OK;
-            if (rangeHeader != null && rangeInfo.isPartial()) {
-                status = HttpStatus.PARTIAL_CONTENT;
-                log.debug("Partial content requested: rangeStart={}, fileSize={}", rangeInfo.rangeStart(), sizeInfo.fileSize());
+            // Smart activity tracking
+            if (inline) {
+                // Streaming request
+                trackStreamActivityAsync(user, path.toString(), path.getFileName().toString(),
+                        sizeInfo.fileSize(), rangeHeader);
+            } else {
+                // Download request
+                trackDownloadActivityAsync(user, path.toString(), path.getFileName().toString(),
+                        sizeInfo.fileSize(), rangeHeader);
             }
 
             log.info("Streaming response ready: status={}, X-Accel-Redirect={}", status, headers.getFirst("X-Accel-Redirect"));
+
             return new ResponseEntity<>(headers, status);
         } catch (Exception e) {
             log.error("Streaming error for file {}: {}", path, e.getMessage(), e);
-            throw new DbWorldException("Error during file streaming/download", e);
+            throw new DbWorldException("Error during file streaming", e);
+        }
+    }
+
+    private void trackStreamActivityAsync(String user, String filePath, String fileName,
+                                          Long fileSize, String rangeHeader) {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String remoteAddr = dbWorldUtils.getClientIpAddress(request);
+                String userAgent = request.getHeader("User-Agent");
+
+                log.debug("Tracking stream - User: {}, IP: {}, File: {}", user, remoteAddr, fileName);
+
+                userCinemaActivityService.trackStreamActivity(user, filePath, fileName,
+                        fileSize, rangeHeader, remoteAddr, userAgent);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to track stream activity for {}: {}", user, e.getMessage());
+        }
+    }
+
+    private void trackDownloadActivityAsync(String user, String filePath, String fileName,
+                                            Long fileSize, String rangeHeader) {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String remoteAddr = dbWorldUtils.getClientIpAddress(request);
+                String userAgent = request.getHeader("User-Agent");
+
+                log.debug("Tracking stream - User: {}, IP: {}, File: {}", user, remoteAddr, fileName);
+
+                userCinemaActivityService.trackDownloadActivity(user, filePath, fileName,
+                        fileSize, rangeHeader, remoteAddr, userAgent);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to track download activity for {}: {}", user, e.getMessage());
         }
     }
 
@@ -141,7 +190,7 @@ public class StreamServiceImpl implements StreamService {
                 URLEncoder.encode(path.toString(), StandardCharsets.UTF_8),
                 rangeStart,
                 UUID.randomUUID(),
-                inline ? DownloadStatus.DownloadType.STREAM : DownloadStatus.DownloadType.DOWNLOAD
+                inline ? DownloadType.STREAM : DownloadType.DOWNLOAD
         );
     }
 

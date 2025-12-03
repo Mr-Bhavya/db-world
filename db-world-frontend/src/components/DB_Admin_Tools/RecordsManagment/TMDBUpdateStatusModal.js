@@ -20,7 +20,11 @@ import {
     DialogContent,
     DialogActions,
     useMediaQuery,
-    useTheme
+    useTheme,
+    Card,
+    CardContent,
+    Paper,
+    alpha
 } from '@mui/material';
 import {
     Sync as SyncIcon,
@@ -29,17 +33,90 @@ import {
     Close as CloseIcon,
     PlayArrow as PlayArrowIcon,
     AllInclusive as AllInclusiveIcon,
-    Cancel
+    Cancel,
+    Settings as SettingsIcon,
+    Refresh as RefreshIcon,
+    Info as InfoIcon
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import axiosInstance from '../../Utils/AxiosInstants';
 
+// Enhanced motion components
 const MotionButton = motion(Button);
 const MotionChip = motion(Chip);
+const MotionCard = motion(Card);
+const MotionPaper = motion(Paper);
+
+// Custom styled components
+const GradientProgress = ({ value, ...props }) => {
+    const theme = useTheme();
+    return (
+        <LinearProgress
+            variant="determinate"
+            value={value}
+            sx={{
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                '& .MuiLinearProgress-bar': {
+                    borderRadius: 5,
+                    background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                },
+                ...props.sx
+            }}
+            {...props}
+        />
+    );
+};
+
+const StatusChip = ({ status, label }) => {
+    const theme = useTheme();
+    
+    const getStatusConfig = () => {
+        switch (status) {
+            case 'running': 
+                return { 
+                    color: 'warning', 
+                    icon: <SyncIcon sx={{ animation: 'spin 1s linear infinite' }} /> 
+                };
+            case 'completed': 
+                return { 
+                    color: 'success', 
+                    icon: <CheckCircleIcon /> 
+                };
+            case 'error': 
+                return { 
+                    color: 'error', 
+                    icon: <ErrorIcon /> 
+                };
+            default: 
+                return { 
+                    color: 'default', 
+                    icon: <InfoIcon /> 
+                };
+        }
+    };
+
+    const config = getStatusConfig();
+
+    return (
+        <Chip
+            icon={config.icon}
+            label={label}
+            color={config.color}
+            variant="filled"
+            sx={{
+                fontWeight: 'bold',
+            }}
+        />
+    );
+};
 
 const TMDBUpdateStatusModal = ({ open, onClose }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+    
     const [status, setStatus] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -47,26 +124,26 @@ const TMDBUpdateStatusModal = ({ open, onClose }) => {
     const [customLimit, setCustomLimit] = useState('');
     const [useCustomLimit, setUseCustomLimit] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
-
-    const fetchStatus = async () => {
+    const fetchStatus = async (showRefresh = false) => {
         try {
-            setLoading(true);
+            if (showRefresh) setRefreshing(true);
+            else setLoading(true);
+            
             const response = await axiosInstance.get('/api/admin/cinema/records/status');
-
+            
             if (response?.data?.data) {
-                //   response.data.data['totalCounts'] = updateLimit; // Set totalCounts if available
                 setStatus(response.data.data);
             }
-
             setError(null);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to fetch status');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
-
 
     const triggerUpdate = async (limit = null) => {
         try {
@@ -84,8 +161,6 @@ const TMDBUpdateStatusModal = ({ open, onClose }) => {
         try {
             setCancelling(true);
             await axiosInstance.post('/api/admin/cinema/records/cancel-update');
-            // Continue polling to get the final cancelled status
-            //   startPolling();
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to cancel update');
             setCancelling(false);
@@ -109,13 +184,15 @@ const TMDBUpdateStatusModal = ({ open, onClose }) => {
                 setLoading(false);
                 setCancelling(false);
             }
-        }, 6000);
+        }, 3000);
 
         return () => clearInterval(interval);
     };
 
     useEffect(() => {
-        if (open) fetchStatus();
+        if (open) {
+            fetchStatus();
+        }
     }, [open]);
 
     const getProgressValue = () => {
@@ -135,33 +212,99 @@ const TMDBUpdateStatusModal = ({ open, onClose }) => {
         if (customLimit && Number(customLimit) > 0) {
             setUpdateLimit(Number(customLimit));
             setUseCustomLimit(false);
+            setCustomLimit('');
         }
     };
+
+    const statsCards = [
+        {
+            label: 'Processed',
+            value: status?.processedCount || 0,
+            color: theme.palette.info.main
+        },
+        {
+            label: 'Success',
+            value: status?.successCount || 0,
+            color: theme.palette.success.main
+        },
+        {
+            label: 'Failed',
+            value: status?.failedCount || 0,
+            color: theme.palette.error.main
+        }
+    ];
 
     return (
         <Dialog
             open={open}
             onClose={onClose}
-            maxWidth="md"
+            maxWidth="lg"
             fullWidth
             fullScreen={isMobile}
             sx={{
                 '& .MuiDialog-paper': {
-                    borderRadius: isMobile ? 0 : 2,
-                    maxHeight: '90vh'
+                    borderRadius: isMobile ? 0 : 3,
+                    background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`,
+                    border: '1px solid',
+                    borderColor: alpha(theme.palette.primary.main, 0.1),
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+                    maxHeight: '95vh',
+                    overflow: 'hidden'
                 }
             }}
         >
             <DialogTitle sx={{
-                p: isMobile ? 1.5 : 2,
+                p: isMobile ? 2 : 3,
                 borderBottom: '1px solid',
                 borderColor: 'divider',
-                backgroundColor: 'background.paper'
+                background: `linear-gradient(90deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 100%)`,
+                position: 'relative',
+                overflow: 'hidden'
             }}>
+                <Box 
+                    sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '2px',
+                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`
+                    }}
+                />
+                
                 <Box display="flex" flexDirection={isMobile ? 'column' : 'row'}
-                    justifyContent="space-between" alignItems="center" gap={1}>
-                    <Typography variant="h6" fontWeight="bold">TMDB Records Update</Typography>
-                    <Box display="flex" gap={1} width={isMobile ? '100%' : 'auto'}>
+                    justifyContent="space-between" alignItems="center" gap={2}>
+                    <Box display="flex" alignItems="center" gap={2}>
+                        <SettingsIcon color="primary" sx={{ fontSize: 32 }} />
+                        <Box>
+                            <Typography variant="h5" fontWeight="bold" gutterBottom>
+                                TMDB Records Update
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Manage and monitor your cinema records synchronization
+                            </Typography>
+                        </Box>
+                    </Box>
+                    
+                    <Box display="flex" gap={1} width={isMobile ? '100%' : 'auto'} flexWrap="wrap">
+                        <Tooltip title="Refresh Status">
+                            <IconButton
+                                onClick={() => fetchStatus(true)}
+                                disabled={refreshing}
+                                sx={{
+                                    border: '1px solid',
+                                    borderColor: 'divider'
+                                }}
+                            >
+                                <RefreshIcon 
+                                    sx={{ 
+                                        transition: 'transform 0.3s',
+                                        transform: refreshing ? 'rotate(360deg)' : 'none'
+                                    }} 
+                                />
+                            </IconButton>
+                        </Tooltip>
+                        
                         <MotionButton
                             variant="contained"
                             color="primary"
@@ -169,13 +312,17 @@ const TMDBUpdateStatusModal = ({ open, onClose }) => {
                             startIcon={<SyncIcon />}
                             onClick={() => triggerUpdate(updateLimit)}
                             disabled={status?.running}
-                            loading={loading && status?.running}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            fullWidth={isMobile}
+                            whileHover={{ scale: 1.02, y: -1 }}
+                            whileTap={{ scale: 0.98 }}
+                            sx={{
+                                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                                fontWeight: 'bold',
+                                minWidth: isMobile ? 'auto' : 140
+                            }}
                         >
-                            {isMobile ? `Update ${updateLimit}` : `Update ${updateLimit} Records`}
+                            {isMobile ? `${updateLimit}` : `Update ${updateLimit}`}
                         </MotionButton>
+                        
                         <MotionButton
                             variant="outlined"
                             color="secondary"
@@ -183,268 +330,495 @@ const TMDBUpdateStatusModal = ({ open, onClose }) => {
                             startIcon={<AllInclusiveIcon />}
                             onClick={() => triggerUpdate()}
                             disabled={status?.running}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            fullWidth={isMobile}
+                            whileHover={{ scale: 1.02, y: -1 }}
+                            whileTap={{ scale: 0.98 }}
+                            sx={{
+                                borderWidth: 2,
+                                fontWeight: 'bold',
+                                minWidth: isMobile ? 'auto' : 120
+                            }}
                         >
-                            {isMobile ? 'All' : 'Update All'}
+                            {isMobile ? 'All' : 'All Records'}
                         </MotionButton>
-                        {status?.running && (
-                            <MotionButton
-                                variant="outlined"
-                                color="error"
-                                size={isMobile ? 'small' : 'medium'}
-                                startIcon={<Cancel />}
-                                onClick={cancelUpdate}
-                                disabled={!status?.running || cancelling}
-                                whileHover={{ scale: 1.03 }}
-                                whileTap={{ scale: 0.97 }}
-                                fullWidth={isMobile}
-                            >
-                                {isMobile ? 'Cancel' : 'Cancel Update'}
-                            </MotionButton>
-                        )}
+                        
+                        <AnimatePresence>
+                            {status?.running && (
+                                <MotionButton
+                                    variant="outlined"
+                                    color="error"
+                                    size={isMobile ? 'small' : 'medium'}
+                                    startIcon={<Cancel />}
+                                    onClick={cancelUpdate}
+                                    disabled={!status?.running || cancelling}
+                                    whileHover={{ scale: 1.02, y: -1 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.8 }}
+                                    sx={{
+                                        borderWidth: 2,
+                                        fontWeight: 'bold',
+                                        minWidth: isMobile ? 'auto' : 130
+                                    }}
+                                >
+                                    {isMobile ? 'Cancel' : 'Cancel'}
+                                </MotionButton>
+                            )}
+                        </AnimatePresence>
                     </Box>
                 </Box>
             </DialogTitle>
 
-            <DialogContent dividers sx={{ p: isMobile ? 1.5 : 2 }}>
-                {error && (
-                    <Alert
-                        severity="error"
-                        sx={{ mb: 2, width: '100%' }}
-                        action={
-                            <IconButton
-                                size="small"
-                                color="inherit"
-                                onClick={() => setError(null)}
+            <DialogContent dividers sx={{ 
+                p: isMobile ? 2 : 3,
+            }}>
+                <AnimatePresence>
+                    {error && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                        >
+                            <Alert
+                                severity="error"
+                                sx={{ 
+                                    mb: 3, 
+                                    borderRadius: 2,
+                                    border: '1px solid',
+                                    borderColor: 'error.main'
+                                }}
+                                action={
+                                    <IconButton
+                                        size="small"
+                                        color="inherit"
+                                        onClick={() => setError(null)}
+                                    >
+                                        <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                }
                             >
-                                <CloseIcon fontSize="small" />
-                            </IconButton>
-                        }
-                    >
-                        {error}
-                    </Alert>
-                )}
+                                <Typography variant="body2" fontWeight="medium">
+                                    {error}
+                                </Typography>
+                            </Alert>
+                        </motion.div>
+                    )}
 
-                {cancelling && (
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                        Cancellation in progress... Please wait
-                    </Alert>
-                )}
+                    {cancelling && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                        >
+                            <Alert 
+                                severity="info" 
+                                sx={{ 
+                                    mb: 3,
+                                    borderRadius: 2
+                                }}
+                            >
+                                Cancellation in progress... Please wait
+                            </Alert>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                <Box mb={2}>
-                    <Typography variant="subtitle1" gutterBottom>Update Limit</Typography>
-                    <Grid container spacing={1} alignItems="center">
-                        <Grid item xs={12} sm={useCustomLimit ? 8 : 12}>
+                {/* Update Limit Section */}
+                <MotionCard
+                    sx={{ 
+                        mb: 3, 
+                        p: 2,
+                        background: alpha(theme.palette.background.paper, 0.8),
+                    }}
+                    whileHover={{ y: -2 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <Typography variant="h6" gutterBottom fontWeight="bold">
+                        Update Settings
+                    </Typography>
+                    <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} md={useCustomLimit ? 8 : 12}>
                             <Box display="flex" gap={1} flexWrap="wrap">
-                                {[50, 100, 200].map(num => (
+                                {[50, 100, 200, 500].map(num => (
                                     <MotionChip
                                         key={num}
                                         label={num}
-                                        size="small"
+                                        size="medium"
                                         clickable
+                                        variant={updateLimit === num ? 'filled' : 'outlined'}
                                         color={updateLimit === num ? 'primary' : 'default'}
                                         onClick={() => {
                                             setUpdateLimit(num);
                                             setUseCustomLimit(false);
                                         }}
-                                        whileHover={{ scale: 1.05 }}
+                                        whileHover={{ scale: 1.05, y: -1 }}
                                         whileTap={{ scale: 0.95 }}
+                                        sx={{
+                                            fontWeight: 'bold',
+                                            borderWidth: 2
+                                        }}
                                     />
                                 ))}
                                 <MotionChip
                                     label="Custom"
-                                    size="small"
+                                    size="medium"
                                     clickable
+                                    variant={useCustomLimit ? 'filled' : 'outlined'}
                                     color={useCustomLimit ? 'primary' : 'default'}
                                     onClick={() => setUseCustomLimit(true)}
-                                    whileHover={{ scale: 1.05 }}
+                                    whileHover={{ scale: 1.05, y: -1 }}
                                     whileTap={{ scale: 0.95 }}
+                                    sx={{
+                                        fontWeight: 'bold',
+                                        borderWidth: 2
+                                    }}
                                 />
                             </Box>
                         </Grid>
 
-                        {useCustomLimit && (
-                            <Grid item xs={12} sm={4}>
-                                <Box display="flex" gap={1} alignItems="center">
-                                    <TextField
-                                        size="small"
-                                        type="number"
-                                        fullWidth
-                                        value={customLimit}
-                                        onChange={handleCustomLimitChange}
-                                        placeholder="Enter number"
-                                        inputProps={{ min: 1, max: 1000 }}
-                                    />
-                                    <Button
-                                        size="small"
-                                        variant="contained"
-                                        onClick={handleCustomLimitSubmit}
-                                        disabled={!customLimit}
+                        <AnimatePresence>
+                            {useCustomLimit && (
+                                <Grid item xs={12} md={4}>
+                                    <motion.div
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 20 }}
                                     >
-                                        Set
-                                    </Button>
-                                </Box>
-                            </Grid>
-                        )}
-                    </Grid>
-                </Box>
-
-                {status?.running && (
-                    <Box mb={3} width="100%">
-                        <LinearProgress
-                            variant="determinate"
-                            value={getProgressValue()}
-                            sx={{
-                                height: 8,
-                                borderRadius: 4,
-                                mb: 1,
-                                '& .MuiLinearProgress-bar': {
-                                    borderRadius: 4,
-                                    background: 'linear-gradient(90deg, #1976d2 0%, #4caf50 100%)'
-                                }
-                            }}
-                        />
-                        <Box display="flex" justifyContent="space-between" width="100%">
-                            <Typography variant="body2" color="text.secondary">
-                                Progress: {getProgressValue()}%
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                {status.processedCount} of {status.totalCounts} records
-                            </Typography>
-                        </Box>
-                    </Box>
-                )}
-
-                {status && (
-                    <Box width="100%">
-                        <Divider sx={{ my: 2 }}>
-                            <Typography variant="subtitle1">Status</Typography>
-                        </Divider>
-
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                                <List dense>
-                                    <ListItem>
-                                        <ListItemIcon sx={{ minWidth: 36 }}>
-                                            {status.running ? (
-                                                <Tooltip title="In Progress">
-                                                    <SyncIcon
-                                                        color="warning"
-                                                        sx={{ animation: 'spin 2s linear infinite' }}
-                                                    />
-                                                </Tooltip>
-                                            ) : (
-                                                <Tooltip title="Idle">
-                                                    <CheckCircleIcon color="success" />
-                                                </Tooltip>
-                                            )}
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary="Status"
-                                            secondary={status.running ? 'In Progress' : 'Idle'}
-                                        />
-                                    </ListItem>
-
-                                    <ListItem>
-                                        <ListItemIcon sx={{ minWidth: 36 }}>
-                                            <PlayArrowIcon color="info" />
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary="Started"
-                                            secondary={status.startTime || 'N/A'}
-                                        />
-                                    </ListItem>
-
-                                    <ListItem>
-                                        <ListItemIcon sx={{ minWidth: 36 }}>
-                                            <CheckCircleIcon color="info" />
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary="Finished"
-                                            secondary={status.endTime || 'N/A'}
-                                        />
-                                    </ListItem>
-                                </List>
-                            </Grid>
-
-                            <Grid item xs={12} sm={6}>
-                                <List dense>
-                                    <ListItem>
-                                        <ListItemText
-                                            primary="Processed"
-                                            secondary={status.processedCount}
-                                        />
-                                    </ListItem>
-
-                                    <ListItem>
-                                        <ListItemText
-                                            primary="Success"
-                                            secondary={
-                                                <Typography component="span" color="success.main">
-                                                    {status.successCount}
-                                                </Typography>
-                                            }
-                                        />
-                                    </ListItem>
-
-                                    <ListItem>
-                                        <ListItemText
-                                            primary="Failed"
-                                            secondary={
-                                                <Typography component="span" color="error.main">
-                                                    {status.failedCount}
-                                                </Typography>
-                                            }
-                                        />
-                                    </ListItem>
-                                </List>
-                            </Grid>
-                        </Grid>
-
-                        {status.failedCount > 0 && (
-                            <>
-                                <Divider sx={{ my: 2 }}>
-                                    <Typography variant="subtitle1">Failed Records</Typography>
-                                </Divider>
-
-                                <List dense>
-                                    {Object.entries(status.failedRecords || {}).map(([id, errorMsg]) => (
-                                        <ListItem
-                                            key={id}
-                                            component={motion.div}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            transition={{ duration: 0.3 }}
-                                        >
-                                            <ListItemIcon sx={{ minWidth: 36 }}>
-                                                <ErrorIcon color="error" />
-                                            </ListItemIcon>
-                                            <ListItemText
-                                                primary={`ID: ${id}`}
-                                                secondary={errorMsg}
-                                                secondaryTypographyProps={{
-                                                    color: 'error.main',
-                                                    sx: { wordBreak: 'break-word' }
+                                        <Box display="flex" gap={1} alignItems="center">
+                                            <TextField
+                                                size="small"
+                                                type="number"
+                                                fullWidth
+                                                value={customLimit}
+                                                onChange={handleCustomLimitChange}
+                                                placeholder="Enter limit"
+                                                inputProps={{ 
+                                                    min: 1, 
+                                                    max: 1000,
+                                                    style: { textAlign: 'center' }
+                                                }}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                        fontWeight: 'bold'
+                                                    }
                                                 }}
                                             />
+                                            <MotionButton
+                                                size="small"
+                                                variant="contained"
+                                                onClick={handleCustomLimitSubmit}
+                                                disabled={!customLimit}
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                sx={{
+                                                    minWidth: 60,
+                                                    fontWeight: 'bold'
+                                                }}
+                                            >
+                                                Set
+                                            </MotionButton>
+                                        </Box>
+                                    </motion.div>
+                                </Grid>
+                            )}
+                        </AnimatePresence>
+                    </Grid>
+                </MotionCard>
+
+                {/* Progress Section */}
+                <AnimatePresence>
+                    {status?.running && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                        >
+                            <MotionPaper
+                                sx={{ 
+                                    p: 3, 
+                                    mb: 3,
+                                    background: alpha(theme.palette.primary.main, 0.05),
+                                    border: '1px solid',
+                                    borderColor: alpha(theme.palette.primary.main, 0.1),
+                                    borderRadius: 3
+                                }}
+                                whileHover={{ y: -2 }}
+                            >
+                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                    <Typography variant="h6" fontWeight="bold">
+                                        Update Progress
+                                    </Typography>
+                                    <StatusChip status="running" label="In Progress" />
+                                </Box>
+                                
+                                <GradientProgress value={getProgressValue()} />
+                                
+                                <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
+                                    <Typography variant="body2" color="text.secondary" fontWeight="medium">
+                                        {status.processedCount} of {status.totalCounts} records
+                                    </Typography>
+                                    <Typography 
+                                        variant="h6" 
+                                        fontWeight="bold"
+                                        color="primary.main"
+                                    >
+                                        {getProgressValue()}%
+                                    </Typography>
+                                </Box>
+                            </MotionPaper>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Status Overview */}
+                {status && (
+                    <MotionCard
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        <CardContent sx={{ p: 3 }}>
+                            <Typography variant="h6" gutterBottom fontWeight="bold">
+                                Status Overview
+                            </Typography>
+                            
+                            {/* Stats Cards */}
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                {statsCards.map((stat, index) => (
+                                    <Grid item xs={12} sm={4} key={stat.label}>
+                                        <MotionPaper
+                                            sx={{
+                                                p: 2,
+                                                textAlign: 'center',
+                                                background: alpha(theme.palette.background.paper, 0.8),
+                                                border: '1px solid',
+                                                borderColor: alpha(theme.palette.primary.main, 0.1),
+                                                borderRadius: 2
+                                            }}
+                                            whileHover={{ 
+                                                scale: 1.05,
+                                                y: -2,
+                                                transition: { duration: 0.2 }
+                                            }}
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.5, delay: index * 0.1 }}
+                                        >
+                                            <Typography 
+                                                variant="h4" 
+                                                fontWeight="bold"
+                                                sx={{ color: stat.color }}
+                                            >
+                                                {stat.value}
+                                            </Typography>
+                                            <Typography 
+                                                variant="body2" 
+                                                color="text.secondary"
+                                                fontWeight="medium"
+                                            >
+                                                {stat.label}
+                                            </Typography>
+                                        </MotionPaper>
+                                    </Grid>
+                                ))}
+                            </Grid>
+
+                            {/* Detailed Status */}
+                            <Grid container spacing={3}>
+                                <Grid item xs={12} md={6}>
+                                    <List dense>
+                                        <ListItem sx={{ px: 0 }}>
+                                            <ListItemIcon sx={{ minWidth: 40 }}>
+                                                {status.running ? (
+                                                    <Tooltip title="In Progress">
+                                                        <SyncIcon
+                                                            color="warning"
+                                                            sx={{ 
+                                                                fontSize: 28,
+                                                                animation: 'spin 1.5s linear infinite'
+                                                            }}
+                                                        />
+                                                    </Tooltip>
+                                                ) : (
+                                                    <Tooltip title="Idle">
+                                                        <CheckCircleIcon 
+                                                            color="success" 
+                                                            sx={{ fontSize: 28 }}
+                                                        />
+                                                    </Tooltip>
+                                                )}
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary={
+                                                    <Typography variant="body1" fontWeight="medium">
+                                                        Status
+                                                    </Typography>
+                                                }
+                                                secondary={
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {status.running ? 'Update in Progress' : 'Ready for Update'}
+                                                    </Typography>
+                                                }
+                                            />
                                         </ListItem>
-                                    ))}
-                                </List>
-                            </>
-                        )}
-                    </Box>
+
+                                        <ListItem sx={{ px: 0 }}>
+                                            <ListItemIcon sx={{ minWidth: 40 }}>
+                                                <PlayArrowIcon color="info" sx={{ fontSize: 28 }} />
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary={
+                                                    <Typography variant="body1" fontWeight="medium">
+                                                        Started
+                                                    </Typography>
+                                                }
+                                                secondary={
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {status.startTime || 'Not started'}
+                                                    </Typography>
+                                                }
+                                            />
+                                        </ListItem>
+
+                                        <ListItem sx={{ px: 0 }}>
+                                            <ListItemIcon sx={{ minWidth: 40 }}>
+                                                <CheckCircleIcon color="info" sx={{ fontSize: 28 }} />
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary={
+                                                    <Typography variant="body1" fontWeight="medium">
+                                                        Finished
+                                                    </Typography>
+                                                }
+                                                secondary={
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {status.endTime || 'Not finished'}
+                                                    </Typography>
+                                                }
+                                            />
+                                        </ListItem>
+                                    </List>
+                                </Grid>
+
+                                <Grid item xs={12} md={6}>
+                                    <Paper
+                                        sx={{
+                                            p: 2,
+                                            height: '100%',
+                                            background: alpha(theme.palette.background.default, 0.5),
+                                            border: '1px solid',
+                                            borderColor: alpha(theme.palette.primary.main, 0.1),
+                                            borderRadius: 2
+                                        }}
+                                    >
+                                        <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+                                            Performance
+                                        </Typography>
+                                        <Box sx={{ mt: 1 }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                Last Updated: {new Date().toLocaleTimeString()}
+                                            </Typography>
+                                            {status.running && (
+                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                                    Estimated completion based on current rate
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </Paper>
+                                </Grid>
+                            </Grid>
+
+                            {/* Failed Records */}
+                            <AnimatePresence>
+                                {status.failedCount > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                    >
+                                        <Divider sx={{ my: 3 }} />
+                                        
+                                        <Typography variant="h6" gutterBottom fontWeight="bold" color="error">
+                                            Failed Records ({status.failedCount})
+                                        </Typography>
+
+                                        <Paper
+                                            sx={{
+                                                maxHeight: 200,
+                                                overflow: 'auto',
+                                                background: alpha(theme.palette.error.main, 0.05),
+                                                border: '1px solid',
+                                                borderColor: alpha(theme.palette.error.main, 0.2),
+                                                borderRadius: 2
+                                            }}
+                                        >
+                                            <List dense>
+                                                {Object.entries(status.failedRecords || {}).map(([id, errorMsg], index) => (
+                                                    <ListItem
+                                                        key={id}
+                                                        component={motion.div}
+                                                        initial={{ opacity: 0, x: -20 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                                                        sx={{
+                                                            borderBottom: '1px solid',
+                                                            borderColor: alpha(theme.palette.error.main, 0.1),
+                                                            '&:last-child': { borderBottom: 'none' }
+                                                        }}
+                                                    >
+                                                        <ListItemIcon sx={{ minWidth: 40 }}>
+                                                            <ErrorIcon color="error" />
+                                                        </ListItemIcon>
+                                                        <ListItemText
+                                                            primary={
+                                                                <Typography variant="body2" fontWeight="medium">
+                                                                    Record ID: {id}
+                                                                </Typography>
+                                                            }
+                                                            secondary={
+                                                                <Typography 
+                                                                    variant="body2" 
+                                                                    color="error.main"
+                                                                    sx={{ 
+                                                                        wordBreak: 'break-word',
+                                                                        fontSize: '0.75rem'
+                                                                    }}
+                                                                >
+                                                                    {errorMsg}
+                                                                </Typography>
+                                                            }
+                                                        />
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </Paper>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </CardContent>
+                    </MotionCard>
                 )}
             </DialogContent>
 
-            <DialogActions sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                <Button
+            <DialogActions sx={{ 
+                p: 2, 
+                borderTop: '1px solid',
+                borderColor: 'divider',
+                background: alpha(theme.palette.background.paper, 0.8)
+            }}>
+                <MotionButton
                     variant="outlined"
                     onClick={onClose}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    sx={{
+                        borderWidth: 2,
+                        fontWeight: 'bold',
+                        px: 3
+                    }}
                 >
                     Close
-                </Button>
+                </MotionButton>
             </DialogActions>
         </Dialog>
     );

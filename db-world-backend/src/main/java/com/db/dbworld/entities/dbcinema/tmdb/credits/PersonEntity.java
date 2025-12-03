@@ -15,7 +15,7 @@ public class PersonEntity {
 
     @Id
     @Column(name = "id")
-    private long id;
+    private Long id;
 
     @OneToMany(mappedBy = "person")
     private List<CrewEntity> crewEntities;

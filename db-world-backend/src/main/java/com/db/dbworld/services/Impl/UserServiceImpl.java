@@ -1,7 +1,6 @@
 package com.db.dbworld.services.Impl;
 
 import com.db.dbworld.dao.user.LoginDataRepository;
-import com.db.dbworld.dao.user.UserCinemaDataRepository;
 import com.db.dbworld.dao.user.UserRepository;
 import com.db.dbworld.dao.user.UserRoleRepository;
 import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
@@ -10,7 +9,6 @@ import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.entities.user.UserRoleEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
-import com.db.dbworld.payloads.user.UserCinemaDataDto;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.auth.RoleService;
 import com.db.dbworld.services.user.UserService;
@@ -54,9 +52,6 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private LoginDataRepository loginDataRepository;
-
-    @Autowired
-    private UserCinemaDataRepository userCinemaDataRepository;
 
     @Autowired
     private DbWorldUtils dbWorldUtils;
@@ -371,20 +366,5 @@ public class UserServiceImpl implements UserService {
     public UserDto updateRoleByUserId(String userId) {
         return null;
     }
-
-    @Override
-    public UserCinemaDataDto updateUserCinemaData(UserCinemaDataDto userCinemaDataDto, String username) {
-
-//        UserCinemaDataEntity userCinemaDataEntity = new UserCinemaDataEntity();
-//        userCinemaDataEntity.setUser(username == null ? getUserFromToken() : getUserEntityByEmail(username));
-//        userCinemaDataEntity.setDownload_file(userCinemaDataDto.getDownload_file());
-//        userCinemaDataEntity.setStream_file(userCinemaDataDto.getStream_file());
-//        userCinemaDataEntity.setSearch_keyword(userCinemaDataDto.getSearch_keyword());
-//        userCinemaDataEntity = userCinemaDataRepository.save(userCinemaDataEntity);
-//
-//        return this.modelMapper.map(userCinemaDataEntity, UserCinemaDataDto.class);
-        return null;
-    }
-
 
 }

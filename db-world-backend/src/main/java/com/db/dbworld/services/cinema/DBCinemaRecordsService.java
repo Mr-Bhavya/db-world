@@ -28,6 +28,15 @@ public interface DBCinemaRecordsService {
 
     List<Map<String, Object>> getRecordsWithStreamList();
 
+    Map<String, Object> getPaginatedRecords(
+            int page,
+            int size,
+            String search,
+            String type,
+            String sortBy,
+            String sortOrder,
+            boolean streamList);
+
     List<DBCinemaRecordsDto> fetchCoverRecords(String[] recordTypes, int pageNumber, int pageSize);
 
     CustomPageImpl<DBCinemaRecordsDto> findRecords(RecordSearchCriteria recordSearchCriteria);

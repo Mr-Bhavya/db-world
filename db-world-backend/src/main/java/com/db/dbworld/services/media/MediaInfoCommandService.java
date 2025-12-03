@@ -223,7 +223,7 @@ public class MediaInfoCommandService {
         }
 
         String title;
-        if ("series".equalsIgnoreCase(fileDetails.getRecordType())) {
+        if ("series".equalsIgnoreCase(fileDetails.getRecordType().name())) {
             String season = StringUtils.hasText(fileDetails.getSeason()) ? fileDetails.getSeason() : "S01";
             String episode = StringUtils.hasText(fileDetails.getEpisode()) ? fileDetails.getEpisode() : "E01";
             title = String.format("%s %s%s", fileDetails.getName(), season, episode);
@@ -765,9 +765,9 @@ public class MediaInfoCommandService {
             }
             log.info("Added {} specific subtitle track mappings", subtitleTracksToKeep.size());
         } else {
-            command.add("-map");
-            command.add("0:s");
-            log.info("Added all subtitle tracks mapping");
+            // Only map subtitle streams if they exist - don't force it
+            // This prevents the "Stream map '' matches no streams" error
+            log.info("No subtitle tracks specified, skipping subtitle mapping");
         }
     }
 
