@@ -9,6 +9,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.Level;
 import org.modelmapper.ModelMapper;
@@ -66,24 +67,9 @@ public class DbWorldUtils {
     }
 
     public void checkRecordType(String type) {
-        if (!type.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) && !type.equalsIgnoreCase((DbWorldConstants.RECORD_TYPE_SERIES))) {
+        if (!type.equalsIgnoreCase(DbWorldConstants.RECORD_TYE.MOVIE.name()) && !type.equalsIgnoreCase((DbWorldConstants.RECORD_TYE.SERIES.name()))) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Record Type is not correct. Please Try again with valid record type.");
         }
-    }
-
-    public String getTMDBRecordDetailsUrl(RequestPayloads.AddRecord record) {
-        return (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? DbWorldConstants.TMDB_MOVIE_DETAILS_URL : DbWorldConstants.TMDB_SERIES_DETAILS_URL).
-                replace(DbWorldConstants.REPLACE_ID_STRING, Long.toString(record.getTmdbId()));
-    }
-
-    public String getTMDBByQueryUrl(String recordType, String query, int year) {
-        return (recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? DbWorldConstants.TMDB_SEARCH_MOVIE_PROVIDER_URL : DbWorldConstants.TMDB_SEARCH_SERIES_PROVIDER_URL).
-                replace(DbWorldConstants.REPLACE_QUERY_STRING, query).replace(DbWorldConstants.REPLACE_YEAR_STRING, year == 0 ? "" : String.valueOf(year));
-    }
-
-    public String getTMDBRecordProviderUrl(RequestPayloads.AddRecord record) {
-        return (record.getType().equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) ? DbWorldConstants.TMDB_MOVIE_PROVIDER_URL : DbWorldConstants.TMDB_SERIES_PROVIDER_URL).
-                replace(DbWorldConstants.REPLACE_ID_STRING, Long.toString(record.getTmdbId()));
     }
 
     public List<String> readFileInList(String filePath) {
@@ -357,7 +343,7 @@ public class DbWorldUtils {
     }
 
     private String generateGeneralTitle(MediaFileDetails fileDetails) {
-        if ("series".equalsIgnoreCase(fileDetails.getRecordType())) {
+        if ("series".equalsIgnoreCase(fileDetails.getRecordType().name())) {
             // Series format: "Show Name S01E03 - Episode Title"
             String season = fileDetails.getSeason() != null ? fileDetails.getSeason() : "S01";
             String episode = fileDetails.getEpisode() != null ? fileDetails.getSeason() : "E01";
@@ -560,6 +546,38 @@ public class DbWorldUtils {
 
         } catch (Exception e) {
             throw new DbWorldException("Error modifying media titles: " + e.getMessage());
+        }
+    }
+
+    public String getClientIpAddress(HttpServletRequest request) {
+        try {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
+                String[] ips = xForwardedFor.split(",");
+                for (String ip : ips) {
+                    String cleanedIp = ip.trim();
+                    if (!cleanedIp.isEmpty() && !"unknown".equalsIgnoreCase(cleanedIp)) {
+                        return cleanedIp;
+                    }
+                }
+            }
+
+            String[] headers = {
+                    "X-Real-IP", "Proxy-Client-IP", "WL-Proxy-Client-IP",
+                    "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"
+            };
+
+            for (String header : headers) {
+                String ip = request.getHeader(header);
+                if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+                    return ip;
+                }
+            }
+
+            return request.getRemoteAddr();
+        } catch (Exception e) {
+            log.warn("Error extracting client IP address", e);
+            return request.getRemoteAddr();
         }
     }
 

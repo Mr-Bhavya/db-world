@@ -131,15 +131,31 @@ public class AdminController {
 
     @GetMapping("/cinema/record")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<List<Map<String, Object>>> getDbCinemaRecords(@RequestParam(value = "streamList", defaultValue = "true") boolean streamList) {
-        List<Map<String, Object>> dbCinemaRecords;
-        if (!streamList) {
-            dbCinemaRecords = dbCinemaRecordsService.getRecords();
-        } else {
-            dbCinemaRecords = dbCinemaRecordsService.getRecordsWithStreamList();
+    public ApiResponse<Map<String, Object>> getDbCinemaRecords(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String sortOrder,
+            @RequestParam(value = "streamList", defaultValue = "true") boolean streamList) {
+
+        try {
+            log.info("Fetching cinema records - page: {}, size: {}, search: {}, type: {}, sortBy: {}, sortOrder: {}",
+                    page, size, search, type, sortBy, sortOrder);
+
+            Map<String, Object> response = dbCinemaRecordsService.getPaginatedRecords(
+                    page, size, search, type, sortBy, sortOrder, streamList);
+
+            return new ApiResponse<>(HttpStatus.OK, true, "Records fetched successfully", response);
+
+        } catch (Exception e) {
+            log.error("Error fetching cinema records", e);
+            return new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR, false,
+                    "Error fetching records: " + e.getMessage(), null);
         }
-        return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecords);
     }
+
 
     @PostMapping("/cinema/records")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)

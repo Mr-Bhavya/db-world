@@ -1,8 +1,10 @@
 package com.db.dbworld.security;
 
 import com.db.dbworld.entities.user.UserEntity;
+import com.db.dbworld.payloads.RequestLogData;
 import com.db.dbworld.services.user.UserActivityLogService;
 import com.db.dbworld.services.user.UserService;
+import com.db.dbworld.utils.DbWorldUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,13 +13,13 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 @Component
 @Log4j2
@@ -32,6 +34,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private DbWorldUtils dbWorldUtils;
 
     private final UserActivityLogService activityLogService;
 
@@ -55,10 +60,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(cachingRequest, response);
         } finally {
-            if (shouldTrackRequest(request)) {
-                logRequestDetails(cachingRequest, response, startTime);
+            if (shouldTrackRequest(cachingRequest)) {
+                // Extract all data BEFORE async operation
+                RequestLogData logData = extractRequestLogData(cachingRequest, response, startTime);
+
+                // Fire and forget - pass only the extracted data, not the request/response objects
+                CompletableFuture.runAsync(() -> {
+                    logRequestDetails(logData);
+                }).exceptionally(throwable -> {
+                    log.error("Async logging failed for URI: {}", logData.getUri(), throwable);
+                    return null;
+                });
             }
-            ThreadContext.clearAll(); // 🔁 Always clear context after each request
+            ThreadContext.clearAll();
         }
     }
 
@@ -67,7 +81,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 !request.getRequestURI().startsWith("/actuator");
     }
 
-    private void logRequestDetails(HttpServletRequest request, HttpServletResponse response, long startTime) {
+    /**
+     * Extract all required data from request/response before they become invalid
+     */
+    private RequestLogData extractRequestLogData(HttpServletRequest request, HttpServletResponse response, long startTime) {
         String requestBody = getRequestBody(request);
         String method = request.getMethod();
         String uri = request.getRequestURI();
@@ -78,18 +95,42 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         UserEntity user = extractUser(request).orElse(null);
         String userEmail = (user != null) ? user.getEmail() : "Anonymous";
 
+        String ip = dbWorldUtils.getClientIpAddress(request);
+        String userAgent = request.getHeader("User-Agent");
+        String requestId = request.getHeader("X-Request-ID");
+
+        boolean shouldPersist = shouldPersistToDatabase(request);
+
+        return RequestLogData.builder()
+                .user(user)
+                .userEmail(userEmail)
+                .method(method)
+                .uri(uri)
+                .query(query)
+                .ip(ip)
+                .userAgent(userAgent)
+                .status(status)
+                .duration(duration)
+                .requestId(requestId)
+                .requestBody(requestBody)
+                .shouldPersist(shouldPersist)
+                .build();
+    }
+
+    private void logRequestDetails(RequestLogData logData) {
         // Set log context using ThreadContext
-        ThreadContext.put("user", userEmail);
-        ThreadContext.put("method", method);
-        ThreadContext.put("uri", uri);
-        ThreadContext.put("query", query);
-        ThreadContext.put("status", String.valueOf(status));
-        ThreadContext.put("duration", String.valueOf(duration));
+        ThreadContext.put("user", logData.getUserEmail());
+        ThreadContext.put("method", logData.getMethod());
+        ThreadContext.put("uri", logData.getUri());
+        ThreadContext.put("query", logData.getQuery());
+        ThreadContext.put("status", String.valueOf(logData.getStatus()));
+        ThreadContext.put("duration", String.valueOf(logData.getDuration()));
 
-        log.info("User '{}' completed {} {} {}", userEmail, method, uri, query);
+        log.info("User '{}' completed {} {} in {}ms",
+                logData.getUserEmail(), logData.getMethod(), logData.getUri(), logData.getDuration());
 
-        if (shouldPersistToDatabase(request)) {
-            activityLogService.logActivity(request, response, duration, user, requestBody);
+        if (logData.isShouldPersist()) {
+            activityLogService.logActivity(logData);
         }
     }
 
@@ -123,4 +164,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return TRACKED_METHODS.contains(request.getMethod()) ||
                 request.getRequestURI().startsWith("/api");
     }
+
 }

@@ -153,9 +153,6 @@ const UserManagement = () => {
                     gap={2}
                     mb={3}
                 >
-                    <Typography variant="h4" component="h1">
-                        User Management
-                    </Typography>
 
                     {/* Controls */}
                     <Box display="flex" alignItems="center" gap={1}>

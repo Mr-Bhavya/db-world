@@ -85,7 +85,6 @@ public class StreamController {
                                                 @RequestParam("t") String token) {
         String user = userService.getUserFromToken(token);
         Path path = Path.of(mediaFileInfoService.getFileInfoById(fileId));
-//        log.info("User [{}] is streaming file by UUID [{}] at [{}], Range={}", user, fileId, path, range);
         if (!Files.exists(path)) {
             log.warn("File [{}] requested by [{}] does not exist", fileId, user);
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "File does not exist");
@@ -100,7 +99,6 @@ public class StreamController {
                                                @RequestParam(value = "inline", defaultValue = "false") boolean inline) throws IOException {
         String user = userService.getUserFromToken(token);
         Path path = Path.of(mediaFileInfoService.getFileInfoById(fileId));
-//        log.info("User [{}] is downloading file by UUID [{}] at [{}], inline={}, Range={}", user, fileId, path, inline, range);
         if (!Files.exists(path)) {
             log.warn("UUID Download failed. File [{}] not found for user [{}]", fileId, user);
             throw new DbWorldException(HttpStatus.NOT_FOUND, "File not found");

@@ -52,40 +52,41 @@ public class UtilsServiceImpl implements UtilsService {
     private static final String PROCESS_INFO = "PROCESS_INFO";
     private static final String PROCESS_FILENAME = "PROCESS_FILENAME";
 
-    @Async
-    @Override
-    public void downloadFileUsingAria2c(MirrorStatus mirrorStatus) {
-        try {
-            // Register the download first
-            statusService.addNewStatus(mirrorStatus);
+//    @Async
+@Override
+public void downloadFileUsingAria2c(MirrorStatus mirrorStatus) {
+    try {
+        // Register the download first
+        statusService.addNewStatus(mirrorStatus);
 
-            // Prepare download options
-            Map<String, Object> options = new HashMap<>();
-            options.put("dir", Paths.get(mirrorStatus.getTempRecordIdPath()).toString());
+        // Prepare download options
+        Map<String, Object> options = new HashMap<>();
+        options.put("dir", Paths.get(mirrorStatus.getTempRecordIdPath()).toString());
 
-            if (!mirrorStatus.isMagnet()) {
-                options.put("out", Paths.get(mirrorStatus.getTempFilePath()).getFileName().toString());
-
-                // Set range header if resuming
-                if (mirrorStatus.getDownloadStatus() != null &&
-                        mirrorStatus.getDownloadStatus().getFileDownloaded() > 0) {
-                    Map<String, String> headers = new HashMap<>();
-                    headers.put("Range", "bytes=" + mirrorStatus.getDownloadStatus().getFileDownloaded() + "-");
-                    options.put("header", headers);
-                }
+        if (!mirrorStatus.isMagnet()) {
+            // Set range header if resuming
+            if (mirrorStatus.getDownloadStatus() != null &&
+                    mirrorStatus.getDownloadStatus().getFileDownloaded() > 0) {
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Range", "bytes=" + mirrorStatus.getDownloadStatus().getFileDownloaded() + "-");
+                options.put("header", headers);
             }
-
-            // Start the download via Aria2 RPC
-            String gid = aria2RpcService.addUri(mirrorStatus.getFileUrl(), options).block();
-
-            // Register for WebSocket updates
-            wsClientService.startDownloadMonitoring(gid, mirrorStatus.getId());
-
-        } catch (Exception e) {
-            log.error("Download failed: {}", e.getMessage(), e);
-            statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), e.getMessage());
         }
+
+        // Start the download via Aria2 RPC - SYNC VERSION
+        String gid = aria2RpcService.addUri(mirrorStatus.getId(), mirrorStatus.getFileUrl(), options).getGid();
+
+        log.info("Download started successfully. GID: {}, MirrorId: {}", gid, mirrorStatus.getId());
+
+        // Register for WebSocket updates (if needed)
+         wsClientService.startDownloadMonitoring(gid, mirrorStatus.getId());
+
+    } catch (Exception e) {
+        log.error("Download failed for MirrorId {}: {}", mirrorStatus.getId(), e.getMessage(), e);
+        statusService.logAndAppendHtml(mirrorStatus, e.getMessage(), true);
+        throw new RuntimeException("Download failed: " + e.getMessage(), e);
     }
+}
 
     @Override
     public JsonObject getInfoYtFile(String url) {

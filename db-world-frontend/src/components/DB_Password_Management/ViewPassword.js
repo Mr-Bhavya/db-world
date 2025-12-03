@@ -24,7 +24,11 @@ import {
     TextField,
     Typography,
     Tooltip,
-    useTheme
+    useTheme,
+    alpha,
+    Chip,
+    Fade,
+    Zoom
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -35,15 +39,87 @@ import {
     ContentCopy as CopyIcon,
     Visibility as VisibilityIcon,
     VisibilityOff as VisibilityOffIcon,
-    ArrowBack as ArrowBackIcon
+    ArrowBack as ArrowBackIcon,
+    Security as SecurityIcon,
+    VpnKey as KeyIcon,
+    Lock as LockIcon,
+    Warning as WarningIcon
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '../Constants';
 import { deleteCredentialByCredentialId, deleteHostById, getCredential, updateCredential } from '../ApiServices';
-import { teal } from '@mui/material/colors';
-import { max } from 'rxjs';
+import { teal, red, blue, orange } from '@mui/material/colors';
 import CommonServices from '../CommonServices';
 import { toast } from '../Toast';
+
+// Advanced Background Component
+const AdvancedBackground = () => {
+    const theme = useTheme();
+
+    return (
+        <Box
+            sx={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 0,
+                overflow: 'hidden',
+                background: `linear-gradient(135deg, 
+                    ${alpha('#000428', 0.95)} 0%, 
+                    ${alpha('#004e92', 0.9)} 50%, 
+                    ${alpha('#000428', 0.95)} 100%)`,
+                '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: `
+                        radial-gradient(circle at 15% 20%, ${alpha(teal[500], 0.15)} 0%, transparent 25%),
+                        radial-gradient(circle at 85% 30%, ${alpha(blue[500], 0.15)} 0%, transparent 25%),
+                        radial-gradient(circle at 25% 80%, ${alpha(red[500], 0.1)} 0%, transparent 20%),
+                        radial-gradient(circle at 75% 75%, ${alpha(orange[500], 0.1)} 0%, transparent 20%)
+                    `,
+                    animation: 'pulse 8s ease-in-out infinite alternate'
+                }
+            }}
+        >
+            {/* Animated Particles */}
+            {[...Array(20)].map((_, i) => (
+                <motion.div
+                    key={i}
+                    style={{
+                        position: 'absolute',
+                        width: Math.random() * 3 + 1,
+                        height: Math.random() * 3 + 1,
+                        background: [
+                            alpha(teal[500], 0.6),
+                            alpha(blue[500], 0.6),
+                            alpha(red[500], 0.6),
+                            alpha(orange[500], 0.6)
+                        ][i % 4],
+                        borderRadius: '50%',
+                        left: `${Math.random() * 100}%`,
+                        top: `${Math.random() * 100}%`,
+                    }}
+                    animate={{
+                        y: [0, -20, 0],
+                        x: [0, Math.random() * 10 - 5, 0],
+                        opacity: [0, 1, 0],
+                    }}
+                    transition={{
+                        duration: Math.random() * 4 + 3,
+                        repeat: Infinity,
+                        delay: Math.random() * 5,
+                    }}
+                />
+            ))}
+        </Box>
+    );
+};
 
 const ViewPassword = () => {
     const theme = useTheme();
@@ -71,21 +147,17 @@ const ViewPassword = () => {
         notes: null
     });
 
-    // Style for dark background
-    const darkBackgroundStyle = {
-        backgroundColor: 'rgba(255, 255, 255, 0.85)',
-        color: '#ffffff',
-        minHeight: '100vh',
-        padding: theme.spacing(4)
-    };
-
     const cardStyle = {
-        backgroundColor: 'rgba(255, 255, 255, 0.6)',
-        color: '#000000',
+        background: alpha('#ffffff', 0.95),
+        backdropFilter: 'blur(20px)',
+        border: `1px solid ${alpha(teal[500], 0.2)}`,
+        borderRadius: 3,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
         transition: 'all 0.3s ease',
         '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: theme.shadows[6]
+            transform: 'translateY(-4px)',
+            boxShadow: '0 12px 48px rgba(0,0,0,0.15)',
+            borderColor: alpha(teal[500], 0.4)
         }
     };
 
@@ -222,8 +294,8 @@ const ViewPassword = () => {
         }
     };
 
-    const copyToClipboard = (text) => {
-        const result = CommonServices.handleCopy(text);
+    const copyToClipboard = async (text) => {
+        const result = await CommonServices.handleCopy(text);
         if (result.success) {
             toast.success(result.message);
         } else {
@@ -245,22 +317,35 @@ const ViewPassword = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
             >
-                <Paper elevation={2} sx={{ ...cardStyle, mb: 1 }}>
+                <Paper elevation={0} sx={{ ...cardStyle, mb: 1, border: `1px solid ${alpha(teal[200], 0.5)}` }}>
                     <ListItem
                         alignItems="flex-start"
-                        sx={{ cursor: 'pointer' }}
+                        sx={{
+                            cursor: 'pointer',
+                            '&:hover': {
+                                backgroundColor: alpha(teal[50], 0.5)
+                            }
+                        }}
                         onClick={() => setExpanded(!expanded)}
                     >
                         <ListItemText
                             sx={{ maxWidth: '100%' }}
                             primary={
                                 <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Typography variant="subtitle1" sx={{ flex: 1 }} noWrap>
-                                        {username}
-                                    </Typography>
-                                    <IconButton edge="end" size="small" sx={{ ml: 1, color: 'teal' }}>
-                                        {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                                    </IconButton>
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                        <KeyIcon sx={{ color: teal[500], fontSize: 20 }} />
+                                        <Typography variant="subtitle1" sx={{ flex: 1, fontWeight: 600, color: 'black' }} noWrap>
+                                            {username}
+                                        </Typography>
+                                    </Box>
+                                    <motion.div
+                                        animate={{ rotate: expanded ? 180 : 0 }}
+                                        transition={{ duration: 0.3 }}
+                                    >
+                                        <IconButton edge="end" size="small" sx={{ color: teal[500] }}>
+                                            <ExpandMoreIcon />
+                                        </IconButton>
+                                    </motion.div>
                                 </Box>
                             }
                         />
@@ -268,68 +353,120 @@ const ViewPassword = () => {
 
                     <Collapse in={expanded} timeout="auto" unmountOnExit>
                         <Divider />
-                        <Box sx={{ p: 2 }}>
+                        <Box sx={{ p: 2, color: 'black' }}>
                             <Grid container spacing={2}>
                                 <Grid item xs={12} sm={6}>
-                                    <Typography variant="body2">
-                                        <strong>Username:</strong> {username}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 80 }}>
+                                            Username:
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ flex: 1, fontFamily: 'monospace' }}>
+                                            {username}
+                                        </Typography>
                                         <Tooltip title="Copy username">
-                                            <IconButton size="small" onClick={() => copyToClipboard(username)} style={{ color: 'teal' }}>
-                                                <CopyIcon fontSize="small" />
-                                            </IconButton>
+                                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => copyToClipboard(username)}
+                                                    sx={{ color: teal[500] }}
+                                                >
+                                                    <CopyIcon fontSize="small" />
+                                                </IconButton>
+                                            </motion.div>
                                         </Tooltip>
-                                    </Typography>
-                                    <Typography variant="body2">
-                                        <strong>Password:</strong> {password}
+                                    </Box>
+                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 80 }}>
+                                            Password:
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ flex: 1, fontFamily: 'monospace' }}>
+                                            ••••••••
+                                        </Typography>
                                         <Tooltip title="Copy password">
-                                            <IconButton size="small" onClick={() => copyToClipboard(password)} style={{ color: 'teal' }}>
-                                                <CopyIcon fontSize="small" />
-                                            </IconButton>
+                                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => copyToClipboard(password)}
+                                                    sx={{ color: teal[500] }}
+                                                >
+                                                    <CopyIcon fontSize="small" />
+                                                </IconButton>
+                                            </motion.div>
                                         </Tooltip>
-                                    </Typography>
+                                    </Box>
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
                                     {pin && (
-                                        <Typography variant="body2">
-                                            <strong>Pin:</strong> {pin}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 40 }}>
+                                                PIN:
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ flex: 1, fontFamily: 'monospace' }}>
+                                                {pin}
+                                            </Typography>
                                             <Tooltip title="Copy pin">
-                                                <IconButton size="small" onClick={() => copyToClipboard(pin)} style={{ color: 'teal' }}>
-                                                    <CopyIcon fontSize="small" />
-                                                </IconButton>
+                                                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => copyToClipboard(pin)}
+                                                        sx={{ color: teal[500] }}
+                                                    >
+                                                        <CopyIcon fontSize="small" />
+                                                    </IconButton>
+                                                </motion.div>
                                             </Tooltip>
-                                        </Typography>
+                                        </Box>
                                     )}
                                     {notes && (
-                                        <Typography variant="body2">
-                                            <strong>Notes:</strong> {notes}
-                                        </Typography>
+                                        <Box>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                Notes:
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                                {notes}
+                                            </Typography>
+                                        </Box>
                                     )}
                                 </Grid>
                             </Grid>
 
-                            {/* Action buttons (Edit/Delete) inside collapse */}
+                            {/* Action buttons */}
                             <Box mt={2} display="flex" justifyContent="flex-end" gap={1}>
-                                <Tooltip title="Edit">
-                                    <IconButton
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setFormCredential({ host, username, password, pin, notes, credentialId: id, pmId });
-                                            setOpenEditDialog(true);
-                                        }}
-                                    >
-                                        <EditIcon color="primary" />
-                                    </IconButton>
+                                <Tooltip title="Edit credential">
+                                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                        <IconButton
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFormCredential({ host, username, password, pin, notes, credentialId: id, pmId });
+                                                setOpenEditDialog(true);
+                                            }}
+                                            sx={{
+                                                color: blue[500],
+                                                background: alpha(blue[50], 0.8),
+                                                '&:hover': { background: alpha(blue[100], 0.8) }
+                                            }}
+                                        >
+                                            <EditIcon />
+                                        </IconButton>
+                                    </motion.div>
                                 </Tooltip>
-                                <Tooltip title="Delete">
-                                    <IconButton
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setFormCredential({ host, username, password, pin, notes, credentialId: id, pmId });
-                                            setOpenDeleteDialog(true);
-                                        }}
-                                    >
-                                        <DeleteIcon color="error" />
-                                    </IconButton>
+                                <Tooltip title="Delete credential">
+                                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                        <IconButton
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFormCredential({ host, username, password, pin, notes, credentialId: id, pmId });
+                                                setOpenDeleteDialog(true);
+                                            }}
+                                            sx={{
+                                                color: red[500],
+                                                background: alpha(red[50], 0.8),
+                                                '&:hover': { background: alpha(red[100], 0.8) }
+                                            }}
+                                        >
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </motion.div>
                                 </Tooltip>
                             </Box>
                         </Box>
@@ -339,8 +476,7 @@ const ViewPassword = () => {
         );
     };
 
-
-    const HostCard = ({ hostData, index, sx }) => {
+    const HostCard = ({ hostData, index }) => {
         const { id: pmId, host, credentials } = hostData;
 
         return (
@@ -356,37 +492,63 @@ const ViewPassword = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     height: '100%',
-                    ...sx
                 }}>
                     <CardHeader
                         avatar={
-                            <img
-                                src={`https://t1.gstatic.com/faviconV2?client=PASSWORD_MANAGER&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=32&url=https%3A%2F%2F${host}`}
-                                alt={host}
-                                style={{ width: 32, height: 32 }}
-                            />
+                            <motion.div whileHover={{ scale: 1.1 }}>
+                                <img
+                                    src={`https://t1.gstatic.com/faviconV2?client=PASSWORD_MANAGER&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=32&url=https%3A%2F%2F${host}`}
+                                    alt={host}
+                                    style={{
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: '50%',
+                                        border: `2px solid ${alpha(teal[500], 0.3)}`
+                                    }}
+                                    onError={(e) => {
+                                        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzAwQkZBNSIvPgo8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiIGZvbnQtc2l6ZT0iMTQiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiI+CiAgICBLZXkKPC90ZXh0Pgo8L3N2Zz4K';
+                                    }}
+                                />
+                            </motion.div>
                         }
                         action={
                             <Tooltip title="Delete host and all credentials">
-                                <IconButton
-                                    color="error"
-                                    onClick={() => {
-                                        setFormCredential({ host, pmId });
-                                        setOpenDeleteHostDialog(true);
-                                    }}
-                                >
-                                    <DeleteIcon />
-                                </IconButton>
+                                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                    <IconButton
+                                        sx={{
+                                            color: red[500],
+                                            background: alpha(red[50], 0.8),
+                                            '&:hover': { background: alpha(red[100], 0.8) }
+                                        }}
+                                        onClick={() => {
+                                            setFormCredential({ host, pmId });
+                                            setOpenDeleteHostDialog(true);
+                                        }}
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
+                                </motion.div>
                             </Tooltip>
                         }
                         title={
-                            <Typography variant="h6" component="div">
+                            <Typography variant="h6" component="div" sx={{ fontWeight: 700, color: teal[800] }}>
                                 {host}
                             </Typography>
                         }
+                        subheader={
+                            <Chip
+                                label={`${credentials.length} credential${credentials.length !== 1 ? 's' : ''}`}
+                                size="small"
+                                sx={{
+                                    background: alpha(teal[500], 0.1),
+                                    color: teal[700],
+                                    fontWeight: 600
+                                }}
+                            />
+                        }
                     />
-                    <CardContent sx={{ flexGrow: 1, overflow: 'auto' }}>
-                        <List sx={{ maxHeight: '300px', overflow: 'auto' }}>
+                    <CardContent sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+                        <List sx={{ maxHeight: 300, overflow: 'auto' }}>
                             {credentials.map((credential, idx) => (
                                 <CredentialItem
                                     key={idx}
@@ -403,452 +565,692 @@ const ViewPassword = () => {
     };
 
     return (
-        <Box sx={darkBackgroundStyle} style={{
-            padding: '10px', margin: '10px auto',
-            maxWidth: 1500
-        }} >
-            <Container style={{ padding: '0px', margin: '0px', maxWidth: '100%' }}>
-                <Box sx={{ mb: 4, display: 'flex', alignItems: 'center' }}>
-                    <Button
-                        variant="contained"
-                        startIcon={<ArrowBackIcon />}
-                        onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
-                        sx={{ mr: 2 }}
+        <Box sx={{
+            minHeight: '100vh',
+            position: 'relative',
+            overflow: 'hidden'
+        }}>
+            {/* Advanced Background */}
+            <AdvancedBackground />
+
+            {/* Main Content */}
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+                <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, sm: 3 } }}>
+                    {/* Header Section */}
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
                     >
-                        Back
-                    </Button>
-                    <Typography variant="h4" component="h1" sx={{ flexGrow: 1, color: 'black' }}>
-                        View Credentials
-                    </Typography>
-                </Box>
-
-                <Divider sx={{ mb: 4, backgroundColor: 'rgba(0, 0, 0, 0.9)' }} />
-
-                {/* <Grid item xs={12} md={6} lg={6}> */}
-                <Box
-                    sx={{
-                        display: 'flex',
-                        justifyContent: 'flex-end',
-                        mb: 4,
-                        mx: 'auto',
-                    }}
-                >
-
-                    <TextField
-
-                        // fullWidth
-                        variant="outlined"
-                        placeholder="Search by host or username..."
-                        value={searchQuery}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon color="action" />
-                                </InputAdornment>
-                            ),
-                            sx: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                                color: 'white',
-                                minWidth: '300px',
-                                maxWidth: '400px',
-                            },
-                        }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': {
-                                '& fieldset': {
-                                    borderColor: 'rgba(0, 0, 0, 0.23)',
-                                },
-                                '&:hover fieldset': {
-                                    borderColor: 'rgba(0, 0, 0, 0.5)',
-                                },
-                            },
-                        }}
-                    />
-                </Box>
-                {/* </Grid> */}
-
-
-                {isFetching ? (
-                    <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-                        <CircularProgress color="primary" />
-                        <Typography variant="body1" sx={{ ml: 2, color: 'black' }}>
-                            Loading credentials...
-                        </Typography>
-                    </Box>
-                ) : loading ? (
-                    <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-                        <CircularProgress color="primary" />
-                    </Box>
-                ) : (
-                    <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
-                        {credentials.length > 0 ? (
-                            credentials.map((hostData, index) => (
-                                <Grid
-                                    item
-                                    key={hostData.id}
+                        <Box sx={{
+                            mb: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexDirection: { xs: 'column', sm: 'row' },
+                            gap: 2
+                        }}>
+                            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<ArrowBackIcon />}
+                                    onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
                                     sx={{
-                                        width: { xs: '100%', sm: '45%', md: '30%' },
-                                        minWidth: '300px',
-                                        maxWidth: '400px',
-                                        height: '100%',
-                                        display: 'flex'
+                                        mr: 2,
+                                        background: `linear-gradient(135deg, ${teal[500]} 0%, ${teal[700]} 100%)`,
+                                        borderRadius: 2,
+                                        fontWeight: 600
                                     }}
                                 >
-                                    <HostCard
-                                        hostData={hostData}
-                                        index={index}
+                                    Back
+                                </Button>
+                            </motion.div>
+
+                            <Box sx={{
+                                flexGrow: 1,
+                                textAlign: { xs: 'center', sm: 'left' },
+                                background: alpha('#ffffff', 0.9),
+                                backdropFilter: 'blur(10px)',
+                                borderRadius: 3,
+                                p: 3,
+                                border: `1px solid ${alpha(teal[500], 0.2)}`
+                            }}>
+                                <Typography
+                                    variant="h3"
+                                    component="h1"
+                                    sx={{
+                                        fontWeight: 800,
+                                        background: `linear-gradient(135deg, ${teal[500]} 0%, ${blue[500]} 100%)`,
+                                        backgroundClip: 'text',
+                                        WebkitBackgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                        fontSize: { xs: '2rem', sm: '2.5rem' }
+                                    }}
+                                >
+                                    Password Vault
+                                </Typography>
+                                <Typography
+                                    variant="h6"
+                                    color="text.secondary"
+                                    sx={{ mt: 1 }}
+                                >
+                                    Manage your stored credentials securely
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </motion.div>
+
+                    {/* Search Section */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            mb: 4
+                        }}>
+                            <TextField
+                                variant="outlined"
+                                placeholder="Search by host or username..."
+                                value={searchQuery}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchIcon color="primary" />
+                                        </InputAdornment>
+                                    ),
+                                    sx: {
+                                        color: 'black',
+                                        background: alpha('#ffffff', 0.95),
+                                        borderRadius: 3,
+                                        minWidth: { xs: '100%', sm: 400 },
+                                        maxWidth: 500,
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: alpha(teal[500], 0.3),
+                                        },
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: teal[500],
+                                        },
+                                    },
+                                }}
+                            />
+                        </Box>
+                    </motion.div>
+
+                    {/* Credentials Grid */}
+                    {isFetching ? (
+                        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            >
+                                <CircularProgress
+                                    size={60}
+                                    thickness={4}
+                                    sx={{ color: teal[500] }}
+                                />
+                            </motion.div>
+                            <Typography variant="body1" sx={{ ml: 2, color: 'white', fontWeight: 600 }}>
+                                Loading credentials...
+                            </Typography>
+                        </Box>
+                    ) : loading ? (
+                        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                            <CircularProgress color="primary" />
+                        </Box>
+                    ) : (
+                        <Grid container spacing={3} sx={{ justifyContent: 'center' }}>
+                            {credentials.length > 0 ? (
+                                credentials.map((hostData, index) => (
+                                    <Grid
+                                        item
+                                        key={hostData.id}
                                         sx={{
-                                            width: '100%',
+                                            width: { xs: '100%', sm: '45%', md: '30%' },
+                                            minWidth: 300,
+                                            maxWidth: 400,
                                             height: '100%',
-                                            display: 'flex',
-                                            flexDirection: 'column'
+                                            display: 'flex'
+                                        }}
+                                    >
+                                        <HostCard
+                                            hostData={hostData}
+                                            index={index}
+                                        />
+                                    </Grid>
+                                ))
+                            ) : (
+                                <Grid item xs={12}>
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ duration: 0.5 }}
+                                    >
+                                        <Paper elevation={0} sx={{
+                                            ...cardStyle,
+                                            p: 6,
+                                            textAlign: 'center',
+                                            border: `2px dashed ${alpha(teal[300], 0.5)}`
+                                        }}>
+                                            <LockIcon sx={{ fontSize: 64, color: teal[300], mb: 2 }} />
+                                            <Typography variant="h5" gutterBottom sx={{ color: teal[800], fontWeight: 600 }}>
+                                                No Credentials Found
+                                            </Typography>
+                                            <Typography variant="body1" color="text.secondary">
+                                                {searchQuery ? 'Try adjusting your search terms' : 'Start by adding some credentials to your vault'}
+                                            </Typography>
+                                        </Paper>
+                                    </motion.div>
+                                </Grid>
+                            )}
+                        </Grid>
+                    )}
+
+                    {/* Edit Credential Dialog */}
+                    <Dialog
+                        open={openEditDialog}
+                        onClose={() => !isUpdating && setOpenEditDialog(false)}
+                        maxWidth="sm"
+                        fullWidth
+                        PaperProps={{
+                            sx: {
+                                background: `linear-gradient(135deg, ${alpha('#ffffff', 0.95)} 0%, ${alpha(teal[50], 0.8)} 100%)`,
+                                backdropFilter: 'blur(20px)',
+                                borderRadius: 3,
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                                border: `1px solid ${alpha(teal[500], 0.2)}`,
+                            }
+                        }}
+                    >
+                        <DialogTitle sx={{
+                            background: `linear-gradient(135deg, ${teal[500]} 0%, ${teal[700]} 100%)`,
+                            color: 'white',
+                            fontWeight: 'bold',
+                            borderBottom: `1px solid ${teal[300]}`,
+                            padding: '20px 24px'
+                        }}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                                <EditIcon />
+                                Update Credential
+                            </Box>
+                        </DialogTitle>
+
+                        <DialogContent dividers sx={{ p: 3 }}>
+                            <Grid container spacing={2}>
+                                {/* Host (disabled) */}
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Host"
+                                        name="host"
+                                        value={formCredential.host || ''}
+                                        disabled
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                color: 'black', // ✅ main text
+                                            },
+                                            '& .MuiInputBase-input.Mui-disabled': {
+                                                WebkitTextFillColor: 'black', // ✅ ensures disabled text is black too
+                                                opacity: 1,
+                                            },
+                                            '& .MuiInputLabel-root': {
+                                                color: teal[800],
+                                                fontWeight: '600'
+                                            },
+                                            '& .MuiOutlinedInput-root': {
+                                                '& fieldset': {
+                                                    borderColor: teal[300],
+                                                },
+                                                '&.Mui-disabled': {
+                                                    '& fieldset': {
+                                                        borderColor: teal[200],
+                                                    },
+                                                    backgroundColor: teal[50],
+                                                }
+                                            },
                                         }}
                                     />
                                 </Grid>
-                            ))
-                        ) : (
-                            <Grid item xs={12}>
-                                <Paper elevation={3} sx={{ ...cardStyle, p: 4, textAlign: 'center' }}>
-                                    <Typography variant="h6">No credentials found</Typography>
-                                </Paper>
-                            </Grid>
-                        )}
-                    </Grid>
-                )}
 
-                {/* Edit Credential Dialog */}
-
-                <Dialog
-                    open={openEditDialog}
-                    onClose={() => !isUpdating && setOpenEditDialog(false)}
-                    maxWidth="sm"
-                    fullWidth
-                    PaperProps={{
-                        sx: {
-                            backgroundColor: 'white',
-                            color: 'black',
-                            borderRadius: 3,
-                            boxShadow: 6,
-                            border: `2px solid ${teal[500]}`,
-                        }
-                    }}
-                >
-                    <DialogTitle sx={{
-                        color: 'black',
-                        fontWeight: 'bold',
-                        backgroundColor: teal[100],
-                        borderBottom: `1px solid ${teal[300]}`,
-                        padding: '16px 24px'
-                    }}>
-                        Update Credential
-                    </DialogTitle>
-
-                    <DialogContent dividers sx={{ backgroundColor: 'white' }}>
-                        <Grid container spacing={2}>
-                            {/* Host (disabled) */}
-                            <Grid item xs={12}>
-                                <TextField
-                                    fullWidth
-                                    label="Host"
-                                    name="host"
-                                    value={formCredential.host || ''}
-                                    disabled
-                                    sx={{
-                                        '& .MuiInputLabel-root': {
-                                            color: teal[800],
-                                            fontWeight: '500',
-                                            '&.Mui-disabled': {
-                                                color: teal[600] // Slightly lighter when disabled
-                                            }
-                                        },
-                                        '& .MuiOutlinedInput-root': {
-                                            '& fieldset': {
-                                                borderColor: teal[300],
+                                {/* Username (disabled) */}
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Username"
+                                        name="username"
+                                        value={formCredential.username || ''}
+                                        disabled
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                color: 'black', // ✅ main text
                                             },
-                                            '&:hover fieldset': {
-                                                borderColor: teal[500],
+                                            '& .MuiInputBase-input.Mui-disabled': {
+                                                WebkitTextFillColor: 'black', // ✅ ensures disabled text is black too
+                                                opacity: 1,
                                             },
-                                            '&.Mui-disabled': {
+                                            '& .MuiInputLabel-root': {
+                                                color: teal[800],
+                                                fontWeight: '600'
+                                            },
+                                            '& .MuiOutlinedInput-root': {
                                                 '& fieldset': {
-                                                    borderColor: teal[200],
+                                                    borderColor: teal[300],
                                                 },
-                                                '& input': {
-                                                    color: 'black !important',
-                                                    WebkitTextFillColor: 'black !important',
-                                                },
-                                                backgroundColor: teal[50],
-                                            }
-                                        },
-                                    }}
-                                />
-                            </Grid>
+                                                '&.Mui-disabled': {
+                                                    '& fieldset': {
+                                                        borderColor: teal[200],
+                                                    },
+                                                    backgroundColor: teal[50],
+                                                }
+                                            },
+                                        }}
+                                    />
+                                </Grid>
 
-                            {/* Username (disabled) */}
-                            <Grid item xs={12}>
-                                <TextField
-                                    fullWidth
-                                    label="Username"
-                                    name="username"
-                                    value={formCredential.username || ''}
-                                    disabled
-                                    sx={{
-                                        '& .MuiInputLabel-root': {
-                                            color: teal[800],
-                                            fontWeight: '500',
-                                            '&.Mui-disabled': {
-                                                color: teal[600]
-                                            }
-                                        },
-                                        '& .MuiOutlinedInput-root': {
-                                            '& fieldset': {
-                                                borderColor: teal[300],
+                                {/* Password with toggle */}
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Password"
+                                        name="password"
+                                        type={showPassword ? "text" : "password"}
+                                        value={formCredential.password || ''}
+                                        onChange={handleInputChange}
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                color: 'black', // ✅ main text
                                             },
-                                            '&:hover fieldset': {
-                                                borderColor: teal[500],
+                                            '& .MuiInputBase-input.Mui-disabled': {
+                                                WebkitTextFillColor: 'black', // ✅ ensures disabled text is black too
+                                                opacity: 1,
                                             },
-                                            '&.Mui-disabled': {
+                                            '& .MuiInputLabel-root': {
+                                                color: teal[800],
+                                                fontWeight: '600'
+                                            },
+                                            '& .MuiOutlinedInput-root': {
                                                 '& fieldset': {
-                                                    borderColor: teal[200],
+                                                    borderColor: teal[300],
                                                 },
-                                                '& input': {
-                                                    color: 'black !important',
-                                                    WebkitTextFillColor: 'black !important',
+                                                '&:hover fieldset': {
+                                                    borderColor: teal[500],
                                                 },
-                                                backgroundColor: teal[50],
-                                            }
-                                        },
-                                    }}
-                                />
-                            </Grid>
+                                            },
+                                        }}
+                                        InputProps={{
+                                            endAdornment: (
+                                                <InputAdornment position="end">
+                                                    <IconButton
+                                                        onClick={togglePasswordVisibility}
+                                                        sx={{ color: teal[700] }}
+                                                    >
+                                                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                                    </IconButton>
+                                                </InputAdornment>
+                                            )
+                                        }}
+                                    />
+                                </Grid>
 
-                            {/* Password with toggle */}
-                            <Grid item xs={12}>
-                                <TextField
-                                    fullWidth
-                                    label="Password"
-                                    name="password"
-                                    type={showPassword ? "text" : "password"}
-                                    value={formCredential.password || ''}
-                                    onChange={handleInputChange}
-                                    sx={{
-                                        '& .MuiInputLabel-root': {
-                                            color: teal[800],
-                                            fontWeight: '500'
-                                        },
-                                        '& .MuiOutlinedInput-root': {
-                                            '& fieldset': {
-                                                borderColor: teal[300],
+                                {/* Optional PIN */}
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Pin (optional)"
+                                        name="pin"
+                                        value={formCredential.pin || ''}
+                                        onChange={handleInputChange}
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                color: 'black', // ✅ main text
                                             },
-                                            '&:hover fieldset': {
-                                                borderColor: teal[500],
+                                            '& .MuiInputBase-input.Mui-disabled': {
+                                                WebkitTextFillColor: 'black', // ✅ ensures disabled text is black too
+                                                opacity: 1,
                                             },
-                                            '& input': {
-                                                color: 'black'
-                                            }
-                                        },
-                                    }}
-                                    InputProps={{
-                                        endAdornment: (
-                                            <InputAdornment position="end">
-                                                <IconButton
-                                                    onClick={togglePasswordVisibility}
-                                                    sx={{ color: teal[700] }}
-                                                >
-                                                    {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                                                </IconButton>
-                                            </InputAdornment>
-                                        )
-                                    }}
-                                />
-                            </Grid>
+                                            '& .MuiInputLabel-root': {
+                                                color: teal[800],
+                                                fontWeight: '600'
+                                            },
+                                            '& .MuiOutlinedInput-root': {
+                                                '& fieldset': {
+                                                    borderColor: teal[300],
+                                                },
+                                                '&:hover fieldset': {
+                                                    borderColor: teal[500],
+                                                },
+                                            },
+                                        }}
+                                    />
+                                </Grid>
 
-                            {/* Optional PIN */}
-                            <Grid item xs={12}>
-                                <TextField
-                                    fullWidth
-                                    label="Pin (optional)"
-                                    name="pin"
-                                    value={formCredential.pin || ''}
-                                    onChange={handleInputChange}
-                                    sx={{
-                                        '& .MuiInputLabel-root': {
-                                            color: teal[800],
-                                            fontWeight: '500'
-                                        },
-                                        '& .MuiOutlinedInput-root': {
-                                            '& fieldset': {
-                                                borderColor: teal[300],
+                                {/* Optional Notes */}
+                                <Grid item xs={12}>
+                                    <Box sx={{ mb: 1 }}>
+                                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                            Additional Credentials & Notes
+                                        </Typography>
+                                    </Box>
+                                    <TextField
+                                        fullWidth
+                                        name="notes"
+                                        multiline
+                                        minRows={3}
+                                        maxRows={8}
+                                        value={formCredential.notes || ''}
+                                        onChange={handleInputChange}
+                                        placeholder={
+                                            `You can add:
+• Security questions (Q: What's your pet's name? A: Fluffy)
+• Backup codes (Code1: XXXX-XXXX, Code2: YYYY-YYYY)
+• Additional credentials (API Key: sk-...)
+• Recovery email: backup@example.com
+• Any other relevant information`
+                                        }
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                color: 'black', // ✅ main text
                                             },
-                                            '&:hover fieldset': {
-                                                borderColor: teal[500],
+                                            '& .MuiInputBase-input.Mui-disabled': {
+                                                WebkitTextFillColor: 'black', // ✅ ensures disabled text is black too
+                                                opacity: 1,
                                             },
-                                            '& input': {
-                                                color: 'black'
-                                            }
-                                        },
-                                    }}
-                                />
+                                            '& .MuiOutlinedInput-root': {
+                                                '& fieldset': {
+                                                    borderColor: teal[300],
+                                                    borderWidth: 2,
+                                                },
+                                                '&:hover fieldset': {
+                                                    borderColor: teal[500],
+                                                },
+                                                '&.Mui-focused fieldset': {
+                                                    borderColor: teal[700],
+                                                },
+                                                '& textarea': {
+                                                    fontFamily: 'Monaco, Consolas, monospace',
+                                                    fontSize: '0.9rem',
+                                                    lineHeight: 1.6,
+                                                    whiteSpace: 'pre-wrap',
+                                                    wordBreak: 'break-word',
+                                                }
+                                            },
+                                        }}
+                                        InputProps={{
+                                            startAdornment: (
+                                                <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1.5 }}>
+                                                    <LockIcon fontSize="small" color="action" />
+                                                </InputAdornment>
+                                            ),
+                                        }}
+                                    />
+                                    <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Supports multiple lines and formatted text
+                                        </Typography>
+                                        {formCredential.notes && (
+                                            <Chip
+                                                label={`${formCredential.notes.split('\n').length} lines`}
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                            />
+                                        )}
+                                    </Box>
+                                </Grid>
                             </Grid>
+                        </DialogContent>
 
-                            {/* Optional Notes */}
-                            <Grid item xs={12}>
-                                <TextField
-                                    fullWidth
-                                    label="Notes (optional)"
-                                    name="notes"
-                                    multiline
-                                    rows={3}
-                                    value={formCredential.notes || ''}
-                                    onChange={handleInputChange}
-                                    sx={{
-                                        '& .MuiInputLabel-root': {
-                                            color: teal[800],
-                                            fontWeight: '500'
-                                        },
-                                        '& .MuiOutlinedInput-root': {
-                                            '& fieldset': {
-                                                borderColor: teal[300],
-                                            },
-                                            '&:hover fieldset': {
-                                                borderColor: teal[500],
-                                            },
-                                            '& textarea': {
-                                                color: 'black'
-                                            }
-                                        },
-                                    }}
-                                />
-                            </Grid>
-                        </Grid>
-                    </DialogContent>
+                        <DialogActions sx={{
+                            backgroundColor: alpha(teal[50], 0.8),
+                            borderTop: `1px solid ${teal[200]}`,
+                            padding: '16px 24px'
+                        }}>
+                            <Button
+                                onClick={() => setOpenEditDialog(false)}
+                                disabled={isUpdating}
+                                sx={{
+                                    color: teal[800],
+                                    border: `1px solid ${teal[800]}`,
+                                    fontWeight: '600',
+                                    borderRadius: 2,
+                                    '&:hover': {
+                                        backgroundColor: teal[100],
+                                    },
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={handleUpdateCredential}
+                                disabled={isUpdating}
+                                startIcon={isUpdating ? <CircularProgress size={20} color="inherit" /> : null}
+                                sx={{
+                                    background: `linear-gradient(135deg, ${teal[500]} 0%, ${teal[700]} 100%)`,
+                                    color: 'white',
+                                    fontWeight: '600',
+                                    borderRadius: 2,
+                                    '&:hover': {
+                                        background: `linear-gradient(135deg, ${teal[600]} 0%, ${teal[800]} 100%)`,
+                                    },
+                                }}
+                            >
+                                {isUpdating ? 'Updating...' : 'Save Changes'}
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
 
-                    <DialogActions sx={{
-                        backgroundColor: teal[50],
-                        borderTop: `1px solid ${teal[300]}`,
-                        padding: '16px 24px'
-                    }}>
-                        <Button
-                            onClick={() => setOpenEditDialog(false)}
-                            disabled={isUpdating}
+                    {/* Delete Credential Dialog */}
+                    {/* Delete Credential Dialog */}
+                    <Dialog
+                        open={openDeleteDialog}
+                        onClose={() => !isDeleting && setOpenDeleteDialog(false)}
+                        PaperProps={{
+                            sx: {
+                                ...cardStyle,
+                                background: `linear-gradient(135deg, ${alpha('#ffffff', 0.95)} 0%, ${alpha(red[50], 0.8)} 100%)`,
+                                border: `1px solid ${alpha(red[300], 0.5)}`,
+                                color: 'black', // ✅ ensures all inner text is black
+                            }
+                        }}
+                    >
+                        <DialogTitle
                             sx={{
-                                color: teal[800],
-                                border: `1px solid ${teal[800]}`,
-                                fontWeight: 'bold',
-                                '&:hover': {
-                                    backgroundColor: teal[100],
-                                },
-                                '&:disabled': {
-                                    color: teal[300],
-                                    borderColor: teal[300]
-                                }
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="contained"
-                            onClick={handleUpdateCredential}
-                            disabled={isUpdating}
-                            startIcon={isUpdating ? <CircularProgress size={20} color="inherit" /> : null}
-                            sx={{
-                                backgroundColor: teal[700],
+                                background: `linear-gradient(135deg, ${red[500]} 0%, ${red[700]} 100%)`,
                                 color: 'white',
                                 fontWeight: 'bold',
-                                '&:hover': {
-                                    backgroundColor: teal[900]
-                                },
-                                '&:disabled': {
-                                    backgroundColor: teal[300]
+                                p: 2.5,
+                                borderBottom: `1px solid ${alpha(red[300], 0.5)}`
+                            }}
+                        >
+                            <Box display="flex" alignItems="center" gap={1}>
+                                <WarningIcon />
+                                Delete Credential
+                            </Box>
+                        </DialogTitle>
+
+                        <DialogContent
+                            sx={{
+                                p: 3,
+                                color: 'black',
+                                '& .MuiTypography-root': {
+                                    color: 'black'
                                 }
                             }}
                         >
-                            {isUpdating ? 'Updating...' : 'Save Changes'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
+                            <Typography variant="body1" gutterBottom>
+                                Are you sure you want to delete this credential?
+                            </Typography>
 
-                {/* Delete Credential Dialog */}
-                <Dialog
-                    open={openDeleteDialog}
-                    onClose={() => !isDeleting && setOpenDeleteDialog(false)}
-                    PaperProps={{
-                        sx: { ...cardStyle, backgroundColor: 'white' }
-                    }}
-                >
-                    <DialogTitle>Delete Credential</DialogTitle>
-                    <DialogContent>
-                        <Typography>
-                            Are you sure you want to delete this credential?
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 2 }}>
-                            <strong>Host:</strong> {formCredential.host}
-                        </Typography>
-                        <Typography variant="body2">
-                            <strong>Username:</strong> {formCredential.username}
-                        </Typography>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button
-                            onClick={() => setOpenDeleteDialog(false)}
-                            disabled={isDeleting}
-                            color="inherit"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="contained"
-                            color="error"
-                            onClick={handleDeleteCredential}
-                            disabled={isDeleting}
-                            startIcon={isDeleting ? <CircularProgress size={20} color="inherit" /> : null}
-                        >
-                            {isDeleting ? 'Deleting...' : 'Delete'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
+                            <Box
+                                sx={{
+                                    mt: 2,
+                                    p: 2,
+                                    background: alpha(red[50], 0.6),
+                                    borderRadius: 1,
+                                    border: `1px solid ${alpha(red[200], 0.6)}`
+                                }}
+                            >
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    Host: {formCredential.host}
+                                </Typography>
+                                <Typography variant="body2">
+                                    Username: {formCredential.username}
+                                </Typography>
+                            </Box>
+                        </DialogContent>
 
-                {/* Delete Host Dialog */}
-                <Dialog
-                    open={openDeleteHostDialog}
-                    onClose={() => !isDeletingHost && setOpenDeleteHostDialog(false)}
-                    PaperProps={{
-                        sx: cardStyle
-                    }}
-                >
-                    <DialogTitle>Delete Host</DialogTitle>
-                    <DialogContent>
-                        <Typography>
-                            Are you sure you want to delete this host and all its credentials?
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 2 }}>
-                            <strong>Host:</strong> {formCredential.host}
-                        </Typography>
-                        <Typography variant="body2" color="error" sx={{ mt: 2 }}>
-                            Warning: This will permanently delete all credentials under this host.
-                        </Typography>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button
-                            onClick={() => setOpenDeleteHostDialog(false)}
-                            disabled={isDeletingHost}
-                            color="inherit"
+                        <DialogActions
+                            sx={{
+                                p: 3,
+                                gap: 1,
+                                background: alpha('#fff', 0.4),
+                                borderTop: `1px solid ${alpha(red[200], 0.5)}`
+                            }}
                         >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="contained"
-                            color="error"
-                            onClick={handleDeleteHost}
-                            disabled={isDeletingHost}
-                            startIcon={isDeletingHost ? <CircularProgress size={20} color="inherit" /> : null}
+                            <Button
+                                onClick={() => setOpenDeleteDialog(false)}
+                                disabled={isDeleting}
+                                sx={{
+                                    color: 'black',
+                                    fontWeight: '600',
+                                    borderRadius: 2,
+                                    '&:hover': {
+                                        backgroundColor: alpha(red[100], 0.5)
+                                    }
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="contained"
+                                color="error"
+                                onClick={handleDeleteCredential}
+                                disabled={isDeleting}
+                                startIcon={isDeleting ? <CircularProgress size={20} color="inherit" /> : null}
+                                sx={{
+                                    background: `linear-gradient(135deg, ${red[500]} 0%, ${red[700]} 100%)`,
+                                    fontWeight: '600',
+                                    borderRadius: 2,
+                                    '&:hover': {
+                                        background: `linear-gradient(135deg, ${red[600]} 0%, ${red[800]} 100%)`
+                                    }
+                                }}
+                            >
+                                {isDeleting ? 'Deleting...' : 'Delete'}
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+
+
+                    {/* Delete Host Dialog */}
+                    <Dialog
+                        open={openDeleteHostDialog}
+                        onClose={() => !isDeletingHost && setOpenDeleteHostDialog(false)}
+                        PaperProps={{
+                            sx: {
+                                ...cardStyle,
+                                background: `linear-gradient(135deg, ${alpha('#ffffff', 0.95)} 0%, ${alpha(red[50], 0.8)} 100%)`,
+                                border: `1px solid ${alpha(red[300], 0.5)}`,
+                                color: 'black', // ✅ ensures readability
+                            }
+                        }}
+                    >
+                        <DialogTitle
+                            sx={{
+                                background: `linear-gradient(135deg, ${red[600]} 0%, ${red[800]} 100%)`,
+                                color: 'white',
+                                fontWeight: 'bold',
+                                p: 2.5,
+                                borderBottom: `1px solid ${alpha(red[300], 0.5)}`
+                            }}
                         >
-                            {isDeletingHost ? 'Deleting...' : 'Delete Host'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-            </Container>
-            
+                            <Box display="flex" alignItems="center" gap={1}>
+                                <WarningIcon />
+                                Delete Host
+                            </Box>
+                        </DialogTitle>
+
+                        <DialogContent
+                            sx={{
+                                p: 3,
+                                color: 'black',
+                                '& .MuiTypography-root': {
+                                    color: 'black'
+                                }
+                            }}
+                        >
+                            <Typography variant="body1" gutterBottom>
+                                Are you sure you want to delete this host and all its credentials?
+                            </Typography>
+
+                            <Box
+                                sx={{
+                                    mt: 2,
+                                    p: 2,
+                                    background: alpha(red[50], 0.6),
+                                    borderRadius: 1,
+                                    border: `1px solid ${alpha(red[200], 0.6)}`
+                                }}
+                            >
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    Host: {formCredential.host}
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    color="error"
+                                    sx={{ mt: 1, fontWeight: 600 }}
+                                >
+                                    ⚠️ Warning: This will permanently delete all credentials under this host.
+                                </Typography>
+                            </Box>
+                        </DialogContent>
+
+                        <DialogActions
+                            sx={{
+                                p: 3,
+                                gap: 1,
+                                background: alpha('#fff', 0.4),
+                                borderTop: `1px solid ${alpha(red[200], 0.5)}`
+                            }}
+                        >
+                            <Button
+                                onClick={() => setOpenDeleteHostDialog(false)}
+                                disabled={isDeletingHost}
+                                sx={{
+                                    color: 'black',
+                                    fontWeight: '600',
+                                    borderRadius: 2,
+                                    '&:hover': {
+                                        backgroundColor: alpha(red[100], 0.5)
+                                    }
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="contained"
+                                color="error"
+                                onClick={handleDeleteHost}
+                                disabled={isDeletingHost}
+                                startIcon={isDeletingHost ? <CircularProgress size={20} color="inherit" /> : null}
+                                sx={{
+                                    background: `linear-gradient(135deg, ${red[600]} 0%, ${red[800]} 100%)`,
+                                    fontWeight: '600',
+                                    borderRadius: 2,
+                                    '&:hover': {
+                                        background: `linear-gradient(135deg, ${red[700]} 0%, ${red[900]} 100%)`
+                                    }
+                                }}
+                            >
+                                {isDeletingHost ? 'Deleting...' : 'Delete Host'}
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+                </Container>
+            </Box>
         </Box>
     );
 };

@@ -3,28 +3,24 @@ import {
   Box, Card, CardContent, Typography, Grid, Paper,
   Tabs, Tab, TextField, InputAdornment, IconButton,
   FormControl, InputLabel, Select, MenuItem, Chip,
-  Fab, CircularProgress
+  Fab, CircularProgress, useTheme, useMediaQuery
 } from '@mui/material';
 import { Search, Refresh, Code, List, KeyboardArrowDown } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  LineChart, BarChart, PieChart, Line, Bar, Pie,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Cell
-} from 'recharts';
 import { useWebSocket } from '../../Utils/useWebSocket';
 import ChartsWrapper from './ChartsWrapper';
+import LogViewer from './LogViewer';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d', '#ffc658'];
 const DEFAULT_LOOKBACK_MINUTES = 60;
 
 const LogDashboard = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+
   const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_BASEURL
     ? `${process.env.REACT_APP_WEBSOCKET_BASEURL}/ws/application-logs?lookback_minutes=${DEFAULT_LOOKBACK_MINUTES}`
     : 'ws://localhost:9000/ws/application-logs?lookback_minutes=60';
 
-  const logsEndRef = useRef(null);
-  const logsContainerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [logs, setLogs] = useState([]);
   const [activeTab, setActiveTab] = useState(0);
@@ -34,41 +30,32 @@ const LogDashboard = () => {
   const [timeRangeFilter, setTimeRangeFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
   const [userList, setUserList] = useState([]);
-  const [isScrolledUp, setIsScrolledUp] = useState(false);
+
   const logKeysSet = useRef(new Set());
 
+  // Optimized WebSocket message handler
   const handleWebSocketMessage = useCallback((msg) => {
     try {
-      const data = typeof msg === 'string' ? JSON.parse(msg.data) : msg.data;
-      let logsData = Array.isArray(data) ? data : [data];
+      const raw = msg.data;
+      const parsed = JSON.parse(raw);
 
-      // Skip status messages and empty logs
-      logsData = logsData.filter(log =>
-        log && log.message && !log.message.includes('Logs retrieved')
-      );
+      // Backend always wraps logs inside "data"
+      let logsData = parsed.data;
 
-      if (logsData.length > 0) {
-        processIncomingLogs(logsData);
-      }
+      // If data is not array → nothing to process
+      if (!Array.isArray(logsData) || logsData.length === 0) return;
+
+      // Parse logs
+      processIncomingLogs(logsData);
+
     } catch (error) {
-      console.error('Error processing WebSocket message:', error, msg);
+      console.error("❌ Error processing WebSocket message:", error, msg);
     }
   }, []);
 
   const { isConnected, reconnect } = useWebSocket(WEBSOCKET_URL, handleWebSocketMessage);
 
-  const scrollToBottom = () => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleScroll = useCallback(() => {
-    const container = logsContainerRef.current;
-    if (!container) return;
-
-    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 10;
-    setIsScrolledUp(!isAtBottom);
-  }, []);
-
+  // Optimized log parser with memoization
   const parseLogEntry = useCallback((log) => {
     if (typeof log === 'string') {
       try {
@@ -110,6 +97,7 @@ const LogDashboard = () => {
     };
   }, []);
 
+  // Debounced log processing
   const processIncomingLogs = useCallback((logEntries) => {
     if (!Array.isArray(logEntries)) return;
 
@@ -124,22 +112,27 @@ const LogDashboard = () => {
 
     setLogs(prev => {
       const updatedLogs = [...prev, ...uniqueLogs];
-      return updatedLogs.slice(-2000); // Keep last 2000 logs
+      // Keep only last 1000 logs for performance
+      return updatedLogs.slice(-1000);
     });
 
-    // Update user filter options
+    // Update user list
     const newUsers = new Set();
     uniqueLogs.forEach(log => {
       if (log.user) newUsers.add(log.user);
     });
-    setUserList(prev => [...new Set([...prev, ...newUsers])]);
+
+    setUserList(prev => {
+      const combined = new Set([...prev, ...newUsers]);
+      return Array.from(combined).slice(0, 50); // Limit to 50 users
+    });
 
     setIsLoading(false);
-    setTimeout(scrollToBottom, 100);
   }, [parseLogEntry]);
 
+  // Optimized filtered logs with proper dependencies
   const filteredLogs = useMemo(() => {
-    let result = [...logs];
+    let result = logs;
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -172,16 +165,21 @@ const LogDashboard = () => {
     return result;
   }, [logs, searchTerm, logLevelFilter, timeRangeFilter, userFilter]);
 
+  // Optimized chart data computation
   const chartData = useMemo(() => {
     const levelDistribution = ['ERROR', 'WARN', 'INFO', 'DEBUG'].map(level => ({
       name: level,
       value: filteredLogs.filter(log => log.level === level).length,
     }));
 
+    // Aggregate logs by 5-minute intervals for better performance
     const logsOverTime = {};
     filteredLogs.forEach(log => {
-      const time = log.timestamp.split(', ')[1]?.substring(0, 5) || '00:00';
-      logsOverTime[time] = (logsOverTime[time] || 0) + 1;
+      const date = new Date(log.timestamp);
+      const minutes = date.getMinutes();
+      const roundedMinutes = Math.floor(minutes / 5) * 5;
+      const timeKey = `${date.getHours()}:${roundedMinutes.toString().padStart(2, '0')}`;
+      logsOverTime[timeKey] = (logsOverTime[timeKey] || 0) + 1;
     });
 
     const requestStats = { methods: {}, statusCodes: {}, uris: {} };
@@ -193,178 +191,24 @@ const LogDashboard = () => {
 
     return {
       levelDistribution,
-      logsOverTime: Object.entries(logsOverTime).map(([time, count]) => ({ time, count })),
+      logsOverTime: Object.entries(logsOverTime)
+        .sort(([timeA], [timeB]) => timeA.localeCompare(timeB))
+        .map(([time, count]) => ({ time, count })),
       requestStats
     };
   }, [filteredLogs]);
 
-
-  // Helper functions for time formatting
-  const formatTimeForChart = (timestamp) => {
-    const date = new Date(timestamp);
-    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  const formatTimeForTooltip = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-  };
-
   const renderTabPanel = (index) => {
     if (index === 0) {
-      return <ChartsWrapper chartData={chartData} />
+      return <ChartsWrapper chartData={chartData} />;
     } else {
       return (
-        <Box sx={{ mt: 2 }}>
-          <Paper
-            elevation={3}
-            sx={{
-              p: 2,
-              height: { xs: '60vh', md: '70vh' },
-              overflow: 'auto',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-            ref={logsContainerRef}
-            onScroll={handleScroll}
-          >
-            {isLoading ? (
-              <Box sx={{
-                flex: 1,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                <CircularProgress />
-              </Box>
-            ) : filteredLogs.length === 0 ? (
-              <Typography variant="body1" align="center" sx={{ mt: 5 }}>
-                No matching logs found
-              </Typography>
-            ) : (
-              <AnimatePresence>
-                {filteredLogs.map((log) => (
-                  <motion.div
-                    key={log.logKey}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    {viewMode === 'raw' ? (
-                      <pre style={{
-                        margin: '8px 0',
-                        padding: '8px',
-                        backgroundColor: log.isError ? '#ffebee' : log.isWarning ? '#fff8e1' : '#e8f5e9',
-                        borderRadius: 4,
-                        whiteSpace: 'pre-wrap',
-                        fontSize: '0.8rem'
-                      }}>
-                        {log.raw}
-                      </pre>
-                    ) : (
-                      <Box sx={{
-                        mb: 1,
-                        p: 1.5,
-                        borderLeft: `4px solid ${log.isError ? '#f44336' : log.isWarning ? '#ff9800' : '#4caf50'}`,
-                        backgroundColor: log.isError ? '#ffebee' : log.isWarning ? '#fff8e1' : '#e8f5e9',
-                        borderRadius: '0 4px 4px 0'
-                      }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center">
-                          <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                            {log.timestamp}
-                          </Typography>
-                          <Chip
-                            label={log.level}
-                            size="small"
-                            sx={{
-                              backgroundColor: log.isError ? '#f44336' : log.isWarning ? '#ff9800' : '#4caf50',
-                              color: 'white',
-                              fontSize: '0.7rem'
-                            }}
-                          />
-                        </Box>
-
-                        <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold', fontSize: '0.9rem' }}>
-                          [{log.loggerName || 'Unknown Logger'}] {log.message} {log?.query ? `(${log.query})` : ''}
-                        </Typography>
-
-                        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
-                          {log.user && (
-                            <Chip
-                              label={`User: ${log.user}`}
-                              size="small"
-                              variant="outlined"
-                              color="primary"
-                              sx={{ fontSize: '0.7rem' }}
-                            />
-                          )}
-                          {log.method && (
-                            <Chip
-                              label={`Method: ${log.method}`}
-                              size="small"
-                              variant="outlined"
-                              sx={{ fontSize: '0.7rem' }}
-                            />
-                          )}
-                          {log.uri && (
-                            <Chip
-                              label={`URI: ${log.uri}`}
-                              size="small"
-                              variant="outlined"
-                              sx={{ fontSize: '0.7rem' }}
-                            />
-                          )}
-                          {log.status && (
-                            <Chip
-                              label={`Status: ${log.status}`}
-                              size="small"
-                              variant="outlined"
-                              color={
-                                log.status >= 200 && log.status < 300 ? 'success' :
-                                  log.status >= 400 && log.status < 500 ? 'warning' :
-                                    log.status >= 500 ? 'error' : 'default'
-                              }
-                              sx={{
-                                fontSize: '0.7rem',
-                                borderColor:
-                                  log.status >= 200 && log.status < 300 ? 'success.main' :
-                                    log.status >= 400 && log.status < 500 ? 'warning.main' :
-                                      log.status >= 500 ? 'error.main' : 'default',
-                                color:
-                                  log.status >= 200 && log.status < 300 ? 'success.main' :
-                                    log.status >= 400 && log.status < 500 ? 'warning.main' :
-                                      log.status >= 500 ? 'error.main' : 'default',
-                              }}
-                            />
-                          )}
-
-                        </Box>
-                      </Box>
-                    )}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            )}
-            <div ref={logsEndRef} />
-          </Paper>
-
-          {isScrolledUp && (
-            <Fab
-              size="small"
-              color="primary"
-              onClick={scrollToBottom}
-              sx={{
-                position: 'fixed',
-                bottom: 80,
-                right: 24,
-                zIndex: 9999,
-              }}
-            >
-              <KeyboardArrowDown />
-            </Fab>
-          )}
-        </Box>
+        <LogViewer
+          logs={filteredLogs}
+          isLoading={isLoading}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
       );
     }
   };
@@ -375,31 +219,43 @@ const LogDashboard = () => {
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      backgroundColor: theme.palette.background.default,
     }}>
+      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5" sx={{ fontSize: { xs: '1.2rem', sm: '1.5rem' } }}>
+        <Typography
+          variant="h5"
+          sx={{
+            fontSize: { xs: '1.2rem', sm: '1.5rem' },
+            fontWeight: 600,
+            color: theme.palette.text.primary
+          }}
+        >
           Log Analytics Dashboard
         </Typography>
-        <Box display="flex" gap={1}>
+        <Box display="flex" gap={1} alignItems="center">
           <Chip
             label={isConnected ? 'Connected' : 'Disconnected'}
             color={isConnected ? 'success' : 'error'}
             size="small"
+            variant="outlined"
           />
           <IconButton
             onClick={() => setViewMode(viewMode === 'raw' ? 'formatted' : 'raw')}
             size="small"
+            title={viewMode === 'raw' ? 'Switch to formatted view' : 'Switch to raw view'}
           >
             {viewMode === 'raw' ? <List fontSize="small" /> : <Code fontSize="small" />}
           </IconButton>
-          <IconButton onClick={reconnect} size="small">
+          <IconButton onClick={reconnect} size="small" title="Reconnect">
             <Refresh fontSize="small" />
           </IconButton>
         </Box>
       </Box>
 
-      <Card elevation={3} sx={{ mb: 2, borderRadius: 2 }}>
+      {/* Filters Card */}
+      <Card elevation={1} sx={{ mb: 2, borderRadius: 2 }}>
         <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
           <Grid container spacing={1}>
             <Grid item xs={12} sm={6} md={3}>
@@ -417,14 +273,15 @@ const LogDashboard = () => {
                     </InputAdornment>
                   ),
                 }}
+                placeholder="Search message or content..."
               />
             </Grid>
 
             <Grid item xs={6} sm={3} md={2}>
               <FormControl fullWidth size="small">
-                <InputLabel>Log Level</InputLabel>
+                <InputLabel>Level</InputLabel>
                 <Select
-                  label="Log Level"
+                  label="Level"
                   value={logLevelFilter}
                   onChange={(e) => setLogLevelFilter(e.target.value)}
                 >
@@ -445,7 +302,7 @@ const LogDashboard = () => {
                   value={timeRangeFilter}
                   onChange={(e) => setTimeRangeFilter(e.target.value)}
                 >
-                  <MenuItem value="all">All</MenuItem>
+                  <MenuItem value="all">All Time</MenuItem>
                   <MenuItem value="15">Last 15 min</MenuItem>
                   <MenuItem value="60">Last 1 hour</MenuItem>
                   <MenuItem value="180">Last 3 hours</MenuItem>
@@ -462,8 +319,10 @@ const LogDashboard = () => {
                   onChange={(e) => setUserFilter(e.target.value)}
                 >
                   <MenuItem value="all">All Users</MenuItem>
-                  {userList.map((user, idx) => (
-                    <MenuItem key={idx} value={user}>{user}</MenuItem>
+                  {userList.slice(0, 20).map((user, idx) => (
+                    <MenuItem key={idx} value={user}>
+                      {user}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -472,36 +331,45 @@ const LogDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* Tabs */}
       <Tabs
         value={activeTab}
         onChange={(e, newValue) => setActiveTab(newValue)}
         indicatorColor="primary"
         textColor="primary"
-        variant="scrollable"
-        scrollButtons="auto"
+        variant={isMobile ? "scrollable" : "standard"}
+        scrollButtons={isMobile ? "auto" : false}
         sx={{ mb: 2 }}
       >
         <Tab label="Overview" />
         <Tab label="Log Details" />
       </Tabs>
 
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      {/* Content Area */}
+      <Box sx={{
+        flex: 1,
+        overflow: 'hidden',
+        minHeight: 0 // Important for flexbox scrolling
+      }}>
         {renderTabPanel(activeTab)}
       </Box>
 
+      {/* Status Footer */}
       <Typography
-        variant="body2"
+        variant="caption"
         color="textSecondary"
         align="center"
         sx={{
-          mt: 2,
-          fontSize: '0.75rem'
+          mt: 1,
+          display: 'block'
         }}
       >
-        {isConnected ? 'Receiving real-time logs' : 'Connection lost, attempting to reconnect...'}
+        {isConnected
+          ? `Showing ${filteredLogs.length} logs • Real-time updates active`
+          : 'Connection lost • Attempting to reconnect...'}
       </Typography>
     </Box>
   );
 };
 
-export default LogDashboard;
+export default React.memo(LogDashboard);

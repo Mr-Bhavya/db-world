@@ -1,54 +1,67 @@
 package com.db.dbworld.controllers;
 
+import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.services.aria2.Aria2RpcService;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.http.ResponseEntity;
+import com.db.dbworld.services.aria2.model.Aria2GlobalStat;
+import com.db.dbworld.services.aria2.model.Aria2StatusParam;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-        import reactor.core.publisher.Mono;
 
+import java.util.List;
+
+@Log4j2
 @RestController
 @RequestMapping("/api/downloads")
 public class Aria2RpcController {
 
     private final Aria2RpcService aria2RpcService;
 
+    @Autowired
     public Aria2RpcController(Aria2RpcService aria2RpcService) {
         this.aria2RpcService = aria2RpcService;
     }
 
-    @PostMapping("/{gid}/pause")
-    public Mono<ResponseEntity<String>> pauseDownload(@PathVariable String gid) {
-        return aria2RpcService.pause(gid)
-                .map(result -> ResponseEntity.ok("Download paused successfully"))
-                .onErrorResume(e -> Mono.just(
-                        ResponseEntity.badRequest().body("Failed to pause download: " + e.getMessage())
-                ));
-    }
-
-    @PostMapping("/{gid}/resume")
-    public Mono<ResponseEntity<String>> resumeDownload(@PathVariable String gid) {
-        return aria2RpcService.unpause(gid)
-                .map(result -> ResponseEntity.ok("Download resumed successfully"))
-                .onErrorResume(e -> Mono.just(
-                        ResponseEntity.badRequest().body("Failed to resume download: " + e.getMessage())
-                ));
-    }
-
     @PostMapping("/{gid}/cancel")
-    public Mono<ResponseEntity<String>> cancelDownload(@PathVariable String gid) {
-        return aria2RpcService.remove(gid)
-                .map(result -> ResponseEntity.ok("Download cancelled successfully"))
-                .onErrorResume(e -> Mono.just(
-                        ResponseEntity.badRequest().body("Failed to cancel download: " + e.getMessage())
-                ));
+    public ApiResponse<String> cancelDownload(@PathVariable String gid) {
+        aria2RpcService.remove(gid);
+        return new ApiResponse<>(HttpStatus.OK, true, "Download cancelled successfully");
     }
 
     @GetMapping("/{gid}/status")
-    public Mono<ResponseEntity<ObjectNode>> getDownloadStatus(@PathVariable String gid) {
-        return aria2RpcService.tellStatus(gid)
-                .map(ResponseEntity::ok)
-                .onErrorResume(e -> Mono.just(
-                        ResponseEntity.badRequest().body(null)
-                ));
+    public ApiResponse<Aria2StatusParam> getDownloadStatus(@PathVariable String gid) {
+        Aria2StatusParam status = aria2RpcService.tellStatus(gid);
+        return new ApiResponse<>(HttpStatus.OK, true,status);
+    }
+
+    @PostMapping("/{gid}/pause")
+    public ApiResponse<String> pauseDownload(@PathVariable String gid) {
+        aria2RpcService.pause(gid);
+        return new ApiResponse<>(HttpStatus.OK, true,"Download paused successfully for GID: " + gid);
+    }
+
+    @PostMapping("/{gid}/resume")
+    public ApiResponse<String> resumeDownload(@PathVariable String gid) {
+        aria2RpcService.unpause(gid);
+        return new ApiResponse<>(HttpStatus.OK, true,"Download resumed successfully for GID: " + gid);
+    }
+
+    @GetMapping("/queue/status")
+    public ApiResponse<Aria2GlobalStat> getQueueStatus() {
+        Aria2GlobalStat globalStats = aria2RpcService.getGlobalStat();
+        return new ApiResponse<>(HttpStatus.OK, true,globalStats);
+    }
+
+    @GetMapping("/active")
+    public ApiResponse<List<Aria2StatusParam>> getActiveDownloads() {
+        List<Aria2StatusParam> activeDownloads = aria2RpcService.getActiveDownloads();
+        return new ApiResponse<>(HttpStatus.OK, true,activeDownloads);
+    }
+
+    @GetMapping("/waiting")
+    public ApiResponse<List<Aria2StatusParam>> getWaitingDownloads() {
+        List<Aria2StatusParam> waitingDownloads = aria2RpcService.getWaitingDownloads(0, 100);
+        return new ApiResponse<>(HttpStatus.OK, true,waitingDownloads);
     }
 }

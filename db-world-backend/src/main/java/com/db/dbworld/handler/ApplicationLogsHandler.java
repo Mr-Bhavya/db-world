@@ -123,7 +123,7 @@ public class ApplicationLogsHandler extends TextWebSocketHandler {
         try {
             return gson.fromJson(jsonLine, Map.class);
         } catch (Exception e) {
-            log.warn("Failed to parse log line: {}", jsonLine);
+            log.debug("Failed to parse log line: {}", jsonLine);
             return null;
         }
     }

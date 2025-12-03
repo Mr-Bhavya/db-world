@@ -59,7 +59,7 @@ public class DbCinemaController {
             @RequestParam(required = false, defaultValue = "") String languages,
             @RequestParam(required = false, defaultValue = "") String genres
     ) {
-        if (!recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_MOVIE) && !recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYPE_SERIES)) {
+        if (!recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYE.MOVIE.name()) && !recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYE.SERIES.name())) {
             return new ApiResponse<>(HttpStatus.BAD_REQUEST, false, "record type must be movie or series.");
         }
         CustomPageImpl<DBCinemaRecordsDto> pageResult = dbCinemaRecordsService.findRecords(

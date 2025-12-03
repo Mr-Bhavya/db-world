@@ -28,8 +28,12 @@ public class DbWorldConstants {
     public static final String REPLACE_YEAR_STRING = "${year}";
 
     // Record types
-    public static final String RECORD_TYPE_MOVIE = "movie";
-    public static final String RECORD_TYPE_SERIES = "series";
+//    public static final String RECORD_TYPE_MOVIE = "movie";
+//    public static final String RECORD_TYPE_SERIES = "series";
+
+    public enum RECORD_TYE {
+        MOVIE, SERIES
+    }
 
     // Streaming/download constants
     public static final int CHUNK_SIZE = 20 * 1024 * 1024; // 20 MB
@@ -83,7 +87,7 @@ public class DbWorldConstants {
             "/swagger-ui/**",
             "/ws/status",
             "/ws/application-logs",
-            "/ws/download-tracker",
+            "/ws/user-cinema-activity",
             "/api/stream/watch/**",
             "/api/stream/download/**",
             "/*", "/db-world/**", "/static/**",
@@ -92,12 +96,14 @@ public class DbWorldConstants {
 
     // Configured constants from application.yml
     public static String TMDB_API_KEY;
-    public static String TMDB_MOVIE_DETAILS_URL;
-    public static String TMDB_SERIES_DETAILS_URL;
-    public static String TMDB_MOVIE_PROVIDER_URL;
-    public static String TMDB_SERIES_PROVIDER_URL;
-    public static String TMDB_SEARCH_MOVIE_PROVIDER_URL;
-    public static String TMDB_SEARCH_SERIES_PROVIDER_URL;
+    public static String TMDB_ACCESS_TOKEN;
+    public final static String TMDB_MOVIE_DETAILS_URL="https://api.themoviedb.org/3/movie/{tmdb_id}?append_to_response=videos,images,credits";
+    public final static String TMDB_SERIES_DETAILS_URL = "https://api.themoviedb.org/3/tv/{tmdb_id}?append_to_response=videos,images,credits";
+    public final static String TMDB_MOVIE_PROVIDER_URL = "https://api.themoviedb.org/3/movie/{tmdb_id}/watch/providers";
+    public final static String TMDB_SERIES_PROVIDER_URL = "https://api.themoviedb.org/3/tv/{tmdb_id}/watch/providers";
+    public final static String TMDB_SEARCH_MOVIE_PROVIDER_URL = "https://api.themoviedb.org/3/search/movie?query={query}&year={year}";
+    public final static String TMDB_SEARCH_SERIES_PROVIDER_URL = "https://api.themoviedb.org/3/search/tv?query={query}&year={year}";
+    public final static String TMDB_LANGUAGES_CONFIGURATION_URL = "https://api.themoviedb.org/3/configuration/languages";
 
     public static String MEDIAINFO;
     public static String TEMP_DOWNLOAD_PATH;
@@ -135,23 +141,6 @@ public class DbWorldConstants {
         HS_COOKIES_PATH = tools.getHsCookies();
 
         TMDB_API_KEY = dbWorldPropertiesConfig.getApiKeys() != null ? dbWorldPropertiesConfig.getApiKeys().getTmdb() : null;
-        createTmdbUrls(TMDB_API_KEY);
-    }
-
-    private void createTmdbUrls(String tmdbApiKey) {
-        if (tmdbApiKey == null) return;
-
-        TMDB_MOVIE_DETAILS_URL = "https://api.themoviedb.org/3/movie/" + REPLACE_ID_STRING +
-                "?api_key=" + tmdbApiKey + "&append_to_response=videos,images,credits";
-        TMDB_SERIES_DETAILS_URL = "https://api.themoviedb.org/3/tv/" + REPLACE_ID_STRING +
-                "?api_key=" + tmdbApiKey + "&append_to_response=videos,images,credits";
-        TMDB_MOVIE_PROVIDER_URL = "https://api.themoviedb.org/3/movie/" + REPLACE_ID_STRING +
-                "/watch/providers?api_key=" + tmdbApiKey;
-        TMDB_SERIES_PROVIDER_URL = "https://api.themoviedb.org/3/tv/" + REPLACE_ID_STRING +
-                "/watch/providers?api_key=" + tmdbApiKey;
-        TMDB_SEARCH_MOVIE_PROVIDER_URL = "https://api.themoviedb.org/3/search/movie?api_key=" + tmdbApiKey +
-                "&query=" + REPLACE_QUERY_STRING + "&year=" + REPLACE_YEAR_STRING;
-        TMDB_SEARCH_SERIES_PROVIDER_URL = "https://api.themoviedb.org/3/search/tv?api_key=" + tmdbApiKey +
-                "&query=" + REPLACE_QUERY_STRING + "&year=" + REPLACE_YEAR_STRING;
+        TMDB_ACCESS_TOKEN = dbWorldPropertiesConfig.getTokens() != null ? dbWorldPropertiesConfig.getTokens().getTmdb() : null;
     }
 }

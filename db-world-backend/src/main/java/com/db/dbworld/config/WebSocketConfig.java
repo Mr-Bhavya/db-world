@@ -1,8 +1,8 @@
 package com.db.dbworld.config;
 
 import com.db.dbworld.handler.ApplicationLogsHandler;
-import com.db.dbworld.handler.DownloadTrackerHandler;
 import com.db.dbworld.handler.MirrorStatusHandler;
+import com.db.dbworld.handler.UserCinemaActivityHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
@@ -28,12 +28,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private final MirrorStatusHandler mirrorStatusHandler;
     private final ApplicationLogsHandler applicationLogsHandler;
-    private final DownloadTrackerHandler downloadTrackerHandler;
+    private final UserCinemaActivityHandler userCinemaActivityHandler;
 
-    public WebSocketConfig(MirrorStatusHandler mirrorStatusHandler, ApplicationLogsHandler applicationLogsHandler, DownloadTrackerHandler downloadTrackerHandler) {
+    public WebSocketConfig(MirrorStatusHandler mirrorStatusHandler, ApplicationLogsHandler applicationLogsHandler, UserCinemaActivityHandler userCinemaActivityHandler) {
         this.mirrorStatusHandler = mirrorStatusHandler;
         this.applicationLogsHandler = applicationLogsHandler;
-        this.downloadTrackerHandler = downloadTrackerHandler;
+        this.userCinemaActivityHandler = userCinemaActivityHandler;
     }
 
     @Override
@@ -44,7 +44,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         registry.addHandler(applicationLogsHandler, "/ws/application-logs")
                 .setAllowedOrigins("*");
 
-        registry.addHandler(downloadTrackerHandler, "/ws/download-tracker")
+        registry.addHandler(userCinemaActivityHandler, "/ws/user-cinema-activity")
                 .setAllowedOrigins("*");
     }
 

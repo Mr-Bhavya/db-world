@@ -55,7 +55,7 @@ public class TmdbDataEntity implements Serializable {
             inverseJoinColumns = @JoinColumn(name = "countries_id"))
     private List<ProductionCountriesEntity> production_countries;
 
-    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST})
     @JoinTable(name = "tmdb_spoken_languages_mapping", joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "spoken_languages_id"))
     private List<SpokenLanguageEntity> spoken_languages;

@@ -1,12 +1,9 @@
 package com.db.dbworld.utils;
 
-import org.springframework.stereotype.Service;
-
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.io.File;
 
-@Service
 public class PathSanitizer {
 
     // Illegal characters for filenames across all platforms
@@ -19,6 +16,11 @@ public class PathSanitizer {
     private static final Pattern TRAILING_PROBLEMATIC_CHARS = Pattern.compile("[ .]+$");
     private static final Pattern LEADING_PROBLEMATIC_CHARS = Pattern.compile("^[ .]+");
 
+    // Private constructor to prevent instantiation
+    private PathSanitizer() {
+        throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
+    }
+
     /**
      * Sanitizes a full path by preserving directory structure but sanitizing each component
      * and converting multiple spaces to single spaces.
@@ -26,7 +28,7 @@ public class PathSanitizer {
      * @param path the original path to sanitize
      * @return the sanitized path with preserved directory structure
      */
-    public String sanitizePath(String path) {
+    public static String sanitizePath(String path) {
         if (path == null || path.isEmpty()) {
             return path;
         }
@@ -50,7 +52,7 @@ public class PathSanitizer {
             // Sanitize each path component (directory or filename)
             String sanitizedComponent = sanitizePathComponent(component);
 
-            if (sanitizedPath.length() > 0 &&
+            if (!sanitizedPath.isEmpty() &&
                     sanitizedPath.charAt(sanitizedPath.length() - 1) != File.separatorChar) {
                 sanitizedPath.append(File.separator);
             }
@@ -64,7 +66,7 @@ public class PathSanitizer {
     /**
      * Sanitizes a path component (directory name or filename) without affecting separators
      */
-    public String sanitizePathComponent(String component) {
+    public static String sanitizePathComponent(String component) {
         if (component == null || component.isEmpty()) {
             return "unnamed";
         }
@@ -85,7 +87,7 @@ public class PathSanitizer {
     /**
      * Sanitizes just a filename (without any path components)
      */
-    public String sanitizeFilename(String filename) {
+    public static String sanitizeFilename(String filename) {
         if (filename == null || filename.isEmpty()) {
             return "unnamed";
         }
@@ -100,7 +102,7 @@ public class PathSanitizer {
     /**
      * Sanitizes a path for a specific target operating system
      */
-    public String sanitizePathForOS(String path, String osType) {
+    public static String sanitizePathForOS(String path, String osType) {
         if (path == null || path.isEmpty()) {
             return path;
         }
@@ -109,18 +111,20 @@ public class PathSanitizer {
         String sanitizedPath = sanitizePath(path);
 
         // OS-specific adjustments if needed
-        switch (osType.toLowerCase()) {
-            case "windows":
-                // Windows-specific adjustments
-                break;
-            case "linux":
-            case "ubuntu":
-                // Linux-specific adjustments
-                break;
-            case "mac":
-            case "macos":
-                // macOS-specific adjustments
-                break;
+        if (osType != null) {
+            switch (osType.toLowerCase()) {
+                case "windows":
+                    // Windows-specific adjustments
+                    break;
+                case "linux":
+                case "ubuntu":
+                    // Linux-specific adjustments
+                    break;
+                case "mac":
+                case "macos":
+                    // macOS-specific adjustments
+                    break;
+            }
         }
 
         return sanitizedPath;
@@ -129,7 +133,7 @@ public class PathSanitizer {
     /**
      * Converts multiple spaces to single spaces
      */
-    private String normalizeSpaces(String text) {
+    private static String normalizeSpaces(String text) {
         Matcher matcher = MULTIPLE_SPACES_PATTERN.matcher(text);
         return matcher.replaceAll(" ").trim();
     }
@@ -137,7 +141,7 @@ public class PathSanitizer {
     /**
      * Removes problematic leading characters (spaces, dots)
      */
-    private String removeProblematicLeadingChars(String text) {
+    private static String removeProblematicLeadingChars(String text) {
         Matcher matcher = LEADING_PROBLEMATIC_CHARS.matcher(text);
         return matcher.replaceAll("");
     }
@@ -145,7 +149,7 @@ public class PathSanitizer {
     /**
      * Removes problematic trailing characters (spaces, dots)
      */
-    private String removeProblematicTrailingChars(String text) {
+    private static String removeProblematicTrailingChars(String text) {
         Matcher matcher = TRAILING_PROBLEMATIC_CHARS.matcher(text);
         return matcher.replaceAll("");
     }
@@ -153,7 +157,7 @@ public class PathSanitizer {
     /**
      * Utility method to get file extension
      */
-    public String getFileExtension(String filename) {
+    public static String getFileExtension(String filename) {
         if (filename == null) {
             return "";
         }
@@ -167,7 +171,7 @@ public class PathSanitizer {
     /**
      * Sanitizes filename while preserving extension
      */
-    public String sanitizeFilenameWithExtension(String filename) {
+    public static String sanitizeFilenameWithExtension(String filename) {
         if (filename == null || filename.isEmpty()) {
             return "unnamed";
         }
@@ -183,8 +187,6 @@ public class PathSanitizer {
 
     // Test method
     public static void main(String[] args) {
-        PathSanitizer sanitizer = new PathSanitizer();
-
         // Test cases
         String[] testPaths = {
                 "path/to/file<name>.txt",
@@ -204,22 +206,22 @@ public class PathSanitizer {
         System.out.println("---------------------");
         for (String path : testPaths) {
             System.out.println("****************************");
-            String sanitized = sanitizer.sanitizeFilename(path);
+            String sanitized = sanitizeFilename(path);
             System.out.println("'" + path + "' -> '" + sanitized + "'");
             System.out.println("****************************");
 
             System.out.println("****************************");
-            sanitized = sanitizer.sanitizePath(path);
+            sanitized = sanitizePath(path);
             System.out.println("'" + path + "' -> '" + sanitized + "'");
             System.out.println("****************************");
 
             System.out.println("****************************");
-            sanitized = sanitizer.sanitizeFilenameWithExtension(path);
+            sanitized = sanitizeFilenameWithExtension(path);
             System.out.println("'" + path + "' -> '" + sanitized + "'");
             System.out.println("****************************");
 
             System.out.println("****************************");
-            sanitized = sanitizer.sanitizePathComponent(path);
+            sanitized = sanitizePathComponent(path);
             System.out.println("'" + path + "' -> '" + sanitized + "'");
             System.out.println("****************************");
         }
@@ -234,22 +236,22 @@ public class PathSanitizer {
 
         for (String filename : testFilenames) {
             System.out.println("****************************");
-            String sanitized = sanitizer.sanitizeFilename(filename);
+            String sanitized = sanitizeFilename(filename);
             System.out.println("'" + filename + "' -> '" + sanitized + "'");
             System.out.println("****************************");
 
             System.out.println("****************************");
-            sanitized = sanitizer.sanitizePath(filename);
+            sanitized = sanitizePath(filename);
             System.out.println("'" + filename + "' -> '" + sanitized + "'");
             System.out.println("****************************");
 
             System.out.println("****************************");
-            sanitized = sanitizer.sanitizeFilenameWithExtension(filename);
+            sanitized = sanitizeFilenameWithExtension(filename);
             System.out.println("'" + filename + "' -> '" + sanitized + "'");
             System.out.println("****************************");
 
             System.out.println("****************************");
-            sanitized = sanitizer.sanitizePathComponent(filename);
+            sanitized = sanitizePathComponent(filename);
             System.out.println("'" + filename + "' -> '" + sanitized + "'");
             System.out.println("****************************");
         }

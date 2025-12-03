@@ -9,6 +9,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ConfirmProvider } from 'material-ui-confirm';
 import { ToastInitializer, ToastProvider } from './components/Toast';
+// import App from './DBCinema/App';
 
 const container = document.getElementById('root');
 const root = createRoot(container);

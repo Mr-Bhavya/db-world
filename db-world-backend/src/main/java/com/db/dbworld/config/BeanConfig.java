@@ -16,9 +16,12 @@ import org.jasypt.encryption.pbe.config.SimpleStringPBEConfig;
 import org.modelmapper.ModelMapper;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.file.FileReadingMessageSource;
@@ -32,7 +35,11 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+
+import static com.db.dbworld.utils.DbWorldConstants.TMDB_ACCESS_TOKEN;
 
 @Configuration
 public class BeanConfig {
@@ -84,6 +91,33 @@ public class BeanConfig {
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
+    }
+
+    @Bean("tmdbRestTemplate")
+    public RestTemplate tmdbRestTemplate() {
+        RestTemplate restTemplate = new RestTemplate();
+
+        // Add interceptor for Authorization header
+        ClientHttpRequestInterceptor authInterceptor = (request, body, execution) -> {
+            request.getHeaders().add("Authorization", "Bearer " + TMDB_ACCESS_TOKEN);
+            return execution.execute(request, body);
+        };
+
+        restTemplate.setInterceptors(List.of(authInterceptor));
+        return restTemplate;
+    }
+
+    @Value("${aria2.rpc.url}") String aria2RpcUrl;
+    @Value("${aria2.rpc.secret}") String secretToken;
+
+    @Bean("aria2RestTemplate")
+    public RestTemplate aria2RestTemplate(RestTemplateBuilder builder) {
+        return builder
+//                .rootUri(aria2RpcUrl) // 👈 base URL injected
+//                .defaultHeader("Authorization", "token:" + secretToken)
+                .setConnectTimeout(Duration.ofSeconds(10))
+                .setReadTimeout(Duration.ofSeconds(20))
+                .build();
     }
 
     @Bean

@@ -22,9 +22,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import { alpha } from '@mui/material/styles';
 import { toast } from '../../../Toast';
 
-const PAGE_SIZE = 12; // Number of records per page (for record search)
+const PAGE_SIZE = 12;
 
-// Styled components using Farmer (styled-components syntax with MUI)
+// Styled components with proper z-index hierarchy
 const SearchOverlayContainer = styled(Box)(({ theme }) => ({
   position: 'fixed',
   top: 0,
@@ -33,7 +33,7 @@ const SearchOverlayContainer = styled(Box)(({ theme }) => ({
   height: '100vh',
   backgroundColor: 'rgba(0, 0, 0, 0.95)',
   color: '#fff',
-  zIndex: 5000,
+  zIndex: 1300, // MUI Dialog z-index is 1300 by default
   padding: theme.spacing(2.5),
   overflowY: 'auto',
 }));
@@ -63,6 +63,10 @@ const ResultsGrid = styled(Box)(({ theme }) => ({
   gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
   gap: theme.spacing(2),
   marginTop: theme.spacing(1.25),
+  [theme.breakpoints.down('sm')]: {
+    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+    gap: theme.spacing(1.5),
+  }
 }));
 
 const ResultItem = styled(motion.div)(({ theme }) => ({
@@ -92,18 +96,68 @@ const FilesGrid = styled(Box)(({ theme }) => ({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
   gap: theme.spacing(1.25),
+  [theme.breakpoints.down('md')]: {
+    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+  },
+  [theme.breakpoints.down('sm')]: {
+    gridTemplateColumns: '1fr',
+    gap: theme.spacing(1),
+  }
 }));
 
 const FileItem = styled(Paper)(({ theme }) => ({
   backgroundColor: theme.palette.grey[800],
   padding: theme.spacing(1.25),
   borderRadius: theme.shape.borderRadius / 2,
-  transition: 'background-color 0.3s ease',
+  transition: 'all 0.3s ease',
   cursor: 'pointer',
+  border: `1px solid ${theme.palette.grey[700]}`,
   '&:hover': {
     backgroundColor: theme.palette.grey[700],
+    transform: 'translateY(-2px)',
+    boxShadow: `0 4px 12px ${alpha(theme.palette.common.black, 0.3)}`,
   },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(1),
+  }
 }));
+
+// Responsive CompactGrid component
+const CompactGrid = ({ 
+  children, 
+  columns = { xs: 1, sm: 2, md: 2, lg: 3 },
+  spacing = { xs: 1, sm: 1.5, md: 2 },
+  sx = {}
+}) => {
+  const gridSize = {
+    xs: 12,
+    sm: columns.sm ? 12 / columns.sm : 6,
+    md: columns.md ? 12 / columns.md : 6,
+    lg: columns.lg ? 12 / columns.lg : 4,
+  };
+
+  return (
+    <Box 
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: `repeat(${columns.sm || 2}, 1fr)`,
+          md: `repeat(${columns.md || 2}, 1fr)`,
+          lg: `repeat(${columns.lg || 3}, 1fr)`,
+        },
+        gap: {
+          xs: spacing.xs || 1,
+          sm: spacing.sm || 1.5,
+          md: spacing.md || 2,
+        },
+        ...sx
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
 
 function SearchOverlay({ onClose }) {
   const [term, setTerm] = useState('');
@@ -111,42 +165,43 @@ function SearchOverlay({ onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // --- Records State (with pagination) ---
+  // Records State
   const [records, setRecords] = useState([]);
   const [recordsPage, setRecordsPage] = useState(0);
   const [hasMoreRecords, setHasMoreRecords] = useState(true);
   const [isLoadingNextRecords, setIsLoadingNextRecords] = useState(false);
   const [isSearchRecordResDone, setIsSearchRecordResDone] = useState(false);
 
-  // --- Streams State (no pagination) ---
+  // Streams State
   const [streamList, setStreamList] = useState([]);
   const [isSearchStreamResDone, setIsSearchStreamResDone] = useState(false);
 
-  // --- Tab State ---
+  // Tab State
   const [activeTab, setActiveTab] = useState('records');
 
-  // --- Modal State for File Details ---
+  // Modal State
   const [showFileModal, setShowFileModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
-  // --- Helper Functions ---
+  // Helper Functions
   const formatFileSize = (size) => {
+    if (!size) return "Unknown";
     if (size < 1024) return size + " B";
     else if (size < 1024 * 1024) return (size / 1024).toFixed(1) + " KB";
     else return (size / (1024 * 1024)).toFixed(1) + " MB";
   };
 
-  // Debounced search function
+  // Debounced search
   const debouncedSearch = useCallback(
     debounce((searchValue) => {
       setSearchTerm(searchValue);
-    }, 800), // 800ms delay
+    }, 800),
     []
   );
 
   const groupByDirectory = (files) => {
     return files.reduce((acc, file) => {
-      const lastSlash = file.filePath.lastIndexOf('/');
+      const lastSlash = file.filePath?.lastIndexOf('/') || -1;
       const directory = lastSlash !== -1 ? file.filePath.substring(0, lastSlash) : 'Root';
       if (!acc[directory]) acc[directory] = [];
       acc[directory].push(file);
@@ -154,7 +209,7 @@ function SearchOverlay({ onClose }) {
     }, {});
   };
 
-  // --- API Calls per Tab ---
+  // API Calls
   const searchRecords = async (page = 0, isLoadMore = false) => {
     try {
       if (!isLoadMore) {
@@ -163,19 +218,23 @@ function SearchOverlay({ onClose }) {
         setHasMoreRecords(true);
         setIsSearchRecordResDone(false);
       }
+      
       saveUserEventInfo("SEARCH", term);
       const modifiedQuery = CommonServices.modifySearchQuery(term);
       const recordResponse = await searchRecord(modifiedQuery, page, PAGE_SIZE);
+      
       if (recordResponse.httpStatusCode === 200) {
         const mappedRecords = recordResponse.data.records.map(record => {
           record.tmdb = record.type === Constants.RECORD_TYPE_MOVIE ? record.movieTmdb : record.seriesTmdb;
           return record;
         });
+        
         if (isLoadMore) {
           setRecords(prev => [...prev, ...mappedRecords]);
         } else {
           setRecords(mappedRecords);
         }
+        
         if (mappedRecords.length < PAGE_SIZE) {
           setHasMoreRecords(false);
         }
@@ -188,6 +247,7 @@ function SearchOverlay({ onClose }) {
       }
     } catch (err) {
       console.error(err);
+      toast.error('Failed to search records');
     }
   };
 
@@ -198,6 +258,7 @@ function SearchOverlay({ onClose }) {
       saveUserEventInfo("SEARCH", term);
       const modifiedQuery = CommonServices.modifySearchQuery(term);
       const streamResponse = await searchStreamFile(modifiedQuery);
+      
       if (streamResponse.httpStatusCode === 200) {
         setStreamList(streamResponse.data);
         setIsSearchStreamResDone(true);
@@ -209,10 +270,11 @@ function SearchOverlay({ onClose }) {
       }
     } catch (err) {
       console.error(err);
+      toast.error('Failed to search stream files');
     }
   };
 
-  // --- Trigger Search on Term or Tab Change ---
+  // Effects
   useEffect(() => {
     if (searchTerm.trim() !== '') {
       if (activeTab === 'records') {
@@ -223,7 +285,6 @@ function SearchOverlay({ onClose }) {
     }
   }, [searchTerm, activeTab]);
 
-  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       debouncedSearch.cancel();
@@ -236,8 +297,7 @@ function SearchOverlay({ onClose }) {
     debouncedSearch(value);
   };
 
-
-  // --- Scroll Handler for Infinite Loading (only for records) ---
+  // Scroll Handler for Infinite Loading
   const handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
     if (activeTab === 'records' && scrollHeight - scrollTop <= clientHeight + 100) {
@@ -251,7 +311,7 @@ function SearchOverlay({ onClose }) {
     }
   };
 
-  // --- Auto-load More if Content is Too Short (only for records) ---
+  // Auto-load More if Content is Too Short
   useEffect(() => {
     const overlay = document.querySelector('.search-overlay');
     if (
@@ -269,17 +329,9 @@ function SearchOverlay({ onClose }) {
         });
       }
     }
-  }, [
-    records,
-    hasMoreRecords,
-    isLoadingNextRecords,
-    term,
-    activeTab,
-    recordsPage,
-    isSearchRecordResDone
-  ]);
+  }, [records, hasMoreRecords, isLoadingNextRecords, term, activeTab, recordsPage, isSearchRecordResDone]);
 
-  // --- Modal Handlers ---
+  // Modal Handlers
   const handleFileClick = (file) => {
     setSelectedFile(file);
     setShowFileModal(true);
@@ -296,21 +348,23 @@ function SearchOverlay({ onClose }) {
 
   return (
     <>
-      <SearchOverlayContainer component={motion.div}
+      <SearchOverlayContainer 
+        component={motion.div}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onScroll={handleScroll}
+        className="search-overlay"
       >
         <SearchHeader>
           <SearchInput
-            placeholder="Search..."
+            placeholder="Search movies, series, or files..."
             value={term}
             onChange={handleSearchChange}
             autoFocus
             inputProps={{ 'aria-label': 'search' }}
           />
-          <IconButton onClick={onClose} color="inherit">
+          <IconButton onClick={onClose} color="inherit" size="large">
             <CloseIcon />
           </IconButton>
         </SearchHeader>
@@ -350,13 +404,13 @@ function SearchOverlay({ onClose }) {
         </Tabs>
 
         {/* Tab Content */}
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: { xs: 1, sm: 2 } }}>
           {activeTab === 'records' ? (
             <Box>
               {term ? (
                 <Box>
-                  <Typography variant="body1" gutterBottom>
-                    Showing results for: <strong>{term}</strong>
+                  <Typography variant="body1" gutterBottom sx={{ mb: 2 }}>
+                    Showing results for: <strong>"{term}"</strong>
                   </Typography>
                   {isSearchRecordResDone ? (
                     <Box>
@@ -367,17 +421,17 @@ function SearchOverlay({ onClose }) {
                               <ResultItem
                                 key={record.id}
                                 layout
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
                                 transition={{ duration: 0.3 }}
                               >
                                 <motion.img
-                                  src={`https://image.tmdb.org/t/p/w500${record.tmdb.poster_path}`}
-                                  alt={record.name || record.tmdb.title}
+                                  src={`https://image.tmdb.org/t/p/w500${record.tmdb?.poster_path}`}
+                                  alt={record.name || record.tmdb?.title}
                                   onClick={() =>
                                     navigate(
-                                      record.type.toLowerCase() === Constants.RECORD_TYPE_MOVIE
+                                      record.type?.toLowerCase() === Constants.RECORD_TYPE_MOVIE
                                         ? Constants.DB_MOVIE_DETIALS_ROUTE.replace(
                                           ":title",
                                           record.recordId +
@@ -393,24 +447,27 @@ function SearchOverlay({ onClose }) {
                                     )
                                   }
                                   whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
                                 />
                               </ResultItem>
                             ))}
                           </AnimatePresence>
                         </ResultsGrid>
                       ) : (
-                        <Typography variant="body1">No results found.</Typography>
+                        <Typography variant="body1" align="center" sx={{ py: 4 }}>
+                          No records found for "{term}"
+                        </Typography>
                       )}
                       {isLoadingNextRecords && (
-                        <ResultsGrid>
-                          {[...Array(PAGE_SIZE)].map((_, index) => (
+                        <ResultsGrid sx={{ mt: 2 }}>
+                          {[...Array(4)].map((_, index) => (
                             <Skeleton
                               key={index}
                               variant="rectangular"
                               width="100%"
                               height={180}
                               animation="wave"
-                              sx={{ bgcolor: 'grey.800' }}
+                              sx={{ bgcolor: 'grey.800', borderRadius: 1 }}
                             />
                           ))}
                         </ResultsGrid>
@@ -418,22 +475,22 @@ function SearchOverlay({ onClose }) {
                     </Box>
                   ) : (
                     <ResultsGrid>
-                      {[...Array(PAGE_SIZE)].map((_, index) => (
+                      {[...Array(8)].map((_, index) => (
                         <Skeleton
                           key={index}
                           variant="rectangular"
                           width="100%"
                           height={180}
                           animation="wave"
-                          sx={{ bgcolor: 'grey.800' }}
+                          sx={{ bgcolor: 'grey.800', borderRadius: 1 }}
                         />
                       ))}
                     </ResultsGrid>
                   )}
                 </Box>
               ) : (
-                <Typography variant="body1" align="center" sx={{ mt: 6 }}>
-                  Type to search...
+                <Typography variant="body1" align="center" sx={{ mt: 6, color: 'grey.400' }}>
+                  Start typing to search for movies and series...
                 </Typography>
               )}
             </Box>
@@ -441,8 +498,8 @@ function SearchOverlay({ onClose }) {
             <Box>
               {term ? (
                 <Box>
-                  <Typography variant="body1" gutterBottom>
-                    Showing results for: <strong>{term}</strong>
+                  <Typography variant="body1" gutterBottom sx={{ mb: 2 }}>
+                    Showing stream files for: <strong>"{term}"</strong>
                   </Typography>
                   {isSearchStreamResDone ? (
                     <Box>
@@ -450,7 +507,17 @@ function SearchOverlay({ onClose }) {
                         <Box>
                           {Object.entries(groupByDirectory(streamList)).map(([directory, files]) => (
                             <DirectoryGroup key={directory}>
-                              <Typography variant="h6" color="secondary" gutterBottom sx={{ borderBottom: '1px solid', borderColor: 'grey.700' }}>
+                              <Typography 
+                                variant="h6" 
+                                color="secondary" 
+                                gutterBottom 
+                                sx={{ 
+                                  borderBottom: '1px solid', 
+                                  borderColor: 'grey.700',
+                                  pb: 1,
+                                  fontSize: { xs: '1rem', sm: '1.25rem' }
+                                }}
+                              >
                                 {directory}
                               </Typography>
                               <FilesGrid>
@@ -460,8 +527,18 @@ function SearchOverlay({ onClose }) {
                                     onClick={() => handleFileClick(file)}
                                     component={motion.div}
                                     whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
                                   >
-                                    <Typography variant="body2" fontWeight="bold" color="common.white" sx={{ wordBreak: 'break-all' }}>
+                                    <Typography 
+                                      variant="body2" 
+                                      fontWeight="bold" 
+                                      color="common.white" 
+                                      sx={{ 
+                                        wordBreak: 'break-word',
+                                        mb: 0.5,
+                                        fontSize: { xs: '0.875rem', sm: '0.9rem' }
+                                      }}
+                                    >
                                       {file.fileName}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
@@ -474,7 +551,9 @@ function SearchOverlay({ onClose }) {
                           ))}
                         </Box>
                       ) : (
-                        <Typography variant="body1">No stream files found.</Typography>
+                        <Typography variant="body1" align="center" sx={{ py: 4 }}>
+                          No stream files found for "{term}"
+                        </Typography>
                       )}
                     </Box>
                   ) : (
@@ -490,14 +569,14 @@ function SearchOverlay({ onClose }) {
                             sx={{ bgcolor: 'grey.800' }}
                           />
                           <FilesGrid>
-                            {[...Array(12)].map((_, fileIndex) => (
+                            {[...Array(6)].map((_, fileIndex) => (
                               <Skeleton
                                 key={fileIndex}
                                 variant="rectangular"
                                 width="100%"
-                                height={100}
+                                height={80}
                                 animation="wave"
-                                sx={{ bgcolor: 'grey.800' }}
+                                sx={{ bgcolor: 'grey.800', borderRadius: 1 }}
                               />
                             ))}
                           </FilesGrid>
@@ -507,8 +586,8 @@ function SearchOverlay({ onClose }) {
                   )}
                 </Box>
               ) : (
-                <Typography variant="body1" align="center" sx={{ mt: 6 }}>
-                  Type to search...
+                <Typography variant="body1" align="center" sx={{ mt: 6, color: 'grey.400' }}>
+                  Start typing to search for stream files...
                 </Typography>
               )}
             </Box>
@@ -516,13 +595,12 @@ function SearchOverlay({ onClose }) {
         </Box>
       </SearchOverlayContainer>
 
-      {/* Modal for File Details */}
+      {/* File Details Modal - Now with proper z-index */}
       <FileDetailsModal
         open={showFileModal}
         onClose={handleCloseModal}
         fileId={selectedFile?.fileId}
       />
-      
     </>
   );
 }

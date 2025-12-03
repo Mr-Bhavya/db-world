@@ -10,7 +10,7 @@ function CoverSkeleton() {
       sx={{
         position: 'relative',
         width: '100%',
-        marginTop: isMobile ? '100px' : '50px',
+        // marginTop: isMobile ? '100px' : '50px',
         height: isMobile ? 'calc(100vh - 250px)' : 'calc(100vh - 120px)',
         backgroundColor: 'grey.900',
         overflow: 'hidden',

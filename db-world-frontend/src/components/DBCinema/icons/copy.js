@@ -25,9 +25,9 @@ const Copy = ({
 }) => {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     setCopied(true);
-    const result = CommonServices.handleCopy(text);
+    const result = await CommonServices.handleCopy(text);
 
     if (result.success) {
       toast.success(result.message, {
