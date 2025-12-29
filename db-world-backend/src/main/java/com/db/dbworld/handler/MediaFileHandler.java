@@ -4,14 +4,13 @@ import com.db.dbworld.dao.dbcinema.tmdb.SpokenLanguageRepository;
 import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.entities.dbcinema.stream.*;
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.hls.HLSMediaProcessor;
+import com.db.dbworld.hls.HLSProcessingResult;
 import com.db.dbworld.payloads.mediafile.MediaFileDetails;
 import com.db.dbworld.services.cinema.DBCinemaRecordsService;
 import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.services.media.MediaInfoCommandService;
-import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldUtils;
-import com.db.dbworld.utils.MediaInfoUtils;
-import com.db.dbworld.utils.PathSanitizer;
+import com.db.dbworld.utils.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,28 +35,32 @@ public class MediaFileHandler {
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
 
-    @Autowired
-    private DBCinemaRecordsService dbCinemaRecordsService;
+//    @Autowired
+//    private DBCinemaRecordsService dbCinemaRecordsService;
 
     @Autowired
     private DbWorldUtils dbWorldUtils;
 
     @Autowired
-    private SpokenLanguageRepository spokenLanguageRepository;
+    private MediaInfoUtils mediaInfoUtils;
 
     @Autowired
-    private MediaInfoUtils mediaInfoUtils;
+    private MediaFileUtils mediaFileUtils;
 
     @Autowired
     private MediaInfoCommandService mediaInfoCommandService;
 
-    private static final String MOVIES_FOLDER = "movies";
-    private static final String SERIES_FOLDER = "series";
+    @Autowired
+    private HLSMediaProcessor hlsMediaProcessor;
+
+
+//    private static final String MOVIES_FOLDER = "movies";
+//    private static final String SERIES_FOLDER = "series";
     private static final String UNASSIGNED_FOLDER = "unassigned";
 
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("([sS]\\d{2}[eE]\\d{2})");
-    private static final Pattern BASE_FOLDER_PATTERN = Pattern.compile("\\d+-[a-zA-Z0-9 .:'\\-]+");
-    private static final Pattern SEASON_EPISODE_EXTRACT_PATTERN = Pattern.compile("S\\d{2}E\\d{2}");
+//    private static final Pattern BASE_FOLDER_PATTERN = Pattern.compile("\\d+-[a-zA-Z0-9 .:'\\-]+");
+//    private static final Pattern SEASON_EPISODE_EXTRACT_PATTERN = Pattern.compile("S\\d{2}E\\d{2}");
 
     private final ObjectMapper objectMapper;
 
@@ -142,8 +145,8 @@ public class MediaFileHandler {
 
     private void processAssignedFile(File file) {
         try {
-            MediaFileDetails fileDetails = extractBaseFolder(file.getPath())
-                    .orElseThrow(() -> new DbWorldException("Unable to retrieve recordId from folder path: " + file.getPath()));
+            MediaFileDetails fileDetails = mediaFileUtils.createMediaFileDetails(file.getPath())
+                    .orElseThrow(() -> new DbWorldException("Unable to create MediaFileDetails objects from folder path: " + file.getPath()));
 
             if (file.exists()) {
                 processExistingAssignedFile(file, fileDetails);
@@ -164,81 +167,99 @@ public class MediaFileHandler {
             dbWorldUtils.moveFileOrDir(sourcePath, mediaFileInfoEntity.getFilePath(), true);
         });
 
+//        HLSProcessingResult result = hlsMediaProcessor.processMediaFile(mediaFileInfoEntities.get(0), fileDetails);
+//
+//        switch (result.getStatus()) {
+//            case COMPLETED:
+//                log.info("HLS generated successfully for {}", mediaFileInfoEntities.get(0).getFileName());
+//                log.info("Playlist URL: {}", result.getPlaylistUrl());
+//                break;
+//
+//            case ALREADY_EXISTS:
+//                log.info("HLS already exists for {}", mediaFileInfoEntities.get(0).getFileName());
+//                break;
+//
+//            case FAILED:
+//                log.error("Failed to generate HLS: {}", result.getErrorMessage());
+//                // Handle error
+//                break;
+//        }
+
         log.info("Processed {} files for recordId: {}", mediaFileInfoEntities.size(), fileDetails.getRecordId());
     }
 
-    private Optional<MediaFileDetails> extractBaseFolder(String filePath) {
-        String normalizedPath = normalizePath(filePath);
-        Path path = Paths.get(normalizedPath);
-        String baseDirectory = normalizePath(DbWorldConstants.INTEGRATION_FOLDER_PATH);
-
-        if (!normalizedPath.startsWith(baseDirectory)) {
-            return Optional.empty();
-        }
-
-        String relativePath = normalizedPath.substring(baseDirectory.length());
-        String baseFolder = extractPattern(relativePath, BASE_FOLDER_PATTERN);
-        String seasonEpisode = extractPattern(relativePath, SEASON_EPISODE_EXTRACT_PATTERN);
-
-        if (baseFolder != null) {
-            String processedBaseFolder = PathSanitizer.sanitizePath(baseFolder);
-            Long recordId = parseRecordId(processedBaseFolder);
-
-            if (seasonEpisode != null) {
-                return buildSeriesFileDetails(path, processedBaseFolder, recordId, seasonEpisode);
-            } else {
-                return buildMovieFileDetails(path, processedBaseFolder, recordId);
-            }
-        }
-
-        return Optional.empty();
-    }
-
-    private String extractPattern(String input, Pattern pattern) {
-        Matcher matcher = pattern.matcher(input);
-        return matcher.find() ? matcher.group() : null;
-    }
-
-    private Optional<MediaFileDetails> buildSeriesFileDetails(Path filePath, String baseFolder, Long recordId, String seasonEpisode) {
-        String season = seasonEpisode.substring(0, 3);
-        String episode = seasonEpisode.substring(3);
-        String streamFilePath = String.format("%s/%s/%s/%s/%s",
-                normalizePath(DbWorldConstants.STREAM_HOME_PATH),
-                SERIES_FOLDER,
-                baseFolder,
-                season,
-                filePath.getFileName().toString());
-
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
-
-        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
-                dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
-                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, season, episode
-        ));
-    }
-
-    private Optional<MediaFileDetails> buildMovieFileDetails(Path filePath, String baseFolder, Long recordId) {
-        String streamFilePath = String.format("%s/%s/%s/%s",
-                normalizePath(DbWorldConstants.STREAM_HOME_PATH),
-                MOVIES_FOLDER,
-                baseFolder,
-                filePath.getFileName().toString());
-
-        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
-
-        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
-                dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
-                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, null, null
-        ));
-    }
-
-    private Long parseRecordId(String folderName) {
-        try {
-            return Long.parseLong(folderName.split("-")[0]);
-        } catch (NumberFormatException e) {
-            throw new DbWorldException("Invalid folder name format, unable to parse recordId: " + folderName, e);
-        }
-    }
+//    private Optional<MediaFileDetails> extractBaseFolder(String filePath) {
+//        String normalizedPath = normalizePath(filePath);
+//        Path path = Paths.get(normalizedPath);
+//        String baseDirectory = normalizePath(DbWorldConstants.INTEGRATION_FOLDER_PATH);
+//
+//        if (!normalizedPath.startsWith(baseDirectory)) {
+//            return Optional.empty();
+//        }
+//
+//        String relativePath = normalizedPath.substring(baseDirectory.length());
+//        String baseFolder = extractPattern(relativePath, BASE_FOLDER_PATTERN);
+//        String seasonEpisode = extractPattern(relativePath, SEASON_EPISODE_EXTRACT_PATTERN);
+//
+//        if (baseFolder != null) {
+//            String processedBaseFolder = PathSanitizer.sanitizePath(baseFolder);
+//            Long recordId = parseRecordId(processedBaseFolder);
+//
+//            if (seasonEpisode != null) {
+//                return buildSeriesFileDetails(path, processedBaseFolder, recordId, seasonEpisode);
+//            } else {
+//                return buildMovieFileDetails(path, processedBaseFolder, recordId);
+//            }
+//        }
+//
+//        return Optional.empty();
+//    }
+//
+//    private String extractPattern(String input, Pattern pattern) {
+//        Matcher matcher = pattern.matcher(input);
+//        return matcher.find() ? matcher.group() : null;
+//    }
+//
+//    private Optional<MediaFileDetails> buildSeriesFileDetails(Path filePath, String baseFolder, Long recordId, String seasonEpisode) {
+//        String season = seasonEpisode.substring(0, 3);
+//        String episode = seasonEpisode.substring(3);
+//        String streamFilePath = String.format("%s/%s/%s/%s/%s",
+//                normalizePath(DbWorldConstants.STREAM_HOME_PATH),
+//                SERIES_FOLDER,
+//                baseFolder,
+//                season,
+//                filePath.getFileName().toString());
+//
+//        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
+//
+//        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
+//                dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
+//                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, season, episode
+//        ));
+//    }
+//
+//    private Optional<MediaFileDetails> buildMovieFileDetails(Path filePath, String baseFolder, Long recordId) {
+//        String streamFilePath = String.format("%s/%s/%s/%s",
+//                normalizePath(DbWorldConstants.STREAM_HOME_PATH),
+//                MOVIES_FOLDER,
+//                baseFolder,
+//                filePath.getFileName().toString());
+//
+//        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
+//
+//        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
+//                dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
+//                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, null, null
+//        ));
+//    }
+//
+//    private Long parseRecordId(String folderName) {
+//        try {
+//            return Long.parseLong(folderName.split("-")[0]);
+//        } catch (NumberFormatException e) {
+//            throw new DbWorldException("Invalid folder name format, unable to parse recordId: " + folderName, e);
+//        }
+//    }
 
     private void handleFileDeletion(String filePath) {
         try {
@@ -251,7 +272,7 @@ public class MediaFileHandler {
 
     private List<MediaFileInfoEntity> getMediaFileInfo(MediaFileDetails fileDetails, Path sourcePath) {
         try {
-            String jsonOutput = mediaInfoCommandService.runMediaInfoCommand(sourcePath, true, fileDetails);
+            String jsonOutput = mediaInfoCommandService.modifyAndFilterTracksAndTitles(sourcePath, fileDetails);
 //            return mediaInfoUtils.parseMediaInfoJson(fileDetails, jsonOutput);
             return parseMediaInfoJson(fileDetails, jsonOutput);
         } catch (Exception e) {

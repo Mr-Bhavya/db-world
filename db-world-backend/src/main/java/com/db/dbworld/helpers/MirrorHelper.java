@@ -1,460 +1,449 @@
 package com.db.dbworld.helpers;
 
-import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ExtractException;
-import com.db.dbworld.handler.MediaFileHandler;
+import com.db.dbworld.exceptions.ProcessExecutionException;
+import com.db.dbworld.factory.MirrorStatusFactory;
 import com.db.dbworld.payloads.MirrorState;
 import com.db.dbworld.payloads.MirrorStatus;
-import com.db.dbworld.payloads.mediafile.MediaFileDetails;
-import com.db.dbworld.services.cinema.DBCinemaRecordsService;
-import com.db.dbworld.services.media.MediaInfoCommandService;
 import com.db.dbworld.services.media.MediaModificationService;
 import com.db.dbworld.services.mirror.StatusService;
-import com.db.dbworld.stream.processor.GenericStreamProcessor;
-import com.db.dbworld.stream.processor.StreamLogger;
-import com.db.dbworld.stream.processor.StreamProcessor;
-import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldUtils;
-import com.db.dbworld.utils.MediaInfoUtils;
+import com.db.dbworld.stream.processor.StreamProcessorFactory;
+import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import lombok.extern.log4j.Log4j2;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.eclipse.jetty.util.URIUtil.normalizePath;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Log4j2
 @Service
 public class MirrorHelper {
 
-    @Autowired
-    private StatusService statusService;
+    private final StatusService statusService;
+    private final MirrorStatusFactory mirrorStatusFactory;
+    private final MediaModificationService mediaModificationService;
+    private final ProcessExecutor processExecutor;
 
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
+    // Cache for active processing
+    private final ConcurrentHashMap<String, MirrorStatus> statusCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicBoolean> cancellationFlags = new ConcurrentHashMap<>();
 
-    @Autowired
-    private MediaInfoCommandService mediaInfoCommandService;
-
-    @Autowired
-    private DBCinemaRecordsService dbCinemaRecordsService;
-
-    @Autowired
-    private MediaInfoUtils mediaInfoUtils;
-
-    @Autowired
-    private MediaFileHandler mediaFileHandler;
-
-    @Autowired
-    private MediaModificationService mediaModificationService;
-
-    @Autowired
-    private ModelMapper modelMapper;
-
-    public void postDownloadTasks(String statusId) {
-        MirrorStatus mirrorStatus = statusService.getStatusById(statusId);
-        if (mirrorStatus == null) {
-            log.error("❌ MirrorStatus not found for ID: {}", statusId);
-            return;
-        }
-
-        statusService.logAndAppendHtml(mirrorStatus, "🔍 Starting post-download tasks for ID: " + statusId, false);
-
-        try {
-            handlePostDownloadTasks(mirrorStatus);
-        } catch (IOException | DbWorldException ex) {
-            String errorMsg = "❌ Post-download task failed for " + mirrorStatus.getFileName() + ": " + ex.getMessage();
-            statusService.logAndAppendHtml(mirrorStatus, errorMsg, true);
-            handleFailure(mirrorStatus, ex);
-        }
+    // File processing tracking
+    private static class FileProcessingTracker {
+        final AtomicInteger processedCount = new AtomicInteger(0);
+        final AtomicInteger totalFiles = new AtomicInteger(0);
+        volatile boolean initialized = false;
     }
 
-    private void handlePostDownloadTasks(MirrorStatus mirrorStatus) throws IOException, DbWorldException {
-        // Sync the latest status from service
-        MirrorStatus latestStatus = statusService.getStatusById(mirrorStatus.getId());
-        if (latestStatus == null) {
-            throw new DbWorldException("MirrorStatus not found for ID: " + mirrorStatus.getId());
-        }
+    private final ConcurrentHashMap<String, FileProcessingTracker> fileTrackers = new ConcurrentHashMap<>();
 
-        // Update the local mirrorStatus with latest data
-//        syncStatus(mirrorStatus, latestStatus);
-        modelMapper.map(latestStatus, mirrorStatus);
+    public MirrorHelper(
+            StatusService statusService,
+            MirrorStatusFactory mirrorStatusFactory,
+            MediaModificationService mediaModificationService,
+            ProcessExecutor processExecutor
+    ) {
+        this.statusService = statusService;
+        this.mirrorStatusFactory = mirrorStatusFactory;
+        this.mediaModificationService = mediaModificationService;
+        this.processExecutor = processExecutor;
+    }
 
-        if (mirrorStatus.isCancelled()) {
-            statusService.logAndAppendHtml(mirrorStatus, "⚠ Download cancelled for ID: " + mirrorStatus.getId(), false);
-            handleCancelledStatus(mirrorStatus);
-        } else if (mirrorStatus.isFailed()) {
-            statusService.logAndAppendHtml(mirrorStatus, "⚠ Download already marked failed for ID: " + mirrorStatus.getId(), true);
-            handleFailedStatus(mirrorStatus);
-        } else {
-            statusService.logAndAppendHtml(mirrorStatus, "✅ Download completed, starting success flow for ID: " + mirrorStatus.getId(), false);
-            handleSuccessfulDownload(mirrorStatus);
+    @Async
+    public void postDownloadTasks(String statusId) {
+        try {
+            MirrorStatus mirrorStatus = fetchAndCacheStatus(statusId)
+                    .orElseThrow(() -> new DbWorldException("MirrorStatus not found for ID: " + statusId));
+
+            logStatusUpdate(mirrorStatus, "🔍 Starting post-download tasks", false);
+
+            switch (mirrorStatus.getCurrentState()) {
+                case CANCELLED:
+                    handleCancelledStatus(mirrorStatus);
+                    break;
+                case FAILED:
+                    handleFailedStatus(mirrorStatus);
+                    break;
+                default:
+                    handleDownloadCompletion(mirrorStatus);
+            }
+        } catch (Exception ex) {
+            log.error("Post-download tasks failed for ID: {}", statusId, ex);
         }
     }
 
     private void handleCancelledStatus(MirrorStatus mirrorStatus) throws IOException {
-        deleteTempFile(mirrorStatus.getTempFilePath());
+        logStatusUpdate(mirrorStatus, "⚠ Download cancelled", false);
+        cleanupTempFiles(mirrorStatus);
         statusService.updateMirrorStatusWithCancelled(mirrorStatus.getId());
-        statusService.logAndAppendHtml(mirrorStatus, "🗑 Temp file deleted and status updated to cancelled for ID: " + mirrorStatus.getId(), false);
+        cleanupCache(mirrorStatus.getId());
     }
 
     private void handleFailedStatus(MirrorStatus mirrorStatus) throws IOException {
-        deleteTempFile(mirrorStatus.getTempFilePath());
-        statusService.logAndAppendHtml(mirrorStatus, "🗑 Temp file deleted and status updated to failed for ID: " + mirrorStatus.getId(), false);
+        logStatusUpdate(mirrorStatus, "⚠ Download failed", false);
+        cleanupTempFiles(mirrorStatus);
+        cleanupCache(mirrorStatus.getId());
     }
 
-    private void handleSuccessfulDownload(MirrorStatus mirrorStatus) throws IOException, DbWorldException {
-        // Sync status before processing
-        syncWithLatestStatus(mirrorStatus);
+    private void handleDownloadCompletion(MirrorStatus mirrorStatus) throws IOException, DbWorldException {
+        logStatusUpdate(mirrorStatus, "✅ Download completed, starting processing", false);
 
         if (mirrorStatus.isExtract()) {
-            statusService.logAndAppendHtml(mirrorStatus, "📦 File requires extraction: " + mirrorStatus.getFileName(), false);
             handleExtraction(mirrorStatus);
         } else {
-            statusService.logAndAppendHtml(mirrorStatus, "📂 Starting media processing for: " + mirrorStatus.getFileName(), false);
             startMediaProcessing(mirrorStatus);
         }
     }
 
-    private void startMediaProcessing(MirrorStatus mirrorStatus) {
-        statusService.logAndAppendHtml(mirrorStatus, "🔄 Starting asynchronous media processing...", false);
-        statusService.logAndAppendHtml(mirrorStatus, "📁 File: " + mirrorStatus.getFileName(), false);
-
-        // Update status to PROCESSING
-        statusService.updateMirrorState(mirrorStatus.getId(), MirrorState.FFMPEG);
-
-        // Start async processing with proper error handling
-        CompletableFuture<Void> processingFuture = mediaModificationService.processMediaAsync(mirrorStatus)
-                .thenAccept(result -> {
-                    // Sync status before final updates
-                    syncWithLatestStatus(mirrorStatus);
-
-                    if (mirrorStatus.isCancelled()) {
-                        log.info("Media processing cancelled for ID: {}", mirrorStatus.getId());
-                        statusService.logAndAppendHtml(mirrorStatus, "⏹ Media processing cancelled", false);
-                        return;
-                    }
-
-                    if (mirrorStatus.isFailed()) {
-                        log.info("Media processing failed for ID: {}", mirrorStatus.getId());
-                        statusService.logAndAppendHtml(mirrorStatus, "❌ Media processing failed", false);
-                        return;
-                    }
-
-                    log.info("Media processing completed successfully for ID: {}", mirrorStatus.getId());
-                    statusService.logAndAppendHtml(mirrorStatus, "✅ Media processing completed successfully!", false);
-
-                    // Update final status ONLY if not failed or cancelled
-                    statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
-                    statusService.logAndAppendHtml(mirrorStatus, "🎉 File is now ready for streaming", false);
-                })
-                .exceptionally(throwable -> {
-                    log.error("Media processing failed for ID: {}", mirrorStatus.getId(), throwable);
-
-                    // Sync status before error handling
-                    syncWithLatestStatus(mirrorStatus);
-
-                    // Mark as failed in the database
-                    if (!mirrorStatus.isCancelled()) {
-                        String errorMessage = "Media processing failed: " + throwable.getMessage();
-                        statusService.logAndAppendHtml(mirrorStatus, "❌ " + errorMessage, true);
-                        statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), errorMessage);
-                    } else {
-                        statusService.logAndAppendHtml(mirrorStatus, "⏹ Media processing cancelled", false);
-                    }
-                    return null;
-                });
-
-        statusService.logAndAppendHtml(mirrorStatus, "🚀 Media processing started in background", false);
-
-        // Monitor the processing future for cancellation
-        monitorProcessingStatus(mirrorStatus, processingFuture);
-    }
-
-    private void monitorProcessingStatus(MirrorStatus mirrorStatus, CompletableFuture<Void> processingFuture) {
-        CompletableFuture.runAsync(() -> {
-            while (!processingFuture.isDone()) {
-                try {
-                    Thread.sleep(1000); // Check every second
-
-                    // Sync with latest status
-                    syncWithLatestStatus(mirrorStatus);
-
-                    if (mirrorStatus.isCancelled()) {
-                        log.info("Cancellation detected for media processing ID: {}", mirrorStatus.getId());
-                        // Cancel the processing future
-                        processingFuture.cancel(true);
-                        break;
-                    }
-                } catch (Exception e) {
-                    log.warn("Error monitoring processing status for ID: {}", mirrorStatus.getId(), e);
-                    break;
-                }
-            }
-        });
-    }
-
-    private void handleExtraction(MirrorStatus mirrorStatus) throws IOException, DbWorldException {
-        // Sync status before extraction
-        syncWithLatestStatus(mirrorStatus);
-
-        if (mirrorStatus.isCancelled()) {
-            statusService.logAndAppendHtml(mirrorStatus, "⏹ Extraction cancelled before starting", false);
-            return;
-        }
-
-        statusService.updateMirrorStatusWithExtracting(mirrorStatus.getId());
-        statusService.logAndAppendHtml(mirrorStatus, "📦 Extraction started for: " + mirrorStatus.getFileName(), false);
-
+    private void handleExtraction(MirrorStatus mirrorStatus) {
         try {
-            extractAndMoveFiles(mirrorStatus);
+            updateState(mirrorStatus, MirrorState.EXTRACT);
+            logStatusUpdate(mirrorStatus, "📦 Starting extraction", false);
 
-            // Sync status after extraction
-            syncWithLatestStatus(mirrorStatus);
+            extractArchive(mirrorStatus);
 
-            if (!mirrorStatus.isCancelled()) {
-                statusService.updateMirrorStatusWithSuccess(mirrorStatus.getId());
-                statusService.logAndAppendHtml(mirrorStatus, "✅ Extraction completed and status updated to success for file: " + mirrorStatus.getFileName(), false);
-            } else {
-                statusService.logAndAppendHtml(mirrorStatus, "⏹ Extraction completed but status was cancelled", false);
+            if (!isCancelled(mirrorStatus.getId())) {
+                logStatusUpdate(mirrorStatus, "✅ Extraction completed successfully", false);
+                processExtractedFiles(mirrorStatus);
             }
         } catch (ExtractException ex) {
-            // Sync status on failure
-            syncWithLatestStatus(mirrorStatus);
-
-            if (!mirrorStatus.isCancelled()) {
-                String errorMsg = "❌ Extraction failed for file: " + mirrorStatus.getFileName() + " - " + ex.getMessage();
-                statusService.logAndAppendHtml(mirrorStatus, errorMsg, true);
-                handleExtractionFailure(mirrorStatus, ex);
-            } else {
-                statusService.logAndAppendHtml(mirrorStatus, "⏹ Extraction failed but status was already cancelled", false);
-            }
+            handleExtractionFailure(mirrorStatus, ex);
+        } catch (Exception ex) {
+            log.error("Unexpected error during extraction for ID: {}", mirrorStatus.getId(), ex);
+            markAsFailed(mirrorStatus, "Extraction failed: " + ex.getMessage());
         }
     }
 
-    private void extractAndMoveFiles(MirrorStatus mirrorStatus) throws IOException, ExtractException {
-        statusService.logAndAppendHtml(mirrorStatus, "📦 Running extraction for: " + mirrorStatus.getTempFilePath(), false);
-
-        // Check for cancellation before extraction
-        syncWithLatestStatus(mirrorStatus);
-        if (mirrorStatus.isCancelled()) {
-            throw new ExtractException("Extraction cancelled by user");
-        }
-
-        extract(mirrorStatus.getId(), mirrorStatus.getTempFilePath(),
-                mirrorStatus.getTempExtractedFilePath(), null);
-
-        // Check for cancellation after extraction
-        syncWithLatestStatus(mirrorStatus);
-        if (mirrorStatus.isCancelled()) {
-            statusService.logAndAppendHtml(mirrorStatus, "⏹ Extraction completed but moving cancelled", false);
-            return;
-        }
-
-        statusService.logAndAppendHtml(mirrorStatus, "📂 Moving extracted folder from \"" + mirrorStatus.getTempExtractedFilePath() +
-                "\" to \"" + mirrorStatus.getExtractedFilePath() + "\"", false);
-
-        dbWorldUtils.moveFileOrDir(mirrorStatus.getTempExtractedFilePath(),
-                mirrorStatus.getExtractedFilePath(),
-                true);
-
-        deleteTempFile(mirrorStatus.getTempFilePath());
-        statusService.logAndAppendHtml(mirrorStatus, "🗑 Temp archive deleted after extraction for: " + mirrorStatus.getFileName(), false);
-    }
-
-    private void handleExtractionFailure(MirrorStatus mirrorStatus, ExtractException ex) throws DbWorldException {
-        statusService.logAndAppendHtml(mirrorStatus, "⚠ Extraction failed, falling back to moving archive as-is for: " + mirrorStatus.getFileName(), true);
-
-        // Check if cancelled before fallback
-        syncWithLatestStatus(mirrorStatus);
-        if (!mirrorStatus.isCancelled()) {
-            moveFileToFinalLocation(mirrorStatus);
-            StreamLogger.appendHtmlLine(mirrorStatus, ex.getMessage(), true, statusService);
-            throw new DbWorldException(ex.getMessage());
-        } else {
-            statusService.logAndAppendHtml(mirrorStatus, "⏹ Fallback move cancelled", false);
-        }
-    }
-
-    private void moveFileToFinalLocation(MirrorStatus mirrorStatus) throws DbWorldException {
-        statusService.logAndAppendHtml(mirrorStatus, "📂 Attempting to move file from " + mirrorStatus.getTempFilePath() +
-                " to " + mirrorStatus.getFilePath(), false);
-
-        // Check cancellation before move
-        syncWithLatestStatus(mirrorStatus);
-        if (mirrorStatus.isCancelled()) {
-            throw new DbWorldException("File move cancelled by user");
-        }
-
+    private void extractArchive(MirrorStatus mirrorStatus) throws ExtractException {
         try {
-            mirrorStatus.validatePaths();
-            if (mirrorStatus.isFileReadyForMove()) {
-                dbWorldUtils.moveFileOrDir(mirrorStatus.getTempFilePath(),
-                        mirrorStatus.getFilePath(),
-                        true);
-                statusService.logAndAppendHtml(mirrorStatus, "✅ File moved successfully for: " + mirrorStatus.getFileName(), false);
-            } else {
-                throw new DbWorldException("File not ready for moving: " + mirrorStatus.getTempFilePath());
-            }
-        } catch (IOException e) {
-            statusService.logAndAppendHtml(mirrorStatus, "❌ Failed to move file for " + mirrorStatus.getFileName() + ": " + e.getMessage(), true);
-            throw new DbWorldException("Failed to move file from " +
-                    mirrorStatus.getTempFilePath() + " to " +
-                    mirrorStatus.getFilePath(), e);
-        }
-    }
+            // Execute extraction
+            processExecutor.executeExtraction(
+                    mirrorStatus.getTempFilePath(),
+                    mirrorStatus.getTempExtractedFilePath(),
+                    StreamProcessorFactory.createGenericProcessor(statusService, mirrorStatus),
+                    cancellationFlags.get(mirrorStatus.getId()),
+                    Duration.ofHours(2) // 2-hour timeout for extraction
+            );
 
-    private void deleteTempFile(String tempFilePath) throws IOException {
-        if (tempFilePath != null) {
-            Files.deleteIfExists(Path.of(tempFilePath));
-            log.debug("🗑 Deleted temp file: {}", tempFilePath);
-        }
-    }
-
-    private void handleFailure(MirrorStatus mirrorStatus, Exception ex) {
-        statusService.logAndAppendHtml(mirrorStatus, "❌ Error processing post-download tasks for " +
-                mirrorStatus.getFileName() + ": " + ex.getMessage(), true);
-
-        try {
-            if (mirrorStatus.getTempFilePath() != null) {
-                Files.deleteIfExists(Path.of(mirrorStatus.getTempFilePath()));
-                statusService.logAndAppendHtml(mirrorStatus, "🗑 Deleted temp file after failure: " + mirrorStatus.getTempFilePath(), false);
-            }
-        } catch (IOException ioEx) {
-            statusService.logAndAppendHtml(mirrorStatus, "⚠ Failed to delete temp file " + mirrorStatus.getTempFilePath() +
-                    ": " + ioEx.getMessage(), true);
-        }
-    }
-
-    public void extract(String mirrorId, String sourcePath, String targetPath, String password) throws ExtractException {
-        MirrorStatus mirrorStatus = statusService.getStatusById(mirrorId);
-        if (mirrorStatus == null) {
-            throw new ExtractException("MirrorStatus not found for ID: " + mirrorId);
-        }
-
-        statusService.logAndAppendHtml(mirrorStatus, "📦 Starting extraction with 7z for: " + sourcePath, false);
-
-        try {
-            ProcessBuilder pb = new ProcessBuilder("7z", "x", "-bsp1", "-bb1", sourcePath, "-o" + targetPath, "-aoa");
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            StreamProcessor streamProcessor = new GenericStreamProcessor(statusService, mirrorStatus);
-
-            Thread streamThread = new Thread(() -> {
-                try {
-                    streamProcessor.handle(process.getInputStream(), false);
-                } catch (Exception e) {
-                    log.error("Error in stream processing for extraction", e);
-                }
-            });
-            streamThread.start();
-
-            // Monitor for cancellation during extraction
-            AtomicReference<Boolean> cancelled = new AtomicReference<>(false);
-            Thread monitorThread = new Thread(() -> {
-                while (process.isAlive() && !cancelled.get()) {
-                    try {
-                        Thread.sleep(1000);
-                        // Sync status and check for cancellation
-                        syncWithLatestStatus(mirrorStatus);
-                        if (mirrorStatus.isCancelled()) {
-                            cancelled.set(true);
-                            process.destroy();
-                            break;
-                        }
-                    } catch (Exception e) {
-                        log.warn("Error monitoring extraction cancellation", e);
-                    }
-                }
-            });
-            monitorThread.start();
-
-            int exitCode = process.waitFor();
-            streamThread.join();
-            monitorThread.join();
-
-            if (cancelled.get()) {
-                throw new ExtractException("Extraction cancelled by user");
-            }
-
-            if (exitCode != 0) {
-                statusService.logAndAppendHtml(mirrorStatus, "❌ 7z extraction failed with exit code: " + exitCode, true);
-                throw new ExtractException("Extraction failed with exit code: " + exitCode);
-            }
-            statusService.logAndAppendHtml(mirrorStatus, "✅ 7z extraction completed successfully for: " + sourcePath, false);
-        } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
-            statusService.logAndAppendHtml(mirrorStatus, "❌ Extraction error for " + sourcePath + ": " + e.getMessage(), true);
+        } catch (ProcessExecutionException e) {
             throw new ExtractException("Extraction error: " + e.getMessage());
         }
     }
 
-    /**
-     * Sync the local MirrorStatus object with the latest data from the service
-     */
-    private void syncWithLatestStatus(MirrorStatus mirrorStatus) {
-        try {
-            MirrorStatus latestStatus = statusService.getStatusById(mirrorStatus.getId());
-            if (latestStatus != null) {
-                modelMapper.map(latestStatus, mirrorStatus);
+    private void monitorCancellationDuringProcess(String statusId, Process process) {
+        while (process.isAlive()) {
+            if (isCancelled(statusId)) {
+                process.destroy();
+                break;
             }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private void processExtractedFiles(MirrorStatus parentStatus) {
+        try {
+            List<File> mediaFiles = findMediaFiles(parentStatus.getTempExtractedFilePath());
+
+            if (CollectionUtils.isEmpty(mediaFiles)) {
+                logStatusUpdate(parentStatus, "📭 No media files found after extraction", false);
+                markAsFailed(parentStatus, "No media files found after extraction");
+                return;
+            }
+
+            logStatusUpdate(parentStatus, "📊 Found " + mediaFiles.size() + " media file(s)", false);
+
+            // Initialize tracker BEFORE starting any processing
+            FileProcessingTracker tracker = new FileProcessingTracker();
+            tracker.totalFiles.set(mediaFiles.size());
+            tracker.initialized = true;
+            fileTrackers.put(parentStatus.getId(), tracker);
+
+            // Process each file
+            for (File mediaFile : mediaFiles) {
+                if (isCancelled(parentStatus.getId())) {
+                    logStatusUpdate(parentStatus, "⏹ Processing cancelled, skipping remaining files", false);
+                    break;
+                }
+
+                logStatusUpdate(parentStatus, "🔍 Processing extracted file: " + mediaFile.getName(), false);
+                processExtractedFileAsync(parentStatus, mediaFile);
+            }
+
+        } catch (Exception ex) {
+            log.error("Error processing extracted files for ID: {}", parentStatus.getId(), ex);
+            markAsFailed(parentStatus, "Error processing extracted files: " + ex.getMessage());
+        }
+    }
+
+    private List<File> findMediaFiles(String directoryPath) throws IOException {
+        Path startPath = Path.of(directoryPath);
+
+        if (!Files.exists(startPath) || !Files.isDirectory(startPath)) {
+            throw new IOException("Extracted directory not found: " + directoryPath);
+        }
+
+        try (Stream<Path> walk = Files.walk(startPath)) {
+            return walk
+                    .filter(Files::isRegularFile)
+                    .map(Path::toFile)
+                    .collect(Collectors.toList());
+        }
+    }
+
+    private void processExtractedFileAsync(MirrorStatus parentStatus, File mediaFile) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                // Create child status (but don't save it - use it only for processing)
+                MirrorStatus childStatus = createExtractedFileStatus(parentStatus, mediaFile);
+
+                // Log to parent about starting this file
+                logStatusUpdate(parentStatus, "🔄 Starting media processing for: " + mediaFile.getName(), false);
+
+                // Process the file
+                mediaModificationService.processMediaAsync(childStatus)
+                        .thenRun(() -> {
+                            // Success - log to parent
+                            logStatusUpdate(parentStatus, "✅ Completed processing for: " + mediaFile.getName(), false);
+                            updateProcessingProgress(parentStatus);
+                        })
+                        .exceptionally(ex -> {
+                            // Failure - log to parent
+                            String errorMsg = extractErrorMessage(ex);
+                            if (isDuplicateEntryError(errorMsg)) {
+                                logStatusUpdate(parentStatus, "⚠️ File already exists: " + mediaFile.getName(), false);
+                                logStatusUpdate(parentStatus, "✅ Skipping duplicate file: " + mediaFile.getName(), false);
+                            } else {
+                                logStatusUpdate(parentStatus, "❌ Failed to process: " + mediaFile.getName() + " - " + errorMsg, true);
+                            }
+                            updateProcessingProgress(parentStatus);
+                            return null;
+                        });
+
+            } catch (Exception e) {
+                log.error("Error setting up processing for file: {}", mediaFile.getAbsolutePath(), e);
+                logStatusUpdate(parentStatus, "❌ Error processing: " + mediaFile.getName() + " - " + e.getMessage(), true);
+                updateProcessingProgress(parentStatus);
+            }
+        });
+    }
+
+    private synchronized void updateProcessingProgress(MirrorStatus parentStatus) {
+        FileProcessingTracker tracker = fileTrackers.get(parentStatus.getId());
+        if (tracker == null || !tracker.initialized) {
+            log.warn("Tracker not initialized for ID: {}", parentStatus.getId());
+            return;
+        }
+
+        int processed = tracker.processedCount.incrementAndGet();
+        int total = tracker.totalFiles.get();
+
+        logStatusUpdate(parentStatus, "📈 Progress: " + processed + "/" + total + " files processed", false);
+
+        // Check if all files are processed
+        if (processed >= total) {
+            if (!isCancelled(parentStatus.getId())) {
+                updateState(parentStatus, MirrorState.SUCCESS);
+                logStatusUpdate(parentStatus, "✅ All extracted files processed successfully", false);
+            }
+            // Clean up tracker
+            fileTrackers.remove(parentStatus.getId());
+        }
+    }
+
+    private MirrorStatus createExtractedFileStatus(MirrorStatus parentStatus, File mediaFile) throws IOException {
+        MirrorStatus fileStatus = mirrorStatusFactory.create(
+                parentStatus.getFolderName(),
+                null,
+                mediaFile.getName(),
+                Files.size(mediaFile.toPath()),
+                false
+        );
+
+        fileStatus.setParentId(parentStatus.getId());
+        fileStatus.setTempFileName(mediaFile.getName());
+        fileStatus.setTempFilePath(mediaFile.getPath());
+        fileStatus.transitionTo(MirrorState.FFMPEG);
+
+        return fileStatus;
+    }
+
+    private void startMediaProcessing(MirrorStatus mirrorStatus) {
+        updateState(mirrorStatus, MirrorState.FFMPEG);
+        logStatusUpdate(mirrorStatus, "🔄 Starting media processing", false);
+
+        mediaModificationService.processMediaAsync(mirrorStatus)
+                .thenRun(() -> handleMediaProcessingSuccess(mirrorStatus))
+                .exceptionally(ex -> {
+                    handleMediaProcessingFailure(mirrorStatus, ex);
+                    return null;
+                });
+    }
+
+    private void handleMediaProcessingSuccess(MirrorStatus mirrorStatus) {
+        if (!isCancelled(mirrorStatus.getId())) {
+            logStatusUpdate(mirrorStatus, "✅ Media processing completed successfully", false);
+            updateState(mirrorStatus, MirrorState.SUCCESS);
+        }
+    }
+
+    private void handleMediaProcessingFailure(MirrorStatus mirrorStatus, Throwable throwable) {
+        if (!isCancelled(mirrorStatus.getId())) {
+            String errorMessage = extractErrorMessage(throwable);
+            log.error("Media processing failed for ID: {} - {}", mirrorStatus.getId(), errorMessage);
+
+            // Check for duplicate entry (which should be treated as success)
+            if (isDuplicateEntryError(errorMessage)) {
+                logStatusUpdate(mirrorStatus, "⚠️ File already exists in database - skipping", false);
+                logStatusUpdate(mirrorStatus, "✅ Media processing completed (file already exists)", false);
+                updateState(mirrorStatus, MirrorState.SUCCESS);
+            } else {
+                logStatusUpdate(mirrorStatus, "❌ Media processing failed: " + errorMessage, true);
+                markAsFailed(mirrorStatus, "Media processing failed: " + errorMessage);
+            }
+        }
+    }
+
+    private String extractErrorMessage(Throwable throwable) {
+        if (throwable == null) return "Unknown error";
+
+        if (throwable instanceof CompletionException && throwable.getCause() != null) {
+            return extractErrorMessage(throwable.getCause());
+        }
+
+        Throwable cause = throwable;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+
+        String message = cause.getMessage();
+        if (message == null || message.isEmpty()) {
+            message = cause.getClass().getSimpleName();
+        }
+
+        return message;
+    }
+
+    private boolean isDuplicateEntryError(String errorMessage) {
+        if (errorMessage == null) return false;
+
+        String lowerError = errorMessage.toLowerCase();
+        return lowerError.contains("duplicate") ||
+                lowerError.contains("already exists") ||
+                lowerError.contains("unique constraint") ||
+                lowerError.contains("constraint violation");
+    }
+
+    private void handleExtractionFailure(MirrorStatus mirrorStatus, ExtractException ex) {
+        logStatusUpdate(mirrorStatus, "❌ Extraction failed: " + ex.getMessage(), true);
+        markAsFailed(mirrorStatus, "Extraction failed: " + ex.getMessage());
+    }
+
+    // ==================== Utility Methods ====================
+
+    private Optional<MirrorStatus> fetchAndCacheStatus(String statusId) {
+        try {
+            MirrorStatus status = statusService.getStatusById(statusId);
+            if (status != null) {
+                statusCache.put(statusId, status);
+                cancellationFlags.putIfAbsent(statusId, new AtomicBoolean(false));
+            }
+            return Optional.ofNullable(status);
         } catch (Exception e) {
-            log.warn("Failed to sync status for ID: {}", mirrorStatus.getId(), e);
+            log.error("Failed to fetch status for ID: {}", statusId, e);
+            return Optional.empty();
         }
     }
 
-    /**
-     * Synchronize all status fields and logs between two MirrorStatus objects
-     */
-    private void syncStatus(MirrorStatus target, MirrorStatus source) {
-        // Sync basic status fields
-//        target.setCancelled(source.isCancelled());
-//        target.setFailed(source.isFailed());
-//        target.setCompleted(source.isCompleted());
-//        target.setPause(source.isPause());
-//        target.setSuccess(source.isSuccess());
-//
-//        // Sync current state and status
-//        target.setCurrentState(source.getCurrentState());
-//        target.setCurrentStatus(source.getCurrentStatus());
-//
-//        // Sync file ready status
-//        target.setFileReadyForMove(source.isFileReadyForMove());
-
-        // Sync download progress if available
-        if (source.getDownloadStatus() != null && target.getDownloadStatus() != null) {
-            target.getDownloadStatus().setSpeed(source.getDownloadStatus().getSpeed());
-            target.getDownloadStatus().setFileDownloaded(source.getDownloadStatus().getFileDownloaded());
-            target.getDownloadStatus().setFileRemaining(source.getDownloadStatus().getFileRemaining());
-            target.getDownloadStatus().setEta(source.getDownloadStatus().getEta());
-            target.getDownloadStatus().setTotalFileSize(source.getDownloadStatus().getTotalFileSize());
-            target.getDownloadStatus().setUpdateTime(source.getDownloadStatus().getUpdateTime());
-        }
-
-        // Sync message/logs (append new logs if any)
-        if (source.getMessage() != null && !source.getMessage().equals(target.getMessage())) {
-            target.setMessage(source.getMessage());
-        }
-
-        // Sync file paths if changed
-        if (source.getFilePath() != null) target.setFilePath(source.getFilePath());
-        if (source.getTempFilePath() != null) target.setTempFilePath(source.getTempFilePath());
-        if (source.getExtractedFilePath() != null) target.setExtractedFilePath(source.getExtractedFilePath());
-        if (source.getTempExtractedFilePath() != null) target.setTempExtractedFilePath(source.getTempExtractedFilePath());
+    private boolean isCancelled(String statusId) {
+        AtomicBoolean flag = cancellationFlags.get(statusId);
+        return flag != null && flag.get();
     }
 
-    private void ffmpegOperation(MirrorStatus mirrorStatus){
-        // Implementation for ffmpeg operations
-        String recordId = String.valueOf(mirrorStatus.getRecordId());
-        String recordType = "";
+    private void updateState(MirrorStatus mirrorStatus, MirrorState newState) {
+        try {
+            mirrorStatus.transitionTo(newState);
+            statusService.updateMirrorState(mirrorStatus.getId(), newState);
+            statusCache.put(mirrorStatus.getId(), mirrorStatus);
+        } catch (Exception e) {
+            log.error("Failed to update state for ID: {}", mirrorStatus.getId(), e);
+        }
+    }
+
+    private void markAsFailed(MirrorStatus mirrorStatus, String errorMessage) {
+        try {
+            statusService.updateMirrorStatusWithFailed(mirrorStatus.getId(), errorMessage);
+            logStatusUpdate(mirrorStatus, errorMessage, true);
+        } catch (Exception e) {
+            log.error("Failed to mark as failed for ID: {}", mirrorStatus.getId(), e);
+        } finally {
+            cleanupCache(mirrorStatus.getId());
+        }
+    }
+
+    private void logStatusUpdate(MirrorStatus mirrorStatus, String message, boolean isError) {
+        try {
+            statusService.logAndAppendHtml(mirrorStatus, message, isError);
+        } catch (Exception e) {
+            log.warn("Failed to log status update for ID: {}", mirrorStatus.getId(), e);
+        }
+    }
+
+    private void cleanupTempFiles(MirrorStatus mirrorStatus) throws IOException {
+        if (mirrorStatus.getTempFilePath() != null) {
+            Files.deleteIfExists(Path.of(mirrorStatus.getTempFilePath()));
+            log.debug("Cleaned up temp file: {}", mirrorStatus.getTempFilePath());
+        }
+    }
+
+    private void cleanupCache(String statusId) {
+        statusCache.remove(statusId);
+        cancellationFlags.remove(statusId);
+        fileTrackers.remove(statusId);
+    }
+
+    // ==================== Public API for Cancellation ====================
+
+    public void cancelProcessing(String statusId) {
+        try {
+            AtomicBoolean flag = cancellationFlags.get(statusId);
+            if (flag != null) {
+                flag.set(true);
+            }
+
+            MirrorStatus status = statusCache.get(statusId);
+            if (status != null) {
+                status.transitionTo(MirrorState.CANCELLED);
+            }
+
+            statusService.updateMirrorStatusWithCancelled(statusId);
+            log.info("Processing cancelled for ID: {}", statusId);
+
+        } catch (Exception e) {
+            log.error("Failed to cancel processing for ID: {}", statusId, e);
+        }
+    }
+
+    public boolean isProcessingActive(String statusId) {
+        return statusCache.containsKey(statusId) && !isCancelled(statusId);
     }
 }

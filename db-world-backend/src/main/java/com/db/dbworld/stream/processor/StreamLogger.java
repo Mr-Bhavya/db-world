@@ -4,6 +4,9 @@ import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.services.mirror.StatusService;
 import lombok.extern.log4j.Log4j2;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @Log4j2
@@ -15,26 +18,41 @@ public class StreamLogger {
             '>', "&gt;"
     );
 
-    public static void appendHtmlLine(MirrorStatus mirrorStatus, String raw, boolean isError, StatusService statusService) {
+    private static final DateTimeFormatter TS_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+                    .withZone(ZoneId.systemDefault());
+
+    public static void appendHtmlLine(
+            MirrorStatus mirrorStatus,
+            String raw,
+            boolean isError,
+            StatusService statusService
+    ) {
         // Handle null raw input
         if (raw == null) {
             raw = "[null]";
         }
 
-        StringBuilder escaped = new StringBuilder(raw.length() + 20);
+        // Escape HTML
+        StringBuilder escaped = new StringBuilder(raw.length() + 32);
         for (char c : raw.toCharArray()) {
             escaped.append(HTML_ESCAPE_MAP.getOrDefault(c, String.valueOf(c)));
         }
 
-        String tag = isError ? "[stderr] " : "[stdout] ";
+        // Timestamp
+        String timestamp = TS_FORMATTER.format(Instant.now());
+
+        String tag = isError ? "[stderr]" : "[stdout]";
         String color = isError ? "#dc3545" : "#198754";
 
         String html = String.format(
-                "<div style='color:%s;font-family:monospace;'>%s%s</div>",
-                color, tag, escaped
+                "<div style='color:%s;font-family:monospace;'>[%s] %s %s</div>",
+                color,
+                timestamp,
+                tag,
+                escaped
         );
 
-        // Safely handle null message
         String prev = mirrorStatus.getMessage() != null ? mirrorStatus.getMessage() : "";
 
         try {
@@ -44,8 +62,7 @@ public class StreamLogger {
                 statusService.updateStatusMessage(mirrorStatus.getId(), prev + html);
             }
         } catch (Exception e) {
-            // Log the error or handle it appropriately
-            log.error("Failed to update mirror status: {}", e.getMessage());
+            log.error("Failed to update mirror status for id {}", mirrorStatus.getId(), e);
         }
     }
 }

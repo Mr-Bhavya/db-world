@@ -36,6 +36,7 @@ import {
   TrendingUp as TrendingIcon,
   Star as StarIcon
 } from '@mui/icons-material';
+import Snowfall from 'react-snowfall';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -157,8 +158,8 @@ const Home = () => {
   };
 
   const itemVariants = {
-    hidden: { 
-      y: 60, 
+    hidden: {
+      y: 60,
       opacity: 0,
       scale: 0.8
     },
@@ -175,10 +176,10 @@ const Home = () => {
     hover: {
       y: -8,
       scale: 1.05,
-      transition: { 
-        type: "spring", 
-        stiffness: 400, 
-        damping: 25 
+      transition: {
+        type: "spring",
+        stiffness: 400,
+        damping: 25
       }
     },
     tap: {
@@ -245,6 +246,8 @@ const Home = () => {
         }
       }}
     >
+      <Snowfall />
+      
       <AnimatePresence mode="wait">
         <motion.div
           key={currentBackground}
@@ -257,9 +260,9 @@ const Home = () => {
         />
       </AnimatePresence>
 
-      <Container 
-        maxWidth="xl" 
-        sx={{ 
+      <Container
+        maxWidth="xl"
+        sx={{
           position: 'relative',
           zIndex: 1,
           px: { xs: 1, sm: 2, md: 3 }
@@ -283,7 +286,7 @@ const Home = () => {
           <Box
             sx={{
               background: alpha(theme.palette.background.paper, 0.75),
-              backdropFilter: 'blur(20px)',
+              // backdropFilter: 'blur(20px)',
               borderRadius: { xs: 2, sm: 4 },
               p: { xs: 2, sm: 3, md: 4 },
               border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
@@ -310,12 +313,12 @@ const Home = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
               >
-                <Typography 
+                <Typography
                   variant={isSmallScreen ? "h3" : "h2"}
                   component="h1"
                   fontWeight="bold"
                   gutterBottom
-                  sx={{ 
+                  sx={{
                     fontSize: { xs: '2rem', sm: '3rem', md: '4rem' },
                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                     backgroundClip: 'text',
@@ -327,16 +330,16 @@ const Home = () => {
                   DB World Portal
                 </Typography>
               </motion.div>
-              
+
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.4 }}
               >
-                <Typography 
-                  variant="h6" 
+                <Typography
+                  variant="h6"
                   color="text.secondary"
-                  sx={{ 
+                  sx={{
                     fontSize: { xs: '1rem', sm: '1.2rem' },
                     mb: 2
                   }}
@@ -358,15 +361,15 @@ const Home = () => {
                     position: 'relative'
                   }}
                 >
-                  <SearchIcon 
-                    sx={{ 
+                  <SearchIcon
+                    sx={{
                       position: 'absolute',
                       left: 12,
                       top: '50%',
                       transform: 'translateY(-50%)',
                       color: 'text.secondary',
                       zIndex: 1
-                    }} 
+                    }}
                   />
                   <input
                     type="text"
@@ -397,26 +400,26 @@ const Home = () => {
                 </Box>
               </motion.div>
 
-              <Divider 
-                sx={{ 
+              <Divider
+                sx={{
                   my: { xs: 3, sm: 4 },
                   background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.main, 0.3)}, transparent)`,
                   height: 2
-                }} 
+                }}
               />
             </Box>
 
             {/* Cards Grid */}
-            <Grid 
-              container 
+            <Grid
+              container
               spacing={{ xs: 2, sm: 3, md: 4 }}
               justifyContent="center"
               sx={{ mx: 'auto' }}
             >
               <AnimatePresence>
                 {filteredCards.map((card, index) => (
-                  <Grid 
-                    item 
+                  <Grid
+                    item
                     key={card.id}
                     xs={6}
                     sm={4}
@@ -536,7 +539,7 @@ const Home = () => {
                               }}
                             >
                               {React.cloneElement(card.icon, {
-                                sx: { 
+                                sx: {
                                   color: card.color,
                                   fontSize: { xs: '2rem', sm: '2.5rem' },
                                   filter: `drop-shadow(0 4px 8px ${alpha(card.color, 0.3)})`
@@ -546,10 +549,10 @@ const Home = () => {
                           </motion.div>
 
                           <CardContent sx={{ p: 0, width: '100%' }}>
-                            <Typography 
+                            <Typography
                               variant="h6"
                               gutterBottom
-                              sx={{ 
+                              sx={{
                                 fontSize: { xs: '1rem', sm: '1.1rem' },
                                 fontWeight: 'bold',
                                 background: `linear-gradient(135deg, ${card.color}, ${alpha(card.color, 0.8)})`,
@@ -560,9 +563,9 @@ const Home = () => {
                             >
                               {card.title}
                             </Typography>
-                            
-                            <Typography 
-                              variant="body2" 
+
+                            <Typography
+                              variant="body2"
                               color="text.secondary"
                               sx={{
                                 fontSize: { xs: '0.75rem', sm: '0.85rem' },
@@ -580,7 +583,7 @@ const Home = () => {
                                 label={card.category}
                                 size="small"
                                 variant="outlined"
-                                sx={{ 
+                                sx={{
                                   fontSize: '0.6rem',
                                   borderColor: alpha(card.color, 0.3),
                                   color: card.color

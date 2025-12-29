@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -81,7 +82,7 @@ public class FileExplorerController {
     @GetMapping("/list")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<List<FileDto>> listFiles(@RequestParam String directory) {
-        List<FileDto> files = fileService.listFiles(URLDecoder.decode(directory));
+        List<FileDto> files = fileService.listFiles(URLDecoder.decode(directory, StandardCharsets.UTF_8));
         return new ApiResponse<>(HttpStatus.OK, true, files);
     }
 }

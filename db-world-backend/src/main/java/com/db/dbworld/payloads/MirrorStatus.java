@@ -1,7 +1,7 @@
 package com.db.dbworld.payloads;
 
 import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldUtils;
+import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.PathSanitizer;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -9,31 +9,27 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.*;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 @Log4j2
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Service
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class MirrorStatus {
 
     private String id = String.valueOf(new Date().getTime());
+    private String parentId;
     private Long pid;
     private String gid;
     private String timeStamp = id;
@@ -65,6 +61,9 @@ public class MirrorStatus {
     private boolean onlyAudio;
     private String message;
 
+    @JsonIgnore
+    private transient DbWorldRuntimeProperties runtime;
+
     // Derived boolean fields based on state
     public boolean isPause() {
         return currentState.get() == MirrorState.PAUSE;
@@ -90,7 +89,6 @@ public class MirrorStatus {
     // Thread-safe state transitions
     public boolean transitionTo(MirrorState newState) {
         MirrorState current = currentState.get();
-
         if (isValidTransition(current, newState)) {
             return currentState.compareAndSet(current, newState);
         }
@@ -106,33 +104,27 @@ public class MirrorStatus {
     }
 
     public boolean isValidTransition(MirrorState current, MirrorState newState) {
-        // Define valid state transitions
         switch (current) {
             case DOWNLOAD:
                 return newState == MirrorState.PAUSE || newState == MirrorState.CANCELLED ||
                         newState == MirrorState.FAILED || newState == MirrorState.EXTRACT ||
                         newState == MirrorState.MERGE || newState == MirrorState.FFMPEG;
-
             case PAUSE:
                 return newState == MirrorState.RESUME || newState == MirrorState.CANCELLED;
-
             case RESUME:
                 return newState == MirrorState.DOWNLOAD || newState == MirrorState.PAUSE ||
                         newState == MirrorState.CANCELLED;
-
             case EXTRACT:
             case MERGE:
             case FFMPEG:
                 return newState == MirrorState.SUCCESS || newState == MirrorState.FAILED ||
                         newState == MirrorState.CANCELLED;
-
             case SUCCESS:
             case FAILED:
             case CANCELLED:
                 return false; // Terminal states
-
             default:
-                return true;
+                return false;
         }
     }
 
@@ -148,11 +140,6 @@ public class MirrorStatus {
     public String getCurrentStatus() {
         return getStatusDisplay(currentState.get());
     }
-
-//    public void setCurrentStatus(String status) {
-//        // This is for backward compatibility, but state should be managed via enum
-//        // Parse string to enum if needed, or leave for display purposes only
-//    }
 
     private String getStatusDisplay(MirrorState state) {
         switch (state) {
@@ -170,7 +157,16 @@ public class MirrorStatus {
         }
     }
 
-    public MirrorStatus(String folderName, String fileUrl, String fileName, Long fileSize, boolean extract) {
+    // Factory constructor
+    public MirrorStatus(
+            DbWorldRuntimeProperties runtime,
+            String folderName,
+            String fileUrl,
+            String fileName,
+            Long fileSize,
+            boolean extract
+    ) {
+        this.runtime = runtime;
         this.id = String.valueOf(new Date().getTime());
         this.timeStamp = this.id;
         this.folderName = determineFolderName(folderName);
@@ -179,21 +175,13 @@ public class MirrorStatus {
         this.currentState.set(MirrorState.DOWNLOAD);
         this.fileUrl = fileUrl;
         this.magnet = isMagnetLink(fileUrl);
-        this.fileName = PathSanitizer.sanitizeFilename(fileName);
+        this.fileName = sanitizeFileName(fileName);
         this.fileSize = fileSize;
         this.extract = extract;
 
         initializePaths(this.folderName, this.fileName, this.extract);
         initializeFileType();
-        log.info("Updated MirrorStatus : {}", this.toJsonString());
-    }
-
-    public MirrorStatus(String folderName, String fileUrl, String fileName, Long fileSize,
-                        boolean extract, String videoITag, String audioITag, boolean onlyAudio) {
-        this(folderName, fileUrl, fileName, fileSize, extract);
-        this.videoITag = videoITag;
-        this.audioITag = audioITag;
-        this.onlyAudio = onlyAudio;
+        log.info("Created MirrorStatus : {}", this.toJsonString());
     }
 
     private boolean isMagnetLink(String url) {
@@ -201,23 +189,23 @@ public class MirrorStatus {
     }
 
     private String determineFolderName(String folderName) {
-        return (folderName == null || folderName.isEmpty()) ? "unassigned" : PathSanitizer.sanitizePathComponent(folderName);
+        return !StringUtils.hasText(folderName) ? "unassigned" : PathSanitizer.sanitizePathComponent(folderName);
     }
 
     private Long extractRecordId(String folderName) {
+        if (!StringUtils.hasText(folderName)) {
+            return -1L;
+        }
         try {
-            if (folderName != null && !folderName.isEmpty()) {
-                return Long.valueOf(folderName.split("-")[0]);
-            }
+            return Long.valueOf(folderName.split("-")[0]);
         } catch (NumberFormatException e) {
             log.warn("Invalid record ID in folder name: {}", folderName);
+            return -1L;
         }
-        return -1L;
     }
 
     private String sanitizeFileName(String fileName) {
         return Optional.ofNullable(fileName)
-                .map(name -> name.replaceAll("[\\\\/:*?\"<>|]", "_"))
                 .orElse("unknown_file_" + System.currentTimeMillis());
     }
 
@@ -225,18 +213,18 @@ public class MirrorStatus {
         validateConstants();
 
         try {
-            this.recordIdPath = buildPath(DbWorldConstants.INTEGRATION_FOLDER_PATH, folderName);
-            this.tempRecordIdPath = buildPath(DbWorldConstants.TEMP_DOWNLOAD_PATH, folderName);
+            this.recordIdPath = buildCleanPath(DbWorldConstants.INTEGRATION_FOLDER_PATH, folderName);
+            this.tempRecordIdPath = buildCleanPath(DbWorldConstants.TEMP_DOWNLOAD_PATH, folderName);
 
-            this.filePath = buildPath(recordIdPath, fileName);
-            this.tempFilePath = buildPath(tempRecordIdPath, tempFileName);
+            this.filePath = buildCleanPath(recordIdPath, fileName);
+            this.tempFilePath = buildCleanPath(tempRecordIdPath, tempFileName);
 
             createDirectories(tempRecordIdPath, recordIdPath);
 
             if (extract) {
                 this.extractedFileName = extractFileName(fileName);
-                this.tempExtractedFilePath = buildPath(tempRecordIdPath, extractedFileName);
-                this.extractedFilePath = buildPath(recordIdPath, extractedFileName);
+                this.tempExtractedFilePath = buildCleanPath(tempRecordIdPath, extractedFileName);
+                this.extractedFilePath = buildCleanPath(recordIdPath, extractedFileName);
             }
         } catch (IOException e) {
             log.error("Failed to initialize paths: {}", e.getMessage());
@@ -244,22 +232,28 @@ public class MirrorStatus {
         }
     }
 
-    private String buildPath(String base, String... parts) {
-        String[] safeParts = Arrays.stream(parts)
-                .map(p -> p.replaceAll("[\\\\/:*?\"<>|]", "-")) // replace illegal chars with _
-                .toArray(String[]::new);
+    private String buildCleanPath(String base, String... parts) {
+        String cleanedBase = StringUtils.cleanPath(base);
+        StringBuilder pathBuilder = new StringBuilder(cleanedBase);
 
-        String path = Paths.get(base, safeParts).toString();
-        return path;
+        for (String part : parts) {
+            if (StringUtils.hasText(part)) {
+                String cleanedPart = StringUtils.cleanPath(part);
+                pathBuilder.append("/").append(cleanedPart);
+            }
+        }
+
+        return pathBuilder.toString();
     }
 
-
     private void validateConstants() {
-        if (DbWorldConstants.INTEGRATION_FOLDER_PATH == null || DbWorldConstants.INTEGRATION_FOLDER_PATH.equals("null")) {
+        if (!StringUtils.hasText(DbWorldConstants.INTEGRATION_FOLDER_PATH) ||
+                "null".equals(DbWorldConstants.INTEGRATION_FOLDER_PATH)) {
             DbWorldConstants.INTEGRATION_FOLDER_PATH = "/ext_hdisk/dbworld/integration/";
             log.warn("Using default integration folder path: {}", DbWorldConstants.INTEGRATION_FOLDER_PATH);
         }
-        if (DbWorldConstants.TEMP_DOWNLOAD_PATH == null || DbWorldConstants.TEMP_DOWNLOAD_PATH.equals("null")) {
+        if (!StringUtils.hasText(DbWorldConstants.TEMP_DOWNLOAD_PATH) ||
+                "null".equals(DbWorldConstants.TEMP_DOWNLOAD_PATH)) {
             DbWorldConstants.TEMP_DOWNLOAD_PATH = "/ext_hdisk/dbworld/temp/";
             log.warn("Using default temp download path: {}", DbWorldConstants.TEMP_DOWNLOAD_PATH);
         }
@@ -267,8 +261,10 @@ public class MirrorStatus {
 
     private void createDirectories(String... paths) throws IOException {
         for (String path : paths) {
-            Files.createDirectories(Paths.get(path));
-            log.debug("Created directory: {}", path);
+            if (StringUtils.hasText(path)) {
+                Files.createDirectories(Paths.get(path));
+                log.debug("Created directory: {}", path);
+            }
         }
     }
 
@@ -285,7 +281,9 @@ public class MirrorStatus {
     }
 
     private String detectFileTypeByExtension(String fileName) {
-        if (fileName == null) return "application/octet-stream";
+        if (!StringUtils.hasText(fileName)) {
+            return "application/octet-stream";
+        }
 
         String lowerName = fileName.toLowerCase();
         if (lowerName.endsWith(".mp4")) return "video/mp4";
@@ -293,16 +291,21 @@ public class MirrorStatus {
         if (lowerName.endsWith(".pdf")) return "application/pdf";
         if (lowerName.endsWith(".zip")) return "application/zip";
         if (lowerName.endsWith(".rar")) return "application/x-rar-compressed";
+        if (lowerName.endsWith(".tar")) return "application/x-tar";
+        if (lowerName.endsWith(".7z")) return "application/x-7z-compressed";
         return "application/octet-stream";
     }
 
     private String extractFileName(String fileName) {
+        if (!StringUtils.hasText(fileName)) {
+            return "extracted_file";
+        }
         return fileName.replaceAll("\\.(zip|rar|tar|7z)$", "");
     }
 
     public void validatePaths() throws IOException {
-        if (this.tempFilePath == null || this.filePath == null) {
-            throw new IOException("Source or destination path is null");
+        if (!StringUtils.hasText(this.tempFilePath) || !StringUtils.hasText(this.filePath)) {
+            throw new IOException("Source or destination path is null or empty");
         }
 
         Path source = Paths.get(this.tempFilePath);
@@ -328,16 +331,16 @@ public class MirrorStatus {
 
     public void setTempFileName(String tempFileName) {
         this.tempFileName = tempFileName;
-        this.tempFilePath = buildPath(tempRecordIdPath, tempFileName);
+        this.tempFilePath = buildCleanPath(tempRecordIdPath, tempFileName);
     }
 
     public void setFileName(String fileName) {
-        this.fileName = fileName;
-        this.filePath = buildPath(recordIdPath, fileName);
+        this.fileName = sanitizeFileName(fileName);
+        this.filePath = buildCleanPath(recordIdPath, this.fileName);
         if (this.extract) {
-            this.extractedFileName = extractFileName(fileName);
-            this.tempExtractedFilePath = buildPath(tempRecordIdPath, extractedFileName);
-            this.extractedFilePath = buildPath(recordIdPath, extractedFileName);
+            this.extractedFileName = extractFileName(this.fileName);
+            this.tempExtractedFilePath = buildCleanPath(tempRecordIdPath, extractedFileName);
+            this.extractedFilePath = buildCleanPath(recordIdPath, extractedFileName);
         }
     }
 
@@ -345,6 +348,7 @@ public class MirrorStatus {
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class DownloadStatus {
         private Double speed;
         private long fileDownloaded;

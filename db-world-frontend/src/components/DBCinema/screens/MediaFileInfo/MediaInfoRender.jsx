@@ -43,7 +43,7 @@ import {
   HighQuality,
   Speed,
   Check,
-  Error
+  Error, VideoSettings
 } from "@mui/icons-material";
 import AndroidPlugins from "../../../../android-app-components/AndroidPlugins";
 import VideoModal from "../download/VideoModal";
@@ -51,6 +51,8 @@ import CommonServices from "../../../CommonServices";
 import Constants from "../../../Constants";
 import { MediaInfoContent } from "./MediaInfoContent";
 import PlayerSelectionDialog from "./PlayerSelectionDialog";
+import HLSVideoPlayer from './HLS/HLSVideoPlayer';
+import HLSPlayerOptions from "./HLS/HLSPlayerOptions";
 
 // Enhanced Action Button Component with Feedback States
 const ActionButton = ({
@@ -277,6 +279,10 @@ export const MediaInfoRender = ({
   const [copyDownloadFeedback, setCopyDownloadFeedback] = useState(null);
   const [downloadFeedback, setDownloadFeedback] = useState(null);
 
+  const [showHLSPlayer, setShowHLSPlayer] = useState(false);
+  const [selectedHLSStream, setSelectedHLSStream] = useState(null);
+  const [showStreamOptions, setShowStreamOptions] = useState(false);
+
   const toggleCard = (id) => setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Memoized media quality info
@@ -297,11 +303,44 @@ export const MediaInfoRender = ({
     setTimeout(() => setter(null), duration);
   };
 
-  const handlePlayClick = () => {
-    if (Capacitor.getPlatform() === "android") {
-      AndroidPlugins.MyMedia3Player?.(mediaInfo.streamUrl, mediaInfo.general?.fileName);
+  const checkIfHLSExists = async (recordId) => {
+    try {
+      const response = await fetch(`http://localhost:9000/api/hls/content/${recordId}/info`);
+      const data = await response.json();
+      return data.status === 'READY' && data.variants?.length > 0;
+    } catch (error) {
+      console.log('HLS not available:', error);
+      return false;
+    }
+  };
+
+  // const handlePlayClick = () => {
+  //   if (Capacitor.getPlatform() === "android") {
+  //     AndroidPlugins.MyMedia3Player?.(mediaInfo.streamUrl, mediaInfo.general?.fileName);
+  //   } else {
+  //     setPlayerDialogOpen(true);
+  //   }
+  // };
+
+  const handlePlayClick = async () => {
+    // Check if HLS is available
+    const hasHLS = await checkIfHLSExists(mediaInfo.recordId);
+
+    if (hasHLS) {
+      // Show HLS player options
+      setShowHLSPlayer(true);
+      setSelectedHLSStream({
+        recordId: mediaInfo.recordId,
+        title: mediaInfo.general?.fileName,
+        masterPlaylistUrl: `http://localhost:9000/api/hls/playback/${mediaInfo.recordId}`
+      });
     } else {
-      setPlayerDialogOpen(true);
+      // Fallback to original player
+      if (Capacitor.getPlatform() === "android") {
+        AndroidPlugins.MyMedia3Player?.(mediaInfo.streamUrl, mediaInfo.general?.fileName);
+      } else {
+        setPlayerDialogOpen(true);
+      }
     }
   };
 
@@ -514,6 +553,30 @@ export const MediaInfoRender = ({
                   gap: { xs: 0.5, sm: 1 }
                 }}>
 
+                  (
+                  <Tooltip title="Test HLS Playback">
+                    <IconButton
+                      onClick={() => {
+                        // Test with a known HLS stream
+                        setSelectedHLSStream({
+                          recordId: mediaInfo.recordId,
+                          title: 'Test HLS Stream',
+                          masterPlaylistUrl: 'https://d2zihajmogu5jn.cloudfront.net/bipbop-advanced/bipbop_16x9_variant.m3u8'
+                        });
+                        setShowHLSPlayer(true);
+                      }}
+                      size="small"
+                      sx={{
+                        bgcolor: 'warning.main',
+                        color: 'warning.contrastText',
+                        '&:hover': { bgcolor: 'warning.dark' }
+                      }}
+                    >
+                      <HighQuality fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  )
+
                   {/* Play Section */}
                   <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
                     {/* Play Button */}
@@ -672,6 +735,30 @@ export const MediaInfoRender = ({
             )}
           </>
         )}
+
+
+        {showHLSPlayer && selectedHLSStream && (
+          <HLSVideoPlayer
+            src={selectedHLSStream.masterPlaylistUrl}
+            title={selectedHLSStream.title}
+            onClose={() => {
+              setShowHLSPlayer(false);
+              setSelectedHLSStream(null);
+            }}
+            autoPlay={true}
+          />
+        )}
+        <HLSPlayerOptions
+          open={showStreamOptions}
+          onClose={() => setShowStreamOptions(false)}
+          mediaInfo={mediaInfo}
+          onStreamSelected={(type, mediaInfo) => {
+            if (type === 'hls') {
+              setShowHLSPlayer(true);
+            }
+          }}
+        />
+
       </AnimatePresence>
     </>
   );

@@ -581,6 +581,9 @@ const RecordManagement = () => {
             justifyContent: { xs: 'flex-start', sm: 'flex-end' },
             width: { xs: '100%', sm: 'auto' }
           }}>
+            {/* Clean Media Files - Frequent */}
+            <CleanMediaFileInfoButton />
+            
             {/* Add Record Button */}
             <MotionButton
               variant="outlined"
@@ -599,7 +602,7 @@ const RecordManagement = () => {
                   color: 'white',
                   borderWidth: 2,
                 },
-                minWidth: { xs: '100%', sm: 'auto' }
+                minWidth: { xs: 'calc(50% - 4px)', sm: 'auto' }
               }}
             >
               {isMobile ? 'Add' : 'Add Record'}
@@ -645,8 +648,7 @@ const RecordManagement = () => {
               </MotionButton>
             </Tooltip>
 
-            {/* Clean Media Files - Frequent */}
-            <CleanMediaFileInfoButton />
+            
           </Box>
         </Box>
 
