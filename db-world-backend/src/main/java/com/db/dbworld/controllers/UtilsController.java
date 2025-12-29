@@ -2,16 +2,17 @@ package com.db.dbworld.controllers;
 
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ResourceNotFoundException;
+import com.db.dbworld.factory.MirrorStatusFactory;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.MirrorState;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.RequestPayloads;
+import com.db.dbworld.services.systemInfo.SystemInfoService;
 import com.db.dbworld.services.mirror.StatusService;
 import com.db.dbworld.services.mirror.UtilsService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.JsonObject;
-import com.sun.management.OperatingSystemMXBean;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,16 +23,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 @RestController
 @Log4j2
@@ -47,10 +43,13 @@ public class UtilsController {
     private UtilsService utilsService;
 
     @Autowired
-    private MirrorStatus mirrorStatus;
+    private StatusService statusService;
 
     @Autowired
-    private StatusService statusService;
+    private MirrorStatusFactory mirrorStatusFactory;
+
+    @Autowired
+    private SystemInfoService systemInfoService;
 
     @DeleteMapping(value = "/tempFiles")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
@@ -113,7 +112,7 @@ public class UtilsController {
                 .findFirst()
                 .orElse("magnet_file");
 
-        MirrorStatus mirrorStatus = new MirrorStatus(
+        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
                 mirror.getFolderName(),
                 url,
                 dbWorldUtils.decodeFileName(fileName),
@@ -133,7 +132,7 @@ public class UtilsController {
                 ? mirror.getFileName()
                 : extractFileNameFromUrl(processedUrl);
 
-        MirrorStatus mirrorStatus = new MirrorStatus(
+        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
                 mirror.getFolderName(),
                 processedUrl,
                 fileName,
@@ -182,7 +181,7 @@ public class UtilsController {
                     .map(s -> s.replace("dn=", ""))
                     .findFirst().orElse("magnet_file");
 
-            MirrorStatus mirrorStatus = new MirrorStatus(
+            MirrorStatus mirrorStatus = mirrorStatusFactory.create(
                     mirror.getFolderName(),
                     url,
                     dbWorldUtils.decodeFileName(fileName),
@@ -222,7 +221,7 @@ public class UtilsController {
                     : dbWorldUtils.decodeFileName(ContentDisposition.parse(contentDisposition).getFilename());
         }
 
-        MirrorStatus mirrorStatus = new MirrorStatus(
+        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
                 mirror.getFolderName(),
                 url,
                 fileName,
@@ -291,7 +290,7 @@ public class UtilsController {
     @RequestMapping(value = "/yt/download", method = RequestMethod.POST)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<String> ytDownload(@RequestBody RequestPayloads.Mirror mirror) throws IOException {
-        mirrorStatus = new MirrorStatus(
+        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
                 mirror.getFolderName(),
                 mirror.getUrl(),
                 dbWorldUtils.decodeFileName(mirror.getFileName()),
@@ -309,40 +308,41 @@ public class UtilsController {
     @RequestMapping(value = "/system-info", method = RequestMethod.GET)
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getSystemInfo() {
-        Map<String, Object> osInfoMap = new HashMap<>();
-        OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-
-        List<File> roots = new ArrayList<>(Arrays.stream(File.listRoots()).toList());
-        roots.add(new File(DbWorldConstants.EXTERNAL_H_DISK_PATH));
-
-        List<Map<String, Object>> rom = roots.stream().map(file -> {
-            Map<String, Object> temp = new HashMap<>();
-            temp.put("name", file.getAbsolutePath());
-            temp.put("totalSpace", file.getTotalSpace());
-            temp.put("freeSpace", file.getFreeSpace());
-            temp.put("usedSpace", file.getTotalSpace() - file.getFreeSpace());
-            return temp;
-        }).toList();
-
-        Map<String, Object> ram = new HashMap<>();
-        ram.put("totalSpace", os.getTotalMemorySize());
-        ram.put("freeSpace", os.getFreeMemorySize());
-        ram.put("usedSpace", os.getTotalMemorySize() - os.getFreeMemorySize());
-        ram.put("freeSwapSpace", os.getFreeSwapSpaceSize());
-        ram.put("committedVirtualSpace", os.getCommittedVirtualMemorySize());
-
-        Map<String, Object> cpu = new HashMap<>();
-        cpu.put("availableProcessors", os.getAvailableProcessors());
-        cpu.put("processCpuTime", os.getProcessCpuTime());
-        cpu.put("cpuLoad", os.getCpuLoad());
-
-        osInfoMap.put("name", os.getName());
-        osInfoMap.put("arch", os.getArch());
-        osInfoMap.put("ram", ram);
-        osInfoMap.put("rom", rom);
-        osInfoMap.put("cpu", cpu);
-
-        return new ApiResponse<>(HttpStatus.OK, true, osInfoMap);
+        return new ApiResponse<>(HttpStatus.OK, true, systemInfoService.getSystemInfo());
+//        Map<String, Object> osInfoMap = new HashMap<>();
+//        OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+//
+//        List<File> roots = new ArrayList<>(Arrays.stream(File.listRoots()).toList());
+//        roots.add(new File(DbWorldConstants.EXTERNAL_H_DISK_PATH));
+//
+//        List<Map<String, Object>> rom = roots.stream().map(file -> {
+//            Map<String, Object> temp = new HashMap<>();
+//            temp.put("name", file.getAbsolutePath());
+//            temp.put("totalSpace", file.getTotalSpace());
+//            temp.put("freeSpace", file.getFreeSpace());
+//            temp.put("usedSpace", file.getTotalSpace() - file.getFreeSpace());
+//            return temp;
+//        }).toList();
+//
+//        Map<String, Object> ram = new HashMap<>();
+//        ram.put("totalSpace", os.getTotalMemorySize());
+//        ram.put("freeSpace", os.getFreeMemorySize());
+//        ram.put("usedSpace", os.getTotalMemorySize() - os.getFreeMemorySize());
+//        ram.put("freeSwapSpace", os.getFreeSwapSpaceSize());
+//        ram.put("committedVirtualSpace", os.getCommittedVirtualMemorySize());
+//
+//        Map<String, Object> cpu = new HashMap<>();
+//        cpu.put("availableProcessors", os.getAvailableProcessors());
+//        cpu.put("processCpuTime", os.getProcessCpuTime());
+//        cpu.put("cpuLoad", os.getCpuLoad());
+//
+//        osInfoMap.put("name", os.getName());
+//        osInfoMap.put("arch", os.getArch());
+//        osInfoMap.put("ram", ram);
+//        osInfoMap.put("rom", rom);
+//        osInfoMap.put("cpu", cpu);
+//
+//        return new ApiResponse<>(HttpStatus.OK, true, osInfoMap);
     }
 
 

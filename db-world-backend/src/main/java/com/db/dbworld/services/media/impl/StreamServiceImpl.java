@@ -3,29 +3,26 @@ package com.db.dbworld.services.media.impl;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
-import com.db.dbworld.payloads.dbcinema.stream.TrackInfo;
 import com.db.dbworld.services.DownloadType;
 import com.db.dbworld.services.media.StreamService;
 import com.db.dbworld.services.user.UserCinemaActivityService;
-import com.db.dbworld.services.user.UserService;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.*;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -40,185 +37,251 @@ import java.util.stream.Stream;
 @CacheConfig(cacheNames = "DB-Stream")
 public class StreamServiceImpl implements StreamService {
 
-    @Autowired
-    private ResourceLoader resourceLoader;
+    private final DbWorldRuntimeProperties runtime;
+    private final DbWorldUtils dbWorldUtils;
+    private final UserCinemaActivityService userCinemaActivityService;
 
-    @Autowired
-    private UserService userService;
+    public StreamServiceImpl(
+            DbWorldRuntimeProperties runtime,
+            DbWorldUtils dbWorldUtils,
+            UserCinemaActivityService userCinemaActivityService,
+            DbWorldRuntimeProperties runtimeProperties
+    ) {
+        this.runtime = runtime;
+        this.dbWorldUtils = dbWorldUtils;
+        this.userCinemaActivityService = userCinemaActivityService;
+    }
 
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
-
-    @Autowired
-    private UserCinemaActivityService userCinemaActivityService;
+    /* =========================================================
+       Streaming
+       ========================================================= */
 
     @Override
-    public ResponseEntity<Void> streamFileByCdn(String user, Path path, String rangeHeader, boolean inline) {
+    public ResponseEntity<Void> streamFileByCdn(
+            String user,
+            Path path,
+            String rangeHeader,
+            boolean inline
+    ) {
+
         Objects.requireNonNull(user, "User cannot be null");
         Objects.requireNonNull(path, "Path cannot be null");
 
-        final DbWorldRecords.FileSizeInfo sizeInfo = dbWorldUtils.getFileSizeInfo(path);
-        final DbWorldRecords.RangeInfo rangeInfo = parseRangeHeader(rangeHeader, sizeInfo.fileSize());
+        DbWorldRecords.FileSizeInfo sizeInfo =
+                dbWorldUtils.getFileSizeInfo(path);
+
+        DbWorldRecords.RangeInfo rangeInfo =
+                parseRangeHeader(rangeHeader, sizeInfo.fileSize());
 
         try {
-            HttpHeaders headers = createResponseHeaders(user, path, sizeInfo, rangeInfo, inline, "");
-            HttpStatus status = rangeHeader != null && rangeInfo.isPartial() ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK;
+            HttpHeaders headers = createResponseHeaders(
+                    user, path, sizeInfo, rangeInfo, inline, ""
+            );
 
-            // Smart activity tracking
+            HttpStatus status =
+                    rangeHeader != null && rangeInfo.isPartial()
+                            ? HttpStatus.PARTIAL_CONTENT
+                            : HttpStatus.OK;
+
             if (inline) {
-                // Streaming request
-                trackStreamActivityAsync(user, path.toString(), path.getFileName().toString(),
-                        sizeInfo.fileSize(), rangeHeader);
+                trackStreamActivityAsync(
+                        user, path.toString(), path.getFileName().toString(),
+                        sizeInfo.fileSize(), rangeHeader
+                );
             } else {
-                // Download request
-                trackDownloadActivityAsync(user, path.toString(), path.getFileName().toString(),
-                        sizeInfo.fileSize(), rangeHeader);
+                trackDownloadActivityAsync(
+                        user, path.toString(), path.getFileName().toString(),
+                        sizeInfo.fileSize(), rangeHeader
+                );
             }
 
-            log.info("Streaming response ready: status={}, X-Accel-Redirect={}", status, headers.getFirst("X-Accel-Redirect"));
-
             return new ResponseEntity<>(headers, status);
+
         } catch (Exception e) {
-            log.error("Streaming error for file {}: {}", path, e.getMessage(), e);
+            log.error("Streaming error for file {}", path, e);
             throw new DbWorldException("Error during file streaming", e);
         }
     }
 
-    private void trackStreamActivityAsync(String user, String filePath, String fileName,
-                                          Long fileSize, String rangeHeader) {
+    /* =========================================================
+       Activity Tracking
+       ========================================================= */
+
+    private void trackStreamActivityAsync(
+            String user,
+            String filePath,
+            String fileName,
+            Long fileSize,
+            String rangeHeader
+    ) {
+        trackActivity(
+                user, filePath, fileName, fileSize, rangeHeader, true
+        );
+    }
+
+    private void trackDownloadActivityAsync(
+            String user,
+            String filePath,
+            String fileName,
+            Long fileSize,
+            String rangeHeader
+    ) {
+        trackActivity(
+                user, filePath, fileName, fileSize, rangeHeader, false
+        );
+    }
+
+    private void trackActivity(
+            String user,
+            String filePath,
+            String fileName,
+            Long fileSize,
+            String rangeHeader,
+            boolean stream
+    ) {
         try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                String remoteAddr = dbWorldUtils.getClientIpAddress(request);
-                String userAgent = request.getHeader("User-Agent");
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
-                log.debug("Tracking stream - User: {}, IP: {}, File: {}", user, remoteAddr, fileName);
-
-                userCinemaActivityService.trackStreamActivity(user, filePath, fileName,
-                        fileSize, rangeHeader, remoteAddr, userAgent);
+            if (attrs == null) {
+                return;
             }
+
+            HttpServletRequest request = attrs.getRequest();
+            String ip = dbWorldUtils.getClientIpAddress(request);
+            String ua = request.getHeader("User-Agent");
+
+            if (stream) {
+                userCinemaActivityService.trackStreamActivity(
+                        user, filePath, fileName, fileSize,
+                        rangeHeader, ip, ua
+                );
+            } else {
+                userCinemaActivityService.trackDownloadActivity(
+                        user, filePath, fileName, fileSize,
+                        rangeHeader, ip, ua
+                );
+            }
+
         } catch (Exception e) {
-            log.warn("Failed to track stream activity for {}: {}", user, e.getMessage());
+            log.warn("Failed to track activity for {}", user, e);
         }
     }
 
-    private void trackDownloadActivityAsync(String user, String filePath, String fileName,
-                                            Long fileSize, String rangeHeader) {
-        try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                String remoteAddr = dbWorldUtils.getClientIpAddress(request);
-                String userAgent = request.getHeader("User-Agent");
+    /* =========================================================
+       Range Handling
+       ========================================================= */
 
-                log.debug("Tracking stream - User: {}, IP: {}, File: {}", user, remoteAddr, fileName);
+    private DbWorldRecords.RangeInfo parseRangeHeader(
+            String rangeHeader,
+            long fileSize
+    ) {
 
-                userCinemaActivityService.trackDownloadActivity(user, filePath, fileName,
-                        fileSize, rangeHeader, remoteAddr, userAgent);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to track download activity for {}: {}", user, e.getMessage());
-        }
-    }
-
-
-    private String createDownloadId(String user, Path path) {
-        return user + "-" + path.getFileName();
-    }
-
-
-    private DbWorldRecords.RangeInfo parseRangeHeader(String rangeHeader, long fileSize) {
         if (rangeHeader == null || !rangeHeader.startsWith("bytes=")) {
             return new DbWorldRecords.RangeInfo(0, false);
         }
 
         try {
-            String rangeValue = rangeHeader.substring(6).trim();
-            long start = Long.parseLong(rangeValue.split("-")[0].trim());
+            long start = Long.parseLong(
+                    rangeHeader.substring(6).split("-")[0].trim()
+            );
 
             if (start < 0 || start >= fileSize) {
-                log.warn("Invalid range start: {} (fileSize={})", start, fileSize);
-                throw new DbWorldException("Invalid range start position");
+                throw new DbWorldException("Invalid range start");
             }
 
             return new DbWorldRecords.RangeInfo(start, start > 0);
-        } catch (NumberFormatException e) {
-            log.warn("Failed to parse range header: {}", rangeHeader, e);
-            throw new DbWorldException("Invalid Range Header format", e);
+
+        } catch (Exception e) {
+            throw new DbWorldException("Invalid Range Header", e);
         }
     }
 
+    /* =========================================================
+       Headers
+       ========================================================= */
 
-    private HttpHeaders createResponseHeaders(String user, Path path, DbWorldRecords.FileSizeInfo sizeInfo,
-                                              DbWorldRecords.RangeInfo rangeInfo, boolean inline, String downloadId) throws UnsupportedEncodingException {
+    private HttpHeaders createResponseHeaders(
+            String user,
+            Path path,
+            DbWorldRecords.FileSizeInfo sizeInfo,
+            DbWorldRecords.RangeInfo rangeInfo,
+            boolean inline,
+            String downloadId
+    ) {
+
         HttpHeaders headers = new HttpHeaders();
-
-        headers.add("X-Accel-Charset", "utf-8");
 
         if (rangeInfo.isPartial()) {
             headers.set(HttpHeaders.CONTENT_RANGE,
-                    String.format("bytes %d-%d/%d", rangeInfo.rangeStart(), sizeInfo.fileSize() - 1, sizeInfo.fileSize()));
+                    "bytes " + rangeInfo.rangeStart() + "-" +
+                            (sizeInfo.fileSize() - 1) + "/" +
+                            sizeInfo.fileSize()
+            );
             headers.setContentLength(sizeInfo.fileSize() - rangeInfo.rangeStart());
-            headers.add("X-Accel-Content-Length", String.valueOf(sizeInfo.fileSize() - rangeInfo.rangeStart()));
         } else {
             headers.setContentLength(sizeInfo.fileSize());
-            headers.add("X-Accel-Content-Length", String.valueOf(sizeInfo.fileSize()));
         }
 
-        String redirectUrl = buildAccelRedirectUrl(path, user, downloadId, rangeInfo.rangeStart(), inline);
-        headers.add("X-Accel-Redirect", redirectUrl);
-        log.debug("Accel redirect: {}", redirectUrl);
+        headers.add(
+                "X-Accel-Redirect",
+                buildAccelRedirectUrl(
+                        path, user, downloadId,
+                        rangeInfo.rangeStart(), inline
+                )
+        );
 
-        headers.setContentType(dbWorldUtils.determineContentType(path));
-        headers.add("X-Accel-Content-Type", dbWorldUtils.determineContentType(path).toString());
-
-        ContentDisposition contentDisposition = dbWorldUtils.createContentDisposition(path, inline);
-        headers.setContentDisposition(contentDisposition);
-        headers.add("X-Accel-Content-Disposition", contentDisposition.toString());
+        MediaType type = dbWorldUtils.determineContentType(path);
+        headers.setContentType(type);
+        headers.setContentDisposition(
+                dbWorldUtils.createContentDisposition(path, inline)
+        );
 
         return headers;
     }
 
+    private String buildAccelRedirectUrl(
+            Path path,
+            String user,
+            String downloadId,
+            long rangeStart,
+            boolean inline
+    ) {
 
-    private String buildAccelRedirectUrl(Path path, String user, String downloadId,
-                                         long rangeStart, boolean inline) throws UnsupportedEncodingException {
-        return String.format("/cdn/stream%s?userId=%s&downloadId=%s&originalFile=%s&rangeStart=%d&requestId=%s&type=%s",
-                path,
-                URLEncoder.encode(user, StandardCharsets.UTF_8),
-                URLEncoder.encode(downloadId, StandardCharsets.UTF_8),
-                URLEncoder.encode(path.toString(), StandardCharsets.UTF_8),
-                rangeStart,
-                UUID.randomUUID(),
-                inline ? DownloadType.STREAM : DownloadType.DOWNLOAD
-        );
+        return "/cdn/stream" + path +
+                "?userId=" + URLEncoder.encode(user, StandardCharsets.UTF_8) +
+                "&downloadId=" + URLEncoder.encode(downloadId, StandardCharsets.UTF_8) +
+                "&originalFile=" + URLEncoder.encode(path.toString(), StandardCharsets.UTF_8) +
+                "&rangeStart=" + rangeStart +
+                "&requestId=" + UUID.randomUUID() +
+                "&type=" + (inline ? DownloadType.STREAM : DownloadType.DOWNLOAD);
     }
+
+    /* =========================================================
+       File Listing
+       ========================================================= */
 
     @Override
     public List<DbWorldRecords.StreamableFileInfo> getListRecursive(Path dir) {
         if (!Files.isDirectory(dir)) {
-            log.warn("Path is not a directory: {}", dir);
             return Collections.emptyList();
         }
 
         try (Stream<Path> stream = Files.walk(dir)) {
-            List<DbWorldRecords.StreamableFileInfo> result = stream
+            return stream
                     .filter(Files::isRegularFile)
                     .map(this::createDetails)
                     .collect(Collectors.toList());
-            log.info("Found {} files in directory {}", result.size(), dir);
-            return result;
         } catch (IOException e) {
-            log.error("Error while listing files in directory: {}", dir, e);
-            throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to list files: " + e.getMessage());
+            throw new DbWorldException("Failed to list files", e);
         }
     }
 
     @Override
     public List<DbWorldRecords.StreamableFileInfo> getAllStreamableFiles() {
         List<DbWorldRecords.StreamableFileInfo> list = new ArrayList<>();
-        list.addAll(getListRecursive(Path.of(DbWorldConstants.STREAM_HOME_PATH)));
-//        list.addAll(getListRecursive(Path.of(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH)));
+        list.addAll(getListRecursive(runtime.getStreamPath()));
+        list.addAll(getListRecursive(runtime.getExternalVideosPath()));
         return list;
     }
 
@@ -238,106 +301,109 @@ public class StreamServiceImpl implements StreamService {
                 .findFirst();
     }
 
-    private Path resolvePath(DbWorldRecords.StreamableFileInfo info) {
-        String pathStr = info.filePath();
-        if (Files.exists(Path.of(DbWorldConstants.STREAM_HOME_PATH, pathStr))) {
-            return Path.of(DbWorldConstants.STREAM_HOME_PATH, pathStr);
-        } else {
-            return Path.of(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH, pathStr);
+    /* =========================================================
+       Path Handling (NO resolve)
+       ========================================================= */
+
+    private String toRelativePath(Path fullPath) {
+
+        String normalized = StringUtils.cleanPath(fullPath.toString());
+
+        String streamRoot =
+                StringUtils.cleanPath(runtime.getStreamPath().toString());
+        String externalRoot =
+                StringUtils.cleanPath(runtime.getExternalVideosPath().toString());
+
+        if (normalized.startsWith(streamRoot)) {
+            return normalized.substring(streamRoot.length());
         }
+        if (normalized.startsWith(externalRoot)) {
+            return normalized.substring(externalRoot.length());
+        }
+
+        return fullPath.getFileName().toString();
     }
 
+    private Path resolvePath(DbWorldRecords.StreamableFileInfo info) {
+
+        String relative = StringUtils.cleanPath(info.filePath());
+
+        Path internal = Path.of(
+                StringUtils.cleanPath(runtime.getStreamPath().toString()),
+                relative
+        );
+
+        if (Files.exists(internal)) {
+            return internal;
+        }
+
+        return Path.of(
+                StringUtils.cleanPath(runtime.getExternalVideosPath().toString()),
+                relative
+        );
+    }
+
+    /* =========================================================
+       File Info
+       ========================================================= */
 
     @Override
     public DbWorldRecords.StreamableFileInfo createDetails(Path path) {
         try {
-            long fileSize = Files.size(path);
-            String fileId = DigestUtils.md5DigestAsHex(path.toAbsolutePath().toString().getBytes());
-
-            String relativePath = path.toString()
-                    .replace("\\", "/")
-                    .replace(DbWorldConstants.STREAM_HOME_PATH, "")
-                    .replace(DbWorldConstants.EXTERNAL_STREAM_HOME_PATH, "")
-                    ;
+            long size = Files.size(path);
+            String fileId = DigestUtils.md5DigestAsHex(
+                    path.toAbsolutePath().toString().getBytes()
+            );
 
             return new DbWorldRecords.StreamableFileInfo(
                     path.getFileName().toString(),
-                    relativePath,
-                    Files.isDirectory(path),
-                    Files.isRegularFile(path),
-                    fileSize,
+                    toRelativePath(path),
+                    false,
+                    true,
+                    size,
                     fileId
             );
 
         } catch (IOException e) {
-            log.error("Failed to create file details for: {}", path, e);
-            throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to get file details");
+            throw new DbWorldException("Failed to create file details", e);
         }
     }
 
+    /* =========================================================
+       MediaInfo Parsing (unchanged)
+       ========================================================= */
 
     @Override
     public List<MediaFileInfo> parseMediaInfo(String jsonOutput) {
         try {
-            List<MediaFileInfo> mediaFileInfos = new ArrayList<>();
-            JsonElement jsonElement = new Gson().fromJson(jsonOutput, JsonElement.class);
+            List<MediaFileInfo> result = new ArrayList<>();
+            JsonElement element = JsonParser.parseString(jsonOutput);
 
-            if (jsonElement.isJsonArray()) {
-                log.debug("Parsing JSON array for media info");
-                jsonElement.getAsJsonArray().forEach(element -> {
-                    try {
-                        mediaFileInfos.add(convertJsonObjectToMediaInfo(element.getAsJsonObject()));
-                    } catch (IOException e) {
-                        throw new DbWorldException(e.getMessage());
-                    }
-                });
-            } else if (jsonElement.isJsonObject()) {
-                log.debug("Parsing single JSON object for media info");
-                mediaFileInfos.add(convertJsonObjectToMediaInfo(jsonElement.getAsJsonObject()));
+            if (element.isJsonArray()) {
+                for (JsonElement e : element.getAsJsonArray()) {
+                    result.add(convertJsonObjectToMediaInfo(e.getAsJsonObject()));
+                }
+            } else {
+                result.add(convertJsonObjectToMediaInfo(element.getAsJsonObject()));
             }
 
-            log.info("Parsed {} media file(s) from JSON", mediaFileInfos.size());
-            return mediaFileInfos;
-        } catch (Exception ex) {
-            log.error("Error parsing media info JSON: {}", ex.getMessage(), ex);
-            throw new DbWorldException(ex.getMessage());
-        }
-    }
+            return result;
 
-
-    private MediaFileInfo convertJsonObjectToMediaInfo(JsonObject jsonObject) throws IOException {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        MediaFileInfo mediaFileInfo = objectMapper.readValue(jsonObject.get("media").toString(), MediaFileInfo.class);
-        mediaFileInfo.initialize();
-        if (mediaFileInfo == null) {
-            throw new DbWorldException("Media file details could not be retrieved from JSON");
-        }
-        return mediaFileInfo;
-    }
-
-    private MediaFileInfo convertToMediaInfo(JsonElement element) {
-        try {
-            JsonObject media = element.getAsJsonObject().getAsJsonObject("media");
-
-            MediaFileInfo info = new MediaFileInfo();
-            info.setFilePath(media.get("@ref").getAsString());
-
-            JsonArray tracks = media.getAsJsonArray("track");
-            List<TrackInfo> trackInfos = new ArrayList<>();
-            for (JsonElement trackElem : tracks) {
-                TrackInfo track = new Gson().fromJson(trackElem, TrackInfo.class);
-                trackInfos.add(track);
-            }
-            info.setTrackInfos(trackInfos);
-            info.initialize(); // extract fileName, fileSize from "General"
-
-            return info;
         } catch (Exception e) {
-            log.error("Failed to convert media info JSON: {}", e.getMessage(), e);
-            throw new DbWorldException("Failed to convert media info: " + e.getMessage());
+            throw new DbWorldException("Failed to parse media info", e);
         }
     }
 
+    private MediaFileInfo convertJsonObjectToMediaInfo(JsonObject json)
+            throws IOException {
+
+        ObjectMapper mapper = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        MediaFileInfo info =
+                mapper.readValue(json.get("media").toString(), MediaFileInfo.class);
+
+        info.initialize(runtime);
+        return info;
+    }
 }

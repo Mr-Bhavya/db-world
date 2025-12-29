@@ -3,19 +3,20 @@ package com.db.dbworld.services.media;
 import com.db.dbworld.dao.dbcinema.tmdb.SpokenLanguageRepository;
 import com.db.dbworld.entities.dbcinema.stream.*;
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.exceptions.ProcessExecutionException;
+import com.db.dbworld.helpers.ProcessExecutor;
 import com.db.dbworld.payloads.mediafile.MediaFileDetails;
+import com.db.dbworld.stream.processor.StreamProcessorFactory;
 import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.db.dbworld.utils.MediaInfoUtils;
 import jakarta.persistence.EntityManager;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -26,86 +27,40 @@ import java.util.stream.Collectors;
 public class MediaInfoCommandService {
 
     private static final String LANG_HINDI = "hi";
-    private static final String LANG_GUJRATI = "gu";
+    private static final String LANG_GUJARATI = "gu";
     private static final String LANG_ENGLISH = "en";
     private static final String LANG_UND = "und"; // undefined
 
-    @Autowired
-    private SpokenLanguageRepository spokenLanguageRepository;
+    private final SpokenLanguageRepository spokenLanguageRepository;
 
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
+    private final DbWorldUtils dbWorldUtils;
 
-    @Autowired
-    private MediaInfoUtils mediaInfoUtils;
+    private final MediaInfoUtils mediaInfoUtils;
 
-    @Autowired
-    private EntityManager entityManager;
+    private final EntityManager entityManager;
 
-    /**
-     * Runs MediaInfo command to get media file metadata in JSON format
-     */
-    public String runMediaInfoCommand(Path path) {
-        log.info("Starting MediaInfo command execution for path: {}", path);
-        long startTime = System.currentTimeMillis();
+    private final ProcessExecutor processExecutor;
 
-        try {
-            List<String> command = Arrays.asList(
-                    DbWorldConstants.MEDIAINFO,
-                    "--output=JSON",
-                    path.toString()
-            );
-
-            ProcessBuilder processBuilder = new ProcessBuilder(command);
-            Process process = processBuilder.start();
-            log.info("MediaInfo command constructed: {}", String.join(" ", command));
-            log.info("Process builder directory: {}", processBuilder.directory());
-            log.info("Process builder environment: {}", processBuilder.environment());
-
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                StringBuilder output = new StringBuilder();
-                String line;
-                log.info("Starting to read MediaInfo output...");
-                int lineCount = 0;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line);
-                    lineCount++;
-                    if (log.isTraceEnabled()) {
-                        log.trace("MediaInfo output line {}: {}", lineCount, line);
-                    }
-                }
-                log.info("Finished reading MediaInfo output. Total lines: {}", lineCount);
-
-                int exitCode = process.waitFor();
-                log.info("MediaInfo process completed with exit code: {}", exitCode);
-
-                if (exitCode != 0) {
-                    log.warn("MediaInfo process exited with non-zero code: {}", exitCode);
-                }
-
-                String result = output.toString();
-                log.info("MediaInfo raw output length: {} characters", result.length());
-                log.info("MediaInfo command execution completed successfully in {} ms",
-                        System.currentTimeMillis() - startTime);
-                return result;
-            }
-        } catch (Exception e) {
-            log.error("Error while running mediainfo command for path: {}", path, e);
-            throw new DbWorldException("Error while running mediainfo command: " + e.getMessage(), e);
-        }
+    public MediaInfoCommandService (SpokenLanguageRepository spokenLanguageRepository, DbWorldUtils dbWorldUtils,
+                                    MediaInfoUtils mediaInfoUtils, EntityManager entityManager, DbWorldRuntimeProperties runtimeProperties, ProcessExecutor processExecutor) {
+        this.spokenLanguageRepository = spokenLanguageRepository;
+        this.dbWorldUtils = dbWorldUtils;
+        this.mediaInfoUtils = mediaInfoUtils;
+        this.entityManager = entityManager;
+        this.processExecutor = processExecutor;
     }
 
     /**
      * Runs MediaInfo command with optional title modification and track filtering
      */
-    public String runMediaInfoCommand(Path path, boolean modifyTitles, MediaFileDetails fileDetails) {
-        log.info("Starting enhanced MediaInfo command execution with modifyTitles: {}, fileDetails: {}",
-                modifyTitles, fileDetails != null ? fileDetails.getName() : "null");
+    public String modifyAndFilterTracksAndTitles(Path path, MediaFileDetails fileDetails) {
+        log.info("Starting modifyAndFilterTracksAndTitles execution. fileDetails: {}",
+                fileDetails != null ? fileDetails.getName() : "null");
         long startTime = System.currentTimeMillis();
 
         try {
             log.info("Step 1: Running initial MediaInfo command");
-            String initialJson = runMediaInfoCommand(path);
+            String initialJson = processExecutor.runMediaInfoCommand(path);
             log.info("Initial MediaInfo JSON obtained, length: {}", initialJson.length());
 
             log.info("Step 2: Parsing MediaInfo JSON");
@@ -119,7 +74,7 @@ public class MediaInfoCommandService {
             log.info("MediaFileInfoEntity parsed successfully with {} tracks",
                     mediaFileInfo.getTrackInfos().size());
 
-            if (modifyTitles && fileDetails != null) {
+            if (fileDetails != null) {
                 log.info("Step 3: Title modification requested, generating modifications");
                 Map<String, String> titleModifications = generateTitleModifications(mediaFileInfo, fileDetails);
                 log.info("Generated {} title modifications", titleModifications.size());
@@ -137,10 +92,9 @@ public class MediaInfoCommandService {
             }
 
             entityManager.detach(mediaFileInfo);
-//            entityManager.clear();
 
             log.info("Step 6: Running final MediaInfo command after modifications");
-            String finalJson = runMediaInfoCommand(path);
+            String finalJson = processExecutor.runMediaInfoCommand(path);
             log.info("Enhanced MediaInfo command execution completed successfully in {} ms",
                     System.currentTimeMillis() - startTime);
             return finalJson;
@@ -223,10 +177,10 @@ public class MediaInfoCommandService {
         }
 
         String title;
-        if ("series".equalsIgnoreCase(fileDetails.getRecordType().name())) {
+        if (DbWorldConstants.RECORD_TYE.SERIES == fileDetails.getRecordType()) {
             String season = StringUtils.hasText(fileDetails.getSeason()) ? fileDetails.getSeason() : "S01";
             String episode = StringUtils.hasText(fileDetails.getEpisode()) ? fileDetails.getEpisode() : "E01";
-            title = String.format("%s %s%s", fileDetails.getName(), season, episode);
+            title = String.format("%s (%s) %s%s", fileDetails.getName(), fileDetails.getYear(), season, episode);
             log.info("Series title generated: {}", title);
         } else {
             String year = StringUtils.hasText(fileDetails.getYear()) ? fileDetails.getYear() : "";
@@ -285,27 +239,6 @@ public class MediaInfoCommandService {
         log.info("Generated video title: '{}' from {} parts", title, titleParts.size());
         return title.isEmpty() ? "Main Video" : title;
     }
-
-//    private void processAudioTracks(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
-//        log.info("Processing audio tracks from {} total tracks",
-//                mediaFileInfo.getTrackInfos().size());
-//
-//        int audioIndex = 0;
-//        int audioTrackCount = 0;
-//
-//        for (TrackInfoEntity track : mediaFileInfo.getTrackInfos()) {
-//            if (track instanceof AudioInfoEntity || "Audio".equalsIgnoreCase(track.getType())) {
-//                log.info("Audio track found at position {}, generating title", audioIndex);
-//                String audioTitle = generateAudioTitle((AudioInfoEntity) track);
-//                modifications.put("audio_" + audioIndex, audioTitle);
-//                log.info("Audio track {} title: {}", audioIndex, audioTitle);
-//                audioIndex++;
-//                audioTrackCount++;
-//            }
-//        }
-//
-//        log.info("Processed {} audio tracks", audioTrackCount);
-//    }
 
     private void processAudioTracks(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
         log.info("Processing audio tracks from {} total tracks",
@@ -504,6 +437,7 @@ public class MediaInfoCommandService {
             log.info("FFmpeg command built with {} arguments", command.size());
 
             log.info("Executing FFmpeg command");
+
             executeFfmpegCommand(command, inputPath, tempOutput);
 
             log.info("Successfully modified media titles and filtered tracks for: {} in {} ms",
@@ -538,8 +472,11 @@ public class MediaInfoCommandService {
                                             Map<String, String> titleModifications,
                                             List<TrackInfoEntity> trackInfoEntities) {
         log.info("Building FFmpeg command for input: {}, output: {}", inputPath, outputPath);
+
+        // Debug logging
+        debugTrackInfo(trackInfoEntities);
+
         List<String> command = new ArrayList<>();
-        command.add("ffmpeg");
         command.add("-i");
         command.add(inputPath.toString());
         log.info("Added input parameter: {}", inputPath);
@@ -612,7 +549,7 @@ public class MediaInfoCommandService {
 
         // Sort the tracks to maintain consistent order with mapping
         List<Integer> sortedTracks = audioTracksToKeep.stream()
-                .sorted().collect(Collectors.toList());
+                .sorted().toList();
 
         // Create mapping from original index to new sequential index
         Map<Integer, Integer> originalToNewIndexMap = new HashMap<>();
@@ -667,46 +604,11 @@ public class MediaInfoCommandService {
         log.info("Added {} subtitle metadata flags", subtitleFlagCount);
     }
 
-    private void executeFfmpegCommand(List<String> command, Path inputPath, Path tempOutput)
-            throws IOException, InterruptedException {
-        log.info("Executing FFmpeg command for input: {}", inputPath);
-        long startTime = System.currentTimeMillis();
+    private void executeFfmpegCommand(List<String> command, Path inputPath, Path tempOutput) throws ProcessExecutionException {
 
-        log.info("Full FFmpeg command: {}", String.join(" ", command));
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        processBuilder.redirectErrorStream(true);
-
-        log.info("Starting FFmpeg process");
-        Process process = processBuilder.start();
-
-        log.info("FFMPEG Command: [{}]", String.join(" ", processBuilder.command()));
-
-        StringBuilder output = new StringBuilder();
-        int lineCount = 0;
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            log.info("Reading FFmpeg output...");
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
-                lineCount++;
-                if (log.isTraceEnabled()) {
-                    log.trace("FFmpeg output line {}: {}", lineCount, line);
-                }
-            }
-            log.info("Finished reading FFmpeg output. Total lines: {}", lineCount);
-        }
-
-        int exitCode = process.waitFor();
-        long executionTime = System.currentTimeMillis() - startTime;
-        log.info("FFmpeg process completed with exit code: {} in {} ms", exitCode, executionTime);
-
-        if (exitCode != 0) {
-            log.error("FFmpeg failed with exit code {}. Output: {}", exitCode, output.toString().trim());
-            throw new DbWorldException(String.format(
-                    "FFmpeg failed with exit code %d. Output: %s",
-                    exitCode, output.toString().trim()
-            ));
-        }
+        processExecutor.executeFfmpegCommand(
+                command, StreamProcessorFactory.createFfmpegProcessor(), null
+        );
 
         log.info("FFmpeg execution successful, moving temporary file to original location");
         dbWorldUtils.moveFileOrDir(tempOutput.toString(), inputPath.toString(), true);
@@ -795,23 +697,60 @@ public class MediaInfoCommandService {
 
     private Set<Integer> getSubtitleTracksToKeep(List<TrackInfoEntity> trackInfoEntities) {
         log.info("Determining subtitle tracks to keep from {} tracks", trackInfoEntities.size());
-        Map<String, List<Integer>> languageTracks = new HashMap<>();
-        int subtitleIndex = 0;
-        int subtitleTrackCount = 0;
 
+        // Define preferred languages in order of preference
+        final Set<String> PREFERRED_LANGUAGES = Set.of("hindi", "english", "gujarati");
+        final Set<String> PREFERRED_LANGUAGE_CODES = Set.of("hi", "en", "gu", "hin", "eng", "guj");
+
+        // Map to store languages and their SUBTITLE STREAM INDICES (not original indices)
+        Map<String, List<Integer>> languageTracks = new HashMap<>();
+        int subtitleTrackCount = 0;
+        int subtitleStreamIndex = 0; // This is the FFmpeg subtitle stream index
+
+        // Iterate and collect SUBTITLE STREAM INDICES (0 for first subtitle, 1 for second, etc.)
         for (TrackInfoEntity track : trackInfoEntities) {
             if ("Text".equalsIgnoreCase(track.getType())) {
                 String language = extractLanguage(track);
-                languageTracks.computeIfAbsent(language, k -> new ArrayList<>()).add(subtitleIndex);
-                log.trace("Subtitle track {} has language: {}", subtitleIndex, language);
-                subtitleIndex++;
+                String languageLower = language.toLowerCase();
+                languageTracks.computeIfAbsent(languageLower, k -> new ArrayList<>()).add(subtitleStreamIndex); // Store subtitle stream index
+                log.trace("Subtitle track at subtitle index {} has language: {} (normalized: {})",
+                        subtitleStreamIndex, language, languageLower);
+                subtitleStreamIndex++;
                 subtitleTrackCount++;
             }
         }
 
         log.info("Found {} subtitle tracks with languages: {}", subtitleTrackCount, languageTracks.keySet());
-        Set<Integer> result = filterAudioTracksByCustomRules(languageTracks);
-        log.info("Subtitle tracks to keep after filtering: {}", result);
+
+        // Determine if any preferred language exists
+        boolean hasPreferredLanguage = languageTracks.keySet().stream()
+                .anyMatch(lang -> PREFERRED_LANGUAGES.contains(lang) ||
+                        lang.length() <= 3 && PREFERRED_LANGUAGE_CODES.contains(lang));
+
+        Set<Integer> result = new HashSet<>();
+
+        if (hasPreferredLanguage) {
+            // Keep only preferred languages - using SUBTITLE STREAM INDICES
+            for (Map.Entry<String, List<Integer>> entry : languageTracks.entrySet()) {
+                String language = entry.getKey();
+                if (PREFERRED_LANGUAGES.contains(language) ||
+                        (language.length() <= 3 && PREFERRED_LANGUAGE_CODES.contains(language))) {
+                    result.addAll(entry.getValue()); // Add SUBTITLE STREAM INDICES
+                    log.debug("Keeping {} tracks for language: {} at subtitle indices: {}",
+                            entry.getValue().size(), language, entry.getValue());
+                } else {
+                    log.debug("Discarding {} tracks for language: {} at subtitle indices: {}",
+                            entry.getValue().size(), language, entry.getValue());
+                }
+            }
+        } else {
+            // No preferred languages found, keep all subtitle tracks
+            languageTracks.values().forEach(result::addAll);
+            log.info("No preferred languages found. Keeping all {} subtitle tracks at subtitle indices: {}",
+                    subtitleTrackCount, result);
+        }
+
+        log.info("Subtitle tracks to keep (subtitle stream indices): {}", result);
         return result;
     }
 
@@ -879,16 +818,16 @@ public class MediaInfoCommandService {
                 log.info("Hindi and English tracks found, keeping both");
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
-            } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJRATI)) {
+            } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJARATI)) {
                 log.info("Hindi and Gujarati tracks found, keeping both");
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
+                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
             } else if (langs.contains(LANG_HINDI)) {
                 log.info("Only Hindi tracks found, keeping Hindi");
                 tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-            } else if (langs.contains(LANG_GUJRATI) && langs.contains(LANG_UND)) {
+            } else if (langs.contains(LANG_GUJARATI) && langs.contains(LANG_UND)) {
                 log.info("Gujarati and undefined tracks found, keeping Gujarati");
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
+                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
             } else {
                 log.info("No preferred language combination found, keeping all tracks");
                 languageTracks.values().forEach(tracksToKeep::addAll);
@@ -899,25 +838,25 @@ public class MediaInfoCommandService {
 
         // --- Multi audio (> 2) ---
         log.info("Multi-track scenario ({} tracks), applying multi-track rules", total);
-        if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJRATI) && langs.contains(LANG_ENGLISH)) {
+        if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJARATI) && langs.contains(LANG_ENGLISH)) {
             log.info("Hindi, Gujarati and English tracks found, keeping all three");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
+            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
         } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_ENGLISH)) {
             log.info("Hindi and English tracks found, keeping both");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
-        } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJRATI)) {
+        } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJARATI)) {
             log.info("Hindi and Gujarati tracks found, keeping both");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
+            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
         } else if (langs.contains(LANG_HINDI)) {
             log.info("Only Hindi tracks found, keeping Hindi");
             tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-        } else if (langs.contains(LANG_GUJRATI) && langs.contains(LANG_UND)) {
+        } else if (langs.contains(LANG_GUJARATI) && langs.contains(LANG_UND)) {
             log.info("Gujarati and undefined tracks found, keeping Gujarati");
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJRATI, List.of()));
+            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
         } else {
             log.info("No preferred language combination found, keeping all tracks");
             languageTracks.values().forEach(tracksToKeep::addAll);
@@ -926,5 +865,33 @@ public class MediaInfoCommandService {
         log.info("Multi-track filtering completed in {} ms. Tracks to keep: {}",
                 System.currentTimeMillis() - startTime, tracksToKeep);
         return tracksToKeep;
+    }
+
+    private void debugTrackInfo(List<TrackInfoEntity> trackInfoEntities) {
+        log.info("=== DEBUG: Analyzing track info ===");
+        int videoCount = 0;
+        int audioCount = 0;
+        int subtitleCount = 0;
+
+        for (int i = 0; i < trackInfoEntities.size(); i++) {
+            TrackInfoEntity track = trackInfoEntities.get(i);
+            String type = track.getType();
+            String language = extractLanguage(track);
+
+            if ("Video".equalsIgnoreCase(type)) {
+                log.info("Track {}: VIDEO - Language: {}", i, language);
+                videoCount++;
+            } else if ("Audio".equalsIgnoreCase(type)) {
+                log.info("Track {}: AUDIO - Language: {}", i, language);
+                audioCount++;
+            } else if ("Text".equalsIgnoreCase(type)) {
+                log.info("Track {}: SUBTITLE - Language: {} -> FFmpeg subtitle index: {}",
+                        i, language, subtitleCount);
+                subtitleCount++;
+            }
+        }
+
+        log.info("=== Summary: {} total tracks ({} video, {} audio, {} subtitle) ===",
+                trackInfoEntities.size(), videoCount, audioCount, subtitleCount);
     }
 }

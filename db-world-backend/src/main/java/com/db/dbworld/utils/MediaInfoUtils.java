@@ -307,6 +307,7 @@ public class MediaInfoUtils {
     }
 
     public List<MediaFileInfoEntity> parseMediaInfoJson(MediaFileDetails fileDetails, String jsonOutput) {
+        log.debug("MediaInfo Json: {}", jsonOutput);
         try {
             JsonElement jsonElement = new Gson().fromJson(jsonOutput, JsonElement.class);
             List<MediaFileInfoEntity> mediaFileInfos = new ArrayList<>();

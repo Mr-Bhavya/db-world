@@ -41,6 +41,43 @@ import CategoryModal from './CategoryModal';
 // Context
 import { useCategory } from './CategoryContext';
 
+// Netflix-style motion variants
+const mobileNavVariants = {
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { type: 'spring', stiffness: 120, damping: 20 }
+  },
+  hidden: {
+    y: -40,
+    opacity: 0,
+    height: 0,
+    transition: { type: 'spring', stiffness: 140, damping: 25 }
+  }
+};
+
+// Blur width animation variants (Netflix style)
+const blurWidthVariants = {
+  visible: {
+    width: '100%',
+    backdropFilter: 'blur(20px)',
+    transition: {
+      type: "spring",
+      stiffness: 100,
+      damping: 15
+    }
+  },
+  hidden: {
+    width: '70%',
+    backdropFilter: 'blur(8px)',
+    transition: {
+      type: "spring",
+      stiffness: 120,
+      damping: 20
+    }
+  }
+};
+
 // Optimized Styled Components
 const StyledAppBar = styled(AppBar, {
   shouldForwardProp: (prop) => prop !== 'scrolled' && prop !== 'coverColor',
@@ -142,9 +179,11 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [hasNewContent, setHasNewContent] = useState(true);
   
-  // SINGLE STATE FOR NAV VISIBILITY - This fixes the flickering
-  const [isNavVisible, setIsNavVisible] = useState(true);
+  // Netflix-style scroll states
+  const [mobileNavVisible, setMobileNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [scrollDirection, setScrollDirection] = useState('up');
+  const [scrollVelocity, setScrollVelocity] = useState(0);
 
   // Memoized navbar buttons configuration
   const navbarButtons = useMemo(() => [
@@ -204,40 +243,58 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
     return selectedNav && (selectedNav.id === 1 || selectedNav.id === 2);
   }, [selectedNav]);
 
-  // OPTIMIZED SCROLL HANDLING - Single state update to prevent flickering
+  // Netflix-style scroll handling
   useEffect(() => {
+    if (!isMobile) return;
+
+    let lastScrollTime = Date.now();
+    let lastScrollPosition = 0;
+
     const handleScroll = () => {
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const currentScroll = window.scrollY;
+      const currentTime = Date.now();
       
-      // Throttle scroll updates
+      // Calculate scroll velocity
+      const timeDiff = currentTime - lastScrollTime;
+      const scrollDiff = Math.abs(currentScroll - lastScrollPosition);
+      const velocity = scrollDiff / (timeDiff || 1);
+      setScrollVelocity(velocity);
+
+      // Determine scroll direction
+      const direction = currentScroll > lastScrollY ? 'down' : 'up';
+      setScrollDirection(direction);
+
+      // Netflix-style logic: Hide on fast scroll down, show on scroll up
+      if (direction === 'down' && currentScroll > 100 && velocity > 0.5) {
+        setMobileNavVisible(false);
+      } else if (direction === 'up' || currentScroll < 50) {
+        setMobileNavVisible(true);
+      }
+
+      // Update scrolled state
+      setIsScrolled(currentScroll > 10);
+      
+      // Update tracking variables
+      setLastScrollY(currentScroll);
+      lastScrollPosition = currentScroll;
+      lastScrollTime = currentTime;
+    };
+
+    // Throttle scroll events
+    const throttledScroll = () => {
       if (scrollTimeoutRef.current) {
         cancelAnimationFrame(scrollTimeoutRef.current);
       }
-
-      scrollTimeoutRef.current = requestAnimationFrame(() => {
-        setIsScrolled(scrollTop > 10);
-
-        if (isMobile) {
-          const scrollDirection = scrollTop > lastScrollY ? 'down' : 'up';
-          const scrollDelta = Math.abs(scrollTop - lastScrollY);
-          
-          // Only update state if scroll delta is significant to prevent micro-updates
-          if (scrollDelta > 2) {
-            const shouldShowNav = scrollDirection === 'up' || scrollTop < 100;
-            setIsNavVisible(shouldShowNav);
-            setLastScrollY(scrollTop);
-          }
-        }
-      });
+      scrollTimeoutRef.current = requestAnimationFrame(handleScroll);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', throttledScroll, { passive: true });
     
     return () => {
       if (scrollTimeoutRef.current) {
         cancelAnimationFrame(scrollTimeoutRef.current);
       }
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', throttledScroll);
     };
   }, [isMobile, lastScrollY]);
 
@@ -401,39 +458,72 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
 
   const shouldShowBackButton = selectedNav && !isHomePage && isMobile;
 
-  // SIMPLIFIED NAV RENDERING LOGIC - This eliminates flickering
+  // Netflix-style mobile navigation animation
   const renderMobileNavigation = useCallback(() => {
-    if (!isMobile || !isNavVisible) return null;
+    if (!isMobile) return null;
 
     return (
-      <Box>
-        {/* Main Navigation - Show when no nav selected or on home */}
-        {(!selectedNav || isHomePage) && (
-          <Slide in={isNavVisible} direction="down" timeout={200}>
-            <Box sx={{ py: 1 }}>
-              {renderMainNavbarButtons()}
-            </Box>
-          </Slide>
-        )}
+      <motion.div
+        initial={false}
+        animate={mobileNavVisible ? 'visible' : 'hidden'}
+        variants={mobileNavVariants}
+        style={{
+          position: 'relative',
+          willChange: 'transform, opacity, backdrop-filter',
+          transformOrigin: 'top center',
+        }}
+      >
+        {/* Blur width animation container (Netflix style) */}
+        <motion.div
+          initial={false}
+          animate={mobileNavVisible ? 'visible' : 'hidden'}
+          variants={blurWidthVariants}
+          style={{
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: '0 0 12px 12px',
+            // background: alpha(theme.palette.background.paper, 0.9),
+            margin: '0 auto',
+            willChange: 'width, backdrop-filter',
+          }}
+        >
+          {/* Main Navigation - Show when no nav selected or on home */}
+          {(!selectedNav || isHomePage) && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <Box sx={{ py: 1 }}>
+                {renderMainNavbarButtons()}
+              </Box>
+            </motion.div>
+          )}
 
-        {/* Secondary Navigation - Show when on Movies/TV Shows */}
-        {isMediaPage && (
-          <Slide in={isNavVisible} direction="down" timeout={150}>
-            <Box sx={{ py: 1 }}>
-              {renderMobileSecondaryNavbarButtons()}
-            </Box>
-          </Slide>
-        )}
-      </Box>
+          {/* Secondary Navigation - Show when on Movies/TV Shows */}
+          {isMediaPage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <Box sx={{ py: 1 }}>
+                {renderMobileSecondaryNavbarButtons()}
+              </Box>
+            </motion.div>
+          )}
+        </motion.div>
+      </motion.div>
     );
   }, [
-    isMobile, 
-    isNavVisible, 
-    selectedNav, 
-    isHomePage, 
-    isMediaPage, 
-    renderMainNavbarButtons, 
-    renderMobileSecondaryNavbarButtons
+    isMobile,
+    mobileNavVisible,
+    selectedNav,
+    isHomePage,
+    isMediaPage,
+    renderMainNavbarButtons,
+    renderMobileSecondaryNavbarButtons,
+    theme
   ]);
 
   // Calculate spacer height
@@ -441,11 +531,11 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
     if (!isMobile) return '70px';
     
     if (isMediaPage) {
-      return isNavVisible ? '120px' : '60px';
+      return mobileNavVisible ? '120px' : '60px';
     }
     
-    return (selectedNav && !isHomePage) ? '120px' : (isNavVisible ? '120px' : '60px');
-  }, [isMobile, isMediaPage, isNavVisible, selectedNav, isHomePage]);
+    return (selectedNav && !isHomePage) ? '120px' : (mobileNavVisible ? '120px' : '60px');
+  }, [isMobile, isMediaPage, mobileNavVisible, selectedNav, isHomePage]);
 
   return (
     <>
@@ -565,8 +655,8 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
           </Box>
         </Toolbar>
 
-        {/* MOBILE NAVIGATION - Single source of truth */}
-        {renderMobileNavigation()}
+        {/* Netflix-style mobile navigation animation */}
+        {isMobile && renderMobileNavigation()}
       </StyledAppBar>
 
       {/* Category Modal */}

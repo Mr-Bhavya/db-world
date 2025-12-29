@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState, useMemo, useContext, Suspense } from 'react';
-import { Box, styled, useTheme, Typography, Link, IconButton } from '@mui/material';
-import { Facebook, Twitter, Instagram, YouTube } from '@mui/icons-material';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { Box, styled, useTheme, Typography, CircularProgress } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import Footer from '../../components/Footer/Footer';
+import { useIntersectionObserver } from '../../services/cinemaConfig';
+import Snowfall from 'react-snowfall';
 
 // Animation variants
 const containerVariants = {
@@ -70,6 +71,132 @@ const TopFadeEffect = styled('div')(({ theme }) => ({
   zIndex: 2
 }));
 
+// Hook for infinite loading
+const useInfiniteTiles = (initialConfig, fetchMoreTiles) => {
+  const [tiles, setTiles] = useState(initialConfig);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState(null);
+  const [triggerRef, isTriggerVisible] = useIntersectionObserver({ rootMargin: '500px' });
+
+  const loadMore = useCallback(async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const nextPage = page + 1;
+      const newTiles = await fetchMoreTiles(nextPage);
+
+      if (newTiles && newTiles.length > 0) {
+        setTiles(prev => [...prev, ...newTiles]);
+        setPage(nextPage);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Failed to load more tiles:', err);
+      setError(err.message || 'Failed to load more content');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, loading, hasMore, fetchMoreTiles]);
+
+  // Load more when trigger becomes visible
+  useEffect(() => {
+    if (isTriggerVisible && hasMore && !loading && fetchMoreTiles) {
+      loadMore();
+    }
+  }, [isTriggerVisible, hasMore, loading, loadMore, fetchMoreTiles]);
+
+  // Reset when initial config changes
+  useEffect(() => {
+    setTiles(initialConfig);
+    setPage(1);
+    setHasMore(true);
+    setError(null);
+  }, [initialConfig]);
+
+  return {
+    tiles, loading, hasMore, error, triggerRef, reset: () => {
+      setTiles(initialConfig);
+      setPage(1);
+      setHasMore(true);
+      setError(null);
+      setLoading(false);
+    }
+  };
+};
+
+// Lazy-loaded TilesRow component wrapper
+const LazyTilesRow = React.memo(({
+  tile,
+  index,
+  onGenreSelect,
+  TilesRowComponent
+}) => {
+  const [ref, isIntersecting] = useIntersectionObserver();
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    if (isIntersecting && !hasLoaded) {
+      setHasLoaded(true);
+    }
+  }, [isIntersecting, hasLoaded]);
+
+  // Show loading skeleton when not loaded yet
+  if (!hasLoaded) {
+    return (
+      <motion.div
+        key={`${tile.title}-${index}-skeleton`}
+        ref={ref}
+        variants={tileRowVariants}
+        initial="hidden"
+        animate="visible"
+        exit="hidden"
+        custom={index}
+        style={{
+          height: tile.horizontal ? '280px' : '450px',
+          marginBottom: '40px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(30, 30, 30, 0.5)',
+          borderRadius: '8px',
+          margin: '0 16px'
+        }}
+      >
+        <CircularProgress size={40} thickness={4} sx={{ color: 'primary.main' }} />
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      ref={ref}
+      key={`${tile.title}-${index}-${tile.requestUrl || ''}-loaded`}
+      variants={tileRowVariants}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+      custom={index}
+    >
+      <TilesRowComponent
+        title={tile.title}
+        requestUrl={tile.requestUrl}
+        horizontal={tile.horizontal}
+        category={tile.category}
+        recordTypes={tile.recordTypes}
+        onGenreSelect={onGenreSelect}
+        {...tile}
+      />
+    </motion.div>
+  );
+});
+
+LazyTilesRow.displayName = 'LazyTilesRow';
+
 // Loading component for suspense fallback
 const LoadingSpinner = () => (
   <Box
@@ -100,34 +227,43 @@ const LoadingSpinner = () => (
 );
 
 /**
- * CinemaPage Component - Specialized for cinema browsing
+ * CinemaPage Component - Specialized for cinema browsing with infinite scrolling
  */
 const CinemaPage = ({
   CoverComponent,
   NavbarComponent,
   TilesRowComponent,
   GenreViewComponent,
-  FooterComponent = Footer, // Use imported Footer as default
+  FooterComponent = Footer,
   tilesConfig = [],
+  fetchMoreTiles, // New prop: function to fetch more tiles
   onColorChange = () => { },
   onGenreSelect = () => { },
   onBackToHome = () => { },
-  onNavigate = () => {}, // New prop for navigation
+  onNavigate = () => { },
   showTopFade = true,
   showCover = true,
-  showFooter = true, // New prop to control footer visibility
+  showFooter = true,
   coverProps = {},
   navbarProps = {},
   genreViewProps = {},
-  footerProps = {}, // New prop for footer configuration
+  footerProps = {},
   pageTitle = "Cinema",
-  // Add context props
   selectedCategory = null,
   clearCategory = () => { }
 }) => {
   const theme = useTheme();
   const [coverColor, setCoverColor] = useState('rgba(0,0,0,0.9)');
   const [selectedGenre, setSelectedGenre] = useState(null);
+
+  // Initialize infinite loading
+  const {
+    tiles: infiniteTiles,
+    loading,
+    hasMore,
+    error,
+    triggerRef
+  } = useInfiniteTiles(tilesConfig, fetchMoreTiles);
 
   // Sync selectedGenre with selectedCategory from navbar context
   useEffect(() => {
@@ -147,13 +283,13 @@ const CinemaPage = ({
     setCoverColor('rgba(0,0,0,0.9)');
   }, [tilesConfig]);
 
-  // Memoize the processed tiles config to prevent unnecessary re-renders
+  // Memoize the processed tiles config
   const processedTilesConfig = useMemo(() => {
-    return tilesConfig.map(tile => ({
+    return infiniteTiles.map(tile => ({
       ...tile,
       recordTypes: tile.recordTypes || ['movie', 'series']
     }));
-  }, [tilesConfig]);
+  }, [infiniteTiles]);
 
   // Get default record types for cover
   const defaultRecordTypes = useMemo(() => {
@@ -173,7 +309,7 @@ const CinemaPage = ({
   const handleBackToHome = useCallback(() => {
     console.log("Back to home from CinemaPage");
     setSelectedGenre(null);
-    clearCategory(); // Clear category in navbar context
+    clearCategory();
     onBackToHome();
     window.scrollTo(0, 0);
   }, [onBackToHome, clearCategory]);
@@ -194,7 +330,6 @@ const CinemaPage = ({
 
   const handleFooterCategorySelect = useCallback((category) => {
     console.log("Footer category selected:", category);
-    // You can map category names to genre objects if needed
     handleCategorySelect({ name: category, id: category.toLowerCase() });
   }, [handleCategorySelect]);
 
@@ -212,7 +347,6 @@ const CinemaPage = ({
 
   // Calculate content margin based on whether we're in genre view
   const contentMarginTop = useMemo(() => {
-    // Always account for navbar height (70px for desktop, 120px for mobile with secondary nav)
     return selectedGenre ? '0px' : (showCover ? '0px' : '0px');
   }, [selectedGenre, showCover]);
 
@@ -234,6 +368,72 @@ const CinemaPage = ({
     );
   };
 
+  // Render loading indicator or error message
+  const renderLoadingOrError = () => {
+    if (error) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={{
+            textAlign: 'center',
+            padding: '40px 20px',
+            color: 'rgba(255, 255, 255, 0.7)'
+          }}
+        >
+          <Typography variant="body1" color="error">
+            Error: {error}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 2, opacity: 0.7 }}>
+            Please try again later
+          </Typography>
+        </motion.div>
+      );
+    }
+
+    if (loading) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100px',
+            margin: '20px 0'
+          }}
+        >
+          <CircularProgress
+            size={40}
+            thickness={4}
+            sx={{ color: 'primary.main' }}
+          />
+        </motion.div>
+      );
+    }
+
+    if (!hasMore && processedTilesConfig.length > 0) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={{
+            textAlign: 'center',
+            padding: '40px 20px',
+            color: 'rgba(255, 255, 255, 0.7)'
+          }}
+        >
+          <Typography variant="body1">
+            You've reached the end
+          </Typography>
+        </motion.div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <MainContainer
       initial="hidden"
@@ -241,6 +441,16 @@ const CinemaPage = ({
       variants={containerVariants}
       style={{ '--navbar-bg-color': coverColor }}
     >
+
+      <Snowfall
+        style={{
+          position: 'fixed',
+          width: '100vw',
+          height: '100vh',
+          zIndex: 100000
+        }}
+        snowflakeCount={50} />
+
       {/* Navbar - Always visible, even when genre is selected */}
       <NavbarComponent
         onCollapseChange={handleNavbarCollapseChange}
@@ -267,8 +477,8 @@ const CinemaPage = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              style={{ 
-                height: '100%', 
+              style={{
+                height: '100%',
                 width: '100%',
                 overflow: 'auto'
               }}
@@ -306,26 +516,24 @@ const CinemaPage = ({
                 }}
               >
                 <AnimatePresence>
+                  {/* Render lazy-loaded tiles */}
                   {processedTilesConfig.map((tile, index) => (
-                    <motion.div
-                      key={`${tile.title}-${index}-${tile.requestUrl}`}
-                      variants={tileRowVariants}
-                      initial="hidden"
-                      animate="visible"
-                      exit="hidden"
-                      custom={index}
-                    >
-                      <TilesRowComponent
-                        title={tile.title}
-                        requestUrl={tile.requestUrl}
-                        horizontal={tile.horizontal}
-                        category={tile.category}
-                        recordTypes={tile.recordTypes}
-                        onGenreSelect={handleCategorySelect}
-                        {...tile}
-                      />
-                    </motion.div>
+                    <LazyTilesRow
+                      key={`${tile.title}-${index}-${tile.requestUrl || ''}`}
+                      tile={tile}
+                      index={index}
+                      onGenreSelect={handleCategorySelect}
+                      TilesRowComponent={TilesRowComponent}
+                    />
                   ))}
+
+                  {/* Infinite scroll trigger */}
+                  {fetchMoreTiles && hasMore && (
+                    <div ref={triggerRef} style={{ height: '1px' }} />
+                  )}
+
+                  {/* Loading indicator or end message */}
+                  {renderLoadingOrError()}
                 </AnimatePresence>
               </TilesWrapper>
             </motion.div>
@@ -338,8 +546,6 @@ const CinemaPage = ({
     </MainContainer>
   );
 };
-
-// ... rest of the code remains the same (DefaultCinemaPage, CinemaPageWithContext, etc.)
 
 // Default export with default components
 const DefaultCinemaPage = (props) => {
@@ -432,99 +638,6 @@ export const CinemaPageWithContext = (props) => {
 export const SimpleCinemaPage = (props) => (
   <DefaultCinemaPage {...props} />
 );
-
-// Helper function to create tiles configuration
-export const createTilesConfig = (configs) => {
-  return configs.map(config => ({
-    title: config.title,
-    requestUrl: config.requestUrl,
-    horizontal: config.horizontal || false,
-    recordTypes: config.recordTypes || ['movie', 'series'],
-    ...config
-  }));
-};
-
-// Pre-configured pages
-export const createHomePageConfig = () => createTilesConfig([
-  {
-    title: "Trending Now",
-    requestUrl: "trending",
-    horizontal: true,
-    recordTypes: ['movie', 'series']
-  },
-  {
-    title: "Popular Movies",
-    requestUrl: "popular-movies",
-    horizontal: true,
-    recordTypes: ['movie']
-  },
-  {
-    title: "Popular TV Shows",
-    requestUrl: "popular-series",
-    horizontal: true,
-    recordTypes: ['series']
-  },
-  {
-    title: "New Releases",
-    requestUrl: "new-releases",
-    horizontal: true,
-    recordTypes: ['movie', 'series']
-  }
-]);
-
-export const createMoviesPageConfig = () => createTilesConfig([
-  {
-    title: "Popular Movies",
-    requestUrl: "popular-movies",
-    horizontal: true,
-    recordTypes: ['movie']
-  },
-  {
-    title: "Top Rated Movies",
-    requestUrl: "top-rated-movies",
-    horizontal: true,
-    recordTypes: ['movie']
-  },
-  {
-    title: "Now Playing",
-    requestUrl: "now-playing-movies",
-    horizontal: true,
-    recordTypes: ['movie']
-  },
-  {
-    title: "Upcoming Movies",
-    requestUrl: "upcoming-movies",
-    horizontal: true,
-    recordTypes: ['movie']
-  }
-]);
-
-export const createSeriesPageConfig = () => createTilesConfig([
-  {
-    title: "Popular TV Shows",
-    requestUrl: "popular-series",
-    horizontal: true,
-    recordTypes: ['series']
-  },
-  {
-    title: "Top Rated TV Shows",
-    requestUrl: "top-rated-series",
-    horizontal: true,
-    recordTypes: ['series']
-  },
-  {
-    title: "Airing Today",
-    requestUrl: "airing-today",
-    horizontal: true,
-    recordTypes: ['series']
-  },
-  {
-    title: "On The Air",
-    requestUrl: "on-the-air",
-    horizontal: true,
-    recordTypes: ['series']
-  }
-]);
 
 // Default export
 export default DefaultCinemaPage;

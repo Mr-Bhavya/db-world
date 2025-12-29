@@ -36,11 +36,11 @@ import java.util.*;
 @Log4j2
 public class DbWorldUtils {
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final DbWorldRuntimeProperties runtimeProperties;
 
-    @Autowired
-    private ModelMapper modelMapper;
+    public DbWorldUtils (DbWorldRuntimeProperties runtimeProperties) {
+        this.runtimeProperties = runtimeProperties;
+    }
 
     public byte[] serialize(Object obj) throws IOException {
         try (
@@ -271,50 +271,6 @@ public class DbWorldUtils {
         }
     }
 
-    public String runMediaInfoCommand(Path path) {
-        try {
-            List<String> command = Arrays.asList(
-                    DbWorldConstants.MEDIAINFO,
-                    "--output=JSON",
-                    path.toString()
-            );
-
-            ProcessBuilder processBuilder = new ProcessBuilder(command);
-            Process process = processBuilder.start();
-            log.info("MediaInfo command : {}",process.info().command());
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                StringBuilder output = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line);
-                }
-                process.waitFor();
-                return output.toString();
-            }
-        } catch (Exception e){
-            throw new DbWorldException("Error While running mediainfo command: "+e.getMessage());
-        }
-    }
-
-    public String runMediaInfoCommand(Path path, boolean modifyTitles, MediaFileDetails fileDetails) {
-        try {
-            // First get current media info to analyze tracks
-            String initialJson = runMediaInfoCommand(path);
-
-            // If title modification is requested, analyze and modify the file
-            if (modifyTitles && fileDetails != null) {
-                Map<String, String> titleModifications = generateTitleModifications(initialJson, fileDetails);
-                modifyMediaTitles(path, titleModifications);
-            }
-
-            // Now get the updated media info
-            return runMediaInfoCommand(path);
-
-        } catch (Exception e) {
-            throw new DbWorldException("Error While running mediainfo command: " + e.getMessage());
-        }
-    }
-
     private Map<String, String> generateTitleModifications(String mediaInfoJson, MediaFileDetails fileDetails) {
         Map<String, String> modifications = new HashMap<>();
 
@@ -455,7 +411,7 @@ public class DbWorldUtils {
             }
 
             List<String> command = Arrays.asList(
-                    DbWorldConstants.MEDIAINFO,
+                    runtimeProperties.getMediaInfo(),
                     "--output=JSON",
                     path.toString()
             );

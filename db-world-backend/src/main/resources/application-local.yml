@@ -22,6 +22,8 @@ app:
 
   tools:
     yt-dlp: yt-dlp
+    ffmpeg: ffmpeg
+    seven-zip: C:\Program Files\7-Zip\7z.exe
     mediainfo: D:\Bhavya\Downloads\Compressed\MediaInfo_CLI_24.12_Windows_x64\mediainfo
     hs-cookies: ${app.paths.config}/HS_COOKIES.txt
 
@@ -44,6 +46,22 @@ app:
         enabled: true
     monitoring:
       enabled: true
+
+hls:
+  output:
+    base-path: D:/home/dbworld_admin/ext_hdisk/dbworld/movies
+  segment:
+    duration: 6
+    naming-pattern: segment_%03d.ts
+  playlist:
+    type: vod
+    name: index.m3u8
+  video:
+    copy-without-scaling: true
+  audio:
+    target-codec: aac
+    default-bitrate: 128k
+    allowed-copy-formats: [aac, mp3]
 
 # CORS configuration for static resources
 cors:
@@ -250,7 +268,7 @@ aria2:
 logging:
   level:
     root: INFO
-    com.db.dbworld: INFO
+    com.db.dbworld: DEBUG
     org.hibernate: WARN
     org.springframework: INFO
     com.db.dbworld.config.SinglePageAppConfig: DEBUG

@@ -2,6 +2,7 @@ package com.db.dbworld.handler;
 
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.Gson;
 import lombok.extern.log4j.Log4j2;
@@ -22,7 +23,8 @@ import java.util.stream.Collectors;
 public class ApplicationLogsHandler extends TextWebSocketHandler {
 
     private final DbWorldUtils dbWorldUtils;
-    private final Gson gson = new Gson();
+    private final DbWorldRuntimeProperties runtimeProperties;
+    private final Gson gson;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -31,8 +33,10 @@ public class ApplicationLogsHandler extends TextWebSocketHandler {
 
     private final DateTimeFormatter logTimestampFormat = DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm:ss.SSS a");
 
-    public ApplicationLogsHandler(DbWorldUtils dbWorldUtils) {
+    public ApplicationLogsHandler(DbWorldUtils dbWorldUtils, DbWorldRuntimeProperties runtimeProperties, Gson gson) {
         this.dbWorldUtils = dbWorldUtils;
+        this.runtimeProperties = runtimeProperties;
+        this.gson = gson;
     }
 
     @Override
@@ -98,7 +102,7 @@ public class ApplicationLogsHandler extends TextWebSocketHandler {
         if (!isSessionOpen(session)) return;
 
         try {
-            List<String> allLogs = dbWorldUtils.readFileInList(DbWorldConstants.LOGS_FILE_PATH);
+            List<String> allLogs = dbWorldUtils.readFileInList(runtimeProperties.getMainLogPath().toString());
             long lastPosition = sessionLastReadPositions.getOrDefault(sessionId, 0L);
 
             if (allLogs.size() > lastPosition) {
@@ -152,7 +156,7 @@ public class ApplicationLogsHandler extends TextWebSocketHandler {
     }
 
     private List<String> getLogsWithinTimeframe(long minutes) {
-        List<String> allLines = dbWorldUtils.readFileInList(DbWorldConstants.LOGS_FILE_PATH);
+        List<String> allLines = dbWorldUtils.readFileInList(runtimeProperties.getMainLogPath().toString());
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(minutes);
 
         return allLines.stream()

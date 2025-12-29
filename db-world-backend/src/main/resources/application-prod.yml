@@ -22,6 +22,8 @@ app:
 
   tools:
     yt-dlp: yt-dlp
+    ffmpeg: ffmpeg
+    seven-zip: 7z
     mediainfo: mediainfo
     hs-cookies: ${app.paths.config}/HS_COOKIES.txt
 

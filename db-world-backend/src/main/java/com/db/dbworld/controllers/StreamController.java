@@ -1,7 +1,9 @@
 package com.db.dbworld.controllers;
 
 import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.exceptions.ProcessExecutionException;
 import com.db.dbworld.helpers.DbWorldRecords;
+import com.db.dbworld.helpers.ProcessExecutor;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.services.media.MediaFileInfoService;
@@ -33,7 +35,7 @@ import java.util.stream.Collectors;
 public class StreamController {
 
     @Autowired private StreamService streamService;
-    @Autowired private DbWorldUtils dbWorldUtils;
+    @Autowired private ProcessExecutor processExecutor;
     @Autowired private UserService userService;
     @Autowired private MediaFileInfoService mediaFileInfoService;
 
@@ -125,10 +127,10 @@ public class StreamController {
     @GetMapping("/media-info/file/{fileId}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     @Cacheable("media_info_file")
-    public ApiResponse<List<MediaFileInfo>> getMediaInfoByFile(@PathVariable String fileId) {
+    public ApiResponse<List<MediaFileInfo>> getMediaInfoByFile(@PathVariable String fileId) throws ProcessExecutionException {
         Path path = resolveFilePath(fileId);
         log.info("User is requesting media info for file [{}] at path [{}]", fileId, path);
-        String json = dbWorldUtils.runMediaInfoCommand(path);
+        String json = processExecutor.runMediaInfoCommand(path);
         return new ApiResponse<>(HttpStatus.OK, true, streamService.parseMediaInfo(json));
     }
 

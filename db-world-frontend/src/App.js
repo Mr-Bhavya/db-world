@@ -12,7 +12,6 @@ import PasswordManagment from './components/DB_Password_Management/PasswordManag
 import GeneratePassword from './components/DB_Password_Management/GeneratePassword';
 import AddPassword from './components/DB_Password_Management/AddPassword';
 import Constants from './components/Constants';
-import AdminTools from './components/DB_Admin_Tools/AdminTools';
 import ViewPassword from './components/DB_Password_Management/ViewPassword';
 import Profile from './components/DB_Users/Profile';
 import EditProfile from './components/DB_Users/EditProfile';
@@ -31,9 +30,10 @@ import { CINEMA_PAGE_TILES } from './components/DBCinema/components/CinemaTiles.
 // Import CinemaPage components correctly
 import CinemaPage from './components/DBCinema/screens/CinemaPage/CinemaPage.js';
 import { CategoryProvider } from './components/DBCinema/navbar/CategoryContext.js';
+import Snowfall from 'react-snowfall';
 
 // Lazy load heavy components for better performance
-const LazyAdminTools = lazy(() => import('./components/DB_Admin_Tools/AdminTools'));
+const LazyAdminTools = lazy(() => import('./components/DB_Admin_Tools/AdminPage/AdminPage.js'));
 const LazyMediaDownloadViewer = lazy(() => import('./components/DBCinema/screens/download/index.js'));
 const LazyMovieDetailsPage = lazy(() => import('./components/DBCinema/screens/movie-details/index.js'));
 const LazySeriesDetailsPage = lazy(() => import('./components/DBCinema/screens/series-details/SeriesDetailsPage.js'));

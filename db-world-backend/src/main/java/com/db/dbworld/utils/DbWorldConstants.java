@@ -1,16 +1,15 @@
 package com.db.dbworld.utils;
 
-import com.db.dbworld.config.DbWorldPropertiesConfig;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
 @Component
 public class DbWorldConstants {
 
-    private final DbWorldPropertiesConfig dbWorldPropertiesConfig;
+    private final DbWorldRuntimeProperties runtimeProperties;
 
-    public DbWorldConstants(DbWorldPropertiesConfig dbWorldPropertiesConfig) {
-        this.dbWorldPropertiesConfig = dbWorldPropertiesConfig;
+    public DbWorldConstants(DbWorldRuntimeProperties runtimeProperties) {
+        this.runtimeProperties = runtimeProperties;
     }
 
     // Roles
@@ -26,10 +25,6 @@ public class DbWorldConstants {
     public static final String REPLACE_ID_STRING = "${id}";
     public static final String REPLACE_QUERY_STRING = "${query}";
     public static final String REPLACE_YEAR_STRING = "${year}";
-
-    // Record types
-//    public static final String RECORD_TYPE_MOVIE = "movie";
-//    public static final String RECORD_TYPE_SERIES = "series";
 
     public enum RECORD_TYE {
         MOVIE, SERIES
@@ -81,6 +76,7 @@ public class DbWorldConstants {
 
     // Public APIs
     public static final String[] PUBLIC_APIS = {
+            "/api/hls/**",
             "/api/auth/**",
             "/test/**",
             "/dbworld-api-doc.html",
@@ -124,23 +120,21 @@ public class DbWorldConstants {
 
     @PostConstruct
     public void initConstants() {
-        var paths = dbWorldPropertiesConfig.getPaths();
-        var tools = dbWorldPropertiesConfig.getTools();
 
-        TEMP_DOWNLOAD_PATH = paths.getTemp();
-        LOGS_FILE_PATH = paths.getMainLog();
-        LOG4J2_FILE_PATH = paths.getArchivedLogs();
-        DOWNLOAD_LOG_PATH = paths.getDownloadLog();
-        INTEGRATION_FOLDER_PATH = paths.getIntegration();
-        STREAM_HOME_PATH = dbWorldPropertiesConfig.getStreamPath();
-        EXTERNAL_STREAM_HOME_PATH = paths.getExternalVideos();
-        TORRENT_DOWNLOAD_HOME_PATH = paths.getTorrents();
-        EXTERNAL_H_DISK_PATH = dbWorldPropertiesConfig.getDataPath();
-        YT_DLP = tools.getYtDlp();
-        MEDIAINFO = tools.getMediainfo();
-        HS_COOKIES_PATH = tools.getHsCookies();
+        TEMP_DOWNLOAD_PATH = runtimeProperties.getTempPath().toString();
+        LOGS_FILE_PATH = runtimeProperties.getLogsPath().toString();
+        LOG4J2_FILE_PATH = runtimeProperties.getLogsPath().toString();
+        DOWNLOAD_LOG_PATH = runtimeProperties.getDownloadLogPath().toString();
+        INTEGRATION_FOLDER_PATH = runtimeProperties.getIntegrationPath().toString();
+        STREAM_HOME_PATH = runtimeProperties.getStreamPath().toString();
+        EXTERNAL_STREAM_HOME_PATH = runtimeProperties.getExternalVideosPath().toString();
+        TORRENT_DOWNLOAD_HOME_PATH = runtimeProperties.getTorrentsPath().toString();
+        EXTERNAL_H_DISK_PATH = runtimeProperties.getBasePath().toString();
+        YT_DLP = runtimeProperties.getYtDlp();
+        MEDIAINFO = runtimeProperties.getMediaInfo();
+        HS_COOKIES_PATH = runtimeProperties.getHsCookies().toString();
 
-        TMDB_API_KEY = dbWorldPropertiesConfig.getApiKeys() != null ? dbWorldPropertiesConfig.getApiKeys().getTmdb() : null;
-        TMDB_ACCESS_TOKEN = dbWorldPropertiesConfig.getTokens() != null ? dbWorldPropertiesConfig.getTokens().getTmdb() : null;
+        TMDB_API_KEY = runtimeProperties.getTmdbApiKey();
+        TMDB_ACCESS_TOKEN = runtimeProperties.getTmdbAccessToken();
     }
 }
