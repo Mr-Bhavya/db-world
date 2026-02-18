@@ -37,7 +37,7 @@ const DeleteConfirmationDialog = ({
   }, [loading, onClose]);
 
   const handleConfirm = useCallback(() => {
-    console.log("DeleteConfirmationDialog - handleConfirm called");
+    //console.log("DeleteConfirmationDialog - handleConfirm called");
     if (onConfirm) {
       onConfirm();
     }
@@ -60,7 +60,7 @@ const DeleteConfirmationDialog = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  console.log("DeleteConfirmationDialog - Rendering with hasRecord:", hasRecord);
+  //console.log("DeleteConfirmationDialog - Rendering with hasRecord:", hasRecord);
 
   return (
     <MotionDialog

@@ -37,4 +37,8 @@ public class TrackInfoEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "media_file_info", referencedColumnName = "id")
     private MediaFileInfoEntity mediaFileInfo;
+
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @JoinColumn(name = "media_file_info", nullable = false, referencedColumnName = "id")
+//    private MediaFileInfoEntity mediaFileInfo;
 }

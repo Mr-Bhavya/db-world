@@ -23,7 +23,7 @@ public class GenericStreamProcessor extends StreamProcessor {
         if (isErrorStream) {
             log.error("[stderr]: {}", line);
         } else {
-            log.info("[stdout]: {}", line);
+            log.debug("[stdout]: {}", line);
         }
 
         // If status tracking is enabled, also log to HTML

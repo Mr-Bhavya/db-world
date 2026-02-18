@@ -2,21 +2,15 @@ package com.db.dbworld.services.user;
 
 import com.db.dbworld.dao.user.UserActivityLogRepository;
 import com.db.dbworld.entities.user.UserActivityLogEntity;
-import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.payloads.RequestLogData;
-import com.db.dbworld.security.JwtAuthenticationFilter;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

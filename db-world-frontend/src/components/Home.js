@@ -36,7 +36,6 @@ import {
   TrendingUp as TrendingIcon,
   Star as StarIcon
 } from '@mui/icons-material';
-import Snowfall from 'react-snowfall';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -245,9 +244,7 @@ const Home = () => {
           zIndex: 0
         }
       }}
-    >
-      <Snowfall />
-      
+    >      
       <AnimatePresence mode="wait">
         <motion.div
           key={currentBackground}

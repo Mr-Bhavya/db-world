@@ -5,8 +5,6 @@ import com.db.dbworld.services.aria2.Aria2RpcService;
 import com.db.dbworld.services.aria2.model.Aria2GlobalStat;
 import com.db.dbworld.services.aria2.model.Aria2StatusParam;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,50 +16,45 @@ public class Aria2RpcController {
 
     private final Aria2RpcService aria2RpcService;
 
-    @Autowired
     public Aria2RpcController(Aria2RpcService aria2RpcService) {
         this.aria2RpcService = aria2RpcService;
     }
 
     @PostMapping("/{gid}/cancel")
-    public ApiResponse<String> cancelDownload(@PathVariable String gid) {
+    public ApiResponse<Void> cancelDownload(@PathVariable String gid) {
         aria2RpcService.remove(gid);
-        return new ApiResponse<>(HttpStatus.OK, true, "Download cancelled successfully");
+        return ApiResponse.success("Download cancelled successfully");
     }
 
     @GetMapping("/{gid}/status")
     public ApiResponse<Aria2StatusParam> getDownloadStatus(@PathVariable String gid) {
-        Aria2StatusParam status = aria2RpcService.tellStatus(gid);
-        return new ApiResponse<>(HttpStatus.OK, true,status);
+        return ApiResponse.success(aria2RpcService.tellStatus(gid));
     }
 
     @PostMapping("/{gid}/pause")
-    public ApiResponse<String> pauseDownload(@PathVariable String gid) {
+    public ApiResponse<Void> pauseDownload(@PathVariable String gid) {
         aria2RpcService.pause(gid);
-        return new ApiResponse<>(HttpStatus.OK, true,"Download paused successfully for GID: " + gid);
+        return ApiResponse.success("Download paused successfully");
     }
 
     @PostMapping("/{gid}/resume")
-    public ApiResponse<String> resumeDownload(@PathVariable String gid) {
+    public ApiResponse<Void> resumeDownload(@PathVariable String gid) {
         aria2RpcService.unpause(gid);
-        return new ApiResponse<>(HttpStatus.OK, true,"Download resumed successfully for GID: " + gid);
+        return ApiResponse.success("Download resumed successfully");
     }
 
     @GetMapping("/queue/status")
     public ApiResponse<Aria2GlobalStat> getQueueStatus() {
-        Aria2GlobalStat globalStats = aria2RpcService.getGlobalStat();
-        return new ApiResponse<>(HttpStatus.OK, true,globalStats);
+        return ApiResponse.success(aria2RpcService.getGlobalStat());
     }
 
     @GetMapping("/active")
     public ApiResponse<List<Aria2StatusParam>> getActiveDownloads() {
-        List<Aria2StatusParam> activeDownloads = aria2RpcService.getActiveDownloads();
-        return new ApiResponse<>(HttpStatus.OK, true,activeDownloads);
+        return ApiResponse.success(aria2RpcService.getActiveDownloads());
     }
 
     @GetMapping("/waiting")
     public ApiResponse<List<Aria2StatusParam>> getWaitingDownloads() {
-        List<Aria2StatusParam> waitingDownloads = aria2RpcService.getWaitingDownloads(0, 100);
-        return new ApiResponse<>(HttpStatus.OK, true,waitingDownloads);
+        return ApiResponse.success(aria2RpcService.getWaitingDownloads(0, 100));
     }
 }

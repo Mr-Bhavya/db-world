@@ -521,6 +521,16 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
+    public Optional<DBCinemaRecordsEntity> getRecordEntityOptById(Long recordId) {
+        try {
+            return dbCinemaRecordsRepository.findById(recordId);
+        } catch (Exception ex) {
+            log.warn("Failed to lookup recordId={}", recordId, ex);
+            return Optional.empty();
+        }
+    }
+
+    @Override
     @Cacheable(key = "'search-keyword:' + #keyword.hashCode() + ':' + #pageable.hashCode()")
     public List<DBCinemaRecordsDto> searchRecordByKeywordWithPagination(String keyword, Pageable pageable) {
         try {
@@ -653,8 +663,8 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
         } catch (Exception ex) {
             if (!tmdbUpdateStatusTracker.isCancelled()) {
                 log.error("Update process failed: {}", ex.getMessage());
-                throw new DbWorldException("Update failed: " + ex.getMessage(),
-                        tmdbUpdateStatusTracker.getCurrentStatus());
+                throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR, "TMDB update process failed",
+                        tmdbUpdateStatusTracker.getCurrentStatus(), ex);
             }
         } finally {
             tmdbUpdateStatusTracker.completeProcess();
@@ -768,12 +778,12 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
     }
 
     @Override
-    public List<HashMap<String, Object>> getTmdbByQuery(String recordType, String query, int year) {
+    public List<HashMap<String, Object>> getTmdbByQuery(RECORD_TYE recordType, String query, int year) {
         ResponseEntity<String> response = null;
         List<HashMap<String, Object>> tmdbSearchList = new ArrayList<>();
         try {
             response = restTemplate.exchange(
-                    recordType.equalsIgnoreCase(RECORD_TYE.MOVIE.name()) ? TMDB_SEARCH_MOVIE_PROVIDER_URL : TMDB_SEARCH_SERIES_PROVIDER_URL, HttpMethod.GET, null, new ParameterizedTypeReference<>() {},
+                    recordType == RECORD_TYE.MOVIE ? TMDB_SEARCH_MOVIE_PROVIDER_URL : TMDB_SEARCH_SERIES_PROVIDER_URL, HttpMethod.GET, null, new ParameterizedTypeReference<>() {},
                     query, year
             );
             String tmdbRecords = response.getBody();
@@ -784,9 +794,9 @@ public class DBCinemaRecordsServiceImpl implements DBCinemaRecordsService {
                     JsonObject jsonObject = jsonElement.getAsJsonObject();
                     HashMap<String, Object> hashMap = new HashMap<>();
                     hashMap.put("id", jsonObject.get("id"));
-                    hashMap.put("title", jsonObject.get(recordType.equalsIgnoreCase(RECORD_TYE.MOVIE.name()) ? "title" : "name"));
-                    hashMap.put("originalTitle", jsonObject.get(recordType.equalsIgnoreCase(RECORD_TYE.MOVIE.name()) ? "original_title" : "original_name"));
-                    hashMap.put("releaseDate", jsonObject.get(recordType.equalsIgnoreCase(RECORD_TYE.MOVIE.name()) ? "release_date" : "first_air_date"));
+                    hashMap.put("title", jsonObject.get(recordType == RECORD_TYE.MOVIE ? "title" : "name"));
+                    hashMap.put("originalTitle", jsonObject.get(recordType == RECORD_TYE.MOVIE ? "original_title" : "original_name"));
+                    hashMap.put("releaseDate", jsonObject.get(recordType == RECORD_TYE.MOVIE ? "release_date" : "first_air_date"));
                     hashMap.put("overview", jsonObject.get("overview"));
                     hashMap.put("posterPath", jsonObject.get("poster_path"));
                     tmdbSearchList.add(hashMap);

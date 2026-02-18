@@ -7,10 +7,11 @@ app:
   base-path: /app/db_world
   data-path: /ext_hdisk/dbworld
   stream-path: /ext_hdisk/videos
+  symlink-path: /ext_hdisk/video_symlink
 
   paths:
     logs: ${app.base-path}/logs
-    main-log: ${app.paths.logs}/dbworld.json
+    main-log: ${app.paths.logs}/${app.name}-info.json
     download-log: ${app.paths.logs}/nginx/download_tracker.log
     config: ${app.base-path}/config
     temp: ${app.data-path}/temp
@@ -167,8 +168,8 @@ spring:
   mvc:
     async:
       request-timeout: 30000
-    converters:
-      preferred-json-mapper: gson
+#    converters:
+#      preferred-json-mapper: gson
 
   # ---------------------------
   # Async Configuration
@@ -247,12 +248,29 @@ aria2:
     url: ${ARIA2_WS_URL:ws://localhost:6800/jsonrpc}
 
 # ===========================
-# Logging Configuration (Externalized)
+# MINIMAL LOGGING CONFIGURATION
+# (Detailed config in log4j2-spring.xml)
 # ===========================
 logging:
+  config: classpath:log4j2-spring.xml
+
+  # Basic level overrides (can be overridden by logback config)
   level:
-    root: INFO
-    com.db.dbworld: INFO
-    org.hibernate: WARN
-    org.springframework: INFO
-    com.db.dbworld.config.SinglePageAppConfig: INFO
+    # Application packages
+    com.db.dbworld: ${APP_LOG_LEVEL:DEBUG}
+
+    # Framework packages
+    root: ${ROOT_LOG_LEVEL:INFO}
+    org.hibernate: ${HIBERNATE_LOG_LEVEL:WARN}
+    org.hibernate.SQL: WARN
+    org.hibernate.type: TRACE
+    org.springframework: ${SPRING_LOG_LEVEL:INFO}
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+
+    # Database and connection
+    com.zaxxer.hikari: INFO
+
+    # Third-party
+    org.apache: WARN
+    com.fasterxml.jackson: WARN

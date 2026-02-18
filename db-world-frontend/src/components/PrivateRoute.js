@@ -42,14 +42,14 @@ const RouteLoader = ({ message = "Checking access..." }) => (
         size={50}
         thickness={4}
         sx={{
-          color: 'primary.main',
+          color: 'black',
           animation: 'pulse 1.5s ease-in-out infinite alternate',
           mb: 2
         }}
       />
       <Typography 
         variant="h6" 
-        color="text.primary"
+        color="black"
         fontWeight="medium"
         gutterBottom
       >
@@ -57,7 +57,7 @@ const RouteLoader = ({ message = "Checking access..." }) => (
       </Typography>
       <Typography 
         variant="body2" 
-        color="text.secondary"
+        color="black"
         sx={{
           animation: 'fadeInOut 2s ease-in-out infinite'
         }}

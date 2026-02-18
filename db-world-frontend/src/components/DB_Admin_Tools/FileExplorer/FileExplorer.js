@@ -55,8 +55,6 @@ import useFileOperations from './useFileOperations';
 import { FileContextMenu, FileActionMenu, FileSelectMenu, FileSortMenu } from './FileMenus';
 // import FileUploadModal from './FileUploadModal';
 import { styled, keyframes } from '@mui/material/styles';
-import { FileManager } from "@cubone/react-file-manager";
-import "@cubone/react-file-manager/dist/style.css";
 
 // Animations
 const fadeInUp = {
@@ -376,7 +374,7 @@ const FileExplorer = () => {
 
   const handleDownloadSelected = useCallback(() => {
     // Implement download logic
-    console.log('Downloading selected files:', selectedFiles);
+    //console.log('Downloading selected files:', selectedFiles);
   }, [selectedFiles]);
 
   // Animation variants
@@ -430,9 +428,6 @@ const FileExplorer = () => {
         zIndex: 1,
       }}
     >
-
-<FileManager  />
-
       {/* Header Section */}
       <motion.div
         initial="hidden"

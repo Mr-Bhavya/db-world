@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -10,10 +10,8 @@ import {
   Tooltip,
   useTheme,
   useMediaQuery,
-  Fade,
-  Zoom
 } from '@mui/material';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowBack as BackIcon,
   Search as SearchIcon,
@@ -21,11 +19,9 @@ import {
   GridView as GridViewIcon,
   ViewList as ListViewIcon,
   Sort as SortIcon,
-  FilterList as FilterIcon,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
   Apps as AppsIcon,
-  Dashboard as DashboardIcon
 } from '@mui/icons-material';
 
 const AdvancedGridView = ({
@@ -33,7 +29,7 @@ const AdvancedGridView = ({
   currentTabConfig,
   handleBackToGrid,
   handleListItemClick,
-  tabConfigs,
+  tabConfigs = [], // Provide default empty array
   renderTabContent
 }) => {
   const theme = useTheme();
@@ -41,42 +37,73 @@ const AdvancedGridView = ({
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('default');
   const [favorites, setFavorites] = useState(['download-manager', 'users']);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [hoveredCard, setHoveredCard] = useState(null);
   const searchRef = useRef(null);
 
-  // Extract unique categories
-  const categories = ['all', ...new Set(tabConfigs.map(tab => tab.category))];
+  // Extract unique categories safely
+  const categories = useMemo(() => {
+    if (!Array.isArray(tabConfigs)) return ['all'];
+    
+    const allCategories = tabConfigs
+      .map(tab => tab?.category)
+      .filter(category => category && typeof category === 'string')
+      .filter(Boolean);
+    
+    return ['all', ...new Set(allCategories)];
+  }, [tabConfigs]);
 
-  // Filter and sort tabs
-  const filteredTabs = tabConfigs.filter(tab => {
-    const matchesSearch = tab.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         tab.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         tab.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || tab.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  }).sort((a, b) => {
-    if (sortBy === 'name') return a.label.localeCompare(b.label);
-    if (sortBy === 'category') return a.category.localeCompare(b.category);
-    if (sortBy === 'favorites') {
-      const aIsFavorite = favorites.includes(a.id);
-      const bIsFavorite = favorites.includes(b.id);
-      return bIsFavorite - aIsFavorite;
-    }
-    return 0;
-  });
+  // Filter and sort tabs with safety checks
+  const filteredTabs = useMemo(() => {
+    if (!Array.isArray(tabConfigs)) return [];
+    
+    return tabConfigs
+      .filter(tab => {
+        if (!tab || !tab.id) return false;
+        
+        const searchLower = searchQuery.toLowerCase();
+        const matchesSearch = 
+          (tab.label?.toLowerCase() || '').includes(searchLower) ||
+          (tab.description?.toLowerCase() || '').includes(searchLower) ||
+          (tab.category?.toLowerCase() || '').includes(searchLower);
+        
+        const matchesCategory = selectedCategory === 'all' || tab.category === selectedCategory;
+        
+        return matchesSearch && matchesCategory;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'name') {
+          const labelA = a.label || '';
+          const labelB = b.label || '';
+          return labelA.localeCompare(labelB);
+        }
+        if (sortBy === 'category') {
+          const categoryA = a.category || '';
+          const categoryB = b.category || '';
+          return categoryA.localeCompare(categoryB);
+        }
+        if (sortBy === 'favorites') {
+          const aIsFavorite = favorites.includes(a.id);
+          const bIsFavorite = favorites.includes(b.id);
+          return (bIsFavorite ? 1 : 0) - (aIsFavorite ? 1 : 0);
+        }
+        return 0;
+      });
+  }, [tabConfigs, searchQuery, selectedCategory, sortBy, favorites]);
 
-  const toggleFavorite = (tabId, e) => {
-    e.stopPropagation();
+  const toggleFavorite = useCallback((tabId, e) => {
+    e?.stopPropagation();
+    if (!tabId) return;
+    
     setFavorites(prev => 
       prev.includes(tabId) 
         ? prev.filter(id => id !== tabId)
         : [...prev, tabId]
     );
-  };
+  }, []);
 
   // Focus search on Ctrl+K
   useEffect(() => {
@@ -90,6 +117,20 @@ const AdvancedGridView = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Safe currentTabConfig access
+  const safeCurrentTabConfig = useMemo(() => {
+    if (!currentTabConfig) {
+      return {
+        color: '#008080',
+        label: 'Unknown',
+        description: '',
+        icon: <AppsIcon />,
+        id: 'unknown',
+      };
+    }
+    return currentTabConfig;
+  }, [currentTabConfig]);
+
   if (fullScreenComponent) {
     return (
       <Box sx={{ 
@@ -98,7 +139,6 @@ const AdvancedGridView = ({
         flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        {/* Enhanced Header with glass morphism */}
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -106,40 +146,34 @@ const AdvancedGridView = ({
         >
           <Box
             sx={{
-              px: 3,
+              px: { xs: 2, sm: 3 },
               py: 2,
-              borderBottom: `1px solid ${alpha(currentTabConfig.color, 0.15)}`,
+              borderBottom: `1px solid ${alpha(safeCurrentTabConfig.color, 0.15)}`,
               background: `linear-gradient(135deg, 
-                ${alpha(currentTabConfig.color, 0.08)} 0%, 
-                ${alpha(currentTabConfig.color, 0.03)} 100%)`,
+                ${alpha(safeCurrentTabConfig.color, 0.08)} 0%, 
+                ${alpha(safeCurrentTabConfig.color, 0.03)} 100%)`,
               display: 'flex',
               alignItems: 'center',
-              gap: 2,
+              gap: { xs: 1, sm: 2 },
               minHeight: 72,
               flexShrink: 0,
               position: 'sticky',
               top: 0,
               zIndex: 10,
               backdropFilter: 'blur(20px)',
-              boxShadow: `0 4px 20px ${alpha(currentTabConfig.color, 0.1)}`,
             }}
           >
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <IconButton 
                 onClick={handleBackToGrid} 
-                size="medium"
+                size={isMobile ? "small" : "medium"}
                 aria-label="Back to app selector"
                 sx={{ 
                   flexShrink: 0,
-                  background: `linear-gradient(135deg, ${alpha(currentTabConfig.color, 0.2)}, ${alpha(currentTabConfig.color, 0.1)})`,
-                  '&:hover': {
-                    background: `linear-gradient(135deg, ${alpha(currentTabConfig.color, 0.3)}, ${alpha(currentTabConfig.color, 0.2)})`,
-                    transform: 'rotate(-10deg)',
-                  },
-                  transition: 'all 0.3s ease',
+                  background: `linear-gradient(135deg, ${alpha(safeCurrentTabConfig.color, 0.2)}, ${alpha(safeCurrentTabConfig.color, 0.1)})`,
                 }}
               >
-                <BackIcon sx={{ color: currentTabConfig.color }} />
+                <BackIcon sx={{ color: safeCurrentTabConfig.color, fontSize: isMobile ? '1.25rem' : '1.5rem' }} />
               </IconButton>
             </motion.div>
             
@@ -150,37 +184,20 @@ const AdvancedGridView = ({
             >
               <Box
                 sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '16px',
-                  background: `linear-gradient(135deg, ${currentTabConfig.color}, ${alpha(currentTabConfig.color, 0.7)})`,
+                  width: { xs: 40, sm: 48 },
+                  height: { xs: 40, sm: 48 },
+                  borderRadius: { xs: '12px', sm: '16px' },
+                  background: `linear-gradient(135deg, ${safeCurrentTabConfig.color}, ${alpha(safeCurrentTabConfig.color, 0.7)})`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'white',
                   flexShrink: 0,
-                  boxShadow: `0 8px 32px ${alpha(currentTabConfig.color, 0.4)}`,
-                  position: 'relative',
-                  overflow: 'hidden',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%)',
-                    animation: 'shimmer 3s infinite linear',
-                  },
-                  '@keyframes shimmer': {
-                    '0%': { transform: 'translateX(-100%)' },
-                    '100%': { transform: 'translateX(100%)' },
-                  }
                 }}
-                aria-label={`${currentTabConfig.label} icon`}
+                aria-label={`${safeCurrentTabConfig.label} icon`}
               >
-                {React.cloneElement(currentTabConfig.icon, {
-                  sx: { fontSize: '1.5rem' }
+                {React.cloneElement(safeCurrentTabConfig.icon, {
+                  sx: { fontSize: isMobile ? '1.25rem' : '1.5rem' }
                 })}
               </Box>
             </motion.div>
@@ -191,56 +208,48 @@ const AdvancedGridView = ({
               overflow: 'hidden',
             }}>
               <Typography 
-                variant="h6" 
+                variant={isMobile ? "subtitle1" : "h6"} 
                 fontWeight="bold" 
                 noWrap
                 sx={{
-                  fontSize: '1.25rem',
-                  lineHeight: 1.2,
-                  background: `linear-gradient(135deg, ${currentTabConfig.color}, ${alpha(currentTabConfig.color, 0.8)})`,
+                  background: `linear-gradient(135deg, ${safeCurrentTabConfig.color}, ${alpha(safeCurrentTabConfig.color, 0.8)})`,
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   color: 'transparent',
                 }}
               >
-                {currentTabConfig.label}
+                {safeCurrentTabConfig.label}
               </Typography>
               <Typography 
                 variant="body2" 
                 color="text.secondary" 
                 sx={{
-                  fontSize: '0.875rem',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem',
                   lineHeight: 1.4,
                   display: 'block',
                   mt: 0.5,
                 }}
               >
-                {currentTabConfig.description}
+                {safeCurrentTabConfig.description}
               </Typography>
             </Box>
             
             <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-              {currentTabConfig.badge && (
+              {safeCurrentTabConfig.badge && (
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
+                  whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
                   <Chip
-                    label={currentTabConfig.badge}
-                    size="medium"
-                    aria-label={`${currentTabConfig.badge} badge`}
+                    label={safeCurrentTabConfig.badge}
+                    size="small"
                     sx={{
-                      height: 28,
-                      px: 1.5,
-                      bgcolor: currentTabConfig.color,
+                      height: 24,
+                      px: 1,
+                      bgcolor: safeCurrentTabConfig.color,
                       color: 'white',
-                      fontSize: '0.75rem',
+                      fontSize: '0.7rem',
                       fontWeight: 600,
-                      flexShrink: 0,
-                      '& .MuiChip-label': {
-                        px: 1,
-                      },
-                      boxShadow: `0 4px 12px ${alpha(currentTabConfig.color, 0.3)}`,
                     }}
                   />
                 </motion.div>
@@ -248,35 +257,32 @@ const AdvancedGridView = ({
               
               <Tooltip title="Toggle Favorite">
                 <IconButton
-                  onClick={(e) => toggleFavorite(currentTabConfig.id, e)}
+                  onClick={(e) => toggleFavorite(safeCurrentTabConfig.id, e)}
+                  size="small"
                   sx={{
-                    color: favorites.includes(currentTabConfig.id) ? '#FFD700' : 'action.active',
-                    '&:hover': {
-                      background: alpha('#FFD700', 0.1),
-                    }
+                    color: favorites.includes(safeCurrentTabConfig.id) ? '#FFD700' : 'action.active',
                   }}
                 >
-                  {favorites.includes(currentTabConfig.id) ? <StarIcon /> : <StarBorderIcon />}
+                  {favorites.includes(safeCurrentTabConfig.id) ? <StarIcon /> : <StarBorderIcon />}
                 </IconButton>
               </Tooltip>
             </Box>
           </Box>
         </motion.div>
 
-        {/* Content */}
         <Box
           sx={{
             flex: 1,
             minHeight: 0,
             overflow: 'auto',
-            WebkitOverflowScrolling: 'touch',
             position: 'relative',
-            '& > *': {
-              minHeight: '100%',
-            },
           }}
         >
-          {renderTabContent()}
+          {renderTabContent?.() || (
+            <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+              <Typography>No content available</Typography>
+            </Box>
+          )}
         </Box>
       </Box>
     );
@@ -289,50 +295,9 @@ const AdvancedGridView = ({
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        background: `linear-gradient(135deg, 
-          ${alpha('#008080', 0.03)} 0%, 
-          ${alpha('#006666', 0.03)} 100%)`,
         position: 'relative',
       }}
     >
-      {/* Animated Background Elements */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      >
-        {[...Array(5)].map((_, i) => (
-          <motion.div
-            key={i}
-            style={{
-              position: 'absolute',
-              width: Math.random() * 200 + 50,
-              height: Math.random() * 200 + 50,
-              background: `radial-gradient(circle, ${alpha('#008080', 0.05)} 0%, transparent 70%)`,
-              borderRadius: '50%',
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              y: [0, Math.random() * 100 - 50, 0],
-              x: [0, Math.random() * 100 - 50, 0],
-            }}
-            transition={{
-              duration: Math.random() * 20 + 20,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
-        ))}
-      </Box>
-
       {/* Control Bar */}
       <motion.div
         initial={{ y: -50, opacity: 0 }}
@@ -342,35 +307,33 @@ const AdvancedGridView = ({
       >
         <Box
           sx={{
-            p: { xs: 2, sm: 3 },
+            p: { xs: 1.5, sm: 2, md: 3 },
             display: 'flex',
             flexDirection: { xs: 'column', sm: 'row' },
             alignItems: { xs: 'stretch', sm: 'center' },
             gap: 2,
-            background: alpha(theme.palette.background.paper, 0.85),
-            backdropFilter: 'blur(20px)',
-            borderBottom: `1px solid ${alpha('#008080', 0.1)}`,
-            boxShadow: `0 4px 30px ${alpha('#008080', 0.08)}`,
+            background: theme.palette.background.paper,
+            borderBottom: `1px solid ${theme.palette.divider}`,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-            <motion.div whileHover={{ rotate: 180 }} transition={{ duration: 0.3 }}>
-              <AppsIcon sx={{ color: '#008080', fontSize: 32 }} />
-            </motion.div>
-            <Typography variant="h5" fontWeight="bold" sx={{ 
-              background: 'linear-gradient(135deg, #008080, #006666)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              color: 'transparent',
-            }}>
-              Admin Tools Dashboard
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flex: 1 }}>
+            <AppsIcon sx={{ color: '#008080', fontSize: { xs: 24, sm: 32 } }} />
+            <Typography 
+              variant={isMobile ? "h6" : "h5"} 
+              fontWeight="bold" 
+              sx={{ 
+                background: 'linear-gradient(135deg, #008080, #006666)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                color: 'transparent',
+              }}
+            >
+              {isMobile ? 'Admin Tools' : 'Admin Tools Dashboard'}
             </Typography>
           </Box>
 
           {/* Search Bar */}
           <Box
-            component={motion.div}
-            whileFocus={{ scale: 1.02 }}
             sx={{
               position: 'relative',
               flex: 1,
@@ -385,6 +348,7 @@ const AdvancedGridView = ({
                 transform: 'translateY(-50%)',
                 color: 'text.secondary',
                 zIndex: 1,
+                fontSize: isMobile ? '1rem' : '1.25rem',
               }}
             />
             <InputBase
@@ -394,22 +358,16 @@ const AdvancedGridView = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               sx={{
                 width: '100%',
-                pl: 5,
-                pr: searchQuery ? 8 : 3,
-                py: 1.5,
+                pl: { xs: 4, sm: 5 },
+                pr: searchQuery ? { xs: 7, sm: 8 } : { xs: 3, sm: 3 },
+                py: { xs: 1, sm: 1.5 },
                 borderRadius: 2,
                 backgroundColor: alpha('#008080', 0.05),
                 border: `1px solid ${alpha('#008080', 0.2)}`,
-                fontSize: '0.9rem',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  backgroundColor: alpha('#008080', 0.08),
-                  borderColor: alpha('#008080', 0.3),
-                },
+                fontSize: isMobile ? '0.875rem' : '0.9rem',
                 '&:focus-within': {
-                  backgroundColor: alpha('#008080', 0.1),
                   borderColor: '#008080',
-                  boxShadow: `0 0 0 3px ${alpha('#008080', 0.2)}`,
+                  boxShadow: `0 0 0 2px ${alpha('#008080', 0.2)}`,
                 },
               }}
             />
@@ -427,43 +385,32 @@ const AdvancedGridView = ({
                 <CloseIcon fontSize="small" />
               </IconButton>
             )}
-            <Typography
-              variant="caption"
-              sx={{
-                position: 'absolute',
-                right: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'text.secondary',
-                display: { xs: 'none', sm: 'block' },
-              }}
-            >
-              Ctrl+K
-            </Typography>
           </Box>
 
           {/* View Controls */}
-          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
             <Tooltip title="Grid View">
               <IconButton
                 onClick={() => setViewMode('grid')}
+                size={isMobile ? "small" : "medium"}
                 sx={{
                   bgcolor: viewMode === 'grid' ? alpha('#008080', 0.1) : 'transparent',
                   color: viewMode === 'grid' ? '#008080' : 'text.secondary',
                 }}
               >
-                <GridViewIcon />
+                <GridViewIcon fontSize={isMobile ? "small" : "medium"} />
               </IconButton>
             </Tooltip>
             <Tooltip title="List View">
               <IconButton
                 onClick={() => setViewMode('list')}
+                size={isMobile ? "small" : "medium"}
                 sx={{
                   bgcolor: viewMode === 'list' ? alpha('#008080', 0.1) : 'transparent',
                   color: viewMode === 'list' ? '#008080' : 'text.secondary',
                 }}
               >
-                <ListViewIcon />
+                <ListViewIcon fontSize={isMobile ? "small" : "medium"} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -479,16 +426,15 @@ const AdvancedGridView = ({
       >
         <Box
           sx={{
-            px: { xs: 2, sm: 3 },
-            py: 1.5,
+            px: { xs: 1.5, sm: 2, md: 3 },
+            py: 1,
             display: 'flex',
-            gap: 1,
+            gap: 0.5,
             overflowX: 'auto',
             scrollbarWidth: 'none',
             '&::-webkit-scrollbar': { display: 'none' },
-            background: alpha(theme.palette.background.paper, 0.7),
-            backdropFilter: 'blur(10px)',
-            borderBottom: `1px solid ${alpha('#008080', 0.1)}`,
+            background: theme.palette.background.paper,
+            borderBottom: `1px solid ${theme.palette.divider}`,
           }}
         >
           {categories.map((category) => (
@@ -498,8 +444,9 @@ const AdvancedGridView = ({
               whileTap={{ scale: 0.95 }}
             >
               <Chip
-                label={category.charAt(0).toUpperCase() + category.slice(1)}
+                label={category?.charAt(0)?.toUpperCase() + category?.slice(1) || 'Unknown'}
                 onClick={() => setSelectedCategory(category)}
+                size={isMobile ? "small" : "medium"}
                 sx={{
                   backgroundColor: selectedCategory === category 
                     ? alpha('#008080', 0.15) 
@@ -508,10 +455,8 @@ const AdvancedGridView = ({
                   fontWeight: selectedCategory === category ? 600 : 400,
                   border: `1px solid ${alpha('#008080', selectedCategory === category ? 0.3 : 0.1)}`,
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
                   '&:hover': {
                     backgroundColor: alpha('#008080', 0.1),
-                    transform: 'translateY(-1px)',
                   },
                 }}
               />
@@ -525,356 +470,277 @@ const AdvancedGridView = ({
         sx={{
           flex: 1,
           overflow: 'auto',
-          p: { xs: 2, sm: 3 },
+          p: { xs: 1.5, sm: 2, md: 3 },
           position: 'relative',
           zIndex: 1,
         }}
       >
         {filteredTabs.length === 0 ? (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.3 }}
-            style={{
+          <Box
+            sx={{
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
+              py: 8,
             }}
           >
-            <SearchIcon sx={{ fontSize: 80, color: alpha('#008080', 0.3), mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
+            <SearchIcon sx={{ fontSize: { xs: 48, sm: 64, md: 80 }, color: alpha('#008080', 0.3), mb: 2 }} />
+            <Typography variant={isMobile ? "subtitle1" : "h6"} color="text.secondary" gutterBottom>
               No tools found
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant={isMobile ? "caption" : "body2"} color="text.secondary" align="center">
               Try adjusting your search or filter
             </Typography>
-          </motion.div>
+          </Box>
         ) : viewMode === 'grid' ? (
-          <LayoutGroup>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, 1fr)',
-                  md: 'repeat(3, 1fr)',
-                  lg: 'repeat(4, 1fr)',
-                },
-                gap: 3,
-              }}
-            >
-              <AnimatePresence>
-                {filteredTabs.map((tab, index) => (
-                  <motion.div
-                    key={tab.id}
-                    layout
-                    initial={{ scale: 0.8, opacity: 0, y: 20 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.8, opacity: 0, y: -20 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 200,
-                      damping: 20,
-                      delay: index * 0.03,
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)',
+                lg: 'repeat(4, 1fr)',
+                xl: 'repeat(5, 1fr)',
+              },
+              gap: { xs: 1.5, sm: 2, md: 3 },
+            }}
+          >
+            <AnimatePresence>
+              {filteredTabs.map((tab) => (
+                <motion.div
+                  key={tab.id}
+                  layout
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  whileHover={{ y: -4 }}
+                  onHoverStart={() => setHoveredCard(tab.id)}
+                  onHoverEnd={() => setHoveredCard(null)}
+                  style={{ height: '100%' }}
+                >
+                  <Card
+                    sx={{
+                      height: '100%',
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      position: 'relative',
+                      backgroundColor: 'background.paper',
+                      border: `1px solid ${theme.palette.divider}`,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: alpha(tab.color || '#008080', 0.3),
+                        boxShadow: `0 8px 24px ${alpha(tab.color || '#008080', 0.1)}`,
+                      },
                     }}
-                    whileHover={{ 
-                      y: -8,
-                      transition: { duration: 0.2 }
-                    }}
-                    onHoverStart={() => setHoveredCard(tab.id)}
-                    onHoverEnd={() => setHoveredCard(null)}
-                    style={{ height: '100%' }}
+                    onClick={() => handleListItemClick(tab.id)}
                   >
-                    <Card
-                      sx={{
-                        height: '100%',
-                        cursor: 'pointer',
-                        borderRadius: 3,
-                        overflow: 'visible',
-                        position: 'relative',
-                        background: `linear-gradient(135deg, 
-                          ${alpha(tab.color, 0.05)} 0%, 
-                          ${alpha(tab.color, 0.02)} 100%)`,
-                        border: `1px solid ${alpha(tab.color, 0.1)}`,
-                        boxShadow: `0 4px 20px ${alpha(tab.color, 0.05)}`,
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          borderColor: alpha(tab.color, 0.3),
-                          boxShadow: `0 20px 40px ${alpha(tab.color, 0.15)}`,
-                          transform: 'translateY(-4px)',
-                        },
-                      }}
-                      onClick={() => handleListItemClick(tab.id)}
-                    >
-                      {/* Floating Favorite Button */}
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: hoveredCard === tab.id || favorites.includes(tab.id) ? 1 : 0 }}
-                        transition={{ duration: 0.2 }}
-                        style={{
-                          position: 'absolute',
-                          top: -10,
-                          right: -10,
-                          zIndex: 2,
-                        }}
-                      >
-                        <IconButton
-                          onClick={(e) => toggleFavorite(tab.id, e)}
+                    <Box sx={{ p: { xs: 2, sm: 2.5 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      {/* Header */}
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2, gap: 1.5 }}>
+                        <Box
                           sx={{
-                            backgroundColor: favorites.includes(tab.id) ? '#FFD700' : 'background.paper',
-                            color: favorites.includes(tab.id) ? 'white' : 'text.secondary',
-                            boxShadow: `0 4px 12px ${alpha('#000', 0.15)}`,
-                            '&:hover': {
-                              backgroundColor: favorites.includes(tab.id) ? '#FFC400' : 'action.hover',
-                            },
+                            width: { xs: 40, sm: 48 },
+                            height: { xs: 40, sm: 48 },
+                            borderRadius: { xs: '10px', sm: '12px' },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: `linear-gradient(135deg, ${alpha(tab.color || '#008080', 0.15)} 0%, ${alpha(tab.color || '#008080', 0.05)} 100%)`,
+                            color: tab.color || '#008080',
+                            flexShrink: 0,
                           }}
-                          size="small"
                         >
-                          {favorites.includes(tab.id) ? <StarIcon /> : <StarBorderIcon />}
-                        </IconButton>
-                      </motion.div>
-
-                      {/* Animated Gradient Border */}
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 4,
-                          borderRadius: '12px 12px 0 0',
-                          background: `linear-gradient(90deg, ${tab.color}, ${alpha(tab.color, 0.5)})`,
-                          opacity: hoveredCard === tab.id ? 1 : 0.7,
-                          transition: 'opacity 0.3s ease',
-                        }}
-                      />
-
-                      <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        {/* Icon Container */}
-                        <motion.div
-                          animate={{
-                            rotate: hoveredCard === tab.id ? [0, 10, -10, 0] : 0,
-                          }}
-                          transition={{
-                            duration: 0.5,
-                            times: [0, 0.2, 0.5, 0.8],
-                          }}
-                          style={{ alignSelf: 'flex-start' }}
-                        >
-                          <Box
+                          {tab.icon && React.cloneElement(tab.icon, {
+                            sx: { fontSize: { xs: '1.25rem', sm: '1.5rem' } }
+                          })}
+                        </Box>
+                        
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography
+                            variant={isMobile ? "subtitle2" : "subtitle1"}
+                            fontWeight="bold"
                             sx={{
-                              width: 56,
-                              height: 56,
-                              borderRadius: '16px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: `linear-gradient(135deg, ${alpha(tab.color, 0.2)} 0%, ${alpha(tab.color, 0.1)} 100%)`,
-                              border: `2px solid ${alpha(tab.color, 0.3)}`,
-                              marginBottom: 2,
-                              position: 'relative',
-                              overflow: 'hidden',
-                              '&::before': {
-                                content: '""',
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                background: 'radial-gradient(circle at center, transparent 30%, rgba(255,255,255,0.3) 70%, transparent 100%)',
-                                opacity: hoveredCard === tab.id ? 1 : 0,
-                                transition: 'opacity 0.3s ease',
-                              },
+                              fontSize: isMobile ? '0.875rem' : '1rem',
+                              lineHeight: 1.3,
+                              color: tab.color || '#008080',
                             }}
                           >
-                            {React.cloneElement(tab.icon, {
-                              sx: {
-                                fontSize: '1.75rem',
-                                color: tab.color,
-                                position: 'relative',
-                                zIndex: 1,
-                              }
-                            })}
-                          </Box>
-                        </motion.div>
-
-                        {/* Content */}
-                        <Box sx={{ flex: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography
-                              variant="subtitle1"
-                              fontWeight="bold"
-                              sx={{
-                                fontSize: '1rem',
-                                lineHeight: 1.3,
-                                background: `linear-gradient(135deg, ${tab.color}, ${alpha(tab.color, 0.7)})`,
-                                backgroundClip: 'text',
-                                WebkitBackgroundClip: 'text',
-                                color: 'transparent',
-                              }}
-                            >
-                              {tab.label}
-                            </Typography>
-                            {tab.badge && (
-                              <motion.div
-                                animate={{ scale: [1, 1.1, 1] }}
-                                transition={{ repeat: Infinity, duration: 2 }}
-                              >
-                                <Chip
-                                  label={tab.badge}
-                                  size="small"
-                                  sx={{
-                                    height: 20,
-                                    px: 1,
-                                    bgcolor: alpha(tab.color, 0.9),
-                                    color: 'white',
-                                    fontSize: '0.65rem',
-                                    fontWeight: 600,
-                                    '& .MuiChip-label': {
-                                      px: 0.5,
-                                    },
-                                  }}
-                                />
-                              </motion.div>
-                            )}
-                          </Box>
-
+                            {tab.label || 'Unnamed Tool'}
+                          </Typography>
                           <Typography
                             variant="caption"
                             sx={{
                               display: 'block',
-                              color: alpha(tab.color, 0.8),
+                              color: alpha(tab.color || '#008080', 0.8),
                               fontWeight: 500,
-                              mb: 1,
+                              mt: 0.25,
                               textTransform: 'uppercase',
-                              letterSpacing: '0.5px',
+                              fontSize: isMobile ? '0.65rem' : '0.75rem',
                             }}
                           >
-                            {tab.category}
-                          </Typography>
-
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{
-                              fontSize: '0.85rem',
-                              lineHeight: 1.5,
-                              mb: 2,
-                              display: '-webkit-box',
-                              WebkitLineClamp: 3,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            {tab.description}
+                            {tab.category || 'Uncategorized'}
                           </Typography>
                         </Box>
-
-                        {/* Footer */}
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            pt: 2,
-                            borderTop: `1px solid ${alpha(tab.color, 0.1)}`,
-                          }}
-                        >
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {tab.badge && (
+                            <Chip
+                              label={tab.badge}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                px: 0.5,
+                                bgcolor: alpha(tab.color || '#008080', 0.9),
+                                color: 'white',
+                                fontSize: '0.65rem',
+                                fontWeight: 600,
+                              }}
+                            />
+                          )}
+                          <IconButton
+                            onClick={(e) => toggleFavorite(tab.id, e)}
+                            size="small"
                             sx={{
-                              fontSize: '0.75rem',
-                              opacity: 0.7,
+                              color: favorites.includes(tab.id) ? '#FFD700' : 'action.active',
                             }}
                           >
-                            Click to open
-                          </Typography>
-                          <motion.div
-                            animate={{ x: hoveredCard === tab.id ? 5 : 0 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <Box
-                              sx={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background: `linear-gradient(135deg, ${tab.color}, ${alpha(tab.color, 0.7)})`,
-                                color: 'white',
-                              }}
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </Box>
-                          </motion.div>
+                            {favorites.includes(tab.id) ? 
+                              <StarIcon fontSize="small" /> : 
+                              <StarBorderIcon fontSize="small" />
+                            }
+                          </IconButton>
                         </Box>
                       </Box>
-                    </Card>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </Box>
-          </LayoutGroup>
+
+                      {/* Description */}
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          fontSize: isMobile ? '0.75rem' : '0.875rem',
+                          lineHeight: 1.5,
+                          mb: 2,
+                          flex: 1,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {tab.description || 'No description available'}
+                      </Typography>
+
+                      {/* Footer */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          pt: 2,
+                          borderTop: `1px solid ${theme.palette.divider}`,
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          Click to open
+                        </Typography>
+                        <Box
+                          sx={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: `linear-gradient(135deg, ${tab.color || '#008080'}, ${alpha(tab.color || '#008080', 0.7)})`,
+                            color: 'white',
+                          }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </Box>
         ) : (
-          // List View (Optional)
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {filteredTabs.map((tab, index) => (
+          // List View
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {filteredTabs.map((tab) => (
               <motion.div
                 key={tab.id}
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ x: 5 }}
+                whileHover={{ x: 4 }}
+                transition={{ duration: 0.2 }}
               >
                 <Card
                   sx={{
-                    p: 2,
+                    p: { xs: 1.5, sm: 2 },
                     cursor: 'pointer',
-                    borderRadius: 2,
-                    background: `linear-gradient(135deg, ${alpha(tab.color, 0.05)} 0%, transparent 100%)`,
-                    border: `1px solid ${alpha(tab.color, 0.1)}`,
+                    borderRadius: 1.5,
+                    backgroundColor: 'background.paper',
+                    border: `1px solid ${theme.palette.divider}`,
                     '&:hover': {
-                      borderColor: alpha(tab.color, 0.3),
-                      background: `linear-gradient(135deg, ${alpha(tab.color, 0.1)} 0%, transparent 100%)`,
+                      borderColor: alpha(tab.color || '#008080', 0.3),
+                      backgroundColor: alpha(tab.color || '#008080', 0.02),
                     },
                   }}
                   onClick={() => handleListItemClick(tab.id)}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 } }}>
                     <Box
                       sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '10px',
+                        width: { xs: 36, sm: 40 },
+                        height: { xs: 36, sm: 40 },
+                        borderRadius: { xs: '8px', sm: '10px' },
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        background: `linear-gradient(135deg, ${alpha(tab.color, 0.2)} 0%, ${alpha(tab.color, 0.1)} 100%)`,
-                        color: tab.color,
+                        background: `linear-gradient(135deg, ${alpha(tab.color || '#008080', 0.15)} 0%, ${alpha(tab.color || '#008080', 0.05)} 100%)`,
+                        color: tab.color || '#008080',
+                        flexShrink: 0,
                       }}
                     >
-                      {tab.icon}
+                      {tab.icon && React.cloneElement(tab.icon, {
+                        sx: { fontSize: { xs: '1rem', sm: '1.25rem' } }
+                      })}
                     </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle2" fontWeight="bold">
-                        {tab.label}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant={isMobile ? "subtitle2" : "subtitle1"} fontWeight="bold" noWrap>
+                        {tab.label || 'Unnamed Tool'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {tab.description}
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {tab.description || 'No description'}
                       </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
                       {tab.badge && (
-                        <Chip label={tab.badge} size="small" sx={{ bgcolor: alpha(tab.color, 0.9), color: 'white' }} />
+                        <Chip 
+                          label={tab.badge} 
+                          size="small" 
+                          sx={{ bgcolor: alpha(tab.color || '#008080', 0.9), color: 'white' }} 
+                        />
                       )}
                       <IconButton size="small" onClick={(e) => toggleFavorite(tab.id, e)}>
-                        {favorites.includes(tab.id) ? <StarIcon /> : <StarBorderIcon />}
+                        {favorites.includes(tab.id) ? 
+                          <StarIcon fontSize="small" /> : 
+                          <StarBorderIcon fontSize="small" />
+                        }
                       </IconButton>
                     </Box>
                   </Box>
@@ -886,47 +752,39 @@ const AdvancedGridView = ({
       </Box>
 
       {/* Stats Bar */}
-      <motion.div
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
+      <Box
+        sx={{
+          px: { xs: 1.5, sm: 2, md: 3 },
+          py: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: theme.palette.background.paper,
+          borderTop: `1px solid ${theme.palette.divider}`,
+        }}
       >
-        <Box
-          sx={{
-            px: { xs: 2, sm: 3 },
-            py: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: alpha(theme.palette.background.paper, 0.85),
-            backdropFilter: 'blur(10px)',
-            borderTop: `1px solid ${alpha('#008080', 0.1)}`,
-            boxShadow: `0 -4px 20px ${alpha('#008080', 0.05)}`,
-          }}
-        >
+        <Typography variant="caption" color="text.secondary">
+          Showing {filteredTabs.length} of {tabConfigs?.length || 0} tools
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="caption" color="text.secondary">
-            Showing {filteredTabs.length} of {tabConfigs.length} tools
+            Favorites: {favorites.length}
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="caption" color="text.secondary">
-              Favorites: {favorites.length}
-            </Typography>
-            <Tooltip title="Change Sort Order">
-              <IconButton
-                size="small"
-                onClick={() => setSortBy(sortBy === 'default' ? 'favorites' : sortBy === 'favorites' ? 'name' : 'default')}
-                sx={{
-                  color: sortBy !== 'default' ? '#008080' : 'text.secondary',
-                }}
-              >
-                <SortIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
+          <Tooltip title="Change Sort Order">
+            <IconButton
+              size="small"
+              onClick={() => setSortBy(sortBy === 'default' ? 'favorites' : sortBy === 'favorites' ? 'name' : 'default')}
+              sx={{
+                color: sortBy !== 'default' ? '#008080' : 'text.secondary',
+              }}
+            >
+              <SortIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
-      </motion.div>
+      </Box>
     </Box>
   );
 };
 
-export default AdvancedGridView;
+export default React.memo(AdvancedGridView);

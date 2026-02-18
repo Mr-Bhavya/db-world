@@ -123,7 +123,7 @@ export const getUserDetail = async () => {
 
 export const updateUserDetails = async (user) => {
   try {
-    console.log('Updating user details:', user);
+    //console.log('Updating user details:', user);
     const response = await axiosInstance.put(`/api/user/${user.userId}`, user);
     return response.data;
   } catch (error) {
@@ -134,7 +134,7 @@ export const updateUserDetails = async (user) => {
 
 export const updateUserDetailsByAdmin = async (user) => {
   try {
-    console.log('Updating user details:', user);
+    //console.log('Updating user details:', user);
     const response = await axiosInstance.put(`/api/admin/user/${user.userId}`, user);
     return response.data;
   } catch (error) {
@@ -176,10 +176,10 @@ export const AddDbCinemaRecord = async (name, type, tmdbId) => {
   }
 };
 
-export const changeShowOnTopRecord = async (recordId, showOnTop) => {
+export const changeShowOnTopRecord = async (recordId, body) => {
   try {
     const response = await axiosInstance.put(
-      `/api/admin/cinema/record/${recordId}/showOnTop=${showOnTop}`
+      `/api/admin/cinema/record/${recordId}`, body
     );
     return response.data;
   } catch (error) {
@@ -901,6 +901,129 @@ export const getUserActivitySummaryApi = async (userId, days = 7) => {
     return response.data;
   } catch (error) {
     console.error('Error getting user activity summary:', error);
+    throw error;
+  }
+};
+
+/**
+ * MEDIA FILES MANAGEMENT API
+ */
+
+/**
+ * Get all media files
+ */
+export const getAllMediaFilesApi = async () => {
+  try {
+    const response = await axiosInstance.get('/api/admin/media/files');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting media files:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get media file by ID
+ */
+export const getMediaFileByIdApi = async (id) => {
+  try {
+    const response = await axiosInstance.get(`/api/admin/media/files/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error getting media file ${id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Delete single media file
+ */
+export const deleteMediaFileApi = async (id) => {
+  try {
+    const response = await axiosInstance.delete(`/api/admin/media/files/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting media file ${id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Delete multiple media files
+ */
+export const deleteMediaFilesApi = async (ids) => {
+  try {
+    const response = await axiosInstance.delete('/api/admin/media/files', {
+      data: ids
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting media files:', error);
+    throw error;
+  }
+};
+
+/**
+ * Cleanup media files
+ */
+export const cleanupMediaFilesApi = async () => {
+  try {
+    const response = await axiosInstance.post('/api/admin/media/files/cleanup');
+    return response.data;
+  } catch (error) {
+    console.error('Error cleaning up media files:', error);
+    throw error;
+  }
+};
+
+/**
+ * Repair all symlinks
+ */
+export const repairAllSymlinksApi = async (dryRun = false) => {
+  try {
+    const response = await axiosInstance.post(`/api/admin/media/symlinks/repair?dryRun=${dryRun}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error repairing all symlinks:', error);
+    throw error;
+  }
+};
+
+/**
+ * Repair single symlink
+ */
+export const repairSymlinkApi = async (fileId, dryRun = false) => {
+  try {
+    const response = await axiosInstance.post(`/api/admin/media/symlinks/repair/${fileId}?dryRun=${dryRun}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error repairing symlink ${fileId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Rebuild all symlinks
+ */
+export const rebuildAllSymlinksApi = async () => {
+  try {
+    const response = await axiosInstance.post('/api/admin/media/symlinks/rebuild');
+    return response.data;
+  } catch (error) {
+    console.error('Error rebuilding all symlinks:', error);
+    throw error;
+  }
+};
+
+/**
+ * Logs
+ */
+export const getLogs = async (url, params, signal) => {
+  try {
+    const response = await axiosInstance.get(url, {params,signal});
+    return response.data;
+  } catch (error) {
+    console.error('Error rebuilding all symlinks:', error);
     throw error;
   }
 };

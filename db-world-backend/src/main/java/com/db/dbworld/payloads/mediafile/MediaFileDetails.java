@@ -17,4 +17,5 @@ public class MediaFileDetails {
     Long recordId;
     String season;
     String episode;
+    String orgFileName;
 }

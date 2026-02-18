@@ -91,7 +91,7 @@ const FileDetailsModal = ({ open, onClose, fileId }) => {
 
     try {
       const result = await CommonServices.handleCopy(url);
-      // console.log("Copy result:", result);
+      // //console.log("Copy result:", result);
       if (result?.success) {
         setCopyStatus("success");
       } else {

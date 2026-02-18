@@ -19,4 +19,5 @@ public class RequestLogData {
     private final String requestId;
     private final String requestBody;
     private final boolean shouldPersist;
+    private final boolean isRequest;
 }

@@ -123,7 +123,7 @@ function Weather() {
         
         try {
             const result = await navigator.permissions.query({ name: 'geolocation' });
-            console.log('Geolocation permission state:', result);
+            //console.log('Geolocation permission state:', result);
             return result.state;
         } catch (error) {
             console.error('Error checking geolocation permission:', error);
@@ -136,17 +136,17 @@ function Weather() {
         if (navigator.geolocation) {
             // Check current permission state
             const permissionState = await checkLocationPermission();
-            console.log('Permission state:', permissionState);
-            console.log('Show prompt:', showPrompt);
+            //console.log('Permission state:', permissionState);
+            //console.log('Show prompt:', showPrompt);
             if (permissionState === 'denied' && !showPrompt) {
-                console.log('Permission denied, showing dialog');
+                //console.log('Permission denied, showing dialog');
                 setPermissionDenied(true);
                 setShowPermissionDialog(true);
                 getWeatherFromCity();
                 return;
             }
             
-            console.log('Requesting geolocation');
+            //console.log('Requesting geolocation');
             navigator.geolocation.getCurrentPosition(
                 position => getWeatherFromCoords(position.coords),
                 error => {

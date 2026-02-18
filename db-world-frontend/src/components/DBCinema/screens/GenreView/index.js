@@ -55,17 +55,17 @@ const GenreView = ({ genre, onBack }) => {
   // Get current page type from URL to determine media type
   const getMediaTypeFromRoute = useCallback(() => {
     const path = location.pathname;
-    console.log("Current path:", path);
+    //console.log("Current path:", path);
 
     if (path.includes(Constants.DB_CINEMA_MOVIES_ROUTE)) {
-      console.log("Detected Movies page");
+      //console.log("Detected Movies page");
       return 'movie';
     }
     if (path.includes(Constants.DB_CINEMA_SERIES_ROUTE)) {
-      console.log("Detected TV Shows page");
+      //console.log("Detected TV Shows page");
       return 'series';
     }
-    console.log("Detected Home/Browse page - loading all media types");
+    //console.log("Detected Home/Browse page - loading all media types");
     return 'all';
   }, [location.pathname]);
 
@@ -103,23 +103,23 @@ const GenreView = ({ genre, onBack }) => {
       // Add genre filter
       if (genre?.id) {
         queryParams.genres = genre.id;
-        console.log(`Filtering by genre: ${genre.name} (ID: ${genre.id})`);
+        //console.log(`Filtering by genre: ${genre.name} (ID: ${genre.id})`);
       }
 
       // Add media type filter based on current page
       if (mediaType !== 'all') {
         queryParams.type = mediaType;
-        console.log(`Filtering by media type: ${mediaType}`);
+        //console.log(`Filtering by media type: ${mediaType}`);
       }
 
-      console.log('Fetching records with params:', queryParams);
+      //console.log('Fetching records with params:', queryParams);
 
       const response = await loadDbCinemaRecordsFromUrl(
         requests.fetchAllRecords,
         queryParams
       );
 
-      console.log('API Response received:', response);
+      //console.log('API Response received:', response);
 
       const newRecords = (response.data?.records || response.data?.content || [])
         .map(normalizeRecord);
@@ -139,7 +139,7 @@ const GenreView = ({ genre, onBack }) => {
 
       setHasMore(pageNum < totalPages && newRecords.length === PAGE_SIZE);
 
-      console.log(`Loaded ${newRecords.length} records, has more: ${pageNum < totalPages && newRecords.length === PAGE_SIZE}, page: ${pageNum}, totalPages: ${totalPages}`);
+      //console.log(`Loaded ${newRecords.length} records, has more: ${pageNum < totalPages && newRecords.length === PAGE_SIZE}, page: ${pageNum}, totalPages: ${totalPages}`);
 
     } catch (error) {
       console.error('Error fetching genre records:', error);
@@ -154,7 +154,7 @@ const GenreView = ({ genre, onBack }) => {
 
   // Reset and fetch when genre changes - FIXED
   useEffect(() => {
-    console.log("Genre changed, fetching records...");
+    //console.log("Genre changed, fetching records...");
     setRecords([]);
     setPage(1);
     setHasMore(true);
@@ -174,7 +174,7 @@ const GenreView = ({ genre, onBack }) => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !isLoading && hasMore) {
-          console.log("Loading more records...");
+          //console.log("Loading more records...");
           fetchRecords(page);
         }
       },

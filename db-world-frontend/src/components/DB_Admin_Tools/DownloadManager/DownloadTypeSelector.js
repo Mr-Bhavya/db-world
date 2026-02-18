@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Box } from '@mui/material';
 import HttpFile from './Mirror/HttpFile';
-import Youtube_dl from './youtubedl/Youtube_dl';
+import YoutubeDownloader from './YoutubeDownloader/YoutubeDownloader';
 
 const DownloadTypeSelector = ({ 
   selectedDownloader, 
@@ -13,7 +13,7 @@ const DownloadTypeSelector = ({
   const renderDownloaderComponent = () => {
     switch (selectedDownloader) {
       case "youtube":
-        return <Youtube_dl onDownloadAdded={onDownloadAdded} />;
+        return <YoutubeDownloader onDownloadAdded={onDownloadAdded} />;
       case "httpFile":
       default:
         return <HttpFile onDownloadAdded={onDownloadAdded} />;

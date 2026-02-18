@@ -38,7 +38,7 @@ const SeriesDetailsPage = () => {
 
     const handleCommentSubmit = (e) => {
         e.preventDefault();
-        console.log('Submitted:', { comment, rating });
+        //console.log('Submitted:', { comment, rating });
         setUserRating({ comment, rating, date: new Date().toLocaleDateString() });
         setComment('');
         setRating(0);

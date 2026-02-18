@@ -39,7 +39,7 @@ const Reaction = ({
   }, [initialReaction]);
 
   const onUpdate = (newReaction) => {
-    console.log(`Updating reaction for record ${recordId} to`, newReaction);
+    //console.log(`Updating reaction for record ${recordId} to`, newReaction);
     let record = allRecords[recordId];
     if (!record) {
       console.warn(`Record with ID ${recordId} not found in store.`);

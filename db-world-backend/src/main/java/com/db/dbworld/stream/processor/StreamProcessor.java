@@ -53,7 +53,7 @@ public abstract class StreamProcessor {
 
             String line;
             while ((line = reader.readLine()) != null) {
-                // Check if status still exists and is not cancelled
+                // Check if status still exists and is not canceled
                 try {
                     MirrorStatus currentStatus = statusService.getStatusById(statusId);
                     if (currentStatus == null) {

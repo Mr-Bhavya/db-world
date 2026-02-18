@@ -81,10 +81,10 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         log.info("Configuring static resource handler for JAR deployment");
 
-        // Special handling for favicon.ico to avoid conflicts
-        registry.addResourceHandler("/favicon.ico")
+        registry.addResourceHandler("/DB_World_teal_circle.png")
                 .addResourceLocations("classpath:/public/")
-                .setCacheControl(CacheControl.maxAge(365, TimeUnit.DAYS));
+                .resourceChain(true) // Keep resource chain for caching
+                .addResolver(new FixedPushStateResourceResolver());
 
         // Main static resource handler
         registry.addResourceHandler("/**")
@@ -234,33 +234,12 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
          * Check if request is for a static file
          */
         private boolean isStaticFileRequest(String path) {
-            if (path == null || path.isEmpty() || "/".equals(path)) {
-                return false;
-            }
-
-            // Check if path ends with a file extension
+            if (path == null || path.isEmpty() || "/".equals(path)) return false;
             String extension = StringUtils.getFilenameExtension(path);
-            if (extension == null) {
-                // No extension - could be a SPA route
-                return false;
-            }
-
-            String lowerExtension = extension.toLowerCase();
-
-            // Check if it's a known static file extension
-            boolean isStaticExtension = STATIC_EXTENSIONS.contains(lowerExtension);
-
-            if (!isStaticExtension) {
-                return false;
-            }
-
-            // Additional check: make sure it looks like a file, not a route parameter
-            // Matches patterns like: /path/to/file.ext
-            // But not: /path/to/.ext or /path/to/file.
-            boolean looksLikeFile = path.matches("^[^.].*\\.[a-zA-Z0-9]{2,6}(\\?.*)?$");
-
-            return looksLikeFile;
+            if (extension == null) return false;
+            return STATIC_EXTENSIONS.contains(extension.toLowerCase());
         }
+
 
         /**
          * Resolve static resource from locations (JAR compatible)

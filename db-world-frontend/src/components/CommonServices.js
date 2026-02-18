@@ -116,7 +116,7 @@ class CommonServices {
           return { success: true, message: "Content shared", method: "web-share" };
         } catch (shareError) {
           // Web Share was cancelled or failed, continue to fallback
-          console.log("Web Share cancelled or failed, trying fallback...");
+          //console.log("Web Share cancelled or failed, trying fallback...");
         }
       }
 
@@ -183,7 +183,7 @@ class CommonServices {
     }
     
     if (process.env.NODE_ENV === "development") {
-      console.log(`Copy ${success ? "success" : "error"}:`, message);
+      //console.log(`Copy ${success ? "success" : "error"}:`, message);
     }
   }
 

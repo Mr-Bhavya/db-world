@@ -2,6 +2,7 @@ package com.db.dbworld.dao.dbcinema.stream;
 
 import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,7 +30,13 @@ public interface MediaFileInfoRepository extends JpaRepository<MediaFileInfoEnti
 
     List<MediaFileInfoEntity> findAllByFilePath(String filePath);
 
+    Optional<MediaFileInfoEntity> findOneByFilePath(String filePath);
+
     List<MediaFileInfoEntity> findAllByDbCinemaRecordIdIn(List<Long> recordIds);
 
     void deleteAllByFilePath(String filePath);
+
+    @EntityGraph(attributePaths = "trackInfos")
+    List<MediaFileInfoEntity> findAll();
+
 }

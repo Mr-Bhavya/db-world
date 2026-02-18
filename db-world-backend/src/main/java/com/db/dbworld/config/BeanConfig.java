@@ -1,7 +1,10 @@
 package com.db.dbworld.config;
 
+import com.db.dbworld.handler.MediaFileHandler;
 import com.db.dbworld.payloads.dbcinema.stream.PathAdapter;
+import com.db.dbworld.services.media.MediaWatchService;
 import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -24,6 +27,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.integration.dsl.IntegrationFlow;
+import org.springframework.integration.dsl.Pollers;
 import org.springframework.integration.file.FileReadingMessageSource;
 import org.springframework.integration.file.dsl.Files;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -74,21 +78,6 @@ public class BeanConfig {
     }
 
     @Bean
-    public IntegrationFlow fileIntegrationFlow() {
-        return IntegrationFlow
-                .from(Files.inboundAdapter(new File(DbWorldConstants.INTEGRATION_FOLDER_PATH))
-                        .preventDuplicates(true)
-                        .useWatchService(true) // Real-time detection
-                        .watchEvents(FileReadingMessageSource.WatchEventType.CREATE,
-                                FileReadingMessageSource.WatchEventType.MODIFY,
-                                FileReadingMessageSource.WatchEventType.DELETE)
-                        .autoCreateDirectory(true)
-                )
-                .handle("mediaFileHandler", "processFile")
-                .get();
-    }
-
-    @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
     }
@@ -118,6 +107,22 @@ public class BeanConfig {
                 .setConnectTimeout(Duration.ofSeconds(10))
                 .setReadTimeout(Duration.ofSeconds(20))
                 .build();
+    }
+
+    @Bean
+    public IntegrationFlow integrationFolderFlow(MediaFileHandler mediaFileHandler, DbWorldRuntimeProperties runtimeProperties) {
+        return IntegrationFlow
+                .from(Files.inboundAdapter(runtimeProperties.getIntegrationPath().toFile())
+                        .autoCreateDirectory(true)
+                        .preventDuplicates(true)
+                        .useWatchService(true) // Real-time detection
+                        .watchEvents(
+                                FileReadingMessageSource.WatchEventType.CREATE,
+                                FileReadingMessageSource.WatchEventType.MODIFY,
+                                FileReadingMessageSource.WatchEventType.DELETE)
+                )
+                .handle(mediaFileHandler, "processFile")
+                .get();
     }
 
     @Bean

@@ -38,6 +38,8 @@ public class DbWorldConstants {
     public static final String ACCEPT_RANGES_HEADER = "Accept-Ranges";
     public static final String BYTES = "bytes";
     public static final String CONTENT_DISPOSITION_HEADER = "Content-Disposition";
+    public static final String CDN_STREAM_ID = "/cdn/stream/id/";
+    public static final String CDN_STREAM_PATH = "/cdn/stream/path/";
 
     // TMDB keys
     public static final String TMDB_VIDEOS_PROPERTY_KEY = "videos";
@@ -76,8 +78,10 @@ public class DbWorldConstants {
 
     // Public APIs
     public static final String[] PUBLIC_APIS = {
+            "/api/server/**",
             "/api/hls/**",
             "/api/auth/**",
+            "/api/logs/app/*/follow",
             "/test/**",
             "/dbworld-api-doc.html",
             "/swagger-ui/**",

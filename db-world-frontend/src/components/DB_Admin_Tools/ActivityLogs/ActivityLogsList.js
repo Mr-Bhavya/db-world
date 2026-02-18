@@ -328,7 +328,7 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
   const copyToClipboard = useCallback((text) => {
     navigator.clipboard.writeText(text).then(() => {
       // You can add a toast notification here
-      console.log('Copied to clipboard');
+      //console.log('Copied to clipboard');
     });
   }, []);
 

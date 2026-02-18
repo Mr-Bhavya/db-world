@@ -28,23 +28,23 @@ const VideoPlayer = () => {
 
       // Add event listeners
       CapacitorVideoPlayer.addListener('jeepCapVideoPlayerReady', (data) => {
-        console.log('Player Ready:', data);
+        //console.log('Player Ready:', data);
       });
 
       CapacitorVideoPlayer.addListener('jeepCapVideoPlayerPlay', (data) => {
-        console.log('Playback Started:', data);
+        //console.log('Playback Started:', data);
       });
 
       CapacitorVideoPlayer.addListener('jeepCapVideoPlayerPause', (data) => {
-        console.log('Playback Paused:', data);
+        //console.log('Playback Paused:', data);
       });
 
       CapacitorVideoPlayer.addListener('jeepCapVideoPlayerEnded', (data) => {
-        console.log('Playback Ended:', data);
+        //console.log('Playback Ended:', data);
       });
 
       CapacitorVideoPlayer.addListener('jeepCapVideoPlayerExit', (data) => {
-        console.log('Player Exited:', data);
+        //console.log('Player Exited:', data);
       });
     };
 

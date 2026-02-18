@@ -137,12 +137,12 @@ const RecordManagement = () => {
 
       Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-      console.log('Fetching records with params:', params, 'loadMore:', loadMore);
+      //console.log('Fetching records with params:', params, 'loadMore:', loadMore);
       const res = await getRecords(params);
 
       if (isMounted) {
         if (res.httpStatusCode === 200) {
-          console.log('API Response:', res.data);
+          //console.log('API Response:', res.data);
 
           if (loadMore) {
             // Append new records for infinite scroll
@@ -160,13 +160,13 @@ const RecordManagement = () => {
             hasPrev: res.data.hasPrev || false
           });
 
-          console.log('Updated pagination:', {
-            currentPage: res.data.currentPage || page,
-            totalPages: res.data.totalPages || 1,
-            totalRecords: res.data.totalRecords || 0,
-            hasNext: res.data.hasNext || false,
-            hasMoreRecords: res.data.hasNext && (res.data.records || []).length > 0
-          });
+          //console.log('Updated pagination:', {
+          //   currentPage: res.data.currentPage || page,
+          //   totalPages: res.data.totalPages || 1,
+          //   totalRecords: res.data.totalRecords || 0,
+          //   hasNext: res.data.hasNext || false,
+          //   hasMoreRecords: res.data.hasNext && (res.data.records || []).length > 0
+          // });
 
         } else if (res.httpStatusCode === 401) {
           navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
@@ -205,18 +205,18 @@ const RecordManagement = () => {
       pagination.hasNext &&
       allRecords.length < pagination.totalRecords) {
 
-      console.log('Setting up intersection observer...', {
-        hasNext: pagination.hasNext,
-        loadingMore,
-        loading,
-        currentRecords: allRecords.length,
-        totalRecords: pagination.totalRecords
-      });
+      //console.log('Setting up intersection observer...', {
+      //   hasNext: pagination.hasNext,
+      //   loadingMore,
+      //   loading,
+      //   currentRecords: allRecords.length,
+      //   totalRecords: pagination.totalRecords
+      // });
 
       const observer = new IntersectionObserver(
         (entries) => {
           const [entry] = entries;
-          console.log('Intersection observer triggered:', entry.isIntersecting);
+          //console.log('Intersection observer triggered:', entry.isIntersecting);
 
           if (entry.isIntersecting &&
             !loadingMore &&
@@ -224,11 +224,11 @@ const RecordManagement = () => {
             pagination.hasNext &&
             allRecords.length < pagination.totalRecords) {
 
-            console.log('Loading more records...', {
-              nextPage: pagination.currentPage + 1,
-              currentPage: pagination.currentPage,
-              hasNext: pagination.hasNext
-            });
+            //console.log('Loading more records...', {
+            //   nextPage: pagination.currentPage + 1,
+            //   currentPage: pagination.currentPage,
+            //   hasNext: pagination.hasNext
+            // });
 
             fetchRecords(pagination.currentPage + 1, pageSize, searchQuery, typeFilter, true);
           }
@@ -267,14 +267,14 @@ const RecordManagement = () => {
   // Reset records when switching to infinite scroll mode
   useEffect(() => {
     if (viewMode === 'grid' && cardViewMode === VIEW_MODES.INFINITE_SCROLL && allRecords.length > 0) {
-      console.log('Switching to infinite scroll mode, resetting to first page');
+      //console.log('Switching to infinite scroll mode, resetting to first page');
       fetchRecords(1, pageSize, searchQuery, typeFilter);
     }
   }, [cardViewMode, viewMode]);
 
   // Delete record handlers
   const handleDelete = useCallback((record) => {
-    console.log("Parent - handleDelete called with record:", record?.name);
+    //console.log("Parent - handleDelete called with record:", record?.name);
     setDeleteDialog({
       open: true,
       record,
@@ -283,7 +283,7 @@ const RecordManagement = () => {
   }, []);
 
   const handleConfirmDelete = useCallback(async () => {
-    console.log("Parent - handleConfirmDelete called");
+    //console.log("Parent - handleConfirmDelete called");
     if (!deleteDialog.record) return;
 
     setDeleteDialog(prev => ({ ...prev, loading: true }));
@@ -320,7 +320,7 @@ const RecordManagement = () => {
   ]);
 
   const handleCloseDelete = useCallback(() => {
-    console.log("Parent - handleCloseDelete called");
+    //console.log("Parent - handleCloseDelete called");
     if (!deleteDialog.loading) {
       setDeleteDialog({ open: false, record: null, loading: false });
     }
@@ -328,7 +328,7 @@ const RecordManagement = () => {
 
   // Initial load and when dependencies change
   useEffect(() => {
-    console.log('Initial fetch or dependency change:', { searchQuery, typeFilter, pageSize });
+    //console.log('Initial fetch or dependency change:', { searchQuery, typeFilter, pageSize });
     fetchRecords(1, pageSize, searchQuery, typeFilter);
   }, [fetchRecords, searchQuery, typeFilter, pageSize]);
 
@@ -368,7 +368,7 @@ const RecordManagement = () => {
 
   // Handle page change for card view pagination
   const handlePageChange = useCallback((event, page) => {
-    console.log('Page change to:', page);
+    //console.log('Page change to:', page);
     setPagination(prev => ({ ...prev, currentPage: page }));
     fetchRecords(page, pageSize, searchQuery, typeFilter);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -378,8 +378,9 @@ const RecordManagement = () => {
   const toggleShowOnTop = useCallback(async (recordId, currentValue) => {
     try {
       setLoadingStates(prev => ({ ...prev, [recordId]: true }));
-      const res = await changeShowOnTopRecord(recordId, !currentValue);
-      handleApiResponse(res, 'Show on top updated');
+      let record = allRecords.find(r => r.id === recordId);
+      const res = await changeShowOnTopRecord(recordId, {name: record.name, type: record.type, tmdbId: record.tmdb, showOnTop: !currentValue});
+      handleApiResponse(res, 'Show on top updated', false);
 
       // Optimistically update UI
       setAllRecords(prev => prev.map(record =>
@@ -403,7 +404,7 @@ const RecordManagement = () => {
         tmdbId: record.tmdb,
         showOnTop: record.show_on_top
       });
-      handleApiResponse(res, 'TMDB data refreshed');
+      handleApiResponse(res, 'TMDB data refreshed', false);
     } catch (error) {
       toast.error('Failed to refresh TMDB data');
     } finally {
@@ -441,7 +442,7 @@ const RecordManagement = () => {
 
   // Handle card view mode change
   const handleCardViewModeChange = useCallback((newMode) => {
-    console.log('Changing card view mode to:', newMode);
+    //console.log('Changing card view mode to:', newMode);
     setCardViewMode(newMode);
     // Reset to first page when changing view modes
     setPagination(prev => ({ ...prev, currentPage: 1 }));
@@ -513,15 +514,15 @@ const RecordManagement = () => {
   }), [allRecords, pagination.totalRecords]);
 
   // Debug info
-  console.log('Current state:', {
-    viewMode,
-    cardViewMode,
-    loading,
-    loadingMore,
-    pagination,
-    recordsCount: allRecords.length,
-    hasMoreRecords: pagination.hasNext && allRecords.length < pagination.totalRecords
-  });
+  // //console.log('Current state:', {
+  //   viewMode,
+  //   cardViewMode,
+  //   loading,
+  //   loadingMore,
+  //   pagination,
+  //   recordsCount: allRecords.length,
+  //   hasMoreRecords: pagination.hasNext && allRecords.length < pagination.totalRecords
+  // });
 
   return (
     <Container maxWidth="xl" sx={{ px: isMobile ? 1 : 2, py: 2 }}>

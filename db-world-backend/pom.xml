@@ -87,6 +87,39 @@
             <artifactId>log4j-layout-template-json</artifactId>
         </dependency>
 
+        <!-- For async logging -->
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>3.4.4</version>
+        </dependency>
+
+        <!-- For YAML configuration -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+
+        <!--  Spring Logback logging -->
+<!--        <dependency>-->
+<!--            <groupId>ch.qos.logback</groupId>-->
+<!--            <artifactId>logback-classic</artifactId>-->
+<!--            <version>1.5.25</version>-->
+<!--            <scope>compile</scope>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>net.logstash.logback</groupId>-->
+<!--            <artifactId>logstash-logback-encoder</artifactId>-->
+<!--            <version>9.0</version>-->
+<!--            <scope>compile</scope>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.fusesource.jansi</groupId>-->
+<!--            <artifactId>jansi</artifactId>-->
+<!--            <version>2.4.2</version>-->
+<!--            <scope>compile</scope>-->
+<!--        </dependency>-->
+
         <!--  Spring Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -171,12 +204,12 @@
         </dependency>
 
         <!-- DevTools -->
-                <dependency>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-devtools</artifactId>
-                    <scope>runtime</scope>
-                    <optional>true</optional>
-                </dependency>
+<!--                <dependency>-->
+<!--                    <groupId>org.springframework.boot</groupId>-->
+<!--                    <artifactId>spring-boot-devtools</artifactId>-->
+<!--                    <scope>runtime</scope>-->
+<!--                    <optional>true</optional>-->
+<!--                </dependency>-->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -243,9 +276,11 @@
         </dependency>
 
         <!-- MediaInfo Library -->
+        <!-- Source: https://mvnrepository.com/artifact/org.springframework.integration/spring-integration-file -->
         <dependency>
             <groupId>org.springframework.integration</groupId>
             <artifactId>spring-integration-file</artifactId>
+            <scope>compile</scope>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core -->
