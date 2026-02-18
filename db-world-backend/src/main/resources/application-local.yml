@@ -1,315 +1,37 @@
-# ===========================
-# Common Application Properties
-# ===========================
-app:
-  name: db-world
-  version: @project.version@
-  base-path: D:/home/dbworld_admin/ext_hdisk/dbworld
-  data-path: D:/home/dbworld_admin/ext_hdisk/dbworld
-  stream-path: D:/Bhavya/Videos
-  symlink-path: D:/Bhavya/video-symlink
+spring:
+  profiles: local
 
+app:
   paths:
-    logs: ${app.base-path}/logs/
-    main-log: ${app.paths.logs}/${app.name}.json
-    download-log: ${app.paths.logs}/logs/downloads.log
-    config: ${app.base-path}/config
-    temp: ${app.data-path}/temp
-    downloads: ${app.data-path}/downloads
-    integration: D:/Bhavya/ProcessedVideos/
-    torrents: ${app.videos-path}/Torrent Download
-    archived-logs: ${app.paths.logs}/archived
+    base: D:/home/dbworld_admin/ext_hdisk/dbworld
+    data: D:/home/dbworld_admin/ext_hdisk/dbworld
+    stream: D:/Bhavya/Videos
+    symlink: D:/Bhavya/video-symlink
+    integration: D:/Bhavya/ProcessedVideos
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 
   tools:
-    yt-dlp: yt-dlp
-    ffmpeg: ffmpeg
-    seven-zip: C:\Program Files\7-Zip\7z.exe
-    mediainfo: D:\Bhavya\Downloads\Compressed\MediaInfo_CLI_24.12_Windows_x64\mediainfo
-    hs-cookies: ${app.paths.config}/HS_COOKIES.txt
+    seven-zip: C:/Program Files/7-Zip/7z.exe
+    mediainfo: D:/Bhavya/Downloads/Compressed/MediaInfo_CLI_24.12_Windows_x64/mediainfo
 
-  api-keys:
-    tmdb: ${TMDB_API_KEY}
-
-  tokens:
-    tmdb: ${TMDB_ACCESS_TOKEN}
-
-  static:
-    cache:
-      max-age: 31536000  # 1 year for versioned assets
-      public-resources: true
-    compression:
-      enabled: true
-    versioning:
-      enabled: true
-    security:
-      headers:
-        enabled: true
-    monitoring:
-      enabled: true
-
-hls:
-  output:
-    base-path: D:/home/dbworld_admin/ext_hdisk/dbworld/movies
-  segment:
-    duration: 6
-    naming-pattern: segment_%03d.ts
-  playlist:
-    type: vod
-    name: index.m3u8
-  video:
-    copy-without-scaling: true
-  audio:
-    target-codec: aac
-    default-bitrate: 128k
-    allowed-copy-formats: [aac, mp3]
-
-# CORS configuration for static resources
-cors:
-  allowed-origins: "https://dn-world.in"
-  allowed-methods: "GET,HEAD"
-  allowed-headers: "*"
-  allow-credentials: false
-  max-age: 3600
-
-# ===========================
-# Server Configuration
-# ===========================
 server:
-  port: ${SERVER_PORT:9090}
-  compression:
-    enabled: true
-    min-response-size: 1024
-    mime-types: text/html,text/css,application/javascript,application/json,application/xml
-  servlet:
-    context-path: /
-    multipart:
-      enabled: true
-      max-file-size: 10MB
-      max-request-size: 10MB
-      location: ${app.paths.temp}
-  tomcat:
-    connection-timeout: 5000ms
-    max-connections: 8192
-    accept-count: 100
-    threads:
-      max: 200
-      min-spare: 10
-    accesslog:
-      enabled: true
-      directory: ${app.paths.logs}
-      pattern: common
-      rotate: true
+  port: ${SERVER_PORT:9000}
 
-# ===========================
-# Spring Application Configuration
-# ===========================
-spring:
-  application:
-    name: ${app.name}
-  # Enable ANSI colors
-  output:
-    ansi:
-      enabled: always
-  devtools:
-    restart:
-      enabled: false
+cors:
+  allowed-origins: https://dn-world.in
 
-  # ---------------------------
-  # Database Configuration
-  # ---------------------------
-  datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
-    username: ${DB_USER:dbworld_admin}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      pool-name: ${app.name}_pool
-      minimum-idle: ${DB_POOL_MIN:5}
-      maximum-pool-size: ${DB_POOL_MAX:20}
-      idle-timeout: 300000
-      max-lifetime: 1800000
-      connection-timeout: 30000
-      leak-detection-threshold: 60000
-
-  # ---------------------------
-  # JPA/Hibernate Configuration
-  # ---------------------------
-  jpa:
-    show-sql: false
-    generate-ddl: false
-    open-in-view: false
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: false
-        jdbc:
-          batch_size: 25
-          batch_versioned_data: true
-        transaction:
-          coordinator_class: jdbc
-        cache:
-          use_second_level_cache: false
-          use_query_cache: false
-    naming:
-      physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
-
-  # ---------------------------
-  # Redis Configuration
-  # ---------------------------
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      database: 0
-      timeout: 2000ms
-      repositories:
-        enabled: false
-      lettuce:
-        pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 2
-          max-wait: 1000ms
-
-  cache:
-    type: redis
-    redis:
-      time-to-live: 60000
-      cache-null-values: false
-      enable-statistics: true
-
-  # ---------------------------
-  # Web Configuration
-  # ---------------------------
-  web:
-    resources:
-      cache:
-        period: 31536000  # seconds
-
-  mvc:
-    async:
-      request-timeout: 30000
-#    converters:
-#      preferredF-json-mapper: gson
-
-  # ---------------------------
-  # Async Configuration
-  # ---------------------------
-  task:
-    execution:
-      thread-name-prefix: ${app.name}-async-
-      pool:
-        core-size: ${ASYNC_CORE_SIZE:5}
-        max-size: ${ASYNC_MAX_SIZE:10}
-        queue-capacity: 100
-        allow-core-thread-timeout: true
-        keep-alive: 60s
-
-  # ---------------------------
-  # Actuator (Monitoring)
-  # ---------------------------
-  management:
-    endpoints:
-      web:
-        exposure:
-          include: health,info,metrics,env
-        base-path: /manage
-    endpoint:
-      health:
-        show-details: when_authorized
-        probes:
-          enabled: true
-      metrics:
-        enabled: true
-    health:
-      redis:
-        enabled: true
-      db:
-        enabled: true
-
-# ===========================
-# Security Configuration
-# ===========================
-jwt:
-  token:
-    validity: 36000000
-    access-token-ttl: 5m
-    refresh-token-ttl: 30d
-    secret: ${JWT_SECRET}
-  key:
-    public: ${JWT_PUBLIC_KEY}
-    private: ${JWT_PRIVATE_KEY}
-
-jasypt:
-  encryptor:
-    bean: jasyptStringEncryptor
-    algorithm: PBEWithMD5AndDES
-    password: ${JASYPT_PASSWORD}
-
-# ===========================
-# API Documentation
-# ===========================
 springdoc:
-  api-docs:
-    path: /api/docs
   swagger-ui:
-    path: /docs
-    enabled: ${SWAGGER_ENABLED:false}
-    tags-sorter: alpha
-    operations-sorter: alpha
+    enabled: true
 
-# ===========================
-# External Services
-# ===========================
-aria2:
-  rpc:
-    url: ${ARIA2_RPC_URL:http://localhost:6800/jsonrpc}
-    secret: ${ARIA2_SECRET}
-  ws:
-    url: ${ARIA2_WS_URL:ws://localhost:6800/jsonrpc}
-
-# ===========================
-# MINIMAL LOGGING CONFIGURATION
-# (Detailed config in log4j2-spring.xml)
-# ===========================
-logging:
-  config: classpath:log4j2-spring.xml
-
-  # Basic level overrides (can be overridden by logback config)
-  level:
-    # Application packages
-#    com.db.dbworld: ${APP_LOG_LEVEL:DEBUG}
-    com.db.dbworld: INFO
-    com.db.dbworld.controller: INFO
-    com.db.dbworld.service: INFO
-    com.db.dbworld.repository: INFO
-    com.db.dbworld.security: INFO
-
-    # Framework packages
-    root: ${ROOT_LOG_LEVEL:INFO}
-    org.hibernate: ${HIBERNATE_LOG_LEVEL:WARN}
-    org.hibernate.SQL: WARN
-    org.hibernate.type: TRACE
-    org.springframework: ${SPRING_LOG_LEVEL:INFO}
-    org.springframework.web: INFO
-    org.springframework.security: INFO
-
-    # Database and connection
-    com.zaxxer.hikari: INFO
-
-    # Third-party
-    org.apache: WARN
-    com.fasterxml.jackson: WARN
 
 
 #https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos
-#https://api.themoviedb.org/3/movie/721048?api_key=30061af77dba3722bbe14a2691055544&append_to_response=videos
-#https://api.themoviedb.org/3/tv/123377?api_key=30061af77dba3722bbe14a2691055544&append_to_response=videos,images,credits
+#https://api.themoviedb.org/3/movie/721048?api_key=${TMDB_API_KEY}&append_to_response=videos
+#https://api.themoviedb.org/3/tv/123377?api_key=${TMDB_API_KEY}&append_to_response=videos,images,credits
 #https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos
 
 
-#https://api.themoviedb.org/3/movie/721048/watch/providers?api_key=30061af77dba3722bbe14a2691055544
-#https://api.themoviedb.org/3/tv/123377/watch/providers?api_key=30061af77dba3722bbe14a2691055544
+#https://api.themoviedb.org/3/movie/721048/watch/providers?api_key=${TMDB_API_KEY}
+#https://api.themoviedb.org/3/tv/123377/watch/providers?api_key=${TMDB_API_KEY}
 #https://api.themoviedb.org/3/search/tv?api_key=TMDB_API_KEY&query=SERACH_TEXT&year=YEAR

@@ -1,0 +1,116 @@
+spring:
+  application:
+    name: db-world
+
+  config:
+    import: optional:file:../runtime/backend.env
+
+  # =========================================================
+  # Database
+  # =========================================================
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: ${spring.application.name}_pool
+      minimum-idle: ${DB_POOL_MIN:5}
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      leak-detection-threshold: 60000
+
+  # =========================================================
+  # JPA
+  # =========================================================
+  jpa:
+    show-sql: false
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate.jdbc.batch_size: 25
+      hibernate.order_inserts: true
+      hibernate.order_updates: true
+
+  # =========================================================
+  # Redis
+  # =========================================================
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      database: 0
+      timeout: 2000ms
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 60000
+      cache-null-values: false
+
+  # =========================================================
+  # Async
+  # =========================================================
+  task:
+    execution:
+      thread-name-prefix: ${spring.application.name}-async-
+      pool:
+        core-size: ${ASYNC_CORE_SIZE:5}
+        max-size: ${ASYNC_MAX_SIZE:10}
+        queue-capacity: 100
+
+# =========================================================
+# Server
+# =========================================================
+server:
+  compression:
+    enabled: true
+    min-response-size: 1024
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# =========================================================
+# JWT & Security
+# =========================================================
+jwt:
+  secret: ${JWT_SECRET}
+  public-key-path: runtime/rsa-public.key
+  private-key-path: runtime/rsa-private.key
+  access-token-ttl: 5m
+  refresh-token-ttl: 30d
+
+jasypt:
+  encryptor:
+    password: ${JASYPT_PASSWORD}
+
+# =========================================================
+# External Services
+# =========================================================
+aria2:
+  rpc-url: ${ARIA2_RPC_URL}
+  ws-url: ${ARIA2_WS_URL}
+  secret: ${ARIA2_SECRET}
+
+# =========================================================
+# Swagger
+# =========================================================
+springdoc:
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+    path: /docs
+
+# =========================================================
+# Logging
+# =========================================================
+logging:
+  config: classpath:log4j2-spring.xml
+  level:
+    root: ${ROOT_LOG_LEVEL:INFO}
+    org.hibernate: ${HIBERNATE_LOG_LEVEL:WARN}
+    org.springframework: ${SPRING_LOG_LEVEL:INFO}
+    com.db.dbworld: ${APP_LOG_LEVEL:DEBUG}
