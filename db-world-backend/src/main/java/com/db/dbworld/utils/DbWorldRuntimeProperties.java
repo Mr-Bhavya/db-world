@@ -26,6 +26,7 @@ public class DbWorldRuntimeProperties {
     private final Path basePath;
     private final Path dataPath;
     private final Path streamPath;
+    private final Path symlinkPath;
 
     private final Path tempPath;
     private final Path downloadsPath;
@@ -64,6 +65,7 @@ public class DbWorldRuntimeProperties {
         this.basePath = clean(props.basePath());
         this.dataPath = clean(props.dataPath());
         this.streamPath = clean(props.streamPath());
+        this.symlinkPath = clean(props.symlinkPath());
 
         var p = props.paths();
 

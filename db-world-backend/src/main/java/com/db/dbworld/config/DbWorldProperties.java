@@ -14,6 +14,7 @@ public record DbWorldProperties(
         @NotBlank String basePath,
         @NotBlank String dataPath,
         @NotBlank String streamPath,
+        @NotBlank String symlinkPath,
 
         @Valid Paths paths,
         @Valid Tools tools,

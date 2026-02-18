@@ -309,7 +309,7 @@ export const MediaInfoRender = ({
       const data = await response.json();
       return data.status === 'READY' && data.variants?.length > 0;
     } catch (error) {
-      console.log('HLS not available:', error);
+      //console.log('HLS not available:', error);
       return false;
     }
   };
@@ -552,31 +552,6 @@ export const MediaInfoRender = ({
                   width: '100%',
                   gap: { xs: 0.5, sm: 1 }
                 }}>
-
-                  (
-                  <Tooltip title="Test HLS Playback">
-                    <IconButton
-                      onClick={() => {
-                        // Test with a known HLS stream
-                        setSelectedHLSStream({
-                          recordId: mediaInfo.recordId,
-                          title: 'Test HLS Stream',
-                          masterPlaylistUrl: 'https://d2zihajmogu5jn.cloudfront.net/bipbop-advanced/bipbop_16x9_variant.m3u8'
-                        });
-                        setShowHLSPlayer(true);
-                      }}
-                      size="small"
-                      sx={{
-                        bgcolor: 'warning.main',
-                        color: 'warning.contrastText',
-                        '&:hover': { bgcolor: 'warning.dark' }
-                      }}
-                    >
-                      <HighQuality fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  )
-
                   {/* Play Section */}
                   <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
                     {/* Play Button */}
@@ -659,7 +634,7 @@ export const MediaInfoRender = ({
         onClose={() => setPlayerDialogOpen(false)}
         mediaInfo={mediaInfo}
         onPlayerSelect={(playerType, mediaInfo) => {
-          console.log(`User selected ${playerType} for`, mediaInfo);
+          //console.log(`User selected ${playerType} for`, mediaInfo);
         }}
       />
 

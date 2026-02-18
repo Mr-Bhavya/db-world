@@ -176,7 +176,7 @@ public class ApplicationLogsHandler extends TextWebSocketHandler {
     }
 
     private void sendErrorMessage(WebSocketSession session, String errorMessage) {
-        ApiResponse<Object> error = new ApiResponse<>(HttpStatus.BAD_REQUEST, false, errorMessage, null);
+        ApiResponse<Void> error = ApiResponse.error(400, errorMessage);
         try {
             session.sendMessage(new TextMessage(gson.toJson(error)));
         } catch (IOException e) {

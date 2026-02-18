@@ -5,7 +5,6 @@ import {
     Error as ErrorIcon,
     PauseCircle as PauseCircleIcon,
     Archive as ArchiveIcon,
-    Block as BlockIcon,
     OpenInNew as OpenInNewIcon,
     ContentCopy as CopyIcon,
     Delete as DeleteIcon,
@@ -15,9 +14,17 @@ import {
     Speed as SpeedIcon,
     InsertDriveFile as FileIcon,
     PlayArrow,
-    Refresh as RefreshIcon
+    Queue as QueueIcon,
+    Link as LinkIcon,
+    Cable as MagnetIcon,
+    Folder as FolderIcon,
+    MoreVert as MoreVertIcon,
+    Info as InfoIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
+    Warning as WarningIcon
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Card,
     CardHeader,
@@ -29,629 +36,722 @@ import {
     Typography,
     CircularProgress,
     useMediaQuery,
-    useTheme
+    useTheme,
+    Chip,
+    Menu,
+    MenuItem,
+    Stack,
+    Divider,
+    alpha
 } from '@mui/material';
 import { toast } from '../../Toast';
 import CommonServices from '../../CommonServices';
 import { cancelledMirrorByGID, deleteMirror, pauseMirror, resumeMirror } from '../../ApiServices';
 
 const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, x: -20 },
-    hover: { scale: 1.02 }
-};
-
-const statItemVariants = {
-    hidden: { opacity: 0 },
-    animate: { opacity: 1 }
+    hidden: { opacity: 0, y: 8, scale: 0.98 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, x: -8 },
+    hover: { y: -2, boxShadow: 12 }
 };
 
 const iconHoverEffect = {
-    scale: 1.2,
-    transition: { duration: 0.2 }
+    scale: 1.15,
+    transition: { duration: 0.15 }
 };
 
-// Memoized stat item component to prevent unnecessary re-renders
-const StatItem = React.memo(({ label, value, icon: Icon, isMobile }) => (
-    <motion.div
-        variants={statItemVariants}
-        whileHover={{ scale: isMobile ? 1 : 1.03 }}
-        style={{
-            padding: isMobile ? '0.375rem' : '0.5rem',
-            borderRadius: '6px',
-            background: 'rgba(0,0,0,0.02)',
-            minHeight: isMobile ? 'auto' : '50px'
-        }}
-    >
+// Compact file size formatter
+const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+};
+
+// Status configuration with updated colors
+const STATUS_CONFIG = {
+    DOWNLOAD: { color: 'primary', icon: DownloadIcon, bgColor: 'primary.light' },
+    PAUSE: { color: 'warning', icon: PauseCircleIcon, bgColor: 'warning.light' },
+    RESUME: { color: 'info', icon: PlayArrow, bgColor: 'info.light' },
+    SUCCESS: { color: 'success', icon: CheckCircleIcon, bgColor: 'success.light' },
+    ERROR: { color: 'error', icon: ErrorIcon, bgColor: 'error.light' },
+    FAILED: { color: 'error', icon: ErrorIcon, bgColor: 'error.light' },
+    CANCELLED: { color: 'grey', icon: CloseIcon, bgColor: 'grey.200' },
+    EXTRACT: { color: 'secondary', icon: ArchiveIcon, bgColor: 'secondary.light' },
+    MERGE: { color: 'secondary', icon: ArchiveIcon, bgColor: 'secondary.light' },
+    FFMPEG: { color: 'secondary', icon: ArchiveIcon, bgColor: 'secondary.light' },
+    COMPLETE: { color: 'success', icon: CheckCircleIcon, bgColor: 'success.light' }
+};
+
+// Safe HTML renderer for message content
+const MessageRenderer = ({ html }) => {
+    const createMarkup = () => {
+        if (!html) return { __html: '' };
+        // Basic sanitization - remove script tags while preserving other HTML
+        const cleanHtml = html
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/on\w+="[^"]*"/gi, '')
+            .replace(/on\w+='[^']*'/gi, '')
+            .replace(/javascript:/gi, '');
+        return { __html: cleanHtml };
+    };
+
+    return (
+        <Box
+            component="div"
+            sx={{
+                '& div': {
+                    marginBottom: '2px',
+                    lineHeight: 1.3
+                },
+                '& div:last-child': {
+                    marginBottom: 0
+                },
+                fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
+                fontSize: '0.75rem',
+                overflowWrap: 'break-word',
+                wordBreak: 'break-word'
+            }}
+            dangerouslySetInnerHTML={createMarkup()}
+        />
+    );
+};
+
+// Compact stat display component
+const CompactStat = ({ label, value, icon: Icon, color = 'text.secondary' }) => {
+    const theme = useTheme();
+    return (
         <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
-            gap: '0.5rem', 
-            mb: isMobile ? '0.125rem' : '0.25rem' 
+            gap: 0.75,
+            flex: 1,
+            minWidth: 0
         }}>
-            <motion.div whileHover={iconHoverEffect}>
+            <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                borderRadius: '8px',
+                bgcolor: alpha(theme.palette[color]?.main || '#6c757d', 0.1),
+                backdropFilter: 'blur(4px)',
+                border: `1px solid ${alpha(theme.palette[color]?.main || '#6c757d', 0.1)}`
+            }}>
                 <Icon sx={{ 
-                    fontSize: isMobile ? '0.75rem' : '0.875rem', 
-                    color: '#6c757d' 
+                    fontSize: '0.75rem',
+                    color: color
                 }} />
-            </motion.div>
-            <Typography 
-                variant="caption" 
-                sx={{ 
-                    color: '#6c757d', 
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+                <Typography variant="caption" sx={{ 
+                    color: 'text.secondary', 
+                    fontSize: '0.65rem',
+                    lineHeight: 1,
+                    display: 'block',
                     fontWeight: 500,
-                    fontSize: isMobile ? '0.7rem' : '0.75rem'
-                }}
-            >
-                {label}
-            </Typography>
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.3px'
+                }}>
+                    {label}
+                </Typography>
+                <Typography variant="caption" sx={{ 
+                    fontWeight: 600,
+                    fontSize: '0.8125rem',
+                    lineHeight: 1.2,
+                    display: 'block',
+                    mt: 0.25
+                }}>
+                    {value}
+                </Typography>
+            </Box>
         </Box>
-        <Typography 
-            variant="body2" 
-            sx={{ 
-                fontWeight: 500, 
-                color: '#343a40',
-                fontSize: isMobile ? '0.8rem' : '0.875rem',
-                wordBreak: 'break-word'
-            }}
-        >
-            {value}
-        </Typography>
-    </motion.div>
-));
+    );
+};
 
-// Memoized action button component
-const ActionButton = React.memo(({ 
+// Compact action button
+const CompactActionButton = React.memo(({ 
     onClick, 
     loading, 
-    disabled, 
     icon: Icon, 
     label, 
-    color, 
-    loadingIcon: LoadingIcon = CircularProgress,
+    color = 'default',
     size = 'small'
-}) => (
-    <motion.div whileHover={iconHoverEffect}>
-        <Tooltip title={label}>
-            <IconButton
-                size={size}
-                onClick={onClick}
-                aria-label={label}
-                sx={{ 
-                    p: size === 'small' ? 0.5 : 0.75, 
-                    color,
-                    '&:disabled': { opacity: 0.5 }
-                }}
-                disabled={disabled || loading}
-            >
-                {loading ? (
-                    <LoadingIcon size={size === 'small' ? 14 : 16} />
-                ) : (
-                    <Icon sx={{ fontSize: size === 'small' ? 14 : 16 }} />
-                )}
-            </IconButton>
-        </Tooltip>
-    </motion.div>
-));
-
-// Status icon component with animations
-const StatusIcon = React.memo(({ mirrorStatus }) => {
-    const { Icon, color, animate, spin } = useMemo(() => {
-        const status = mirrorStatus?.currentStatus?.toLowerCase();
-        const isFailed = mirrorStatus?.failed;
-        const isCancelled = mirrorStatus?.cancelled;
-        const isPaused = mirrorStatus?.pause;
-        const isCompleted = mirrorStatus?.completed;
-
-        if (isFailed) return {
-            Icon: ErrorIcon,
-            color: "#dc3545"
-        };
-        if (isCancelled) return {
-            Icon: BlockIcon,
-            color: "#6c757d"
-        };
-        if (isPaused) return {
-            Icon: PauseCircleIcon,
-            color: "#ffc107"
-        };
-        if (status?.includes("extract")) return {
-            Icon: ArchiveIcon,
-            color: "#17a2b8",
-            spin: true
-        };
-        if (isCompleted) return {
-            Icon: CheckCircleIcon,
-            color: "#28a745"
-        };
-        return {
-            Icon: DownloadIcon,
-            color: "#007bff",
-            animate: true
-        };
-    }, [mirrorStatus]);
-
+}) => {
+    const theme = useTheme();
     return (
-        <motion.div
-            animate={
-                animate
-                    ? { y: [0, 8, 0], opacity: [0.7, 1, 0.7] }
-                    : spin
-                        ? { rotate: 360 }
-                        : false
-            }
-            transition={
-                animate
-                    ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' }
-                    : spin
-                        ? { duration: 2, repeat: Infinity, ease: 'linear' }
-                        : undefined
-            }
-            whileHover={iconHoverEffect}
-        >
-            <Icon sx={{ color, fontSize: '1.25rem' }} />
+        <motion.div whileHover={iconHoverEffect}>
+            <Tooltip title={label} arrow>
+                <IconButton
+                    size={size}
+                    onClick={onClick}
+                    disabled={loading}
+                    sx={{ 
+                        width: 30,
+                        height: 30,
+                        color: color,
+                        bgcolor: alpha(theme.palette[color]?.main || '#6c757d', 0.1),
+                        backdropFilter: 'blur(4px)',
+                        border: `1px solid ${alpha(theme.palette[color]?.main || '#6c757d', 0.1)}`,
+                        '&:hover': {
+                            bgcolor: alpha(theme.palette[color]?.main || '#6c757d', 0.2),
+                            borderColor: alpha(theme.palette[color]?.main || '#6c757d', 0.3)
+                        },
+                        '&:disabled': { opacity: 0.5 }
+                    }}
+                >
+                    {loading ? (
+                        <CircularProgress size={14} color="inherit" />
+                    ) : (
+                        <Icon sx={{ fontSize: size === 'small' ? 14 : 16 }} />
+                    )}
+                </IconButton>
+            </Tooltip>
         </motion.div>
     );
 });
 
-const StatusCard = ({ mirrorStatus = {}, onStatusChange }) => {
+const StatusCard = ({ download = {}, onStatusChange }) => {
     const [loadingStates, setLoadingStates] = useState({
         pause: false,
         resume: false,
         cancel: false,
         delete: false
     });
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [expanded, setExpanded] = useState(false);
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+    const isSmallMobile = useMediaQuery('(max-width: 480px)');
 
-    // Memoize all calculated values based on MirrorStatus structure
-    const { progress, speed, downloaded, totalSize, eta, progressVariant } = useMemo(() => {
-        const downloadProgress = mirrorStatus?.downloadStatus || {};
-        const totalFileSize = downloadProgress.totalFileSize || 0;
-        const fileDownloaded = downloadProgress.fileDownloaded || 0;
+    // Extract data
+    const status = download?.status || {};
+    const downloadStatus = status?.downloadStatus || {};
+    const { isQueued = false, isRunning = false, queuePosition = null } = download;
+
+    const {
+        fileName = 'Unknown File',
+        fileUrl,
+        folderName,
+        fileSize,
+        fileType,
+        magnet = false,
+        currentState = 'UNKNOWN',
+        id: downloadId,
+        message
+    } = status;
+
+    // Memoized calculations
+    const metrics = useMemo(() => {
+        const totalFileSize = fileSize || downloadStatus.totalFileSize || 0;
+        const fileDownloaded = downloadStatus.fileDownloaded || 0;
         
-        const progressValue = totalFileSize > 0
-            ? (fileDownloaded / totalFileSize) * 100
-            : 0;
-
-        const speedData = CommonServices.bytesToReadbleFormat(downloadProgress.speed || 0);
-        const speedValue = `${speedData.value}${speedData.suffix}/s`;
-
-        const downloadedData = CommonServices.bytesToReadbleFormat(fileDownloaded);
-        const downloadedValue = `${downloadedData.value} ${downloadedData.suffix}`;
-
-        const totalSizeData = CommonServices.bytesToReadbleFormat(totalFileSize);
-        const totalSizeValue = `${totalSizeData.value} ${totalSizeData.suffix}`;
-
-        const etaValue = CommonServices.formatETA(downloadProgress.eta);
-
-        const variant = mirrorStatus?.failed ? 'error' :
-            mirrorStatus?.cancelled ? 'secondary' :
-            mirrorStatus?.pause ? 'warning' :
-            mirrorStatus?.completed ? 'success' : 'primary';
+        const progress = totalFileSize > 0 ? (fileDownloaded / totalFileSize) * 100 : 0;
+        const speedData = CommonServices.bytesToReadbleFormat(downloadStatus.speed || 0);
+        const speed = `${speedData.value}${speedData.suffix}/s`;
+        const eta = CommonServices.formatETA(downloadStatus.eta);
 
         return {
-            progress: progressValue,
-            speed: speedValue,
-            downloaded: downloadedValue,
-            totalSize: totalSizeValue,
-            eta: etaValue,
-            progressVariant: variant
+            progress,
+            speed,
+            eta,
+            downloaded: formatFileSize(fileDownloaded),
+            totalSize: formatFileSize(totalFileSize),
+            progressFormatted: progress.toFixed(1),
+            isCompleted: currentState === 'SUCCESS' || currentState === 'COMPLETE'
         };
-    }, [mirrorStatus]);
+    }, [downloadStatus, fileSize, currentState]);
 
-    // Update loading state helper
+    const statusConfig = STATUS_CONFIG[currentState] || { color: 'default', icon: QueueIcon, bgColor: 'grey.100' };
+    const StatusIcon = statusConfig.icon;
+
+    // Action handlers
     const setLoadingState = useCallback((action, isLoading) => {
-        setLoadingStates(prev => ({
-            ...prev,
-            [action]: isLoading
-        }));
+        setLoadingStates(prev => ({ ...prev, [action]: isLoading }));
     }, []);
 
-    // Memoized action handlers with loading states
-    const handlePause = useCallback(async (gid) => {
-        setLoadingState('pause', true);
+    const runAction = useCallback(async (actionType, apiFn, successMsg) => {
+        setLoadingState(actionType, true);
         try {
-            const res = await pauseMirror(gid);
-            const msg = res?.message || 'Download paused successfully';
-            toast.success(msg);
+            const res = await apiFn(downloadId);
+            toast.success(res?.message || successMsg);
             onStatusChange?.();
         } catch (error) {
-            console.error('Pause error:', error);
-            const msg = error?.response?.data?.message || 'Failed to pause download. Please try again.';
-            toast.error(msg);
+            toast.error(error?.response?.data?.message || 'Action failed');
         } finally {
-            setLoadingState('pause', false);
+            setLoadingState(actionType, false);
         }
-    }, [onStatusChange, setLoadingState]);
+    }, [downloadId, onStatusChange, setLoadingState]);
 
-    const handleResume = useCallback(async (gid) => {
-        setLoadingState('resume', true);
-        try {
-            const res = await resumeMirror(gid);
-            const msg = res?.message || 'Download resumed successfully';
-            toast.success(msg);
-            onStatusChange?.();
-        } catch (error) {
-            console.error('Resume error:', error);
-            const msg = error?.response?.data?.message || 'Failed to resume download. Please try again.';
-            toast.error(msg);
-        } finally {
-            setLoadingState('resume', false);
-        }
-    }, [onStatusChange, setLoadingState]);
+    const handlePause = () => runAction('pause', pauseMirror, 'Paused');
+    const handleResume = () => runAction('resume', resumeMirror, 'Resumed');
+    const handleCancel = () => runAction('cancel', cancelledMirrorByGID, 'Cancelled');
+    const handleDelete = () => runAction('delete', deleteMirror, 'Deleted');
 
-    const handleCancel = useCallback(async (gid) => {
-        setLoadingState('cancel', true);
-        try {
-            const res = await cancelledMirrorByGID(gid);
-            const msg = res?.message || 'Download cancelled successfully';
-            toast.success(msg);
-            onStatusChange?.();
-        } catch (error) {
-            console.error('Cancel error:', error);
-            const msg = error?.response?.data?.message || 'Failed to cancel download. Please try again.';
-            toast.error(msg);
-        } finally {
-            setLoadingState('cancel', false);
-        }
-    }, [onStatusChange, setLoadingState]);
-
-    const handleDelete = useCallback(async (id) => {
-        setLoadingState('delete', true);
-        try {
-            const res = await deleteMirror(id);
-            const msg = res?.message || 'Download deleted successfully';
-            toast.success(msg);
-            onStatusChange?.();
-        } catch (error) {
-            console.error('Delete error:', error);
-            const msg = error?.response?.data?.message || 'Failed to delete download. Please try again.';
-            toast.error(msg);
-        } finally {
-            setLoadingState('delete', false);
-        }
-    }, [onStatusChange, setLoadingState]);
-
-    const openSourceUrl = useCallback((url) => {
-        if (url) {
-            window.open(url, "_blank");
-        } else {
-            toast.error('Source URL not available');
-        }
-    }, []);
-
-    const copyUrlToClipboard = useCallback((url) => {
-        navigator.clipboard.writeText(url)
-            .then(() => toast.success('URL copied to clipboard'))
-            .catch(() => toast.error('Failed to copy URL'));
-    }, []);
-
-    // Check if any action is loading for this card
-    const isActionLoading = useMemo(() => {
-        return Object.values(loadingStates).some(state => state);
-    }, [loadingStates]);
-
-    // Check if specific action is loading
-    const isActionLoadingFor = useCallback((action) => {
-        return loadingStates[action];
-    }, [loadingStates]);
-
-    // Stats configuration for grid
-    const statsConfig = useMemo(() => [
-        { label: 'Downloaded', value: downloaded, Icon: DownloadIcon },
-        { label: 'Total Size', value: totalSize, Icon: FileIcon },
-        { label: 'Speed', value: speed, Icon: SpeedIcon },
-        { label: 'ETA', value: eta, Icon: ClockIcon }
-    ], [downloaded, totalSize, speed, eta]);
-
-    // Grid layout for responsive design
-    const getGridTemplateColumns = () => {
-        if (isMobile) {
-            return 'repeat(2, 1fr)';
-        } else if (isTablet) {
-            return 'repeat(2, 1fr)';
-        }
-        return 'repeat(auto-fit, minmax(150px, 1fr))';
+    const openSourceUrl = () => fileUrl && window.open(fileUrl, "_blank");
+    const copyUrlToClipboard = () => {
+        if (fileUrl) navigator.clipboard.writeText(fileUrl).then(() => toast.success('URL copied'));
     };
 
-    // Truncate filename based on screen size
-    const getTruncatedFileName = useCallback((fileName) => {
-        if (!fileName) return '';
-        
-        const maxLength = isMobile ? 15 : isTablet ? 25 : 20;
-        return fileName.length > maxLength 
-            ? fileName.substring(0, maxLength) + '...' 
-            : fileName;
-    }, [isMobile, isTablet]);
+    // Action states
+    const showDeleteAction = currentState === 'SUCCESS' || currentState === 'ERROR' || currentState === 'FAILED' || currentState === 'CANCELLED' || currentState === 'COMPLETE';
+    const showPauseResumeAction = (currentState === 'DOWNLOAD' || currentState === 'PAUSE') && !isQueued;
+    const showCancelAction = (currentState === 'DOWNLOAD' || currentState === 'PAUSE' || currentState === 'RESUME') && !isQueued;
+    const isActionLoading = Object.values(loadingStates).some(state => state);
 
-    // Get display properties from mirrorStatus
-    const fileName = mirrorStatus.fileName || mirrorStatus.name || 'Unknown File';
-    const fileUrl = mirrorStatus.fileUrl || mirrorStatus.url || mirrorStatus.sourceUrl;
-    const gid = mirrorStatus.gid;
-    const id = mirrorStatus.id;
-    const isCompleted = mirrorStatus.completed;
-    const isFailed = mirrorStatus.failed;
-    const isCancelled = mirrorStatus.cancelled;
-    const isPaused = mirrorStatus.pause;
-    const logs = mirrorStatus.message || mirrorStatus.logs;
+    // Compact filename with smart truncation
+    const getDisplayFileName = () => {
+        if (!fileName) return 'Unknown File';
+        
+        const maxLength = isSmallMobile ? 20 : isMobile ? 28 : 36;
+        if (fileName.length <= maxLength) return fileName;
+        
+        const extension = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';
+        const nameWithoutExt = fileName.substring(0, fileName.length - extension.length);
+        const truncatedName = nameWithoutExt.substring(0, maxLength - extension.length - 3) + '…';
+        return truncatedName + extension;
+    };
+
+    const handleMenuOpen = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+    };
+
+    // Glass morphism background styles
+    const glassStyles = {
+        background: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(10px) saturate(180%)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+        WebkitBackdropFilter: 'blur(10px) saturate(180%)'
+    };
+
+    const darkGlassStyles = {
+        background: 'rgba(30, 30, 40, 0.7)',
+        backdropFilter: 'blur(10px) saturate(180%)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+        WebkitBackdropFilter: 'blur(10px) saturate(180%)'
+    };
+
+    const currentGlassStyle = theme.palette.mode === 'dark' ? darkGlassStyles : glassStyles;
 
     return (
         <motion.div
-            key={mirrorStatus.id || mirrorStatus.gid}
             variants={cardVariants}
             initial="hidden"
             animate="animate"
             exit="exit"
-            whileHover={isMobile ? {} : "hover"}
-            layout
-            style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr)',
-                gap: isMobile ? '0.75rem' : '1rem'
+            whileHover={!isMobile ? "hover" : {}}
+            style={{ 
+                marginBottom: isMobile ? 1 : 1.25,
+                width: '100%' // Maintain original width
             }}
         >
-            <Card
-                sx={{
-                    border: 'none',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                    transition: 'all 0.3s ease',
-                    overflow: 'hidden',
-                    background: 'linear-gradient(to bottom right, rgba(255,255,255,0.9), rgba(245,245,245,0.9))',
-                    backdropFilter: 'blur(5px)',
-                    opacity: isActionLoading ? 0.7 : 1,
-                    pointerEvents: isActionLoading ? 'none' : 'auto'
-                }}
-            >
-                <CardHeader
-  sx={{
-    background: 'linear-gradient(to right, #f8f9fa, #e9ecef)',
-    borderBottom: '1px solid rgba(0,0,0,0.05)',
-    padding: isMobile ? '0.75rem' : '1rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem'
-  }}
-  title={
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        minWidth: 0,
-        flex: 1,
-        gap: '0.5rem',
-        flexWrap: isMobile ? 'wrap' : 'nowrap'
-      }}
-    >
-      {/* Status Icon */}
-      <StatusIcon mirrorStatus={mirrorStatus} />
-
-      {/* File Name with Tooltip */}
-      <Tooltip title={fileName}>
-        <Typography
-          variant="h6"
-          sx={{
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            fontWeight: 500,
-            fontSize: isMobile ? '1rem' : '1.1rem',
-            color: '#333',
-            flexGrow: 1,
-            flexShrink: 1,
-            minWidth: 0,
-            maxWidth: {
-              xs: 'calc(100vw - 160px)', // mobile: dynamic width minus action buttons
-              sm: 'calc(100vw - 240px)',
-              md: 'calc(100vw - 350px)',
-              lg: 'calc(100vw - 450px)'
-            },
-            direction: 'ltr',
-            textAlign: 'left'
-          }}
-        >
-          {getTruncatedFileName(fileName)}
-        </Typography>
-      </Tooltip>
-
-      {/* File URL Actions */}
-      {fileUrl && (
-        <Box
-          sx={{
-            display: 'flex',
-            gap: '0.25rem',
-            flexShrink: 0
-          }}
-        >
-          <ActionButton
-            onClick={() => openSourceUrl(fileUrl)}
-            loading={false}
-            disabled={isActionLoading}
-            icon={OpenInNewIcon}
-            label="Open source URL"
-            color="#17a2b8"
-          />
-          <ActionButton
-            onClick={() => copyUrlToClipboard(fileUrl)}
-            loading={false}
-            disabled={isActionLoading}
-            icon={CopyIcon}
-            label="Copy URL to clipboard"
-            color="#6c757d"
-          />
-        </Box>
-      )}
-
-      {/* Download Control Actions */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: isMobile ? '0.25rem' : '0.5rem',
-          flexShrink: 0
-        }}
-      >
-        {(isCompleted || isFailed) && (
-          <ActionButton
-            onClick={() => handleDelete(id)}
-            loading={isActionLoadingFor('delete')}
-            disabled={isActionLoading}
-            icon={DeleteIcon}
-            label="Delete download"
-            color="#dc3545"
-          />
-        )}
-        {!isCompleted && !isFailed && !isCancelled && (
-          <>
-            <ActionButton
-              onClick={() => (isPaused ? handleResume(gid) : handlePause(gid))}
-              loading={isActionLoadingFor('pause') || isActionLoadingFor('resume')}
-              disabled={isActionLoading}
-              icon={isPaused ? PlayArrow : PauseIcon}
-              label={isPaused ? 'Resume download' : 'Pause download'}
-              color="#ffc107"
-            />
-            <ActionButton
-              onClick={() => handleCancel(gid)}
-              loading={isActionLoadingFor('cancel')}
-              disabled={isActionLoading}
-              icon={CloseIcon}
-              label="Cancel download"
-              color="#dc3545"
-            />
-          </>
-        )}
-      </Box>
-    </Box>
-  }
-/>
-
-
-                <CardContent sx={{ 
-                    padding: isMobile ? '1rem' : '1.5rem',
-                    '&:last-child': { paddingBottom: isMobile ? '1rem' : '1.5rem' }
+            <Card sx={{ 
+                borderRadius: 2,
+                ...currentGlassStyle,
+                transition: 'all 0.3s ease',
+                opacity: isActionLoading ? 0.8 : 1,
+                overflow: 'visible',
+                width: '100%', // Maintain original width
+                '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: theme.palette.mode === 'dark' 
+                        ? '0 12px 40px rgba(0, 0, 0, 0.4)' 
+                        : '0 12px 40px rgba(0, 0, 0, 0.15)',
+                    borderColor: alpha(theme.palette[statusConfig.color]?.main || '#6c757d', 0.3)
+                }
+            }}>
+                {/* Compact Header */}
+                <Box sx={{ 
+                    p: isMobile ? 1.5 : 2,
+                    pb: 1,
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
                 }}>
-                    <motion.div
-                        initial={{ scaleX: 0.8, opacity: 0.8 }}
-                        animate={{ scaleX: 1, opacity: 1 }}
-                        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
-                    >
-                        <Box sx={{ mb: isMobile ? '1rem' : '1.5rem' }}>
-                            <LinearProgress
-                                variant="determinate"
-                                value={progress}
-                                color={progressVariant}
-                                sx={{
-                                    height: isMobile ? '12px' : '15px',
-                                    borderRadius: '4px',
-                                    overflow: 'hidden',
-                                    '& .MuiLinearProgress-bar': {
-                                        animation: !isCompleted && !isFailed && !isCancelled && !isPaused
-                                            ? 'pulse 1.5s ease-in-out infinite'
-                                            : 'none'
-                                    }
-                                }}
-                            />
-                            <Typography 
-                                variant="caption" 
-                                sx={{ 
-                                    display: 'block', 
-                                    textAlign: 'right', 
-                                    mt: 0.5,
-                                    fontSize: isMobile ? '0.7rem' : '0.75rem'
-                                }}
-                            >
-                                {progress.toFixed(1)}%
-                            </Typography>
-                        </Box>
-                    </motion.div>
-
-                    <Box
-                        sx={{
-                            display: 'grid',
-                            gridTemplateColumns: getGridTemplateColumns(),
-                            gap: isMobile ? '0.75rem' : '1rem'
-                        }}
-                    >
-                        {statsConfig.map((stat, index) => (
-                            <StatItem
-                                key={stat.label}
-                                label={stat.label}
-                                value={stat.value}
-                                icon={stat.Icon}
-                                isMobile={isMobile}
-                            />
-                        ))}
-                    </Box>
-
-                    {logs && (
+                    <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'flex-start', 
+                        gap: 1.5,
+                        mb: 1.5
+                    }}>
+                        {/* Status Badge with glass effect */}
                         <motion.div
-                            initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                            animate={{
-                                opacity: 1,
-                                height: 'auto',
-                                marginTop: isMobile ? '0.75rem' : '1rem'
-                            }}
-                            transition={{ duration: 0.3 }}
-                            style={{
-                                borderRadius: '6px',
-                                padding: isMobile ? '0.5rem 0.75rem' : '0.75rem 1rem',
-                                background: isFailed ? 'rgba(220,53,69,0.1)' : 'rgba(13,110,253,0.1)',
-                                borderLeft: `3px solid ${isFailed ? '#dc3545' : '#0d6efd'}`
-                            }}
+                            animate={isRunning ? { scale: [1, 1.05, 1] } : {}}
+                            transition={{ duration: 2, repeat: Infinity }}
                         >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                {isFailed ? (
-                                    <motion.div whileHover={iconHoverEffect}>
-                                        <ErrorIcon sx={{ 
-                                            color: '#dc3545', 
-                                            fontSize: isMobile ? '0.875rem' : '1rem' 
-                                        }} />
-                                    </motion.div>
-                                ) : (
-                                    <motion.div whileHover={iconHoverEffect}>
-                                        <ArchiveIcon sx={{ 
-                                            color: '#0d6efd', 
-                                            fontSize: isMobile ? '0.875rem' : '1rem' 
-                                        }} />
-                                    </motion.div>
-                                )}
-                                <Typography 
-                                    component="strong" 
-                                    sx={{
-                                        color: isFailed ? '#dc3545' : '#0d6efd',
-                                        fontWeight: 'bold',
-                                        fontSize: isMobile ? '0.8rem' : '0.875rem'
-                                    }}
-                                >
-                                    {isFailed ? 'Error' : 'Logs'}
-                                </Typography>
+                            <Box sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 44,
+                                height: 44,
+                                borderRadius: '12px',
+                                bgcolor: alpha(theme.palette[statusConfig.color]?.main || '#6c757d', 0.15),
+                                backdropFilter: 'blur(4px)',
+                                border: `2px solid ${alpha(theme.palette[statusConfig.color]?.main || '#6c757d', 0.2)}`,
+                                boxShadow: `0 4px 12px ${alpha(theme.palette[statusConfig.color]?.main || '#6c757d', 0.1)}`
+                            }}>
+                                <StatusIcon sx={{ 
+                                    fontSize: '1.4rem',
+                                    color: theme.palette[statusConfig.color]?.main || '#6c757d'
+                                }} />
                             </Box>
-                            <Box
-                                component="pre"
-                                sx={{
-                                    maxHeight: '300px',
-                                    overflowY: 'auto',
-                                    background: '#111',
-                                    padding: isMobile ? '8px' : '10px',
-                                    borderRadius: '6px',
-                                    marginTop: '0.5rem',
-                                    fontSize: isMobile ? '0.75rem' : '0.875rem',
-                                    whiteSpace: 'pre-wrap',
-                                    color: '#f8f9fa',
-                                    fontFamily: 'monospace'
-                                }}
-                                dangerouslySetInnerHTML={{ 
-                                    __html: logs || "<em>No logs yet...</em>" 
-                                }}
-                            />
+                        </motion.div>
+
+                        {/* File info */}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.75 }}>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Tooltip title={fileName} arrow placement="top">
+                                        <Typography
+                                            variant="subtitle1"
+                                            sx={{
+                                                fontWeight: 600,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                fontSize: isMobile ? '0.9375rem' : '1rem',
+                                                color: 'text.primary',
+                                                mb: 0.5
+                                            }}
+                                        >
+                                            {getDisplayFileName()}
+                                        </Typography>
+                                    </Tooltip>
+                                    
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                        <Chip
+                                            label={currentState}
+                                            size="small"
+                                            color={statusConfig.color}
+                                            sx={{ 
+                                                fontSize: '0.65rem', 
+                                                height: 22,
+                                                fontWeight: 600,
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.5px',
+                                                backdropFilter: 'blur(4px)'
+                                            }}
+                                        />
+                                        
+                                        {isQueued && queuePosition && (
+                                            <Chip
+                                                label={`Queue #${queuePosition}`}
+                                                size="small"
+                                                color="info"
+                                                sx={{ 
+                                                    fontSize: '0.65rem', 
+                                                    height: 22,
+                                                    fontWeight: 600,
+                                                    backdropFilter: 'blur(4px)'
+                                                }}
+                                            />
+                                        )}
+                                        
+                                        {folderName && (
+                                            <Chip
+                                                icon={<FolderIcon fontSize="small" />}
+                                                label={folderName}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ 
+                                                    fontSize: '0.65rem',
+                                                    height: 22,
+                                                    '& .MuiChip-icon': { fontSize: '0.75rem' },
+                                                    backdropFilter: 'blur(4px)'
+                                                }}
+                                            />
+                                        )}
+                                    </Box>
+                                </Box>
+
+                                {/* Action buttons */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                                    {!isMobile && (
+                                        <>
+                                            {fileUrl && !magnet && (
+                                                <>
+                                                    <CompactActionButton
+                                                        onClick={openSourceUrl}
+                                                        icon={OpenInNewIcon}
+                                                        label="Open URL"
+                                                        color="info"
+                                                    />
+                                                    <CompactActionButton
+                                                        onClick={copyUrlToClipboard}
+                                                        icon={CopyIcon}
+                                                        label="Copy URL"
+                                                        color="default"
+                                                    />
+                                                </>
+                                            )}
+                                            {showPauseResumeAction && (
+                                                <CompactActionButton
+                                                    onClick={isRunning || currentState === 'DOWNLOAD' ? handlePause : handleResume}
+                                                    loading={loadingStates.pause || loadingStates.resume}
+                                                    icon={isRunning || currentState === 'DOWNLOAD' ? PauseIcon : PlayArrow}
+                                                    label={isRunning || currentState === 'DOWNLOAD' ? 'Pause' : 'Resume'}
+                                                    color="warning"
+                                                />
+                                            )}
+                                            {showCancelAction && (
+                                                <CompactActionButton
+                                                    onClick={handleCancel}
+                                                    loading={loadingStates.cancel}
+                                                    icon={CloseIcon}
+                                                    label="Cancel"
+                                                    color="error"
+                                                />
+                                            )}
+                                            {showDeleteAction && (
+                                                <CompactActionButton
+                                                    onClick={handleDelete}
+                                                    loading={loadingStates.delete}
+                                                    icon={DeleteIcon}
+                                                    label="Delete"
+                                                    color="error"
+                                                />
+                                            )}
+                                        </>
+                                    )}
+                                    
+                                    {/* Mobile menu button */}
+                                    {isMobile && (
+                                        <>
+                                            <CompactActionButton
+                                                onClick={handleMenuOpen}
+                                                icon={MoreVertIcon}
+                                                label="More options"
+                                                color="default"
+                                            />
+                                            <Menu
+                                                anchorEl={anchorEl}
+                                                open={Boolean(anchorEl)}
+                                                onClose={handleMenuClose}
+                                                PaperProps={{
+                                                    sx: { 
+                                                        minWidth: 160,
+                                                        mt: 1,
+                                                        backdropFilter: 'blur(10px)',
+                                                        bgcolor: alpha(theme.palette.background.paper, 0.9)
+                                                    }
+                                                }}
+                                            >
+                                                {fileUrl && !magnet && [
+                                                    <MenuItem key="open" onClick={() => { openSourceUrl(); handleMenuClose(); }}>
+                                                        <OpenInNewIcon fontSize="small" sx={{ mr: 1.5 }} />
+                                                        Open URL
+                                                    </MenuItem>,
+                                                    <MenuItem key="copy" onClick={() => { copyUrlToClipboard(); handleMenuClose(); }}>
+                                                        <CopyIcon fontSize="small" sx={{ mr: 1.5 }} />
+                                                        Copy URL
+                                                    </MenuItem>,
+                                                    <Divider key="divider1" />
+                                                ]}
+                                                {showPauseResumeAction && (
+                                                    <MenuItem onClick={() => { (isRunning || currentState === 'DOWNLOAD') ? handlePause() : handleResume(); handleMenuClose(); }}>
+                                                        {(isRunning || currentState === 'DOWNLOAD') ? <PauseIcon fontSize="small" sx={{ mr: 1.5 }} /> : <PlayArrow fontSize="small" sx={{ mr: 1.5 }} />}
+                                                        {(isRunning || currentState === 'DOWNLOAD') ? 'Pause' : 'Resume'}
+                                                    </MenuItem>
+                                                )}
+                                                {showCancelAction && (
+                                                    <MenuItem onClick={() => { handleCancel(); handleMenuClose(); }}>
+                                                        <CloseIcon fontSize="small" sx={{ mr: 1.5 }} />
+                                                        Cancel
+                                                    </MenuItem>
+                                                )}
+                                                {showDeleteAction && (
+                                                    <MenuItem onClick={() => { handleDelete(); handleMenuClose(); }}>
+                                                        <DeleteIcon fontSize="small" sx={{ mr: 1.5 }} />
+                                                        Delete
+                                                    </MenuItem>
+                                                )}
+                                            </Menu>
+                                        </>
+                                    )}
+                                    
+                                    {message && (
+                                        <CompactActionButton
+                                            onClick={() => setExpanded(!expanded)}
+                                            icon={expanded ? ExpandLessIcon : ExpandMoreIcon}
+                                            label={expanded ? "Hide details" : "Show details"}
+                                            color="default"
+                                        />
+                                    )}
+                                </Box>
+                            </Box>
+
+                            {/* Progress bar */}
+                            <Box sx={{ mb: 1.5 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
+                                    <Typography variant="caption" sx={{ 
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        color: theme.palette[statusConfig.color]?.main || '#6c757d'
+                                    }}>
+                                        {metrics.progressFormatted}%
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ 
+                                        fontWeight: 500,
+                                        fontSize: '0.75rem',
+                                        color: 'text.secondary'
+                                    }}>
+                                        {metrics.downloaded} / {metrics.totalSize}
+                                    </Typography>
+                                </Box>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={metrics.isCompleted ? 100 : metrics.progress}
+                                    color={statusConfig.color}
+                                    sx={{
+                                        height: 8,
+                                        borderRadius: 4,
+                                        backgroundColor: alpha(theme.palette[statusConfig.color]?.main || '#6c757d', 0.1),
+                                        backdropFilter: 'blur(4px)',
+                                        '& .MuiLinearProgress-bar': {
+                                            borderRadius: 4,
+                                            boxShadow: `0 0 8px ${alpha(theme.palette[statusConfig.color]?.main || '#6c757d', 0.3)}`
+                                        }
+                                    }}
+                                />
+                            </Box>
+
+                            {/* Stats row */}
+                            <Box sx={{ 
+                                display: 'grid',
+                                gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr',
+                                gap: 1.5,
+                                alignItems: 'center',
+                                pt: 1,
+                                borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                            }}>
+                                <CompactStat
+                                    label="Speed"
+                                    value={metrics.speed}
+                                    icon={SpeedIcon}
+                                    color={statusConfig.color}
+                                />
+                                <CompactStat
+                                    label="ETA"
+                                    value={metrics.eta || '--'}
+                                    icon={ClockIcon}
+                                    color={statusConfig.color}
+                                />
+                                {!isMobile && (
+                                    <CompactStat
+                                        label="Type"
+                                        value={magnet ? 'Torrent' : 'Direct'}
+                                        icon={magnet ? MagnetIcon : LinkIcon}
+                                        color={statusConfig.color}
+                                    />
+                                )}
+                            </Box>
+                        </Box>
+                    </Box>
+                </Box>
+
+                {/* Status message (collapsible) */}
+                <AnimatePresence>
+                    {expanded && message && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <Box sx={{ 
+                                p: isMobile ? 1.5 : 2,
+                                pt: 1.5,
+                                bgcolor: alpha(currentState === 'ERROR' || currentState === 'FAILED'
+                                    ? theme.palette.error.main
+                                    : currentState === 'SUCCESS' || currentState === 'COMPLETE'
+                                    ? theme.palette.success.main
+                                    : theme.palette.info.main, 0.07),
+                                backdropFilter: 'blur(8px)',
+                                borderTop: `1px solid ${alpha(currentState === 'ERROR' || currentState === 'FAILED'
+                                    ? theme.palette.error.main
+                                    : currentState === 'SUCCESS' || currentState === 'COMPLETE'
+                                    ? theme.palette.success.main
+                                    : theme.palette.info.main, 0.2)}`
+                            }}>
+                                <Box sx={{ 
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: 1
+                                }}>
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: '6px',
+                                        bgcolor: alpha(currentState === 'ERROR' || currentState === 'FAILED'
+                                            ? theme.palette.error.main
+                                            : currentState === 'SUCCESS' || currentState === 'COMPLETE'
+                                            ? theme.palette.success.main
+                                            : theme.palette.info.main, 0.2),
+                                        flexShrink: 0
+                                    }}>
+                                        <InfoIcon sx={{ 
+                                            fontSize: '0.875rem',
+                                            color: currentState === 'ERROR' || currentState === 'FAILED'
+                                                ? 'error.main'
+                                                : currentState === 'SUCCESS' || currentState === 'COMPLETE'
+                                                ? 'success.main'
+                                                : 'info.main'
+                                        }} />
+                                    </Box>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Typography variant="subtitle2" sx={{ 
+                                            fontWeight: 600,
+                                            mb: 1,
+                                            color: currentState === 'ERROR' || currentState === 'FAILED'
+                                                ? 'error.main'
+                                                : currentState === 'SUCCESS' || currentState === 'COMPLETE'
+                                                ? 'success.main'
+                                                : 'info.main'
+                                        }}>
+                                            {currentState === 'ERROR' || currentState === 'FAILED' 
+                                                ? 'Error Details' 
+                                                : currentState === 'SUCCESS' || currentState === 'COMPLETE'
+                                                ? 'Completed Successfully'
+                                                : 'Status Information'}
+                                        </Typography>
+                                        <Box sx={{
+                                            maxHeight: isMobile ? '200px' : '300px',
+                                            overflowY: 'auto',
+                                            pr: 1,
+                                            '&::-webkit-scrollbar': {
+                                                width: '6px'
+                                            },
+                                            '&::-webkit-scrollbar-track': {
+                                                background: alpha(theme.palette.divider, 0.1),
+                                                borderRadius: '3px'
+                                            },
+                                            '&::-webkit-scrollbar-thumb': {
+                                                background: alpha(theme.palette.divider, 0.3),
+                                                borderRadius: '3px'
+                                            },
+                                            '&::-webkit-scrollbar-thumb:hover': {
+                                                background: alpha(theme.palette.divider, 0.5)
+                                            }
+                                        }}>
+                                            <MessageRenderer html={message} />
+                                        </Box>
+                                    </Box>
+                                </Box>
+                            </Box>
                         </motion.div>
                     )}
-                </CardContent>
+                </AnimatePresence>
             </Card>
         </motion.div>
     );

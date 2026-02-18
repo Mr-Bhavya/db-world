@@ -154,7 +154,7 @@ class PlayerService {
       if (preferredVersion === 'auto') {
         setTimeout(() => {
           if (!playerWindow || playerWindow.closed) {
-            console.log('MX Player Pro not found, trying Free version');
+            //console.log('MX Player Pro not found, trying Free version');
             window.open(versions.free.url, '_blank');
           }
         }, 800);

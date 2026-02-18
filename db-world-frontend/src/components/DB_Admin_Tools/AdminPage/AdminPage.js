@@ -7,7 +7,7 @@ import {
   ThemeProvider,
   alpha,
   Container,
-  useMediaQuery
+  useMediaQuery,
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import Constants from '../../Constants';
@@ -28,6 +28,9 @@ import TableView from './TabView';
 import GridView from './GridView';
 import ViewSelector from './ViewSelector';
 
+// Import FlmngrManager
+import FlmngrManager from '../FileExplorer/FlmngrManager';
+
 // Icons
 import {
   People as UsersIcon,
@@ -39,7 +42,16 @@ import {
   FolderOpen as ExplorerIcon,
   Computer as SystemIcon,
   Storage as RedisIcon,
+  Storage as FileManagerIcon,
+  Image as ImageIcon,
+  // Media as MediaIcon,
+  PictureAsPdf as PictureAsPdfIcon,
+  InsertDriveFile as InsertDriveFileIcon,
+  VideoLibrary,
 } from '@mui/icons-material';
+import MainLayout from '../ServerInfo/ServerInfo';
+import ServerInfo from '../ServerInfo/ServerInfo';
+import MediaFilesManagement from '../MediaFilesManagement/MediaFilesManagement';
 
 const adminTheme = createTheme({
   palette: {
@@ -111,6 +123,17 @@ const AdminPage = () => {
       shortcut: 'R'
     },
     {
+      id: 'media-files',
+      label: 'Media Files Management',
+      icon: <VideoLibrary />,
+      component: <MediaFilesManagement />,
+      color: '#47b9aaff',
+      badge: 'New',
+      description: 'Manage images, videos, and other media files',
+      category: 'Media',
+      shortcut: 'V'
+    },
+    {
       id: 'download-manager',
       label: 'Download Manager',
       icon: <DownloadIcon />,
@@ -142,22 +165,54 @@ const AdminPage = () => {
       category: 'Monitoring',
       shortcut: 'L'
     },
+    // {
+    //   id: 'file_explorer',
+    //   label: 'File Explorer',
+    //   icon: <ExplorerIcon />,
+    //   component: <FileExplorer />,
+    //   color: '#4db6ac',
+    //   description: 'Browse and manage file system',
+    //   category: 'Operations',
+    //   shortcut: 'F'
+    // },
     {
-      id: 'file_explorer',
-      label: 'File Explorer',
-      icon: <ExplorerIcon />,
-      component: <FileExplorer />,
-      component: <FileExplorer />,
+      id: 'file-manager',
+      label: 'File Manager',
+      icon: <FileManagerIcon />,
+      component: (
+        <FlmngrManager
+          onSelect={(files) => {
+            //console.log('Selected files:', files);
+            // Handle file selection
+          }}
+          fullscreen={fullScreenComponent === 'file-manager'}
+          onFullscreenToggle={(fullscreen) => {
+            if (fullscreen) {
+              setFullScreenComponent('file-manager');
+            } else {
+              setFullScreenComponent(null);
+            }
+          }}
+          sx={{
+            // Additional customizations
+            '& .MuiTypography-root': {
+              fontFamily: '"Inter", sans-serif',
+            },
+          }}
+          className="custom-file-manager"
+        />
+      ),
       color: '#4db6ac',
-      description: 'Browse and manage file system',
+      badge: 'Professional',
+      description: 'Advanced file management with Flmngr',
       category: 'Operations',
-      shortcut: 'F'
+      shortcut: 'M'
     },
     {
       id: 'system',
       label: 'System Info',
       icon: <SystemIcon />,
-      component: <SystemInfo />,
+      component: <ServerInfo />,
       color: '#26a69a',
       description: 'System performance and metrics',
       category: 'Monitoring',
@@ -255,17 +310,17 @@ const AdminPage = () => {
 
     // Check if child component has its own scrollbar
     const childHasScroller = !fullScreenComponent && viewMode === 'tabs';
-    
+
     return (
-      <Box sx={{ 
-        height: '100%', 
-        display: 'flex', 
+      <Box sx={{
+        height: '100%',
+        display: 'flex',
         flexDirection: 'column',
         // Only set overflow if child doesn't have its own scroller
         overflow: childHasScroller ? 'hidden' : 'auto'
       }}>
-        <Box sx={{ 
-          flex: 1, 
+        <Box sx={{
+          flex: 1,
           // Let child components manage their own scrolling
           minHeight: 0,
           display: 'flex',
@@ -299,7 +354,7 @@ const AdminPage = () => {
     <ThemeProvider theme={adminTheme}>
       <Box
         sx={{
-          minHeight: '100vh',
+          minHeight: '80vh',
           background: `linear-gradient(135deg, ${alpha('#667eea', 0.02)} 0%, ${alpha('#764ba2', 0.02)} 100%)`,
           py: 0,
           px: 0,
@@ -307,13 +362,12 @@ const AdminPage = () => {
           position: 'relative'
         }}
       >
-        <Container 
-          maxWidth="xl" 
+        <Container
+          maxWidth="xl"
           sx={{
             px: { xs: 0.5, sm: 1, md: 2 },
             py: 0.5,
-            height: '100vh',
-            // Allow container to scroll if needed
+            height: '100%',
             position: 'relative'
           }}
         >
@@ -321,7 +375,7 @@ const AdminPage = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            style={{ 
+            style={{
               height: '100%',
               position: 'relative'
             }}

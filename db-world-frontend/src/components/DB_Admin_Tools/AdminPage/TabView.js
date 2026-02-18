@@ -76,7 +76,7 @@ const TabView = ({
 
   const handleRefresh = () => {
     // Add refresh logic here
-    console.log('Refreshing content...');
+    //console.log('Refreshing content...');
   };
 
   const getTabBackground = (tabId) => {

@@ -37,6 +37,9 @@ public class MirrorStatus {
     private String userBy;
     private String folderName;
     private String fileUrl;
+    private String urlUsername;
+    private String urlPassword;
+    private boolean isUrlProtected;
     private boolean magnet;
     private String fileName;
     private String fileType;
@@ -178,6 +181,7 @@ public class MirrorStatus {
         this.fileName = sanitizeFileName(fileName);
         this.fileSize = fileSize;
         this.extract = extract;
+        this.isUrlProtected = false;
 
         initializePaths(this.folderName, this.fileName, this.extract);
         initializeFileType();

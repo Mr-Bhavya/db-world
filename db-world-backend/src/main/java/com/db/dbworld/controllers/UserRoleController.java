@@ -4,7 +4,6 @@ import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.user.UserDto;
 import com.db.dbworld.services.auth.RoleService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,12 +16,10 @@ import java.util.List;
 @RequestMapping("/api/role")
 public class UserRoleController {
 
-    @Autowired
-    private RoleService roleService;
+    @Autowired private RoleService roleService;
 
     @GetMapping("/")
-    public ApiResponse<List<UserDto.UserRole>> getAllRoles(){
-        List<UserDto.UserRole> userRoles = this.roleService.getRoles();
-        return new ApiResponse<>(HttpStatus.OK, true, userRoles);
+    public ApiResponse<List<UserDto.UserRole>> getAllRoles() {
+        return ApiResponse.success(roleService.getRoles());
     }
 }

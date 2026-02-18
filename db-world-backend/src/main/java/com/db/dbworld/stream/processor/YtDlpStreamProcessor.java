@@ -15,63 +15,126 @@ import java.util.regex.Pattern;
 public class YtDlpStreamProcessor extends StreamProcessor {
 
     private static final Gson GSON = new Gson();
-    private static final Pattern JSON_QUOTE_PATTERN = Pattern.compile("^\"|\"$");
+
+    private static final Pattern JSON_QUOTE_PATTERN =
+            Pattern.compile("^\"|\"$");
+
+    private static final Pattern WARNING_PATTERN =
+            Pattern.compile("^WARNING:", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ERROR_PATTERN =
+            Pattern.compile("^ERROR:", Pattern.CASE_INSENSITIVE);
 
     private boolean fileFetched = false;
-    private final Runnable onCompleteCallback;
 
-    public YtDlpStreamProcessor(StatusService statusService, MirrorStatus mirrorStatus, Runnable onCompleteCallback) {
+    public YtDlpStreamProcessor(StatusService statusService, MirrorStatus mirrorStatus) {
         super(statusService, mirrorStatus);
-        this.onCompleteCallback = onCompleteCallback;
+    }
+
+    public YtDlpStreamProcessor() {
+        super();
     }
 
     @Override
     protected void processLine(String line, boolean isErrorStream) {
-        if (isErrorStream) {
-            log.error("[yt-dlp][stderr]: {}", line);
-            StreamLogger.appendHtmlLine(mirrorStatus, line, true, statusService);
+
+        if (StringUtils.isBlank(line)) {
             return;
         }
 
-//        log.info("[yt-dlp][stdout]: {}", line);
+        /* =========================
+         * STDERR
+         * ========================= */
+        if (isErrorStream) {
+
+            if (WARNING_PATTERN.matcher(line).find()) {
+                log.warn("[yt-dlp][warning]: {}", line);
+
+                if (statusEnabled) {
+                    StreamLogger.appendHtmlLine(
+                            mirrorStatus, line, false, statusService
+                    );
+                }
+                return;
+            }
+
+            if (ERROR_PATTERN.matcher(line).find()) {
+                log.error("[yt-dlp][error]: {}", line);
+
+                if (statusEnabled) {
+                    StreamLogger.appendHtmlLine(
+                            mirrorStatus, line, true, statusService
+                    );
+                }
+                throw new DbWorldException(line);
+            }
+
+            log.info("[yt-dlp][stderr]: {}", line);
+
+            if (statusEnabled) {
+                StreamLogger.appendHtmlLine(
+                        mirrorStatus, line, false, statusService
+                );
+            }
+            return;
+        }
+
+        /* =========================
+         * STDOUT
+         * ========================= */
 
         if (line.contains("downloaded_bytes") && line.contains("status")) {
-            if (updateProgress(line) && !fileFetched && line.contains("\"status\": \"finished\"")) {
+
+            boolean updated = statusEnabled && updateProgress(line);
+
+            if (updated && !fileFetched && line.contains("\"status\":\"finished\"")) {
                 fileFetched = true;
-                onCompleteCallback.run();
+                log.info("[yt-dlp] Download finished");
             }
-        } else {
-            StreamLogger.appendHtmlLine(mirrorStatus, line, false, statusService);
+            return;
+        }
+
+        if (statusEnabled) {
+            StreamLogger.appendHtmlLine(
+                    mirrorStatus, line, false, statusService
+            );
         }
     }
 
     private boolean updateProgress(String jsonLine) {
-        if (StringUtils.isBlank(jsonLine)) return false;
 
         try {
-            String cleaned = JSON_QUOTE_PATTERN.matcher(jsonLine.trim()).replaceAll("").replace("\\\"", "\"");
-            YtProcessStatus status = GSON.fromJson(cleaned, YtProcessStatus.class);
+            String cleaned = JSON_QUOTE_PATTERN
+                    .matcher(jsonLine.trim())
+                    .replaceAll("")
+                    .replace("\\\"", "\"");
 
-            if (status != null && status.getDownloaded_bytes() != null) {
-                statusService.updateMirrorStatusWithDownloadState(
-                        mirrorStatus.getId(),
-                        new MirrorStatus.DownloadStatus(
-                                status.getSpeed(),
-                                (long) status.getEta(),
-                                status.getDownloaded_bytes(),
-                                status.getTotal_bytes()
-                        )
-                );
-                return true;
+            YtProcessStatus status =
+                    GSON.fromJson(cleaned, YtProcessStatus.class);
+
+            if (status == null || status.getDownloaded_bytes() == null) {
+                return false;
             }
+
+            statusService.updateMirrorStatusWithDownloadState(
+                    mirrorStatus.getId(),
+                    new MirrorStatus.DownloadStatus(
+                            status.getSpeed(),
+                            (long) status.getEta(),
+                            status.getDownloaded_bytes(),
+                            status.getTotal_bytes()
+                    )
+            );
+
+            return true;
+
         } catch (JsonSyntaxException ex) {
-            StreamLogger.appendHtmlLine(mirrorStatus, jsonLine + " [JSON ERROR]: " + ex.getMessage(), true, statusService);
-            throw new DbWorldException(ex.getMessage());
+            log.debug("yt-dlp partial JSON ignored");
+            return false;
+
         } catch (Exception ex) {
-            StreamLogger.appendHtmlLine(mirrorStatus, jsonLine + " [FATAL ERROR]: " + ex.getMessage(), true, statusService);
+            log.error("Fatal yt-dlp error", ex);
             throw new DbWorldException(ex.getMessage());
         }
-        return false;
     }
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Constants from '../../../Constants';
 import { adminSearchRecord, mirror } from '../../../ApiServices';
@@ -12,17 +12,31 @@ import {
     Chip,
     Autocomplete,
     TextField,
-    Fade
+    Alert,
+    Stack,
+    IconButton,
+    Tooltip
 } from '@mui/material';
 import {
     Folder as FolderIcon,
-    Download as DownloadIcon
+    Download as DownloadIcon,
+    Refresh,
+    ClearAll,
+    AddLink,
+    CheckCircle,
+    Error
 } from '@mui/icons-material';
 import { toast } from '../../../Toast';
 import LinksManager from './LinksManager';
 import SecurityOptions from './SecurityOptions';
 import ProcessingOptions from './ProcessingOptions';
-import QuickActions from './QuickActions';
+
+// Animation variants
+const fadeInUp = {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.3 }
+};
 
 function HttpFile({ onDownloadAdded }) {
     const [links, setLinks] = useState([{ url: "", rename: false, customName: "" }]);
@@ -35,17 +49,66 @@ function HttpFile({ onDownloadAdded }) {
     const [submitLoader, setSubmitLoader] = useState(false);
     const [recordName, setRecordName] = useState("");
     const [recordList, setRecordList] = useState([]);
+    const [searchTimeout, setSearchTimeout] = useState(null);
 
     const navigate = useNavigate();
     const location = useLocation();
 
-    const onSubmit = async () => {
-        try {
-            const invalidLinks = links.filter(link =>
-                link.url.includes("gdtot") || link.url.includes("drive.google.com")
-            );
+    // Calculate active options count
+    const activeOptionsCount = useMemo(() => {
+        let count = 0;
+        if (linkPasswordProtect) count++;
+        if (extract) count++;
+        if (zipPasswordProtect) count++;
 
-            if (invalidLinks.length > 0) {
+        const renameCount = links.filter(link => link.rename && link.customName.trim()).length;
+        count += renameCount;
+
+        return count;
+    }, [linkPasswordProtect, extract, zipPasswordProtect, links]);
+
+    // Count valid links
+    const validLinksCount = useMemo(() => {
+        return links.filter(link => link.url.trim() !== "").length;
+    }, [links]);
+
+    // Validate links
+    const hasInvalidLinks = useMemo(() => {
+        return links.some(link => 
+            link.url.includes("gdtot") || 
+            link.url.includes("drive.google.com")
+        );
+    }, [links]);
+
+    // Search records with debounce
+    const searchDbCinemaRecord = useCallback((searchTerm) => {
+        if (searchTerm && searchTerm.length > 2) {
+            clearTimeout(searchTimeout);
+            const timeout = setTimeout(async () => {
+                try {
+                    const response = await adminSearchRecord(searchTerm);
+                    if (response.httpStatusCode === 200) {
+                        setRecordList(response.data);
+                    }
+                } catch (error) {
+                    console.error('Search error:', error);
+                }
+            }, 300);
+            setSearchTimeout(timeout);
+        }
+    }, [searchTimeout]);
+
+    // Handle record name change
+    const handleRecordNameChange = useCallback((e) => {
+        console.log("Record Name Changed:", e);
+        setRecordName(e?.value || "");
+        searchDbCinemaRecord(e);
+    }, [searchDbCinemaRecord]);
+
+    // Handle form submission
+    const onSubmit = useCallback(async () => {
+        try {
+            if (hasInvalidLinks) {
                 toast.error("Some links are not supported for cloning");
                 return;
             }
@@ -78,10 +141,10 @@ function HttpFile({ onDownloadAdded }) {
             const successCount = results.filter(res => res.httpStatusCode === 200).length;
 
             if (successCount > 0) {
-                toast.success(`Successfully added ${successCount} download${successCount !== 1 ? 's' : ''} to queue`);
+                toast.success(`Added ${successCount} download${successCount !== 1 ? 's' : ''} to queue`);
                 onDownloadAdded?.();
 
-                // Reset form but keep one empty link
+                // Reset form
                 setLinks([{ url: "", rename: false, customName: "" }]);
                 setUsername("");
                 setPassword("");
@@ -92,17 +155,12 @@ function HttpFile({ onDownloadAdded }) {
                 setRecordName("");
             }
 
-            // Handle individual errors
+            // Handle errors
             results.forEach((res, index) => {
-                if (res.httpStatusCode === 401) {
-                    toast.error(res.message + Constants.RE_LOGIN, {
-                        onClose: async () => {
-                            navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-                        },
-                        autoClose: 1000
-                    });
+                if (res.httpStatusCode === 401 || res.httpStatusCode === 403) {
+                    navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
                 } else if (res.httpStatusCode !== 200) {
-                    toast.error(`Failed to add download ${index + 1}: ${res.message}`);
+                    toast.error(`Download ${index + 1}: ${res.message}`);
                 }
             });
 
@@ -112,35 +170,13 @@ function HttpFile({ onDownloadAdded }) {
         } finally {
             setSubmitLoader(false);
         }
-    };
+    }, [
+        links, username, password, recordName, linkPasswordProtect, extract, zipPassword,
+        hasInvalidLinks, navigate, location, onDownloadAdded
+    ]);
 
-    const searchDbCinemaRecord = async () => {
-        if (recordName && recordName.length > 2) {
-            const response = await adminSearchRecord(recordName);
-            if (response.httpStatusCode === 200) {
-                setRecordList(response.data);
-            }
-        }
-    };
-
-    useEffect(() => {
-        searchDbCinemaRecord();
-    }, [recordName]);
-
-    const getActiveOptionsCount = () => {
-        let count = 0;
-        if (linkPasswordProtect) count++;
-        if (extract) count++;
-        if (zipPasswordProtect) count++;
-
-        // Count individual renames
-        const renameCount = links.filter(link => link.rename && link.customName.trim()).length;
-        count += renameCount;
-
-        return count;
-    };
-
-    const clearForm = () => {
+    // Clear form
+    const clearForm = useCallback(() => {
         setLinks([{ url: "", rename: false, customName: "" }]);
         setUsername("");
         setPassword("");
@@ -149,156 +185,267 @@ function HttpFile({ onDownloadAdded }) {
         setZipPassword("");
         setZipPasswordProtect(false);
         setRecordName("");
-    };
+    }, []);
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+        };
+    }, [searchTimeout]);
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.2 }}
             style={{ margin: 0, padding: 0 }}
         >
-            <Paper
-                elevation={0}
-                sx={{
-                    background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
-                }}
-            >
-                <Box sx={{ p: 1 }}>
-                    {/* Header Section */}
-                    <Box sx={{ mb: 3, textAlign: 'center' }}>
-                        <Typography
-                            variant="h5"
-                            fontWeight="700"
-                            color="#2c3e50"
-                            gutterBottom
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 1
-                            }}
-                        >
-                            <DownloadIcon sx={{ fontSize: 28, color: '#007bff' }} />
-                            HTTP File Download
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Add HTTP file links to download queue
-                        </Typography>
-                    </Box>
+            {/* Header Section */}
+            <Stack spacing={1.5} sx={{ mb: 3 }}>
+                <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1.5,
+                    flexWrap: 'wrap' 
+                }}>
+                    <DownloadIcon sx={{ fontSize: 24, color: 'primary.main' }} />
+                    <Typography variant="h6" fontWeight="600">
+                        HTTP File Download
+                    </Typography>
+                    <Chip
+                        size="small"
+                        label={`${validLinksCount} link${validLinksCount !== 1 ? 's' : ''}`}
+                        color="primary"
+                        variant="outlined"
+                        sx={{ fontWeight: 500 }}
+                    />
+                </Box>
+                
+                {hasInvalidLinks && (
+                    <Alert severity="warning" sx={{ py: 0.5 }}>
+                        Some links are not supported for cloning
+                    </Alert>
+                )}
 
-                    {/* Active Options Counter */}
-                    <Box sx={{ mb: 3, textAlign: 'center' }}>
-                        <Chip
-                            label={`${getActiveOptionsCount()} active option${getActiveOptionsCount() !== 1 ? 's' : ''}`}
-                            color="primary"
-                            variant="filled"
-                            sx={{
-                                fontWeight: 600,
-                                fontSize: '0.9rem',
-                                py: 1
-                            }}
-                        />
-                    </Box>
+                <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1,
+                    flexWrap: 'wrap' 
+                }}>
+                    <Chip
+                        size="small"
+                        icon={<CheckCircle fontSize="small" />}
+                        label={`${activeOptionsCount} active option${activeOptionsCount !== 1 ? 's' : ''}`}
+                        color={activeOptionsCount > 0 ? "primary" : "default"}
+                        variant="filled"
+                        sx={{ fontWeight: 500, fontSize: '0.75rem' }}
+                    />
+                </Box>
+            </Stack>
 
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
-                        {/* Left Column */}
-                        <Box>
-                            {/* Record Selection */}
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: 1.5,
-                                    mb: 3,
-                                    background: 'rgba(255,255,255,0.8)',
-                                    border: '1px solid rgba(0,0,0,0.06)',
-                                    borderRadius: '12px'
-                                }}
-                            >
-                                <Typography variant="h6" fontWeight="600" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <FolderIcon sx={{ color: '#007bff' }} />
+            {/* Main Form Grid */}
+            <Box sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
+                gap: 2.5 
+            }}>
+                {/* Left Column */}
+                <Stack spacing={2.5}>
+                    {/* Record Selection */}
+                    <Paper
+                        variant="outlined"
+                        sx={{ p: 2, borderRadius: 2 }}
+                    >
+                        <Stack spacing={1.5}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <FolderIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                <Typography variant="subtitle1" fontWeight="600">
                                     Destination Folder
                                 </Typography>
-                                <Autocomplete
+                            </Box>
+                            
+                            <Autocomplete
+                                freeSolo
+                                size="small"
+                                options={recordList.map((item) => ({
+                                    label: `${item.recordId}-${item.name}`,
+                                    value: `${item.recordId}-${item.name}`,
+                                    type: item.type
+                                }))}
+                                value={recordName}
+                                onChange={(_, value) => handleRecordNameChange(value || '')}
+                                onInputChange={(_, value) => handleRecordNameChange(value)}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        placeholder="Select or type folder name..."
+                                        variant="outlined"
+                                        sx={{
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: 1.5
+                                            }
+                                        }}
+                                    />
+                                )}
+                                renderOption={(props, option) => (
+                                    <Box component="li" {...props}>
+                                        <Stack direction="row" justifyContent="space-between" width="100%">
+                                            <Typography variant="body2">
+                                                {option.label}
+                                            </Typography>
+                                            <Chip
+                                                label={option.type}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ ml: 1, fontSize: '0.625rem' }}
+                                            />
+                                        </Stack>
+                                    </Box>
+                                )}
+                            />
+                        </Stack>
+                    </Paper>
+
+                    {/* Links Manager */}
+                    <LinksManager
+                        links={links}
+                        onLinksChange={setLinks}
+                    />
+                </Stack>
+
+                {/* Right Column */}
+                <Stack spacing={2.5}>
+                    {/* Security Options */}
+                    <SecurityOptions
+                        linkPasswordProtect={linkPasswordProtect}
+                        onLinkPasswordProtectChange={setLinkPasswordProtect}
+                        username={username}
+                        onUsernameChange={setUsername}
+                        password={password}
+                        onPasswordChange={setPassword}
+                        zipPasswordProtect={zipPasswordProtect}
+                        onZipPasswordProtectChange={setZipPasswordProtect}
+                        zipPassword={zipPassword}
+                        onZipPasswordChange={setZipPassword}
+                    />
+
+                    {/* Processing Options */}
+                    <ProcessingOptions
+                        extract={extract}
+                        onExtractChange={setExtract}
+                    />
+
+                    {/* Action Buttons */}
+                    <Paper
+                        variant="outlined"
+                        sx={{ p: 2, borderRadius: 2 }}
+                    >
+                        <Stack spacing={1.5}>
+                            <Typography variant="subtitle2" fontWeight="600" color="text.secondary">
+                                Submit Download
+                            </Typography>
+                            
+                            <Stack direction="row" spacing={1.5}>
+                                <Button
                                     fullWidth
-                                    freeSolo
-                                    options={recordList.map((item) => ({
-                                        label: `${item.recordId}-${item.name} (${item.type})`,
-                                        value: `${item.recordId}-${item.name}`
-                                    }))}
-
-                                    // Clean on input
-                                    onInputChange={(_, value) => {
-                                        if (!value) return setRecordName('');
-                                        const cleaned = value.replace(/\s*\(.*?\)\s*$/, '').trim();
-                                        setRecordName(cleaned);
+                                    variant="contained"
+                                    onClick={onSubmit}
+                                    disabled={submitLoader || validLinksCount === 0}
+                                    startIcon={
+                                        submitLoader ? 
+                                        <CircularProgress size={16} color="inherit" /> : 
+                                        <AddLink />
+                                    }
+                                    sx={{
+                                        borderRadius: 1.5,
+                                        py: 1.25,
+                                        fontWeight: 600
                                     }}
+                                >
+                                    {submitLoader ? 'Adding...' : `Add ${validLinksCount} Download${validLinksCount !== 1 ? 's' : ''}`}
+                                </Button>
 
-                                    renderInput={(params) => (
-                                        <TextField
-                                            {...params}
-                                            placeholder="Select or type record name..."
-                                            variant="outlined"
-                                            size="small"
-                                            sx={{
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: '8px',
-                                                    background: 'white'
-                                                }
-                                            }}
-                                        />
-                                    )}
+                                <Tooltip title="Clear Form">
+                                    <IconButton
+                                        onClick={clearForm}
+                                        disabled={submitLoader}
+                                        sx={{
+                                            border: '1px solid',
+                                            borderColor: 'divider',
+                                            borderRadius: 1.5,
+                                            width: 48,
+                                            height: 48
+                                        }}
+                                    >
+                                        <ClearAll />
+                                    </IconButton>
+                                </Tooltip>
+                            </Stack>
 
-                                    getOptionLabel={(option) => option.label || option}
-                                />
-                            </Paper>
+                            <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: 1,
+                                pt: 1
+                            }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    {validLinksCount === 0 ? 'Add links to enable submit' : 'Ready to submit'}
+                                </Typography>
+                                
+                                {validLinksCount > 0 && (
+                                    <Chip
+                                        size="small"
+                                        label={`${validLinksCount} valid link${validLinksCount !== 1 ? 's' : ''}`}
+                                        color="success"
+                                        variant="outlined"
+                                        sx={{ fontSize: '0.625rem' }}
+                                    />
+                                )}
+                            </Box>
+                        </Stack>
+                    </Paper>
+                </Stack>
+            </Box>
 
-                            {/* Links Manager */}
-                            <LinksManager
-                                links={links}
-                                onLinksChange={setLinks}
-                            />
-                        </Box>
+            {/* Quick Stats Footer */}
+            <Box sx={{ 
+                mt: 3, 
+                pt: 2, 
+                borderTop: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 1
+            }}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Chip
+                        size="small"
+                        label={`Links: ${validLinksCount}`}
+                        variant="outlined"
+                        sx={{ fontSize: '0.75rem' }}
+                    />
+                    <Chip
+                        size="small"
+                        label={`Options: ${activeOptionsCount}`}
+                        variant="outlined"
+                        sx={{ fontSize: '0.75rem' }}
+                    />
+                </Stack>
 
-                        {/* Right Column */}
-                        <Box>
-                            {/* Security Options */}
-                            <SecurityOptions
-                                linkPasswordProtect={linkPasswordProtect}
-                                onLinkPasswordProtectChange={setLinkPasswordProtect}
-                                username={username}
-                                onUsernameChange={setUsername}
-                                password={password}
-                                onPasswordChange={setPassword}
-                                zipPasswordProtect={zipPasswordProtect}
-                                onZipPasswordProtectChange={setZipPasswordProtect}
-                                zipPassword={zipPassword}
-                                onZipPasswordChange={setZipPassword}
-                            />
-
-                            {/* Processing Options */}
-                            <ProcessingOptions
-                                extract={extract}
-                                onExtractChange={setExtract}
-                            />
-
-                            {/* Quick Actions */}
-                            <QuickActions
-                                onSubmit={onSubmit}
-                                onClear={clearForm}
-                                submitLoader={submitLoader}
-                                hasValidLinks={links.some(link => link.url.trim() !== "")}
-                            />
-                        </Box>
-                    </Box>
-                </Box>
-            </Paper>
+                <Typography variant="caption" color="text.secondary">
+                    HTTP File Download Manager
+                </Typography>
+            </Box>
         </motion.div>
     );
 }
 
-export default HttpFile;
+export default React.memo(HttpFile);

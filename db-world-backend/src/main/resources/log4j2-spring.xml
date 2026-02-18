@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="30" shutdownHook="disable" packages="com.db.dbworld.logging">
+    <Properties>
+        <Property name="APP_NAME">${spring:app.name:-db-world}</Property>
+        <Property name="PROFILE">${spring:spring.profiles.active:-prod}</Property>
+        <Property name="LOG_PATH">${spring:app.paths.logs:-logs}</Property>
+        <Property name="LOG_MAX_FILE_SIZE">100MB</Property>
+        <Property name="LOG_MAX_FILES">30</Property>
+        <Property name="LOG_TOTAL_SIZE_CAP">3GB</Property>
+        <Property name="LOG_ARCHIVE_PATH">${LOG_PATH}/rotated/app</Property>
+
+        <!-- ========== FILE PATTERNS ========== -->
+
+        <!-- Normal application logs (single-line, IST) -->
+        <Property name="NORMAL_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS}{IST} [%t] [${APP_NAME}] [${PROFILE}] %-5level %logger{36} %notEmpty{[traceId=%X{traceId}]} %notEmpty{[requestId=%X{requestId}]} - %msg%n%ex</Property>
+
+        <!-- Filter / request logs with full MDC + MD5 (single-line, IST) -->
+        <Property name="FILTER_MDC_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS}{IST} [%t] [${APP_NAME}] [${PROFILE}] %-5level %logger{36} %notEmpty{[user=%X{user}]} %notEmpty{[requestId=%X{requestId}]} %notEmpty{[traceId=%X{traceId}]} %notEmpty{[method=%X{method}]} %notEmpty{[uri=%X{uri}]} %notEmpty{[status=%X{status}]} %notEmpty{[duration=%X{duration}]} %notEmpty{[md5=%X{md5}]} - %msg%n%ex</Property>
+
+        <!-- ========== CONSOLE PATTERNS ========== -->
+
+        <!-- Console pattern for FILTER logs with colors and MD5 -->
+        <Property name="CONSOLE_FILTER_PATTERN">%style{%d{yyyy-MM-dd HH:mm:ss.SSS}{IST}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta} %notEmpty{%style{[user=%X{user}]}{green}} %notEmpty{%style{[traceId=%X{traceId}]}{yellow}} %notEmpty{%style{[uri=%X{uri}]}{cyan}} %notEmpty{%style{[md5=%X{md5}]}{blue}} - %msg%n%style{%ex}{red}</Property>
+
+        <!-- Console pattern for NORMAL logs (without MD5) -->
+        <Property name="CONSOLE_NORMAL_PATTERN">%style{%d{yyyy-MM-dd HH:mm:ss.SSS}{IST}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta} %notEmpty{%style{[traceId=%X{traceId}]}{yellow}} - %msg%n%style{%ex}{red}</Property>
+
+        <!-- ========== WEBSOCKET PATTERNS ========== -->
+
+        <!-- WS ADD: single-line JSON pattern safe for WebSocket streaming -->
+        <Property name="WS_JSON_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","isRequest":"%X{isRequest}","thread":"%t","logger":"%c","service":"%c","message":"%enc{%m}{JSON}","requestId":"%X{requestId}","traceId":"%X{traceId}","user":"%X{user}","method":"%X{method}","path":"%X{uri}","statusCode":"%X{status}","duration":"%X{duration}","md5":"%X{md5}","isRequest":"%notEmpty{%X{method}}","exception":"%enc{%ex}{JSON}"}%n</Property>
+
+        <!-- WS ADD: fallback simple line pattern -->
+        <Property name="WS_SIMPLE_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS}{IST} %-5level %logger{36} - %msg%n</Property>
+
+    </Properties>
+
+
+    <Appenders>
+        <!-- ========== CONSOLE APPENDERS ========== -->
+
+        <!-- Console for FILTER logs with MD5 -->
+        <Console name="CONSOLE_FILTER" target="SYSTEM_OUT">
+            <PatternLayout pattern="${CONSOLE_FILTER_PATTERN}" disableAnsi="false"/>
+        </Console>
+
+        <!-- Console for NORMAL logs (without MD5) -->
+        <Console name="CONSOLE_NORMAL" target="SYSTEM_OUT">
+            <PatternLayout pattern="${CONSOLE_NORMAL_PATTERN}" disableAnsi="false"/>
+        </Console>
+
+        <!-- ========== HUMAN READABLE FILES ========== -->
+
+        <!-- INFO and above logs -->
+        <RollingFile name="HUMAN_INFO" fileName="${LOG_PATH}/${APP_NAME}-info.log"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-info-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${NORMAL_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}">
+                <Delete basePath="${LOG_ARCHIVE_PATH}" maxDepth="2">
+                    <IfLastModified age="30d"/>
+                    <IfAccumulatedFileSize exceeds="${LOG_TOTAL_SIZE_CAP}"/>
+                </Delete>
+            </DefaultRolloverStrategy>
+            <Filters>
+                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+        <!-- DEBUG logs -->
+        <RollingFile name="HUMAN_DEBUG" fileName="${LOG_PATH}/${APP_NAME}-debug.log"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-debug-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${NORMAL_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <Filters>
+                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+                <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
+            </Filters>
+        </RollingFile>
+
+        <!-- REQUEST logs -->
+        <RollingFile name="HUMAN_REQUEST" fileName="${LOG_PATH}/${APP_NAME}-request.log"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-request-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${FILTER_MDC_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+        </RollingFile>
+
+        <!-- ERROR logs -->
+        <RollingFile name="HUMAN_ERROR" fileName="${LOG_PATH}/${APP_NAME}-error.log"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-error-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${NORMAL_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <Filters>
+                <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+        <!-- ========== JSON FILES ========== -->
+
+        <!-- JSON INFO logs -->
+        <RollingFile name="JSON_INFO" fileName="${LOG_PATH}/${APP_NAME}-info.json"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-info-%d{yyyy-MM-dd}-%i.json.gz">
+            <!-- WS FIX: JSON made single-line (was multi-line → breaks streaming parsers) -->
+            <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <Filters>
+                <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+        <!-- JSON DEBUG logs -->
+        <RollingFile name="JSON_DEBUG" fileName="${LOG_PATH}/${APP_NAME}-debug.json"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-debug-%d{yyyy-MM-dd}-%i.json.gz">
+            <!-- WS FIX: single-line -->
+            <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <Filters>
+                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+                <ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
+            </Filters>
+        </RollingFile>
+
+        <!-- JSON REQUEST logs -->
+        <RollingFile name="JSON_REQUEST" fileName="${LOG_PATH}/${APP_NAME}-request.json"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-request-%d{yyyy-MM-dd}-%i.json.gz">
+            <!-- WS FIX: single-line -->
+            <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;user&quot;:&quot;%X{user}&quot;,&quot;requestId&quot;:&quot;%X{requestId}&quot;,&quot;traceId&quot;:&quot;%X{traceId}&quot;,&quot;method&quot;:&quot;%X{method}&quot;,&quot;uri&quot;:&quot;%X{uri}&quot;,&quot;status&quot;:&quot;%X{status}&quot;,&quot;duration&quot;:&quot;%X{duration}&quot;,&quot;md5&quot;:&quot;%X{md5}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+        </RollingFile>
+
+        <!-- JSON ERROR logs -->
+        <RollingFile name="JSON_ERROR" fileName="${LOG_PATH}/${APP_NAME}-error.json"
+                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-error-%d{yyyy-MM-dd}-%i.json.gz">
+            <!-- WS FIX: single-line -->
+            <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;,&quot;stacktrace&quot;:&quot;%enc{%ex{full}}{JSON}&quot;}%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <Filters>
+                <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+        </RollingFile>
+
+        <!-- WS ADD: Custom WebSocket appender -->
+        <!-- WS: uses single-line pattern to ensure one WS frame per log event -->
+        <WebSocketAppender name="WS">
+            <PatternLayout pattern="${WS_JSON_PATTERN}"/>
+        </WebSocketAppender>
+
+        <!-- ========== ASYNC APPENDERS ========== -->
+
+        <!-- Async console for FILTER logs -->
+        <Async name="ASYNC_CONSOLE_FILTER" bufferSize="10240">
+            <AppenderRef ref="CONSOLE_FILTER"/>
+        </Async>
+
+        <!-- Async console for NORMAL logs -->
+        <Async name="ASYNC_CONSOLE_NORMAL" bufferSize="10240">
+            <AppenderRef ref="CONSOLE_NORMAL"/>
+        </Async>
+
+        <Async name="ASYNC_HUMAN_INFO" bufferSize="51200">
+            <AppenderRef ref="HUMAN_INFO"/>
+        </Async>
+
+        <Async name="ASYNC_HUMAN_DEBUG" bufferSize="51200">
+            <AppenderRef ref="HUMAN_DEBUG"/>
+        </Async>
+
+        <Async name="ASYNC_HUMAN_REQUEST" bufferSize="51200">
+            <AppenderRef ref="HUMAN_REQUEST"/>
+        </Async>
+
+        <Async name="ASYNC_HUMAN_ERROR" bufferSize="25600">
+            <AppenderRef ref="HUMAN_ERROR"/>
+        </Async>
+
+        <Async name="ASYNC_JSON_INFO" bufferSize="51200">
+            <AppenderRef ref="JSON_INFO"/>
+        </Async>
+
+        <Async name="ASYNC_JSON_DEBUG" bufferSize="51200">
+            <AppenderRef ref="JSON_DEBUG"/>
+        </Async>
+
+        <Async name="ASYNC_JSON_REQUEST" bufferSize="51200">
+            <AppenderRef ref="JSON_REQUEST"/>
+        </Async>
+
+        <Async name="ASYNC_JSON_ERROR" bufferSize="25600">
+            <AppenderRef ref="JSON_ERROR"/>
+        </Async>
+
+        <Async name="ASYNC_WS" bufferSize="10240">
+            <AppenderRef ref="WS"/>
+        </Async>
+
+    </Appenders>
+
+    <Loggers>
+        <!-- Filter logs - use CONSOLE_FILTER (with MD5) -->
+        <Logger name="com.db.dbworld.filters" level="INFO" additivity="true">
+            <AppenderRef ref="ASYNC_CONSOLE_FILTER"/>
+            <AppenderRef ref="ASYNC_HUMAN_REQUEST"/>
+            <AppenderRef ref="ASYNC_JSON_REQUEST"/>
+            <AppenderRef ref="ASYNC_WS"/>
+        </Logger>
+
+        <!-- Application logs - use CONSOLE_NORMAL (without MD5) -->
+        <Logger name="com.db.dbworld" level="DEBUG" additivity="true">
+            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
+            <AppenderRef ref="ASYNC_HUMAN_INFO"/>
+            <AppenderRef ref="ASYNC_HUMAN_DEBUG"/>
+            <AppenderRef ref="ASYNC_HUMAN_ERROR"/>
+            <AppenderRef ref="ASYNC_JSON_INFO"/>
+            <AppenderRef ref="ASYNC_JSON_DEBUG"/>
+            <AppenderRef ref="ASYNC_JSON_ERROR"/>
+            <AppenderRef ref="ASYNC_WS"/>
+        </Logger>
+
+        <!-- Third-party logs - use CONSOLE_NORMAL (without MD5) -->
+        <Logger name="org.springframework" level="INFO" additivity="false">
+            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
+        </Logger>
+
+        <Logger name="org.hibernate" level="WARN" additivity="false">
+            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
+        </Logger>
+
+        <Logger name="org.apache" level="WARN" additivity="false">
+            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
+        </Logger>
+
+        <Logger name="com.zaxxer.hikari" level="INFO" additivity="false">
+            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
+        </Logger>
+
+        <!-- Root logger - use CONSOLE_NORMAL (without MD5) -->
+        <Root level="INFO">
+            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
+            <AppenderRef ref="ASYNC_HUMAN_INFO"/>
+            <AppenderRef ref="ASYNC_JSON_INFO"/>
+            <AppenderRef ref="ASYNC_HUMAN_ERROR"/>
+            <AppenderRef ref="ASYNC_JSON_ERROR"/>
+            <AppenderRef ref="ASYNC_WS"/> <!-- WS ADD -->
+        </Root>
+    </Loggers>
+</Configuration>

@@ -11,7 +11,6 @@ import jakarta.validation.Valid;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.bind.annotation.*;
@@ -24,59 +23,45 @@ import java.util.*;
 @EnableMethodSecurity
 public class UserController {
 
-    @Autowired
-    private UserService userService;
-    @Autowired
-    private ModelMapper modelMapper;
-
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
-
-    @Autowired
-    private LoginDataService loginDataService;
+    @Autowired private UserService userService;
+    @Autowired private ModelMapper modelMapper;
+    @Autowired private DbWorldUtils dbWorldUtils;
+    @Autowired private LoginDataService loginDataService;
 
     @GetMapping("/{userId}")
     @PreAuthorize(DbWorldConstants.OWNER_AUTHORIZE)
-    public ApiResponse<List<UserDto>> getUserById(@PathVariable(value = "userId") Long userId) {
-        UserDto userDto = this.userService.getUserDtoById(userId);
-        return new ApiResponse<>(HttpStatus.OK, true, Arrays.stream(new UserDto[]{userDto}).toList());
+    public ApiResponse<List<UserDto>> getUserById(@PathVariable Long userId) {
+        return ApiResponse.success(List.of(userService.getUserDtoById(userId)));
     }
 
     @GetMapping("/")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<ResponsePayloads.UserProfileResponse>> getUserProfile() {
-        UserDto userDto = this.userService.getUserProfile();
-        ResponsePayloads.UserProfileResponse profileResponse = this.modelMapper.map(userDto, ResponsePayloads.UserProfileResponse.class);
-        profileResponse.setNoOfLogin(this.loginDataService.totalNumberOfLogin(userDto.getUserId()));
-        return new ApiResponse<>(HttpStatus.OK, true, Collections.singletonList(profileResponse));
+        UserDto userDto = userService.getUserProfile();
+        ResponsePayloads.UserProfileResponse profile = modelMapper.map(userDto, ResponsePayloads.UserProfileResponse.class);
+        profile.setNoOfLogin(loginDataService.totalNumberOfLogin(userDto.getUserId()));
+        return ApiResponse.success(List.of(profile));
     }
-
 
     @PutMapping("/{userId}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<UserDto> updateUser(@Valid
-                                           @RequestBody UserDto userDto,
-                                           @PathVariable(value = "userId") Long userId
-    ) {
-        UserDto updatedUser = this.userService.updateUser(userDto, userId);
-        return new ApiResponse<>(HttpStatus.OK, true, updatedUser);
+    public ApiResponse<UserDto> updateUser(@Valid @RequestBody UserDto userDto, @PathVariable Long userId) {
+        return ApiResponse.success(userService.updateUser(userDto, userId));
     }
 
     @GetMapping("/role")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getUserRole() {
-        UserDto.UserRole userRole = this.userService.getRoleForUser();
-        Map<String, Object> response = new HashMap<>();
-        response.put("userId", userService.getUserIdFromToken());
-        response.put("role", userRole);
-        return new ApiResponse<>(HttpStatus.OK, true, response);
+        Map<String, Object> r = new HashMap<>();
+        r.put("userId", userService.getUserIdFromToken());
+        r.put("role", userService.getRoleForUser());
+        return ApiResponse.success(r);
     }
 
     @PutMapping("/dob={dob}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> updateDobForUser(@PathVariable(value = "dob") @DateTimeFormat(pattern = "yyyy-MM-dd") Date dob) {
+    public ApiResponse<Void> updateDobForUser(@PathVariable @DateTimeFormat(pattern = "yyyy-MM-dd") Date dob) {
         userService.updateDob(dob);
-        return new ApiResponse<>(HttpStatus.OK, true, "Dob is updated");
+        return ApiResponse.success("Dob is updated");
     }
-
 }

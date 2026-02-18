@@ -5,7 +5,6 @@ import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import Footer from '../../components/Footer/Footer';
 import { useIntersectionObserver } from '../../services/cinemaConfig';
-import Snowfall from 'react-snowfall';
 
 // Animation variants
 const containerVariants = {
@@ -267,13 +266,13 @@ const CinemaPage = ({
 
   // Sync selectedGenre with selectedCategory from navbar context
   useEffect(() => {
-    console.log("Selected category changed:", selectedCategory);
+    //console.log("Selected category changed:", selectedCategory);
     if (selectedCategory && selectedCategory.id) {
       setSelectedGenre(selectedCategory);
-      console.log("Setting selectedGenre to:", selectedCategory);
+      //console.log("Setting selectedGenre to:", selectedCategory);
     } else {
       setSelectedGenre(null);
-      console.log("Clearing selectedGenre");
+      //console.log("Clearing selectedGenre");
     }
   }, [selectedCategory]);
 
@@ -300,14 +299,14 @@ const CinemaPage = ({
 
   // Handlers
   const handleCategorySelect = useCallback((genre) => {
-    console.log("Category selected in CinemaPage:", genre);
+    //console.log("Category selected in CinemaPage:", genre);
     setSelectedGenre(genre);
     onGenreSelect(genre);
     window.scrollTo(0, 0);
   }, [onGenreSelect]);
 
   const handleBackToHome = useCallback(() => {
-    console.log("Back to home from CinemaPage");
+    //console.log("Back to home from CinemaPage");
     setSelectedGenre(null);
     clearCategory();
     onBackToHome();
@@ -320,16 +319,16 @@ const CinemaPage = ({
   }, [onColorChange]);
 
   const handleNavbarCollapseChange = useCallback((collapsed) => {
-    console.log("Navbar collapse changed:", collapsed);
+    //console.log("Navbar collapse changed:", collapsed);
   }, []);
 
   const handleFooterNavigation = useCallback((item) => {
-    console.log("Footer navigation:", item);
+    //console.log("Footer navigation:", item);
     onNavigate(item);
   }, [onNavigate]);
 
   const handleFooterCategorySelect = useCallback((category) => {
-    console.log("Footer category selected:", category);
+    //console.log("Footer category selected:", category);
     handleCategorySelect({ name: category, id: category.toLowerCase() });
   }, [handleCategorySelect]);
 
@@ -342,7 +341,7 @@ const CinemaPage = ({
 
   // Debug logging
   useEffect(() => {
-    console.log("Current state - selectedGenre:", selectedGenre, "selectedCategory:", selectedCategory);
+    //console.log("Current state - selectedGenre:", selectedGenre, "selectedCategory:", selectedCategory);
   }, [selectedGenre, selectedCategory]);
 
   // Calculate content margin based on whether we're in genre view
@@ -441,15 +440,6 @@ const CinemaPage = ({
       variants={containerVariants}
       style={{ '--navbar-bg-color': coverColor }}
     >
-
-      <Snowfall
-        style={{
-          position: 'fixed',
-          width: '100vw',
-          height: '100vh',
-          zIndex: 100000
-        }}
-        snowflakeCount={50} />
 
       {/* Navbar - Always visible, even when genre is selected */}
       <NavbarComponent

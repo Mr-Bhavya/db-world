@@ -20,17 +20,17 @@ export const useWebSocket = (url, onMessage, onError) => {
 
   const connect = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState <= 1) {
-      console.log("⚡ Existing WebSocket still open or connecting, skipping new connection");
+      //console.log("⚡ Existing WebSocket still open or connecting, skipping new connection");
       return;
     }
 
-    console.log(`🔄 Connecting WebSocket: ${url}`);
+    //console.log(`🔄 Connecting WebSocket: ${url}`);
 
     const socket = new WebSocket(url);
     wsRef.current = socket;
 
     socket.onopen = () => {
-      console.log("✅ WebSocket connected");
+      //console.log("✅ WebSocket connected");
       setIsConnected(true);
       setConnectionError(null);
       reconnectAttemptsRef.current = 0;
@@ -65,7 +65,7 @@ export const useWebSocket = (url, onMessage, onError) => {
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 15000);
           reconnectAttemptsRef.current++;
-          console.log(`⏳ Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
+          //console.log(`⏳ Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
           reconnectTimeoutRef.current = setTimeout(connect, delay);
         } else {
           setConnectionError("Max reconnect attempts reached.");
@@ -79,7 +79,7 @@ export const useWebSocket = (url, onMessage, onError) => {
     if (socket && socket.readyState === WebSocket.OPEN) {
       try {
         socket.send(JSON.stringify(message));
-        console.log("📤 Sent message:", message);
+        //console.log("📤 Sent message:", message);
         return true;
       } catch (err) {
         console.error("❌ Failed to send message:", err);
@@ -87,13 +87,13 @@ export const useWebSocket = (url, onMessage, onError) => {
       }
     } else {
       messageQueueRef.current.push(message);
-      console.log("⏳ Queued message, socket not ready:", message);
+      //console.log("⏳ Queued message, socket not ready:", message);
       return false;
     }
   }, []);
 
   const reconnect = useCallback(() => {
-    console.log("🔄 Manual reconnect triggered");
+    //console.log("🔄 Manual reconnect triggered");
     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     reconnectAttemptsRef.current = 0;
     setConnectionError(null);
@@ -102,7 +102,7 @@ export const useWebSocket = (url, onMessage, onError) => {
   }, [connect]);
 
   const disconnect = useCallback(() => {
-    console.log("🔌 Disconnecting WebSocket");
+    //console.log("🔌 Disconnecting WebSocket");
     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     if (wsRef.current) {
       wsRef.current.close(1000, "Manual disconnect");

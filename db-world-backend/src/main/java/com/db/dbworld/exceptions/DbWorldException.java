@@ -1,38 +1,39 @@
 package com.db.dbworld.exceptions;
 
 import lombok.Getter;
-import lombok.Setter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-@Setter
 public class DbWorldException extends RuntimeException {
 
-    private String message;
-    private HttpStatus httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-    private Object data;
+    private final HttpStatus httpStatus;
+    private final Object data;
+
+    /* ========================= CONSTRUCTORS ========================= */
 
     public DbWorldException(String message) {
-        super(message);
-        this.message = message;
+        this(HttpStatus.INTERNAL_SERVER_ERROR, message, null, null);
     }
 
-    public DbWorldException(String message, Object data) {
-        super(message);
-        this.message = message;
-        this.data = data;
+    public DbWorldException(String message, Throwable cause) {
+        this(HttpStatus.INTERNAL_SERVER_ERROR, message, null, cause);
     }
 
-    public DbWorldException(HttpStatus httpStatus, String message) {
-        super(message);
-        this.message = message;
-        this.httpStatus = httpStatus;
+    public DbWorldException(HttpStatus status, String message) {
+        this(status, message, null, null);
     }
 
-    public DbWorldException(HttpStatus httpStatus, String message, Object data) {
-        super(message);
-        this.message = message;
-        this.httpStatus = httpStatus;
+    public DbWorldException(HttpStatus status, String message, Object data) {
+        this(status, message, data, null);
+    }
+
+    public DbWorldException(HttpStatus status, String message, Throwable cause) {
+        this(status, message, null, cause);
+    }
+
+    public DbWorldException(HttpStatus status, String message, Object data, Throwable cause) {
+        super(message, cause);
+        this.httpStatus = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
         this.data = data;
     }
 

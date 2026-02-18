@@ -7,10 +7,11 @@ app:
   base-path: D:/home/dbworld_admin/ext_hdisk/dbworld
   data-path: D:/home/dbworld_admin/ext_hdisk/dbworld
   stream-path: D:/Bhavya/Videos
+  symlink-path: D:/Bhavya/video-symlink
 
   paths:
     logs: ${app.base-path}/logs/
-    main-log: ${app.paths.logs}/dbworld.json
+    main-log: ${app.paths.logs}/${app.name}.json
     download-log: ${app.paths.logs}/logs/downloads.log
     config: ${app.base-path}/config
     temp: ${app.data-path}/temp
@@ -106,6 +107,13 @@ server:
 spring:
   application:
     name: ${app.name}
+  # Enable ANSI colors
+  output:
+    ansi:
+      enabled: always
+  devtools:
+    restart:
+      enabled: false
 
   # ---------------------------
   # Database Configuration
@@ -183,8 +191,8 @@ spring:
   mvc:
     async:
       request-timeout: 30000
-    converters:
-      preferred-json-mapper: gson
+#    converters:
+#      preferredF-json-mapper: gson
 
   # ---------------------------
   # Async Configuration
@@ -263,32 +271,37 @@ aria2:
     url: ${ARIA2_WS_URL:ws://localhost:6800/jsonrpc}
 
 # ===========================
-# Logging Configuration (Externalized)
+# MINIMAL LOGGING CONFIGURATION
+# (Detailed config in log4j2-spring.xml)
 # ===========================
 logging:
-  level:
-    root: INFO
-    com.db.dbworld: DEBUG
-    org.hibernate: WARN
-    org.springframework: INFO
-    com.db.dbworld.config.SinglePageAppConfig: DEBUG
+  config: classpath:log4j2-spring.xml
 
-dbworld:
-  paths:
-    tempDownloadPath: D:/Bhavya/Temp/
-    logFilePath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/dbworld.json
-    log4j2LogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs
-    downloadLogPath: D:/home/dbworld_admin/ext_hdisk/dbworld/logs/downloads.log
-    integrationFolderPath: D:/Bhavya/ProcessedVideos/
-    streamHomePath: D:/Bhavya/Videos
-    externalStreamHomePath: F:/Bhavya/Videos
-    torrentDownloadPath: "D:/Bhavya/Videos/Torrent Download"
-    yt-dlp: yt-dlp
-    mediainfo: D:\Bhavya\Downloads\Compressed\MediaInfo_CLI_24.12_Windows_x64\mediainfo
-    hsCookiesPath: D:\\Bhavya\\StartUp_Scripts\\Deployed\\cookies\\HS_COOKIES.txt
-    extHDiskPath: D:/Bhavya
-  api_keys:
-    tmdb: 30061af77dba3722bbe14a2691055544
+  # Basic level overrides (can be overridden by logback config)
+  level:
+    # Application packages
+#    com.db.dbworld: ${APP_LOG_LEVEL:DEBUG}
+    com.db.dbworld: INFO
+    com.db.dbworld.controller: INFO
+    com.db.dbworld.service: INFO
+    com.db.dbworld.repository: INFO
+    com.db.dbworld.security: INFO
+
+    # Framework packages
+    root: ${ROOT_LOG_LEVEL:INFO}
+    org.hibernate: ${HIBERNATE_LOG_LEVEL:WARN}
+    org.hibernate.SQL: WARN
+    org.hibernate.type: TRACE
+    org.springframework: ${SPRING_LOG_LEVEL:INFO}
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+
+    # Database and connection
+    com.zaxxer.hikari: INFO
+
+    # Third-party
+    org.apache: WARN
+    com.fasterxml.jackson: WARN
 
 
 #https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos

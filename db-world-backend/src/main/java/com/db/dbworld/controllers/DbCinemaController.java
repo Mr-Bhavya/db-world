@@ -7,13 +7,10 @@ import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.services.cinema.DBCinemaRecordsService;
 import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldUtils;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.extern.log4j.Log4j2;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,129 +23,127 @@ import java.util.List;
 @RequestMapping("/api/cinema")
 public class DbCinemaController {
 
-    @Autowired
-    private DBCinemaRecordsService dbCinemaRecordsService;
-    @Autowired
-    private ModelMapper modelMapper;
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
+    private final DBCinemaRecordsService dbCinemaRecordsService;
+
+    public DbCinemaController(DBCinemaRecordsService dbCinemaRecordsService) {
+        this.dbCinemaRecordsService = dbCinemaRecordsService;
+    }
 
     @GetMapping("/record")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<CustomPageImpl<DBCinemaRecordsDto>> getRecordsByPagination(
-            @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
-            @RequestParam(value = "size", required = false, defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false, defaultValue = "") String languages,
             @RequestParam(required = false, defaultValue = "") String genres,
-            @RequestParam(value = "q", required = false) String query
-    ) {
-        CustomPageImpl<DBCinemaRecordsDto> pageResult = dbCinemaRecordsService.findRecords(
-                new RecordSearchCriteria(null, genres, languages, query, true, pageNumber, pageSize)
+            @RequestParam(value = "q", required = false) String query) {
+
+        CustomPageImpl<DBCinemaRecordsDto> result = dbCinemaRecordsService.findRecords(
+                new RecordSearchCriteria(null, genres, languages, query, true, page, size)
         );
-        pageResult.setRecords(pageResult.getRecords().stream()
-                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
-        return new ApiResponse<>(HttpStatus.OK, true, pageResult);
+
+        if(StringUtils.isNotEmpty(query)) {
+
+        }
+
+        result.setRecords(result.getRecords().stream()
+                .map(dbCinemaRecordsService::addUsersDbCinemaData)
+                .toList());
+
+        return ApiResponse.success(result);
     }
 
     @GetMapping("/record/type/{recordType}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<CustomPageImpl<DBCinemaRecordsDto>> getRecordsByTypeAndPagination(
-            @Valid @NotEmpty @PathVariable("recordType") String recordType,
-            @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
-            @RequestParam(value = "size", required = false, defaultValue = "10") int pageSize,
+            @Valid @NotEmpty @PathVariable String recordType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false, defaultValue = "") String languages,
-            @RequestParam(required = false, defaultValue = "") String genres
-    ) {
-        if (!recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYE.MOVIE.name()) && !recordType.equalsIgnoreCase(DbWorldConstants.RECORD_TYE.SERIES.name())) {
-            return new ApiResponse<>(HttpStatus.BAD_REQUEST, false, "record type must be movie or series.");
+            @RequestParam(required = false, defaultValue = "") String genres) {
+
+        if (!recordType.equalsIgnoreCase("movie") && !recordType.equalsIgnoreCase("series")) {
+            throw new IllegalArgumentException("Record type must be movie or series");
         }
-        CustomPageImpl<DBCinemaRecordsDto> pageResult = dbCinemaRecordsService.findRecords(
-                new RecordSearchCriteria(recordType, genres, languages, null, true, pageNumber, pageSize)
+
+        CustomPageImpl<DBCinemaRecordsDto> result = dbCinemaRecordsService.findRecords(
+                new RecordSearchCriteria(recordType, genres, languages, null, true, page, size)
         );
-        pageResult.setRecords(pageResult.getRecords().stream()
-                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
-        return new ApiResponse<>(HttpStatus.OK, true, pageResult);
+
+        result.setRecords(result.getRecords().stream()
+                .map(dbCinemaRecordsService::addUsersDbCinemaData)
+                .toList());
+
+        return ApiResponse.success(result);
     }
 
     @GetMapping("/record/cover")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<HashMap<Object, Object>> fetchCoverRecords(
-            @RequestParam(value = "recordTypes") String[] recordTypes,
-            @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
-            @RequestParam(value = "size", required = false, defaultValue = "5") int pageSize
-    ) {
-        HashMap<Object, Object> map = new HashMap<>();
-        map.put("records", dbCinemaRecordsService.fetchCoverRecords(recordTypes,pageNumber, pageSize).stream()
-                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
-        return new ApiResponse<>(HttpStatus.OK, true, map);
+            @RequestParam String[] recordTypes,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+
+        HashMap<Object, Object> response = new HashMap<>();
+        response.put("records", dbCinemaRecordsService.fetchCoverRecords(recordTypes, page, size)
+                .stream()
+                .map(dbCinemaRecordsService::addUsersDbCinemaData)
+                .toList());
+
+        return ApiResponse.success(response);
     }
 
     @GetMapping("/record/{recordId}")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<DBCinemaRecordsDto> getDbCinemaRecordById(@Valid @PathVariable Long recordId) {
-        DBCinemaRecordsDto dbCinemaRecordsDto = dbCinemaRecordsService.getRecordById(recordId);
-        return new ApiResponse<>(HttpStatus.OK, true, dbCinemaRecordsDto);
+    public ApiResponse<DBCinemaRecordsDto> getDbCinemaRecordById(@PathVariable Long recordId) {
+        return ApiResponse.success(dbCinemaRecordsService.getRecordById(recordId));
     }
 
     @GetMapping("/record/{recordId}/like")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<String> addLikeByRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_LIKE);
-        return new ApiResponse<>(HttpStatus.OK, true, "Record added in watchlist");
+    public ApiResponse<Void> addLikeByRecord(@PathVariable Long recordId) {
+        dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_LIKE);
+        return ApiResponse.success("Record added to watchlist");
     }
 
     @GetMapping("/record/{recordId}/unlike")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<String> removeLikeByRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_LIKE);
-        return new ApiResponse<>(HttpStatus.OK, true, "Record removed from watchlist");
+    public ApiResponse<Void> removeLikeByRecord(@PathVariable Long recordId) {
+        dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_LIKE);
+        return ApiResponse.success("Record removed from watchlist");
     }
 
     @GetMapping("/record/{recordId}/watch")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<String> addWatchByRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_WATCH);
-        return new ApiResponse<>(HttpStatus.OK, true, "Record mark as watched.");
+    public ApiResponse<Void> addWatchByRecord(@PathVariable Long recordId) {
+        dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_WATCH);
+        return ApiResponse.success("Record marked as watched");
     }
 
     @GetMapping("/record/{recordId}/unwatch")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<String> removeWatchByRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_WATCH);
-        return new ApiResponse<>(HttpStatus.OK, true, "Record remove from watch mark.");
-    }
-
-    @GetMapping("/record/{recordId}/watchlist")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<String> watchListRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_WATCHLIST);
-        return new ApiResponse<>(HttpStatus.OK, true, "Record added in watchlist");
-    }
-
-    @GetMapping("/record/{recordId}/unwatchlist")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<String> removeWatchListRecord(@PathVariable Long recordId) {
-        this.dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_WATCHLIST);
-        return new ApiResponse<>(HttpStatus.OK, true, "Record removed from watchlist");
+    public ApiResponse<Void> removeWatchByRecord(@PathVariable Long recordId) {
+        dbCinemaRecordsService.userRecordDataProcess(recordId, DbWorldConstants.PROCESS_UN_WATCH);
+        return ApiResponse.success("Record unmarked as watched");
     }
 
     @GetMapping("/watchlist")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<CustomPageImpl<DBCinemaRecordsDto>> getWatchListCinemaRecords(
-            @RequestParam(value = "page", required = false, defaultValue = "0") int pageNumber,
-            @RequestParam(value = "size", required = false, defaultValue = "50") int pageSize
-    ) {
-        CustomPageImpl<DBCinemaRecordsDto> pageResult = dbCinemaRecordsService.getWatchListCinemaRecords(pageNumber, pageSize);
-        pageResult.setRecords(pageResult.getRecords().stream()
-                .map(dbCinemaRecordsDto -> dbCinemaRecordsService.addUsersDbCinemaData(dbCinemaRecordsDto)).toList());
-        return new ApiResponse<>(HttpStatus.OK, true, pageResult);
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+
+        CustomPageImpl<DBCinemaRecordsDto> result = dbCinemaRecordsService.getWatchListCinemaRecords(page, size);
+        result.setRecords(result.getRecords().stream()
+                .map(dbCinemaRecordsService::addUsersDbCinemaData)
+                .toList());
+
+        return ApiResponse.success(result);
     }
 
     @GetMapping("/genres")
     @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<GenresDto>> getAllGenres() {
-        List<GenresDto> genresDtoList = dbCinemaRecordsService.getAllGenres();
-        return new ApiResponse<>(HttpStatus.OK, true, genresDtoList);
+        return ApiResponse.success(dbCinemaRecordsService.getAllGenres());
     }
-
 }

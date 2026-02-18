@@ -32,7 +32,7 @@ const MovieDetailsPage = () => {
     const handleCommentSubmit = (e) => {
         e.preventDefault();
         // Here you would typically send the comment and rating to your backend
-        console.log('Submitted:', { comment, rating });
+        //console.log('Submitted:', { comment, rating });
         setUserRating({ comment, rating, date: new Date().toLocaleDateString() });
         setComment('');
         setRating(0);

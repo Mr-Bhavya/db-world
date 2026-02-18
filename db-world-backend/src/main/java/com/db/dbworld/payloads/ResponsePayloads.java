@@ -107,4 +107,30 @@ public class ResponsePayloads {
         }
     }
 
+    @Data
+    @Builder
+    public static class SymlinkRepairResult {
+        private int total;
+        private int repaired;
+        private int deleted;
+        private int skipped;
+        private int failed;
+        private boolean dryRun;
+    }
+
+    @Data
+    @Builder
+    public static class SymlinkRepairSingleResult {
+
+        private String fileId;
+
+        private boolean created;
+        private boolean deleted;
+        private boolean skipped;
+        private boolean failed;
+
+        private String message;
+        private boolean dryRun;
+    }
+
 }

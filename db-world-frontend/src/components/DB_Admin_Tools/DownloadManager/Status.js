@@ -17,14 +17,19 @@ import {
   Speed as SpeedIcon,
   Refresh,
   Delete as ClearIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  Link as LinkIcon,
+  Magnet as MagnetIcon,
+  PictureAsPdf as PdfIcon,
+  VideoFile as VideoIcon
 } from '@mui/icons-material';
 import StatusCard from './StatusCard';
 import { toast } from '../../Toast';
 import axiosInstance from '../../Utils/AxiosInstants';
-import { CircularProgress, IconButton, useMediaQuery, useTheme, Button, MenuItem, Select, FormControl, Box, Typography } from '@mui/material';
+import { CircularProgress, IconButton, useMediaQuery, useTheme, Button, MenuItem, Select, FormControl, Box, Typography, Chip } from '@mui/material';
 import Youtube_dl from '../Mirror/youtubedl/Youtube_dl';
 import HttpFile from '../Mirror/HttpFile';
+import StatusTestData from './status-test-data';
 
 // Animation variants with enhanced effects
 const cardVariants = {
@@ -75,7 +80,38 @@ const statItemVariants = {
   }
 };
 
-// Stats card component for better reusability
+// File type icon mapper
+const getFileTypeIcon = (fileType, isMagnet = false) => {
+  if (isMagnet) return MagnetIcon;
+  if (fileType?.includes('video')) return VideoIcon;
+  if (fileType?.includes('pdf')) return PdfIcon;
+  return DownloadIcon;
+};
+
+// Download status mapper
+const getStatusColor = (status, currentState) => {
+  switch (status || currentState) {
+    case 'DOWNLOAD':
+    case 'active':
+      return 'success';
+    case 'PAUSE':
+    case 'paused':
+      return 'warning';
+    case 'SUCCESS':
+    case 'completed':
+      return 'primary';
+    case 'ERROR':
+    case 'error':
+      return 'error';
+    case 'QUEUED':
+    case 'queued':
+      return 'info';
+    default:
+      return 'default';
+  }
+};
+
+// Stats card component
 const StatCard = React.memo(({ 
   value, 
   label, 
@@ -293,7 +329,7 @@ const DownloadTypeSelector = React.memo(({
         >
           <MenuItem value="httpFile">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <DownloadIcon sx={{ fontSize: '1rem' }} />
+              <LinkIcon sx={{ fontSize: '1rem' }} />
               HTTP File Download
             </Box>
           </MenuItem>
@@ -332,7 +368,7 @@ const DownloadTypeSelector = React.memo(({
 ));
 
 function DownloadManager() {
-  const [status, setStatus] = useState([]);
+  const [downloads, setDownloads] = useState([]);
   const [summaryStats, setSummaryStats] = useState({
     active: 0,
     waiting: 0,
@@ -341,7 +377,8 @@ function DownloadManager() {
     uploadSpeed: 0,
     numActive: 0,
     numWaiting: 0,
-    numStopped: 0
+    numStopped: 0,
+    totalSpeed: 0
   });
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [loading, setLoading] = useState(false);
@@ -349,7 +386,6 @@ function DownloadManager() {
   const [apiError, setApiError] = useState(false);
   const [selectedDownloader, setSelectedDownloader] = useState("httpFile");
   const [clearTempLoading, setClearTempLoading] = useState(false);
-  const [showDownloadForm, setShowDownloadForm] = useState(true);
   
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -360,44 +396,105 @@ function DownloadManager() {
   const ws = useRef(null);
   const reconnectTimeout = useRef(null);
 
+  // Process downloads data to calculate stats
+  const processDownloadsData = useCallback((downloadsData) => {
+    if (!downloadsData || downloadsData.length === 0) {
+      return {
+        total: 0,
+        active: 0,
+        queued: 0,
+        paused: 0,
+        completed: 0,
+        totalSpeed: 0,
+        totalDownloaded: 0,
+        totalSize: 0
+      };
+    }
+
+    let active = 0;
+    let queued = 0;
+    let paused = 0;
+    let completed = 0;
+    let totalSpeed = 0;
+    let totalDownloaded = 0;
+    let totalSize = 0;
+
+    downloadsData.forEach(item => {
+      const statusData = item.status || {};
+      const downloadStatus = statusData.downloadStatus || {};
+      const currentState = statusData.currentState;
+      
+      // Count by state
+      if (currentState === 'DOWNLOAD' && item.isRunning) {
+        active++;
+      } else if (item.isQueued) {
+        queued++;
+      } else if (currentState === 'PAUSE') {
+        paused++;
+      } else if (currentState === 'SUCCESS') {
+        completed++;
+      }
+
+      // Calculate speeds and sizes
+      if (downloadStatus.speed) {
+        totalSpeed += downloadStatus.speed;
+      }
+      if (downloadStatus.fileDownloaded) {
+        totalDownloaded += downloadStatus.fileDownloaded;
+      }
+      if (statusData.fileSize) {
+        totalSize += statusData.fileSize;
+      }
+    });
+
+    return {
+      total: downloadsData.length,
+      active,
+      queued,
+      paused,
+      completed,
+      totalSpeed: totalSpeed / 1024 / 1024, // Convert to MB/s
+      totalDownloaded,
+      totalSize,
+      progress: totalSize > 0 ? (totalDownloaded / totalSize) * 100 : 0
+    };
+  }, []);
+
   // Memoized API call to get queue statistics
   const fetchQueueStats = useCallback(async () => {
     try {
       setLoading(true);
       setApiError(false);
       
-      const [queueStatusRes, activeRes, waitingRes] = await Promise.all([
-        axiosInstance.get('/api/downloads/queue/status'),
-        axiosInstance.get('/api/downloads/active'),
-        axiosInstance.get('/api/downloads/waiting')
-      ]);
+      const response = await axiosInstance.get('/api/downloads/status');
+      const data = response.data || [];
 
-      const [queueStatus, activeDownloads, waitingDownloads] = await Promise.all([
-        queueStatusRes.data,
-        activeRes.data,
-        waitingRes.data
-      ]);
-
+      // Calculate stats from the data
+      const stats = processDownloadsData(data);
+      
       setSummaryStats(prev => ({
         ...prev,
-        downloadSpeed: queueStatus.downloadSpeed ? queueStatus.downloadSpeed / 1024 / 1024 : 0,
-        uploadSpeed: queueStatus.uploadSpeed ? queueStatus.uploadSpeed / 1024 / 1024 : 0,
-        numActive: queueStatus.numActive || 0,
-        numWaiting: queueStatus.numWaiting || 0,
-        numStopped: queueStatus.numStopped || 0,
-        active: activeDownloads.length || 0,
-        waiting: waitingDownloads.length || 0
+        downloadSpeed: stats.totalSpeed,
+        uploadSpeed: 0, // Assuming no upload in this context
+        numActive: stats.active,
+        numWaiting: stats.queued + stats.paused,
+        numStopped: stats.completed,
+        active: stats.active,
+        waiting: stats.queued + stats.paused,
+        totalSpeed: stats.totalSpeed,
+        progress: stats.progress
       }));
 
+      setDownloads(data);
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Failed to fetch queue stats:', error);
       setApiError(true);
-      toast.error('Failed to load queue statistics');
+      toast.error('Failed to load download statistics');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [processDownloadsData]);
 
   // Clear temporary files
   const handleClearTempFiles = useCallback(async () => {
@@ -435,18 +532,46 @@ function DownloadManager() {
 
       ws.current.onopen = () => {
         setConnectionStatus('connected');
-        ws.current.send('');
+        ws.current.send(JSON.stringify({ type: 'subscribe', channel: 'downloads' }));
       };
 
       ws.current.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          setStatus(prevStatus => {
-            return data.map(newItem => {
-              const existingItem = prevStatus.find(item => item.id === newItem.id);
-              return existingItem ? { ...existingItem, ...newItem } : newItem;
+          let data = JSON.parse(event.data);
+
+          data = StatusTestData; // <-- For testing purposes only, remove in production
+          
+          console.log('WebSocket message received:', data);
+
+          // Handle different message types
+          if (data.type === 'status_update') {
+            setDownloads(prevDownloads => {
+              // Update existing download or add new one
+              return data.downloads.map(newItem => {
+                const existingItem = prevDownloads.find(item => 
+                  item.status && item.status.id === newItem.status?.id
+                );
+                return existingItem ? { ...existingItem, ...newItem } : newItem;
+              });
             });
-          });
+          } else if (Array.isArray(data)) {
+            // Direct array of downloads (legacy support)
+            setDownloads(data);
+          }
+          
+          // Recalculate stats when we get new data
+          const stats = processDownloadsData(
+            Array.isArray(data) ? data : (data.downloads || [])
+          );
+          
+          setSummaryStats(prev => ({
+            ...prev,
+            downloadSpeed: stats.totalSpeed,
+            numActive: stats.active,
+            numWaiting: stats.queued + stats.paused,
+            numStopped: stats.completed
+          }));
+          
         } catch (err) {
           console.error("Error parsing WebSocket message:", err);
         }
@@ -470,7 +595,7 @@ function DownloadManager() {
       console.error("Failed to create WebSocket connection:", error);
       setConnectionStatus('error');
     }
-  }, []);
+  }, [processDownloadsData]);
 
   // Cleanup WebSocket on unmount
   useEffect(() => {
@@ -493,47 +618,62 @@ function DownloadManager() {
     return () => clearInterval(interval);
   }, [fetchQueueStats]);
 
-  // Memoized stats calculations with fallback data
-  const { totalDownloads, activeCount, waitingCount, downloadSpeed, uploadSpeed } = useMemo(() => {
-    // If API failed, use WebSocket data or show zeros
-    if (apiError && status.length > 0) {
-      const active = status.filter(d => d.status === 'active').length;
-      const waiting = status.filter(d => d.status === 'waiting' || d.status === 'paused').length;
-      const total = status.length;
-      const dlSpeed = status.reduce((sum, d) => sum + (d.downloadSpeed || 0) / 1024 / 1024, 0);
-      const upSpeed = status.reduce((sum, d) => sum + (d.uploadSpeed || 0) / 1024 / 1024, 0);
-
+  // Memoized stats calculations
+  const {
+    totalDownloads,
+    activeCount,
+    waitingCount,
+    downloadSpeed,
+    progress
+  } = useMemo(() => {
+    const stats = processDownloadsData(downloads);
+    
+    // Use WebSocket data if available, otherwise use API data
+    if (downloads.length > 0) {
       return {
-        totalDownloads: total,
-        activeCount: active,
-        waitingCount: waiting,
-        downloadSpeed: dlSpeed,
-        uploadSpeed: upSpeed
+        totalDownloads: stats.total,
+        activeCount: stats.active,
+        waitingCount: stats.queued + stats.paused,
+        downloadSpeed: stats.totalSpeed,
+        progress: stats.progress,
+        completedCount: stats.completed
       };
     }
 
-    // Use API data when available
-    const total = (summaryStats.numActive || 0) + (summaryStats.numWaiting || 0) + (summaryStats.numStopped || 0) || status.length;
-    const active = summaryStats.numActive || summaryStats.active || 0;
-    const waiting = summaryStats.numWaiting || summaryStats.waiting || 0;
-    const dlSpeed = summaryStats.downloadSpeed > 0 ? summaryStats.downloadSpeed : (summaryStats.downloadSpeed || 0);
-    const upSpeed = summaryStats.uploadSpeed > 0 ? summaryStats.uploadSpeed : (summaryStats.uploadSpeed || 0);
-
+    // Fallback to API data
     return {
-      totalDownloads: total,
-      activeCount: active,
-      waitingCount: waiting,
-      downloadSpeed: dlSpeed,
-      uploadSpeed: upSpeed
+      totalDownloads: (summaryStats.numActive || 0) + 
+                     (summaryStats.numWaiting || 0) + 
+                     (summaryStats.numStopped || 0),
+      activeCount: summaryStats.numActive || 0,
+      waitingCount: summaryStats.numWaiting || 0,
+      downloadSpeed: summaryStats.downloadSpeed || 0,
+      progress: summaryStats.progress || 0,
+      completedCount: summaryStats.numStopped || 0
     };
-  }, [summaryStats, status.length, apiError, status]);
+  }, [summaryStats, downloads, processDownloadsData]);
 
   // Format speed for display
   const formatSpeed = (speed) => {
     return speed > 0 ? speed.toFixed(2) : '0';
   };
 
-  // Connection status display with better visual indicators
+  // Format file size
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = bytes;
+    let unitIndex = 0;
+    
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+  };
+
+  // Connection status display
   const getConnectionStatusColor = () => {
     switch (connectionStatus) {
       case 'connected': return '#28a745';
@@ -548,7 +688,37 @@ function DownloadManager() {
     return connectionStatus.charAt(0).toUpperCase() + connectionStatus.slice(1);
   };
 
-  // Stats configuration for cleaner render
+  // Group downloads by status for better organization
+  const groupedDownloads = useMemo(() => {
+    const groups = {
+      active: [],
+      queued: [],
+      paused: [],
+      completed: [],
+      error: []
+    };
+
+    downloads.forEach(item => {
+      const statusData = item.status || {};
+      const currentState = statusData.currentState;
+      
+      if (currentState === 'DOWNLOAD' && item.isRunning) {
+        groups.active.push(item);
+      } else if (item.isQueued) {
+        groups.queued.push(item);
+      } else if (currentState === 'PAUSE') {
+        groups.paused.push(item);
+      } else if (currentState === 'SUCCESS') {
+        groups.completed.push(item);
+      } else if (currentState === 'ERROR') {
+        groups.error.push(item);
+      }
+    });
+
+    return groups;
+  }, [downloads]);
+
+  // Stats configuration
   const statsConfig = [
     {
       value: activeCount,
@@ -558,7 +728,7 @@ function DownloadManager() {
     },
     {
       value: waitingCount,
-      label: 'Waiting',
+      label: 'In Queue',
       icon: ScheduleIcon,
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
     },
@@ -569,17 +739,17 @@ function DownloadManager() {
       gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
     },
     {
-      value: { download: downloadSpeed, upload: uploadSpeed },
-      label: 'Speed',
+      value: { speed: downloadSpeed, progress },
+      label: 'Speed & Progress',
       icon: SpeedIcon,
       gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
       formatValue: (value) => (
         <div>
           <div style={{ fontSize: isMobile ? '1rem' : '1.2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-            ↓ {formatSpeed(value.download)} MB/s
+            ↓ {formatSpeed(value.speed)} MB/s
           </div>
-          <div style={{ fontSize: isMobile ? '1rem' : '1.2rem', fontWeight: 'bold' }}>
-            ↑ {formatSpeed(value.upload)} MB/s
+          <div style={{ fontSize: isMobile ? '0.8rem' : '0.9rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+            {value.progress.toFixed(1)}% Overall
           </div>
         </div>
       )
@@ -589,11 +759,11 @@ function DownloadManager() {
   // Grid layout for mobile responsiveness
   const getGridTemplateColumns = () => {
     if (isSmallMobile) {
-      return 'repeat(2, 1fr)'; // 2 columns for very small screens
+      return 'repeat(2, 1fr)';
     } else if (isMobile) {
-      return 'repeat(2, 1fr)'; // 2 columns for mobile
+      return 'repeat(2, 1fr)';
     } else {
-      return 'repeat(auto-fit, minmax(240px, 1fr))'; // Responsive for desktop
+      return 'repeat(auto-fit, minmax(240px, 1fr))';
     }
   };
 
@@ -607,6 +777,128 @@ function DownloadManager() {
         return <HttpFile onDownloadAdded={fetchQueueStats} />;
     }
   }, [selectedDownloader, fetchQueueStats]);
+
+  // Download item renderer
+  const renderDownloadItem = (download) => {
+    const statusData = download.status || {};
+    const downloadStatus = statusData.downloadStatus || {};
+    const isMagnet = statusData.magnet === true;
+    const FileIcon = getFileTypeIcon(statusData.fileType, isMagnet);
+    const statusColor = getStatusColor(downloadStatus.status, statusData.currentState);
+
+    return (
+      <motion.div
+        key={statusData.id}
+        variants={cardVariants}
+        whileHover="hover"
+        style={{
+          padding: isMobile ? '0.75rem' : '1rem',
+          borderRadius: '8px',
+          background: 'white',
+          border: '1px solid rgba(0,0,0,0.08)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          marginBottom: isMobile ? '0.5rem' : '0.75rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+          <div style={{ 
+            padding: '0.5rem', 
+            background: 'rgba(0,123,255,0.1)', 
+            borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <FileIcon style={{ color: '#007bff', fontSize: isMobile ? '1.25rem' : '1.5rem' }} />
+          </div>
+          
+          <div style={{ flex: 1 }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'flex-start',
+              marginBottom: '0.25rem'
+            }}>
+              <div style={{ fontWeight: 600, fontSize: isMobile ? '0.9rem' : '1rem', color: '#495057' }}>
+                {statusData.fileName || 'Download'}
+              </div>
+              <Chip 
+                label={statusData.currentState || 'UNKNOWN'}
+                color={statusColor}
+                size="small"
+                sx={{ fontSize: '0.7rem', height: '1.25rem' }}
+              />
+            </div>
+            
+            <div style={{ fontSize: isMobile ? '0.7rem' : '0.8rem', color: '#6c757d', marginBottom: '0.5rem' }}>
+              {statusData.folderName || 'No folder'}
+              {download.isQueued && statusData.queuePosition && (
+                <span style={{ marginLeft: '0.5rem', color: '#ff9800' }}>
+                  Position: #{statusData.queuePosition}
+                </span>
+              )}
+            </div>
+            
+            {/* Progress bar */}
+            {downloadStatus.totalFileSize && (
+              <div style={{ marginBottom: '0.5rem' }}>
+                <div style={{ 
+                  background: '#e9ecef', 
+                  borderRadius: '4px', 
+                  height: '4px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ 
+                    background: statusColor === 'success' ? '#28a745' : 
+                               statusColor === 'warning' ? '#ffc107' : 
+                               statusColor === 'error' ? '#dc3545' : '#007bff',
+                    height: '100%',
+                    width: downloadStatus.totalFileSize > 0 ? 
+                          `${(downloadStatus.fileDownloaded || 0) / downloadStatus.totalFileSize * 100}%` : '0%'
+                  }} />
+                </div>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  fontSize: '0.7rem',
+                  color: '#6c757d',
+                  marginTop: '0.25rem'
+                }}>
+                  <span>
+                    {formatFileSize(downloadStatus.fileDownloaded || 0)} / {formatFileSize(downloadStatus.totalFileSize)}
+                  </span>
+                  <span>
+                    {downloadStatus.eta ? `${downloadStatus.eta}s remaining` : ''}
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            {/* Speed and other info */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '1rem', 
+              fontSize: '0.7rem',
+              color: '#6c757d'
+            }}>
+              {downloadStatus.speed && (
+                <span>Speed: {formatSpeed(downloadStatus.speed / 1024 / 1024)} MB/s</span>
+              )}
+              {statusData.fileSize && (
+                <span>Size: {formatFileSize(statusData.fileSize)}</span>
+              )}
+              {isMagnet && (
+                <span style={{ color: '#d32f2f' }}>
+                  <MagnetIcon style={{ fontSize: '0.7rem', verticalAlign: 'middle', marginRight: '0.25rem' }} />
+                  Torrent
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <div
@@ -760,8 +1052,8 @@ function DownloadManager() {
         )}
       </motion.div>
 
-      {/* Downloads List */}
-      {(!status || status.length === 0) ? (
+      {/* Downloads List - Grouped by Status */}
+      {downloads.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -800,21 +1092,110 @@ function DownloadManager() {
           initial="hidden"
           animate="visible"
           style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
-            gap: isMobile ? '1rem' : '1.5rem',
-            alignItems: 'start'
+            display: 'flex',
+            flexDirection: 'column',
+            gap: isMobile ? '1.5rem' : '2rem'
           }}
         >
-          <AnimatePresence>
-            {status.map((download) => (
-              <StatusCard 
-                key={download.id} 
-                download={download} 
-                onStatusChange={fetchQueueStats}
-              />
-            ))}
-          </AnimatePresence>
+          {/* Active Downloads Section */}
+          {groupedDownloads.active.length > 0 && (
+            <div>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                marginBottom: '1rem'
+              }}>
+                <PlayArrowIcon style={{ color: '#28a745', fontSize: '1.25rem' }} />
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: isMobile ? '1rem' : '1.125rem', 
+                  fontWeight: 600, 
+                  color: '#495057' 
+                }}>
+                  Active Downloads ({groupedDownloads.active.length})
+                </h3>
+              </div>
+              <AnimatePresence>
+                {groupedDownloads.active.map(download => renderDownloadItem(download))}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Queued Downloads Section */}
+          {groupedDownloads.queued.length > 0 && (
+            <div>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                marginBottom: '1rem'
+              }}>
+                <ScheduleIcon style={{ color: '#ffc107', fontSize: '1.25rem' }} />
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: isMobile ? '1rem' : '1.125rem', 
+                  fontWeight: 600, 
+                  color: '#495057' 
+                }}>
+                  Queued Downloads ({groupedDownloads.queued.length})
+                </h3>
+              </div>
+              <AnimatePresence>
+                {groupedDownloads.queued.map(download => renderDownloadItem(download))}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Paused Downloads Section */}
+          {groupedDownloads.paused.length > 0 && (
+            <div>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                marginBottom: '1rem'
+              }}>
+                <PauseCircleIcon style={{ color: '#6c757d', fontSize: '1.25rem' }} />
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: isMobile ? '1rem' : '1.125rem', 
+                  fontWeight: 600, 
+                  color: '#495057' 
+                }}>
+                  Paused Downloads ({groupedDownloads.paused.length})
+                </h3>
+              </div>
+              <AnimatePresence>
+                {groupedDownloads.paused.map(download => renderDownloadItem(download))}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Completed Downloads Section */}
+          {groupedDownloads.completed.length > 0 && (
+            <div>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                marginBottom: '1rem'
+              }}>
+                <CheckCircleIcon style={{ color: '#007bff', fontSize: '1.25rem' }} />
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: isMobile ? '1rem' : '1.125rem', 
+                  fontWeight: 600, 
+                  color: '#495057' 
+                }}>
+                  Completed Downloads ({groupedDownloads.completed.length})
+                </h3>
+              </div>
+              <AnimatePresence>
+                {groupedDownloads.completed.map(download => renderDownloadItem(download))}
+              </AnimatePresence>
+            </div>
+          )}
         </motion.div>
       )}
     </div>

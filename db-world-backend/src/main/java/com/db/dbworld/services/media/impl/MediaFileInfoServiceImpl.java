@@ -11,9 +11,6 @@ import jakarta.persistence.EntityManager;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +25,6 @@ import java.util.stream.Collectors;
 @Log4j2
 @Service
 @Transactional
-//@CacheConfig(cacheNames = "media-file")
 public class MediaFileInfoServiceImpl implements MediaFileInfoService {
 
     private final MediaFileInfoRepository mediaFileInfoRepository;
@@ -36,14 +32,10 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     private final DbWorldUtils dbWorldUtils;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    @Autowired
-    private EntityManager entityManager;
+    @Autowired private EntityManager entityManager;
 
     @Autowired
-    public MediaFileInfoServiceImpl(MediaFileInfoRepository mediaFileInfoRepository,
-                                    ModelMapper modelMapper,
-                                    DbWorldUtils dbWorldUtils,
-                                    RedisTemplate<String, Object> redisTemplate) {
+    public MediaFileInfoServiceImpl(MediaFileInfoRepository mediaFileInfoRepository, ModelMapper modelMapper, DbWorldUtils dbWorldUtils, RedisTemplate<String, Object> redisTemplate) {
         this.mediaFileInfoRepository = mediaFileInfoRepository;
         this.modelMapper = modelMapper;
         this.dbWorldUtils = dbWorldUtils;
@@ -51,272 +43,225 @@ public class MediaFileInfoServiceImpl implements MediaFileInfoService {
     }
 
     @Override
-    public MediaFileInfoEntity save(MediaFileInfoEntity mediaFileInfoEntity) {
+    public MediaFileInfoEntity save(MediaFileInfoEntity entity) {
         try {
-            log.debug("[DB] Saving MediaFileInfoEntity for recordId={}...",
-                    mediaFileInfoEntity.getDbCinemaRecord().getId());
-
-            // Merge each track individually
             List<TrackInfoEntity> managedTracks = new ArrayList<>();
-            if (mediaFileInfoEntity.getTrackInfos() != null) {
-                for (TrackInfoEntity track : mediaFileInfoEntity.getTrackInfos()) {
-                    managedTracks.add(entityManager.merge(track));
-                }
-            }
-            mediaFileInfoEntity.setTrackInfos(managedTracks);
-
-            // Save the media file info
-            MediaFileInfoEntity savedEntity = mediaFileInfoRepository.save(mediaFileInfoEntity);
-            log.debug("[DB] Saved MediaFileInfoEntity with id={}", savedEntity.getId());
-
-            clearCacheForRecord(savedEntity.getDbCinemaRecord().getId());
-            return savedEntity;
-        } catch (Exception ex) {
-            log.error("Error saving media file info: {}", ex.getMessage(), ex);
-            throw new DbWorldException("Failed to save media file information", ex);
+            if (entity.getTrackInfos() != null) for (TrackInfoEntity track : entity.getTrackInfos()) managedTracks.add(entityManager.merge(track));
+            entity.setTrackInfos(managedTracks);
+            MediaFileInfoEntity saved = mediaFileInfoRepository.save(entity);
+            updateRedisCaches(saved);
+            return saved;
+        } catch (Exception e) {
+            log.error("Failed to save MediaFileInfoEntity id={}", entity != null ? entity.getId() : null, e);
+            throw new DbWorldException("Failed to save media file info", e);
         }
     }
 
+    @Override
+    public List<MediaFileInfo> findAll() {
+        try {
+            return mediaFileInfoRepository.findAll().stream().map(this::mapToMediaFileInfoDto).collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Failed to fetch all MediaFileInfoEntity", e);
+            throw new DbWorldException("Failed to find all media file info", e);
+        }
+    }
 
     @Override
-//    @Cacheable(key = "'record:' + #recordId", unless = "#result == null || #result.isEmpty()")
+    public Optional<MediaFileInfo> findById(String id) {
+        try {
+            return mediaFileInfoRepository.findById(id).map(this::mapToMediaFileInfoDto);
+        } catch (Exception e) {
+            log.error("Failed to fetch MediaFileInfoEntity id={}", id, e);
+            throw new DbWorldException("Failed to find media file info by id", e);
+        }
+    }
+
+    @Override
+    public List<MediaFileInfoEntity> findAllEntities() {
+        try {
+            return mediaFileInfoRepository.findAll();
+        } catch (Exception e) {
+            log.error("Failed to fetch all MediaFileInfoEntity", e);
+            throw new DbWorldException("Failed to find all media file info", e);
+        }
+    }
+
+    @Override
+    public Optional<MediaFileInfoEntity> findEntityById(String id) {
+        try {
+            return mediaFileInfoRepository.findById(id);
+        } catch (Exception e) {
+            log.error("Failed to fetch MediaFileInfoEntity id={}", id, e);
+            throw new DbWorldException("Failed to find media file info by id", e);
+        }
+    }
+
+    @Override
     public List<MediaFileInfo> getAllFileInfoByRecordId(Long recordId) {
-        log.debug("[CACHE] Fetching media file info from Redis for recordId={}", recordId); // 🔍 Added Log
         try {
-            log.debug("[DB] Querying all MediaFileInfoEntities for recordId={}", recordId); // 🔍 Added Log
-            List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.findAllByDbCinemaRecordId(recordId);
-            log.debug("[DB] Retrieved {} file info records from DB", mediaFileInfoEntities.size()); // 🔍 Added Log
-
-            return mediaFileInfoEntities.stream()
-                    .map(this::mapToMediaFileInfoDto)
-                    .collect(Collectors.toList());
-        } catch (Exception ex) {
-            log.error("Error retrieving media files for record {}: {}", recordId, ex.getMessage());
-            throw new DbWorldException("Failed to retrieve media files", ex.getMessage());
-        }
-    }
-
-
-    private MediaFileInfo mapToMediaFileInfoDto(MediaFileInfoEntity entity) {
-        try {
-            MediaFileInfo dto = modelMapper.map(entity, MediaFileInfo.class);
-
-            // Safely handle trackInfos conversion
-            if (entity.getTrackInfos() != null) {
-                dto.setTrackInfos(entity.getTrackInfos().stream()
-                        .map(this::mapToTrackInfoDto)
-                        .collect(Collectors.toList()));
-            } else {
-                dto.setTrackInfos(Collections.emptyList());
-            }
-
-            return dto;
+            String cacheKey = "media-file::record:" + recordId;
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached instanceof List<?>) return (List<MediaFileInfo>) cached;
+            List<MediaFileInfo> result = mediaFileInfoRepository.findAllByDbCinemaRecordId(recordId).stream().map(this::mapToMediaFileInfoDto).collect(Collectors.toList());
+            redisTemplate.opsForValue().set(cacheKey, result);
+            return result;
         } catch (Exception e) {
-            log.error("Mapping error for MediaFileInfoEntity ID: {}", entity.getId(), e);
-            throw new DbWorldException("Mapping error", e.getMessage());
-        }
-    }
-
-    private TrackInfo mapToTrackInfoDto(TrackInfoEntity entity) {
-        try {
-            if (entity == null) {
-                return null;
-            }
-
-            if (entity instanceof GeneralInfoEntity) {
-                return modelMapper.map(entity, GeneralInfo.class);
-            } else if (entity instanceof VideoInfoEntity) {
-                return modelMapper.map(entity, VideoInfo.class);
-            } else if (entity instanceof AudioInfoEntity) {
-                return modelMapper.map(entity, AudioInfo.class);
-            } else if (entity instanceof TextInfoEntity) {
-                return modelMapper.map(entity, TextInfo.class);
-            } else if (entity instanceof MenuInfoEntity) {
-                return modelMapper.map(entity, MenuInfo.class);
-            }
-            return modelMapper.map(entity, TrackInfo.class);
-        } catch (Exception e) {
-            log.error("Mapping error for TrackInfoEntity ID: {}", entity.getId(), e);
-            throw new DbWorldException("Track info mapping error", e.getMessage());
+            log.error("Failed to fetch MediaFileInfo by recordId={}", recordId, e);
+            throw new DbWorldException("Failed to get media file info by record", e);
         }
     }
 
     @Override
-//    @Cacheable(key = "'file:' + #id")
+    public List<MediaFileInfoEntity> getAllFileInfoEntityByRecordId(Long recordId) {
+        try {
+            return mediaFileInfoRepository.findAllByDbCinemaRecordId(recordId);
+        } catch (Exception e) {
+            log.error("Failed to fetch MediaFileInfo by recordId={}", recordId, e);
+            throw new DbWorldException("Failed to get media file info by record", e);
+        }
+    }
+
+    @Override
+    public Optional<MediaFileInfoEntity> findOneByFilePath(String path) {
+        try {
+            return mediaFileInfoRepository.findOneByFilePath(path);
+        } catch (Exception e) {
+            log.error("Failed to fetch MediaFileInfo by Path={}", path, e);
+            throw new DbWorldException("Failed to get media file info by path", e);
+        }
+    }
+
+    @Override
     public String getFileInfoById(String id) {
-        log.debug("[CACHE] Fetching file info from Redis for fileId={}", id); // 🔍 Added Log
         try {
-            log.debug("[DB] Looking up file info in DB for fileId={}", id); // 🔍 Added Log
-            return mediaFileInfoRepository.getFileInfoById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("MediaFileInfo", "id", id));
-        } catch (ResourceNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            log.error("Error retrieving file info for ID {}: {}", id, ex.getMessage());
-            throw new DbWorldException("Failed to retrieve file information", ex);
+            String cacheKey = "media-file::file:" + id;
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached instanceof String) return (String) cached;
+            String value = mediaFileInfoRepository.getFileInfoById(id).orElseThrow(() -> new ResourceNotFoundException("MediaFileInfo", "id", id));
+            redisTemplate.opsForValue().set(cacheKey, value);
+            return value;
+        } catch (Exception e) {
+            log.error("Failed to get file info id={}", id, e);
+            throw e instanceof RuntimeException ? (RuntimeException) e : new DbWorldException("Failed to get media file info", e);
         }
     }
 
     @Override
-//    @Cacheable("filePaths")
     public List<Map<String, Object>> getAllFilePath() {
-        log.debug("[CACHE] Fetching all file paths from Redis (or DB fallback)"); // 🔍 Added Log
         try {
-            log.debug("[DB] Querying all file paths from MediaFileInfoRepository"); // 🔍 Added Log
-            return mediaFileInfoRepository.getAllFilePath();
-        } catch (Exception ex) {
-            log.error("Error retrieving all file paths: {}", ex.getMessage());
-            throw new DbWorldException("Failed to retrieve file paths", ex);
+            String cacheKey = "media-file::paths";
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached instanceof List<?>) return (List<Map<String, Object>>) cached;
+            List<Map<String, Object>> list = mediaFileInfoRepository.getAllFilePath();
+            redisTemplate.opsForValue().set(cacheKey, list);
+            return list;
+        } catch (Exception e) {
+            log.error("Failed to fetch all media file paths", e);
+            throw new DbWorldException("Failed to fetch media file paths", e);
         }
     }
 
     @Override
-//    @CacheEvict(key = "'file:' + #id")
     public void deleteInfoById(String id) {
         try {
-            log.debug("[DB] Looking up MediaFileInfoEntity for deletion with id={}", id); // 🔍 Added Log
-            MediaFileInfoEntity mediaFileInfo = mediaFileInfoRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("MediaFileInfo", "id", id));
-
-            clearCacheForRecord(mediaFileInfo.getDbCinemaRecord().getId());
-
-            log.debug("[DB] Deleting MediaFileInfoEntity with id={}", id); // 🔍 Added Log
-            mediaFileInfoRepository.delete(mediaFileInfo);
-
-            dbWorldUtils.deleteFileOrDirectory(mediaFileInfo.getFilePath(), false);
-            log.debug("[FS] Deleted file from disk: {}", mediaFileInfo.getFilePath()); // 🔍 Added Log
-        } catch (Exception ex) {
-            log.error("Error deleting media file with ID {}: {}", id, ex.getMessage());
-            throw new DbWorldException("Failed to delete media file", ex);
+            MediaFileInfoEntity entity = mediaFileInfoRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("MediaFileInfo", "id", id));
+            mediaFileInfoRepository.delete(entity);
+            dbWorldUtils.deleteFileOrDirectory(entity.getFilePath(), false);
+            evictRedisCaches(entity);
+        } catch (Exception e) {
+            log.error("Failed to delete MediaFileInfoEntity id={}", id, e);
+            throw e instanceof RuntimeException ? (RuntimeException) e : new DbWorldException("Failed to delete media file info", e);
         }
     }
 
     @Override
     public void deleteInfoByIds(List<String> ids) {
         try {
-            log.debug("[DB] Fetching MediaFileInfoEntities for deletion (ids={})", ids); // 🔍 Added Log
-            List<MediaFileInfoEntity> mediaFileInfos = mediaFileInfoRepository.findAllById(ids);
-
-            mediaFileInfos.stream()
-                    .map(mfi -> mfi.getDbCinemaRecord().getId())
-                    .distinct()
-                    .forEach(this::clearCacheForRecord);
-
-            log.debug("[DB] Deleting {} media file entries from DB", mediaFileInfos.size()); // 🔍 Added Log
-            mediaFileInfoRepository.deleteAll(mediaFileInfos);
-
-            mediaFileInfos.forEach(mfi -> {
-                dbWorldUtils.deleteFileOrDirectory(mfi.getFilePath(), false);
-                log.debug("[FS] Deleted file: {}", mfi.getFilePath()); // 🔍 Added Log
-            });
-        } catch (Exception ex) {
-            log.error("Error deleting media files with IDs {}: {}", ids, ex.getMessage());
-            throw new DbWorldException("Failed to delete media files", ex);
+            List<MediaFileInfoEntity> entities = mediaFileInfoRepository.findAllById(ids);
+            mediaFileInfoRepository.deleteAll(entities);
+            for (MediaFileInfoEntity e : entities) {
+                dbWorldUtils.deleteFileOrDirectory(e.getFilePath(), false);
+                evictRedisCaches(e);
+            }
+        } catch (Exception e) {
+            log.error("Failed to delete MediaFileInfoEntities ids={}", ids, e);
+            throw new DbWorldException("Failed to delete media file infos", e);
         }
-    }
-
-    private void clearCacheForRecord(Long recordId) {
-        String cacheKey = "media-file::record:" + recordId;
-        log.debug("[CACHE] Evicting Redis cache for key={}", cacheKey); // 🔍 Added Log
-        redisTemplate.delete(cacheKey);
     }
 
     @Override
     public void deleteInfoByFilePath(String filePath) {
         try {
-            log.debug("[DB] Fetching MediaFileInfoEntities by filePath={}", filePath); // 🔍 Added Log
-            List<MediaFileInfoEntity> mediaFileInfoEntities = mediaFileInfoRepository.findAllByFilePath(filePath);
-
-            if (!CollectionUtils.isEmpty(mediaFileInfoEntities)) {
-                mediaFileInfoEntities.stream()
-                        .map(mfi -> mfi.getDbCinemaRecord().getId())
-                        .distinct()
-                        .forEach(this::clearCacheForRecord);
-
-                log.debug("[DB] Deleting {} entries with filePath={}", mediaFileInfoEntities.size(), filePath); // 🔍 Added Log
-                mediaFileInfoRepository.deleteAll(mediaFileInfoEntities);
+            List<MediaFileInfoEntity> list = mediaFileInfoRepository.findAllByFilePath(filePath);
+            if (CollectionUtils.isEmpty(list)) return;
+            mediaFileInfoRepository.deleteAll(list);
+            for (MediaFileInfoEntity e : list) {
+                evictRedisCaches(e);
             }
-        } catch (Exception ex) {
-            log.error("Error deleting media files with path {}: {}", filePath, ex.getMessage());
-            throw new DbWorldException("Failed to delete media files by path", ex);
+        } catch (Exception e) {
+            log.error("Failed to delete MediaFileInfo by filePath={}", filePath, e);
+            throw new DbWorldException("Failed to delete media file info by file path", e);
         }
     }
 
     @Override
-//    @CacheEvict(value = {"filePaths"}, allEntries = true)
     public Map<String, Integer> cleanMediaFileInfo() {
-        log.info("[TASK] Starting media file cleanup...");
-
-        List<Map<String, Object>> filePaths = getAllFilePath();
-        Map<String, Integer> result = new HashMap<>();
-
-        if (CollectionUtils.isEmpty(filePaths)) {
-            log.warn("[TASK] No media file paths found in the database.");
-            result.put("totalCount", 0);
-            result.put("deletedFilesCount", 0);
+        try {
+            List<Map<String, Object>> filePaths = getAllFilePath();
+            List<String> idsToDelete = filePaths.stream().filter(this::isValidFileInfo).filter(this::shouldDeleteFile).map(m -> String.valueOf(m.get("id"))).collect(Collectors.toList());
+            if (!idsToDelete.isEmpty()) deleteInfoByIds(idsToDelete);
+            Map<String, Integer> result = new HashMap<>();
+            result.put("totalCount", filePaths.size());
+            result.put("deletedFilesCount", idsToDelete.size());
             return result;
+        } catch (Exception e) {
+            log.error("Failed to cleanup media file info", e);
+            throw new DbWorldException("Failed to cleanup media file info", e);
         }
-
-        log.info("[TASK] Loaded {} media file paths from DB", filePaths.size());
-
-        Map<Boolean, List<String>> partitionedIds = filePaths.stream()
-                .filter(this::isValidFileInfo)
-                .filter(this::shouldDeleteFile)
-                .collect(Collectors.partitioningBy(this::isFileSizeMismatch,
-                        Collectors.mapping(fileInfo -> String.valueOf(fileInfo.get("id")),
-                                Collectors.toList())
-                ));
-
-        List<String> idsToDelete = partitionedIds.values().stream()
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
-
-        if (!idsToDelete.isEmpty()) {
-            log.debug("[TASK] Deleting {} invalid entries...", idsToDelete.size()); // 🔍 Added Log
-            deleteInfoByIds(idsToDelete);
-            log.info("[TASK] Deleted {} media file entries ({} size mismatches, {} missing files).",
-                    idsToDelete.size(),
-                    partitionedIds.get(true).size(),
-                    partitionedIds.get(false).size());
-        } else {
-            log.info("[TASK] No invalid media files found to delete.");
-        }
-
-        result.put("totalCount", filePaths.size());
-        result.put("deletedFilesCount", idsToDelete.size());
-        result.put("sizeMismatchCount", partitionedIds.get(true).size());
-        result.put("missingFileCount", partitionedIds.get(false).size());
-
-        log.info("[TASK] Media file cleanup completed.");
-        return result;
     }
 
-    private boolean isValidFileInfo(Map<String, Object> fileInfo) {
-        boolean valid = fileInfo.containsKey("filePath") && fileInfo.containsKey("id") && fileInfo.containsKey("fileSize");
-        if (!valid) {
-            log.warn("Invalid file info encountered: {}", fileInfo);
+    private void updateRedisCaches(MediaFileInfoEntity entity) {
+        try {
+            redisTemplate.delete("media-file::record:" + entity.getDbCinemaRecord().getId());
+            redisTemplate.delete("media-file::file:" + entity.getId());
+            redisTemplate.delete("media-file::paths");
+        } catch (Exception e) {
+            log.warn("Failed to update redis cache for mediaFileId={}", entity.getId(), e);
         }
-        return valid;
     }
+
+    private void evictRedisCaches(MediaFileInfoEntity entity) {
+        try {
+            redisTemplate.delete("media-file::record:" + entity.getDbCinemaRecord().getId());
+            redisTemplate.delete("media-file::file:" + entity.getId());
+            redisTemplate.delete("media-file::paths");
+        } catch (Exception e) {
+            log.warn("Failed to evict redis cache for mediaFileId={}", entity.getId(), e);
+        }
+    }
+
+    private MediaFileInfo mapToMediaFileInfoDto(MediaFileInfoEntity entity) {
+        MediaFileInfo dto = modelMapper.map(entity, MediaFileInfo.class);
+        if (entity.getTrackInfos() != null) dto.setTrackInfos(entity.getTrackInfos().stream().map(this::mapToTrackInfoDto).collect(Collectors.toList()));
+        else dto.setTrackInfos(Collections.emptyList());
+        return dto;
+    }
+
+    private TrackInfo mapToTrackInfoDto(TrackInfoEntity entity) {
+        if (entity instanceof GeneralInfoEntity) return modelMapper.map(entity, GeneralInfo.class);
+        if (entity instanceof VideoInfoEntity) return modelMapper.map(entity, VideoInfo.class);
+        if (entity instanceof AudioInfoEntity) return modelMapper.map(entity, AudioInfo.class);
+        if (entity instanceof TextInfoEntity) return modelMapper.map(entity, TextInfo.class);
+        if (entity instanceof MenuInfoEntity) return modelMapper.map(entity, MenuInfo.class);
+        return modelMapper.map(entity, TrackInfo.class);
+    }
+
+    private boolean isValidFileInfo(Map<String, Object> fileInfo) { return fileInfo.containsKey("filePath") && fileInfo.containsKey("id") && fileInfo.containsKey("fileSize"); }
 
     private boolean shouldDeleteFile(Map<String, Object> fileInfo) {
-        String filePath = String.valueOf(fileInfo.get("filePath"));
-        File file = new File(filePath);
-        return !file.exists() || isFileSizeMismatch(fileInfo);
-    }
-
-    private boolean isFileSizeMismatch(Map<String, Object> fileInfo) {
-        File file = null;
-        try {
-            String filePath = String.valueOf(fileInfo.get("filePath"));
-            file = new File(filePath);
-            if (!file.exists()) return false;
-
-            long actualFileSize = Files.size(file.toPath());
-            return actualFileSize != Long.parseLong(String.valueOf(fileInfo.get("fileSize")));
-        } catch (IOException e) {
-            log.error("Error checking file size for {}: {}", file.getPath(), e.getMessage());
-            return false;
-        }
+        File file = new File(String.valueOf(fileInfo.get("filePath")));
+        if (!file.exists()) return true;
+        try { return Files.size(file.toPath()) != Long.parseLong(String.valueOf(fileInfo.get("fileSize"))); } catch (IOException e) { return true; }
     }
 }

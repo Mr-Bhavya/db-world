@@ -138,10 +138,10 @@ function TicTacToe() {
         //setPlay(event.target.value)
         event.preventDefault();
         let play = event.target.value;
-        console.log(play);
+        //console.log(play);
         if (play === "yes") {
             setDecision(true);
-            console.log(play, decision);
+            //console.log(play, decision);
         }
         else if (play === "no") {
             toast.warning("You will be navigate to Home Page.")

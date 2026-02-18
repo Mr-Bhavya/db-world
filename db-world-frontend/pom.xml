@@ -17,88 +17,151 @@
     <properties>
         <node.env>production</node.env>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Inherited from parent -->
+<!--        <build.source>${build.source}</build.source>-->
+        <existing.build.dir>${basedir}/build</existing.build.dir>
     </properties>
 
+    <profiles>
+        <!-- Profile for npm build -->
+        <profile>
+            <id>npm-build</id>
+            <activation>
+                <property>
+                    <name>build.source</name>
+                    <value>npm</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- Frontend Maven Plugin for npm builds -->
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>1.11.3</version>
+                        <executions>
+                            <!-- Install Node & npm locally (per project) -->
+                            <execution>
+                                <id>install-node-and-npm</id>
+                                <goals>
+                                    <goal>install-node-and-npm</goal>
+                                </goals>
+                                <phase>generate-resources</phase>
+                                <configuration>
+                                    <nodeVersion>${node.version}</nodeVersion>
+                                    <npmVersion>${npm.version}</npmVersion>
+                                </configuration>
+                            </execution>
+
+                            <!-- Install dependencies -->
+                            <execution>
+                                <id>npm-install</id>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <phase>generate-resources</phase>
+                                <configuration>
+                                    <arguments>install --legacy-peer-deps</arguments>
+                                </configuration>
+                            </execution>
+
+                            <!-- Build -->
+                            <execution>
+                                <id>npm-build</id>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <phase>compile</phase>
+                                <configuration>
+                                    <arguments>run build:production</arguments>
+                                    <environmentVariables>
+                                        <NODE_ENV>${node.env}</NODE_ENV>
+                                        <CI>false</CI>
+                                        <GENERATE_SOURCEMAP>false</GENERATE_SOURCEMAP>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Copy npm build output to backend public folder -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>copy-npm-build</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${basedir}/../db-world-backend/src/main/resources/public</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${basedir}/build</directory>
+                                            <filtering>false</filtering>
+                                            <includes>
+                                                <include>**/*</include>
+                                            </includes>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Profile for existing build -->
+        <profile>
+            <id>existing-build</id>
+            <activation>
+                <property>
+                    <name>build.source</name>
+                    <value>existing</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- Copy existing build output to backend public folder -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>copy-existing-build</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${basedir}/../db-world-backend/src/main/resources/public</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${existing.build.dir}</directory>
+                                            <filtering>false</filtering>
+                                            <includes>
+                                                <include>**/*</include>
+                                            </includes>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
     <build>
+        <!-- Default build configuration (if no profile matches) -->
         <plugins>
-            <!-- Frontend Maven Plugin -->
-            <plugin>
-                <groupId>com.github.eirslett</groupId>
-                <artifactId>frontend-maven-plugin</artifactId>
-                <version>1.11.3</version>
-                <executions>
-
-                    <!-- Install Node & npm locally (per project) -->
-                    <execution>
-                        <id>install-node-and-npm</id>
-                        <goals>
-                            <goal>install-node-and-npm</goal>
-                        </goals>
-                        <configuration>
-                            <nodeVersion>v20.14.0</nodeVersion>
-                            <npmVersion>10.7.0</npmVersion>
-                        </configuration>
-                    </execution>
-
-                    <!-- Install dependencies -->
-                    <execution>
-                        <id>npm-install</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>generate-resources</phase>
-                        <configuration>
-                            <arguments>install --legacy-peer-deps</arguments>
-                        </configuration>
-                    </execution>
-
-                    <!-- Build -->
-                    <execution>
-                        <id>npm-build</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>compile</phase>
-                        <configuration>
-                            <arguments>run build:production</arguments>
-                            <environmentVariables>
-                                <NODE_ENV>${node.env}</NODE_ENV>
-                                <CI>false</CI>
-                                <GENERATE_SOURCEMAP>false</GENERATE_SOURCEMAP>
-                            </environmentVariables>
-                        </configuration>
-                    </execution>
-
-                </executions>
-            </plugin>
-
-            <!-- Copy build output to backend public folder -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.3.1</version>
-                <executions>
-                    <execution>
-                        <id>copy-build</id>
-                        <phase>process-classes</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${basedir}/../db-world-backend/src/main/resources/public</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${basedir}/build</directory>
-                                    <filtering>false</filtering>
-                                    <includes>
-                                        <include>**/*</include>
-                                    </includes>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+            <!-- Optional: Add common plugins here -->
         </plugins>
     </build>
 </project>

@@ -1,0 +1,16 @@
+{
+  "@timestamp": "${json:timestamp}",
+  "level": "${json:level}",
+  "thread": "${json:thread}",
+  "logger": "${json:logger}",
+  "message": "${json:message}",
+  "exception": {
+    "exception_class": "${json:exception.class}",
+    "exception_message": "${json:exception.message}",
+    "stacktrace": "${json:stacktrace}"
+  },
+  "environment": "${sys:spring.profiles.active}",
+  "service": "${APP_NAME}",
+  "host": "${hostName}",
+  "pid": "${processId}"
+}

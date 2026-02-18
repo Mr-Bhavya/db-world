@@ -1,15 +1,9 @@
 package com.db.dbworld.handler;
 
-import com.db.dbworld.dao.dbcinema.tmdb.SpokenLanguageRepository;
-import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.entities.dbcinema.stream.*;
 import com.db.dbworld.exceptions.DbWorldException;
-import com.db.dbworld.hls.HLSMediaProcessor;
-import com.db.dbworld.hls.HLSProcessingResult;
 import com.db.dbworld.payloads.mediafile.MediaFileDetails;
-import com.db.dbworld.services.cinema.DBCinemaRecordsService;
-import com.db.dbworld.services.media.MediaFileInfoService;
-import com.db.dbworld.services.media.MediaInfoCommandService;
+import com.db.dbworld.services.media.*;
 import com.db.dbworld.utils.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -22,8 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,14 +28,14 @@ public class MediaFileHandler {
     @Autowired
     private MediaFileInfoService mediaFileInfoService;
 
-//    @Autowired
-//    private DBCinemaRecordsService dbCinemaRecordsService;
+    @Autowired
+    private SystemLinkService systemLinkService;
 
     @Autowired
     private DbWorldUtils dbWorldUtils;
 
     @Autowired
-    private MediaInfoUtils mediaInfoUtils;
+    private MediaFileNamingService mediaFileNamingService;
 
     @Autowired
     private MediaFileUtils mediaFileUtils;
@@ -50,17 +43,9 @@ public class MediaFileHandler {
     @Autowired
     private MediaInfoCommandService mediaInfoCommandService;
 
-    @Autowired
-    private HLSMediaProcessor hlsMediaProcessor;
-
-
-//    private static final String MOVIES_FOLDER = "movies";
-//    private static final String SERIES_FOLDER = "series";
     private static final String UNASSIGNED_FOLDER = "unassigned";
 
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("([sS]\\d{2}[eE]\\d{2})");
-//    private static final Pattern BASE_FOLDER_PATTERN = Pattern.compile("\\d+-[a-zA-Z0-9 .:'\\-]+");
-//    private static final Pattern SEASON_EPISODE_EXTRACT_PATTERN = Pattern.compile("S\\d{2}E\\d{2}");
 
     private final ObjectMapper objectMapper;
 
@@ -163,103 +148,13 @@ public class MediaFileHandler {
         List<MediaFileInfoEntity> mediaFileInfoEntities = getMediaFileInfo(fileDetails, file.toPath());
 
         mediaFileInfoEntities.forEach(mediaFileInfoEntity -> {
-            mediaFileInfoService.save(mediaFileInfoEntity);
+            mediaFileInfoEntity = mediaFileInfoService.save(mediaFileInfoEntity);
             dbWorldUtils.moveFileOrDir(sourcePath, mediaFileInfoEntity.getFilePath(), true);
+            systemLinkService.create(mediaFileInfoEntity);
         });
-
-//        HLSProcessingResult result = hlsMediaProcessor.processMediaFile(mediaFileInfoEntities.get(0), fileDetails);
-//
-//        switch (result.getStatus()) {
-//            case COMPLETED:
-//                log.info("HLS generated successfully for {}", mediaFileInfoEntities.get(0).getFileName());
-//                log.info("Playlist URL: {}", result.getPlaylistUrl());
-//                break;
-//
-//            case ALREADY_EXISTS:
-//                log.info("HLS already exists for {}", mediaFileInfoEntities.get(0).getFileName());
-//                break;
-//
-//            case FAILED:
-//                log.error("Failed to generate HLS: {}", result.getErrorMessage());
-//                // Handle error
-//                break;
-//        }
 
         log.info("Processed {} files for recordId: {}", mediaFileInfoEntities.size(), fileDetails.getRecordId());
     }
-
-//    private Optional<MediaFileDetails> extractBaseFolder(String filePath) {
-//        String normalizedPath = normalizePath(filePath);
-//        Path path = Paths.get(normalizedPath);
-//        String baseDirectory = normalizePath(DbWorldConstants.INTEGRATION_FOLDER_PATH);
-//
-//        if (!normalizedPath.startsWith(baseDirectory)) {
-//            return Optional.empty();
-//        }
-//
-//        String relativePath = normalizedPath.substring(baseDirectory.length());
-//        String baseFolder = extractPattern(relativePath, BASE_FOLDER_PATTERN);
-//        String seasonEpisode = extractPattern(relativePath, SEASON_EPISODE_EXTRACT_PATTERN);
-//
-//        if (baseFolder != null) {
-//            String processedBaseFolder = PathSanitizer.sanitizePath(baseFolder);
-//            Long recordId = parseRecordId(processedBaseFolder);
-//
-//            if (seasonEpisode != null) {
-//                return buildSeriesFileDetails(path, processedBaseFolder, recordId, seasonEpisode);
-//            } else {
-//                return buildMovieFileDetails(path, processedBaseFolder, recordId);
-//            }
-//        }
-//
-//        return Optional.empty();
-//    }
-//
-//    private String extractPattern(String input, Pattern pattern) {
-//        Matcher matcher = pattern.matcher(input);
-//        return matcher.find() ? matcher.group() : null;
-//    }
-//
-//    private Optional<MediaFileDetails> buildSeriesFileDetails(Path filePath, String baseFolder, Long recordId, String seasonEpisode) {
-//        String season = seasonEpisode.substring(0, 3);
-//        String episode = seasonEpisode.substring(3);
-//        String streamFilePath = String.format("%s/%s/%s/%s/%s",
-//                normalizePath(DbWorldConstants.STREAM_HOME_PATH),
-//                SERIES_FOLDER,
-//                baseFolder,
-//                season,
-//                filePath.getFileName().toString());
-//
-//        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
-//
-//        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
-//                dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
-//                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, season, episode
-//        ));
-//    }
-//
-//    private Optional<MediaFileDetails> buildMovieFileDetails(Path filePath, String baseFolder, Long recordId) {
-//        String streamFilePath = String.format("%s/%s/%s/%s",
-//                normalizePath(DbWorldConstants.STREAM_HOME_PATH),
-//                MOVIES_FOLDER,
-//                baseFolder,
-//                filePath.getFileName().toString());
-//
-//        DBCinemaRecordsEntity dbCinemaRecordsEntity = dbCinemaRecordsService.getRecordEntityById(recordId);
-//
-//        return Optional.of(new MediaFileDetails( dbCinemaRecordsEntity,
-//                dbCinemaRecordsEntity.getName(), mediaInfoUtils.getYearInfo(dbCinemaRecordsEntity),
-//                streamFilePath, baseFolder, DbWorldConstants.RECORD_TYE.MOVIE, recordId, null, null
-//        ));
-//    }
-//
-//    private Long parseRecordId(String folderName) {
-//        try {
-//            return Long.parseLong(folderName.split("-")[0]);
-//        } catch (NumberFormatException e) {
-//            throw new DbWorldException("Invalid folder name format, unable to parse recordId: " + folderName, e);
-//        }
-//    }
 
     private void handleFileDeletion(String filePath) {
         try {
@@ -304,7 +199,7 @@ public class MediaFileHandler {
 
             if (fileDetails.getRecordId() != null) {
                 entity = entity.initialize(fileDetails.getDbCinemaRecordsEntity());
-                String fileName = mediaInfoUtils.buildFileNameAndPath(fileDetails, entity);
+                String fileName = mediaFileNamingService.buildFileNameAndPath(fileDetails, entity);
                 entity.setFileName(fileName);
                 entity.setFilePath(Path.of(Path.of(fileDetails.getStreamFilePath()).getParent().toString(), fileName).toString());
             }
@@ -315,8 +210,6 @@ public class MediaFileHandler {
             throw new DbWorldException("Error parsing media info JSON for recordId: " + fileDetails.getRecordId(), e);
         }
     }
-
-
 
     private MediaFileInfoEntity convertJsonObjectToMediaInfo(JsonObject jsonObject) throws JsonProcessingException {
         MediaFileInfoEntity mediaFileInfo = objectMapper.readValue(jsonObject.get("media").toString(), MediaFileInfoEntity.class);

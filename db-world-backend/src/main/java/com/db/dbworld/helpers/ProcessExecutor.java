@@ -127,7 +127,7 @@ public class ProcessExecutor implements AutoCloseable {
         List<String> fullCommand = new ArrayList<>();
 
         if (command.isEmpty() ||
-                (!command.get(0).equals("ffmpeg") && !command.get(0).equals(runtimeProperties.getFfmpeg()))) {
+                (!command.getFirst().equals("ffmpeg") && !command.getFirst().equals(runtimeProperties.getFfmpeg()))) {
             fullCommand.add(runtimeProperties.getFfmpeg());
         }
 
@@ -229,7 +229,7 @@ public class ProcessExecutor implements AutoCloseable {
                         .outputProcessor(output::append)
                         .errorProcessor(line ->
                                 log.warn("MediaInfo stderr: {}", line))
-                        .timeout(Duration.ofSeconds(30))
+                        .timeout(Duration.ofMinutes(2))
                         .successPredicate(code -> code == 0)
                         .build()
         );
@@ -243,6 +243,73 @@ public class ProcessExecutor implements AutoCloseable {
 
         return output.toString();
     }
+
+    /* --------------------------------------------------- */
+    /* YT-DLP                                           */
+    /* --------------------------------------------------- */
+
+    public String runYtDlpCommand(
+            List<String> command,
+            StreamProcessor streamProcessor,
+            AtomicBoolean cancellationFlag
+    ) throws ProcessExecutionException {
+
+        StringBuilder output = new StringBuilder();
+        List<String> fullCommand = new ArrayList<>();
+
+        if (command.isEmpty() ||
+                (!command.getFirst().contains("yt-dlp")
+                        && !command.getFirst().equals(runtimeProperties.getYtDlp()))) {
+            fullCommand.add(runtimeProperties.getYtDlp());
+        }
+
+        fullCommand.addAll(command);
+
+        String commandString = String.join(" ", fullCommand);
+        log.info("YT-DLP command: {}", commandString);
+
+        long startTime = System.currentTimeMillis();
+
+        // ---- STDOUT: tee streamProcessor + output capture ----
+        Consumer<String> stdoutProcessor =
+                tee(
+                        streamProcessor != null
+                                ? streamProcessor.stdoutConsumer()
+                                : line -> log.info("[YT-DLP stdout]: {}", line),
+                        output::append
+                );
+
+        // ---- STDERR: streamProcessor only (important!) ----
+        Consumer<String> stderrProcessor =
+                streamProcessor != null
+                        ? streamProcessor.stderrConsumer()
+                        : line -> log.warn("[YT-DLP stderr]: {}", line);
+
+        ProcessResult result = execute(
+                ProcessConfiguration.builder()
+                        .command(fullCommand.toArray(new String[0]))
+                        .outputProcessor(stdoutProcessor)
+                        .errorProcessor(stderrProcessor)
+                        .cancellationFlag(cancellationFlag)
+                        .timeout(Duration.ofHours(2))
+                        .successPredicate(code -> code == 0)
+                        .onTimeout(ProcessTimeoutAction.FORCE_TERMINATE)
+                        .build()
+        );
+
+        if (!result.success()) {
+            throw ProcessExecutionException.forExitCode(
+                    result.exitCode(),
+                    commandString
+            );
+        }
+
+        log.info("YT-DLP completed in {} ms",
+                System.currentTimeMillis() - startTime);
+
+        return output.toString();
+    }
+
 
     /* --------------------------------------------------- */
     /* Helpers                                             */
@@ -322,6 +389,14 @@ public class ProcessExecutor implements AutoCloseable {
         if (config.command() == null || config.command().length == 0) {
             throw new IllegalArgumentException("Command must not be empty");
         }
+    }
+
+    private static Consumer<String> tee(Consumer<String>... consumers) {
+        return line -> {
+            for (Consumer<String> c : consumers) {
+                if (c != null) c.accept(line);
+            }
+        };
     }
 
     /* --------------------------------------------------- */

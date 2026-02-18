@@ -34,6 +34,32 @@ public class MirrorStatusFactory {
     }
 
     /**
+     * FileUrl with Auth
+     */
+    public MirrorStatus create(
+            String folderName,
+            String fileUrl,
+            String fileName,
+            Long fileSize,
+            String username,
+            String password,
+            boolean extract
+    ) {
+        MirrorStatus status = new MirrorStatus(
+                runtime,
+                folderName,
+                fileUrl,
+                fileName,
+                fileSize,
+                extract
+        );
+        status.setUrlPassword(password);
+        status.setUrlUsername(username);
+        status.setUrlProtected(true);
+        return status;
+    }
+
+    /**
      * Overload for optional params
      */
     public MirrorStatus create(

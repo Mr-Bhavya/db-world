@@ -198,6 +198,11 @@ function AddRecordModal({
       const res = await AddDbCinemaRecord(data.name, data.type, data.tmdb);
       handleApiResponse(res, 'Record added successfully', true);
     } catch (error) {
+      const res = error.response?.data;
+      if (res) {
+        handleApiResponse(res, 'Record added successfully', false);
+        return;
+      }
       toast.error('An error occurred');
     } finally {
       setNewRecordLoader(false);
@@ -207,10 +212,8 @@ function AddRecordModal({
 
   const handleApiResponse = (res, successMessage, isAdd = false) => {
     if (res.httpStatusCode === (isAdd ? 201 : 200)) {
-      toast.success(successMessage);
-      if (successMessage !== 'TMDB data refreshed') {
-        fetchRecords();
-      }
+      toast.success(res.message || successMessage);
+      fetchRecords();
     } else if (res.httpStatusCode === 401) {
       toast.error(res.message + Constants.RE_LOGIN);
       navigate(Constants.LOGIN_ROUTE, { state: { from: location } });

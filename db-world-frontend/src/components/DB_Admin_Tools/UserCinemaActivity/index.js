@@ -814,7 +814,7 @@ const UserCinemaActivity = () => {
   const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
-      const initialData = await getInitialDataApi();
+      const initialData = (await getInitialDataApi())?.data;
       if (initialData?.userRole) {
         setUserRole(initialData.userRole);
         if (initialData.adminData) {
@@ -823,6 +823,7 @@ const UserCinemaActivity = () => {
         setSuccess('Data loaded successfully');
       }
     } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load initial data');
       setError(err.response?.data?.error || 'Failed to load initial data');
     } finally {
       setLoading(false);
@@ -868,8 +869,8 @@ const UserCinemaActivity = () => {
           });
           setData(prev => ({
             ...prev,
-            activities: safeGet(recentActivities, 'activities', []),
-            activitiesCount: safeGet(recentActivities, 'count', 0)
+            activities: safeGet(recentActivities?.data, 'activities', []),
+            activitiesCount: safeGet(recentActivities?.data, 'count', 0)
           }));
           break;
 
@@ -878,9 +879,9 @@ const UserCinemaActivity = () => {
           const usersForAnalytics = await getUserListApi(timeRange);
           setData(prev => ({
             ...prev,
-            activityStats: safeGet(activityStats, 'stats', {}),
-            users: safeGet(usersForAnalytics, 'users', []),
-            usersCount: safeGet(usersForAnalytics, 'count', 0)
+            activityStats: safeGet(activityStats?.data, 'stats', {}),
+            users: safeGet(usersForAnalytics?.data, 'users', []),
+            usersCount: safeGet(usersForAnalytics?.data, 'count', 0)
           }));
           break;
       }

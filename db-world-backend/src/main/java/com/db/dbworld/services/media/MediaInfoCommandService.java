@@ -1,53 +1,53 @@
 package com.db.dbworld.services.media;
 
-import com.db.dbworld.dao.dbcinema.tmdb.SpokenLanguageRepository;
 import com.db.dbworld.entities.dbcinema.stream.*;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.exceptions.ProcessExecutionException;
 import com.db.dbworld.helpers.ProcessExecutor;
 import com.db.dbworld.payloads.mediafile.MediaFileDetails;
+import com.db.dbworld.services.media.resolver.MediaTagResolver;
 import com.db.dbworld.stream.processor.StreamProcessorFactory;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.DbWorldUtils;
-import com.db.dbworld.utils.MediaInfoUtils;
 import jakarta.persistence.EntityManager;
 import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static com.db.dbworld.services.media.resolver.MediaTagResolver.*;
 
 @Log4j2
 @Service
 public class MediaInfoCommandService {
 
-    private static final String LANG_HINDI = "hi";
-    private static final String LANG_GUJARATI = "gu";
-    private static final String LANG_ENGLISH = "en";
-    private static final String LANG_UND = "und"; // undefined
-
-    private final SpokenLanguageRepository spokenLanguageRepository;
+    // Canonical preferred languages
+    private static final String HINDI = "Hindi";
+    private static final String ENGLISH = "English";
+    private static final String GUJARATI = "Gujarati";
+    private static final String UNKNOWN = "Unknown";
 
     private final DbWorldUtils dbWorldUtils;
-
-    private final MediaInfoUtils mediaInfoUtils;
 
     private final EntityManager entityManager;
 
     private final ProcessExecutor processExecutor;
 
-    public MediaInfoCommandService (SpokenLanguageRepository spokenLanguageRepository, DbWorldUtils dbWorldUtils,
-                                    MediaInfoUtils mediaInfoUtils, EntityManager entityManager, DbWorldRuntimeProperties runtimeProperties, ProcessExecutor processExecutor) {
-        this.spokenLanguageRepository = spokenLanguageRepository;
+    private final MediaFileNamingService mediaFileNamingService;
+
+    public MediaInfoCommandService (DbWorldUtils dbWorldUtils,
+                                    EntityManager entityManager, DbWorldRuntimeProperties runtimeProperties, ProcessExecutor processExecutor, MediaFileNamingService mediaFileNamingService) {
         this.dbWorldUtils = dbWorldUtils;
-        this.mediaInfoUtils = mediaInfoUtils;
         this.entityManager = entityManager;
         this.processExecutor = processExecutor;
+        this.mediaFileNamingService = mediaFileNamingService;
     }
 
     /**
@@ -64,7 +64,7 @@ public class MediaInfoCommandService {
             log.info("Initial MediaInfo JSON obtained, length: {}", initialJson.length());
 
             log.info("Step 2: Parsing MediaInfo JSON");
-            List<MediaFileInfoEntity> mediaFileInfos = mediaInfoUtils.parseMediaInfoJson(fileDetails, initialJson);
+            List<MediaFileInfoEntity> mediaFileInfos = mediaFileNamingService.parseMediaInfoJson(fileDetails, initialJson);
             if (mediaFileInfos.isEmpty()) {
                 log.warn("No MediaFileInfoEntity parsed from JSON");
                 return initialJson;
@@ -114,7 +114,7 @@ public class MediaInfoCommandService {
 
         try {
             log.info("Building new filename using mediaInfoUtils");
-            String newFilename = mediaInfoUtils.buildFileNameAndPath(fileDetails, mediaFileInfo);
+            String newFilename = mediaFileNamingService.buildFileNameAndPath(fileDetails, mediaFileInfo);
             log.info("New filename generated: {}", newFilename);
 
             Path newPath = path.resolveSibling(newFilename);
@@ -168,27 +168,27 @@ public class MediaInfoCommandService {
     }
 
     private String generateGeneralTitle(MediaFileDetails fileDetails) {
-        log.info("Generating general title for recordType: {}",
-                fileDetails != null ? fileDetails.getRecordType() : "null");
+        log.info("Generating general title for recordType: {}", fileDetails != null ? fileDetails.getRecordType() : "null");
 
         if (fileDetails == null) {
             log.warn("FileDetails is null, returning empty title");
             return "";
         }
 
-        String title;
+        String name = StringUtils.trimToEmpty(fileDetails.getName());
+        String year = StringUtils.trimToEmpty(fileDetails.getYear());
+
         if (DbWorldConstants.RECORD_TYE.SERIES == fileDetails.getRecordType()) {
-            String season = StringUtils.hasText(fileDetails.getSeason()) ? fileDetails.getSeason() : "S01";
-            String episode = StringUtils.hasText(fileDetails.getEpisode()) ? fileDetails.getEpisode() : "E01";
-            title = String.format("%s (%s) %s%s", fileDetails.getName(), fileDetails.getYear(), season, episode);
-            log.info("Series title generated: {}", title);
-        } else {
-            String year = StringUtils.hasText(fileDetails.getYear()) ? fileDetails.getYear() : "";
-            title = year.isEmpty() ? fileDetails.getName() : String.format("%s (%s)", fileDetails.getName(), year);
-            log.info("Movie title generated: {}", title);
+            String season = StringUtils.defaultIfBlank(fileDetails.getSeason(), "S01");
+            String episode = StringUtils.defaultIfBlank(fileDetails.getEpisode(), "E01");
+
+            return year.isEmpty() ? String.format("%s %s%s", name, season, episode) : String.format("%s (%s) %s%s", name, year, season, episode);
         }
-        return title;
+
+        // Movie
+        return year.isEmpty() ? name : String.format("%s (%s)", name, year);
     }
+
 
     private void findAndProcessVideoTrack(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
         log.info("Searching for video track in {} tracks",
@@ -213,32 +213,45 @@ public class MediaInfoCommandService {
         log.info("Generating video title for track: {}", track);
         List<String> titleParts = new ArrayList<>();
 
-        if (track instanceof VideoInfoEntity videoInfoTrack) {
-            log.info("Processing VideoInfoEntity for title generation");
-            if (videoInfoTrack.getFormat() != null) {
-                titleParts.add(videoInfoTrack.getFormat());
-                log.trace("Added format: {}", videoInfoTrack.getFormat());
-            }
-            if (videoInfoTrack.getFormatProfile() != null) {
-                titleParts.add(videoInfoTrack.getFormatProfile());
-                log.trace("Added format profile: {}", videoInfoTrack.getFormatProfile());
-            }
-            if (videoInfoTrack.getBitDepth() != null) {
-                titleParts.add(videoInfoTrack.getBitDepth() + "bit");
-                log.trace("Added bit depth: {}bit", videoInfoTrack.getBitDepth());
-            }
-            if (videoInfoTrack.getHeight() != null) {
-                titleParts.add(videoInfoTrack.getHeight() + "p");
-                log.trace("Added height: {}p", videoInfoTrack.getHeight());
-            }
-        } else {
+        if (!(track instanceof VideoInfoEntity video)) {
             log.warn("Track is not a VideoInfoEntity, type: {}", track.getType());
+            return "Main Video";
+        }
+
+        // Codec (via resolver)
+        String codec = MediaTagResolver.resolveVideoCodec(video.getFormat());
+        if (StringUtils.isNotBlank(codec)) {
+            titleParts.add(codec);
+        }
+
+        // Profile
+        String profile = MediaTagResolver.VIDEO_PROFILE_MAP.getOrDefault(StringUtils.lowerCase(StringUtils.trimToEmpty(video.getFormatProfile())), "");
+        if (!profile.isEmpty()) {
+            titleParts.add(profile);
+        }
+
+        // Bit depth
+        if (video.getBitDepth() != null && video.getBitDepth() > 0) {
+            titleParts.add(video.getBitDepth() + "bit");
+        }
+
+        // Resolution (bucketed)
+        String resolution = MediaTagResolver.resolveResolution(video.getHeight());
+        if (StringUtils.isNotBlank(resolution)) {
+            titleParts.add(resolution);
+        }
+
+        // HDR (via resolver)
+        String hdr = MediaTagResolver.resolveHdr(video.getHdrFormat());
+        if (StringUtils.isNotBlank(hdr)) {
+            titleParts.add(hdr);
         }
 
         String title = String.join(" ", titleParts).trim();
-        log.info("Generated video title: '{}' from {} parts", title, titleParts.size());
+        log.info("Generated video title: {}", title);
         return title.isEmpty() ? "Main Video" : title;
     }
+
 
     private void processAudioTracks(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
         log.info("Processing audio tracks from {} total tracks",
@@ -282,21 +295,28 @@ public class MediaInfoCommandService {
         log.info("Generating audio title for track: {}", audioInfoTrack);
         List<String> titleParts = new ArrayList<>();
 
-        log.info("Processing AudioInfoEntity for title generation");
-        String language = audioInfoTrack.getLanguage() != null ? getLanguageName(audioInfoTrack.getLanguage()) : "";
+        // Language
+        String rawLang = audioInfoTrack.getLanguage();
+        String language = LANGUAGE_MAP.getOrDefault(StringUtils.lowerCase(StringUtils.trimToEmpty(rawLang)), "");
         if (!language.isEmpty()) {
             titleParts.add(language);
             log.trace("Added language: {}", language);
         }
-        if (audioInfoTrack.getFormat() != null) {
+
+        // Codec / format
+        if (StringUtils.isNotBlank(audioInfoTrack.getFormat())) {
             titleParts.add(audioInfoTrack.getFormat());
             log.trace("Added format: {}", audioInfoTrack.getFormat());
         }
-        if (audioInfoTrack.getChannels() != null) {
-            titleParts.add(audioInfoTrack.getChannels() + "ch");
+
+        // Channels
+        if (audioInfoTrack.getChannels() != null && audioInfoTrack.getChannels() > 0) {
+            titleParts.add(audioInfoTrack.getChannels() + "CH");
             log.trace("Added channels: {}ch", audioInfoTrack.getChannels());
         }
-        if (audioInfoTrack.getBitRate() != null) {
+
+        // Bitrate
+        if (audioInfoTrack.getBitRate() != null && audioInfoTrack.getBitRate() > 0) {
             String formattedBitrate = formatBitrate(String.valueOf(audioInfoTrack.getBitRate()));
             titleParts.add(formattedBitrate);
             log.trace("Added bitrate: {}", formattedBitrate);
@@ -306,6 +326,7 @@ public class MediaInfoCommandService {
         log.info("Generated audio title: '{}' from {} parts", title, titleParts.size());
         return title;
     }
+
 
     private void processSubtitleTracks(MediaFileInfoEntity mediaFileInfo, Map<String, String> modifications) {
         log.info("Processing subtitle tracks from {} total tracks",
@@ -329,38 +350,38 @@ public class MediaInfoCommandService {
     }
 
     private String generateSubtitleTitle(TrackInfoEntity track) {
-        log.info("Generating subtitle title for track: {}", track);
-
-        if (track instanceof TextInfoEntity textInfoTrack) {
-            log.info("Processing TextInfoEntity for subtitle title generation");
-            String language = textInfoTrack.getLanguage() != null ? getLanguageName(textInfoTrack.getLanguage()) : "";
-            String format = textInfoTrack.getFormat() != null ? textInfoTrack.getFormat() : "";
-            String existingTitle = textInfoTrack.getTitle() != null ? textInfoTrack.getTitle() : "";
-            boolean forced = textInfoTrack.getForced() != null && "Yes".equals(textInfoTrack.getForced());
-
-            log.info("Subtitle properties - language: {}, format: {}, existingTitle: {}, forced: {}",
-                    language, format, existingTitle, forced);
-
-            String title;
-            if (StringUtils.hasText(existingTitle) && !"SDH".equals(existingTitle)) {
-                title = String.format("%s %s", language, existingTitle);
-                log.info("Using existing title with language: {}", title);
-            } else if (forced) {
-                title = String.format("%s %s [Forced]", language, format);
-                log.info("Generated forced subtitle title: {}", title);
-            } else if ("SDH".equals(existingTitle)) {
-                title = String.format("%s SDH", language);
-                log.info("Generated SDH subtitle title: {}", title);
-            } else {
-                title = String.format("%s %s", language, format);
-                log.info("Generated basic subtitle title: {}", title);
-            }
-            return title;
-        } else {
-            log.warn("Track is not a TextInfoEntity, type: {}", track.getType());
+        if (!(track instanceof TextInfoEntity text)) {
             return "";
         }
+
+        // Language
+        String language = LANGUAGE_MAP.getOrDefault(StringUtils.lowerCase(StringUtils.trimToEmpty(text.getLanguage())), "");
+
+        // Format
+        String format = SUB_FORMAT_MAP.getOrDefault(StringUtils.lowerCase(StringUtils.trimToEmpty(text.getFormat())), "");
+
+        // Semantic title
+        String semanticTitle = SUB_TITLE_MAP.getOrDefault(StringUtils.lowerCase(StringUtils.trimToEmpty(text.getTitle())), "");
+
+        boolean forced = "Yes".equalsIgnoreCase(text.getForced());
+
+        List<String> parts = new ArrayList<>();
+
+        if (!language.isEmpty()) parts.add(language);
+
+        if (!semanticTitle.isEmpty()) {
+            parts.add(semanticTitle);
+        } else if (!format.isEmpty()) {
+            parts.add(format);
+        }
+
+        if (forced) {
+            parts.add("[Forced]");
+        }
+
+        return String.join(" ", parts).trim();
     }
+
 
     private String formatBitrate(String bitrate) {
         log.info("Formatting bitrate: {}", bitrate);
@@ -379,31 +400,6 @@ public class MediaInfoCommandService {
         } catch (NumberFormatException e) {
             log.warn("Failed to parse bitrate: {}, returning original", bitrate, e);
             return bitrate;
-        }
-    }
-
-    private String getLanguageName(String languageCode) {
-        log.info("Looking up language name for code: {}", languageCode);
-        if (!StringUtils.hasText(languageCode)) {
-            log.warn("Empty language code provided");
-            return languageCode;
-        }
-
-        try {
-            return spokenLanguageRepository.findById(languageCode)
-                    .map(entity -> {
-                        String name = StringUtils.hasText(entity.getName()) ?
-                                entity.getName() : entity.getEnglish_name();
-                        log.info("Found language name: {} for code: {}", name, languageCode);
-                        return name;
-                    })
-                    .orElseGet(() -> {
-                        log.warn("Language code not found in repository: {}", languageCode);
-                        return languageCode;
-                    });
-        } catch (Exception e) {
-            log.error("Error looking up language code: {}", languageCode, e);
-            return languageCode;
         }
     }
 
@@ -698,174 +694,234 @@ public class MediaInfoCommandService {
     private Set<Integer> getSubtitleTracksToKeep(List<TrackInfoEntity> trackInfoEntities) {
         log.info("Determining subtitle tracks to keep from {} tracks", trackInfoEntities.size());
 
-        // Define preferred languages in order of preference
-        final Set<String> PREFERRED_LANGUAGES = Set.of("hindi", "english", "gujarati");
-        final Set<String> PREFERRED_LANGUAGE_CODES = Set.of("hi", "en", "gu", "hin", "eng", "guj");
+        // Preferred languages (canonical names)
+        final Set<String> PREFERRED_LANGUAGES = Set.of(ENGLISH, HINDI, GUJARATI);
 
-        // Map to store languages and their SUBTITLE STREAM INDICES (not original indices)
         Map<String, List<Integer>> languageTracks = new HashMap<>();
-        int subtitleTrackCount = 0;
-        int subtitleStreamIndex = 0; // This is the FFmpeg subtitle stream index
+        int subtitleStreamIndex = 0;
 
-        // Iterate and collect SUBTITLE STREAM INDICES (0 for first subtitle, 1 for second, etc.)
+        // Collect subtitle stream indices grouped by canonical language
         for (TrackInfoEntity track : trackInfoEntities) {
-            if ("Text".equalsIgnoreCase(track.getType())) {
-                String language = extractLanguage(track);
-                String languageLower = language.toLowerCase();
-                languageTracks.computeIfAbsent(languageLower, k -> new ArrayList<>()).add(subtitleStreamIndex); // Store subtitle stream index
-                log.trace("Subtitle track at subtitle index {} has language: {} (normalized: {})",
-                        subtitleStreamIndex, language, languageLower);
-                subtitleStreamIndex++;
-                subtitleTrackCount++;
+            if (!"Text".equalsIgnoreCase(track.getType())) {
+                continue;
             }
+
+            String rawLang = extractLanguage(track); // may be hi/eng/Hindi/etc
+            String canonicalLang = MediaTagResolver.resolveLanguage(rawLang);
+
+            languageTracks
+                    .computeIfAbsent(canonicalLang, k -> new ArrayList<>())
+                    .add(subtitleStreamIndex);
+
+            log.trace("Subtitle stream index {} resolved to language: {} (raw: {})",
+                    subtitleStreamIndex, canonicalLang, rawLang);
+
+            subtitleStreamIndex++;
         }
 
-        log.info("Found {} subtitle tracks with languages: {}", subtitleTrackCount, languageTracks.keySet());
+        log.info("Found subtitle languages: {}", languageTracks.keySet());
 
-        // Determine if any preferred language exists
-        boolean hasPreferredLanguage = languageTracks.keySet().stream()
-                .anyMatch(lang -> PREFERRED_LANGUAGES.contains(lang) ||
-                        lang.length() <= 3 && PREFERRED_LANGUAGE_CODES.contains(lang));
+        // Check if any preferred language exists
+        boolean hasPreferred = languageTracks.keySet()
+                .stream()
+                .anyMatch(PREFERRED_LANGUAGES::contains);
 
         Set<Integer> result = new HashSet<>();
 
-        if (hasPreferredLanguage) {
-            // Keep only preferred languages - using SUBTITLE STREAM INDICES
-            for (Map.Entry<String, List<Integer>> entry : languageTracks.entrySet()) {
-                String language = entry.getKey();
-                if (PREFERRED_LANGUAGES.contains(language) ||
-                        (language.length() <= 3 && PREFERRED_LANGUAGE_CODES.contains(language))) {
-                    result.addAll(entry.getValue()); // Add SUBTITLE STREAM INDICES
-                    log.debug("Keeping {} tracks for language: {} at subtitle indices: {}",
-                            entry.getValue().size(), language, entry.getValue());
+        if (hasPreferred) {
+            for (var entry : languageTracks.entrySet()) {
+                if (PREFERRED_LANGUAGES.contains(entry.getKey())) {
+                    result.addAll(entry.getValue());
+                    log.debug("Keeping {} subtitle tracks for language {} at indices {}",
+                            entry.getValue().size(), entry.getKey(), entry.getValue());
                 } else {
-                    log.debug("Discarding {} tracks for language: {} at subtitle indices: {}",
-                            entry.getValue().size(), language, entry.getValue());
+                    log.debug("Discarding subtitle tracks for language {} at indices {}",
+                            entry.getKey(), entry.getValue());
                 }
             }
         } else {
-            // No preferred languages found, keep all subtitle tracks
+            // No preferred languages → keep all
             languageTracks.values().forEach(result::addAll);
-            log.info("No preferred languages found. Keeping all {} subtitle tracks at subtitle indices: {}",
-                    subtitleTrackCount, result);
+            log.info("No preferred languages found. Keeping all subtitle tracks: {}", result);
         }
 
-        log.info("Subtitle tracks to keep (subtitle stream indices): {}", result);
+        log.info("Final subtitle stream indices to keep: {}", result);
         return result;
     }
 
+
     private String extractLanguage(TrackInfoEntity track) {
-        String language = "und";
+        String rawLang = "und";
         if (track instanceof AudioInfoEntity audio) {
-            language = audio.getLanguage() != null ? audio.getLanguage() : "und";
-            log.trace("Extracted audio language: {}", language);
+            rawLang = audio.getLanguage();
+            log.trace("Raw audio language: {}", rawLang);
         } else if (track instanceof TextInfoEntity text) {
-            language = text.getLanguage() != null ? text.getLanguage() : "und";
-            log.trace("Extracted subtitle language: {}", language);
+            rawLang = text.getLanguage();
+            log.trace("Raw subtitle language: {}", rawLang);
         } else {
             log.trace("Track type {} not handled for language extraction", track.getType());
         }
-        return language;
+
+        String normalized = LANGUAGE_MAP.getOrDefault(StringUtils.lowerCase(StringUtils.trimToEmpty(rawLang)), "und");
+
+        log.trace("Normalized language: {}", normalized);
+        return normalized;
     }
 
-
+    /**
+     * Filters audio tracks based on custom business rules.
+     * <p>
+     * IMPORTANT INVARIANT:
+     * --------------------
+     * The input map MUST already contain canonical language names as keys.
+     * Example keys:
+     *   "Hindi", "English", "Gujarati", "Spanish", "Unknown", ...
+     * <p>
+     * This means raw values like:
+     *   hi, hin, HINDI, eng, en, guj, etc.
+     * MUST already be normalized via:
+     *   MediaTagResolver.resolveLanguage(...)
+     * <p>
+     * ----------------------------------------
+     * BUSINESS RULES (Decision Matrix)
+     * ----------------------------------------
+     * <p>
+     * Preferred language priority:
+     *   1. Hindi     (primary)
+     *   2. English   (secondary)
+     *   3. Gujarati  (regional)
+     *   4. Unknown   (fallback)
+     *   5. Others    (Spanish, French, etc.)
+     * <p>
+     * SINGLE AUDIO (total = 1)
+     * ------------------------
+     * Always keep the only track.
+     * <p>
+     * Examples:
+     *   {Hindi}       -> keep Hindi
+     *   {Spanish}    -> keep Spanish
+     *   {Unknown}    -> keep Unknown
+     * <p>
+     * DUAL AUDIO (total = 2)
+     * ---------------------
+     * Preferred combinations:
+     *   {Hindi, English}   -> keep both
+     *   {Hindi, Gujarati}  -> keep both
+     *   {Hindi, Unknown}   -> keep Hindi
+     *   {Gujarati, Unknown}-> keep Gujarati
+     * <p>
+     * Fallback cases:
+     *   {English, Gujarati} -> keep both (no Hindi rule)
+     *   {English, Unknown}  -> keep both
+     *   {Spanish, French}   -> keep both
+     *   {Spanish, Hindi}    -> keep Hindi
+     * <p>
+     * MULTI AUDIO (total >= 3)
+     * -----------------------
+     * Priority ladder:
+     * <p>
+     *   1. If (Hindi + English + Gujarati) -> keep all three
+     *   2. Else if (Hindi + English)       -> keep both
+     *   3. Else if (Hindi + Gujarati)      -> keep both
+     *   4. Else if (Hindi)                 -> keep Hindi
+     *   5. Else if (Gujarati + Unknown)    -> keep Gujarati
+     *   6. Else                            -> keep ALL tracks
+     * <p>
+     * Examples:
+     *   {Hindi, English, Gujarati, Spanish}
+     *       -> keep Hindi + English + Gujarati
+     * <p>
+     *   {Hindi, English, Spanish}
+     *       -> keep Hindi + English
+     * <p>
+     *   {Hindi, Spanish, French}
+     *       -> keep Hindi
+     * <p>
+     *   {Gujarati, Unknown, Spanish}
+     *       -> keep Gujarati
+     * <p>
+     *   {English, Spanish, French}
+     *       -> keep ALL (no Hindi / Gujarati rule)
+     * <p>
+     * DESIGN PRINCIPLE:
+     * -----------------
+     * Hindi is king.
+     * English is queen.
+     * Gujarati is regional.
+     * Unknown is garbage.
+     * Everything else is filler.
+     * <p>
+     * This method must NEVER deal with raw language codes.
+     * All chaos is handled by MediaTagResolver.
+     */
     private Set<Integer> filterAudioTracksByCustomRules(Map<String, List<Integer>> languageTracks) {
-        log.info("Filtering tracks by custom rules. Language tracks: {}", languageTracks);
+
+        log.info("Filtering audio tracks by custom rules. Languages: {}", languageTracks.keySet());
         long startTime = System.currentTimeMillis();
         Set<Integer> tracksToKeep = new LinkedHashSet<>();
 
-        // --- Guard clause: null or empty map ---
-        if (languageTracks == null || languageTracks.isEmpty()) {
-            log.info("Language tracks is null or empty, returning empty set");
-            return tracksToKeep; // nothing to keep
+        // Guard clause: no tracks
+        if (languageTracks.isEmpty()) {
+            log.info("No language tracks found, returning empty set");
+            return tracksToKeep;
         }
 
-        int total = languageTracks.values().stream().mapToInt(list -> list != null ? list.size() : 0).sum();
-        log.info("Total tracks found: {}", total);
+        int total = languageTracks.values().stream().mapToInt(List::size).sum();
+        log.info("Total audio tracks: {}", total);
 
-        if (total == 0) {
-            log.info("No tracks present, returning empty set");
-            return tracksToKeep; // no tracks present
-        }
-
-        // Filter out null or empty keys
-        Set<String> langs = languageTracks.keySet().stream()
-                .filter(Objects::nonNull)
-                .filter(k -> !k.isBlank())
-                .collect(Collectors.toSet());
-        log.info("Languages after filtering: {}", langs);
-
-        // --- If langs is empty after cleaning ---
-        if (langs.isEmpty()) {
-            log.info("No valid languages found, keeping all tracks");
-            // We don't know the languages → safest option: keep all
+        // Single or zero track -> keep all
+        if (total <= 1) {
             languageTracks.values().forEach(tracksToKeep::addAll);
-            log.info("Tracks to keep after keeping all: {}", tracksToKeep);
+            log.info("Single or zero track, keeping all: {}", tracksToKeep);
             return tracksToKeep;
         }
 
-        // --- Single audio ---
-        if (total == 1) {
-            log.info("Single track found, keeping it");
-            languageTracks.values().forEach(tracksToKeep::addAll);
-            return tracksToKeep;
-        }
+        Set<String> langs = languageTracks.keySet();
+        log.info("Resolved canonical languages: {}", langs);
 
-        // --- Dual audio ---
-        if (total == 2) {
-            log.info("Dual tracks found, applying dual track rules");
-            if (langs.contains(LANG_HINDI) && langs.contains(LANG_ENGLISH)) {
-                log.info("Hindi and English tracks found, keeping both");
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
-            } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJARATI)) {
-                log.info("Hindi and Gujarati tracks found, keeping both");
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
-            } else if (langs.contains(LANG_HINDI)) {
-                log.info("Only Hindi tracks found, keeping Hindi");
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-            } else if (langs.contains(LANG_GUJARATI) && langs.contains(LANG_UND)) {
-                log.info("Gujarati and undefined tracks found, keeping Gujarati");
-                tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
-            } else {
-                log.info("No preferred language combination found, keeping all tracks");
-                languageTracks.values().forEach(tracksToKeep::addAll);
-            }
-            log.info("Dual track filtering result: {}", tracksToKeep);
-            return tracksToKeep;
-        }
+        // Helper to add all tracks for a language
+        Consumer<String> keep = lang -> tracksToKeep.addAll(languageTracks.getOrDefault(lang, List.of()));
 
-        // --- Multi audio (> 2) ---
-        log.info("Multi-track scenario ({} tracks), applying multi-track rules", total);
-        if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJARATI) && langs.contains(LANG_ENGLISH)) {
-            log.info("Hindi, Gujarati and English tracks found, keeping all three");
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
-        } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_ENGLISH)) {
-            log.info("Hindi and English tracks found, keeping both");
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_ENGLISH, List.of()));
-        } else if (langs.contains(LANG_HINDI) && langs.contains(LANG_GUJARATI)) {
-            log.info("Hindi and Gujarati tracks found, keeping both");
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
-        } else if (langs.contains(LANG_HINDI)) {
-            log.info("Only Hindi tracks found, keeping Hindi");
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_HINDI, List.of()));
-        } else if (langs.contains(LANG_GUJARATI) && langs.contains(LANG_UND)) {
-            log.info("Gujarati and undefined tracks found, keeping Gujarati");
-            tracksToKeep.addAll(languageTracks.getOrDefault(LANG_GUJARATI, List.of()));
+        /*
+         * DECISION MATRIX
+         * (applies to both dual and multi-audio scenarios)
+         */
+
+        if (langs.containsAll(Set.of(HINDI, GUJARATI, ENGLISH))) {
+            // Hindi + English + Gujarati -> keep all three
+            keep.accept(HINDI);
+            keep.accept(GUJARATI);
+            keep.accept(ENGLISH);
+
+        } else if (langs.containsAll(Set.of(HINDI, ENGLISH))) {
+            // Hindi + English -> keep both
+            keep.accept(HINDI);
+            keep.accept(ENGLISH);
+
+        } else if (langs.containsAll(Set.of(HINDI, GUJARATI))) {
+            // Hindi + Gujarati -> keep both
+            keep.accept(HINDI);
+            keep.accept(GUJARATI);
+
+        } else if (langs.contains(HINDI)) {
+            // Only Hindi present -> keep Hindi
+            keep.accept(HINDI);
+
+        } else if (langs.contains(GUJARATI) && langs.contains(UNKNOWN)) {
+            // Gujarati + Unknown -> drop garbage, keep Gujarati
+            keep.accept(GUJARATI);
+
         } else {
-            log.info("No preferred language combination found, keeping all tracks");
+            // No preferred combination -> safest fallback: keep everything
             languageTracks.values().forEach(tracksToKeep::addAll);
         }
 
-        log.info("Multi-track filtering completed in {} ms. Tracks to keep: {}",
+        log.info("Audio track filtering completed in {} ms. Tracks to keep: {}",
                 System.currentTimeMillis() - startTime, tracksToKeep);
+
         return tracksToKeep;
     }
+
 
     private void debugTrackInfo(List<TrackInfoEntity> trackInfoEntities) {
         log.info("=== DEBUG: Analyzing track info ===");
@@ -894,4 +950,5 @@ public class MediaInfoCommandService {
         log.info("=== Summary: {} total tracks ({} video, {} audio, {} subtitle) ===",
                 trackInfoEntities.size(), videoCount, audioCount, subtitleCount);
     }
+
 }

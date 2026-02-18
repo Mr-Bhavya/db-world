@@ -60,7 +60,7 @@ const AuthLoader = () => (
           </Typography>
           <Typography 
             variant="body1" 
-            color="text.secondary"
+            color="black"
             sx={{
               animation: 'fadeInOut 2s ease-in-out infinite',
               mb: 1
@@ -70,7 +70,7 @@ const AuthLoader = () => (
           </Typography>
           <Typography 
             variant="body2" 
-            color="text.secondary"
+            color="black"
             sx={{ opacity: 0.8 }}
           >
             Please wait while we secure your access
@@ -201,7 +201,8 @@ const AuthProvider = ({ children }) => {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         const response = await verify();
-        const roles = response?.roles || [];
+        //console.log('Auth verification response:', response);
+        const roles = response?.data?.roles || [];
         const role = roles[0] || null;
 
         if (role) {

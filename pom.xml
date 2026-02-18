@@ -24,8 +24,11 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <!-- Frontend properties -->
         <frontend-maven-plugin.version>1.12.1</frontend-maven-plugin.version>
-        <node.version>v18.16.0</node.version>
-        <npm.version>9.6.5</npm.version>
+        <node.version>v20.14.0</node.version>
+        <npm.version>10.7.0</npm.version>
+        <!-- Build source control: 'npm' (default) or 'existing' -->
+        <build.source>npm</build.source>
+<!--        <existing.build.dir>${basedir}/db-world-frontend/build</existing.build.dir>-->
         <!-- Backend properties -->
         <bt.version>1.10</bt.version>
         <jakarta-servlet.version>6.0.0</jakarta-servlet.version>
@@ -39,6 +42,37 @@
         <module>db-world-frontend</module>
         <module>db-world-backend</module>
     </modules>
+
+    <profiles>
+        <!-- Default profile for npm build -->
+        <profile>
+            <id>npm-build</id>
+            <activation>
+                <property>
+                    <name>build.source</name>
+                    <value>npm</value>
+                </property>
+            </activation>
+            <properties>
+                <build.source>npm</build.source>
+            </properties>
+        </profile>
+
+        <!-- Profile for existing build -->
+        <profile>
+            <id>existing-build</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+                <property>
+                    <name>build.source</name>
+                    <value>existing</value>
+                </property>
+            </activation>
+            <properties>
+                <build.source>existing</build.source>
+            </properties>
+        </profile>
+    </profiles>
 
     <build>
         <pluginManagement>
@@ -82,9 +116,9 @@
                         <fileset>
                             <directory>${basedir}/db-world-backend/src/main/resources/public</directory>
                         </fileset>
-                        <fileset>
-                            <directory>${basedir}/db-world-frontend/build</directory>
-                        </fileset>
+<!--                        <fileset>-->
+<!--                            <directory>${basedir}/db-world-frontend/build</directory>-->
+<!--                        </fileset>-->
                         <fileset>
                             <directory>${basedir}</directory>
                             <includes>
@@ -118,10 +152,10 @@
                 <enabled>false</enabled>
             </releases>
         </repository>
-        <repository>
-            <id>gitlab-maven</id>
-            <url>https://gitlab.com/api/v4/projects/59936705/packages/maven</url>
-        </repository>
+<!--        <repository>-->
+<!--            <id>gitlab-maven</id>-->
+<!--            <url>https://gitlab.com/api/v4/projects/59936705/packages/maven</url>-->
+<!--        </repository>-->
     </repositories>
 
     <pluginRepositories>

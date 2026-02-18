@@ -9,11 +9,14 @@ import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.GenresDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.MovieTmdbDataDto;
 import com.db.dbworld.payloads.dbcinema.tmdb.SeriesTmdbDataDto;
+import com.db.dbworld.utils.DbWorldConstants;
 import org.springframework.data.domain.Pageable;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface DBCinemaRecordsService {
     DBCinemaRecordsDto addRecord(RequestPayloads.AddRecord record);
@@ -45,13 +48,15 @@ public interface DBCinemaRecordsService {
 
     DBCinemaRecordsEntity getRecordEntityById(Long recordId);
 
+    Optional<DBCinemaRecordsEntity> getRecordEntityOptById(Long recordId);
+
     List<DBCinemaRecordsDto> searchRecordByKeywordWithPagination(String keyword, Pageable pageable);
 
     Integer countRecordsByKeyword(String keyword);
 
     List<DbWorldRecords.CinemaRecordDto> searchRecordByKeyword(String keyword);
 
-    List<HashMap<String, Object>> getTmdbByQuery(String recordType, String query, int year);
+    List<HashMap<String, Object>> getTmdbByQuery(DbWorldConstants.RECORD_TYE recordType, String query, int year);
 
     MovieTmdbDataDto getTMDBDetailsForMovieById(RequestPayloads.AddRecord record);
 

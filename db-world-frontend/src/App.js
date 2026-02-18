@@ -22,7 +22,7 @@ import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.
 import BackButtonHandler from './android-app-components/BackButtonHandler.js';
 import SeriesDetailsPage from './components/DBCinema/screens/series-details/SeriesDetailsPage.js';
 import CssBaseline from '@mui/material/CssBaseline';
-import { createTheme, ThemeProvider } from '@mui/material';
+import { Box, createTheme, ThemeProvider, Typography } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { CINEMA_PAGE_TILES } from './components/DBCinema/components/CinemaTiles.js';
@@ -30,7 +30,7 @@ import { CINEMA_PAGE_TILES } from './components/DBCinema/components/CinemaTiles.
 // Import CinemaPage components correctly
 import CinemaPage from './components/DBCinema/screens/CinemaPage/CinemaPage.js';
 import { CategoryProvider } from './components/DBCinema/navbar/CategoryContext.js';
-import Snowfall from 'react-snowfall';
+import FlmngrStandalone from './components/DB_Admin_Tools/FileExplorer/FlmngrStandalone.js';
 
 // Lazy load heavy components for better performance
 const LazyAdminTools = lazy(() => import('./components/DB_Admin_Tools/AdminPage/AdminPage.js'));
@@ -43,33 +43,54 @@ const LazyCinemaPage = lazy(() => import('./components/DBCinema/screens/CinemaPa
 
 // Loading Component
 const LoadingFallback = () => (
-  <div style={{
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '50vh',
-    flexDirection: 'column',
-    gap: '1rem'
-  }}>
-    <div style={{
-      width: '40px',
-      height: '40px',
-      border: '4px solid #f3f3f3',
-      borderTop: '4px solid #008080',
-      borderRadius: '50%',
-      animation: 'spin 1s linear infinite'
-    }} />
-    <p style={{ color: '#008080', margin: 0 }}>Loading...</p>
-    <style>
-      {`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}
-    </style>
-  </div>
-);
+   <Box
+      sx={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1300,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        backdropFilter: 'blur(2px)',
+      }}
+    >
+      {/* Spinner */}
+      <Box
+        sx={{
+          width: 52,
+          height: 52,
+          borderRadius: '50%',
+          border: '4px solid rgba(255,255,255,0.2)',
+          borderTopColor: 'primary.main',
+          animation: 'spin 0.9s linear infinite',
+          mb: 2,
+        }}
+      />
+
+      <Typography
+        variant="body2"
+        sx={{
+          color: 'rgba(255,255,255,0.85)',
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+        }}
+      >
+        Loading, please wait...
+      </Typography>
+
+      {/* Keyframes */}
+      <style>
+        {`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+    </Box>
+  );
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -101,7 +122,7 @@ class ErrorBoundary extends React.Component {
             style={{
               padding: '0.5rem 1rem',
               backgroundColor: '#008080',
-              color: 'white',
+              color: 'black',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer'
@@ -243,6 +264,7 @@ const routeConfig = {
   ],
   admin: [
     { path: Constants.DB_ADMIN_TOOLS_ROUTE, element: <LazyAdminTools /> },
+    { path: Constants.DB_FILE_MANAGER_ROUTE, element: <FlmngrStandalone /> },
   ]
 };
 

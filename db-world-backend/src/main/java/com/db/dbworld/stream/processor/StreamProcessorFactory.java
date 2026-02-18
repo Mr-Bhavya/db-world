@@ -22,4 +22,12 @@ public class StreamProcessorFactory {
                                                                 MirrorStatus mirrorStatus) {
         return new GenericStreamProcessor(statusService, mirrorStatus);
     }
+
+    public static YtDlpStreamProcessor createYtDlpProcessor() {
+        return new YtDlpStreamProcessor();
+    }
+
+    public static YtDlpStreamProcessor createYtDlpProcessor(StatusService statusService, MirrorStatus mirrorStatus) {
+        return new YtDlpStreamProcessor(statusService, mirrorStatus);
+    }
 }

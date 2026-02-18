@@ -1,14 +1,10 @@
 package com.db.dbworld.services.media;
 
-import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.exceptions.DbWorldException;
 import com.db.dbworld.handler.MediaFileHandler;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.mediafile.MediaFileDetails;
-import com.db.dbworld.services.cinema.DBCinemaRecordsService;
 import com.db.dbworld.services.mirror.StatusService;
-import com.db.dbworld.utils.MediaFileUtils;
-import com.db.dbworld.utils.MediaInfoUtils;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -17,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.File;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,7 +41,6 @@ public class MediaModificationService {
     public MediaModificationService(
             StatusService statusService,
             MediaFileHandler mediaFileHandler,
-            MediaInfoUtils mediaInfoUtils,
             MediaFileUtils mediaFileUtils) {
         this.statusService = statusService;
         this.mediaFileHandler = mediaFileHandler;

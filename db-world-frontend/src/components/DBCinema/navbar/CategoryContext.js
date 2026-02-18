@@ -16,22 +16,22 @@ export const CategoryProvider = ({ children }) => {
   const [selectedNav, setSelectedNav] = useState(null);
 
   const selectCategory = useCallback((category) => {
-    console.log("Context: Selecting category", category);
+    //console.log("Context: Selecting category", category);
     setSelectedCategory(category);
   }, []);
 
   const clearCategory = useCallback(() => {
-    console.log("Context: Clearing category");
+    //console.log("Context: Clearing category");
     setSelectedCategory(null);
   }, []);
 
   const selectNav = useCallback((navItem) => {
-    console.log("Context: Selecting nav", navItem);
+    //console.log("Context: Selecting nav", navItem);
     setSelectedNav(navItem);
   }, []);
 
   const clearNav = useCallback(() => {
-    console.log("Context: Clearing nav");
+    //console.log("Context: Clearing nav");
     setSelectedNav(null);
   }, []);
 

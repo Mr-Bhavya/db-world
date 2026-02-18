@@ -1,0 +1,23 @@
+{
+  "@timestamp": "${json:timestamp}",
+  "log.level": "${json:level}",
+  "message": "${json:message}",
+  "ecs.version": "1.7.0",
+  "service.name": "${APP_NAME}",
+  "event.dataset": "${APP_NAME}.log",
+  "process.thread.name": "${json:thread}",
+  "log.logger": "${json:logger}",
+  "user": "${json:user}",
+  "trace.id": "${json:traceId}",
+  "http.request.id": "${json:requestId}",
+  "http.request.method": "${json:method}",
+  "url.path": "${json:uri}",
+  "http.response.status_code": "${json:status}",
+  "event.duration": "${json:duration}",
+  "error": {
+    "message": "${json:exception.message}",
+    "type": "${json:exception.class}",
+    "stack_trace": "${json:stacktrace}"
+  },
+  "environment": "${sys:spring.profiles.active}"
+}

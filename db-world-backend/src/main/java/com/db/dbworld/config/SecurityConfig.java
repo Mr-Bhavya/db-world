@@ -1,7 +1,6 @@
 package com.db.dbworld.config;
 
 import com.db.dbworld.handler.TokenAuthenticationHandler;
-//import com.db.dbworld.security.JwtAuthenticationFilter;
 import com.db.dbworld.utils.DbWorldConstants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

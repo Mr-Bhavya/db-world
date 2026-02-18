@@ -7,7 +7,7 @@ import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.MirrorState;
 import com.db.dbworld.payloads.MirrorStatus;
 import com.db.dbworld.payloads.RequestPayloads;
-import com.db.dbworld.services.systemInfo.SystemInfoService;
+import com.db.dbworld.services.mirror.HttpDownloadQueueService;
 import com.db.dbworld.services.mirror.StatusService;
 import com.db.dbworld.services.mirror.UtilsService;
 import com.db.dbworld.utils.DbWorldConstants;
@@ -15,104 +15,111 @@ import com.db.dbworld.utils.DbWorldUtils;
 import com.google.gson.JsonObject;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.util.*;
 
 @RestController
 @Log4j2
-@RequestMapping(value = "/api/utils")
-@EnableMethodSecurity(prePostEnabled = true)
+@RequestMapping("/api/utils")
 @CrossOrigin
 public class UtilsController {
 
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
+    private final DbWorldUtils dbWorldUtils;
+    private final UtilsService utilsService;
+    private final StatusService statusService;
+    private final MirrorStatusFactory mirrorStatusFactory;
+    private final HttpDownloadQueueService httpQueueService;
 
-    @Autowired
-    private UtilsService utilsService;
-
-    @Autowired
-    private StatusService statusService;
-
-    @Autowired
-    private MirrorStatusFactory mirrorStatusFactory;
-
-    @Autowired
-    private SystemInfoService systemInfoService;
-
-    @DeleteMapping(value = "/tempFiles")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<String> deleteTempFiles() {
-        utilsService.deleteTempFiles();
-        return new ApiResponse<>(HttpStatus.OK, true, "Temporary files are deleted.");
+    public UtilsController(
+            DbWorldUtils dbWorldUtils,
+            UtilsService utilsService,
+            StatusService statusService,
+            MirrorStatusFactory mirrorStatusFactory,
+            HttpDownloadQueueService httpQueueService
+    ) {
+        this.dbWorldUtils = dbWorldUtils;
+        this.utilsService = utilsService;
+        this.statusService = statusService;
+        this.mirrorStatusFactory = mirrorStatusFactory;
+        this.httpQueueService = httpQueueService;
     }
+
+    /* =========================================================
+       TEMP FILES
+       ========================================================= */
+
+    @DeleteMapping("/tempFiles")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<Void> deleteTempFiles() {
+        utilsService.deleteTempFiles();
+        return ApiResponse.success("Temporary files deleted successfully");
+    }
+
+    /* =========================================================
+       MIRROR
+       ========================================================= */
 
     @PostMapping("/mirror")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<String> mirror(@RequestBody RequestPayloads.Mirror mirror) {
-        List<String> allUrls = mirror.getUrls();
-        log.info("[MIRROR] Received {} URLs for download", allUrls.size());
+    public ApiResponse<Void> mirror(@RequestBody RequestPayloads.Mirror mirror) {
 
-        int successCount = 0;
-        int errorCount = 0;
-        List<String> errorMessages = new ArrayList<>();
+        List<String> urls = mirror.getUrls();
+        log.info("[MIRROR] Received {} URLs", urls.size());
 
-        for (String url : allUrls) {
+        int success = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (String url : urls) {
             try {
                 if (url.startsWith("magnet:?")) {
-                    // 🔹 Magnet links → process immediately
-                    processMagnetUrl(url, mirror);
-                    successCount++;
+                    processMagnet(url, mirror);
                 } else if (url.startsWith("http://") || url.startsWith("https://")) {
-                    // 🔹 HTTP/HTTPS → processed sequentially (aria2c handles queue)
-                    processHttpUrl(url, mirror);
-                    successCount++;
+                    processHttp(url, mirror);
                 } else {
-                    log.warn("Skipping unsupported URL: {}", url);
-                    errorCount++;
-                    errorMessages.add("Unsupported URL: " + url);
+                    errors.add("Unsupported URL: " + url);
+                    continue;
                 }
+                success++;
             } catch (Exception e) {
-                log.error("Error processing URL: {}", url, e);
-                errorCount++;
-                errorMessages.add("Failed to process URL: " + url + " - " + e.getMessage());
+                log.error("Mirror failed for URL={}", url, e);
+                errors.add("Failed: " + url + " - " + e.getMessage());
             }
         }
 
-        String message;
-        if (errorCount == 0) {
-            message = String.format("All %d URLs queued successfully", successCount);
-        } else {
-            message = String.format("Processed %d URLs, %d failed. Errors: %s",
-                    successCount, errorCount, String.join("; ", errorMessages));
+        if (errors.isEmpty()) {
+            return ApiResponse.success(
+                    String.format("All %d URLs queued successfully", success)
+            );
         }
 
-        return new ApiResponse<>(
-                HttpStatus.OK,
-                errorCount == 0,
-                message
+        return ApiResponse.success(
+                String.format(
+                        "Processed %d URLs, %d failed. Errors: %s",
+                        success,
+                        errors.size(),
+                        String.join("; ", errors)
+                )
         );
     }
 
-    private void processMagnetUrl(String url, RequestPayloads.Mirror mirror) {
+    /* =========================================================
+       MAGNET (NO QUEUE)
+       ========================================================= */
+
+    private void processMagnet(String url, RequestPayloads.Mirror mirror) {
+
         String fileName = Arrays.stream(url.split("&"))
-                .filter(s -> s.contains("dn="))
-                .map(s -> s.replace("dn=", ""))
+                .filter(s -> s.startsWith("dn="))
+                .map(s -> s.substring(3))
                 .findFirst()
                 .orElse("magnet_file");
 
-        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
+        MirrorStatus status = mirrorStatusFactory.create(
                 mirror.getFolderName(),
                 url,
                 dbWorldUtils.decodeFileName(fileName),
@@ -120,177 +127,132 @@ public class UtilsController {
                 mirror.isExtract()
         );
 
-        log.info("Starting magnet download: {}", mirrorStatus.getFileName());
-        utilsService.downloadFileUsingAria2c(mirrorStatus);
+        statusService.addNewStatus(status);
+
+        log.info("Starting magnet immediately: {}", status.getFileName());
+        utilsService.downloadFileUsingAria2c(status);
     }
 
-    private void processHttpUrl(String url, RequestPayloads.Mirror mirror) throws Exception {
-        String processedUrl = processAuthUrl(url, mirror);
+    /* =========================================================
+       HTTP (QUEUE + AUTH)
+       ========================================================= */
 
-        // Determine file name — if user enabled rename, use it
+    private void processHttp(String url, RequestPayloads.Mirror mirror) throws Exception {
+
         String fileName = mirror.isRename()
                 ? mirror.getFileName()
-                : extractFileNameFromUrl(processedUrl);
+                : extractFileName(url);
 
-        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
+        MirrorStatus status = mirrorStatusFactory.create(
                 mirror.getFolderName(),
-                processedUrl,
+                url,
                 fileName,
                 0L,
                 mirror.isExtract()
         );
 
-        log.info("Queued HTTP file for aria2c download: '{}' -> '{}'", fileName, processedUrl);
-        statusService.addNewStatus(mirrorStatus);
-        utilsService.downloadFileUsingAria2c(mirrorStatus);
+        // Attach auth metadata (DO NOT embed in URL)
+        if (mirror.isUrlProtected()) {
+            status.setUrlUsername(mirror.getUsername());
+            status.setUrlPassword(mirror.getPassword());
+            status.setUrlProtected(mirror.isUrlProtected());
+        }
+
+        statusService.addNewStatus(status);
+
+        // Enqueue instead of starting immediately
+        httpQueueService.enqueue(status);
     }
 
-    private String extractFileNameFromUrl(String url) {
+    private String extractFileName(String url) {
         try {
             String path = new URL(url).getPath();
             String name = Paths.get(path).getFileName().toString();
-            return StringUtils.isNotBlank(name) ? dbWorldUtils.decodeFileName(name) : "unknown_file";
+            return StringUtils.isNotBlank(name)
+                    ? dbWorldUtils.decodeFileName(name)
+                    : "unknown_file";
         } catch (Exception e) {
             return "unknown_file";
         }
     }
 
+    /* =========================================================
+       MIRROR STATUS
+       ========================================================= */
 
-    private boolean isValidUrl(String url, RequestPayloads.Mirror mirror) {
-        if (url.startsWith("magnet:?")) return true;
-
-        try {
-            String processedUrl = processAuthUrl(url, mirror);
-            HttpURLConnection connection = (HttpURLConnection) new URL(processedUrl).openConnection();
-            connection.setRequestMethod("HEAD");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
-            int responseCode = connection.getResponseCode();
-            connection.disconnect();
-            return responseCode >= 200 && responseCode < 400;
-        } catch (IOException e) {
-            log.warn("URL validation failed for {}: {}", url, e.getMessage());
-            return false;
-        }
-    }
-
-    private void processSingleUrl(String url, RequestPayloads.Mirror mirror) throws Exception {
-        if (url.startsWith("magnet:?")) {
-            String fileName = Arrays.stream(url.split("&"))
-                    .filter(s -> s.contains("dn="))
-                    .map(s -> s.replace("dn=", ""))
-                    .findFirst().orElse("magnet_file");
-
-            MirrorStatus mirrorStatus = mirrorStatusFactory.create(
-                    mirror.getFolderName(),
-                    url,
-                    dbWorldUtils.decodeFileName(fileName),
-                    0L,
-                    mirror.isExtract()
-            );
-            utilsService.downloadFileUsingAria2c(mirrorStatus);
-            return;
-        }
-
-        // HTTP(S) case
-        String processedUrl = processAuthUrl(url, mirror);
-        HttpURLConnection connection = (HttpURLConnection) new URL(processedUrl).openConnection();
-        connection.setRequestMethod("HEAD");
-        connection.setConnectTimeout(5000);
-        connection.setReadTimeout(5000);
-
-        int responseCode = connection.getResponseCode();
-        if (responseCode >= 400) {
-            throw new DbWorldException("URL not downloadable (code " + responseCode + "): " + url);
-        }
-
-        String contentDisposition = connection.getHeaderField("Content-Disposition");
-        long contentLength = connection.getContentLengthLong();
-        connection.disconnect();
-
-        String fileName;
-        if (StringUtils.isBlank(contentDisposition)) {
-            if (mirror.isRename()) {
-                fileName = mirror.getFileName();
-            } else {
-                throw new DbWorldException("Cannot determine filename. Use rename option for: " + url);
-            }
-        } else {
-            fileName = mirror.isRename()
-                    ? mirror.getFileName()
-                    : dbWorldUtils.decodeFileName(ContentDisposition.parse(contentDisposition).getFilename());
-        }
-
-        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
-                mirror.getFolderName(),
-                url,
-                fileName,
-                contentLength,
-                mirror.isExtract()
-        );
-
-        log.info("Queueing file for download: '{}' from '{}'", mirrorStatus.getFileName(), url);
-        statusService.addNewStatus(mirrorStatus);
-        utilsService.downloadFileUsingAria2c(mirrorStatus);
-    }
-
-    private String processAuthUrl(String url, RequestPayloads.Mirror mirror) {
-        if (!mirror.isUrlProtected()) return url;
-
-        String auth = mirror.getUsername() + ":" + mirror.getPassword() + "@";
-        if (url.startsWith("https://")) {
-            return url.replace("https://", "https://" + auth);
-        } else if (url.startsWith("http://")) {
-            return url.replace("http://", "http://" + auth);
-        }
-        return url;
-    }
-
-    @RequestMapping(value = "/mirror/{mirrorId}", method = RequestMethod.DELETE)
+    @DeleteMapping("/mirror/{mirrorId}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<String> mirrorCancelled(@PathVariable String mirrorId) {
+    public ApiResponse<Void> cancelMirror(@PathVariable String mirrorId) {
+
         boolean updated = statusService.updateMirrorState(mirrorId, MirrorState.CANCELLED);
-        if(updated) return new ApiResponse<>(HttpStatus.OK, true, "Task Cancelled.");
-        else return new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR, false, "Failed in cancelling task.");
-    }
-
-    @GetMapping(value = "/mirror/status")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<List<MirrorStatus>> getAllStatus() {
-        Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
-        List<MirrorStatus> mirrorStatuses = new ArrayList<>(mirrorStatusMap.values().stream().sorted((o1, o2) -> o2.getTimeStamp().compareTo(o1.getTimeStamp())).toList());
-        return new ApiResponse<>(HttpStatus.OK, true, mirrorStatuses);
-    }
-
-    @RequestMapping(value = "/mirror/status/{statusId}", method = RequestMethod.DELETE)
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<String> mirrorDelete(@PathVariable String statusId) {
-        Map<String, MirrorStatus> mirrorStatusMap = statusService.getAllStatus();
-        if (mirrorStatusMap.containsKey(statusId)) {
-            MirrorStatus mirrorStatus = mirrorStatusMap.get(statusId);
-            if (mirrorStatus.isCompleted()) {
-                statusService.deleteStatus(statusId);
-            } else {
-                log.info("Status '{}' is not completed.", statusId);
-                throw new DbWorldException(String.format("Status '%s' is not completed.", statusId));
-            }
-        } else {
-            throw new ResourceNotFoundException("Mirror Status", "id", statusId);
+        if (!updated) {
+            throw new DbWorldException("Failed to cancel mirror task");
         }
-        return new ApiResponse<>(HttpStatus.OK, true, "Task Status Deleted.");
+
+        return ApiResponse.success("Task cancelled successfully");
     }
 
-    @RequestMapping(value = "/yt/info", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping("/mirror/status")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<List<Map<String, Object>>> getAllStatus() {
+
+        List<String> queueSnapshot = httpQueueService.getQueueSnapshot();
+
+        List<Map<String, Object>> result =
+                statusService.getAllStatus()
+                        .values()
+                        .stream()
+                        .sorted(Comparator.comparing(MirrorStatus::getTimeStamp).reversed())
+                        .map(status -> {
+
+                            Map<String, Object> map = new HashMap<>();
+                            map.put("status", status);
+
+                            int idx = queueSnapshot.indexOf(status.getId());
+                            boolean isQueued = idx >= 0;
+
+                            map.put("isQueued", isQueued);
+                            map.put("queuePosition", isQueued ? idx + 1 : null);
+
+                            return map;
+                        })
+                        .toList();
+
+        return ApiResponse.success(result);
+    }
+
+    @DeleteMapping("/mirror/status/{statusId}")
+    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    public ApiResponse<Void> deleteMirrorStatus(@PathVariable String statusId) {
+
+        MirrorStatus status = Optional.ofNullable(statusService.getAllStatus().get(statusId))
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Mirror Status", "id", statusId)
+                );
+
+        if (!status.isCompleted()) {
+            throw new DbWorldException("Mirror task is not completed");
+        }
+
+        statusService.deleteStatus(statusId);
+        return ApiResponse.success("Task status deleted");
+    }
+
+    /* =========================================================
+       YOUTUBE (NO QUEUE)
+       ========================================================= */
+
+    @GetMapping("/yt/info")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<JsonObject> ytInfo(@RequestParam String url) throws IOException {
-        JsonObject jsonInfo = utilsService.getInfoYtFile(url);
-        return new ApiResponse<>(HttpStatus.OK, true, "Success", jsonInfo);
+        return ApiResponse.success(utilsService.getInfoYtFile(url));
     }
 
-    @RequestMapping(value = "/yt/download", method = RequestMethod.POST)
+    @PostMapping("/yt/download")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<String> ytDownload(@RequestBody RequestPayloads.Mirror mirror) throws IOException {
-        MirrorStatus mirrorStatus = mirrorStatusFactory.create(
+    public ApiResponse<Void> ytDownload(@RequestBody RequestPayloads.Mirror mirror) throws IOException {
+
+        MirrorStatus status = mirrorStatusFactory.create(
                 mirror.getFolderName(),
                 mirror.getUrl(),
                 dbWorldUtils.decodeFileName(mirror.getFileName()),
@@ -299,51 +261,11 @@ public class UtilsController {
                 mirror.getVideoITag(),
                 mirror.getAudioITag(),
                 mirror.isOnlyAudio()
-
         );
-        utilsService.downloadYtFile(mirrorStatus);
-        return new ApiResponse<>(HttpStatus.OK, true, "Task Added.");
+
+        statusService.addNewStatus(status);
+        utilsService.downloadYtFile(status);
+        return ApiResponse.success("YouTube download task added");
     }
-
-    @RequestMapping(value = "/system-info", method = RequestMethod.GET)
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
-    public ApiResponse<Map<String, Object>> getSystemInfo() {
-        return new ApiResponse<>(HttpStatus.OK, true, systemInfoService.getSystemInfo());
-//        Map<String, Object> osInfoMap = new HashMap<>();
-//        OperatingSystemMXBean os = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-//
-//        List<File> roots = new ArrayList<>(Arrays.stream(File.listRoots()).toList());
-//        roots.add(new File(DbWorldConstants.EXTERNAL_H_DISK_PATH));
-//
-//        List<Map<String, Object>> rom = roots.stream().map(file -> {
-//            Map<String, Object> temp = new HashMap<>();
-//            temp.put("name", file.getAbsolutePath());
-//            temp.put("totalSpace", file.getTotalSpace());
-//            temp.put("freeSpace", file.getFreeSpace());
-//            temp.put("usedSpace", file.getTotalSpace() - file.getFreeSpace());
-//            return temp;
-//        }).toList();
-//
-//        Map<String, Object> ram = new HashMap<>();
-//        ram.put("totalSpace", os.getTotalMemorySize());
-//        ram.put("freeSpace", os.getFreeMemorySize());
-//        ram.put("usedSpace", os.getTotalMemorySize() - os.getFreeMemorySize());
-//        ram.put("freeSwapSpace", os.getFreeSwapSpaceSize());
-//        ram.put("committedVirtualSpace", os.getCommittedVirtualMemorySize());
-//
-//        Map<String, Object> cpu = new HashMap<>();
-//        cpu.put("availableProcessors", os.getAvailableProcessors());
-//        cpu.put("processCpuTime", os.getProcessCpuTime());
-//        cpu.put("cpuLoad", os.getCpuLoad());
-//
-//        osInfoMap.put("name", os.getName());
-//        osInfoMap.put("arch", os.getArch());
-//        osInfoMap.put("ram", ram);
-//        osInfoMap.put("rom", rom);
-//        osInfoMap.put("cpu", cpu);
-//
-//        return new ApiResponse<>(HttpStatus.OK, true, osInfoMap);
-    }
-
-
 }
+

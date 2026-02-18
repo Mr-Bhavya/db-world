@@ -272,7 +272,7 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
       }
 
       // Update scrolled state
-      setIsScrolled(currentScroll > 10);
+      setIsScrolled(currentScroll > 2);
       
       // Update tracking variables
       setLastScrollY(currentScroll);
