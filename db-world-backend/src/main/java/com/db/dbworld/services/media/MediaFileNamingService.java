@@ -112,13 +112,15 @@ public class MediaFileNamingService {
 
     // ================= SOURCE =================
 
-    private void appendSourceInfo(StringBuilder sb, String originalFilename) {
-        MediaTagResolver.MediaSource source = MediaTagResolver.detectSource(originalFilename);
-        String label = MediaTagResolver.SOURCE_LABEL_MAP.getOrDefault(source, "");
-        String type = MediaTagResolver.SOURCE_TYPE_MAP.getOrDefault(source, "");
-        if (!label.isEmpty()) sb.append(".").append(label);
-        if (!type.isEmpty()) sb.append(".").append(type);
+    private void appendSourceInfo(StringBuilder sb, String filename) {
+        MediaSource source = MediaTagResolver.detectSource(filename);
+        if (source == MediaSource.UNKNOWN) return;
+        if (!source.getLabel().isEmpty())
+            sb.append(".").append(source.getLabel());
+        if (!source.getDefaultType().isEmpty())
+            sb.append(".").append(source.getDefaultType());
     }
+
 
     // ================= AUDIO =================
 

@@ -1,7 +1,5 @@
 package com.db.dbworld.config;
 
-import com.db.dbworld.handler.ApplicationLogsHandler;
-import com.db.dbworld.logging.LogWebSocketHandler;
 import com.db.dbworld.handler.MirrorStatusHandler;
 import com.db.dbworld.handler.UserCinemaActivityHandler;
 import org.springframework.context.annotation.Bean;
@@ -21,20 +19,14 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final MirrorStatusHandler mirrorStatusHandler;
-    private final ApplicationLogsHandler applicationLogsHandler;
     private final UserCinemaActivityHandler userCinemaActivityHandler;
-    private final LogWebSocketHandler logWebSocketHandler;
 
     public WebSocketConfig(
             MirrorStatusHandler mirrorStatusHandler,
-            ApplicationLogsHandler applicationLogsHandler,
-            UserCinemaActivityHandler userCinemaActivityHandler,
-            LogWebSocketHandler logWebSocketHandler) {
+            UserCinemaActivityHandler userCinemaActivityHandler) {
 
         this.mirrorStatusHandler = mirrorStatusHandler;
-        this.applicationLogsHandler = applicationLogsHandler;
         this.userCinemaActivityHandler = userCinemaActivityHandler;
-        this.logWebSocketHandler = logWebSocketHandler;
     }
 
     @Override
@@ -42,13 +34,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         registry.addHandler(mirrorStatusHandler, "/ws/status")
                 .setAllowedOriginPatterns("*");
 
-        registry.addHandler(applicationLogsHandler, "/ws/application-logs")
-                .setAllowedOriginPatterns("*");
-
         registry.addHandler(userCinemaActivityHandler, "/ws/user-cinema-activity")
-                .setAllowedOriginPatterns("*");
-
-        registry.addHandler(logWebSocketHandler, "/ws/logs")
                 .setAllowedOriginPatterns("*");
     }
 

@@ -1,5 +1,7 @@
 package com.db.dbworld.services.media.resolver;
 
+import com.db.dbworld.services.media.MediaSource;
+
 import java.util.*;
 
 public final class MediaTagResolver {
@@ -400,88 +402,6 @@ public final class MediaTagResolver {
     );
 
     /* =========================================================
-       MEDIA SOURCE
-       ========================================================= */
-
-    public enum MediaSource {
-        NETFLIX, AMAZON, DISNEY, APPLE, HBO, HULU, PEACOCK, PARAMOUNT,
-        YOUTUBE, CRUNCHYROLL, HOTSTAR, SONYLIV, ZEE5, VOOT, MXPLAYER,
-        BLURAY, UHD_BLURAY, REMUX, DVD,
-        WEB_DL, WEB_RIP, HDTV, CAM, TS, TELECINE, WORKPRINT,
-        UNKNOWN
-    }
-
-    public static final Map<String, MediaSource> FILENAME_SOURCE_MAP = Map.ofEntries(
-            Map.entry("NF", MediaSource.NETFLIX),
-            Map.entry("NETFLIX", MediaSource.NETFLIX),
-            Map.entry("AMZN", MediaSource.AMAZON),
-            Map.entry("PRIME", MediaSource.AMAZON),
-            Map.entry("DSNP", MediaSource.DISNEY),
-            Map.entry("DISNEY", MediaSource.DISNEY),
-            Map.entry("ATVP", MediaSource.APPLE),
-            Map.entry("APPLETV", MediaSource.APPLE),
-            Map.entry("HBO", MediaSource.HBO),
-            Map.entry("HULU", MediaSource.HULU),
-            Map.entry("PEACOCK", MediaSource.PEACOCK),
-            Map.entry("PARAMOUNT", MediaSource.PARAMOUNT),
-            Map.entry("CR", MediaSource.CRUNCHYROLL),
-            Map.entry("HOTSTAR", MediaSource.HOTSTAR),
-            Map.entry("SONYLIV", MediaSource.SONYLIV),
-            Map.entry("ZEE5", MediaSource.ZEE5),
-            Map.entry("VOOT", MediaSource.VOOT),
-            Map.entry("MX", MediaSource.MXPLAYER),
-            Map.entry("YT", MediaSource.YOUTUBE),
-            Map.entry("BLURAY", MediaSource.BLURAY),
-            Map.entry("UHD", MediaSource.UHD_BLURAY),
-            Map.entry("REMUX", MediaSource.REMUX),
-            Map.entry("DVD", MediaSource.DVD),
-            Map.entry("WEB-DL", MediaSource.WEB_DL),
-            Map.entry("WEBRIP", MediaSource.WEB_RIP),
-            Map.entry("HDTV", MediaSource.HDTV),
-            Map.entry("CAM", MediaSource.CAM),
-            Map.entry("TS", MediaSource.TS),
-            Map.entry("TC", MediaSource.TELECINE)
-    );
-
-    public static final Map<MediaSource, String> SOURCE_LABEL_MAP = Map.ofEntries(
-            Map.entry(MediaSource.NETFLIX, "NETFLIX"),
-            Map.entry(MediaSource.AMAZON, "AMAZON"),
-            Map.entry(MediaSource.DISNEY, "DISNEY"),
-            Map.entry(MediaSource.APPLE, "APPLETV"),
-            Map.entry(MediaSource.HBO, "HBO"),
-            Map.entry(MediaSource.HULU, "HULU"),
-            Map.entry(MediaSource.PEACOCK, "PEACOCK"),
-            Map.entry(MediaSource.PARAMOUNT, "PARAMOUNT"),
-            Map.entry(MediaSource.YOUTUBE, "YOUTUBE"),
-            Map.entry(MediaSource.BLURAY, "BLURAY"),
-            Map.entry(MediaSource.UHD_BLURAY, "UHD"),
-            Map.entry(MediaSource.REMUX, "REMUX"),
-            Map.entry(MediaSource.DVD, "DVD"),
-            Map.entry(MediaSource.WEB_DL, "WEB"),
-            Map.entry(MediaSource.WEB_RIP, "WEB"),
-            Map.entry(MediaSource.HDTV, "HDTV"),
-            Map.entry(MediaSource.CAM, "CAM"),
-            Map.entry(MediaSource.UNKNOWN, "")
-    );
-
-    public static final Map<MediaSource, String> SOURCE_TYPE_MAP = Map.ofEntries(
-            Map.entry(MediaSource.NETFLIX, "WEB-DL"),
-            Map.entry(MediaSource.AMAZON, "WEB-DL"),
-            Map.entry(MediaSource.DISNEY, "WEB-DL"),
-            Map.entry(MediaSource.APPLE, "WEB-DL"),
-            Map.entry(MediaSource.HBO, "WEB-DL"),
-            Map.entry(MediaSource.HULU, "WEB-DL"),
-            Map.entry(MediaSource.PEACOCK, "WEB-DL"),
-            Map.entry(MediaSource.PARAMOUNT, "WEB-DL"),
-            Map.entry(MediaSource.YOUTUBE, "WEBRIP"),
-            Map.entry(MediaSource.BLURAY, "BLURAY"),
-            Map.entry(MediaSource.UHD_BLURAY, "BLURAY"),
-            Map.entry(MediaSource.REMUX, "REMUX"),
-            Map.entry(MediaSource.DVD, "DVD"),
-            Map.entry(MediaSource.UNKNOWN, "")
-    );
-
-    /* =========================================================
        PRECOMPILED REVERSE MAPS (FAST)
        ========================================================= */
 
@@ -523,9 +443,12 @@ public final class MediaTagResolver {
     public static MediaSource detectSource(String filename) {
         if (filename == null) return MediaSource.UNKNOWN;
         String upper = filename.toUpperCase();
-        for (var entry : FILENAME_SOURCE_MAP.entrySet()) {
-            if (upper.contains(entry.getKey())) {
-                return entry.getValue();
+        for (MediaSource source : MediaSource.values()) {
+            if (source == MediaSource.UNKNOWN) continue;
+            for (String token : source.getTokens()) {
+                if (matchesToken(upper, token)) {
+                    return source;
+                }
             }
         }
         return MediaSource.UNKNOWN;
@@ -554,5 +477,9 @@ public final class MediaTagResolver {
             }
         }
         return null;
+    }
+
+    private static boolean matchesToken(String text, String token) {
+        return text.matches(".*(^|[ ._\\-\\[\\]])" + token + "($|[ ._\\-\\[\\]]).*");
     }
 }

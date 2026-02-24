@@ -26,7 +26,7 @@ public class LogsService {
 
     private static final DateTimeFormatter LOG_TS_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-    private static final int DEFAULT_MAX_LINES = 5000;
+    private static final int DEFAULT_MAX_LINES = 500000;
     private static final int BUFFER_SIZE = 8192;
 
     public LogsService(DbWorldRuntimeProperties props) {

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="WARN" monitorInterval="30" shutdownHook="disable" packages="com.db.dbworld.logging">
+<Configuration status="WARN" monitorInterval="30" shutdownHook="disable">
     <Properties>
         <Property name="APP_NAME">${spring:app.name:-db-world}</Property>
         <Property name="PROFILE">${spring:spring.profiles.active:-prod}</Property>
@@ -24,14 +24,6 @@
 
         <!-- Console pattern for NORMAL logs (without MD5) -->
         <Property name="CONSOLE_NORMAL_PATTERN">%style{%d{yyyy-MM-dd HH:mm:ss.SSS}{IST}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta} %notEmpty{%style{[traceId=%X{traceId}]}{yellow}} - %msg%n%style{%ex}{red}</Property>
-
-        <!-- ========== WEBSOCKET PATTERNS ========== -->
-
-        <!-- WS ADD: single-line JSON pattern safe for WebSocket streaming -->
-        <Property name="WS_JSON_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","isRequest":"%X{isRequest}","thread":"%t","logger":"%c","service":"%c","message":"%enc{%m}{JSON}","requestId":"%X{requestId}","traceId":"%X{traceId}","user":"%X{user}","method":"%X{method}","path":"%X{uri}","statusCode":"%X{status}","duration":"%X{duration}","md5":"%X{md5}","isRequest":"%notEmpty{%X{method}}","exception":"%enc{%ex}{JSON}"}%n</Property>
-
-        <!-- WS ADD: fallback simple line pattern -->
-        <Property name="WS_SIMPLE_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS}{IST} %-5level %logger{36} - %msg%n</Property>
 
     </Properties>
 
@@ -115,7 +107,6 @@
         <!-- JSON INFO logs -->
         <RollingFile name="JSON_INFO" fileName="${LOG_PATH}/${APP_NAME}-info.json"
                      filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-info-%d{yyyy-MM-dd}-%i.json.gz">
-            <!-- WS FIX: JSON made single-line (was multi-line → breaks streaming parsers) -->
             <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
@@ -130,7 +121,6 @@
         <!-- JSON DEBUG logs -->
         <RollingFile name="JSON_DEBUG" fileName="${LOG_PATH}/${APP_NAME}-debug.json"
                      filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-debug-%d{yyyy-MM-dd}-%i.json.gz">
-            <!-- WS FIX: single-line -->
             <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
@@ -146,7 +136,6 @@
         <!-- JSON REQUEST logs -->
         <RollingFile name="JSON_REQUEST" fileName="${LOG_PATH}/${APP_NAME}-request.json"
                      filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-request-%d{yyyy-MM-dd}-%i.json.gz">
-            <!-- WS FIX: single-line -->
             <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;user&quot;:&quot;%X{user}&quot;,&quot;requestId&quot;:&quot;%X{requestId}&quot;,&quot;traceId&quot;:&quot;%X{traceId}&quot;,&quot;method&quot;:&quot;%X{method}&quot;,&quot;uri&quot;:&quot;%X{uri}&quot;,&quot;status&quot;:&quot;%X{status}&quot;,&quot;duration&quot;:&quot;%X{duration}&quot;,&quot;md5&quot;:&quot;%X{md5}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
@@ -158,7 +147,6 @@
         <!-- JSON ERROR logs -->
         <RollingFile name="JSON_ERROR" fileName="${LOG_PATH}/${APP_NAME}-error.json"
                      filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-error-%d{yyyy-MM-dd}-%i.json.gz">
-            <!-- WS FIX: single-line -->
             <PatternLayout pattern="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;,&quot;stacktrace&quot;:&quot;%enc{%ex{full}}{JSON}&quot;}%n"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
@@ -169,12 +157,6 @@
                 <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
         </RollingFile>
-
-        <!-- WS ADD: Custom WebSocket appender -->
-        <!-- WS: uses single-line pattern to ensure one WS frame per log event -->
-        <WebSocketAppender name="WS">
-            <PatternLayout pattern="${WS_JSON_PATTERN}"/>
-        </WebSocketAppender>
 
         <!-- ========== ASYNC APPENDERS ========== -->
 
@@ -220,10 +202,6 @@
             <AppenderRef ref="JSON_ERROR"/>
         </Async>
 
-        <Async name="ASYNC_WS" bufferSize="10240">
-            <AppenderRef ref="WS"/>
-        </Async>
-
     </Appenders>
 
     <Loggers>
@@ -232,7 +210,6 @@
             <AppenderRef ref="ASYNC_CONSOLE_FILTER"/>
             <AppenderRef ref="ASYNC_HUMAN_REQUEST"/>
             <AppenderRef ref="ASYNC_JSON_REQUEST"/>
-            <AppenderRef ref="ASYNC_WS"/>
         </Logger>
 
         <!-- Application logs - use CONSOLE_NORMAL (without MD5) -->
@@ -244,7 +221,6 @@
             <AppenderRef ref="ASYNC_JSON_INFO"/>
             <AppenderRef ref="ASYNC_JSON_DEBUG"/>
             <AppenderRef ref="ASYNC_JSON_ERROR"/>
-            <AppenderRef ref="ASYNC_WS"/>
         </Logger>
 
         <!-- Third-party logs - use CONSOLE_NORMAL (without MD5) -->
@@ -271,7 +247,6 @@
             <AppenderRef ref="ASYNC_JSON_INFO"/>
             <AppenderRef ref="ASYNC_HUMAN_ERROR"/>
             <AppenderRef ref="ASYNC_JSON_ERROR"/>
-            <AppenderRef ref="ASYNC_WS"/> <!-- WS ADD -->
         </Root>
     </Loggers>
 </Configuration>
