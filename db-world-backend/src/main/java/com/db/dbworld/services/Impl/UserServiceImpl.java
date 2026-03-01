@@ -130,30 +130,6 @@ public class UserServiceImpl implements UserService {
                         );
 
                         userDto.setNoOfLogin(loginDataRepository.totalNumberOfLogin(userEntity.getUserId()));
-
-//                        if (userCinemaDataEntities != null && !userCinemaDataEntities.isEmpty()) {
-//                            UserDto.CinemaData cinemaData = new UserDto.CinemaData();
-//                            List<String> downloads = new ArrayList<>();
-//                            List<String> streams = new ArrayList<>();
-//                            List<String> searches = new ArrayList<>();
-//                            userCinemaDataEntities.forEach(userCinemaDataEntity -> {
-//                                if (userCinemaDataEntity != null && userCinemaDataEntity.getEvent() != null && userCinemaDataEntity.getValue() != null) {
-//                                    if (userCinemaDataEntity.getEvent().equalsIgnoreCase("DOWNLOAD")) {
-//                                        downloads.add(userCinemaDataEntity.getValue());
-//                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("STREAM")) {
-//                                        streams.add(userCinemaDataEntity.getValue());
-//                                    } else if (userCinemaDataEntity.getEvent().equalsIgnoreCase("SEARCH")) {
-//                                        searches.add(userCinemaDataEntity.getValue());
-//                                    }
-//                                }
-//                            });
-//                            Map<String, List<String>> map = new HashMap<>();
-//                            map.put("download_files", downloads);
-//                            map.put("stream_files", streams);
-//                            map.put("search_keywords", searches);
-//                            cinemaData.setEvents(map);
-//                            userDto.setCinemaData(cinemaData);
-//                        }
                         return userDto;
                     } catch (Exception ex) {
                         log.warn(ex.getMessage());
