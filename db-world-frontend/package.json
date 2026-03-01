@@ -89,10 +89,10 @@
     "zustand": "^5.0.6"
   },
   "scripts": {
-    "start:local": "env-cmd -f .env.local react-scripts start",
-    "start:production": "env-cmd -f .env.production react-scripts start",
-    "build:local": "env-cmd -f .env.local react-scripts build",
-    "build:production": "env-cmd -f .env.production react-scripts build",
+    "start:local": "env-cmd -f ../runtime/.env.local react-scripts start",
+    "start:production": "env-cmd -f ../runtime/.env.production react-scripts start",
+    "build:local": "env-cmd -f ../runtime/.env.local react-scripts build",
+    "build:production": "env-cmd -f ../runtime/.env.production react-scripts build",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

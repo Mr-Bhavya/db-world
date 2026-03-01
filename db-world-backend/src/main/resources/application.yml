@@ -62,9 +62,12 @@ spring:
     execution:
       thread-name-prefix: ${spring.application.name}-async-
       pool:
-        core-size: ${ASYNC_CORE_SIZE:5}
-        max-size: ${ASYNC_MAX_SIZE:10}
-        queue-capacity: 100
+        core-size: ${ASYNC_CORE_SIZE:4}
+        max-size: ${ASYNC_MAX_SIZE:16}
+        queue-capacity: 200
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
 
 # =========================================================
 # Server
