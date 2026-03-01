@@ -3,18 +3,36 @@ spring:
     activate:
       on-profile: local
 
+# ===========================
+# Common Application Properties
+# ===========================
 app:
+  name: db-world
+  version: @project.version@
+  base-path: D:/db-world
+  data-path: D:/db-world
+  stream-path: D:/Bhavya/Videos
+  symlink-path: D:/Bhavya/video-symlink
+
+
   paths:
-    base: D:/home/dbworld_admin/ext_hdisk/dbworld
-    data: D:/home/dbworld_admin/ext_hdisk/dbworld
-    stream: D:/Bhavya/Videos
-    symlink: D:/Bhavya/video-symlink
-    integration: D:/Bhavya/ProcessedVideos
+    logs: ${app.base-path}/logs/
+    main-log: ${app.paths.logs}/${app.name}.json
+    download-log: ${app.paths.logs}/logs/downloads.log
+    config: ${app.base-path}/config
+    temp: ${app.data-path}/temp
+    downloads: ${app.data-path}/downloads
+    integration: D:/Bhavya/ProcessedVideos/
+    torrents: ${app.videos-path}/Torrent Download
+    archived-logs: ${app.paths.logs}/archived
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 
   tools:
-    seven-zip: C:/Program Files/7-Zip/7z.exe
-    mediainfo: D:/Bhavya/Downloads/Compressed/MediaInfo_CLI_24.12_Windows_x64/mediainfo
+    yt-dlp: yt-dlp
+    ffmpeg: ffmpeg
+    seven-zip: C:\Program Files\7-Zip\7z.exe
+    mediainfo: D:\Bhavya\Downloads\Compressed\MediaInfo_CLI_24.12_Windows_x64\mediainfo
+    hs-cookies: ${app.paths.config}/HS_COOKIES.txt
 
 server:
   port: ${SERVER_PORT:9000}

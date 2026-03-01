@@ -96,14 +96,9 @@ public class BeanConfig {
         return restTemplate;
     }
 
-    @Value("${aria2.rpc.url}") String aria2RpcUrl;
-    @Value("${aria2.rpc.secret}") String secretToken;
-
     @Bean("aria2RestTemplate")
     public RestTemplate aria2RestTemplate(RestTemplateBuilder builder) {
         return builder
-//                .rootUri(aria2RpcUrl) // 👈 base URL injected
-//                .defaultHeader("Authorization", "token:" + secretToken)
                 .setConnectTimeout(Duration.ofSeconds(10))
                 .setReadTimeout(Duration.ofSeconds(20))
                 .build();

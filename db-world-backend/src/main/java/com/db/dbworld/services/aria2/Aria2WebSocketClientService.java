@@ -55,8 +55,8 @@ public class Aria2WebSocketClientService {
     private final ScheduledExecutorService inactivityMonitor = Executors.newSingleThreadScheduledExecutor();
 
     public Aria2WebSocketClientService(
-            @Value("${aria2.ws.url}") String aria2WsUrl,
-            @Value("${aria2.rpc.secret}") String rpcSecret,
+            @Value("${aria2.ws-url}") String aria2WsUrl,
+            @Value("${aria2.secret}") String rpcSecret,
             ObjectMapper objectMapper,
             StatusService statusService,
             Aria2RpcService aria2RpcService, Aria2DownloadMappingService mappingService, TaskExecutor taskExecutor, MirrorHelper mirrorHelper, Aria2ResponseMapper aria2ResponseMapper) {
