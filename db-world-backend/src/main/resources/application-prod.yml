@@ -3,19 +3,36 @@ spring:
     activate:
       on-profile: prod
 
-
+# ===========================
+# Common Application Properties
+# ===========================
 app:
+  name: db-world
+  version: 3.0.0
+  base-path: /app/db_world
+  data-path: /ext_hdisk/dbworld
+  stream-path: /ext_hdisk/videos
+  symlink-path: /ext_hdisk/video_symlink
+
+
   paths:
-    base: /app/db_world
-    data: /ext_hdisk/dbworld
-    stream: /ext_hdisk/videos
-    symlink: /ext_hdisk/video_symlink
-    integration: ${app.paths.data}/integration
+    logs: ${app.base-path}/logs
+    main-log: ${app.paths.logs}/${app.name}-info.json
+    download-log: ${app.paths.logs}/nginx/download_tracker.log
+    config: ${app.base-path}/config
+    temp: ${app.data-path}/temp
+    downloads: ${app.data-path}/downloads
+    integration: ${app.data-path}/integration
+    torrents: ${app.videos-path}/Torrent Download
+    archived-logs: ${app.paths.logs}/archived
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 
   tools:
+    yt-dlp: yt-dlp
+    ffmpeg: ffmpeg
     seven-zip: 7z
     mediainfo: mediainfo
+    hs-cookies: ${app.paths.config}/HS_COOKIES.txt
 
 server:
   port: ${SERVER_PORT:9090}

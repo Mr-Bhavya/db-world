@@ -43,8 +43,8 @@ public class Aria2RpcService {
     public Aria2RpcService(@Qualifier("aria2RestTemplate") RestTemplate restTemplate,
                            ObjectMapper objectMapper,
                            Aria2ResponseMapper responseMapper,
-                           @Value("${aria2.rpc.url}") String aria2RpcUrl,
-                           @Value("${aria2.rpc.secret}") String secretToken,
+                           @Value("${aria2.rpc-url}") String aria2RpcUrl,
+                           @Value("${aria2.secret}") String secretToken,
                            Aria2DownloadMappingService aria2DownloadMappingService,
                            StatusService statusService) {
         this.restTemplate = restTemplate;
