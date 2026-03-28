@@ -57,6 +57,8 @@ const LazyLogDashboard        = lazy(() => import('@features/admin/LogDashboard/
 const LazyRedisManager        = lazy(() => import('@features/admin/RedisManager.js'));
 const LazyFlmngrManager       = lazy(() => import('@features/admin/FileExplorer/FlmngrManager.js'));
 const LazySchedulerPanel      = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
+const LazyUserManagementV2    = lazy(() => import('../features/adminv2/users'));
+const LazyRecordManagementV2  = lazy(() => import('../features/adminv2/records'));
 const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
 const LazyMovieDetailsPage    = lazy(() => import('@features/cinema/screens/movie-details/index.js'));
 const LazySeriesDetailsPage   = lazy(() => import('@features/cinema/screens/series-details/SeriesDetailsPage.js'));
@@ -362,6 +364,8 @@ function App() {
                         <Route path="redis"         element={<LazyRedisManager />} />
                         <Route path="files"         element={<LazyFlmngrManager />} />
                         <Route path="scheduler"     element={<LazySchedulerPanel />} />
+                        <Route path="v2/users"      element={<LazyUserManagementV2 />} />
+                        <Route path="v2/records"    element={<LazyRecordManagementV2 />} />
                       </Route>
                     </Route>
 
