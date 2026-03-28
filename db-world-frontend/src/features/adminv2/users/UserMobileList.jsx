@@ -7,8 +7,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useUserStore } from '../stores/useUserStore';
 import { formatDistanceToNow } from 'date-fns';
-
-const ROLE_COLORS = { OWNER:'#f59e0b', ADMIN:'#6366f1', VIEWER:'#10b981' };
+import { ROLE_COLORS } from './constants';
 
 function UserRow({ user, onDelete }) {
   const { openDrawer, openModal } = useUserStore();
