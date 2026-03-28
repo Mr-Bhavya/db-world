@@ -60,7 +60,9 @@ export default function RecordTagsInline({ record, queryKey }) {
 
   const removeMutation = useMutation({
     mutationFn: ({ recordId, tagType }) => removeRecordTag(recordId, tagType),
-    onMutate: ({ tagType }) => {
+    onMutate: async ({ tagType }) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData(queryKey);
       qc.setQueryData(queryKey, old => ({
         ...old,
         content: old.content.map(r => r.recordId === record.recordId
@@ -68,9 +70,13 @@ export default function RecordTagsInline({ record, queryKey }) {
           : r
         ),
       }));
+      return { previous };
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey }); },
-    onError: () => { qc.invalidateQueries({ queryKey }); enqueueSnackbar('Failed to remove tag', { variant:'error' }); },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+      enqueueSnackbar('Failed to remove tag', { variant:'error' });
+    },
   });
 
   return (
