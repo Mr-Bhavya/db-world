@@ -1,5 +1,5 @@
 // db-world-frontend/src/features/adminv2/records/RecordCreateModal.jsx
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, Box, Typography, CircularProgress, IconButton, Chip, Alert } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
@@ -24,6 +24,8 @@ export default function RecordCreateModal({ open, onClose }) {
   const [searching,   setSearching]   = useState(false);
   const [searchError, setSearchError] = useState('');
   const searchTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
 
   const { control, handleSubmit, watch, reset, formState:{ errors } } = useForm({
     resolver: zodResolver(createRecordSchema),

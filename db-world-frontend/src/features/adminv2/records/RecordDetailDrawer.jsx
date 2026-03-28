@@ -23,7 +23,7 @@ export default function RecordDetailDrawer({ data }) {
 
   const backdrop = tmdb?.backdropPath ?? tmdb?.posterPath;
   const genres   = tmdb?.genres?.map(g => g.name).join(', ');
-  const providers = tmdb?.providers?.flatMap(p => p.providerName ? [p.providerName] : []).join(', ');
+  const providers = [...new Set(tmdb?.providers?.map(p => p.providerName).filter(Boolean) ?? [])].join(', ') || null;
 
   return (
     <Drawer anchor="right" open={open} onClose={closeDrawer}
@@ -47,9 +47,10 @@ export default function RecordDetailDrawer({ data }) {
       )}
 
       <Box sx={{ p:2, overflowY:'auto', flex:1 }}>
-        {!record ? (
-          <Box sx={{ display:'flex', flexDirection:'column', gap:1 }}>
-            {Array.from({ length:10 }).map((_, i) => <Skeleton key={i} height={28} sx={{ bgcolor:'rgba(255,255,255,0.05)' }} />)}
+        {!open ? null : !record ? (
+          <Box sx={{ display:'flex', flexDirection:'column', gap:2, alignItems:'center', pt:4 }}>
+            <Typography sx={{ fontSize:14, color:'rgba(255,255,255,0.4)' }}>Record not available in current page.</Typography>
+            <Typography sx={{ fontSize:12, color:'rgba(255,255,255,0.25)' }}>Navigate to the page containing this record and try again.</Typography>
           </Box>
         ) : (
           <>

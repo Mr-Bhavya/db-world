@@ -5,18 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { addRecordTag, removeRecordTag } from '../api/adminApi';
-
-const ALL_TAGS = ['FEATURED','NEW_RELEASE','TRENDING','EDITOR_PICK','SHOW_ON_TOP','RECENTLY_ADDED','TOP_10'];
-
-const TAG_COLORS = {
-  FEATURED:       '#f59e0b',
-  NEW_RELEASE:    '#10b981',
-  TRENDING:       '#ef4444',
-  EDITOR_PICK:    '#8b5cf6',
-  SHOW_ON_TOP:    '#6366f1',
-  RECENTLY_ADDED: '#06b6d4',
-  TOP_10:         '#ec4899',
-};
+import { ALL_TAGS, TAG_COLORS } from './tagConstants';
 
 export default function RecordTagsInline({ record, queryKey }) {
   const [anchor, setAnchor] = useState(null);
