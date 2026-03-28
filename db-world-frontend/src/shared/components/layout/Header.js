@@ -1,680 +1,366 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { motion, AnimatePresence } from 'framer-motion';
-import db_world_icon from '../images/db_world_teal.svg';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import db_world_icon from '@assets/images/db_world_teal.svg';
 import {
-  AppBar,
-  Toolbar,
-  IconButton,
-  Typography,
-  Box,
-  Menu,
-  MenuItem,
-  Avatar,
-  Divider,
-  useMediaQuery,
-  useTheme,
-  Slide,
-  Chip,
-  Badge,
-  alpha,
-  Container,
-  Tooltip,
-  Collapse
+  AppBar, Toolbar, Box, IconButton, Avatar, Typography,
+  Menu, MenuItem, Divider, Drawer, List, ListItemButton,
+  ListItemIcon, ListItemText, Tooltip, Container, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
-  Home as HomeIcon,
-  Person as PersonIcon,
-  Lock as LockIcon,
-  HowToReg as RegisterIcon,
-  AdminPanelSettings as AdminIcon,
-  ExitToApp as LogoutIcon,
-  Cloud as WeatherIcon,
-  Movie as CinemaIcon,
-  SportsEsports as GamesIcon,
+  Menu as MenuIcon, Close as CloseIcon,
+  Person as PersonIcon, AdminPanelSettings as AdminIcon,
+  Logout as LogoutIcon, HowToReg as RegisterIcon, Lock as LockIcon,
+  Cloud as WeatherIcon, Movie as CinemaIcon, SportsEsports as GamesIcon,
   VpnKey as PasswordIcon,
-  Menu as MenuIcon,
-  Notifications as NotificationsIcon,
-  Settings as SettingsIcon,
-  Dashboard as DashboardIcon,
-  KeyboardArrowDown
 } from '@mui/icons-material';
-import LoadingSpinner from './LoadingSpinner';
-import Constants from './Constants';
-import { getUserRole } from './ApiServices';
-import { addUser } from '../redux/action/allActions';
-import CommonServices from './CommonServices';
-import Authentication, { useAuth } from '../contexts/Authentication';
+import { useAuth } from '@features/auth/context/Authentication';
+import Constants from '@shared/constants';
+
+const NAV = [
+  { id: 'cinema',   label: 'Cinema',           icon: <CinemaIcon />,   route: Constants.DB_CINEMA_BROWSE_ROUTE },
+  { id: 'weather',  label: 'Weather',           icon: <WeatherIcon />,  route: Constants.DB_WEATHER_ROUTE },
+  { id: 'games',    label: 'Games',             icon: <GamesIcon />,    route: Constants.DB_GAMES_ROUTE },
+  { id: 'password', label: 'Password Manager',  icon: <PasswordIcon />, route: Constants.DB_PASSWORD_MANAGER_ROUTE },
+];
+
+const TEAL = '#0d9488';
 
 const Header = () => {
-  const theme = useTheme();
+  const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const [loading, setLoading] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { auth } = useAuth();
-  const isLoggedIn = auth?.isAuthenticated;
-  const userData = auth?.user || null;
-  const [accountOpen, setAccountOpen] = useState(false);
+  const { auth, logout } = useAuth();
+  const isAuth = auth?.isAuthenticated;
+  const user   = auth?.user;
+  const role   = auth?.role;
+  const isAdmin = role === Constants.OWNER_USER_ROLE || role === Constants.ADMIN_USER_ROLE;
 
-  const navItems = [
-    {
-      id: "db-world",
-      title: "DB World",
-      icon: <HomeIcon />,
-      route: Constants.DB_WORLD_HOME_ROUTE,
-      visible: true,
-      color: "#00bfa5"
-    },
-    {
-      id: "db-weather",
-      title: "Weather & Time",
-      icon: <WeatherIcon />,
-      route: Constants.DB_WEATHER_ROUTE,
-      visible: isLoggedIn,
-      color: "#4fc3f7"
-    },
-    {
-      id: "db-password-manager",
-      title: "Password Manager",
-      icon: <PasswordIcon />,
-      route: Constants.DB_PASSWORD_MANAGER_ROUTE,
-      visible: isLoggedIn,
-      color: "#ffb74d"
-    },
-    {
-      id: "db-cinema",
-      title: "DB Cinema",
-      icon: <CinemaIcon />,
-      route: Constants.DB_CINEMA_BROWSE_ROUTE,
-      visible: isLoggedIn,
-      color: "#ba68c8"
-    },
-    {
-      id: "db-games",
-      title: "Games",
-      icon: <GamesIcon />,
-      route: Constants.DB_GAMES_ROUTE,
-      visible: isLoggedIn,
-      color: "#4db6ac"
-    }
-  ];
+  const [scrolled,   setScrolled]   = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState(null);
 
-  const profileItems = [
-    {
-      id: "profile",
-      title: "My Profile",
-      icon: <PersonIcon />,
-      route: Constants.USER_PROFILE_ROUTE,
-      visible: true,
-      color: "#00bfa5"
-    },
-    {
-      id: "admin-tools",
-      title: "Admin Tools",
-      icon: <AdminIcon />,
-      route: Constants.DB_ADMIN_TOOLS_ROUTE,
-      visible: auth?.role === Constants.OWNER_USER_ROLE || auth?.role === Constants.ADMIN_USER_ROLE,
-      color: "#f06292"
-    },
-    {
-      id: "logout",
-      title: "Logout",
-      icon: <LogoutIcon />,
-      route: Constants.LOGOUT_ROUTE,
-      visible: true,
-      color: "#ef5350"
-    }
-  ];
-
-  const guestItems = [
-    {
-      id: "home",
-      title: "Home",
-      icon: <HomeIcon />,
-      route: Constants.DB_WORLD_HOME_ROUTE,
-      visible: true,
-      color: "#00bfa5"
-    },
-    {
-      id: "register",
-      title: "Registration",
-      icon: <RegisterIcon />,
-      route: Constants.REGISTRATION_ROUTE,
-      visible: true,
-      color: "#7986cb"
-    },
-    {
-      id: "login",
-      title: "Login",
-      icon: <LockIcon />,
-      route: Constants.LOGIN_ROUTE,
-      visible: true,
-      color: "#4db6ac"
-    }
-  ];
-
-  const handleProfileMenuOpen = (event) => setAnchorEl(event.currentTarget);
-  const handleMenuClose = () => setAnchorEl(null);
-  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
-  const handleNotificationsOpen = (event) => setNotificationsOpen(event.currentTarget);
-  const handleNotificationsClose = () => setNotificationsOpen(false);
-
-  const getCurrentTitle = () => {
-    const currentItem = [...navItems, ...profileItems, ...guestItems].find(item => item.route === location.pathname);
-    return currentItem?.title || "DB World";
-  };
-
-  const getInitials = (name) => {
-    return name ? name.charAt(0).toUpperCase() : <PersonIcon />;
-  };
-
-  useEffect(() => {
-    setLoading(false);
-  }, [auth, location.pathname]);
-
+  // Keep existing behaviour — hide on cinema and admin routes
   if (location.pathname.includes(Constants.DB_CINEMA_ROUTE)) return null;
+  if (location.pathname.startsWith(Constants.DB_ADMIN_BASE_ROUTE)) return null;
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: -50 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-        damping: 20
-      }
-    }
-  };
+  // Scroll detection
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 80);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
-  const itemVariants = {
-    hidden: { y: -20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100
-      }
-    },
-    hover: {
-      scale: 1.05,
-      transition: {
-        type: "spring",
-        stiffness: 400,
-        damping: 10
-      }
-    },
-    tap: {
-      scale: 0.95
-    }
+  const initial = (user?.firstName?.[0] ?? user?.name?.[0] ?? user?.email?.[0] ?? 'U').toUpperCase();
+
+  const handleNav = useCallback((route) => {
+    navigate(route);
+    setDrawerOpen(false);
+    setMenuAnchor(null);
+  }, [navigate]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    setMenuAnchor(null);
+    setDrawerOpen(false);
+  }, [logout]);
+
+  // ── Nav link (desktop) ────────────────────────────────────────────────────
+  const NavLink = ({ item }) => {
+    const active = location.pathname.startsWith(item.route);
+    return (
+      <Box
+        component="button"
+        onClick={() => handleNav(item.route)}
+        sx={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          px: 1.5, py: 0.75, borderRadius: 1,
+          color: active ? TEAL : 'rgba(241,245,249,0.65)',
+          fontFamily: 'inherit', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
+          position: 'relative',
+          transition: 'color 0.2s',
+          '&:hover': { color: TEAL },
+          '&::after': {
+            content: '""',
+            position: 'absolute', bottom: 0, left: '50%',
+            transform: active ? 'translateX(-50%) scaleX(1)' : 'translateX(-50%) scaleX(0)',
+            transformOrigin: 'center',
+            width: '60%', height: 2,
+            bgcolor: TEAL, borderRadius: 1,
+            transition: 'transform 0.2s',
+          },
+          '&:hover::after': { transform: 'translateX(-50%) scaleX(1)' },
+        }}
+      >
+        {item.label}
+      </Box>
+    );
   };
 
   return (
     <>
-      <Slide direction="down" in={true} mountOnEnter unmountOnExit>
-        <AppBar
-          position="sticky"
-          sx={{
-            background: `linear-gradient(135deg, ${alpha('#121212', 0.95)} 0%, ${alpha('#1a1a1a', 0.95)} 100%)`,
-            backdropFilter: 'blur(20px)',
-            borderBottom: `1px solid ${alpha('#00bfa5', 0.2)}`,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-          }}
-        >
-          <Container maxWidth="xl">
-            <Toolbar sx={{ py: 1 }}>
-              {/* Logo and Brand */}
-              <motion.div
-                variants={itemVariants}
-                initial="hidden"
-                animate="visible"
-                whileHover="hover"
-                whileTap="tap"
-              >
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    mr: 3,
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => navigate(Constants.DB_WORLD_HOME_ROUTE)}
-                >
-                  <Avatar
-                    src={db_world_icon}
-                    alt="DB World Logo"
-                    sx={{
-                      bgcolor: '#00bfa5',
-                      width: isSmallMobile ? 40 : 50,
-                      height: isSmallMobile ? 40 : 50,
-                      mr: 2,
-                      border: `2px solid ${alpha('#00bfa5', 0.3)}`,
-                      boxShadow: '0 4px 20px rgba(0,191,165,0.3)'
-                    }}
-                  />
-                  <Typography
-                    variant={isSmallMobile ? "h6" : "h5"}
-                    noWrap
-                    sx={{
-                      fontWeight: 'bold',
-                      background: 'linear-gradient(135deg, #00bfa5 0%, #4db6ac 100%)',
-                      backgroundClip: 'text',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent'
-                    }}
-                  >
-                    {getCurrentTitle()}
-                  </Typography>
-                </Box>
-              </motion.div>
-
-              {/* Desktop Navigation */}
-              {!isMobile && (
-                <Box sx={{ flexGrow: 1, display: 'flex', ml: 3, gap: 1 }}>
-                  <motion.div
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                    style={{ display: 'flex', gap: 1 }}
-                  >
-                    {(isLoggedIn ? navItems : guestItems)
-                      .filter(item => item.visible)
-                      .map((item, index) => (
-                        <motion.div
-                          key={item.id}
-                          variants={itemVariants}
-                          custom={index}
-                          whileHover="hover"
-                          whileTap="tap"
-                        >
-                          <Chip
-                            icon={item.icon}
-                            label={item.title}
-                            component={Link}
-                            to={item.route}
-                            clickable
-                            sx={{
-                              mx: 0.5,
-                              color: location.pathname === item.route ? 'white' : '#e0f2f1',
-                              background: location.pathname === item.route
-                                ? `linear-gradient(135deg, ${item.color} 0%, ${alpha(item.color, 0.7)} 100%)`
-                                : alpha('#263238', 0.6),
-                              border: `1px solid ${alpha(item.color, location.pathname === item.route ? 0.8 : 0.2)}`,
-                              backdropFilter: 'blur(10px)',
-                              fontWeight: 600,
-                              '&:hover': {
-                                background: `linear-gradient(135deg, ${alpha(item.color, 0.8)} 0%, ${alpha(item.color, 0.4)} 100%)`,
-                                transform: 'translateY(-1px)',
-                                boxShadow: `0 4px 20px ${alpha(item.color, 0.3)}`
-                              },
-                              transition: 'all 0.3s ease',
-                            }}
-                            onClick={() => document.title = item.route === Constants.DB_WORLD_HOME_ROUTE ? item.title : `DB World | ${item.title}`}
-                          />
-                        </motion.div>
-                      ))}
-                  </motion.div>
-                </Box>
-              )}
-
-              {/* User Section */}
-              {isLoggedIn && !isMobile && (
-                <motion.div
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  style={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                >
-                  {/* Notifications */}
-                  <Tooltip title="Notifications">
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <IconButton
-                        onClick={handleNotificationsOpen}
-                        sx={{
-                          color: '#e0f2f1',
-                          background: alpha('#00bfa5', 0.1),
-                          '&:hover': {
-                            background: alpha('#00bfa5', 0.2),
-                            color: '#00bfa5'
-                          }
-                        }}
-                      >
-                        <Badge badgeContent={3} color="error">
-                          <NotificationsIcon />
-                        </Badge>
-                      </IconButton>
-                    </motion.div>
-                  </Tooltip>
-
-                  {/* Profile Menu */}
-                  <Tooltip title="Account settings">
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <IconButton
-                        onClick={handleProfileMenuOpen}
-                        sx={{
-                          ml: 1,
-                          borderRadius: '8px', // ✅ Change from circle to rounded rectangle
-                          padding: '6px 10px', // ✅ Adds nice shape
-                          '&:hover': {
-                            background: `linear-gradient(135deg, ${alpha('#00bfa5', 0.3)} 0%, ${alpha('#4db6ac', 0.3)} 100%)`,
-                            borderColor: alpha('#00bfa5', 0.5)
-                          }
-                        }}
-                      >
-                        <Avatar
-                          sx={{
-                            bgcolor: '#00bfa5',
-                            width: 36,
-                            height: 36,
-                            fontSize: '1rem',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {getInitials(userData?.name)}
-                        </Avatar>
-                        {!isSmallMobile && (
-                          <Typography variant="body2" sx={{ ml: 1, color: '#e0f2f1', fontWeight: 600 }}>
-                            {userData?.name}
-                          </Typography>
-                        )}
-                      </IconButton>
-                    </motion.div>
-                  </Tooltip>
-                </motion.div>
-              )}
-
-              {/* Mobile Menu Button */}
-              {isMobile && (
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  style={{ marginLeft: 'auto' }}
-                >
-                  <IconButton
-                    color="inherit"
-                    onClick={toggleMobileMenu}
-                    sx={{
-                      background: alpha('#00bfa5', 0.1),
-                      '&:hover': {
-                        background: alpha('#00bfa5', 0.2),
-                        color: '#00bfa5'
-                      }
-                    }}
-                  >
-                    <MenuIcon />
-                  </IconButton>
-                </motion.div>
-              )}
-            </Toolbar>
-          </Container>
-        </AppBar>
-      </Slide>
-
-      {/* Profile Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        PaperProps={{
-          elevation: 8,
-          sx: {
-            bgcolor: alpha('#1e1e1e', 0.95),
-            backdropFilter: 'blur(20px)',
-            color: '#e0f2f1',
-            mt: 1.5,
-            border: `1px solid ${alpha('#00bfa5', 0.2)}`,
-            borderRadius: 3,
-            minWidth: 200,
-            '& .MuiMenuItem-root': {
-              py: 1.5,
-              '&:hover': {
-                bgcolor: alpha('#00bfa5', 0.1),
-                color: '#00bfa5'
-              }
-            }
-          }
+      <AppBar
+        position="fixed"
+        elevation={0}
+        sx={{
+          background: scrolled ? 'rgba(10,10,15,0.85)' : 'transparent',
+          backdropFilter: scrolled ? 'blur(16px)' : 'none',
+          borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : 'none',
+          transition: 'background 0.3s, backdrop-filter 0.3s, border-color 0.3s',
+          zIndex: 1200,
         }}
+      >
+        <Container maxWidth="xl">
+          <Toolbar sx={{ px: { xs: 0 }, minHeight: { xs: 56, md: 64 } }}>
+
+            {/* Logo */}
+            <Box
+              onClick={() => handleNav(Constants.DB_WORLD_HOME_ROUTE)}
+              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', mr: 4 }}
+            >
+              <Avatar
+                src={db_world_icon}
+                sx={{
+                  width: 32, height: 32,
+                  bgcolor: TEAL,
+                  border: '1px solid rgba(13,148,136,0.4)',
+                  boxShadow: '0 0 12px rgba(13,148,136,0.3)',
+                }}
+              />
+              <Typography sx={{ fontWeight: 800, color: '#f1f5f9', fontSize: '1rem', letterSpacing: '-0.02em' }}>
+                DB World
+              </Typography>
+            </Box>
+
+            {/* Desktop nav — authenticated */}
+            {!isMobile && isAuth && (
+              <Box sx={{ display: 'flex', gap: 0.5, flexGrow: 1 }}>
+                {NAV.map(item => <NavLink key={item.id} item={item} />)}
+              </Box>
+            )}
+            {!isMobile && !isAuth && <Box sx={{ flexGrow: 1 }} />}
+
+            {/* Desktop right — authenticated */}
+            {!isMobile && isAuth && (
+              <Tooltip title={user?.firstName ?? user?.name ?? 'Account'}>
+                <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ p: 0.5 }}>
+                  <Avatar sx={{ width: 34, height: 34, bgcolor: TEAL, fontSize: '0.85rem', fontWeight: 700 }}>
+                    {initial}
+                  </Avatar>
+                </IconButton>
+              </Tooltip>
+            )}
+
+            {/* Desktop right — guest */}
+            {!isMobile && !isAuth && (
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box
+                  component="button"
+                  onClick={() => handleNav(Constants.LOGIN_ROUTE)}
+                  sx={{
+                    background: 'none', border: '1px solid rgba(13,148,136,0.4)', cursor: 'pointer',
+                    color: TEAL, px: 2, py: 0.75, borderRadius: 1, fontSize: '0.875rem',
+                    fontFamily: 'inherit', transition: 'all 0.2s',
+                    '&:hover': { bgcolor: 'rgba(13,148,136,0.1)' },
+                  }}
+                >
+                  Login
+                </Box>
+                <Box
+                  component="button"
+                  onClick={() => handleNav(Constants.REGISTRATION_ROUTE)}
+                  sx={{
+                    bgcolor: TEAL, border: 'none', cursor: 'pointer',
+                    color: '#fff', px: 2, py: 0.75, borderRadius: 1, fontSize: '0.875rem',
+                    fontFamily: 'inherit', transition: 'background 0.2s',
+                    '&:hover': { bgcolor: '#0f766e' },
+                  }}
+                >
+                  Register
+                </Box>
+              </Box>
+            )}
+
+            {/* Mobile hamburger */}
+            {isMobile && (
+              <Box sx={{ ml: 'auto' }}>
+                <IconButton
+                  onClick={() => setDrawerOpen(true)}
+                  sx={{ color: 'rgba(241,245,249,0.7)', '&:hover': { color: TEAL } }}
+                >
+                  <MenuIcon />
+                </IconButton>
+              </Box>
+            )}
+          </Toolbar>
+        </Container>
+      </AppBar>
+
+      {/* ── Avatar dropdown ─────────────────────────────────────────────────── */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={() => setMenuAnchor(null)}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        PaperProps={{
+          sx: {
+            mt: 1, minWidth: 200, borderRadius: 2,
+            bgcolor: 'rgba(15,15,20,0.97)', backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            '& .MuiMenuItem-root': {
+              fontSize: '0.875rem', color: 'rgba(241,245,249,0.8)', py: 1.25,
+              '&:hover': { bgcolor: 'rgba(13,148,136,0.1)', color: '#f1f5f9' },
+            },
+          },
+        }}
       >
-        {profileItems.filter(item => item.visible).map((item, index) => (
-          <motion.div
-            key={item.id}
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <MenuItem
-              component={Link}
-              to={item.route}
-              onClick={handleMenuClose}
-              sx={{
-                borderLeft: `3px solid ${item.color}`,
-                ml: 1,
-                mr: 1,
-                borderRadius: 1
-              }}
-            >
-              <Box sx={{ color: item.color, mr: 2 }}>
-                {item.icon}
-              </Box>
-              <Typography variant="body2" fontWeight={500}>
-                {item.title}
-              </Typography>
-            </MenuItem>
-          </motion.div>
-        ))}
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography sx={{ fontSize: '0.9rem', fontWeight: 600, color: '#f1f5f9' }}>
+            {user?.firstName ?? user?.name ?? 'User'}
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: 'rgba(241,245,249,0.45)' }}>
+            {user?.email ?? role}
+          </Typography>
+        </Box>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
+        <MenuItem onClick={() => handleNav(Constants.USER_PROFILE_ROUTE)}>
+          <PersonIcon sx={{ fontSize: 18, mr: 1.5, color: TEAL }} /> My Profile
+        </MenuItem>
+        {isAdmin && (
+          <MenuItem onClick={() => handleNav(`${Constants.DB_ADMIN_BASE_ROUTE}/dashboard`)}>
+            <AdminIcon sx={{ fontSize: 18, mr: 1.5, color: TEAL }} /> Admin Console
+          </MenuItem>
+        )}
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
+        <MenuItem onClick={handleLogout} sx={{ color: '#f87171 !important' }}>
+          <LogoutIcon sx={{ fontSize: 18, mr: 1.5, color: '#f87171' }} /> Sign Out
+        </MenuItem>
       </Menu>
 
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {isMobile && mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            style={{ overflow: 'hidden' }}
-          >
-            <Box
-              sx={{
-                bgcolor: alpha('#1c1c1c', 0.98),
-                backdropFilter: 'blur(20px)',
-                borderBottom: `1px solid ${alpha('#00bfa5', 0.2)}`,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-              }}
-            >
-              {/* Navigation Items */}
-              {(isLoggedIn ? navItems : guestItems)
-                .filter(item => item.visible)
-                .map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    initial={{ x: -20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <MenuItem
-                      component={Link}
-                      to={item.route}
-                      selected={location.pathname === item.route}
-                      onClick={() => {
-                        document.title =
-                          item.route === Constants.DB_WORLD_HOME_ROUTE
-                            ? item.title
-                            : `DB World | ${item.title}`;
-                        setMobileMenuOpen(false);
-                      }}
-                      sx={{
-                        borderLeft:
-                          location.pathname === item.route
-                            ? `4px solid ${item.color}`
-                            : 'none',
-                        color:
-                          location.pathname === item.route
-                            ? item.color
-                            : '#e0f2f1',
-                        background:
-                          location.pathname === item.route
-                            ? alpha(item.color, 0.1)
-                            : 'transparent',
-                        py: 2,
-                        '&:hover': {
-                          backgroundColor: alpha(item.color, 0.15),
-                          color: item.color
-                        }
-                      }}
-                    >
-                      <Box sx={{ color: item.color, mr: 2 }}>
-                        {item.icon}
-                      </Box>
-                      <Typography variant="body1" fontWeight={500}>
-                        {item.title}
-                      </Typography>
-                    </MenuItem>
-                  </motion.div>
-                ))}
+      {/* ── Mobile drawer ────────────────────────────────────────────────────── */}
+      <Drawer
+        anchor="right"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: 280, bgcolor: 'rgba(10,10,15,0.97)',
+            backdropFilter: 'blur(20px)',
+            borderLeft: '1px solid rgba(255,255,255,0.06)',
+          },
+        }}
+      >
+        {/* Drawer header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Avatar src={db_world_icon} sx={{ width: 28, height: 28, bgcolor: TEAL }} />
+            <Typography sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.95rem' }}>DB World</Typography>
+          </Box>
+          <IconButton onClick={() => setDrawerOpen(false)} sx={{ color: 'rgba(241,245,249,0.5)' }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
 
-              {/* Collapsible Account Section */}
-              {/* User Info and Profile Actions */}
-              {/* Collapsible User Section */}
-              {isLoggedIn && (
-                <>
-                  <Divider sx={{ bgcolor: alpha('#00bfa5', 0.2), my: 1 }} />
-
-                  {/* User Header (click to expand/collapse) */}
-                  <Box
-                    onClick={() => setAccountOpen((prev) => !prev)}
-                    sx={{
-                      p: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      '&:hover': {
-                        backgroundColor: alpha('#00bfa5', 0.08)
-                      },
-                      transition: 'all 0.3s ease'
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar
-                        sx={{
-                          bgcolor: '#00bfa5',
-                          width: 48,
-                          height: 48,
-                          fontSize: '1.2rem',
-                          fontWeight: 'bold',
-                          border: `2px solid ${alpha('#00bfa5', 0.3)}`,
-                          boxShadow: `0 0 10px ${alpha('#00bfa5', 0.4)}`
-                        }}
-                      >
-                        {getInitials(userData?.name)}
-                      </Avatar>
-                      <Box>
-                        <Typography
-                          variant="body1"
-                          fontWeight="bold"
-                          color="#e0f2f1"
-                          noWrap
-                          sx={{ maxWidth: 160 }}
-                        >
-                          {userData?.name}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          color="#90a4ae"
-                          noWrap
-                          sx={{ maxWidth: 160 }}
-                        >
-                          {userData?.email}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <KeyboardArrowDown
-                      sx={{
-                        color: '#00bfa5',
-                        transform: accountOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.3s ease'
-                      }}
-                    />
-                  </Box>
-
-                  {/* Collapsible Actions */}
-                  <Collapse in={accountOpen} timeout="auto" unmountOnExit>
-                    <Box sx={{ pb: 1 }}>
-                      {profileItems
-                        .filter((item) => item.visible)
-                        .map((item, index) => (
-                          <motion.div
-                            key={item.id}
-                            initial={{ x: -10, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            transition={{ delay: index * 0.05 }}
-                          >
-                            <MenuItem
-                              component={Link}
-                              to={item.route}
-                              onClick={() => {
-                                setMobileMenuOpen(false);
-                                setAccountOpen(false);
-                                handleMenuClose();
-                              }}
-                              sx={{
-                                pl: 6,
-                                py: 1.6,
-                                color:
-                                  item.id === 'logout'
-                                    ? '#ef5350'
-                                    : '#e0f2f1',
-                                '&:hover': {
-                                  backgroundColor: alpha(
-                                    item.id === 'logout' ? '#ef5350' : item.color,
-                                    0.15
-                                  ),
-                                  color: item.id === 'logout' ? '#ef5350' : item.color
-                                },
-                                transition: 'all 0.25s ease'
-                              }}
-                            >
-                              <Box
-                                sx={{
-                                  color:
-                                    item.id === 'logout'
-                                      ? '#ef5350'
-                                      : item.color,
-                                  mr: 2
-                                }}
-                              >
-                                {item.icon}
-                              </Box>
-                              <Typography variant="body1" fontWeight={500}>
-                                {item.title}
-                              </Typography>
-                            </MenuItem>
-                          </motion.div>
-                        ))}
-                    </Box>
-                  </Collapse>
-
-                  <Divider sx={{ bgcolor: alpha('#00bfa5', 0.2), my: 1 }} />
-                </>
-              )}
+        {/* User info */}
+        {isAuth && (
+          <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar sx={{ width: 38, height: 38, bgcolor: TEAL, fontSize: '0.9rem', fontWeight: 700 }}>
+              {initial}
+            </Avatar>
+            <Box>
+              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f1f5f9' }}>
+                {user?.firstName ?? user?.name ?? 'User'}
+              </Typography>
+              <Typography sx={{ fontSize: '0.72rem', color: 'rgba(241,245,249,0.45)' }}>
+                {user?.email ?? role}
+              </Typography>
             </Box>
-          </motion.div>
+          </Box>
         )}
-      </AnimatePresence>
-      {loading && <LoadingSpinner />}
+
+        {/* Nav links */}
+        <List sx={{ px: 1, pt: 1 }}>
+          {(isAuth ? NAV : []).map(item => {
+            const active = location.pathname.startsWith(item.route);
+            return (
+              <ListItemButton
+                key={item.id}
+                onClick={() => handleNav(item.route)}
+                sx={{
+                  borderRadius: 1.5, mb: 0.5,
+                  bgcolor: active ? 'rgba(13,148,136,0.12)' : 'transparent',
+                  borderLeft: active ? `3px solid ${TEAL}` : '3px solid transparent',
+                  '&:hover': { bgcolor: 'rgba(13,148,136,0.08)' },
+                }}
+              >
+                <ListItemIcon sx={{ color: active ? TEAL : 'rgba(241,245,249,0.5)', minWidth: 36 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{
+                    fontSize: '0.875rem',
+                    color: active ? TEAL : 'rgba(241,245,249,0.8)',
+                    fontWeight: active ? 600 : 400,
+                  }}
+                />
+              </ListItemButton>
+            );
+          })}
+        </List>
+
+        {/* Bottom actions */}
+        <Box sx={{ mt: 'auto', px: 1, pb: 2 }}>
+          <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', mb: 1 }} />
+          {isAuth ? (
+            <>
+              <ListItemButton
+                onClick={() => handleNav(Constants.USER_PROFILE_ROUTE)}
+                sx={{ borderRadius: 1.5, mb: 0.5, '&:hover': { bgcolor: 'rgba(13,148,136,0.08)' } }}
+              >
+                <ListItemIcon sx={{ color: TEAL, minWidth: 36 }}><PersonIcon /></ListItemIcon>
+                <ListItemText primary="My Profile" primaryTypographyProps={{ fontSize: '0.875rem', color: 'rgba(241,245,249,0.8)' }} />
+              </ListItemButton>
+              {isAdmin && (
+                <ListItemButton
+                  onClick={() => handleNav(`${Constants.DB_ADMIN_BASE_ROUTE}/dashboard`)}
+                  sx={{ borderRadius: 1.5, mb: 0.5, '&:hover': { bgcolor: 'rgba(13,148,136,0.08)' } }}
+                >
+                  <ListItemIcon sx={{ color: TEAL, minWidth: 36 }}><AdminIcon /></ListItemIcon>
+                  <ListItemText primary="Admin Console" primaryTypographyProps={{ fontSize: '0.875rem', color: 'rgba(241,245,249,0.8)' }} />
+                </ListItemButton>
+              )}
+              <ListItemButton
+                onClick={handleLogout}
+                sx={{ borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(248,113,113,0.08)' } }}
+              >
+                <ListItemIcon sx={{ color: '#f87171', minWidth: 36 }}><LogoutIcon /></ListItemIcon>
+                <ListItemText primary="Sign Out" primaryTypographyProps={{ fontSize: '0.875rem', color: '#f87171' }} />
+              </ListItemButton>
+            </>
+          ) : (
+            <>
+              <ListItemButton
+                onClick={() => handleNav(Constants.LOGIN_ROUTE)}
+                sx={{ borderRadius: 1.5, mb: 0.5, '&:hover': { bgcolor: 'rgba(13,148,136,0.08)' } }}
+              >
+                <ListItemIcon sx={{ color: TEAL, minWidth: 36 }}><LockIcon /></ListItemIcon>
+                <ListItemText primary="Login" primaryTypographyProps={{ fontSize: '0.875rem', color: 'rgba(241,245,249,0.8)' }} />
+              </ListItemButton>
+              <ListItemButton
+                onClick={() => handleNav(Constants.REGISTRATION_ROUTE)}
+                sx={{ borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(13,148,136,0.08)' } }}
+              >
+                <ListItemIcon sx={{ color: TEAL, minWidth: 36 }}><RegisterIcon /></ListItemIcon>
+                <ListItemText primary="Register" primaryTypographyProps={{ fontSize: '0.875rem', color: 'rgba(241,245,249,0.8)' }} />
+              </ListItemButton>
+            </>
+          )}
+        </Box>
+      </Drawer>
     </>
   );
 };

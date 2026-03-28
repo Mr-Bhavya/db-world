@@ -1,628 +1,447 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Constants from './Constants';
-import { motion, AnimatePresence } from 'framer-motion';
-
-// MUI Components
+import { motion } from 'framer-motion';
 import {
-  Box,
-  Card,
-  CardActionArea,
-  CardContent,
-  Container,
-  Grid,
-  Typography,
-  Divider,
-  useTheme,
-  useMediaQuery,
-  alpha,
-  Chip,
-  Fade,
-  Zoom,
-  IconButton,
-  Tooltip
+  Box, Typography, Button, Chip, Grid, Container,
+  useMediaQuery, useTheme,
 } from '@mui/material';
-
-// Icons
 import {
+  MovieFilter as CinemaIcon,
   WbSunny as WeatherIcon,
-  VpnKey as PasswordIcon,
-  Movie as CinemaIcon,
   SportsEsports as GamesIcon,
+  Lock as PasswordIcon,
   AdminPanelSettings as AdminIcon,
-  RocketLaunch as RocketIcon,
-  Search as SearchIcon,
-  Favorite as FavoriteIcon,
-  TrendingUp as TrendingIcon,
-  Star as StarIcon
+  ArrowForward as ArrowIcon,
+  KeyboardArrowDown as ChevronDown,
 } from '@mui/icons-material';
+import { useAuth } from '@features/auth/context/Authentication';
+import Constants from '@shared/constants';
 
-const Home = () => {
-  const navigate = useNavigate();
-  const theme = useTheme();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
-  const isMediumScreen = useMediaQuery(theme.breakpoints.between('sm', 'md'));
-  const [hoveredCard, setHoveredCard] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [recentApps, setRecentApps] = useState([]);
+// ── Design tokens ──────────────────────────────────────────────────────────────
+const T = {
+  bg:          '#0a0a0f',
+  teal:        '#0d9488',
+  tealHover:   '#0f766e',
+  glass:       'rgba(255,255,255,0.04)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+  glassHover:  'rgba(255,255,255,0.07)',
+  textPrimary: '#f1f5f9',
+  textMuted:   'rgba(241,245,249,0.55)',
+  textFaint:   'rgba(241,245,249,0.35)',
+};
 
-  // Gradient backgrounds for different times
-  const backgrounds = [
-    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-  ];
+// ── App catalogue ──────────────────────────────────────────────────────────────
+const APPS = [
+  {
+    id: 'cinema',
+    label: 'DB Cinema',
+    description: 'Stream movies & TV shows in your personal library.',
+    icon: CinemaIcon,
+    route: Constants.DB_CINEMA_BROWSE_ROUTE,
+    adminOnly: false,
+  },
+  {
+    id: 'weather',
+    label: 'DB Weather',
+    description: 'Real-time forecasts and interactive weather maps.',
+    icon: WeatherIcon,
+    route: Constants.DB_WEATHER_ROUTE,
+    adminOnly: false,
+  },
+  {
+    id: 'games',
+    label: 'DB Games',
+    description: 'Browser games with cloud save and leaderboards.',
+    icon: GamesIcon,
+    route: Constants.DB_GAMES_ROUTE,
+    adminOnly: false,
+  },
+  {
+    id: 'password',
+    label: 'Password Manager',
+    description: 'Encrypted vault for all your credentials.',
+    icon: PasswordIcon,
+    route: Constants.DB_PASSWORD_MANAGER_ROUTE,
+    adminOnly: false,
+  },
+  {
+    id: 'admin',
+    label: 'Admin Console',
+    description: 'System management, analytics and content control.',
+    icon: AdminIcon,
+    route: `${Constants.DB_ADMIN_BASE_ROUTE}/dashboard`,
+    adminOnly: true,
+  },
+];
 
-  const [currentBackground, setCurrentBackground] = useState(0);
+const RECENT_KEY = 'dbworld_recent';
 
-  // Rotate background every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentBackground((prev) => (prev + 1) % backgrounds.length);
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
+function getRecent() {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
 
-  const cardDetails = [
-    {
-      id: "db-weather",
-      icon: <WeatherIcon />,
-      title: "DB Weather",
-      route: Constants.DB_WEATHER_ROUTE,
-      description: "Real-time weather forecasts with interactive maps",
-      color: '#008080',
-      category: 'Tools',
-      popularity: 95,
-      isNew: false,
-      isFeatured: true
-    },
-    {
-      id: "db-password-manager",
-      icon: <PasswordIcon />,
-      title: "Password Manager",
-      route: Constants.DB_PASSWORD_MANAGER_ROUTE,
-      description: "Military-grade encrypted password storage",
-      color: '#006666',
-      category: 'Security',
-      popularity: 88,
-      isNew: true,
-      isFeatured: false
-    },
-    {
-      id: "db-cinema",
-      icon: <CinemaIcon />,
-      title: "DB Cinema",
-      route: Constants.DB_CINEMA_BROWSE_ROUTE,
-      description: "Stream movies & TV shows in 4K quality",
-      color: '#5f9ea0',
-      category: 'Entertainment',
-      popularity: 92,
-      isNew: false,
-      isFeatured: true
-    },
-    {
-      id: "db-games",
-      icon: <GamesIcon />,
-      title: "DB Games",
-      route: Constants.DB_GAMES_ROUTE,
-      description: "Premium gaming experience with cloud saves",
-      color: '#20b2aa',
-      category: 'Gaming',
-      popularity: 78,
-      isNew: true,
-      isFeatured: false
-    },
-    {
-      id: "db-admin-tools",
-      icon: <AdminIcon />,
-      title: "Admin Tools",
-      route: Constants.DB_ADMIN_TOOLS_ROUTE,
-      description: "Advanced system management & analytics",
-      color: '#008b8b',
-      category: 'Admin',
-      popularity: 85,
-      isNew: false,
-      isFeatured: false
-    }
-  ];
+function saveRecent(appId, route) {
+  const prev = getRecent().filter(e => e.appId !== appId);
+  const next = [{ appId, route, ts: Date.now() }, ...prev].slice(0, 5);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+}
 
-  const filteredCards = cardDetails.filter(card =>
-    card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    card.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    card.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
-  const handleCardClick = (card) => {
-    document.title = card.title;
-    // Add to recent apps
-    setRecentApps(prev => {
-      const filtered = prev.filter(app => app.id !== card.id);
-      return [card, ...filtered].slice(0, 3);
-    });
-    navigate(card.route);
-  };
-
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.15,
-        delayChildren: 0.3
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: {
-      y: 60,
-      opacity: 0,
-      scale: 0.8
-    },
-    show: {
-      y: 0,
-      opacity: 1,
-      scale: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-        damping: 15
-      }
-    },
-    hover: {
-      y: -8,
-      scale: 1.05,
-      transition: {
-        type: "spring",
-        stiffness: 400,
-        damping: 25
-      }
-    },
-    tap: {
-      scale: 0.95,
-      transition: { duration: 0.1 }
-    }
-  };
-
-  const backgroundVariants = {
-    enter: { opacity: 1 },
-    exit: { opacity: 0 }
-  };
-
-  const StatsCard = ({ icon, value, label }) => (
+// ── App card ───────────────────────────────────────────────────────────────────
+const AppCard = ({ app, index, onNavigate }) => {
+  const Icon = app.icon;
+  return (
     <motion.div
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.08 }}
+      whileHover={{ y: -4 }}
+      style={{ height: '100%' }}
     >
-      <Card
+      <Box
+        onClick={() => onNavigate(app)}
         sx={{
-          background: alpha(theme.palette.background.paper, 0.6),
-          backdropFilter: 'blur(20px)',
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+          height: '100%',
+          minHeight: 180,
+          p: 3,
+          bgcolor: T.glass,
+          border: `1px solid ${T.glassBorder}`,
           borderRadius: 3,
-          p: 2,
-          textAlign: 'center',
-          minWidth: 100
+          cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+          transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
+          '&:hover': {
+            bgcolor: T.glassHover,
+            borderColor: 'rgba(13,148,136,0.4)',
+            boxShadow: '0 0 24px rgba(13,148,136,0.12)',
+          },
         }}
       >
-        <Box sx={{ color: 'primary.main', mb: 1 }}>
-          {icon}
+        <Box sx={{
+          width: 44, height: 44, borderRadius: 2,
+          bgcolor: 'rgba(13,148,136,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '1px solid rgba(13,148,136,0.2)',
+          flexShrink: 0,
+        }}>
+          <Icon sx={{ fontSize: 22, color: T.teal }} />
         </Box>
-        <Typography variant="h6" fontWeight="bold" color="white">
-          {value}
-        </Typography>
-        <Typography variant="caption" color="grey.300">
-          {label}
-        </Typography>
-      </Card>
+
+        <Box sx={{ flex: 1 }}>
+          <Typography sx={{ fontSize: '0.95rem', fontWeight: 600, color: T.textPrimary, mb: 0.5 }}>
+            {app.label}
+          </Typography>
+          <Typography sx={{ fontSize: '0.8rem', color: T.textMuted, lineHeight: 1.5 }}>
+            {app.description}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <ArrowIcon sx={{ fontSize: 16, color: 'rgba(13,148,136,0.5)' }} />
+        </Box>
+      </Box>
     </motion.div>
   );
+};
 
+// ── Recent mini-card ───────────────────────────────────────────────────────────
+const RecentCard = ({ entry, index, onNavigate }) => {
+  const app = APPS.find(a => a.id === entry.appId);
+  if (!app) return null;
+  const Icon = app.icon;
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: backgrounds[currentBackground],
-        backgroundSize: 'cover',
-        backgroundAttachment: 'fixed',
-        backgroundPosition: 'center',
-        position: 'relative',
-        overflow: 'hidden',
-        pt: { xs: 2, sm: 4 },
-        pb: { xs: 4, sm: 8 },
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'radial-gradient(circle at 30% 20%, rgba(120, 119, 198, 0.3) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 119, 198, 0.3) 0%, transparent 50%)',
-          zIndex: 0
-        }
-      }}
-    >      
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentBackground}
-          variants={backgroundVariants}
-          initial="exit"
-          animate="enter"
-          exit="exit"
-          transition={{ duration: 1.5 }}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-      </AnimatePresence>
-
-      <Container
-        maxWidth="xl"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, delay: index * 0.06 }}
+    >
+      <Box
+        onClick={() => onNavigate(app)}
         sx={{
-          position: 'relative',
-          zIndex: 1,
-          px: { xs: 1, sm: 2, md: 3 }
+          px: 2, py: 1.5,
+          display: 'flex', alignItems: 'center', gap: 1.5,
+          bgcolor: T.glass,
+          border: `1px solid ${T.glassBorder}`,
+          borderRadius: 2,
+          cursor: 'pointer',
+          minWidth: 160,
+          flexShrink: 0,
+          transition: 'background 0.2s, border-color 0.2s',
+          '&:hover': { bgcolor: T.glassHover, borderColor: 'rgba(13,148,136,0.3)' },
         }}
       >
-        {/* Stats Bar */}
-        <Fade in timeout={1000}>
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 3, flexWrap: 'wrap' }}>
-            <StatsCard icon={<RocketIcon />} value="5+" label="Apps" />
-            <StatsCard icon={<TrendingIcon />} value="99.9%" label="Uptime" />
-            <StatsCard icon={<FavoriteIcon />} value="4.8" label="Rating" />
-            <StatsCard icon={<StarIcon />} value="1K+" label="Users" />
-          </Box>
-        </Fade>
+        <Icon sx={{ fontSize: 18, color: T.teal }} />
+        <Box>
+          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: T.textPrimary }}>
+            {app.label}
+          </Typography>
+          <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>
+            {timeAgo(entry.ts)}
+          </Typography>
+        </Box>
+      </Box>
+    </motion.div>
+  );
+};
 
+// ── Main ───────────────────────────────────────────────────────────────────────
+const Home = () => {
+  const navigate = useNavigate();
+  const theme    = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { auth } = useAuth();
+  const user     = auth?.user;
+  const role     = auth?.role;
+  const isAdmin  = role === Constants.OWNER_USER_ROLE || role === Constants.ADMIN_USER_ROLE;
+
+  const [recent,   setRecent]   = useState([]);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    setRecent(getRecent());
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const handleNavigate = useCallback((app) => {
+    saveRecent(app.id, app.route);
+    setRecent(getRecent());
+    navigate(app.route);
+  }, [navigate]);
+
+  const scrollToApps = () => {
+    document.getElementById('apps')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const firstName  = user?.firstName ?? user?.name?.split(' ')[0] ?? null;
+  const lastRecent = recent[0] ? APPS.find(a => a.id === recent[0].appId) : null;
+  const visibleApps = APPS.filter(a => !a.adminOnly || isAdmin);
+
+  return (
+    <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary }}>
+
+      {/* ── Hero ────────────────────────────────────────────────────────────── */}
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          pt: { xs: '56px', md: '64px' },
+          px: 3,
+          position: 'relative',
+          background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1a1a 60%, #0a0f0f 100%)',
+          overflow: 'hidden',
+          textAlign: 'center',
+        }}
+      >
+        {/* Animated teal glow */}
         <motion.div
-          initial="hidden"
-          animate="show"
-          variants={containerVariants}
-        >
-          <Box
-            sx={{
-              background: alpha(theme.palette.background.paper, 0.75),
-              // backdropFilter: 'blur(20px)',
-              borderRadius: { xs: 2, sm: 4 },
-              p: { xs: 2, sm: 3, md: 4 },
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.1)',
-              mx: 'auto',
-              position: 'relative',
-              overflow: 'hidden',
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 4,
-                background: `linear-gradient(90deg, ${backgrounds[currentBackground]})`,
-                zIndex: 1
-              }
-            }}
+          animate={{ opacity: [0.08, 0.18, 0.08] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            background: 'radial-gradient(ellipse 60% 50% at 60% 40%, rgba(13,148,136,0.18) 0%, transparent 70%)',
+          }}
+        />
+
+        {/* Hero content */}
+        <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 700, width: '100%' }}>
+
+          {/* Greeting */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
           >
-            {/* Header */}
-            <Box textAlign="center" mb={{ xs: 3, sm: 4 }}>
-              <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-              >
-                <Typography
-                  variant={isSmallScreen ? "h3" : "h2"}
-                  component="h1"
-                  fontWeight="bold"
-                  gutterBottom
-                  sx={{
-                    fontSize: { xs: '2rem', sm: '3rem', md: '4rem' },
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    textShadow: '0 4px 20px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  DB World Portal
-                </Typography>
-              </motion.div>
+            <Typography
+              sx={{
+                fontWeight: 800,
+                color: T.textPrimary,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.15,
+                fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' },
+              }}
+            >
+              {firstName ? `Welcome back, ${firstName}` : 'Welcome to DB World'}
+            </Typography>
+          </motion.div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-              >
-                <Typography
-                  variant="h6"
-                  color="text.secondary"
-                  sx={{
-                    fontSize: { xs: '1rem', sm: '1.2rem' },
-                    mb: 2
-                  }}
-                >
-                  Your Gateway to Premium Digital Services
-                </Typography>
-              </motion.div>
+          {/* Subtitle */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <Typography sx={{ mt: 2, fontSize: { xs: '1rem', md: '1.15rem' }, color: T.textMuted, lineHeight: 1.7 }}>
+              Your personal media universe — everything in one place.
+            </Typography>
+          </motion.div>
 
-              {/* Search Bar */}
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Box
-                  sx={{
-                    maxWidth: 400,
-                    mx: 'auto',
-                    position: 'relative'
-                  }}
-                >
-                  <SearchIcon
-                    sx={{
-                      position: 'absolute',
-                      left: 12,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: 'text.secondary',
-                      zIndex: 1
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Search apps..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 12px 12px 40px',
-                      borderRadius: 25,
-                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                      background: alpha(theme.palette.background.paper, 0.8),
-                      backdropFilter: 'blur(10px)',
-                      fontSize: '1rem',
-                      outline: 'none',
-                      transition: 'all 0.3s ease',
-                      color: 'white'
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = theme.palette.primary.main;
-                      e.target.style.boxShadow = `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`;
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = alpha(theme.palette.primary.main, 0.2);
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                </Box>
-              </motion.div>
-
-              <Divider
+          {/* Continue chip */}
+          {lastRecent && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              style={{ marginTop: 20 }}
+            >
+              <Chip
+                icon={<lastRecent.icon sx={{ fontSize: '16px !important', color: `${T.teal} !important` }} />}
+                label={`Continue: ${lastRecent.label} →`}
+                onClick={() => handleNavigate(lastRecent)}
                 sx={{
-                  my: { xs: 3, sm: 4 },
-                  background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.main, 0.3)}, transparent)`,
-                  height: 2
+                  bgcolor: 'rgba(13,148,136,0.1)',
+                  color: T.teal,
+                  border: '1px solid rgba(13,148,136,0.3)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'rgba(13,148,136,0.18)' },
+                  '& .MuiChip-icon': { color: T.teal },
                 }}
               />
-            </Box>
+            </motion.div>
+          )}
 
-            {/* Cards Grid */}
-            <Grid
-              container
-              spacing={{ xs: 2, sm: 3, md: 4 }}
-              justifyContent="center"
-              sx={{ mx: 'auto' }}
-            >
-              <AnimatePresence>
-                {filteredCards.map((card, index) => (
-                  <Grid
-                    item
-                    key={card.id}
-                    xs={6}
-                    sm={4}
-                    md={3}
-                    lg={2.4}
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <motion.div
-                      variants={itemVariants}
-                      whileHover="hover"
-                      whileTap="tap"
-                      initial="hidden"
-                      animate="show"
-                      exit={{ opacity: 0, scale: 0.5 }}
-                      transition={{ delay: index * 0.1 }}
-                      style={{ width: '100%', maxWidth: 280 }}
-                      onHoverStart={() => setHoveredCard(card.id)}
-                      onHoverEnd={() => setHoveredCard(null)}
-                    >
-                      <Card
-                        sx={{
-                          height: '100%',
-                          background: `linear-gradient(135deg, ${alpha(card.color, 0.1)} 0%, ${alpha(theme.palette.background.paper, 0.8)} 100%)`,
-                          backdropFilter: 'blur(10px)',
-                          border: `1px solid ${alpha(card.color, 0.2)}`,
-                          borderRadius: 4,
-                          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                          overflow: 'visible',
-                          position: 'relative',
-                          '&::before': {
-                            content: '""',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            background: `linear-gradient(135deg, ${alpha(card.color, 0.1)} 0%, transparent 50%)`,
-                            borderRadius: 4,
-                            opacity: hoveredCard === card.id ? 1 : 0,
-                            transition: 'opacity 0.3s ease'
-                          }
-                        }}
-                      >
-                        <CardActionArea
-                          onClick={() => handleCardClick(card)}
-                          sx={{
-                            height: '100%',
-                            p: { xs: 2, sm: 3 },
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center',
-                            position: 'relative',
-                            zIndex: 1
-                          }}
-                        >
-                          {/* Badges */}
-                          <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 0.5 }}>
-                            {card.isNew && (
-                              <Chip
-                                label="NEW"
-                                size="small"
-                                sx={{
-                                  background: 'linear-gradient(45deg, #FF6B6B, #FF8E53)',
-                                  color: 'white',
-                                  fontSize: '0.6rem',
-                                  height: 20,
-                                  fontWeight: 'bold'
-                                }}
-                              />
-                            )}
-                            {card.isFeatured && (
-                              <Chip
-                                label="FEATURED"
-                                size="small"
-                                sx={{
-                                  background: 'linear-gradient(45deg, #4ECDC4, #44A08D)',
-                                  color: 'white',
-                                  fontSize: '0.6rem',
-                                  height: 20,
-                                  fontWeight: 'bold'
-                                }}
-                              />
-                            )}
-                          </Box>
-
-                          {/* Icon Container */}
-                          <motion.div
-                            whileHover={{ rotate: 360 }}
-                            transition={{ duration: 0.6 }}
-                          >
-                            <Box
-                              sx={{
-                                width: { xs: 70, sm: 80 },
-                                height: { xs: 70, sm: 80 },
-                                borderRadius: '50%',
-                                background: `linear-gradient(135deg, ${card.color}30, ${card.color}10)`,
-                                border: `2px solid ${alpha(card.color, 0.3)}`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                mb: { xs: 2, sm: 3 },
-                                position: 'relative',
-                                '&::after': {
-                                  content: '""',
-                                  position: 'absolute',
-                                  width: '100%',
-                                  height: '100%',
-                                  borderRadius: '50%',
-                                  background: `radial-gradient(circle at 30% 30%, ${alpha(card.color, 0.4)} 0%, transparent 70%)`,
-                                  opacity: hoveredCard === card.id ? 1 : 0,
-                                  transition: 'opacity 0.3s ease'
-                                }
-                              }}
-                            >
-                              {React.cloneElement(card.icon, {
-                                sx: {
-                                  color: card.color,
-                                  fontSize: { xs: '2rem', sm: '2.5rem' },
-                                  filter: `drop-shadow(0 4px 8px ${alpha(card.color, 0.3)})`
-                                }
-                              })}
-                            </Box>
-                          </motion.div>
-
-                          <CardContent sx={{ p: 0, width: '100%' }}>
-                            <Typography
-                              variant="h6"
-                              gutterBottom
-                              sx={{
-                                fontSize: { xs: '1rem', sm: '1.1rem' },
-                                fontWeight: 'bold',
-                                background: `linear-gradient(135deg, ${card.color}, ${alpha(card.color, 0.8)})`,
-                                backgroundClip: 'text',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent'
-                              }}
-                            >
-                              {card.title}
-                            </Typography>
-
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              sx={{
-                                fontSize: { xs: '0.75rem', sm: '0.85rem' },
-                                lineHeight: 1.4,
-                                mb: 1,
-                                minHeight: 40
-                              }}
-                            >
-                              {card.description}
-                            </Typography>
-
-                            {/* Category and Popularity */}
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                              <Chip
-                                label={card.category}
-                                size="small"
-                                variant="outlined"
-                                sx={{
-                                  fontSize: '0.6rem',
-                                  borderColor: alpha(card.color, 0.3),
-                                  color: card.color
-                                }}
-                              />
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <FavoriteIcon sx={{ fontSize: 12, color: '#FF6B6B' }} />
-                                <Typography variant="caption" color="text.secondary">
-                                  {card.popularity}%
-                                </Typography>
-                              </Box>
-                            </Box>
-                          </CardContent>
-                        </CardActionArea>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                ))}
-              </AnimatePresence>
-            </Grid>
-
-            {/* Empty State */}
-            {filteredCards.length === 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+          {/* CTA buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                size="large"
+                onClick={() => navigate(Constants.DB_CINEMA_BROWSE_ROUTE)}
+                sx={{
+                  bgcolor: T.teal, color: '#fff', fontWeight: 700,
+                  px: 3.5, py: 1.25, borderRadius: 2,
+                  textTransform: 'none', fontSize: '0.95rem',
+                  boxShadow: '0 4px 20px rgba(13,148,136,0.35)',
+                  '&:hover': { bgcolor: T.tealHover, boxShadow: '0 6px 24px rgba(13,148,136,0.45)' },
+                }}
               >
-                <Box textAlign="center" py={8}>
-                  <SearchIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No apps found
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Try adjusting your search terms
-                  </Typography>
-                </Box>
-              </motion.div>
-            )}
-          </Box>
+                Open Cinema
+              </Button>
+              <Button
+                variant="outlined"
+                size="large"
+                onClick={scrollToApps}
+                sx={{
+                  borderColor: 'rgba(13,148,136,0.4)', color: T.teal,
+                  fontWeight: 600, px: 3.5, py: 1.25, borderRadius: 2,
+                  textTransform: 'none', fontSize: '0.95rem',
+                  '&:hover': { borderColor: T.teal, bgcolor: 'rgba(13,148,136,0.06)' },
+                }}
+              >
+                Explore Apps
+              </Button>
+            </Box>
+          </motion.div>
+        </Box>
+
+        {/* Scroll chevron */}
+        <motion.div
+          animate={{ y: [0, 8, 0], opacity: scrolled ? 0 : 0.6 }}
+          transition={{
+            y: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+            opacity: { duration: 0.3 },
+          }}
+          style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)' }}
+        >
+          <ChevronDown sx={{ fontSize: 28, color: T.textFaint }} />
         </motion.div>
-      </Container>
+      </Box>
+
+      {/* ── App grid ────────────────────────────────────────────────────────── */}
+      <Box id="apps" sx={{ py: { xs: 6, md: 10 }, px: { xs: 2, md: 3 } }}>
+        <Container maxWidth="lg">
+          <Box sx={{ mb: 5, textAlign: 'center' }}>
+            <Typography sx={{
+              fontSize: '0.72rem', fontWeight: 700, color: T.teal,
+              textTransform: 'uppercase', letterSpacing: '0.12em', mb: 1,
+            }}>
+              YOUR APPS
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: T.textPrimary, letterSpacing: '-0.02em' }}>
+              Everything in one place
+            </Typography>
+          </Box>
+
+          <Grid container spacing={2.5}>
+            {visibleApps.map((app, i) => (
+              <Grid key={app.id} item xs={12} sm={6} md={6} lg={3}>
+                <AppCard app={app} index={i} onNavigate={handleNavigate} />
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* ── Recent activity ──────────────────────────────────────────────────── */}
+      {recent.length > 0 && (
+        <Box sx={{ pb: { xs: 6, md: 8 }, px: { xs: 2, md: 3 } }}>
+          <Container maxWidth="lg">
+            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: T.textMuted, mb: 2 }}>
+              Continue where you left off
+            </Typography>
+            <Box
+              sx={{
+                display: 'flex', gap: 1.5, overflowX: 'auto', pb: 1,
+                '&::-webkit-scrollbar': { height: 4 },
+                '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2 },
+              }}
+            >
+              {recent.slice(0, 3).map((entry, i) => (
+                <RecentCard key={entry.appId} entry={entry} index={i} onNavigate={handleNavigate} />
+              ))}
+            </Box>
+          </Container>
+        </Box>
+      )}
+
+      {/* ── Footer ───────────────────────────────────────────────────────────── */}
+      <Box sx={{
+        bgcolor: 'rgba(255,255,255,0.03)',
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+        py: 3, px: { xs: 2, md: 3 },
+      }}>
+        <Container maxWidth="lg">
+          <Box sx={{
+            display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2,
+            justifyContent: { xs: 'center', md: 'space-between' },
+          }}>
+            <Typography
+              sx={{ fontSize: '0.85rem', fontWeight: 700, color: T.textFaint, cursor: 'pointer' }}
+              onClick={() => navigate(Constants.DB_WORLD_HOME_ROUTE)}
+            >
+              DB World
+            </Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: T.textFaint }}>v2.0</Typography>
+            <Box />
+          </Box>
+        </Container>
+      </Box>
     </Box>
   );
 };
