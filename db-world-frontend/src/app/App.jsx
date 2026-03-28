@@ -1,45 +1,66 @@
 import React, { useEffect, useState, Suspense, lazy } from 'react';
-import Header from './components/Header';
+import Header from '@shared/components/layout/Header';
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import Login from './components/Login';
-import LogOut from './components/LogOut';
-import Registration from './components/DB_Users/registration';
-import Weather from './components/DB_Weather/weather';
-import TicTacToe from './components/DB_Games/TicTacToe';
-import Home from './components/Home';
-import ErrorPage from './components/ErrorPage';
-import PasswordManagment from './components/DB_Password_Management/PasswordManagement';
-import GeneratePassword from './components/DB_Password_Management/GeneratePassword';
-import AddPassword from './components/DB_Password_Management/AddPassword';
-import Constants from './components/Constants';
-import ViewPassword from './components/DB_Password_Management/ViewPassword';
-import Profile from './components/DB_Users/Profile';
-import EditProfile from './components/DB_Users/EditProfile';
-import { AuthProvider } from './contexts/Authentication';
-import PrivateRoute from './components/PrivateRoute';
-import MediaDownloadViewer from './components/DBCinema/screens/download/index.js';
-import MovieDetailsPage from './components/DBCinema/screens/movie-details/index.js';
-import BackButtonHandler from './android-app-components/BackButtonHandler.js';
-import SeriesDetailsPage from './components/DBCinema/screens/series-details/SeriesDetailsPage.js';
+import Login from '@features/auth/Login';
+import LogOut from '@features/auth/LogOut';
+import Registration from '@features/users/registration';
+import Weather from '@features/weather/weather';
+import TicTacToe from '@features/games/TicTacToe';
+import Home from '@shared/components/layout/Home';
+import ErrorPage from '@shared/components/layout/ErrorPage';
+import PasswordManagment from '@features/password-manager/PasswordManagement';
+import GeneratePassword from '@features/password-manager/GeneratePassword';
+import AddPassword from '@features/password-manager/AddPassword';
+import Constants from '@shared/constants';
+import ViewPassword from '@features/password-manager/ViewPassword';
+import Profile from '@features/users/Profile';
+import EditProfile from '@features/users/EditProfile';
+import { AuthProvider } from '@features/auth/context/Authentication';
+import PrivateRoute from '@features/auth/PrivateRoute';
+import BackButtonHandler from '@platform/android/BackButtonHandler.js';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, createTheme, ThemeProvider, Typography } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
-import { CINEMA_PAGE_TILES } from './components/DBCinema/components/CinemaTiles.js';
+import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
+import FlmngrStandalone from '@features/admin/FileExplorer/FlmngrStandalone.js';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
-// Import CinemaPage components correctly
-import CinemaPage from './components/DBCinema/screens/CinemaPage/CinemaPage.js';
-import { CategoryProvider } from './components/DBCinema/navbar/CategoryContext.js';
-import FlmngrStandalone from './components/DB_Admin_Tools/FileExplorer/FlmngrStandalone.js';
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2,
+      gcTime: 1000 * 60 * 10,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// Admin layout + pages
+import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 
 // Lazy load heavy components for better performance
-const LazyAdminTools = lazy(() => import('./components/DB_Admin_Tools/AdminPage/AdminPage.js'));
-const LazyMediaDownloadViewer = lazy(() => import('./components/DBCinema/screens/download/index.js'));
-const LazyMovieDetailsPage = lazy(() => import('./components/DBCinema/screens/movie-details/index.js'));
-const LazySeriesDetailsPage = lazy(() => import('./components/DBCinema/screens/series-details/SeriesDetailsPage.js'));
-
-// Lazy load cinema pages to avoid circular dependencies
-const LazyCinemaPage = lazy(() => import('./components/DBCinema/screens/CinemaPage/CinemaPage.js'));
+const LazyAdminTools          = lazy(() => import('@features/admin/AdminPage/AdminPage.js'));
+const LazyAdminDashboard      = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
+const LazyUserManagement      = lazy(() => import('@features/admin/UserManagment/index.js'));
+const LazyActivityLogs        = lazy(() => import('@features/admin/ActivityLogs/ActivityLogs.js'));
+const LazyRecordsManagement   = lazy(() => import('@features/admin/RecordsManagment/index.js'));
+const LazyMediaFilesManagement = lazy(() => import('@features/admin/MediaFilesManagement/MediaFilesManagement.js'));
+const LazyTagsRailsManager    = lazy(() => import('@features/admin/TagsRails/TagsRailsManager.jsx'));
+const LazyTmdbSyncManager     = lazy(() => import('@features/admin/TmdbSync/TmdbSyncManager.jsx'));
+const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
+const LazyUserCinemaActivity  = lazy(() => import('@features/admin/UserCinemaActivity/index.js'));
+const LazyServerInfo          = lazy(() => import('@features/admin/ServerInfo/ServerInfo.js'));
+const LazyLogDashboard        = lazy(() => import('@features/admin/LogDashboard/LogDashboard.jsx'));
+const LazyRedisManager        = lazy(() => import('@features/admin/RedisManager.js'));
+const LazyFlmngrManager       = lazy(() => import('@features/admin/FileExplorer/FlmngrManager.js'));
+const LazySchedulerPanel      = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
+const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
+const LazyMovieDetailsPage    = lazy(() => import('@features/cinema/screens/movie-details/index.js'));
+const LazySeriesDetailsPage   = lazy(() => import('@features/cinema/screens/series-details/SeriesDetailsPage.js'));
+const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 
 // Loading Component
 const LoadingFallback = () => (
@@ -195,15 +216,8 @@ const darkTheme = createTheme({
   }
 });
 
-// Simple CinemaPage wrapper to avoid import issues
-const CinemaPageWrapper = ({ tilesConfig, showTopFade, pageTitle, showCover = true }) => (
-  <LazyCinemaPage
-    tilesConfig={tilesConfig}
-    showTopFade={showTopFade}
-    pageTitle={pageTitle}
-    showCover={showCover}
-  />
-);
+/** Thin wrapper so the lazy import receives the pageType prop. */
+const CinemaPageWrapper = ({ pageType }) => <LazyCinemaPage pageType={pageType} />;
 
 // Route configuration for better maintainability
 const routeConfig = {
@@ -218,40 +232,9 @@ const routeConfig = {
   ],
   protected: [
     { path: Constants.DB_CINEMA_ROUTE, element: <Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />, exact: true },
-    {
-      path: Constants.DB_CINEMA_BROWSE_ROUTE,
-      element: (
-        <CinemaPageWrapper
-          tilesConfig={CINEMA_PAGE_TILES.BROWSE}
-          showTopFade={true}
-          pageTitle="Browse All"
-          key="browse"
-        />
-      )
-    },
-    {
-      path: Constants.DB_CINEMA_MOVIES_ROUTE,
-      element: (
-        <CinemaPageWrapper
-          tilesConfig={CINEMA_PAGE_TILES.MOVIES}
-          showTopFade={false}
-          showCover={true}
-          pageTitle="Movies"
-          key="movies"
-        />
-      )
-    },
-    {
-      path: Constants.DB_CINEMA_SERIES_ROUTE,
-      element: (
-        <CinemaPageWrapper
-          tilesConfig={CINEMA_PAGE_TILES.SERIES}
-          showTopFade={true}
-          pageTitle="TV Shows"
-          key="series"
-        />
-      )
-    },
+    { path: Constants.DB_CINEMA_BROWSE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home"   /> },
+    { path: Constants.DB_CINEMA_MOVIES_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies" /> },
+    { path: Constants.DB_CINEMA_SERIES_ROUTE, element: <CinemaPageWrapper pageType="series" key="series" /> },
     { path: Constants.DB_DONWLOAD_RECORD_ROUTE, element: <LazyMediaDownloadViewer /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
     { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
@@ -335,6 +318,7 @@ function App() {
   }
 
   return (
+    <QueryClientProvider client={queryClient}>
     <ErrorBoundary>
       <AuthProvider>
         <Router>
@@ -355,9 +339,30 @@ function App() {
                       {renderRoutes(routeConfig.protected)}
                     </Route>
 
-                    {/* Admin Routes */}
+                    {/* Admin Routes (legacy tab-based) */}
                     <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
                       {renderRoutes(routeConfig.admin)}
+                    </Route>
+
+                    {/* Admin — new sidebar layout with nested routes */}
+                    <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                      <Route path={Constants.DB_ADMIN_BASE_ROUTE} element={<AdminLayout />}>
+                        <Route index element={<Navigate to="dashboard" replace />} />
+                        <Route path="dashboard"     element={<LazyAdminDashboard />} />
+                        <Route path="users"         element={<LazyUserManagement />} />
+                        <Route path="activity-logs" element={<LazyActivityLogs />} />
+                        <Route path="records"       element={<LazyRecordsManagement />} />
+                        <Route path="media-files"   element={<LazyMediaFilesManagement />} />
+                        <Route path="tags-rails"    element={<LazyTagsRailsManager />} />
+                        <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
+                        <Route path="downloads"     element={<LazyDownloadManager />} />
+                        <Route path="user-activity" element={<LazyUserCinemaActivity />} />
+                        <Route path="system-info"   element={<LazyServerInfo />} />
+                        <Route path="logs"          element={<LazyLogDashboard />} />
+                        <Route path="redis"         element={<LazyRedisManager />} />
+                        <Route path="files"         element={<LazyFlmngrManager />} />
+                        <Route path="scheduler"     element={<LazySchedulerPanel />} />
+                      </Route>
                     </Route>
 
                     {/* 404 Route */}
@@ -370,6 +375,8 @@ function App() {
         </Router>
       </AuthProvider>
     </ErrorBoundary>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   );
 }
 
