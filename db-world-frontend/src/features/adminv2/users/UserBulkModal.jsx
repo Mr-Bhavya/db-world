@@ -63,7 +63,10 @@ function BulkDeleteTab({ onClose }) {
       enqueueSnackbar(`${selectedRows.length} users deleted`, { variant:'success' });
       onClose();
     },
-    onError: () => enqueueSnackbar('Some deletions failed', { variant:'error' }),
+    onError: () => {
+      qc.invalidateQueries({ queryKey:['users'] });
+      enqueueSnackbar('Some deletions failed — list refreshed', { variant:'warning' });
+    },
   });
 
   return (

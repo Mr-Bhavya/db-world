@@ -5,9 +5,25 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { updateUserSchema, changePasswordSchema } from '../schemas/userSchemas';
-import { updateUser, changePassword, getUserById } from '../api/adminApi';
+import { z } from 'zod';
+import { updateUser, getUserById } from '../api/adminApi';
 import { inputSx, dialogSx, tabSx } from './constants';
+
+const profileSchema = z.object({
+  firstName: z.string().min(2, 'Min 2 chars').max(20, 'Max 20 chars'),
+  lastName:  z.string().min(1, 'Min 1 char').max(20, 'Max 20 chars'),
+  dob:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: yyyy-MM-dd').optional().or(z.literal('')),
+  gender:    z.string().min(1, 'Required'),
+  mobileNo:  z.coerce.number().min(999999999, 'Must be at least 9 digits').max(9999999999, 'Must be at most 10 digits'),
+});
+
+const adminPasswordSchema = z.object({
+  newPassword: z.string().min(6, 'Min 6 chars').max(100, 'Max 100 chars'),
+  confirmPassword: z.string(),
+}).refine(d => d.newPassword === d.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+});
 
 function ProfileTab({ userId, onClose }) {
   const qc = useQueryClient();
@@ -15,12 +31,12 @@ function ProfileTab({ userId, onClose }) {
   const { data: user } = useQuery({ queryKey:['user', userId], queryFn:() => getUserById(userId), enabled:!!userId });
 
   const { control, handleSubmit, reset, formState:{ errors } } = useForm({
-    resolver: zodResolver(updateUserSchema),
-    defaultValues: { firstName:'', lastName:'', dob:'', gender:'', mobileNo:'', password:'' },
+    resolver: zodResolver(profileSchema),
+    defaultValues: { firstName:'', lastName:'', dob:'', gender:'', mobileNo:'' },
   });
 
   useEffect(() => {
-    if (user) reset({ firstName:user.firstName??'', lastName:user.lastName??'', dob:user.dob??'', gender:user.gender??'', mobileNo:user.mobileNo??'', password:'' });
+    if (user) reset({ firstName:user.firstName??'', lastName:user.lastName??'', dob:user.dob??'', gender:user.gender??'', mobileNo:user.mobileNo??'' });
   }, [user, reset]);
 
   const { mutate, isPending } = useMutation({
@@ -54,7 +70,6 @@ function ProfileTab({ userId, onClose }) {
             </TextField>
           )} />
         </Grid>
-        <Grid item xs={6}><F name="password" label="New Password" type="password" /></Grid>
       </Grid>
       <Box sx={{ display:'flex', justifyContent:'flex-end', mt:2, gap:1 }}>
         <Button onClick={onClose} sx={{ color:'rgba(255,255,255,0.5)' }}>Cancel</Button>
@@ -66,13 +81,19 @@ function ProfileTab({ userId, onClose }) {
   );
 }
 
-function PasswordTab({ onClose }) {
+function PasswordTab({ userId, onClose }) {
+  const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
-  const { control, handleSubmit, formState:{ errors } } = useForm({ resolver: zodResolver(changePasswordSchema) });
+  const { control, handleSubmit, formState:{ errors } } = useForm({ resolver: zodResolver(adminPasswordSchema) });
 
   const { mutate, isPending } = useMutation({
-    mutationFn: changePassword,
-    onSuccess: () => { enqueueSnackbar('Password changed', { variant:'success' }); onClose(); },
+    mutationFn: (d) => updateUser(userId, { password: d.newPassword }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey:['users'] });
+      qc.invalidateQueries({ queryKey:['user', userId] });
+      enqueueSnackbar('Password changed', { variant:'success' });
+      onClose();
+    },
     onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed', { variant:'error' }),
   });
 
@@ -85,7 +106,6 @@ function PasswordTab({ onClose }) {
   return (
     <form onSubmit={handleSubmit(d => mutate(d))}>
       <Box sx={{ pt:1 }}>
-        <F name="currentPassword" label="Current Password" />
         <F name="newPassword"     label="New Password" />
         <F name="confirmPassword" label="Confirm Password" />
         <Box sx={{ display:'flex', justifyContent:'flex-end', gap:1 }}>
@@ -113,7 +133,7 @@ export default function UserEditModal({ open, userId, onClose }) {
       </Tabs>
       <DialogContent>
         {tab === 0 && <ProfileTab userId={userId} onClose={onClose} />}
-        {tab === 1 && <PasswordTab onClose={onClose} />}
+        {tab === 1 && <PasswordTab userId={userId} onClose={onClose} />}
       </DialogContent>
     </Dialog>
   );
