@@ -11,8 +11,8 @@ import { useSnackbar } from 'notistack';
 import { updateRecord, createTag, deleteTag } from '../api/adminApi';
 import { updateRecordSchema } from '../schemas/recordSchemas';
 
-const ALL_TAGS   = ['FEATURED','NEW_RELEASE','TRENDING','EDITOR_PICK','SHOW_ON_TOP','RECENTLY_ADDED','TOP_10'];
-const TAG_COLORS = { FEATURED:'#f59e0b', NEW_RELEASE:'#10b981', TRENDING:'#ef4444', EDITOR_PICK:'#8b5cf6', SHOW_ON_TOP:'#6366f1', RECENTLY_ADDED:'#06b6d4', TOP_10:'#ec4899' };
+import { ALL_TAGS, TAG_COLORS } from './tagConstants';
+
 const inputSx    = { '& .MuiOutlinedInput-root':{ bgcolor:'rgba(255,255,255,0.04)', color:'#fff', '& fieldset':{ borderColor:'rgba(255,255,255,0.1)' }, '&:hover fieldset':{ borderColor:'rgba(255,255,255,0.2)' }, '&.Mui-focused fieldset':{ borderColor:'#6366f1' } }, '& .MuiInputLabel-root':{ color:'rgba(255,255,255,0.5)' }, '& .MuiFormHelperText-root':{ color:'#ef4444' } };
 
 export default function RecordEditModal({ open, record, onClose }) {

@@ -1,5 +1,5 @@
 // db-world-frontend/src/features/adminv2/records/RecordTable.jsx
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Box, Chip, IconButton, Tooltip, Link } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -30,9 +30,13 @@ export default function RecordTable({ data, loading, onDelete, queryKey }) {
   const { page, pageSize, sortModel, setPage, setPageSize, setSortModel, setSelectedRows, openDrawer, openModal } = useRecordStore();
 
   // Convert DataGrid sort to Spring sort param for store
-  const handleSortChange = (model) => {
+  const handleSortChange = useCallback((model) => {
     setSortModel(model.map(s => ({ ...s, field: SORT_FIELD_MAP[s.field] ?? s.field })));
-  };
+  }, [setSortModel]);
+
+  const displaySortModel = useMemo(() =>
+    sortModel.map(s => ({ field: Object.keys(SORT_FIELD_MAP).find(k => SORT_FIELD_MAP[k] === s.field) ?? s.field, sort: s.sort })),
+  [sortModel]);
 
   const columns = useMemo(() => [
     { field:'recordId', headerName:'ID', width:80, type:'number' },
@@ -95,7 +99,7 @@ export default function RecordTable({ data, loading, onDelete, queryKey }) {
       sortingMode="server"
       paginationModel={{ page, pageSize }}
       onPaginationModelChange={({ page: p, pageSize: s }) => { setPage(p); setPageSize(s); }}
-      sortModel={sortModel.map(s => ({ field: Object.keys(SORT_FIELD_MAP).find(k => SORT_FIELD_MAP[k] === s.field) ?? s.field, sort: s.sort }))}
+      sortModel={displaySortModel}
       onSortModelChange={handleSortChange}
       pageSizeOptions={[10, 25, 50, 100]}
       checkboxSelection

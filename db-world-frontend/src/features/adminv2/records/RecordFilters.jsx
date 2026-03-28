@@ -1,5 +1,5 @@
 // db-world-frontend/src/features/adminv2/records/RecordFilters.jsx
-import { useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Box, TextField, ToggleButton, ToggleButtonGroup, InputAdornment, IconButton, Tooltip, MenuItem } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import TableRowsIcon from '@mui/icons-material/TableRows';
@@ -23,10 +23,12 @@ export default function RecordFilters({ onAdd }) {
   const { filters, setFilter, clearFilters, viewMode, setViewMode } = useRecordStore();
   const searchTimer = useRef(null);
 
-  const debouncedSet = (key, val) => {
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
+
+  const debouncedSet = useCallback((key, val) => {
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => setFilter(key, val), 350);
-  };
+  }, [setFilter]);
 
   const hasFilters = Object.values(filters).some(v => v !== '');
 
