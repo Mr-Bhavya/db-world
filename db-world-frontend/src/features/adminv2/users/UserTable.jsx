@@ -7,8 +7,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useUserStore } from '../stores/useUserStore';
 import { formatDistanceToNow } from 'date-fns';
-
-const ROLE_COLORS = { OWNER:'#f59e0b', ADMIN:'#6366f1', VIEWER:'#10b981' };
+import { ROLE_COLORS } from './constants';
 
 const gridSx = {
   bgcolor:'transparent', border:'none', color:'#fff',
