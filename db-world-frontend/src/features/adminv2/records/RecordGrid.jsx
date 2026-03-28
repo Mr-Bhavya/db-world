@@ -17,7 +17,7 @@ function RecordCard({ record, onDelete, index, queryKey }) {
 
   return (
     <motion.div initial={{ opacity:0, scale:.97 }} animate={{ opacity:1, scale:1 }} transition={{ delay: index * 0.03 }}>
-      <Box sx={{ bgcolor:'#131320', border:'1px solid rgba(255,255,255,0.06)', borderRadius:2, overflow:'hidden', display:'flex', flexDirection:'column', '&:hover':{ borderColor:'rgba(99,102,241,0.3)' }, transition:'border-color .2s' }}>
+      <Box sx={{ bgcolor:'#131320', border:'1px solid rgba(255,255,255,0.06)', borderRadius:2, overflow:'hidden', display:'flex', flexDirection:'column', '&:hover':{ borderColor:'rgba(99,102,241,0.3)', '& .hover-actions':{ opacity:1 } }, transition:'border-color .2s' }}>
         {/* Poster */}
         <Box sx={{ position:'relative', aspectRatio:'2/3', bgcolor:'rgba(255,255,255,0.04)', overflow:'hidden' }}>
           {poster

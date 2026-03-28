@@ -89,8 +89,8 @@ export default function RecordManagementV2() {
       <Box sx={{ display:'flex', gap:2, px:{ xs:2, md:3 }, py:1, flexWrap:'wrap' }}>
         {[
           { label:'Total',  value: stats.total,  icon:<ListIcon  sx={{ fontSize:14, color:'#6366f1' }} />, color:'#6366f1' },
-          { label:'Movies', value: stats.movies, icon:<MovieIcon sx={{ fontSize:14, color:'#6366f1' }} />, color:'#6366f1' },
-          { label:'Series', value: stats.series, icon:<TvIcon    sx={{ fontSize:14, color:'#10b981' }} />, color:'#10b981' },
+          { label:'Movies (page)', value: stats.movies, icon:<MovieIcon sx={{ fontSize:14, color:'#6366f1' }} />, color:'#6366f1' },
+          { label:'Series (page)', value: stats.series, icon:<TvIcon    sx={{ fontSize:14, color:'#10b981' }} />, color:'#10b981' },
         ].map(s => (
           <Box key={s.label} sx={{ display:'flex', alignItems:'center', gap:.75 }}>
             {s.icon}
