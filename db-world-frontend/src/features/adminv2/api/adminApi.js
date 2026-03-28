@@ -43,12 +43,14 @@ export const updateRecord = (id, body) =>
 export const deleteRecord = (id) =>
   axiosInstance.delete(`/api/cinema/admin/catalog/${id}`).then(r => r.data);
 
+// Quick add/remove by tagType (used by RecordTagsInline for inline table operations)
 export const addRecordTag = (recordId, body) =>
   axiosInstance.post(`/api/cinema/admin/catalog/${recordId}/tags`, body).then(r => r.data.data);
 
 export const removeRecordTag = (recordId, tagType) =>
   axiosInstance.delete(`/api/cinema/admin/catalog/${recordId}/tags/${tagType}`).then(r => r.data);
 
+// Full tag CRUD by tagId — supports priority field (used by RecordEditModal for full management)
 export const createTag = (recordId, body) =>
   axiosInstance.post(`/api/cinema/admin/catalog/tags/${recordId}`, body).then(r => r.data.data);
 
