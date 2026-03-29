@@ -69,7 +69,7 @@ export default function FileOperationDialog() {
   const handleClose = () => { if (!isPending) { reset(); closeOperation(); } };
 
   return (
-    <Dialog open={Boolean(operationDialog)} onClose={handleClose} maxWidth="xs" fullWidth
+    <Dialog key={operationDialog?.type ?? 'closed'} open={Boolean(operationDialog)} onClose={handleClose} maxWidth="xs" fullWidth
       PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.border}` } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         color: T.textPrimary, fontSize: 15, fontWeight: 700, pb: 1 }}>
