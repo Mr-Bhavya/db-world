@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from './useFileManagerStore';
 import { getFileColor, getFileEmoji } from './fileIcons';
-import { getDownloadUrl } from './fileManagerApi';
+import { downloadFile } from './fileManagerApi';
 
 function FileCard({ item, onNavigate, onDelete }) {
   const T = useT();
@@ -63,8 +63,8 @@ function FileCard({ item, onNavigate, onDelete }) {
         <MenuItem onClick={() => { openOperation('copy', item); setAnchorEl(null); }}
           sx={{ fontSize: 13, color: T.textPrimary }}>Copy</MenuItem>
         {!item.directory && (
-          <MenuItem component="a" href={getDownloadUrl(item.path)} download
-            onClick={() => setAnchorEl(null)} sx={{ fontSize: 13, color: T.textPrimary }}>Download</MenuItem>
+          <MenuItem onClick={() => { downloadFile(item.path, item.name); setAnchorEl(null); }}
+            sx={{ fontSize: 13, color: T.textPrimary }}>Download</MenuItem>
         )}
         <MenuItem onClick={() => { onDelete(item); setAnchorEl(null); }}
           sx={{ fontSize: 13, color: '#ef4444' }}>Delete</MenuItem>

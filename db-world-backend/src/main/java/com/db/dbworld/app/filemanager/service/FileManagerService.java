@@ -2,6 +2,7 @@ package com.db.dbworld.app.filemanager.service;
 
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
+import jakarta.annotation.Nonnull;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.log4j.Log4j2;
@@ -139,15 +140,7 @@ public class FileManagerService {
             }
         }
 
-        Comparator<FileItemDto> comp = Comparator.comparing(FileItemDto::isDirectory).reversed();
-        comp = comp.thenComparing(switch (sortBy != null ? sortBy : "name") {
-            case "size"     -> Comparator.comparingLong(FileItemDto::getSizeBytes);
-            case "modified" -> Comparator.comparing(FileItemDto::getLastModified);
-            case "type"     -> Comparator.comparing(FileItemDto::getExtension);
-            default         -> Comparator.comparing(i -> i.getName().toLowerCase());
-        });
-        if ("desc".equalsIgnoreCase(order)) comp = comp.reversed()
-            .thenComparing(Comparator.comparing(FileItemDto::isDirectory).reversed());
+        Comparator<FileItemDto> comp = getFileItemDtoComparator(sortBy, order);
         items.sort(comp);
 
         long totalSize = items.stream().mapToLong(FileItemDto::getSizeBytes).sum();
@@ -160,6 +153,20 @@ public class FileManagerService {
             .totalSize(totalSize)
             .items(items)
             .build();
+    }
+
+    @Nonnull
+    private static Comparator<FileItemDto> getFileItemDtoComparator(String sortBy, String order) {
+        // Field comparator — optionally reversed for desc; directories always sort first
+        Comparator<FileItemDto> field = switch (sortBy != null ? sortBy : "name") {
+            case "size"     -> Comparator.comparingLong(FileItemDto::getSizeBytes);
+            case "modified" -> Comparator.comparing(FileItemDto::getLastModified);
+            case "type"     -> Comparator.comparing(FileItemDto::getExtension);
+            default         -> Comparator.comparing(i -> i.getName().toLowerCase());
+        };
+        if ("desc".equalsIgnoreCase(order)) field = field.reversed();
+        // Directories always first, regardless of sort direction
+        return Comparator.comparing(FileItemDto::isDirectory).reversed().thenComparing(field);
     }
 
     public List<FileItemDto> searchFiles(String path, String query, boolean recursive) throws IOException {
@@ -220,7 +227,11 @@ public class FileManagerService {
         if (!Files.isDirectory(dir)) throw new IllegalArgumentException("Upload target is not a directory");
         List<FileItemDto> uploaded = new ArrayList<>();
         for (MultipartFile f : files) {
-            String name = Path.of(Objects.requireNonNull(f.getOriginalFilename())).getFileName().toString();
+            String originalName = f.getOriginalFilename();
+            if (originalName == null || originalName.isBlank()) {
+                throw new IllegalArgumentException("Upload file is missing a filename");
+            }
+            String name = Path.of(originalName).getFileName().toString();
             Path dest = jailed(path + "/" + name);
             f.transferTo(dest);
             uploaded.add(toDto(dest));
@@ -286,7 +297,15 @@ public class FileManagerService {
         Files.createDirectories(dest);
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(src)) {
             for (Path child : ds) {
+                // Resolve real path to follow symlinks and then verify it stays within jail
+                Path realChild = child.toRealPath();
+                if (!realChild.startsWith(baseDir())) {
+                    throw new SecurityException("Symlink escape blocked during copy: " + child);
+                }
                 Path childDest = dest.resolve(child.getFileName());
+                if (!childDest.normalize().startsWith(baseDir())) {
+                    throw new SecurityException("Path traversal blocked during copy: " + childDest);
+                }
                 if (Files.isDirectory(child)) copyDirRecursive(child, childDest);
                 else Files.copy(child, childDest, StandardCopyOption.REPLACE_EXISTING);
             }

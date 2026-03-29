@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from './useFileManagerStore';
 import { getFileColor } from './fileIcons';
-import { getDownloadUrl } from './fileManagerApi';
+import { downloadFile } from './fileManagerApi';
 
 const COL = { name: '40%', size: '12%', type: '12%', modified: '18%', actions: '18%' };
 
@@ -154,7 +154,7 @@ export default function FileList({ items = [], loading, onDelete, onNavigate }) 
                   </Tooltip>
                   {!item.directory && (
                     <Tooltip title="Download">
-                      <IconButton size="small" component="a" href={getDownloadUrl(item.path)} download
+                      <IconButton size="small" onClick={() => downloadFile(item.path, item.name)}
                         sx={{ color: T.textFaint, '&:hover': { color: T.teal } }}>
                         <DownloadIcon sx={{ fontSize: 15 }} />
                       </IconButton>

@@ -11,8 +11,15 @@ export const searchFiles = ({ q, path = '/', recursive = true }) =>
 export const getFileInfo = (path) =>
   axiosInstance.get(`${BASE}/info`, { params: { path } }).then(r => r.data.data);
 
-export const getDownloadUrl = (path) =>
-  `${axiosInstance.defaults.baseURL ?? ''}${BASE}/download?path=${encodeURIComponent(path)}`;
+export const downloadFile = (path, filename) =>
+  axiosInstance.get(`${BASE}/download`, { params: { path }, responseType: 'blob' }).then(r => {
+    const url = URL.createObjectURL(r.data);
+    const a   = document.createElement('a');
+    a.href    = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
 export const uploadFiles = (path, files, onProgress) => {
   const fd = new FormData();

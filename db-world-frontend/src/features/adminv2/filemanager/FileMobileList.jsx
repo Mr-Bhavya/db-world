@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from './useFileManagerStore';
 import { getFileColor } from './fileIcons';
-import { getDownloadUrl } from './fileManagerApi';
+import { downloadFile } from './fileManagerApi';
 
 export default function FileMobileList({ items = [], loading, onDelete, onNavigate }) {
   const T = useT();
@@ -104,8 +104,8 @@ export default function FileMobileList({ items = [], loading, onDelete, onNaviga
             <MenuItem key="copy" onClick={() => { openOperation('copy', menuState.item); setMenuState({ anchor: null, item: null }); }}
               sx={{ fontSize: 13, color: T.textPrimary }}>Copy to…</MenuItem>
             {!menuState.item?.directory && (
-              <MenuItem key="dl" component="a" href={getDownloadUrl(menuState.item?.path ?? '')} download
-                onClick={() => setMenuState({ anchor: null, item: null })} sx={{ fontSize: 13, color: T.textPrimary }}>Download</MenuItem>
+              <MenuItem key="dl" onClick={() => { downloadFile(menuState.item.path, menuState.item.name); setMenuState({ anchor: null, item: null }); }}
+                sx={{ fontSize: 13, color: T.textPrimary }}>Download</MenuItem>
             )}
             <MenuItem key="delete" onClick={() => { onDelete(menuState.item); setMenuState({ anchor: null, item: null }); }}
               sx={{ fontSize: 13, color: '#ef4444' }}>Delete</MenuItem>

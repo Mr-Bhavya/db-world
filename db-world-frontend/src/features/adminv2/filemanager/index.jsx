@@ -73,19 +73,23 @@ export default function FileManager() {
     }
   }, [doDelete]);
 
-  // Bulk delete — uses deleteItem directly so we get one summary snackbar + one cache invalidation
+  // Bulk delete — uses Promise.allSettled so partial failures still update the cache
   const handleDeleteSelected = useCallback(async () => {
     const paths = Array.from(selectedItems);
     if (paths.length === 0) return;
     if (!window.confirm(`Delete ${paths.length} item(s)?`)) return;
-    try {
-      await Promise.all(paths.map(p => deleteItem(p)));
-      qc.invalidateQueries({ queryKey: ['file-manager', currentPath] });
-      enqueueSnackbar(`Deleted ${paths.length} item(s)`, { variant: 'success' });
-      clearSelection();
-    } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Bulk delete failed', { variant: 'error' });
+    const results = await Promise.allSettled(paths.map(p => deleteItem(p)));
+    // Always invalidate — some items may have been deleted even if others failed
+    qc.invalidateQueries({ queryKey: ['file-manager', currentPath] });
+    const failed = results.filter(r => r.status === 'rejected').length;
+    const succeeded = results.length - failed;
+    if (succeeded > 0) {
+      enqueueSnackbar(`Deleted ${succeeded} item(s)${failed > 0 ? `, ${failed} failed` : ''}`,
+        { variant: failed > 0 ? 'warning' : 'success' });
+    } else {
+      enqueueSnackbar('Delete failed', { variant: 'error' });
     }
+    clearSelection();
   }, [selectedItems, currentPath, qc, enqueueSnackbar, clearSelection]);
 
   // ── Paste ─────────────────────────────────────────────────────────────────
