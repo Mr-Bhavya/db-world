@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from './useFileManagerStore';
 import { getFileColor } from './fileIcons';
-import { getDownloadUrl } from './fileManagerApi';
+import { downloadFile } from './fileManagerApi';
 
 const Row = ({ label, value }) => {
   const T = useT();
@@ -116,7 +116,7 @@ export default function FileInfoDrawer({ onDelete }) {
           </Tooltip>
           {!item.directory && (
             <Tooltip title="Download">
-              <IconButton size="small" component="a" href={getDownloadUrl(item.path)} download
+              <IconButton size="small" onClick={() => downloadFile(item.path, item.name)}
                 sx={{ color: T.textMuted, bgcolor: T.hoverBg, borderRadius: 1.5, '&:hover': { color: T.teal } }}>
                 <DownloadIcon sx={{ fontSize: 16 }} />
               </IconButton>
