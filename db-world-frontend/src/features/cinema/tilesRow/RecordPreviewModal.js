@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import YouTube from 'react-youtube';
-import Constants from '../../Constants';
+import Constants from '@shared/constants';
 import Reaction from '../icons/reaction';
 import Watchlist from '../icons/watchlist';
 import Watched from '../icons/watched';
 import Download from '../icons/download'; // Using the existing Download component
-import CommonServices from '../../CommonServices';
+import CommonServices from '@shared/services/CommonServices';
 import {
   Box,
   Typography,

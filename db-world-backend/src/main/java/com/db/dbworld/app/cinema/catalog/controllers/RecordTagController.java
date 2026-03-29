@@ -1,12 +1,13 @@
 package com.db.dbworld.app.cinema.catalog.controllers;
 
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.cinema.catalog.dto.RecordTagDto;
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.catalog.entities.RecordTagEntity;
-import com.db.dbworld.cinema.catalog.mapper.RecordTagMapper;
-import com.db.dbworld.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.cinema.catalog.repository.RecordTagRepository;
+import com.db.dbworld.app.cinema.catalog.dto.RecordTagDto;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordTagEntity;
+import com.db.dbworld.app.cinema.catalog.mapper.RecordTagMapper;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.catalog.repository.RecordTagRepository;
+import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,7 @@ public class RecordTagController {
        ADD TAG
        ========================= */
 
+    @AdminAccess
     @PostMapping("/{recordId}")
     public ApiResponse<RecordTagDto> addTag(
             @PathVariable Long recordId,
@@ -46,6 +48,7 @@ public class RecordTagController {
        UPDATE TAG
        ========================= */
 
+    @AdminAccess
     @PutMapping("/{tagId}")
     public ApiResponse<RecordTagDto> updateTag(
             @PathVariable Long tagId,
@@ -67,6 +70,7 @@ public class RecordTagController {
        DELETE TAG
        ========================= */
 
+    @AdminAccess
     @DeleteMapping("/{tagId}")
     public ApiResponse<Void> deleteTag(@PathVariable Long tagId) {
 

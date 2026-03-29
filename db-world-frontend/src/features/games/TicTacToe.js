@@ -1,225 +1,183 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
-import Constants from "../Constants";
-import { toast } from "../Toast";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Box, Button, Container, Typography } from '@mui/material';
+import { ArrowBack, Refresh } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
+import Constants from '@shared/constants';
+import { useT, getGlowProps } from '@shared/theme';
 
-function TicTacToe() {
+const EMPTY  = null;
+const WINS   = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
 
-    const [b, setB] = useState(['1', '2', '3', '4', '5', '6', '7', '8', '9'])
-    let index = 0;
-    const [player, setPlayer] = useState(1);
-    const [count, setCount] = useState(0);
-    const [decision, setDecision] = useState(false);
-    const [buttonColor, setButtonColor] = useState(["btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark"])
-    const navigate = useNavigate();
-    const [winStr, setWinStr] = useState("");
-
-    useEffect(() => {
-        // let authenticationRes = Authentication({redirectTo:"game"});
-        // if(authenticationRes.login){
-        //     test()
-        // }
-        // else{
-        //     navigate(authenticationRes.redirectUrl, { replace: true });
-        // }
-        test()
-    }, [b])
-
-    const onSelection = (e) => {
-        e.preventDefault();
-        index = e.target.value;
-        let newB = [...b];
-        let newBColor = [...buttonColor];
-        if (index === "x" || index === "O") {
-            toast.warning("input already taken.")
-        }
-        else {
-            if (player === 1) {
-                newB[index - 1] = "x";
-                newBColor[index - 1] = "btn btn-warning"
-                setPlayer(2)
-            }
-            else if (player === 2) {
-                newB[index - 1] = "O";
-                newBColor[index - 1] = "btn btn-danger"
-                setPlayer(1)
-            }
-            setCount(count + 1);
-            setButtonColor(newBColor);
-            setB(newB);
-        }
-
-    }
-
-    const reset = () => {
-        setWinStr("");
-        setDecision(false);
-        setB(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
-        setPlayer(1);
-        setCount(0);
-        setButtonColor(["btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark", "btn btn-outline-dark"])
-    }
-
-    function onWin() {
-        if (count === 9) {
-            toast.error(`Match is Draw !!`);
-        }
-        else {
-            if (player === 1) {
-                toast.success(`Player 2 is win 🎉🎊🎉`);
-                setWinStr("🏆 Player 2 is Win 🏆");
-            }
-            if (player === 2) {
-                toast.success(`Player 1 is win 🎉🎊🎉`);
-                setWinStr("🏆 Player 1 is Win 🏆");
-            }
-        }
-    }
-
-
-
-    const test = () => {
-        if (b[0] === 'x' && b[1] === 'x' && b[2] === 'x') {
-            onWin()
-        }
-        else if (b[0] === 'x' && b[3] === 'x' && b[6] === 'x') {
-            onWin()
-        }
-        else if (b[0] === 'x' && b[4] === 'x' && b[8] === 'x') {
-            onWin()
-        }
-        else if (b[1] === 'x' && b[4] === 'x' && b[7] === 'x') {
-            onWin()
-        }
-        else if (b[2] === 'x' && b[5] === 'x' && b[8] === 'x') {
-            onWin()
-        }
-        else if (b[3] === 'x' && b[4] === 'x' && b[5] === 'x') {
-            onWin()
-        }
-        else if (b[6] === 'x' && b[7] === 'x' && b[8] === 'x') {
-            onWin()
-        }
-        else if (b[2] === 'x' && b[4] === 'x' && b[6] === 'x') {
-            onWin()
-        }
-
-
-        else if (b[0] === 'O' && b[1] === 'O' && b[2] === 'O') {
-            onWin()
-        }
-        else if (b[0] === 'O' && b[3] === 'O' && b[6] === 'O') {
-            onWin()
-        }
-        else if (b[0] === 'O' && b[4] === 'O' && b[8] === 'O') {
-            onWin()
-        }
-        else if (b[1] === 'O' && b[4] === 'O' && b[7] === 'O') {
-            onWin()
-        }
-        else if (b[2] === 'O' && b[5] === 'O' && b[8] === 'O') {
-            onWin()
-        }
-        else if (b[3] === 'O' && b[4] === 'O' && b[5] === 'O') {
-            onWin()
-        }
-        else if (b[6] === 'O' && b[7] === 'O' && b[8] === 'O') {
-            onWin()
-        }
-        else if (b[2] === 'O' && b[4] === 'O' && b[6] === 'O') {
-            onWin()
-        }
-        else if (count === 9) {
-            onWin()
-        }
-    }
-
-    const onDecision = (event) => {
-        //setPlay(event.target.value)
-        event.preventDefault();
-        let play = event.target.value;
-        //console.log(play);
-        if (play === "yes") {
-            setDecision(true);
-            //console.log(play, decision);
-        }
-        else if (play === "no") {
-            toast.warning("You will be navigate to Home Page.")
-            new Promise(resolve => setTimeout(resolve, 2000)).then(r => {
-                // do something
-                navigate(Constants.DB_WORLD_HOME_ROUTE);
-            })
-
-
-        }
-    }
-
-    if (decision) {
-        var decisionStr = "You select Yes"
-
-        decisionStr = <div>
-            <div className="card-header">
-                <span style={{ fontSize: "24px" }}><b>- Tic Tac Toe</b></span>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => {
-                    reset()
-                }} style={{ float: "right" }}>Refresh</button>
-            </div>
-            <div className="card-body text-center">
-                {!winStr && <>
-                    <div className="card-title">
-                        {player===1 && <h3 className="text-primary">Player {player} input</h3> 
-                        || <h3 className="text-danger">Player {player} input</h3> }
-                    </div>
-                </>
-                    || <><div className="card-title text-success "><h1>{winStr}</h1></div></>}
-
-                <hr />
-                <table className="table table-hover text-center mx-auto" style={{ width: "200px", background: "rgba(30,30,30,0.7)" }}>
-                    <tbody>
-                        <tr >
-                            <td ><button type="button" className={buttonColor[0]} value={b[0]} onClick={onSelection}>{b[0]}</button></td>
-                            <td ><button type="button" className={buttonColor[1]} value={b[1]} onClick={onSelection}>{b[1]}</button></td>
-                            <td ><button type="button" className={buttonColor[2]} value={b[2]} onClick={onSelection}>{b[2]}</button></td>
-                        </tr>
-                        <tr >
-                            <td ><button type="button" className={buttonColor[3]} value={b[3]} onClick={onSelection}>{b[3]}</button></td>
-                            <td ><button type="button" className={buttonColor[4]} value={b[4]} onClick={onSelection}>{b[4]}</button></td>
-                            <td ><button type="button" className={buttonColor[5]} value={b[5]} onClick={onSelection}>{b[5]}</button></td>
-                        </tr>
-                        <tr >
-                            <td ><button type="button" className={buttonColor[6]} value={b[6]} onClick={onSelection}>{b[6]}</button></td>
-                            <td ><button type="button" className={buttonColor[7]} value={b[7]} onClick={onSelection}>{b[7]}</button></td>
-                            <td ><button type="button" className={buttonColor[8]} value={b[8]} onClick={onSelection}>{b[8]}</button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    }
-    else {
-        var decisionStr = <div>
-            <div className="card-header">
-                <h1>- Tic Tac Toe</h1>
-            </div>
-            <div className="card-body">
-                <h5 className="card-title">
-                    Here is only one game name - Tic Tac Toe. Do you want to play this game ?
-                </h5>
-            </div>
-            <p className="card-text ms-5">
-                <button type="button" className="btn btn-success mx-3 mb-3" value="yes" onClick={onDecision}>Yes</button>
-                <button type="button" className="btn btn-danger mx-3 mb-3" value="no" onClick={onDecision}>No</button>
-            </p>
-        </div>
-    }
-
-
-    return (
-        <div className="card text-dark mx-3 my-3" style={{ background: "rgba(255,255,255,0.9)" }}>
-            {decisionStr}
-            
-        </div>
-    )
+function checkWinner(board) {
+  for (const [a,b,c] of WINS) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return { winner: board[a], line: [a,b,c] };
+  }
+  if (board.every(Boolean)) return { winner: 'draw', line: [] };
+  return null;
 }
+
+const TicTacToe = () => {
+  const T        = useT();
+  const navigate = useNavigate();
+  const [board, setBoard]   = useState(Array(9).fill(EMPTY));
+  const [xIsNext, setX]     = useState(true);
+  const [result, setResult] = useState(null);
+
+  const handleClick = (i) => {
+    if (board[i] || result) return;
+    const next = board.slice();
+    next[i] = xIsNext ? 'X' : 'O';
+    const res = checkWinner(next);
+    setBoard(next);
+    setX(!xIsNext);
+    if (res) setResult(res);
+  };
+
+  const reset = () => { setBoard(Array(9).fill(EMPTY)); setX(true); setResult(null); };
+
+  const xColor   = '#6366f1';
+  const oColor   = '#ec4899';
+  const winLine  = result?.line ?? [];
+
+  const statusText = result
+    ? result.winner === 'draw'
+      ? "It's a Draw!"
+      : `Player ${result.winner} Wins!`
+    : `Player ${xIsNext ? 'X' : 'O'}'s turn`;
+
+  const statusColor = result
+    ? result.winner === 'draw' ? T.teal : result.winner === 'X' ? xColor : oColor
+    : xIsNext ? xColor : oColor;
+
+  return (
+    <Box sx={{
+      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
+      pt: { xs: '56px', md: '64px' },
+    }}>
+      <motion.div
+        animate={{ opacity: [0.06, 0.14, 0.06] }}
+        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
+          background: `radial-gradient(ellipse 50% 40% at 50% 30%, ${T.tealGlow ?? 'rgba(13,148,136,0.12)'} 0%, transparent 70%)`,
+        }}
+      />
+
+      <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 1, py: { xs: 4, md: 6 } }}>
+        {/* Back */}
+        <Box sx={{ mb: 3 }}>
+          <Button
+            startIcon={<ArrowBack />}
+            onClick={() => navigate(Constants.DB_GAMES_ROUTE)}
+            sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
+          >
+            Games
+          </Button>
+        </Box>
+
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <Box sx={{ p: { xs: 3, md: 4 }, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3 }}>
+            {/* Title */}
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: T.textPrimary, mb: 0.5 }}>
+                Tic Tac Toe
+              </Typography>
+              {/* Player labels */}
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: xColor }} />
+                  <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>Player X</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: oColor }} />
+                  <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>Player O</Typography>
+                </Box>
+              </Box>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={statusText}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: statusColor }}>
+                    {statusText}
+                  </Typography>
+                </motion.div>
+              </AnimatePresence>
+            </Box>
+
+            {/* Board */}
+            <Box sx={{
+              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 1, mb: 3,
+            }}>
+              {board.map((cell, i) => {
+                const isWinCell = winLine.includes(i);
+                const cellColor = cell === 'X' ? xColor : oColor;
+                return (
+                  <motion.div
+                    key={i}
+                    whileHover={!cell && !result ? { scale: 1.04 } : {}}
+                    whileTap={!cell && !result ? { scale: 0.96 } : {}}
+                  >
+                    <Box
+                      onClick={() => handleClick(i)}
+                      sx={{
+                        aspectRatio: '1',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 2,
+                        bgcolor: isWinCell ? `${cellColor}18` : 'rgba(255,255,255,0.03)',
+                        border: `2px solid ${isWinCell ? cellColor : T.glassBorder}`,
+                        cursor: cell || result ? 'default' : 'pointer',
+                        fontSize: '2rem', fontWeight: 900,
+                        color: cell ? cellColor : 'transparent',
+                        transition: 'all 0.15s',
+                        '&:hover': (!cell && !result) ? {
+                          bgcolor: 'rgba(255,255,255,0.06)',
+                          borderColor: 'rgba(255,255,255,0.2)',
+                        } : {},
+                        boxShadow: isWinCell ? `0 0 16px ${cellColor}44` : 'none',
+                      }}
+                    >
+                      <AnimatePresence>
+                        {cell && (
+                          <motion.span
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                          >
+                            {cell}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </Box>
+                  </motion.div>
+                );
+              })}
+            </Box>
+
+            {/* Reset */}
+            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+              <Button
+                startIcon={<Refresh />}
+                onClick={reset}
+                variant="outlined"
+                sx={{
+                  borderColor: T.glassBorder, color: T.textMuted,
+                  '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: 'rgba(13,148,136,0.06)' },
+                }}
+              >
+                New Game
+              </Button>
+            </Box>
+          </Box>
+        </motion.div>
+      </Container>
+    </Box>
+  );
+};
 
 export default TicTacToe;

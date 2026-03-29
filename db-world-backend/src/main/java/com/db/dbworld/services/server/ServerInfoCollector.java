@@ -2,7 +2,7 @@ package com.db.dbworld.services.server;
 
 import com.db.dbworld.helpers.ProcessExecutor;
 import com.db.dbworld.payloads.server.*;
-import com.db.dbworld.stream.processor.GenericStreamProcessor;
+import com.db.dbworld.core.processor.GenericStreamProcessor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
@@ -20,9 +20,10 @@ import java.time.Duration;
 import java.util.*;
 
 /**
+ * @deprecated Migrated to com.db.dbworld.app.system.info.collector.ServerInfoCollector.
  * Abstract base class for collecting system information.
- * Each OS-specific collector extends this class.
  */
+@Deprecated(forRemoval = true)
 @Log4j2
 public abstract class ServerInfoCollector {
 

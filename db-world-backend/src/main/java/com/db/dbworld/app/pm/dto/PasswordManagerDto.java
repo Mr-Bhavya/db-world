@@ -1,4 +1,4 @@
-package com.db.dbworld.payloads.pm;
+package com.db.dbworld.app.pm.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

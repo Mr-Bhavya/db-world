@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.dto;
 
-import com.db.dbworld.cinema.catalog.dto.RecordDto;
-import com.db.dbworld.cinema.enums.PageType;
+import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.enums.PageType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;

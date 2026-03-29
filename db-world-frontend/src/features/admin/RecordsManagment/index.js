@@ -15,14 +15,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   changeShowOnTopRecord, deleteDbCinemaRecord, getRecords, UpdateDbCinemaRecord
-} from '../../ApiServices';
-import Constants from '../../Constants';
+} from '@shared/services/ApiServices';
+import Constants from '@shared/constants';
 import CleanMediaFileInfoButton from './CleanMediaFileInfoButton';
 import AddRecordModal from './AddRecordModal';
-import { handleApiError } from '../../Utils/errorHandler';
+import { handleApiError } from '@shared/components/ui/utils/errorHandler';
 import RecordsCardView from './RecordsCardView';
 import RecordsTableView from './RecordsTableView';
-import { toast } from '../../Toast';
+import { toast } from '@shared/components/ui/Toast';
 import TMDBUpdateStatusModal from './TMDBUpdateStatusModal';
 import DeleteConfirmationDialog from './DeleteConfirmationDialog';
 import RecordMediaFilesModal from './RecordMediaFilesModal';

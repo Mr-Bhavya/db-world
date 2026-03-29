@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.bootstrap.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.cinema.bootstrap.service.CatalogBootstrapService;
+import com.db.dbworld.app.cinema.bootstrap.service.CatalogBootstrapService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

@@ -14,7 +14,7 @@ import {
   useMediaQuery
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import CommonServices from '../../CommonServices';
+import CommonServices from '@shared/services/CommonServices';
 import {
   Close as CloseIcon,
   InsertDriveFile as FileIcon,

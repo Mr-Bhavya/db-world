@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.tmdb.company.mapper;
 
-import com.db.dbworld.cinema.tmdb.company.dto.ProductionCompanyDto;
-import com.db.dbworld.cinema.tmdb.company.entity.ProductionCompanyEntity;
-import com.db.dbworld.cinema.tmdb.client.dto.ProductionCompanyTmdbResponse;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapper;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.company.dto.ProductionCompanyDto;
+import com.db.dbworld.app.cinema.tmdb.company.entity.ProductionCompanyEntity;
+import com.db.dbworld.app.cinema.tmdb.client.dto.ProductionCompanyTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
 import org.mapstruct.InheritInverseConfiguration;
 import org.mapstruct.Mapper;

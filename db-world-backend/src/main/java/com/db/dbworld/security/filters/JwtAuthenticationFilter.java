@@ -1,15 +1,19 @@
-package com.db.dbworld.filters;
+package com.db.dbworld.security.filters;
 
 import com.db.dbworld.core.context.RequestContext;
-import com.db.dbworld.core.user.entity.UserEntity;
+import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.payloads.RequestLogData;
-import com.db.dbworld.services.user.UserActivityLogService;
+import com.db.dbworld.audit.activity.service.UserActivityLogService;
 import com.db.dbworld.core.user.service.UserService;
+import com.db.dbworld.security.auth.JwtService;
+import com.db.dbworld.security.dto.CurrentUser;
 import com.db.dbworld.utils.DbWorldUtils;
+import jakarta.annotation.Nonnull;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +23,11 @@ import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 @Component
 @Log4j2
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> EXCLUDED_URI_PATTERNS = List.of(
@@ -33,26 +37,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> TRACKED_METHODS = List.of("POST", "PUT", "DELETE", "PATCH");
 
-    @Autowired
-    private UserService userService;
+    private final DbWorldUtils dbWorldUtils;
 
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
+    private final JwtService jwtService;
+
+    private final UserContext userContext;
 
     private final UserActivityLogService activityLogService;
 
-    public JwtAuthenticationFilter(UserActivityLogService activityLogService) {
-        this.activityLogService = activityLogService;
-    }
-
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
+    protected boolean shouldNotFilter(@Nonnull HttpServletRequest request) {
         return EXCLUDED_URI_PATTERNS.stream()
                 .anyMatch(pattern -> request.getRequestURI().startsWith(pattern));
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(@Nonnull HttpServletRequest request, @Nonnull HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
         ContentCachingRequestWrapper cachingRequest = new ContentCachingRequestWrapper(request);
@@ -88,37 +88,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * Extract all required data from request/response before they become invalid
      */
     private RequestLogData extractRequestLogData(HttpServletRequest request, HttpServletResponse response, long startTime) {
-        String requestBody = getRequestBody(request);
-        String method = request.getMethod();
-        String uri = request.getRequestURI();
-        String query = request.getQueryString();
-        int status = response.getStatus();
+
         long duration = System.currentTimeMillis() - startTime;
 
-        UserEntity user = extractUser(request).orElse(null);
-        String userEmail = (user != null) ? user.getEmail() : "Anonymous";
-
-        String ip = dbWorldUtils.getClientIpAddress(request);
-        String userAgent = request.getHeader("User-Agent");
-        String requestId = RequestContext.getRequestId();
-
-        boolean shouldPersist = shouldPersistToDatabase(request);
-
-        return RequestLogData.builder()
-                .user(user)
-                .userEmail(userEmail)
-                .method(method)
-                .uri(uri)
-                .query(query)
-                .ip(ip)
-                .userAgent(userAgent)
-                .status(status)
+        RequestLogData.RequestLogDataBuilder builder = RequestLogData.builder()
+                .method(request.getMethod())
+                .uri(request.getRequestURI())
+                .query(request.getQueryString())
+                .ip(dbWorldUtils.getClientIpAddress(request))
+                .userAgent(request.getHeader("User-Agent"))
+                .status(response.getStatus())
                 .duration(duration)
+                .requestId(RequestContext.getRequestId())
+                .requestBody(getRequestBody(request))
                 .isRequest(true)
-                .requestId(requestId)
-                .requestBody(requestBody)
-                .shouldPersist(shouldPersist)
-                .build();
+                .shouldPersist(shouldPersistToDatabase(request));
+
+        enrichUser(builder, request);
+
+        return builder.build();
     }
 
     private void logRequestDetails(RequestLogData logData) {
@@ -139,22 +127,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    private Optional<UserEntity> extractUser(HttpServletRequest request) {
+    private void enrichUser(RequestLogData.RequestLogDataBuilder builder, HttpServletRequest request) {
+
         try {
             String uri = request.getRequestURI();
-            String tokenFromQuery = request.getParameter("t");
+            String token = request.getParameter("t");
 
-            if ((uri.startsWith("/api/stream/watch") || uri.startsWith("/api/stream/download")) && tokenFromQuery != null) {
-                return Optional.ofNullable(userService.getUserEntityByEmail(
-                        userService.getUserFromToken(tokenFromQuery)
-                ));
+            if (isStreamUri(uri) && token != null) {
+                // ✅ decode JWT directly (NO DB)
+                CurrentUser tokenUser = jwtService.parse(token);
+
+                builder.userId(tokenUser.userId());
+                builder.userEmail(tokenUser.email());
+
             } else {
-                return Optional.ofNullable(userService.getUserFromToken());
+                // ✅ normal flow (from SecurityContext)
+                builder.userId(userContext.userId());
+                builder.userEmail(userContext.email());
             }
+
         } catch (Exception e) {
-            log.debug("No user found from token, defaulting to anonymous: {}", e.getMessage());
-            return Optional.empty();
+            builder.userEmail("Anonymous");
         }
+    }
+
+    private boolean isStreamUri(String uri) {
+        return uri.startsWith("/api/stream/watch")
+                || uri.startsWith("/api/stream/download");
     }
 
     private String getRequestBody(HttpServletRequest request) {

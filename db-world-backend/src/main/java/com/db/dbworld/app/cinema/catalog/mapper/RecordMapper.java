@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.catalog.mapper;
 
-import com.db.dbworld.cinema.catalog.dto.RecordDto;
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapper;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
-import com.db.dbworld.cinema.tmdb.mapper.TmdbMapper;
+import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.mapper.TmdbMapper;
 import org.mapstruct.*;
 
 @Mapper(

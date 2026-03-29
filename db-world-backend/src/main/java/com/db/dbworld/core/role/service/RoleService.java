@@ -1,19 +1,20 @@
-package com.db.dbworld.services.auth;
+package com.db.dbworld.core.role.service;
 
+import com.db.dbworld.core.role.dto.RoleDto;
 import com.db.dbworld.core.user.dto.UserDto;
 
 import java.util.List;
 
 public interface RoleService {
-    UserDto.UserRole addRole(UserDto.UserRole userRole);
+    RoleDto addRole(RoleDto userRole);
 
-    UserDto.UserRole updateRole(UserDto.UserRole userRole);
+    RoleDto updateRole(RoleDto userRole);
 
-    List<UserDto.UserRole> getRoles();
+    List<RoleDto> getRoles();
 
-    UserDto.UserRole getRoleById(String roleId);
+    RoleDto getRoleById(String roleId);
 
-    UserDto.UserRole getRoleByName(String roleName);
+    RoleDto getRoleByName(String roleName);
 
     void deleteRole(String roleId);
 }

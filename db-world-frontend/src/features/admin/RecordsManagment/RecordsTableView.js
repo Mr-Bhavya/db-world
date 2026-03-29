@@ -25,7 +25,7 @@ import {
 import { DataGrid, GridPagination } from '@mui/x-data-grid';
 import { motion } from 'framer-motion';
 import SwitchWithLoader from './SwitchWithLoader';
-import CommonServices from '../../CommonServices';
+import CommonServices from '@shared/services/CommonServices';
 
 const MotionBox = motion(Box);
 

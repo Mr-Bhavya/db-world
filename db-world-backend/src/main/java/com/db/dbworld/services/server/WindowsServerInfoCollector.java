@@ -28,8 +28,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * @deprecated Migrated to com.db.dbworld.app.system.info.collector.windows.WindowsServerInfoCollector.
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
-@Service("windowsServerInfoCollector")
+// @Service("windowsServerInfoCollector")
 public class WindowsServerInfoCollector extends ServerInfoCollector {
 
     public WindowsServerInfoCollector(ProcessExecutor processExecutor) {

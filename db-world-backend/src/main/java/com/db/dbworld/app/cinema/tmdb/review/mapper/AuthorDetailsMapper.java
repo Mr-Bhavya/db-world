@@ -1,9 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.review.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.AuthorDetailsTmdbResponse;
-import com.db.dbworld.cinema.tmdb.review.dto.AuthorDetailsDto;
-import com.db.dbworld.cinema.tmdb.review.entity.AuthorDetails;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.client.dto.AuthorDetailsTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.review.dto.AuthorDetailsDto;
+import com.db.dbworld.app.cinema.tmdb.review.entity.AuthorDetails;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

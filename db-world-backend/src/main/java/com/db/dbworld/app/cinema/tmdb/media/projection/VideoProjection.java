@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.media.projection;
 
-import com.db.dbworld.cinema.tmdb.enums.VideoType;
+import com.db.dbworld.app.cinema.tmdb.enums.VideoType;
 
 public interface VideoProjection {
 

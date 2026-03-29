@@ -1,11 +1,11 @@
 package com.db.dbworld.app.cinema.tmdb.providers.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.*;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapper;
-import com.db.dbworld.cinema.tmdb.providers.dto.ProviderDto;
-import com.db.dbworld.cinema.tmdb.providers.entity.*;
-import com.db.dbworld.cinema.tmdb.enums.ProviderType;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
+import com.db.dbworld.app.cinema.tmdb.providers.dto.ProviderDto;
+import com.db.dbworld.app.cinema.tmdb.providers.entity.*;
+import com.db.dbworld.app.cinema.tmdb.enums.ProviderType;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

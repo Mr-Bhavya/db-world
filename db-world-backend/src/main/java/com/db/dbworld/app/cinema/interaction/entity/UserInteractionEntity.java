@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.interaction.entity;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.interaction.enums.InteractionType;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
 import jakarta.persistence.*;
 import lombok.*;
 

@@ -44,26 +44,27 @@ const LogsContainer = styled(Box)(({ theme }) => ({
 const LogItem = styled(ListItem)(({ theme }) => ({
   padding: theme.spacing(3),
   marginBottom: theme.spacing(2),
-  background: 'white',
-  border: `1px solid ${theme.palette.divider}`,
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.07)',
   borderRadius: 16,
-  transition: 'all 0.3s ease',
+  transition: 'all 0.2s ease',
   cursor: 'pointer',
   '&:hover': {
     transform: 'translateY(-2px)',
-    boxShadow: '0 8px 25px 0 rgba(0,0,0,0.1)',
-    borderColor: theme.palette.primary.light,
+    background: 'rgba(255,255,255,0.07)',
+    borderColor: 'rgba(13,148,136,0.35)',
   },
   '&.highlight': {
-    background: 'linear-gradient(45deg, #e3f2fd, #f3e5f5)',
-    borderColor: theme.palette.primary.main,
+    background: 'rgba(13,148,136,0.08)',
+    borderColor: 'rgba(13,148,136,0.25)',
   },
 }));
 
 const DetailDialog = styled(Dialog)(({ theme }) => ({
   '& .MuiDialog-paper': {
     borderRadius: 16,
-    background: 'linear-gradient(145deg, #f8fbff, #ffffff)',
+    background: '#12121e',
+    border: '1px solid rgba(255,255,255,0.08)',
     maxHeight: '90vh',
   },
 }));
@@ -120,67 +121,42 @@ const TabPanel = ({ children, value, index, ...other }) => (
 // MethodChip, StatusChip, DurationChip components remain the same...
 const MethodChip = styled(Chip)(({ method, theme }) => {
   const colors = {
-    GET: { bg: '#e8f5e8', color: '#2e7d32' },
-    POST: { bg: '#e3f2fd', color: '#1565c0' },
-    PUT: { bg: '#fff3e0', color: '#ef6c00' },
-    DELETE: { bg: '#ffebee', color: '#c62828' },
-    PATCH: { bg: '#f3e5f5', color: '#7b1fa2' },
+    GET:    { bg: 'rgba(46,125,50,0.2)',   color: '#66bb6a' },
+    POST:   { bg: 'rgba(21,101,192,0.2)',  color: '#42a5f5' },
+    PUT:    { bg: 'rgba(239,108,0,0.2)',   color: '#ffa726' },
+    DELETE: { bg: 'rgba(198,40,40,0.2)',   color: '#ef5350' },
+    PATCH:  { bg: 'rgba(123,31,162,0.2)',  color: '#ab47bc' },
   };
-
-  const colorSet = colors[method] || { bg: '#f5f5f5', color: '#616161' };
-
+  const colorSet = colors[method] || { bg: 'rgba(255,255,255,0.08)', color: 'rgba(241,245,249,0.7)' };
   return {
     backgroundColor: colorSet.bg,
     color: colorSet.color,
-    fontWeight: 'bold',
+    fontWeight: 700,
     minWidth: 70,
     borderRadius: 8,
   };
 });
 
 const StatusChip = styled(Chip)(({ status, theme }) => {
-  let color = '#616161';
-  let bgColor = '#f5f5f5';
+  let color   = 'rgba(241,245,249,0.55)';
+  let bgColor = 'rgba(255,255,255,0.08)';
 
   if (status >= 200 && status < 300) {
-    color = '#2e7d32';
-    bgColor = '#e8f5e8';
+    color = '#66bb6a'; bgColor = 'rgba(46,125,50,0.2)';
   } else if (status >= 400 && status < 500) {
-    color = '#ef6c00';
-    bgColor = '#fff3e0';
+    color = '#ffa726'; bgColor = 'rgba(239,108,0,0.2)';
   } else if (status >= 500) {
-    color = '#c62828';
-    bgColor = '#ffebee';
+    color = '#ef5350'; bgColor = 'rgba(198,40,40,0.2)';
   }
 
-  return {
-    backgroundColor: bgColor,
-    color: color,
-    fontWeight: 'bold',
-    borderRadius: 8,
-  };
+  return { backgroundColor: bgColor, color, fontWeight: 700, borderRadius: 8 };
 });
 
 const DurationChip = styled(Chip)(({ duration, theme }) => {
-  let color = '#616161';
-  let bgColor = '#f5f5f5';
-
-  if (duration > 1000) {
-    color = '#c62828';
-    bgColor = '#ffebee';
-  } else if (duration > 500) {
-    color = '#ef6c00';
-    bgColor = '#fff3e0';
-  } else {
-    color = '#2e7d32';
-    bgColor = '#e8f5e8';
-  }
-
-  return {
-    backgroundColor: bgColor,
-    color: color,
-    borderRadius: 8,
-  };
+  let color = '#66bb6a'; let bgColor = 'rgba(46,125,50,0.2)';
+  if (duration > 1000)      { color = '#ef5350'; bgColor = 'rgba(198,40,40,0.2)'; }
+  else if (duration > 500)  { color = '#ffa726'; bgColor = 'rgba(239,108,0,0.2)'; }
+  return { backgroundColor: bgColor, color, borderRadius: 8 };
 });
 
 // Custom JSON formatter component
@@ -355,8 +331,8 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
     } catch {
       // If not JSON, display as plain text
       return (
-        <Paper sx={{ p: 2, mt: 1, background: '#f5f5f5' }}>
-          <Typography variant="body2" fontFamily="monospace">
+        <Paper sx={{ p: 2, mt: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <Typography variant="body2" fontFamily="monospace" sx={{ color: 'rgba(241,245,249,0.8)' }}>
             {requestBody}
           </Typography>
         </Paper>
@@ -383,12 +359,9 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
 
   if (memoizedLogs.length === 0 && !loading) {
     return (
-      <Alert 
-        severity="info" 
-        sx={{ 
-          borderRadius: 3,
-          background: 'linear-gradient(45deg, #e3f2fd, #f3e5f5)',
-        }}
+      <Alert
+        severity="info"
+        sx={{ borderRadius: 3, bgcolor: 'rgba(13,148,136,0.1)', color: '#f1f5f9' }}
       >
         No activity logs found. Try adjusting your filters.
       </Alert>
@@ -533,15 +506,11 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
 
         {/* End of List Message */}
         {!hasMore && memoizedLogs.length > 0 && (
-          <Alert 
-            severity="success" 
-            sx={{ 
-              borderRadius: 3,
-              textAlign: 'center',
-              background: 'linear-gradient(45deg, #e8f5e8, #f1f8e9)',
-            }}
+          <Alert
+            severity="success"
+            sx={{ borderRadius: 3, bgcolor: 'rgba(46,125,50,0.15)', color: '#f1f5f9', textAlign: 'center' }}
           >
-            🎉 You've reached the end of the activity logs!
+            You've reached the end of the activity logs.
           </Alert>
         )}
       </LogsContainer>
@@ -576,7 +545,7 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
               <TabPanel value={tabValue} index={0}>
                 <Stack spacing={3}>
                   {/* Basic Information */}
-                  <Paper sx={{ p: 2 }}>
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <Typography variant="h6" gutterBottom>
                       Basic Information
                     </Typography>
@@ -601,7 +570,7 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
                   </Paper>
 
                   {/* Request Information */}
-                  <Paper sx={{ p: 2 }}>
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <Typography variant="h6" gutterBottom>
                       Request Information
                     </Typography>
@@ -632,7 +601,7 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
                   </Paper>
 
                   {/* User Information */}
-                  <Paper sx={{ p: 2 }}>
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <Typography variant="h6" gutterBottom>
                       User Information
                     </Typography>
@@ -657,7 +626,7 @@ const ActivityLogsList = ({ logs, loading, loadingMore, hasMore, onLoadMore }) =
                   </Paper>
 
                   {/* User Agent */}
-                  <Paper sx={{ p: 2 }}>
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <Typography variant="h6" gutterBottom>
                       User Agent
                     </Typography>

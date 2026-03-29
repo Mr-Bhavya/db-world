@@ -50,10 +50,10 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { deleteMediaFileInfoById } from '../../ApiServices';
-import Constants from '../../Constants';
-import CommonServices from '../../CommonServices';
-import { toast } from '../../Toast';
+import { deleteMediaFileInfoById } from '@shared/services/ApiServices';
+import Constants from '@shared/constants';
+import CommonServices from '@shared/services/CommonServices';
+import { toast } from '@shared/components/ui/Toast';
 
 const MotionDialog = motion(Dialog);
 const MotionCard = motion(Card);

@@ -8,8 +8,8 @@ const MediaSection = ({ record }) => {
     const theme = useTheme();
     const isMdDown = useMediaQuery(theme.breakpoints.down('md'));
 
-    // Use common object for movie/series
-    const tmdb = record?.movieTmdb || record?.seriesTmdb || {};
+    // Use common object for movie/series (normalized at fetch time into record.tmdb)
+    const tmdb = record?.tmdb || record?.movieTmdb || record?.seriesTmdb || {};
     const posters = tmdb?.images?.posters || [];
     const backdrops = tmdb?.images?.backdrops || [];
     const videos = tmdb?.videos || [];

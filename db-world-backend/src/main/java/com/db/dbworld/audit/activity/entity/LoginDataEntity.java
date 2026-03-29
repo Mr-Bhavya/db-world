@@ -1,5 +1,6 @@
-package com.db.dbworld.entities.user;
+package com.db.dbworld.audit.activity.entity;
 
+import com.db.dbworld.core.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

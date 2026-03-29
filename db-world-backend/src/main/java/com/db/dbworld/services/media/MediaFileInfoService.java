@@ -7,6 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * @deprecated Superseded by {@link com.db.dbworld.app.media.info.service.MediaInfoService}.
+ * Still used by old StreamController / StreamServiceImpl until those are migrated.
+ */
+@Deprecated(forRemoval = true)
 public interface MediaFileInfoService {
 
     MediaFileInfoEntity save(MediaFileInfoEntity mediaFileInfoEntity);

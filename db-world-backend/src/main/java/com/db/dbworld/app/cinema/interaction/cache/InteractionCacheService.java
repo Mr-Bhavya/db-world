@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.interaction.cache;
 
-import com.db.dbworld.cinema.interaction.dto.InteractionDto;
-import com.db.dbworld.cinema.interaction.enums.InteractionType;
+import com.db.dbworld.app.cinema.interaction.dto.InteractionDto;
+import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -37,7 +37,7 @@ public class InteractionCacheService {
         String key = key(userId);
 
         List<Object> values = redisTemplate.opsForHash()
-                .multiGet(key, Collections.singleton(recordIds.stream().map(this::field).toList()));
+                .multiGet(key, recordIds.stream().map(this::field).map(f -> (Object) f).toList());
 
         Map<Long, InteractionDto> result = new HashMap<>();
 

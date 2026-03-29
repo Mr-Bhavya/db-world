@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.tmdb.media.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.*;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapper;
-import com.db.dbworld.cinema.tmdb.media.dto.*;
-import com.db.dbworld.cinema.tmdb.media.entity.*;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
+import com.db.dbworld.app.cinema.tmdb.media.dto.*;
+import com.db.dbworld.app.cinema.tmdb.media.entity.*;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

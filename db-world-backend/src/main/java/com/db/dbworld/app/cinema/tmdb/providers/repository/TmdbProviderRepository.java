@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.tmdb.providers.repository;
 
-import com.db.dbworld.cinema.tmdb.enums.ProviderType;
-import com.db.dbworld.cinema.tmdb.providers.dto.ProviderProjection;
-import com.db.dbworld.cinema.tmdb.providers.entity.TmdbProviderEntity;
+import com.db.dbworld.app.cinema.tmdb.enums.ProviderType;
+import com.db.dbworld.app.cinema.tmdb.providers.dto.ProviderProjection;
+import com.db.dbworld.app.cinema.tmdb.providers.entity.TmdbProviderEntity;
 import io.lettuce.core.dynamic.annotation.Param;
 import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;

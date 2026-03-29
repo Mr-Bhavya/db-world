@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.people.dto;
 
-import com.db.dbworld.cinema.tmdb.credits.entity.CreditEntity;
-import com.db.dbworld.cinema.tmdb.entities.TvSeriesTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.credits.entity.CreditEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ManyToMany;

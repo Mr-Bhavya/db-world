@@ -65,9 +65,9 @@
 // } from 'recharts';
 // import { Doughnut } from 'react-chartjs-2';
 // import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend as ChartLegend } from 'chart.js';
-// import CommonServices from '../CommonServices';
-// import { systemInfo } from '../ApiServices';
-// import { toast } from '../Toast';
+// import CommonServices from '@shared/services/CommonServices';
+// import { systemInfo } from '@shared/services/ApiServices';
+// import { toast } from '@shared/components/ui/Toast';
 
 // ChartJS.register(ArcElement, ChartTooltip, ChartLegend);
 

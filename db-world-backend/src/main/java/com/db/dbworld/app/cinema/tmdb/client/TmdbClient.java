@@ -1,13 +1,14 @@
 package com.db.dbworld.app.cinema.tmdb.client;
 
-import com.db.dbworld.cinema.tmdb.client.dto.*;
-import com.db.dbworld.cinema.tmdb.search.dto.SearchResponseDto;
-import com.db.dbworld.cinema.tmdb.discover.dto.DiscoverResponseDto;
-import com.db.dbworld.cinema.tmdb.trending.dto.TrendingResponseDto;
+import com.db.dbworld.app.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.tmdb.search.dto.SearchResponseDto;
+import com.db.dbworld.app.cinema.tmdb.discover.dto.DiscoverResponseDto;
+import com.db.dbworld.app.cinema.tmdb.trending.dto.TrendingResponseDto;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -167,12 +168,20 @@ public class TmdbClient {
        SEARCH
      ===================================== */
 
-    public Mono<SearchResponseDto> searchMovie(String query) {
-        return get("/search/movie", "query", query, SearchResponseDto.class);
+    public Mono<SearchResponseDto> searchMovie(String query, String language, Integer year) {
+        UriComponentsBuilder ub = UriComponentsBuilder.fromPath("/search/movie")
+                .queryParam("query", query)
+                .queryParam("language", language);
+        if (year != null) ub.queryParam("year", year);
+        return webClient.get().uri(ub.toUriString()).retrieve().bodyToMono(SearchResponseDto.class);
     }
 
-    public Mono<SearchResponseDto> searchTv(String query) {
-        return get("/search/tv", "query", query, SearchResponseDto.class);
+    public Mono<SearchResponseDto> searchTv(String query, String language, Integer year) {
+        UriComponentsBuilder ub = UriComponentsBuilder.fromPath("/search/tv")
+                .queryParam("query", query)
+                .queryParam("language", language);
+        if (year != null) ub.queryParam("first_air_date_year", year);
+        return webClient.get().uri(ub.toUriString()).retrieve().bodyToMono(SearchResponseDto.class);
     }
 
     /* =====================================

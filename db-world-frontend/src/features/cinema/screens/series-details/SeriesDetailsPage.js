@@ -11,9 +11,9 @@ import {
     Box,
     Chip,
 } from "@mui/material";
-import { getRecordDetailsbyId } from "../../../ApiServices";
-import Constants from "../../../Constants";
-import LoadingSpinner from "../../../LoadingSpinner";
+import { fetchRecord } from '../../api/cinemaApi';
+import Constants from '@shared/constants';
+import LoadingSpinner from '@shared/components/ui/LoadingSpinner';
 import PeopleGridSection from "../../components/record-detailes/PeopleGridSection";
 import GenresList from "../../components/record-detailes/GenresList";
 import StreamingProviders from "../../components/record-detailes/StreamingProviders";
@@ -45,21 +45,18 @@ const SeriesDetailsPage = () => {
     };
 
     const getSeries = async () => {
-        const response = await getRecordDetailsbyId(id);
-        if (response.httpStatusCode === 200) {
-            let rec = response.data;
-            rec["tmdb"] = rec.seriesTmdb;
-            if (rec === "No results found") {
-                navigate(Constants.DB_CINEMA_BROWSE_ROUTE);
-            } else {
-                setRecord(rec);
-            }
+        try {
+            const rec = await fetchRecord(id);
+            if (!rec) { navigate(Constants.DB_CINEMA_BROWSE_ROUTE); return; }
+            if (!rec.tmdb) rec.tmdb = rec.seriesTmdb ?? rec.movieTmdb ?? {};
+            setRecord(rec);
+        } catch (err) {
+            if (err?.response?.status === 401)
+                navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+            else
+                navigate(Constants.DB_WORLD_HOME_ROUTE);
+        } finally {
             setLoader(false);
-        } else if (response.httpStatusCode === 401) {
-            navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-        } else {
-            console.error(response.message);
-            navigate(Constants.DB_WORLD_HOME_ROUTE);
         }
     };
 
@@ -91,38 +88,38 @@ const SeriesDetailsPage = () => {
                             {/* Overview */}
                             <SectionTitle>Overview</SectionTitle>
                             <Typography variant="body1" paragraph>
-                                {record.seriesTmdb?.overview || "No overview available"}
+                                {record.tmdb?.overview || "No overview available"}
                             </Typography>
 
                             {/* Genres & Providers */}
                             <Grid container spacing={3}>
                                 <Grid item xs={12} md={6}>
                                     <SectionTitle variant="h6">Genres</SectionTitle>
-                                    <GenresList genres={record.seriesTmdb?.genres} />
+                                    <GenresList genres={record.tmdb?.genres} />
                                 </Grid>
 
                                 <Grid item xs={12} md={6}>
                                     <SectionTitle variant="h6">Providers</SectionTitle>
-                                    <StreamingProviders providers={record.seriesTmdb?.providers} />
+                                    <StreamingProviders providers={record.tmdb?.providers} />
                                 </Grid>
                             </Grid>
 
                             <SeasonTabs
-                                seasons={record.seriesTmdb?.seasons}
-                                loading={!record.seriesTmdb}
+                                seasons={record.tmdb?.seasons}
+                                loading={!record.tmdb?.seasons}
                             />
 
                             {/* People Sections */}
                             <Grid container spacing={2} sx={{ mt: 4 }}>
                                 <PeopleGridSection
                                     title="Cast"
-                                    people={record.seriesTmdb?.credits?.cast}
+                                    people={record.tmdb?.credits?.cast}
                                     getSecondaryText={(person) => person.character}
                                 />
 
                                 <PeopleGridSection
                                     title="Crew"
-                                    people={record.seriesTmdb?.credits?.crew}
+                                    people={record.tmdb?.credits?.crew}
                                     getSecondaryText={(person) => person.job}
                                 />
                             </Grid>
@@ -138,10 +135,10 @@ const SeriesDetailsPage = () => {
                         {/* ProductionDetails */}
                         <Grid item xs={12}>
                             <ProductionDetails
-                                productionCompanies={record.seriesTmdb?.production_companies}
-                                productionCountries={record.seriesTmdb?.production_countries}
-                                spokenLanguages={record.seriesTmdb?.spoken_languages}
-                                networks={record.seriesTmdb?.networks}
+                                productionCompanies={record.tmdb?.production_companies}
+                                productionCountries={record.tmdb?.production_countries}
+                                spokenLanguages={record.tmdb?.spoken_languages}
+                                networks={record.tmdb?.networks}
                             />
                         </Grid>
 

@@ -1,4 +1,4 @@
-package com.db.dbworld.context;
+package com.db.dbworld.core.context;
 
 import java.util.UUID;
 

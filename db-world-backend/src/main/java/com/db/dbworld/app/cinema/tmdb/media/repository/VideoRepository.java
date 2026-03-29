@@ -1,9 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.media.repository;
 
-import com.db.dbworld.cinema.tmdb.enums.VideoType;
-import com.db.dbworld.cinema.tmdb.media.entity.VideoEntity;
-import com.db.dbworld.cinema.tmdb.enums.VideoSite;
-import com.db.dbworld.cinema.tmdb.media.projection.VideoProjection;
+import com.db.dbworld.app.cinema.tmdb.enums.VideoType;
+import com.db.dbworld.app.cinema.tmdb.media.entity.VideoEntity;
+import com.db.dbworld.app.cinema.tmdb.enums.VideoSite;
+import com.db.dbworld.app.cinema.tmdb.media.projection.VideoProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

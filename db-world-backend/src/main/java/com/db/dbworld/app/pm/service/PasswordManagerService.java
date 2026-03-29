@@ -1,7 +1,7 @@
-package com.db.dbworld.services.pm;
+package com.db.dbworld.app.pm.service;
 
-import com.db.dbworld.payloads.pm.CredentialDto;
-import com.db.dbworld.payloads.pm.PasswordManagerDto;
+import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 
 import java.util.List;
 

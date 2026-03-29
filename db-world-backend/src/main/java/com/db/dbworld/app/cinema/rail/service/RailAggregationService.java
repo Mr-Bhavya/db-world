@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.rail.service;
 
-import com.db.dbworld.cinema.rail.dto.RailAggregationResult;
+import com.db.dbworld.app.cinema.rail.dto.RailAggregationResult;
 
 import java.util.List;
 

@@ -206,7 +206,7 @@
 
     <Loggers>
         <!-- Filter logs - use CONSOLE_FILTER (with MD5) -->
-        <Logger name="com.db.dbworld.filters" level="INFO" additivity="true">
+        <Logger name="com.db.dbworld.security.filters" level="INFO" additivity="true">
             <AppenderRef ref="ASYNC_CONSOLE_FILTER"/>
             <AppenderRef ref="ASYNC_HUMAN_REQUEST"/>
             <AppenderRef ref="ASYNC_JSON_REQUEST"/>

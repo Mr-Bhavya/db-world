@@ -1,9 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.people.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.PersonTmdbResponse;
-import com.db.dbworld.cinema.tmdb.people.dto.PersonDto;
-import com.db.dbworld.cinema.tmdb.people.entity.PersonEntity;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.client.dto.PersonTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.people.dto.PersonDto;
+import com.db.dbworld.app.cinema.tmdb.people.entity.PersonEntity;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

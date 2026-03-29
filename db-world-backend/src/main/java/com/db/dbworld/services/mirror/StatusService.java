@@ -9,6 +9,12 @@ import java.util.Map;
 
 import java.util.Map;
 
+/**
+ * @deprecated Mirror state tracking superseded by
+ * {@link com.db.dbworld.app.media.ingestion.tracking.TrackingService}.
+ * Still used by MirrorStatusHandler (also deprecated) until removed.
+ */
+@Deprecated(forRemoval = true)
 public interface StatusService {
 
     // Basic CRUD operations

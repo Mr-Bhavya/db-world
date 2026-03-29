@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.tmdb.sync.repository;
 
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.people.mapper.PersonMapper;
-import com.db.dbworld.cinema.tmdb.sync.entity.TmdbRecordSyncEntity;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
+import com.db.dbworld.app.cinema.tmdb.sync.entity.TmdbRecordSyncEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
@@ -16,4 +16,10 @@ public interface TmdbRecordSyncRepository extends JpaRepository<TmdbRecordSyncEn
     List<TmdbRecordSyncEntity> findByLastCheckedAtBefore(Instant time);
 
     Optional<TmdbRecordSyncEntity> findTopByRecordTypeOrderByLastCheckedAtDesc(RecordType type);
+
+    /** For dashboard stats — count by sync status. */
+    long countByStatus(SyncStatus status);
+
+    /** Most recently synced entry — for "last sync at" display. */
+    Optional<TmdbRecordSyncEntity> findTopByOrderByLastSyncedAtDesc();
 }

@@ -1,6 +1,6 @@
-package com.db.dbworld.dao.user;
+package com.db.dbworld.audit.activity.repository;
 
-import com.db.dbworld.entities.user.UserActivityLogEntity;
+import com.db.dbworld.audit.activity.entity.UserActivityLogEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;

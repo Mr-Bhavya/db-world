@@ -72,8 +72,8 @@ function ProfileTab({ userId, onClose }) {
         </Grid>
       </Grid>
       <Box sx={{ display:'flex', justifyContent:'flex-end', mt:2, gap:1 }}>
-        <Button onClick={onClose} sx={{ color:'rgba(255,255,255,0.5)' }}>Cancel</Button>
-        <Button type="submit" variant="contained" disabled={isPending} sx={{ bgcolor:'#6366f1','&:hover':{ bgcolor:'#5254cc' } }}>
+        <Button onClick={onClose} sx={{ color:'rgba(15,23,42,0.5)' }}>Cancel</Button>
+        <Button type="submit" variant="contained" disabled={isPending} sx={{ bgcolor:'#0d9488','&:hover':{ bgcolor:'#0f766e' } }}>
           {isPending ? <CircularProgress size={18} color="inherit" /> : 'Save Changes'}
         </Button>
       </Box>
@@ -109,8 +109,8 @@ function PasswordTab({ userId, onClose }) {
         <F name="newPassword"     label="New Password" />
         <F name="confirmPassword" label="Confirm Password" />
         <Box sx={{ display:'flex', justifyContent:'flex-end', gap:1 }}>
-          <Button onClick={onClose} sx={{ color:'rgba(255,255,255,0.5)' }}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={isPending} sx={{ bgcolor:'#6366f1','&:hover':{ bgcolor:'#5254cc' } }}>
+          <Button onClick={onClose} sx={{ color:'rgba(15,23,42,0.5)' }}>Cancel</Button>
+          <Button type="submit" variant="contained" disabled={isPending} sx={{ bgcolor:'#0d9488','&:hover':{ bgcolor:'#0f766e' } }}>
             {isPending ? <CircularProgress size={18} color="inherit" /> : 'Change Password'}
           </Button>
         </Box>
@@ -125,9 +125,9 @@ export default function UserEditModal({ open, userId, onClose }) {
     <Dialog open={open} onClose={onClose} sx={dialogSx} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display:'flex', justifyContent:'space-between', pb:0 }}>
         Edit User
-        <IconButton onClick={onClose} sx={{ color:'rgba(255,255,255,0.5)' }}><CloseIcon /></IconButton>
+        <IconButton onClick={onClose} sx={{ color:'rgba(15,23,42,0.45)' }}><CloseIcon /></IconButton>
       </DialogTitle>
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px:2, borderBottom:'1px solid rgba(255,255,255,0.06)', '& .MuiTabs-indicator':{ bgcolor:'#6366f1' } }}>
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px:2, borderBottom:'1px solid rgba(0,0,0,0.07)', '& .MuiTabs-indicator':{ bgcolor:'#0d9488' } }}>
         <Tab label="Profile" sx={tabSx} />
         <Tab label="Password" sx={tabSx} />
       </Tabs>

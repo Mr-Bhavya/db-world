@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.catalog.dto.request;
 
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.validation.ValidRecordType;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.validation.ValidRecordType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 

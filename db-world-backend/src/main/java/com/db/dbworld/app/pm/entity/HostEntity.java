@@ -1,4 +1,4 @@
-package com.db.dbworld.entities.pm;
+package com.db.dbworld.app.pm.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

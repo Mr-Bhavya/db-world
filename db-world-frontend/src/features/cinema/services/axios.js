@@ -1,5 +1,5 @@
 import axios from "axios";
-const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
+const REACT_APP_BASEURL = import.meta.env.VITE_API_BASE_URL || '';
 
 const networkService = axios.create({
     baseURL: REACT_APP_BASEURL,

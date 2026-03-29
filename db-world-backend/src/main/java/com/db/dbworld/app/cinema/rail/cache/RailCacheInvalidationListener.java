@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.cache;
 
-import com.db.dbworld.cinema.common.events.BulkRecordChangedEvent;
-import com.db.dbworld.cinema.common.events.RecordChangedEvent;
+import com.db.dbworld.app.cinema.common.events.BulkRecordChangedEvent;
+import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;

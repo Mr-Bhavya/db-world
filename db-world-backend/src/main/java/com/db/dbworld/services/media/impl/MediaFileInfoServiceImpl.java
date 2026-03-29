@@ -2,8 +2,8 @@ package com.db.dbworld.services.media.impl;
 
 import com.db.dbworld.dao.dbcinema.stream.MediaFileInfoRepository;
 import com.db.dbworld.entities.dbcinema.stream.*;
-import com.db.dbworld.exceptions.DbWorldException;
-import com.db.dbworld.exceptions.ResourceNotFoundException;
+import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.core.exception.ResourceNotFoundException;
 import com.db.dbworld.payloads.dbcinema.stream.*;
 import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.utils.DbWorldUtils;
@@ -22,6 +22,11 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * @deprecated Superseded by {@link com.db.dbworld.app.media.info.service.impl.MediaInfoServiceImpl}.
+ * Still used by old StreamController until migrated.
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
 @Service
 @Transactional

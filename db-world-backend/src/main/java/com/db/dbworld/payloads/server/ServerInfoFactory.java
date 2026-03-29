@@ -6,6 +6,8 @@ import com.db.dbworld.payloads.server.os.raspberrypi.RaspberryPiServerInfo;
 import com.db.dbworld.payloads.server.os.windows.WindowsServerInfo;
 import lombok.experimental.UtilityClass;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.ServerInfoFactory} instead. */
+@Deprecated(forRemoval = true)
 @UtilityClass
 public class ServerInfoFactory {
 

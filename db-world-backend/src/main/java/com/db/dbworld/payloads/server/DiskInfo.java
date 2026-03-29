@@ -7,6 +7,8 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.DiskInfo} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor

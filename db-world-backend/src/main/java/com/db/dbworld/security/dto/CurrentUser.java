@@ -1,4 +1,7 @@
 package com.db.dbworld.security.dto;
 
-public class CurrentUser {
-}
+public record CurrentUser(
+        Long userId,
+        String email,
+        String role
+) {}

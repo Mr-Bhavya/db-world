@@ -221,7 +221,7 @@ const WindowsServerInfoDashboard = ({ data, onRefresh }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [expandedPanels, setExpandedPanels] = useState({});
   const [fullscreen, setFullscreen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 

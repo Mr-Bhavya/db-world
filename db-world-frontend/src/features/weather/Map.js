@@ -78,8 +78,7 @@ export default function Map(props) {
           borderRadius: 3,
           overflow: "hidden",
           boxShadow: 3,
-          border: "2px solid",
-          borderColor: "primary.main"
+          border: "1px solid rgba(13,148,136,0.4)"
         }}
       >
         <div

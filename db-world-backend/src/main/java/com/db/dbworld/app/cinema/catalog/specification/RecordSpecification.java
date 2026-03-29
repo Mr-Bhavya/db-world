@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.catalog.specification;
 
-import com.db.dbworld.cinema.catalog.dto.RecordAdminFilter;
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminFilter;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.enums.RecordType;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;

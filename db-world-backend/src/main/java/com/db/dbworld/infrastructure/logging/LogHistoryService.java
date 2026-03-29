@@ -1,4 +1,4 @@
-package com.db.dbworld.logging;
+package com.db.dbworld.infrastructure.logging;
 
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;

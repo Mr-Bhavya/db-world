@@ -1,6 +1,5 @@
 package com.db.dbworld.app.cinema.tmdb.search.dto;
 
-import com.db.dbworld.cinema.tmdb.dto.TmdbDto;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,6 +15,6 @@ public class SearchResponseDto {
 
     private int total_results;
 
-    private List<TmdbDto> results;
+    private List<TmdbSearchItemDto> results;
 
 }

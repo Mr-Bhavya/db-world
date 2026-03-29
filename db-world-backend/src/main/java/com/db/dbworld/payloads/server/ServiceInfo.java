@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.ServiceInfo} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -20,4 +22,8 @@ public class ServiceInfo {
     private String user;
     private String group;
     private Long memoryUsage;
+    // Systemd-specific fields
+    private String loaded;
+    private String active;
+    private Boolean running;
 }

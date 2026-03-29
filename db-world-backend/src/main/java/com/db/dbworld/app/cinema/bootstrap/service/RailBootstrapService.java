@@ -1,9 +1,9 @@
 package com.db.dbworld.app.cinema.bootstrap.service;
 
-import com.db.dbworld.cinema.enums.PageType;
-import com.db.dbworld.cinema.rail.entity.RailEntity;
-import com.db.dbworld.cinema.rail.repository.RailRepository;
-import com.db.dbworld.cinema.rail.rule.RailRule;
+import com.db.dbworld.app.cinema.enums.PageType;
+import com.db.dbworld.app.cinema.rail.entity.RailEntity;
+import com.db.dbworld.app.cinema.rail.repository.RailRepository;
+import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

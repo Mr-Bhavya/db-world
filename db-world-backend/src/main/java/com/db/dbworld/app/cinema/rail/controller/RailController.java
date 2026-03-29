@@ -1,12 +1,12 @@
 package com.db.dbworld.app.cinema.rail.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.cinema.enums.PageType;
-import com.db.dbworld.cinema.rail.dto.RailDto;
-import com.db.dbworld.cinema.rail.dto.RailPageDto;
-import com.db.dbworld.cinema.rail.dto.RailRequest;
-import com.db.dbworld.cinema.rail.service.RailService;
-import com.db.dbworld.cinema.tmdb.genre.dto.GenreDto;
+import com.db.dbworld.app.cinema.enums.PageType;
+import com.db.dbworld.app.cinema.rail.dto.RailDto;
+import com.db.dbworld.app.cinema.rail.dto.RailPageDto;
+import com.db.dbworld.app.cinema.rail.dto.RailRequest;
+import com.db.dbworld.app.cinema.rail.service.RailService;
+import com.db.dbworld.app.cinema.tmdb.genre.dto.GenreDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

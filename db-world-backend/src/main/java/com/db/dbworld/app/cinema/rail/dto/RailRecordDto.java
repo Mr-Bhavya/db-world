@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.dto;
 
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.providers.dto.TmdbProviderDto;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.providers.dto.TmdbProviderDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

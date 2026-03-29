@@ -1,15 +1,15 @@
 package com.db.dbworld.app.cinema.tmdb.entities;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.tmdb.company.entity.ProductionCompanyEntity;
-import com.db.dbworld.cinema.tmdb.country.entity.ProductionCountryEntity;
-import com.db.dbworld.cinema.tmdb.credits.entity.CreditEntity;
-import com.db.dbworld.cinema.tmdb.genre.entity.GenreEntity;
-import com.db.dbworld.cinema.tmdb.language.entity.SpokenLanguageEntity;
-import com.db.dbworld.cinema.tmdb.media.entity.ImageEntity;
-import com.db.dbworld.cinema.tmdb.media.entity.VideoEntity;
-import com.db.dbworld.cinema.tmdb.providers.entity.TmdbProviderEntity;
-import com.db.dbworld.cinema.tmdb.review.entity.ReviewEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.tmdb.company.entity.ProductionCompanyEntity;
+import com.db.dbworld.app.cinema.tmdb.country.entity.ProductionCountryEntity;
+import com.db.dbworld.app.cinema.tmdb.credits.entity.CreditEntity;
+import com.db.dbworld.app.cinema.tmdb.genre.entity.GenreEntity;
+import com.db.dbworld.app.cinema.tmdb.language.entity.SpokenLanguageEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.ImageEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.VideoEntity;
+import com.db.dbworld.app.cinema.tmdb.providers.entity.TmdbProviderEntity;
+import com.db.dbworld.app.cinema.tmdb.review.entity.ReviewEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;

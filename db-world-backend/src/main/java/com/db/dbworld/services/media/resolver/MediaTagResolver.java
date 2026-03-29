@@ -4,6 +4,10 @@ import com.db.dbworld.services.media.MediaSource;
 
 import java.util.*;
 
+/**
+ * @deprecated Migrated to {@link com.db.dbworld.app.media.stream.tag.MediaTagResolver}.
+ */
+@Deprecated(forRemoval = true)
 public final class MediaTagResolver {
 
     private MediaTagResolver() {}

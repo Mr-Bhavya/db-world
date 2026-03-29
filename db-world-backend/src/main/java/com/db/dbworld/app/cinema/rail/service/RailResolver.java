@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.service;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.rail.entity.RailEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 

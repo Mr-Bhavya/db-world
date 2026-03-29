@@ -17,8 +17,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
+ * @deprecated Migrated to com.db.dbworld.app.system.info.ServerInfoService (bean: appServerInfoService).
  * Main service class that orchestrates system information collection.
  */
+/**
+ * @deprecated Migrated to {@link com.db.dbworld.app.system.info.ServerInfoService} (bean: appServerInfoService).
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
 @Service
 public class ServerInfoService {

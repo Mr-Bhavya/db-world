@@ -66,8 +66,8 @@ import {
   Error as ErrorIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getActivityStatsAllApi, getAllRecentActivitiesApi, getDashboardStatsApi, getInitialDataApi, getUserListApi } from '../../ApiServices';
-import { toast } from '../../Toast';
+import { getActivityStatsAllApi, getAllRecentActivitiesApi, getDashboardStatsApi, getInitialDataApi, getUserListApi } from '@shared/services/ApiServices';
+import { toast } from '@shared/components/ui/Toast';
 
 // --- Constants & Configuration ---
 const ACTIVITY_CONFIG = {

@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.service;
 
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.client.dto.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 

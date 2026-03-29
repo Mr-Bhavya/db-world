@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import {
-  markRecordWatched,
-  unmarkRecordWatched,
-} from '../../ApiServices';
+import { addWatched, removeWatched } from '../api/cinemaApi';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 import { Tooltip, Zoom, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
-import useRecordStore from '../../../store/recordStore';
+import useRecordStore from '@app/store/recordStore';
 
 function Watched({ recordId, isWatched = false, size = "medium" }) {
   const [isWatchedState, setIsWatchedState] = useState(isWatched);
@@ -17,14 +14,13 @@ function Watched({ recordId, isWatched = false, size = "medium" }) {
   const handleToggleWatched = async () => {
     setLoading(true);
     try {
-      const response = isWatchedState
-        ? await unmarkRecordWatched(recordId)
-        : await markRecordWatched(recordId);
-
-      if (response.httpStatusCode === 200) {
-        setIsWatchedState(!isWatchedState);
-        onUpdate?.({ isWatched: !isWatchedState });
+      if (isWatchedState) {
+        await removeWatched(recordId);
+      } else {
+        await addWatched(recordId);
       }
+      setIsWatchedState(!isWatchedState);
+      onUpdate?.({ isWatched: !isWatchedState });
     } catch (error) {
       console.error(error);
     } finally {

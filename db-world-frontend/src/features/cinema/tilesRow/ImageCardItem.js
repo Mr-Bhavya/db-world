@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import LazyImage from '../components/LazyImage';
-import CommonServices from '../../CommonServices';
-import Constants from '../../Constants';
+import CommonServices from '@shared/services/CommonServices';
+import Constants from '@shared/constants';
 
 const ImageCardItem = React.memo(({ record, horizontal, onClick }) => {
   const [imageUrl, setImageUrl] = useState(null);

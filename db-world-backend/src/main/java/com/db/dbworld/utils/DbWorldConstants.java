@@ -17,14 +17,6 @@ public class DbWorldConstants {
     public static final String ADMIN = "ADMIN";
     public static final String VIEWER = "VIEWER";
 
-    // Redis keys
-    public static final String CUSTOM_REDIS_KEY_GENERATOR = "customRedisKeyGenerator";
-    public static final String CUSTOM_REDIS_USER_KEY_GENERATOR = "customRedisUserKeyGenerator";
-
-    // Replacement placeholders
-    public static final String REPLACE_ID_STRING = "${id}";
-    public static final String REPLACE_QUERY_STRING = "${query}";
-    public static final String REPLACE_YEAR_STRING = "${year}";
 
     public enum RECORD_TYE {
         MOVIE, SERIES
@@ -41,27 +33,6 @@ public class DbWorldConstants {
     public static final String CDN_STREAM_ID = "/cdn/stream/id/";
     public static final String CDN_STREAM_PATH = "/cdn/stream/path/";
 
-    // TMDB keys
-    public static final String TMDB_VIDEOS_PROPERTY_KEY = "videos";
-    public static final String TMDB_RESULTS_PROPERTY_KEY = "results";
-    public static final String TMDB_RENT_PROPERTY_KEY = "rent";
-    public static final String TMDB_BUY_PROPERTY_KEY = "buy";
-    public static final String TMDB_FLATRATE_PROPERTY_KEY = "flatrate";
-    public static final String TMDB_IN_PROPERTY_KEY = "IN";
-    public static final String TMDB_TITLE_PROPERTY_KEY = "title";
-    public static final String TMDB_ORIGINAL_TITLE_PROPERTY_KEY = "original_title";
-    public static final String TMDB_NAME_PROPERTY_KEY = "name";
-    public static final String TMDB_ORIGINAL_NAME_PROPERTY_KEY = "original_name";
-    public static final String PROVIDERS_PROPERTY_KEY = "providers";
-
-    // User actions
-    public static final String PROCESS_LIKE = "LIKE";
-    public static final String PROCESS_UN_LIKE = "UNLIKE";
-    public static final String PROCESS_WATCH = "WATCH";
-    public static final String PROCESS_UN_WATCH = "UNWATCH";
-    public static final String PROCESS_WATCHLIST = "WATCHLIST";
-    public static final String PROCESS_UN_WATCHLIST = "UNWATCHLIST";
-
     // Encryption
     public static final String KEY_FACTORY_ALGORITHM = "PBKDF2WithHmacSHA256";
     public static final String KEY_SPEC_ALGORITHM = "AES";
@@ -72,9 +43,9 @@ public class DbWorldConstants {
     public static final String HOTSTAR_COM = "hotstar.com";
 
     // Authorization expressions
-    public static final String ALL_AUTHORIZE = "hasAuthority('" + OWNER + "') || hasAuthority('" + ADMIN + "') || hasAuthority('" + VIEWER + "')";
-    public static final String OWNER_AUTHORIZE = "hasAuthority('" + OWNER + "')";
-    public static final String OWNER_ADMIN_AUTHORIZE = "hasAuthority('" + OWNER + "') || hasAuthority('" + ADMIN + "')";
+    public static final String ALL_AUTHORIZE        = "hasAnyAuthority('OWNER', 'ADMIN', 'VIEWER')";
+    public static final String OWNER_AUTHORIZE      = "hasAuthority('OWNER')";
+    public static final String OWNER_ADMIN_AUTHORIZE = "hasAnyAuthority('OWNER', 'ADMIN')";
 
     // Public APIs
     public static final String[] PUBLIC_APIS = {

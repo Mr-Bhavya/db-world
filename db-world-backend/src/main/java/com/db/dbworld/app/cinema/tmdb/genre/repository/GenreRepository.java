@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.tmdb.genre.repository;
 
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.genre.dto.TmdbGenreProjection;
-import com.db.dbworld.cinema.tmdb.genre.entity.GenreEntity;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.genre.dto.TmdbGenreProjection;
+import com.db.dbworld.app.cinema.tmdb.genre.entity.GenreEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

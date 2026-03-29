@@ -1,14 +1,14 @@
 package com.db.dbworld.app.cinema.tmdb.sync.service;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.cinema.common.constants.CinemaConstants.TmdbSync;
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.ingestion.TmdbIngestionService;
-import com.db.dbworld.cinema.tmdb.service.TmdbService;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
+import com.db.dbworld.app.cinema.tmdb.service.TmdbService;
 
-import com.db.dbworld.cinema.tmdb.sync.dto.SyncMetrics;
-import com.db.dbworld.cinema.tmdb.sync.dto.SyncWindow;
+import com.db.dbworld.app.cinema.tmdb.sync.dto.SyncMetrics;
+import com.db.dbworld.app.cinema.tmdb.sync.dto.SyncWindow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 

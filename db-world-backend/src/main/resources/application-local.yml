@@ -9,10 +9,10 @@ spring:
 app:
   name: db-world
   version: @project.version@
-  base-path: D:/db-world
-  data-path: D:/db-world
-  stream-path: D:/Bhavya/Videos
-  symlink-path: D:/Bhavya/video-symlink
+  base-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\db-world
+  data-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\db-world
+  stream-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\Videos
+  symlink-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\video-symlink
 
 
   paths:
@@ -22,7 +22,7 @@ app:
     config: ${app.base-path}/config
     temp: ${app.data-path}/temp
     downloads: ${app.data-path}/downloads
-    integration: D:/Bhavya/ProcessedVideos/
+    integration: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\ProcessedVideos\
     torrents: ${app.videos-path}/Torrent Download
     archived-logs: ${app.paths.logs}/archived
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos

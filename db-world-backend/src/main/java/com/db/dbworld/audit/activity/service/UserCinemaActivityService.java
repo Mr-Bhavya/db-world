@@ -1,8 +1,8 @@
-package com.db.dbworld.services.user;
+package com.db.dbworld.audit.activity.service;
 
 import com.db.dbworld.core.user.service.UserService;
-import com.db.dbworld.dao.user.UserCinemaActivityRepository;
-import com.db.dbworld.entities.user.UserCinemaActivityEntity;
+import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
+import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity;
 import com.db.dbworld.core.user.entity.UserEntity;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,11 +1,11 @@
 package com.db.dbworld.app.cinema.catalog.repository.impl;
 
-import com.db.dbworld.cinema.catalog.dto.RecordAdminFilter;
-import com.db.dbworld.cinema.catalog.dto.RecordAdminRowDto;
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.catalog.entities.RecordTagEntity;
-import com.db.dbworld.cinema.catalog.repository.RecordRepositoryCustom;
-import com.db.dbworld.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminFilter;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordTagEntity;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepositoryCustom;
+import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;

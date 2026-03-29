@@ -39,7 +39,7 @@ import {
     Info as InfoIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import axiosInstance from '../../Utils/AxiosInstants';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 // Enhanced motion components
 const MotionButton = motion(Button);

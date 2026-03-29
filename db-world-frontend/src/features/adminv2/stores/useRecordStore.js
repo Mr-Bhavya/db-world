@@ -11,7 +11,7 @@ export const useRecordStore = create((set) => ({
     tmdbId:   '',
     recordId: '',
   },
-  setFilter:    (key, value) => set(s => ({ filters: { ...s.filters, [key]: value } })),
+  setFilter:    (key, value) => set(s => ({ filters: { ...s.filters, [key]: value }, page: 0 })),
   clearFilters: () => set({ filters: { name:'', type:'', year:'', tmdbId:'', recordId:'' }, page: 0 }),
 
   page:        0,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import CommonServices from '../../CommonServices';
-import Constants from '../../Constants';
+import CommonServices from '@shared/services/CommonServices';
+import Constants from '@shared/constants';
 import {
   IconButton,
   Tooltip,
@@ -13,7 +13,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles } from "./IconButtonStyles";
-import { toast } from '../../Toast';
+import { toast } from '@shared/components/ui/Toast';
 
 const Copy = ({
   text,

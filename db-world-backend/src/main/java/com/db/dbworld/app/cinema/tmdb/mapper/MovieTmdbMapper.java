@@ -1,19 +1,19 @@
 package com.db.dbworld.app.cinema.tmdb.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.MovieTmdbResponse;
-import com.db.dbworld.cinema.tmdb.collection.mapper.CollectionMapper;
-import com.db.dbworld.cinema.tmdb.company.mapper.ProductionCompanyMapper;
-import com.db.dbworld.cinema.tmdb.country.mapper.ProductionCountryMapper;
-import com.db.dbworld.cinema.tmdb.credits.mapper.CreditMapper;
-import com.db.dbworld.cinema.tmdb.dto.MovieTmdbDto;
-import com.db.dbworld.cinema.tmdb.entities.MovieTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.client.dto.MovieTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.collection.mapper.CollectionMapper;
+import com.db.dbworld.app.cinema.tmdb.company.mapper.ProductionCompanyMapper;
+import com.db.dbworld.app.cinema.tmdb.country.mapper.ProductionCountryMapper;
+import com.db.dbworld.app.cinema.tmdb.credits.mapper.CreditMapper;
+import com.db.dbworld.app.cinema.tmdb.dto.MovieTmdbDto;
+import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 
-import com.db.dbworld.cinema.tmdb.genre.mapper.GenreMapper;
-import com.db.dbworld.cinema.tmdb.language.mapper.SpokenLanguageMapper;
-import com.db.dbworld.cinema.tmdb.media.mapper.ImageMapper;
-import com.db.dbworld.cinema.tmdb.media.mapper.VideoMapper;
-import com.db.dbworld.cinema.tmdb.providers.mapper.ProviderMapper;
-import com.db.dbworld.cinema.tmdb.review.mapper.ReviewMapper;
+import com.db.dbworld.app.cinema.tmdb.genre.mapper.GenreMapper;
+import com.db.dbworld.app.cinema.tmdb.language.mapper.SpokenLanguageMapper;
+import com.db.dbworld.app.cinema.tmdb.media.mapper.ImageMapper;
+import com.db.dbworld.app.cinema.tmdb.media.mapper.VideoMapper;
+import com.db.dbworld.app.cinema.tmdb.providers.mapper.ProviderMapper;
+import com.db.dbworld.app.cinema.tmdb.review.mapper.ReviewMapper;
 import org.mapstruct.*;
 
 @Mapper(config = BaseMapperConfig.class,

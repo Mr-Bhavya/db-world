@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.catalog.service.impl;
 
-import com.db.dbworld.cinema.catalog.dto.RecordAutocompleteDto;
-import com.db.dbworld.cinema.catalog.dto.RecordDto;
-import com.db.dbworld.cinema.catalog.mapper.RecordMapper;
-import com.db.dbworld.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.cinema.catalog.service.SearchService;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
+import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.catalog.service.SearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;

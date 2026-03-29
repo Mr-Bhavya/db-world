@@ -16,11 +16,11 @@ import {
 import { motion } from 'framer-motion';
 import { Close, Download, PlayArrow, ContentCopy, CheckCircle } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { loadStreamFileInfoByFiledId } from '../../../ApiServices';
-import Constants from '../../../Constants';
-import CommonServices from '../../../CommonServices';
-import LoadingSpinner from '../../../LoadingSpinner';
-import { toast } from '../../../Toast';
+import { loadStreamFileInfoByFiledId } from '@shared/services/ApiServices';
+import Constants from '@shared/constants';
+import CommonServices from '@shared/services/CommonServices';
+import LoadingSpinner from '@shared/components/ui/LoadingSpinner';
+import { toast } from '@shared/components/ui/Toast';
 import { MediaInfoContent } from '../MediaFileInfo/MediaInfoContent';
 
 const FileDetailsModal = ({ open, onClose, fileId }) => {

@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.rail.cache;
 
-import com.db.dbworld.cinema.rail.dto.RailPageDto;
+import com.db.dbworld.app.cinema.rail.dto.RailPageDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;

@@ -27,19 +27,19 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
-// import { DB_FILE_MANAGER_ROUTE } from '../../Constants';
+// import { DB_FILE_MANAGER_ROUTE } from '@shared/constants';
 
 // Import CSS module
 import styles from './FlmngrManager.module.css';
 
 // Import custom hook
 import { useDynamicCSS } from './useDynamicCSS';
-import Constants from '../../Constants';
+import Constants from '@shared/constants';
 
 // Dynamic import to reduce initial bundle size
 const FlmngrPanel = React.lazy(() => import('@flmngr/flmngr-react').then(module => ({ default: module.FlmngrPanel })));
 
-const FLMNGR_API_KEY = process.env.FLMNGR_API_KEY || "abPhHyhIfD0gNqWnymrtCPeS";
+const FLMNGR_API_KEY = import.meta.env.VITE_FLMNGR_API_KEY || 'abPhHyhIfD0gNqWnymrtCPeS' || "abPhHyhIfD0gNqWnymrtCPeS";
 
 // ==================== STYLED COMPONENTS ====================
 const StyledContainer = styled(Box, {

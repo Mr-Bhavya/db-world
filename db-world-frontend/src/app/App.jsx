@@ -1,11 +1,16 @@
-import React, { useEffect, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import Header from '@shared/components/layout/Header';
+import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
 import Weather from '@features/weather/weather';
+import Games from '@features/games/Games';
 import TicTacToe from '@features/games/TicTacToe';
+import Snake from '@features/games/Snake';
+import MemoryMatch from '@features/games/MemoryMatch';
+import Game2048 from '@features/games/Game2048';
 import Home from '@shared/components/layout/Home';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import PasswordManagment from '@features/password-manager/PasswordManagement';
@@ -26,6 +31,7 @@ import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
 import FlmngrStandalone from '@features/admin/FileExplorer/FlmngrStandalone.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { SnackbarProvider } from 'notistack';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,23 +48,20 @@ const queryClient = new QueryClient({
 import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 
 // Lazy load heavy components for better performance
-const LazyAdminTools          = lazy(() => import('@features/admin/AdminPage/AdminPage.js'));
 const LazyAdminDashboard      = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
-const LazyUserManagement      = lazy(() => import('@features/admin/UserManagment/index.js'));
 const LazyActivityLogs        = lazy(() => import('@features/admin/ActivityLogs/ActivityLogs.js'));
-const LazyRecordsManagement   = lazy(() => import('@features/admin/RecordsManagment/index.js'));
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/MediaFilesManagement/MediaFilesManagement.js'));
 const LazyTagsRailsManager    = lazy(() => import('@features/admin/TagsRails/TagsRailsManager.jsx'));
 const LazyTmdbSyncManager     = lazy(() => import('@features/admin/TmdbSync/TmdbSyncManager.jsx'));
 const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
-const LazyUserCinemaActivity  = lazy(() => import('@features/admin/UserCinemaActivity/index.js'));
 const LazyServerInfo          = lazy(() => import('@features/admin/ServerInfo/ServerInfo.js'));
-const LazyLogDashboard        = lazy(() => import('@features/admin/LogDashboard/LogDashboard.jsx'));
 const LazyRedisManager        = lazy(() => import('@features/admin/RedisManager.js'));
 const LazyFlmngrManager       = lazy(() => import('@features/admin/FileExplorer/FlmngrManager.js'));
 const LazySchedulerPanel      = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
 const LazyUserManagementV2    = lazy(() => import('../features/adminv2/users'));
 const LazyRecordManagementV2  = lazy(() => import('../features/adminv2/records'));
+const LazyLogViewerV2         = lazy(() => import('../features/adminv2/logs/LogViewer'));
+const LazyCinemaActivity      = lazy(() => import('../features/adminv2/activity'));
 const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
 const LazyMovieDetailsPage    = lazy(() => import('@features/cinema/screens/movie-details/index.js'));
 const LazySeriesDetailsPage   = lazy(() => import('@features/cinema/screens/series-details/SeriesDetailsPage.js'));
@@ -132,27 +135,37 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      const isDark = localStorage.getItem('dbworld-theme') !== 'light';
+      const bg     = isDark ? '#000000' : '#ffffff';
+      const card   = isDark ? '#111111' : '#f8fafc';
+      const text   = isDark ? '#ffffff' : '#000000';
+      const muted  = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
+      const border = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
       return (
-        <div style={{
-          padding: '2rem',
-          textAlign: 'center',
-          color: '#d32f2f'
-        }}>
-          <h2>Something went wrong</h2>
-          <p>Please try refreshing the page</p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#008080',
-              color: 'black',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Reload Page
-          </button>
+        <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 16, padding: '2.5rem 2rem', maxWidth: 420, width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+            <h2 style={{ color: text, margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: 700 }}>
+              Something went wrong
+            </h2>
+            <p style={{ color: muted, margin: '0 0 1.5rem', fontSize: '0.875rem', lineHeight: 1.6 }}>
+              An unexpected error occurred on this page. You can go back to the previous page or reload.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                onClick={() => { window.history.back(); }}
+                style={{ padding: '0.6rem 1.25rem', background: 'transparent', color: '#0d9488', border: '1px solid #0d9488', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem' }}
+              >
+                Go Back
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                style={{ padding: '0.6rem 1.25rem', background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem' }}
+              >
+                Reload Page
+              </button>
+            </div>
+          </div>
         </div>
       );
     }
@@ -161,65 +174,23 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// Themes
-const lightTheme = createTheme({
+const buildMuiTheme = (mode) => createTheme({
   palette: {
-    mode: 'light',
-    primary: {
-      main: '#008080',
-      contrastText: '#ffffff'
-    },
-    secondary: {
-      main: '#4db6ac',
-      contrastText: '#ffffff'
-    },
+    mode,
+    primary:    { main: '#0d9488', contrastText: '#ffffff' },
+    secondary:  { main: '#4db6ac', contrastText: '#ffffff' },
     background: {
-      default: '#f5f5f5',
-      paper: '#ffffff'
+      default: mode === 'dark' ? '#000000' : '#ffffff',
+      paper:   mode === 'dark' ? '#111111' : '#ffffff',
     },
-    text: {
-      primary: '#333333',
-      secondary: '#555555'
-    }
   },
-  shape: {
-    borderRadius: 8
-  },
-  typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-  }
-});
-
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    primary: {
-      main: '#008080',
-      contrastText: '#ffffff'
-    },
-    secondary: {
-      main: '#4db6ac',
-      contrastText: '#ffffff'
-    },
-    background: {
-      default: '#121212',
-      paper: '#1e1e1e'
-    },
-    text: {
-      primary: '#ffffff',
-      secondary: '#bbbbbb'
-    }
-  },
-  shape: {
-    borderRadius: 8
-  },
-  typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-  }
+  shape: { borderRadius: 8 },
+  typography: { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
 });
 
 /** Thin wrapper so the lazy import receives the pageType prop. */
 const CinemaPageWrapper = ({ pageType }) => <LazyCinemaPage pageType={pageType} />;
+
 
 // Route configuration for better maintainability
 const routeConfig = {
@@ -229,7 +200,11 @@ const routeConfig = {
     { path: Constants.LOGIN_ROUTE, element: <Login /> },
     { path: Constants.DB_WEATHER_ROUTE, element: <Weather /> },
     { path: Constants.REGISTRATION_ROUTE, element: <Registration /> },
-    { path: Constants.DB_GAMES_ROUTE, element: <TicTacToe /> },
+    { path: Constants.DB_GAMES_ROUTE,              element: <Games /> },
+    { path: Constants.DB_GAMES_TIC_TAC_TOE_ROUTE, element: <TicTacToe /> },
+    { path: Constants.DB_GAMES_SNAKE_ROUTE,        element: <Snake /> },
+    { path: Constants.DB_GAMES_MEMORY_MATCH_ROUTE, element: <MemoryMatch /> },
+    { path: Constants.DB_GAMES_2048_ROUTE,         element: <Game2048 /> },
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
   ],
   protected: [
@@ -248,71 +223,39 @@ const routeConfig = {
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: [
-    { path: Constants.DB_ADMIN_TOOLS_ROUTE, element: <LazyAdminTools /> },
     { path: Constants.DB_FILE_MANAGER_ROUTE, element: <FlmngrStandalone /> },
   ]
 };
 
-function App() {
-  const [matches, setMatches] = useState(
-    window.matchMedia("(min-width: 900px)").matches
-  );
-  const [darkMode, setDarkMode] = useState(true);
+// ─── Inner app — reads mode from ThemeTokensContext ──────────────────────────
+const ThemedApp = () => {
+  const { mode } = useThemeMode();
   const [loading, setLoading] = useState(true);
+  const muiTheme = useMemo(() => buildMuiTheme(mode), [mode]);
 
-  // Initialize app
+  const renderRoutes = (routes) =>
+    routes.map((route, i) => (
+      <Route key={i} path={route.path} element={route.element} exact={route.exact} />
+    ));
+
   useEffect(() => {
-    const initializeApp = async () => {
+    const init = async () => {
       try {
-        // Set up media query listener
-        const mediaQuery = window.matchMedia("(min-width: 900px)");
-        const handleMediaChange = (e) => setMatches(e.matches);
-
-        mediaQuery.addEventListener('change', handleMediaChange);
-
-        // Hide status bar for native platforms
         if (Capacitor.isNativePlatform()) {
-          try {
-            await StatusBar.hide();
-          } catch (error) {
-            console.warn('StatusBar hide failed:', error);
-          }
+          try { await StatusBar.hide(); } catch {}
         }
-
-        // Simulate initial loading (you can replace this with actual initialization)
-        const initTimer = setTimeout(() => {
-          setLoading(false);
-        }, 1000);
-
-        return () => {
-          mediaQuery.removeEventListener('change', handleMediaChange);
-          clearTimeout(initTimer);
-        };
-      } catch (error) {
-        console.error('App initialization error:', error);
+        const t = setTimeout(() => setLoading(false), 1000);
+        return () => clearTimeout(t);
+      } catch {
         setLoading(false);
       }
     };
-
-    initializeApp();
+    init();
   }, []);
-
-  // Render routes based on configuration
-  const renderRoutes = (routes, wrapper = null) => {
-    return routes.map((route, index) => {
-      const routeElement = wrapper ? (
-        React.cloneElement(wrapper, { key: index }, route.element)
-      ) : (
-        <Route key={index} path={route.path} element={route.element} exact={route.exact} />
-      );
-
-      return routeElement;
-    });
-  };
 
   if (loading) {
     return (
-      <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
+      <ThemeProvider theme={muiTheme}>
         <CssBaseline />
         <LoadingFallback />
       </ThemeProvider>
@@ -320,65 +263,63 @@ function App() {
   }
 
   return (
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <SnackbarProvider maxSnack={4} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} autoHideDuration={3000}>
+        <CategoryProvider>
+          <div>
+            <BackButtonHandler />
+            <Header />
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                {renderRoutes(routeConfig.public)}
+                <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                  {renderRoutes(routeConfig.protected)}
+                </Route>
+                <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                  {renderRoutes(routeConfig.admin)}
+                </Route>
+                <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                  <Route path={Constants.DB_ADMIN_BASE_ROUTE} element={<AdminLayout />}>
+                    <Route index element={<Navigate to="dashboard" replace />} />
+                    <Route path="dashboard"     element={<LazyAdminDashboard />} />
+                    <Route path="users"         element={<LazyUserManagementV2 />} />
+                    <Route path="activity-logs" element={<LazyActivityLogs />} />
+                    <Route path="records"       element={<LazyRecordManagementV2 />} />
+                    <Route path="media-files"   element={<LazyMediaFilesManagement />} />
+                    <Route path="tags-rails"    element={<LazyTagsRailsManager />} />
+                    <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
+                    <Route path="downloads"     element={<LazyDownloadManager />} />
+                    <Route path="user-activity" element={<LazyCinemaActivity />} />
+                    <Route path="system-info"   element={<LazyServerInfo />} />
+                    <Route path="logs"          element={<LazyLogViewerV2 />} />
+                    <Route path="redis"         element={<LazyRedisManager />} />
+                    <Route path="files"         element={<LazyFlmngrManager />} />
+                    <Route path="scheduler"     element={<LazySchedulerPanel />} />
+                  </Route>
+                </Route>
+                <Route path="*" element={<ErrorPage />} />
+              </Routes>
+            </Suspense>
+          </div>
+        </CategoryProvider>
+      </SnackbarProvider>
+    </ThemeProvider>
+  );
+};
+
+function App() {
+  return (
     <QueryClientProvider client={queryClient}>
-    <ErrorBoundary>
-      <AuthProvider>
-        <Router>
-          <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
-            <CssBaseline />
-            <CategoryProvider>
-              <div>
-                <BackButtonHandler />
-                <Header />
-
-                <Suspense fallback={<LoadingFallback />}>
-                  <Routes>
-                    {/* Public Routes */}
-                    {renderRoutes(routeConfig.public)}
-
-                    {/* Protected Routes */}
-                    <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-                      {renderRoutes(routeConfig.protected)}
-                    </Route>
-
-                    {/* Admin Routes (legacy tab-based) */}
-                    <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-                      {renderRoutes(routeConfig.admin)}
-                    </Route>
-
-                    {/* Admin — new sidebar layout with nested routes */}
-                    <Route element={<PrivateRoute allowedRoles={[Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-                      <Route path={Constants.DB_ADMIN_BASE_ROUTE} element={<AdminLayout />}>
-                        <Route index element={<Navigate to="dashboard" replace />} />
-                        <Route path="dashboard"     element={<LazyAdminDashboard />} />
-                        <Route path="users"         element={<LazyUserManagement />} />
-                        <Route path="activity-logs" element={<LazyActivityLogs />} />
-                        <Route path="records"       element={<LazyRecordsManagement />} />
-                        <Route path="media-files"   element={<LazyMediaFilesManagement />} />
-                        <Route path="tags-rails"    element={<LazyTagsRailsManager />} />
-                        <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
-                        <Route path="downloads"     element={<LazyDownloadManager />} />
-                        <Route path="user-activity" element={<LazyUserCinemaActivity />} />
-                        <Route path="system-info"   element={<LazyServerInfo />} />
-                        <Route path="logs"          element={<LazyLogDashboard />} />
-                        <Route path="redis"         element={<LazyRedisManager />} />
-                        <Route path="files"         element={<LazyFlmngrManager />} />
-                        <Route path="scheduler"     element={<LazySchedulerPanel />} />
-                        <Route path="v2/users"      element={<LazyUserManagementV2 />} />
-                        <Route path="v2/records"    element={<LazyRecordManagementV2 />} />
-                      </Route>
-                    </Route>
-
-                    {/* 404 Route */}
-                    <Route path="*" element={<ErrorPage />} />
-                  </Routes>
-                </Suspense>
-              </div>
-            </CategoryProvider>
-          </ThemeProvider>
-        </Router>
-      </AuthProvider>
-    </ErrorBoundary>
+      <ErrorBoundary>
+        <ThemeTokensProvider>
+          <AuthProvider>
+            <Router>
+              <ThemedApp />
+            </Router>
+          </AuthProvider>
+        </ThemeTokensProvider>
+      </ErrorBoundary>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

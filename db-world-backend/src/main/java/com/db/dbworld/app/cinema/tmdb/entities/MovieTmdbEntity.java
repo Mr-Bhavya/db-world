@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.entities;
 
-import com.db.dbworld.cinema.tmdb.collection.entity.CollectionEntity;
+import com.db.dbworld.app.cinema.tmdb.collection.entity.CollectionEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

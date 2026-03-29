@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.dto;
 
-import com.db.dbworld.cinema.enums.PageType;
-import com.db.dbworld.cinema.rail.rule.RailRule;
+import com.db.dbworld.app.cinema.enums.PageType;
+import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import lombok.Data;
 
 @Data

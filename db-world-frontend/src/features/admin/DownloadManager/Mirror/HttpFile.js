@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Constants from '../../../Constants';
-import { adminSearchRecord, mirror } from '../../../ApiServices';
+import Constants from '@shared/constants';
+import { adminSearchRecord, mirror } from '@shared/services/ApiServices';
 import { motion } from 'framer-motion';
 import {
     Box,
@@ -26,7 +26,7 @@ import {
     CheckCircle,
     Error
 } from '@mui/icons-material';
-import { toast } from '../../../Toast';
+import { toast } from '@shared/components/ui/Toast';
 import LinksManager from './LinksManager';
 import SecurityOptions from './SecurityOptions';
 import ProcessingOptions from './ProcessingOptions';

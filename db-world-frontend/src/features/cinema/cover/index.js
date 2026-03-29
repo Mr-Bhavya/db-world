@@ -2,9 +2,9 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useSwipeable } from 'react-swipeable';
 import requests from '../services/requests';
-import Constants from '../../Constants';
-import { loadCoverRecords, removeWatchlistRecord, watchlistRecord } from '../../ApiServices';
-import CommonServices from '../../CommonServices';
+import Constants from '@shared/constants';
+import { loadCoverRecords, removeWatchlistRecord, watchlistRecord } from '@shared/services/ApiServices';
+import CommonServices from '@shared/services/CommonServices';
 
 // MUI Components
 import {

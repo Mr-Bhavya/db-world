@@ -1,4 +1,4 @@
-package com.db.dbworld.exceptions;
+package com.db.dbworld.core.exception;
 
 public class ExtractException extends RuntimeException{
     private String message;

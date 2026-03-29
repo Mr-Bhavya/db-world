@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { addUser } from '../redux/action/allActions';
+import { addUser } from '@app/redux/action/allActions';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import Constants from './Constants';
-import { useAuth } from '../contexts/Authentication';
-// import { Authentication } from '../contexts/Authentication';
+import Constants from '@shared/constants';
+import { useAuth } from '@features/auth/context/Authentication';
+// import { Authentication } from '@features/auth/context/Authentication';
 
 function LogOut() {
 

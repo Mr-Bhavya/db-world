@@ -10,13 +10,13 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import Constants from '../../Constants';
+import Constants from '@shared/constants';
 
 // Components
 import RecordsManagement from '../RecordsManagment';
 import FileExplorer from '../FileExplorer/FileExplorer';
 import LogDashboard from '../LogDashboard/LogDashboard';
-import SystemInfo from '../SystemInfo';
+//import ServerInfo from '../ServerInfo';
 import RedisManager from '../RedisManager';
 import UserManagement from '../UserManagment';
 import UserCinemaActivity from '../UserCinemaActivity';
@@ -49,7 +49,7 @@ import {
   InsertDriveFile as InsertDriveFileIcon,
   VideoLibrary,
 } from '@mui/icons-material';
-import MainLayout from '../ServerInfo/ServerInfo';
+//import MainLayout from '../ServerInfo';
 import ServerInfo from '../ServerInfo/ServerInfo';
 import MediaFilesManagement from '../MediaFilesManagement/MediaFilesManagement';
 

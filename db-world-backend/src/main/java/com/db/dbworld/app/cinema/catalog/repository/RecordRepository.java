@@ -1,11 +1,17 @@
 package com.db.dbworld.app.cinema.catalog.repository;
 
-import com.db.dbworld.cinema.catalog.dto.RecordAdminRowDto;
-import com.db.dbworld.cinema.catalog.dto.RecordAutocompleteDto;
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.enums.RecordTagType;
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.rail.projection.RailRecordProjection;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -24,6 +30,9 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     Optional<RecordEntity> findByTmdb_Id(Long tmdbId);
 
     List<RecordEntity> findByType(RecordType type);
+
+    /** Dashboard: count records by type (MOVIE / SERIES). */
+    long countByType(RecordType type);
 
     boolean existsByTmdb_Id(Long tmdbId);
 
@@ -207,7 +216,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     Page<RecordEntity> search(String query, Pageable pageable);
 
     @Query("""
-            SELECT new com.db.dbworld.cinema.catalog.dto.RecordAutocompleteDto(
+            SELECT new com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto(
                 r.id,
                 r.name,
                 r.type,

@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.tmdb.language.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.SpokenLanguageTmdbResponse;
-import com.db.dbworld.cinema.tmdb.language.dto.SpokenLanguageDto;
-import com.db.dbworld.cinema.tmdb.language.entity.SpokenLanguageEntity;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapper;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.client.dto.SpokenLanguageTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.language.dto.SpokenLanguageDto;
+import com.db.dbworld.app.cinema.tmdb.language.entity.SpokenLanguageEntity;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 import org.mapstruct.InheritInverseConfiguration;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

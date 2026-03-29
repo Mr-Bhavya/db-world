@@ -1,7 +1,6 @@
-package com.db.dbworld.logging.parser;
+package com.db.dbworld.infrastructure.logging.parser;
 
-import com.db.dbworld.logging.dto.AppDebugLogDto;
-import com.db.dbworld.logging.dto.AppInfoLogDto;
+import com.db.dbworld.infrastructure.logging.dto.AppInfoLogDto;
 import com.google.gson.Gson;
 
 public class InfoLogParser implements LogLineParser<AppInfoLogDto> {

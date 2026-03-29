@@ -292,7 +292,7 @@ const RaspberryPiServerInfoDashboard = ({ serverInfo, refreshData }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [expandedPanels, setExpandedPanels] = useState({});
   const [viewMode, setViewMode] = useState(isMobile ? 'grid' : 'detailed');
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedGpioPin, setSelectedGpioPin] = useState(null);
   const [showTemperatureChart, setShowTemperatureChart] = useState(false);

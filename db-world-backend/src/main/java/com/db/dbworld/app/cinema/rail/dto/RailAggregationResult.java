@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.dto;
 
-import com.db.dbworld.cinema.tmdb.media.projection.*;
-import com.db.dbworld.cinema.tmdb.providers.dto.TmdbProviderDto;
+import com.db.dbworld.app.cinema.tmdb.media.projection.*;
+import com.db.dbworld.app.cinema.tmdb.providers.dto.TmdbProviderDto;
 
 import java.util.Collections;
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.db.dbworld.exceptions;
+package com.db.dbworld.core.exception;
 
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.extern.log4j.Log4j2;
@@ -14,8 +14,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.stream.Collectors;

@@ -31,7 +31,7 @@ function ImportTab({ onClose }) {
 
   return (
     <Box sx={{ display:'flex', flexDirection:'column', gap:2 }}>
-      <Typography sx={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>
+      <Typography sx={{ fontSize:12, color:'rgba(15,23,42,0.55)' }}>
         Paste a JSON array of user objects matching CreateUserRequest format.
       </Typography>
       <TextField multiline rows={8} value={raw} onChange={e => { setRaw(e.target.value); setParsed(null); }}
@@ -40,8 +40,8 @@ function ImportTab({ onClose }) {
       {parseError && <Alert severity="error" sx={{ bgcolor:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)' }}>{parseError}</Alert>}
       {parsed && <Alert severity="success" sx={{ bgcolor:'rgba(16,185,129,0.1)', color:'#10b981', border:'1px solid rgba(16,185,129,0.3)' }}>{parsed.length} user(s) ready to import</Alert>}
       <Box sx={{ display:'flex', gap:1, justifyContent:'flex-end' }}>
-        <Button onClick={tryParse} variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.2)', color:'rgba(255,255,255,0.7)' }}>Parse</Button>
-        <Button onClick={() => mutate()} disabled={!parsed || isPending} variant="contained" sx={{ bgcolor:'#6366f1','&:hover':{ bgcolor:'#5254cc' } }}>
+        <Button onClick={tryParse} variant="outlined" sx={{ borderColor:'rgba(0,0,0,0.2)', color:'rgba(15,23,42,0.7)' }}>Parse</Button>
+        <Button onClick={() => mutate()} disabled={!parsed || isPending} variant="contained" sx={{ bgcolor:'#0d9488','&:hover':{ bgcolor:'#0f766e' } }}>
           {isPending ? <CircularProgress size={18} color="inherit" /> : 'Import'}
         </Button>
       </Box>
@@ -79,7 +79,7 @@ function BulkDeleteTab({ onClose }) {
       </Box>
       <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
         <input type="checkbox" id="confirm-del" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
-        <label htmlFor="confirm-del" style={{ fontSize:13, color:'rgba(255,255,255,0.7)' }}>I understand this is irreversible</label>
+        <label htmlFor="confirm-del" style={{ fontSize:13, color:'rgba(15,23,42,0.7)' }}>I understand this is irreversible</label>
       </Box>
       <Box sx={{ display:'flex', justifyContent:'flex-end' }}>
         <Button onClick={() => mutate()} disabled={!confirmed || isPending || !selectedRows.length} variant="contained" sx={{ bgcolor:'#ef4444','&:hover':{ bgcolor:'#dc2626' } }}>
@@ -109,7 +109,7 @@ function BulkRoleTab({ onClose }) {
 
   return (
     <Box sx={{ display:'flex', flexDirection:'column', gap:2 }}>
-      <Typography sx={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>
+      <Typography sx={{ fontSize:13, color:'rgba(15,23,42,0.6)' }}>
         Assign role to {selectedRows.length} selected user(s):
       </Typography>
       <TextField select label="Select Role" value={roleId} onChange={e => setRoleId(e.target.value)} size="small" sx={inputSx}>
@@ -118,7 +118,7 @@ function BulkRoleTab({ onClose }) {
         <MenuItem value={3}>Viewer</MenuItem>
       </TextField>
       <Box sx={{ display:'flex', justifyContent:'flex-end' }}>
-        <Button onClick={() => mutate()} disabled={!roleId || isPending || !selectedRows.length} variant="contained" sx={{ bgcolor:'#6366f1','&:hover':{ bgcolor:'#5254cc' } }}>
+        <Button onClick={() => mutate()} disabled={!roleId || isPending || !selectedRows.length} variant="contained" sx={{ bgcolor:'#0d9488','&:hover':{ bgcolor:'#0f766e' } }}>
           {isPending ? <CircularProgress size={18} color="inherit" /> : 'Assign Role'}
         </Button>
       </Box>
@@ -132,9 +132,9 @@ export default function UserBulkModal({ open, onClose }) {
     <Dialog open={open} onClose={onClose} sx={dialogSx} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display:'flex', justifyContent:'space-between', pb:0 }}>
         Bulk Operations
-        <IconButton onClick={onClose} sx={{ color:'rgba(255,255,255,0.5)' }}><CloseIcon /></IconButton>
+        <IconButton onClick={onClose} sx={{ color:'rgba(15,23,42,0.45)' }}><CloseIcon /></IconButton>
       </DialogTitle>
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px:2, borderBottom:'1px solid rgba(255,255,255,0.06)', '& .MuiTabs-indicator':{ bgcolor:'#6366f1' } }}>
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px:2, borderBottom:'1px solid rgba(0,0,0,0.07)', '& .MuiTabs-indicator':{ bgcolor:'#0d9488' } }}>
         <Tab label="Import" sx={tabSx} />
         <Tab label="Bulk Delete" sx={tabSx} />
         <Tab label="Assign Role" sx={tabSx} />

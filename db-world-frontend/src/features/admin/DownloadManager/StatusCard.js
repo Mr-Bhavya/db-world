@@ -44,9 +44,9 @@ import {
     Divider,
     alpha
 } from '@mui/material';
-import { toast } from '../../Toast';
-import CommonServices from '../../CommonServices';
-import { cancelledMirrorByGID, deleteMirror, pauseMirror, resumeMirror } from '../../ApiServices';
+import { toast } from '@shared/components/ui/Toast';
+import CommonServices from '@shared/services/CommonServices';
+import { cancelledMirrorByGID, deleteMirror, pauseMirror, resumeMirror } from '@shared/services/ApiServices';
 
 const cardVariants = {
     hidden: { opacity: 0, y: 8, scale: 0.98 },

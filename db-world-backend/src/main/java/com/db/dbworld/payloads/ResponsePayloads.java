@@ -1,10 +1,8 @@
 package com.db.dbworld.payloads;
 
-import com.db.dbworld.entities.user.UserEntity;
-import com.db.dbworld.payloads.dbcinema.DBCinemaRecordsDto;
-import com.db.dbworld.payloads.pm.CredentialDto;
-import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.services.Impl.UserDetailImpl;
+import com.db.dbworld.core.role.dto.RoleDto;
+import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.core.user.dto.UserDto;
 import lombok.*;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
@@ -25,13 +23,13 @@ public class ResponsePayloads {
         String token;
         Map<String, Object> user = new HashMap<>();
 
-        public LoginResponse(String token, UserEntity userDetails){
+        public LoginResponse(String token, UserDto userDetails){
             this.token = token;
             this.user.put("userId", userDetails.getUserId());
             this.user.put("email", userDetails.getEmail());
             this.user.put("name", userDetails.getFirstName() + " " + userDetails.getLastName());
             this.user.put("dob", userDetails.getDob());
-            this.user.put("role", userDetails.getRole().getName());
+            this.user.put("role", userDetails.getUserRole() != null ? userDetails.getUserRole().getName() : null);
         }
 
     }
@@ -43,18 +41,18 @@ public class ResponsePayloads {
         private List<CredentialDto> credentials;
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class PaginationRecords{
-        private int pageNumber;
-        private int pageSize;
-        private long totalElements;
-        private boolean isEmpty;
-        private boolean isFirst;
-        private boolean isLast;
-        private List<DBCinemaRecordsDto> records;
-    }
+//    @Data
+//    @NoArgsConstructor
+//    @AllArgsConstructor
+//    public static class PaginationRecords{
+//        private int pageNumber;
+//        private int pageSize;
+//        private long totalElements;
+//        private boolean isEmpty;
+//        private boolean isFirst;
+//        private boolean isLast;
+//        private List<DBCinemaRecordsDto> records;
+//    }
 
     @Data
     public static class TmdbFilerResponse {
@@ -74,7 +72,7 @@ public class ResponsePayloads {
         private Long mobileNo;
         private String email;
         private String password;
-        private UserDto.UserRole userRole;
+        private RoleDto userRole;
         private Long noOfLogin;
     }
 

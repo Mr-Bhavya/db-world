@@ -1,33 +1,18 @@
-package com.db.dbworld.stream.processor;
-
-import com.db.dbworld.payloads.MirrorStatus;
-import com.db.dbworld.services.mirror.StatusService;
+package com.db.dbworld.core.processor;
 
 public class StreamProcessorFactory {
 
+    private StreamProcessorFactory() {}
+
     public static FfmpegStreamProcessor createFfmpegProcessor() {
         return new FfmpegStreamProcessor();
-    }
-
-    public static FfmpegStreamProcessor createFfmpegProcessor(StatusService statusService,
-                                                              MirrorStatus mirrorStatus) {
-        return new FfmpegStreamProcessor(statusService, mirrorStatus);
     }
 
     public static GenericStreamProcessor createGenericProcessor() {
         return new GenericStreamProcessor();
     }
 
-    public static GenericStreamProcessor createGenericProcessor(StatusService statusService,
-                                                                MirrorStatus mirrorStatus) {
-        return new GenericStreamProcessor(statusService, mirrorStatus);
-    }
-
     public static YtDlpStreamProcessor createYtDlpProcessor() {
         return new YtDlpStreamProcessor();
-    }
-
-    public static YtDlpStreamProcessor createYtDlpProcessor(StatusService statusService, MirrorStatus mirrorStatus) {
-        return new YtDlpStreamProcessor(statusService, mirrorStatus);
     }
 }

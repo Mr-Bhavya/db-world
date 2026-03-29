@@ -1,5 +1,5 @@
-import Constants from "../Constants";
-import { toast } from "../Toast";
+import Constants from '@shared/constants';
+import { toast } from '@shared/components/ui/Toast';
 
 export const handleApiError = (error, navigate, location) => {
   // Default error message

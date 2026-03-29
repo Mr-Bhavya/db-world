@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.catalog.repository;
 
-import com.db.dbworld.cinema.catalog.dto.RecordAdminFilter;
-import com.db.dbworld.cinema.catalog.dto.RecordAdminRowDto;
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminFilter;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;

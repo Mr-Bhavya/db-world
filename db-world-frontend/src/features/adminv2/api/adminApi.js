@@ -62,5 +62,5 @@ export const deleteTag = (tagId) =>
 
 /* ─── TMDB SEARCH ───────────────────────────────────────────────── */
 
-export const searchTmdb = (type, query, year) =>
-  axiosInstance.get('/api/tmdb/search', { params: { type, query, year } }).then(r => r.data.data);
+export const searchTmdb = (type, query, year, language = 'en-US') =>
+  axiosInstance.get('/api/cinema/admin/tmdb/search', { params: { type, query, year, language } }).then(r => r.data.data);

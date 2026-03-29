@@ -1,4 +1,4 @@
-package com.db.dbworld.exceptions;
+package com.db.dbworld.core.exception;
 
 import lombok.Getter;
 import org.springframework.http.HttpStatus;

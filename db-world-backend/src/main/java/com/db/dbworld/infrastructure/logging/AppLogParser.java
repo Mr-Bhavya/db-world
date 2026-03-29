@@ -1,6 +1,6 @@
-package com.db.dbworld.logging;
+package com.db.dbworld.infrastructure.logging;
 
-import com.db.dbworld.logging.dto.*;
+import com.db.dbworld.infrastructure.logging.dto.*;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;

@@ -57,34 +57,13 @@ const FilterChip = styled(Chip)(({ theme }) => ({
     borderRadius: 8,
     fontWeight: 600,
     fontSize: "0.8rem",
-    "&.method-get": {
-        backgroundColor: "#e8f5e8",
-        color: "#2e7d32",
-    },
-    "&.method-post": {
-        backgroundColor: "#e3f2fd",
-        color: "#1565c0",
-    },
-    "&.method-put": {
-        backgroundColor: "#fff3e0",
-        color: "#ef6c00",
-    },
-    "&.method-delete": {
-        backgroundColor: "#ffebee",
-        color: "#c62828",
-    },
-    "&.status-success": {
-        backgroundColor: "#e8f5e8",
-        color: "#2e7d32",
-    },
-    "&.status-error": {
-        backgroundColor: "#ffebee",
-        color: "#c62828",
-    },
-    "&.status-warning": {
-        backgroundColor: "#fff3e0",
-        color: "#ef6c00",
-    },
+    "&.method-get":    { backgroundColor: "rgba(46,125,50,0.2)",  color: "#66bb6a" },
+    "&.method-post":   { backgroundColor: "rgba(21,101,192,0.2)", color: "#42a5f5" },
+    "&.method-put":    { backgroundColor: "rgba(239,108,0,0.2)",  color: "#ffa726" },
+    "&.method-delete": { backgroundColor: "rgba(198,40,40,0.2)",  color: "#ef5350" },
+    "&.status-success":{ backgroundColor: "rgba(46,125,50,0.2)",  color: "#66bb6a" },
+    "&.status-error":  { backgroundColor: "rgba(198,40,40,0.2)",  color: "#ef5350" },
+    "&.status-warning":{ backgroundColor: "rgba(239,108,0,0.2)",  color: "#ffa726" },
 }));
 
 const ActivityFilters = ({ filters, onFilterChange, onClearFilters }) => {

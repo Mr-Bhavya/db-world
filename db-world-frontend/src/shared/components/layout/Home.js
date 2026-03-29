@@ -16,19 +16,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
-
-// ── Design tokens ──────────────────────────────────────────────────────────────
-const T = {
-  bg:          '#0a0a0f',
-  teal:        '#0d9488',
-  tealHover:   '#0f766e',
-  glass:       'rgba(255,255,255,0.04)',
-  glassBorder: 'rgba(255,255,255,0.08)',
-  glassHover:  'rgba(255,255,255,0.07)',
-  textPrimary: '#f1f5f9',
-  textMuted:   'rgba(241,245,249,0.55)',
-  textFaint:   'rgba(241,245,249,0.35)',
-};
+import { useT } from '@shared/theme';
 
 // ── App catalogue ──────────────────────────────────────────────────────────────
 const APPS = [
@@ -102,6 +90,7 @@ function timeAgo(ts) {
 
 // ── App card ───────────────────────────────────────────────────────────────────
 const AppCard = ({ app, index, onNavigate }) => {
+  const T = useT();
   const Icon = app.icon;
   return (
     <motion.div
@@ -161,6 +150,7 @@ const AppCard = ({ app, index, onNavigate }) => {
 
 // ── Recent mini-card ───────────────────────────────────────────────────────────
 const RecentCard = ({ entry, index, onNavigate }) => {
+  const T = useT();
   const app = APPS.find(a => a.id === entry.appId);
   if (!app) return null;
   const Icon = app.icon;
@@ -201,6 +191,7 @@ const RecentCard = ({ entry, index, onNavigate }) => {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 const Home = () => {
+  const T = useT();
   const navigate = useNavigate();
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -248,18 +239,17 @@ const Home = () => {
           pt: { xs: '56px', md: '64px' },
           px: 3,
           position: 'relative',
-          background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1a1a 60%, #0a0f0f 100%)',
           overflow: 'hidden',
           textAlign: 'center',
         }}
       >
         {/* Animated teal glow */}
         <motion.div
-          animate={{ opacity: [0.08, 0.18, 0.08] }}
+          animate={{ opacity: [0.6, 1, 0.6] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
           style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'radial-gradient(ellipse 60% 50% at 60% 40%, rgba(13,148,136,0.18) 0%, transparent 70%)',
+            background: `radial-gradient(ellipse 60% 50% at 60% 40%, ${T.tealGlow} 0%, transparent 70%)`,
           }}
         />
 
@@ -409,7 +399,7 @@ const Home = () => {
               sx={{
                 display: 'flex', gap: 1.5, overflowX: 'auto', pb: 1,
                 '&::-webkit-scrollbar': { height: 4 },
-                '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2 },
+                '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 2 },
               }}
             >
               {recent.slice(0, 3).map((entry, i) => (
@@ -422,8 +412,8 @@ const Home = () => {
 
       {/* ── Footer ───────────────────────────────────────────────────────────── */}
       <Box sx={{
-        bgcolor: 'rgba(255,255,255,0.03)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        bgcolor: T.glass,
+        borderTop: `1px solid ${T.border}`,
         py: 3, px: { xs: 2, md: 3 },
       }}>
         <Container maxWidth="lg">

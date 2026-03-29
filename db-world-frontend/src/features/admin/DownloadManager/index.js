@@ -34,9 +34,9 @@ import {
 import DownloadsList from './DownloadsList';
 import HttpFile from './Mirror/HttpFile';
 import Youtube_dl from './YoutubeDownloader/YoutubeDownloader';
-import { toast } from '../../Toast';
-import { deleteTempFile } from '../../ApiServices';
-import Constants from '../../Constants';
+import { toast } from '@shared/components/ui/Toast';
+import { deleteTempFile } from '@shared/services/ApiServices';
+import Constants from '@shared/constants';
 import StatusTestData from './status-test-data';
 
 // Connection status badge component
@@ -262,8 +262,8 @@ function DownloadManager() {
 
   // WebSocket connection
   const connectWebSocket = useCallback(() => {
-    const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_BASEURL
-      ? `${process.env.REACT_APP_WEBSOCKET_BASEURL}/ws/status`
+    const WEBSOCKET_URL = import.meta.env.VITE_WEBSOCKET_BASEURL || ''
+      ? `${import.meta.env.VITE_WEBSOCKET_BASEURL || ''}/ws/status`
       : 'ws://localhost:9000/ws/status';
 
     try {
@@ -276,7 +276,7 @@ function DownloadManager() {
 
       ws.current.onmessage = (event) => {
         try {
-          const data = process.env.REACT_APP_WEBSOCKET_BASEURL ? JSON.parse(event.data) : StatusTestData;
+          const data = import.meta.env.VITE_WEBSOCKET_BASEURL || '' ? JSON.parse(event.data) : StatusTestData;
           setDownloads(data);
           setLastUpdated(new Date());
           if (isInitialLoad) {

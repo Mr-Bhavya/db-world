@@ -10,13 +10,13 @@ import { formatDistanceToNow } from 'date-fns';
 import { ROLE_COLORS } from './constants';
 
 const gridSx = {
-  bgcolor:'transparent', border:'none', color:'#fff',
-  '& .MuiDataGrid-columnHeaders':{ bgcolor:'rgba(255,255,255,0.04)', borderBottom:'1px solid rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.5)', fontSize:11, textTransform:'uppercase', letterSpacing:.5 },
-  '& .MuiDataGrid-row':{ borderBottom:'1px solid rgba(255,255,255,0.04)', '&:hover':{ bgcolor:'rgba(255,255,255,0.03)' } },
-  '& .MuiDataGrid-cell':{ borderBottom:'none', color:'rgba(255,255,255,0.85)', fontSize:13 },
-  '& .MuiDataGrid-footerContainer':{ borderTop:'1px solid rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.5)' },
-  '& .MuiCheckbox-root':{ color:'rgba(255,255,255,0.3)' },
-  '& .MuiDataGrid-virtualScroller':{ minHeight:200 },
+  bgcolor:'transparent', border:'none', color:'#0f172a',
+  '& .MuiDataGrid-columnHeaders':{ bgcolor:'rgba(13,148,136,0.04)', borderBottom:'1px solid rgba(0,0,0,0.08)', color:'rgba(15,23,42,0.55)', fontSize:11, textTransform:'uppercase', letterSpacing:.5 },
+  '& .MuiDataGrid-row':{ borderBottom:'1px solid rgba(0,0,0,0.04)', '&:hover':{ bgcolor:'rgba(13,148,136,0.04)' } },
+  '& .MuiDataGrid-cell':{ borderBottom:'none', color:'#0f172a', fontSize:13 },
+  '& .MuiDataGrid-footerContainer':{ borderTop:'1px solid rgba(0,0,0,0.07)', color:'rgba(15,23,42,0.55)', bgcolor:'rgba(13,148,136,0.02)' },
+  '& .MuiCheckbox-root':{ color:'rgba(15,23,42,0.3)' },
+  '& .MuiDataGrid-virtualScroller':{ minHeight:200, bgcolor:'#ffffff' },
 };
 
 export default function UserTable({ users, loading, onDelete }) {
@@ -28,12 +28,12 @@ export default function UserTable({ users, loading, onDelete }) {
       valueGetter: (_, row) => `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim(),
       renderCell: ({ value, row }) => (
         <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
-          <Box sx={{ width:30, height:30, borderRadius:'50%', bgcolor:'#6366f1', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, flexShrink:0 }}>
+          <Box sx={{ width:30, height:30, borderRadius:'50%', bgcolor:'#0d9488', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, flexShrink:0, color:'#fff' }}>
             {(row.firstName?.[0] ?? '?').toUpperCase()}
           </Box>
           <Box sx={{ overflow:'hidden' }}>
             <Box sx={{ fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{value}</Box>
-            <Box sx={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>{row.email}</Box>
+            <Box sx={{ fontSize:11, color:'rgba(15,23,42,0.45)' }}>{row.email}</Box>
           </Box>
         </Box>
       ),
@@ -51,16 +51,16 @@ export default function UserTable({ users, loading, onDelete }) {
     {
       field:'lastLogin', headerName:'Last Login', width:140,
       valueGetter: (_, row) => row.loginData?.[0]?.loginTime ?? null,
-      renderCell: ({ value }) => value ? <Box sx={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>{formatDistanceToNow(new Date(value), { addSuffix:true })}</Box> : '—',
+      renderCell: ({ value }) => value ? <Box sx={{ fontSize:12, color:'rgba(15,23,42,0.5)' }}>{formatDistanceToNow(new Date(value), { addSuffix:true })}</Box> : '—',
     },
     {
       field:'actions', headerName:'', width:160, sortable:false,
       renderCell: ({ row }) => (
         <Box sx={{ display:'flex', gap:0.5 }}>
-          <Tooltip title="View"><IconButton size="small" onClick={() => openDrawer(row.userId)} sx={{ color:'rgba(255,255,255,0.5)','&:hover':{ color:'#6366f1' } }}><VisibilityIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="Edit"><IconButton size="small" onClick={() => openModal('edit', row.userId)} sx={{ color:'rgba(255,255,255,0.5)','&:hover':{ color:'#10b981' } }}><EditIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="Change Role"><IconButton size="small" onClick={() => openModal('role', row.userId)} sx={{ color:'rgba(255,255,255,0.5)','&:hover':{ color:'#f59e0b' } }}><AdminPanelSettingsIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="Delete"><IconButton size="small" onClick={() => onDelete(row.userId)} sx={{ color:'rgba(255,255,255,0.5)','&:hover':{ color:'#ef4444' } }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="View"><IconButton size="small" onClick={() => openDrawer(row.userId)} sx={{ color:'rgba(15,23,42,0.4)','&:hover':{ color:'#0d9488', bgcolor:'rgba(13,148,136,0.08)' } }}><VisibilityIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Edit"><IconButton size="small" onClick={() => openModal('edit', row.userId)} sx={{ color:'rgba(15,23,42,0.4)','&:hover':{ color:'#10b981', bgcolor:'rgba(16,185,129,0.08)' } }}><EditIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Change Role"><IconButton size="small" onClick={() => openModal('role', row.userId)} sx={{ color:'rgba(15,23,42,0.4)','&:hover':{ color:'#f59e0b', bgcolor:'rgba(245,158,11,0.08)' } }}><AdminPanelSettingsIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Delete"><IconButton size="small" onClick={() => onDelete(row.userId)} sx={{ color:'rgba(15,23,42,0.4)','&:hover':{ color:'#ef4444', bgcolor:'rgba(239,68,68,0.08)' } }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
         </Box>
       ),
     },

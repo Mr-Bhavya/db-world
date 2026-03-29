@@ -1,4 +1,7 @@
 package com.db.dbworld.core.user.dto;
 
-public class UserSearchResponse {
-}
+public record UserSearchResponse(
+        Long userId,
+        String fullName,
+        String email
+) {}

@@ -1,6 +1,6 @@
 package com.db.dbworld.utils;
 
-import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import lombok.extern.log4j.Log4j2;
 
 import java.nio.file.Files;
@@ -82,9 +82,9 @@ public final class RecordPathResolver {
      * @param path filesystem path
      * @param recordFinder function (e.g. repository::findById)
      */
-    public static Optional<DBCinemaRecordsEntity> resolveRecord(
+    public static Optional<RecordEntity> resolveRecord(
             Path path,
-            Function<Long, Optional<DBCinemaRecordsEntity>> recordFinder
+            Function<Long, Optional<RecordEntity>> recordFinder
     ) {
         Optional<Long> recordId = resolveRecordId(path);
         if (recordId.isEmpty()) {

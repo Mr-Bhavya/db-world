@@ -48,7 +48,7 @@ import {
   Info
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getStreamMediaList } from '../../ApiServices';
+import { getStreamMediaList } from '@shared/services/ApiServices';
 import FileInfoModal from './FileInfoModal';
 import FileActionModal from './FileActionModal';
 import useFileOperations from './useFileOperations';

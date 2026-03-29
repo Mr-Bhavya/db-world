@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.catalog.dto;
 
-import com.db.dbworld.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordType;
 import lombok.Getter;
 import lombok.Setter;
 

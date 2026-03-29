@@ -1,4 +1,4 @@
-package com.db.dbworld.payloads.user;
+package com.db.dbworld.audit.activity.dto;
 
 import com.db.dbworld.core.user.dto.UserDto;
 import lombok.Getter;

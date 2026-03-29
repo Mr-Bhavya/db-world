@@ -1,6 +1,6 @@
-package com.db.dbworld.logging.parser;
+package com.db.dbworld.infrastructure.logging.parser;
 
-import com.db.dbworld.logging.dto.AppRequestLogDto;
+import com.db.dbworld.infrastructure.logging.dto.AppRequestLogDto;
 import com.google.gson.Gson;
 
 public class RequestLogParser implements LogLineParser<AppRequestLogDto> {

@@ -1,11 +1,11 @@
 package com.db.dbworld.app.cinema.catalog.tags.services;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.catalog.entities.RecordTagEntity;
-import com.db.dbworld.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.cinema.catalog.tags.rules.RecordTagRule;
-import com.db.dbworld.cinema.catalog.tags.strategy.TagStrategyExecutor;
-import com.db.dbworld.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordTagEntity;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.catalog.tags.rules.RecordTagRule;
+import com.db.dbworld.app.cinema.catalog.tags.strategy.TagStrategyExecutor;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

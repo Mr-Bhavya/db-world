@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.client.dto;
 
-import com.db.dbworld.cinema.tmdb.review.dto.AuthorDetailsDto;
+import com.db.dbworld.app.cinema.tmdb.review.dto.AuthorDetailsDto;
 import lombok.Getter;
 import lombok.Setter;
 

@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.DriveInfo} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -22,7 +24,10 @@ public class DriveInfo {
     private String usedFormatted;
     private String usedPercent;
     private Boolean readOnly;
+    private Boolean removable;
     private String model;
+    private String vendor;
+    private String label;
     private String serial;
     private String type;
 }

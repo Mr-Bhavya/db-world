@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import Constants from "../../../Constants";
+import Constants from '@shared/constants';
 import {
   Box,
   Button,
@@ -39,8 +39,8 @@ import {
   Collapse,
   CardHeader
 } from "@mui/material";
-import { ytDownload, ytInfo, adminSearchRecord } from "../../../ApiServices";
-import { toast } from "../../../Toast";
+import { ytDownload, ytInfo, adminSearchRecord } from '@shared/services/ApiServices';
+import { toast } from '@shared/components/ui/Toast';
 import {
   Search as SearchIcon,
   Download as DownloadIcon,

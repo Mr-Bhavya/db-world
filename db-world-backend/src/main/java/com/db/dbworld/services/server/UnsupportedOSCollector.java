@@ -14,11 +14,11 @@ import java.nio.file.FileSystems;
 import java.util.*;
 
 /**
- * Collector for unsupported operating systems.
- * Provides basic system information available through Java Runtime.
+ * @deprecated Migrated to com.db.dbworld.app.system.info.collector.UnsupportedOSCollector.
  */
+@Deprecated(forRemoval = true)
 @Log4j2
-@Service("unsupportedOSCollector")
+// @Service("unsupportedOSCollector") — disabled; migrated to app.system.info.collector
 public class UnsupportedOSCollector extends ServerInfoCollector {
 
     public UnsupportedOSCollector(ProcessExecutor processExecutor) {

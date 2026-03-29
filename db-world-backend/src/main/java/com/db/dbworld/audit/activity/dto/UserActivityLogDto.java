@@ -1,4 +1,4 @@
-package com.db.dbworld.payloads.user;
+package com.db.dbworld.audit.activity.dto;
 
 import com.db.dbworld.audit.activity.entity.UserActivityLogEntity;
 import lombok.Getter;
@@ -26,7 +26,7 @@ public class UserActivityLogDto {
     // Constructor from Entity
     public UserActivityLogDto(UserActivityLogEntity entity) {
         this.id = entity.getId();
-        this.username = entity.getUser() != null ? entity.getUser().getEmail() : "Anonymous";
+        this.username = entity.getUserEmail() != null ? entity.getUserEmail() : "Anonymous";
         this.method = entity.getMethod();
         this.uri = entity.getUri();
         this.query = entity.getQuery();
@@ -37,7 +37,7 @@ public class UserActivityLogDto {
         this.duration = entity.getDuration();
         this.requestId = entity.getRequestId();
         this.timestamp = entity.getTimestamp();
-        this.userId = entity.getUser() != null ? entity.getUser().getUserId() : null;
+        this.userId = entity.getUserId();
     }
 
 }

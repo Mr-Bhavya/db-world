@@ -1,17 +1,17 @@
 package com.db.dbworld.app.cinema.rail.service.impl;
 
-import com.db.dbworld.cinema.rail.dto.RailAggregationResult;
-import com.db.dbworld.cinema.rail.service.RailAggregationService;
-import com.db.dbworld.cinema.tmdb.enums.VideoSite;
-import com.db.dbworld.cinema.tmdb.enums.VideoType;
-import com.db.dbworld.cinema.tmdb.genre.dto.TmdbGenreProjection;
-import com.db.dbworld.cinema.tmdb.genre.repository.GenreRepository;
-import com.db.dbworld.cinema.tmdb.media.projection.*;
-import com.db.dbworld.cinema.tmdb.media.repository.*;
-import com.db.dbworld.cinema.tmdb.providers.dto.ProviderProjection;
-import com.db.dbworld.cinema.tmdb.providers.dto.TmdbProviderDto;
-import com.db.dbworld.cinema.tmdb.providers.mapper.TmdbProviderMapper;
-import com.db.dbworld.cinema.tmdb.providers.repository.TmdbProviderRepository;
+import com.db.dbworld.app.cinema.rail.dto.RailAggregationResult;
+import com.db.dbworld.app.cinema.rail.service.RailAggregationService;
+import com.db.dbworld.app.cinema.tmdb.enums.VideoSite;
+import com.db.dbworld.app.cinema.tmdb.enums.VideoType;
+import com.db.dbworld.app.cinema.tmdb.genre.dto.TmdbGenreProjection;
+import com.db.dbworld.app.cinema.tmdb.genre.repository.GenreRepository;
+import com.db.dbworld.app.cinema.tmdb.media.projection.*;
+import com.db.dbworld.app.cinema.tmdb.media.repository.*;
+import com.db.dbworld.app.cinema.tmdb.providers.dto.ProviderProjection;
+import com.db.dbworld.app.cinema.tmdb.providers.dto.TmdbProviderDto;
+import com.db.dbworld.app.cinema.tmdb.providers.mapper.TmdbProviderMapper;
+import com.db.dbworld.app.cinema.tmdb.providers.repository.TmdbProviderRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

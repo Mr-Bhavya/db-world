@@ -1,8 +1,9 @@
 package com.db.dbworld.app.cinema.interaction.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.cinema.interaction.dto.InteractionDto;
-import com.db.dbworld.cinema.interaction.service.InteractionService;
+import com.db.dbworld.app.cinema.interaction.dto.InteractionDto;
+import com.db.dbworld.app.cinema.interaction.service.InteractionService;
+import com.db.dbworld.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,30 +15,21 @@ import java.util.List;
 public class InteractionController {
 
     private final InteractionService interactionService;
+    private final UserContext userContext;
 
     /* =========================
        WATCHLIST
        ========================= */
 
     @PostMapping("/watchlist")
-    public ApiResponse<Void> addToWatchlist(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.addToWatchlist(userId, recordId);
-
+    public ApiResponse<Void> addToWatchlist(@RequestParam Long recordId) {
+        interactionService.addToWatchlist(userContext.userId(), recordId);
         return ApiResponse.success("Added to watchlist");
     }
 
     @DeleteMapping("/watchlist")
-    public ApiResponse<Void> removeFromWatchlist(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.removeFromWatchlist(userId, recordId);
-
+    public ApiResponse<Void> removeFromWatchlist(@RequestParam Long recordId) {
+        interactionService.removeFromWatchlist(userContext.userId(), recordId);
         return ApiResponse.success("Removed from watchlist");
     }
 
@@ -46,24 +38,14 @@ public class InteractionController {
        ========================= */
 
     @PostMapping("/like")
-    public ApiResponse<Void> like(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.like(userId, recordId);
-
+    public ApiResponse<Void> like(@RequestParam Long recordId) {
+        interactionService.like(userContext.userId(), recordId);
         return ApiResponse.success("Liked successfully");
     }
 
     @DeleteMapping("/like")
-    public ApiResponse<Void> unlike(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.unlike(userId, recordId);
-
+    public ApiResponse<Void> unlike(@RequestParam Long recordId) {
+        interactionService.unlike(userContext.userId(), recordId);
         return ApiResponse.success("Unliked successfully");
     }
 
@@ -72,24 +54,14 @@ public class InteractionController {
        ========================= */
 
     @PostMapping("/love")
-    public ApiResponse<Void> love(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.love(userId, recordId);
-
+    public ApiResponse<Void> love(@RequestParam Long recordId) {
+        interactionService.love(userContext.userId(), recordId);
         return ApiResponse.success("Loved successfully");
     }
 
     @DeleteMapping("/love")
-    public ApiResponse<Void> unlove(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.unlove(userId, recordId);
-
+    public ApiResponse<Void> unlove(@RequestParam Long recordId) {
+        interactionService.unlove(userContext.userId(), recordId);
         return ApiResponse.success("Love removed");
     }
 
@@ -98,24 +70,14 @@ public class InteractionController {
        ========================= */
 
     @PostMapping("/watched")
-    public ApiResponse<Void> markWatched(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.markWatched(userId, recordId);
-
+    public ApiResponse<Void> markWatched(@RequestParam Long recordId) {
+        interactionService.markWatched(userContext.userId(), recordId);
         return ApiResponse.success("Marked as watched");
     }
 
     @DeleteMapping("/watched")
-    public ApiResponse<Void> unmarkWatched(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
-        interactionService.unmarkWatched(userId, recordId);
-
+    public ApiResponse<Void> unmarkWatched(@RequestParam Long recordId) {
+        interactionService.unmarkWatched(userContext.userId(), recordId);
         return ApiResponse.success("Removed from watched");
     }
 
@@ -125,13 +87,10 @@ public class InteractionController {
 
     @PostMapping("/progress")
     public ApiResponse<Void> updateProgress(
-            @RequestParam Long userId,
             @RequestParam Long recordId,
             @RequestParam Integer progress
     ) {
-
-        interactionService.updateProgress(userId, recordId, progress);
-
+        interactionService.updateProgress(userContext.userId(), recordId, progress);
         return ApiResponse.success("Progress updated");
     }
 
@@ -140,24 +99,16 @@ public class InteractionController {
        ========================= */
 
     @GetMapping
-    public ApiResponse<InteractionDto> getInteraction(
-            @RequestParam Long userId,
-            @RequestParam Long recordId
-    ) {
-
+    public ApiResponse<InteractionDto> getInteraction(@RequestParam Long recordId) {
         return ApiResponse.success(
-                interactionService.getInteraction(userId, recordId)
+                interactionService.getInteraction(userContext.userId(), recordId)
         );
     }
 
     @PostMapping("/batch")
-    public ApiResponse<List<InteractionDto>> getInteractions(
-            @RequestParam Long userId,
-            @RequestBody List<Long> recordIds
-    ) {
-
+    public ApiResponse<List<InteractionDto>> getInteractions(@RequestBody List<Long> recordIds) {
         return ApiResponse.success(
-                interactionService.getInteractions(userId, recordIds)
+                interactionService.getInteractions(userContext.userId(), recordIds)
         );
     }
 }

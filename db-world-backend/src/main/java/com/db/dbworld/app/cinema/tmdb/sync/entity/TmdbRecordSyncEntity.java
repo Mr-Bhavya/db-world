@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.sync.entity;
 
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.enums.SyncStatus;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import jakarta.persistence.*;
 import lombok.*;
 

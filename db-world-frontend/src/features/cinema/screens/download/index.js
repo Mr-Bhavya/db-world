@@ -1,639 +1,749 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Container,
-  Grid,
-  Box,
-  Typography,
-  Chip,
-  Tabs,
-  Tab,
-  Button,
-  useTheme,
-  alpha,
-  Avatar,
-  CircularProgress,
-  Alert,
-  Card,
-  CardContent,
-  Collapse,
-  IconButton,
-  useMediaQuery,
-  Tooltip,
-  Badge,
-  Divider
-} from "@mui/material";
+  Box, Container, Typography, Chip, IconButton, Button, Collapse,
+  Divider, CircularProgress, useTheme, useMediaQuery, alpha, Tooltip,
+  Stack,
+} from '@mui/material';
 import {
-  ExpandMore,
-  ExpandLess,
-  ArrowBack,
-  HighQuality,
-  Movie,
-  Tv,
-  Download,
-  Info
-} from "@mui/icons-material";
-import { useLocation, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { loadStreamFileInfoByRecordId } from "../../../ApiServices";
-import { MediaInfoRender } from "../MediaFileInfo/MediaInfoRender";
-import CommonServices from "../../../CommonServices";
-import Constants from "../../../Constants";
+  ArrowBack, ExpandMore, ExpandLess, PlayArrow, Download, ContentCopy,
+  Check, Subtitles, Audiotrack, FourK, Hd, Tv, Movie,
+  VideoSettings, ChevronRight,
+} from '@mui/icons-material';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Capacitor } from '@capacitor/core';
+import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import CinemaPlayer from '../../player/CinemaPlayer';
+import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
+import CommonServices from '@shared/services/CommonServices';
+import Constants from '@shared/constants';
+import AndroidPlugins from '@platform/android/AndroidPlugins';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const QUALITY_ORDER = ['8K', '4K', '2160p', '2K', '1440p', '1080p', '720p', '480p', '360p', 'SD', 'Unknown'];
+
+const QUALITY_META = {
+  '8K':    { color: '#ff3d00', label: '8K',    icon: <FourK sx={{ fontSize: 14 }} /> },
+  '4K':    { color: '#ff6b35', label: '4K',    icon: <FourK sx={{ fontSize: 14 }} /> },
+  '2160p': { color: '#ff6b35', label: '4K',    icon: <FourK sx={{ fontSize: 14 }} /> },
+  '2K':    { color: '#f59e0b', label: '2K',    icon: <Hd sx={{ fontSize: 14 }} /> },
+  '1440p': { color: '#f59e0b', label: '1440p', icon: <Hd sx={{ fontSize: 14 }} /> },
+  '1080p': { color: '#10b981', label: '1080p', icon: <Hd sx={{ fontSize: 14 }} /> },
+  '720p':  { color: '#3b82f6', label: '720p',  icon: <Hd sx={{ fontSize: 14 }} /> },
+  '480p':  { color: '#8b5cf6', label: '480p',  icon: null },
+  '360p':  { color: '#6b7280', label: '360p',  icon: null },
+  'SD':    { color: '#6b7280', label: 'SD',    icon: null },
+  'Unknown':{ color: '#4b5563', label: '?',   icon: null },
+};
+
+const HDR_META = {
+  'DV':     { color: '#7c3aed', label: 'Dolby Vision' },
+  'HDR10+': { color: '#d97706', label: 'HDR10+' },
+  'HDR10':  { color: '#b45309', label: 'HDR10' },
+  'HDR':    { color: '#92400e', label: 'HDR' },
+};
+
+const CODEC_META = {
+  'AV1':   { color: '#0891b2' },
+  'H.265': { color: '#059669' },
+  'H.264': { color: '#2563eb' },
+  'VP9':   { color: '#7c3aed' },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getQuality(video, fileName) {
+  if (video?.resolution) {
+    const [w, h] = video.resolution.split('x').map(Number);
+    if (h >= 4320 || w >= 7680) return '8K';
+    if (h >= 2160 || w >= 3840) return '4K';
+    if (h >= 1440 || w >= 2560) return '1440p';
+    if (h >= 1080 || w >= 1920) return '1080p';
+    if (h >= 720  || w >= 1280) return '720p';
+    if (h >= 480  || w >= 854)  return '480p';
+    if (h > 0) return 'SD';
+  }
+  if (fileName) {
+    const m = fileName.match(/(\d{3,4}p|4K|8K)/i);
+    if (m) return m[1].toLowerCase() === '4k' ? '4K' : m[1].toLowerCase() === '8k' ? '8K' : m[1];
+  }
+  return 'Unknown';
+}
+
+function getCodec(videoFormat) {
+  if (!videoFormat) return null;
+  const f = videoFormat.toUpperCase();
+  if (f.includes('AV1'))  return 'AV1';
+  if (f.includes('HEVC') || f.includes('H.265') || f.includes('H265')) return 'H.265';
+  if (f.includes('AVC')  || f.includes('H.264') || f.includes('H264')) return 'H.264';
+  if (f.includes('VP9'))  return 'VP9';
+  return videoFormat.split('(')[0].trim().split(' ')[0];
+}
+
+function getHdrTags(hdrDetails, fileName) {
+  const src = `${hdrDetails || ''} ${fileName || ''}`.toUpperCase();
+  const tags = [];
+  if (src.includes('DOLBY VISION') || (src.includes(' DV ') || src.includes('.DV.'))) tags.push('DV');
+  if (src.includes('HDR10+') || src.includes('HDR10 PLUS') || src.includes('HDR10PLUS')) tags.push('HDR10+');
+  else if (src.includes('HDR10')) tags.push('HDR10');
+  else if (src.includes('HDR')) tags.push('HDR');
+  return tags;
+}
+
+function getSeason(fileName) {
+  if (!fileName) return null;
+  const m = fileName.match(/[Ss](\d{1,2})[Ee]\d{1,2}/);
+  return m ? String(parseInt(m[1], 10)).padStart(2, '0') : null;
+}
+
+// ─── Inline badge components ──────────────────────────────────────────────────
+
+const QBadge = ({ quality }) => {
+  const meta = QUALITY_META[quality] || QUALITY_META['Unknown'];
+  return (
+    <Box sx={{
+      display: 'inline-flex', alignItems: 'center', gap: 0.4,
+      px: 1, py: 0.2, borderRadius: 1,
+      bgcolor: meta.color, color: '#fff',
+      fontSize: '0.7rem', fontWeight: 800, lineHeight: 1.6, letterSpacing: '0.03em',
+      flexShrink: 0,
+    }}>
+      {meta.label}
+    </Box>
+  );
+};
+
+const HdrBadge = ({ tag }) => {
+  const meta = HDR_META[tag];
+  if (!meta) return null;
+  return (
+    <Box sx={{
+      display: 'inline-flex', alignItems: 'center',
+      px: 0.9, py: 0.2, borderRadius: 1,
+      bgcolor: alpha(meta.color, 0.18), color: meta.color,
+      border: `1px solid ${alpha(meta.color, 0.4)}`,
+      fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.6, flexShrink: 0,
+    }}>
+      {meta.label}
+    </Box>
+  );
+};
+
+const CodecBadge = ({ codec }) => {
+  const meta = CODEC_META[codec] || { color: '#6b7280' };
+  return (
+    <Box sx={{
+      display: 'inline-flex', alignItems: 'center',
+      px: 0.9, py: 0.2, borderRadius: 1,
+      bgcolor: alpha(meta.color, 0.15), color: meta.color,
+      border: `1px solid ${alpha(meta.color, 0.35)}`,
+      fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.6, flexShrink: 0,
+    }}>
+      {codec}
+    </Box>
+  );
+};
+
+// ─── CopyIconButton ────────────────────────────────────────────────────────────
+
+const CopyIconButton = ({ url, label }) => {
+  const theme = useTheme();
+  const [copied, setCopied] = useState(false);
+  const handle = async () => {
+    const res = await CommonServices.handleCopy(url);
+    if (res.success) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  };
+  return (
+    <Tooltip title={copied ? 'Copied!' : label}>
+      <IconButton
+        size="small"
+        onClick={handle}
+        disabled={!url}
+        sx={{
+          border: `1px solid ${copied ? theme.palette.success.main : alpha(theme.palette.divider, 0.5)}`,
+          borderRadius: 1.5, p: 0.7,
+          color: copied ? 'success.main' : 'text.secondary',
+        }}
+      >
+        {copied ? <Check sx={{ fontSize: 16 }} /> : <ContentCopy sx={{ fontSize: 16 }} />}
+      </IconButton>
+    </Tooltip>
+  );
+};
+
+// ─── StatItem ─────────────────────────────────────────────────────────────────
+
+const StatItem = ({ icon, label, value }) => {
+  const theme = useTheme();
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.1 }}>
+      <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.disabled, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: '0.75rem', color: theme.palette.text.primary, fontWeight: 500 }}>
+        {icon} {value}
+      </Typography>
+    </Box>
+  );
+};
+
+// ─── FileCard ─────────────────────────────────────────────────────────────────
+
+const FileCard = ({ mediaInfo, allFiles = [], record }) => {
+  const theme = useTheme();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [playerOpen, setPlayerOpen] = useState(false);
+
+  const { general, video, audio, subtitle } = mediaInfo;
+  const quality  = getQuality(video, general?.fileName);
+  const codec    = getCodec(video?.format);
+  const hdrTags  = getHdrTags(video?.hdrDetails, general?.fileName);
+  const bitDepth = video?.bitDepth;
+
+  const handlePlay = () => {
+    if (Capacitor.getPlatform() === 'android') {
+      AndroidPlugins.MyMedia3Player?.(mediaInfo.streamUrl, general?.fileName);
+    } else {
+      setPlayerOpen(true);
+    }
+  };
+
+  const handleDownload = () => {
+    CommonServices.handleDownload(mediaInfo.downloadUrl, {
+      fileName: general?.fileName,
+      openInNewTab: true,
+    });
+  };
+
+  return (
+    <>
+      <Box sx={{
+        bgcolor: alpha(theme.palette.background.paper, 0.6),
+        border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+        borderRadius: 2,
+        overflow: 'hidden',
+        transition: 'border-color 0.2s',
+        '&:hover': { borderColor: alpha(theme.palette.primary.main, 0.4) },
+      }}>
+        <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
+          {/* File name */}
+          <Typography sx={{
+            fontSize: '0.8rem', fontWeight: 600, color: theme.palette.text.primary,
+            wordBreak: 'break-all', lineHeight: 1.4, mb: 1,
+          }}>
+            {general?.fileName || 'Unknown file'}
+          </Typography>
+
+          {/* Tags row */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: 1.5 }}>
+            <QBadge quality={quality} />
+            {codec && <CodecBadge codec={codec} />}
+            {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
+            {bitDepth === 10 && (
+              <Box sx={{ px: 0.9, py: 0.2, borderRadius: 1, bgcolor: alpha('#6366f1', 0.15), color: '#818cf8', border: `1px solid ${alpha('#6366f1', 0.35)}`, fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.6 }}>
+                10-bit
+              </Box>
+            )}
+          </Box>
+
+          {/* Quick stats grid */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 0.6 }}>
+            {video?.resolution && (
+              <StatItem icon="🎬" label="Resolution" value={video.resolution} />
+            )}
+            {video?.frameRate && (
+              <StatItem icon="⚡" label="Frame Rate" value={`${video.frameRate} fps`} />
+            )}
+            {video?.bitRate && (
+              <StatItem icon="📡" label="Video Bitrate" value={`${(video.bitRate / 1e6).toFixed(1)} Mbps`} />
+            )}
+            {general?.duration && (
+              <StatItem icon="⏱" label="Duration" value={CommonServices.formatDuration(general.duration)} />
+            )}
+            {general?.fileSize && (
+              <StatItem icon="📦" label="Size" value={general.fileSize} />
+            )}
+            {general?.overallBitrate && (
+              <StatItem icon="🔗" label="Total Bitrate" value={general.overallBitrate} />
+            )}
+          </Box>
+
+          {/* Audio summary */}
+          {audio?.length > 0 && (
+            <Box sx={{ mt: 1.2, display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
+              {audio.map((a, i) => (
+                <Box key={i} sx={{
+                  display: 'flex', alignItems: 'center', gap: 0.5,
+                  px: 1, py: 0.3, borderRadius: 1,
+                  bgcolor: alpha(theme.palette.info.main, 0.08),
+                  border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                }}>
+                  <Audiotrack sx={{ fontSize: 12, color: theme.palette.info.main }} />
+                  <Typography sx={{ fontSize: '0.7rem', color: theme.palette.info.main, fontWeight: 500 }}>
+                    {a.format?.split('(')[0].trim()} {a.channels ? `${a.channels}ch` : ''} {a.language ? `· ${a.language}` : ''}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          {/* Subtitle summary */}
+          {subtitle?.length > 0 && (
+            <Box sx={{ mt: 0.8, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Subtitles sx={{ fontSize: 13, color: theme.palette.text.disabled }} />
+              <Typography sx={{ fontSize: '0.72rem', color: theme.palette.text.disabled }}>
+                {subtitle.length} subtitle{subtitle.length > 1 ? 's' : ''}
+                {': '}
+                {subtitle.slice(0, 4).map(s => s.language).filter(Boolean).join(', ')}
+                {subtitle.length > 4 ? '…' : ''}
+              </Typography>
+            </Box>
+          )}
+
+          {/* ── Actions ── */}
+          <Box sx={{ display: 'flex', gap: 1, mt: 1.8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Play group */}
+            <Button
+              size="small" variant="contained" startIcon={<PlayArrow />}
+              onClick={handlePlay}
+              sx={{ bgcolor: '#fff', color: '#000', fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }}
+            >
+              Play
+            </Button>
+            <CopyIconButton url={mediaInfo.streamUrl} label="Copy stream URL" />
+
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+
+            {/* Download group */}
+            <Button
+              size="small" variant="outlined" startIcon={<Download />}
+              onClick={handleDownload}
+              sx={{ fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5 }}
+            >
+              Download
+            </Button>
+            <CopyIconButton url={mediaInfo.downloadUrl} label="Copy download URL" />
+
+            <Box sx={{ flex: 1 }} />
+
+            {/* Details */}
+            <Button
+              size="small" variant="text"
+              endIcon={<ChevronRight sx={{ fontSize: 16 }} />}
+              onClick={() => setDrawerOpen(true)}
+              sx={{ fontSize: '0.72rem', textTransform: 'none', color: theme.palette.text.secondary, px: 1 }}
+            >
+              Details
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+
+      <CinemaPlayer
+        open={playerOpen}
+        onClose={() => setPlayerOpen(false)}
+        mediaInfo={mediaInfo}
+        allFiles={allFiles}
+        record={record}
+      />
+      <MediaDetailsDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        mediaInfo={mediaInfo}
+        allFiles={allFiles}
+        record={record}
+      />
+    </>
+  );
+};
+
+// ─── QualitySection ───────────────────────────────────────────────────────────
+
+const QualitySection = ({ quality, files, allFiles, record }) => {
+  const theme = useTheme();
+  const meta = QUALITY_META[quality] || QUALITY_META['Unknown'];
+  const [open, setOpen] = useState(true);
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      {/* Quality header */}
+      <Box
+        onClick={() => setOpen(v => !v)}
+        sx={{
+          display: 'flex', alignItems: 'center', gap: 1.5,
+          px: 2, py: 1.2, mb: open ? 1.5 : 0,
+          bgcolor: alpha(meta.color, 0.1),
+          border: `1px solid ${alpha(meta.color, 0.25)}`,
+          borderLeft: `4px solid ${meta.color}`,
+          borderRadius: '0 8px 8px 0',
+          cursor: 'pointer',
+          userSelect: 'none',
+          transition: 'background 0.15s',
+          '&:hover': { bgcolor: alpha(meta.color, 0.15) },
+        }}
+      >
+        <Box sx={{ fontWeight: 800, fontSize: '1rem', color: meta.color, minWidth: 52 }}>
+          {meta.label}
+        </Box>
+        <Box sx={{ height: 16, width: 1, bgcolor: alpha(meta.color, 0.3) }} />
+        <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.secondary, flex: 1 }}>
+          {files.length} file{files.length !== 1 ? 's' : ''}
+        </Typography>
+        <IconButton size="small" sx={{ color: meta.color, p: 0.3 }}>
+          {open ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
+        </IconButton>
+      </Box>
+
+      <Collapse in={open} timeout="auto" unmountOnExit>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {files.map((f, i) => (
+            <motion.div key={f.id ?? i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: i * 0.04 }}>
+              <FileCard mediaInfo={f} allFiles={allFiles} record={record} />
+            </motion.div>
+          ))}
+        </Box>
+      </Collapse>
+    </Box>
+  );
+};
+
+// ─── MovieFiles ───────────────────────────────────────────────────────────────
+
+const MovieFiles = ({ files, record }) => {
+  const theme = useTheme();
+  const [activeQuality, setActiveQuality] = useState('All');
+
+  const grouped = useMemo(() => {
+    const map = {};
+    files.forEach(f => {
+      const q = getQuality(f.video, f.general?.fileName);
+      if (!map[q]) map[q] = [];
+      map[q].push(f);
+    });
+    return map;
+  }, [files]);
+
+  const qualities = useMemo(() =>
+    ['All', ...QUALITY_ORDER.filter(q => grouped[q]?.length > 0)],
+    [grouped]
+  );
+
+  const displayed = useMemo(() => {
+    if (activeQuality === 'All') return grouped;
+    return { [activeQuality]: grouped[activeQuality] || [] };
+  }, [activeQuality, grouped]);
+
+  return (
+    <Box>
+      {/* Quality filter chips */}
+      {qualities.length > 2 && (
+        <Box sx={{
+          display: 'flex', gap: 1, overflowX: 'auto', pb: 1.5, mb: 2,
+          scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
+        }}>
+          {qualities.map(q => {
+            const meta = q === 'All' ? null : QUALITY_META[q];
+            const count = q === 'All' ? files.length : (grouped[q]?.length ?? 0);
+            const active = activeQuality === q;
+            return (
+              <Chip
+                key={q}
+                label={`${meta?.label ?? q}  ${count}`}
+                size="small"
+                onClick={() => setActiveQuality(q)}
+                sx={{
+                  flexShrink: 0, fontWeight: 600, fontSize: '0.75rem',
+                  bgcolor: active ? (meta ? meta.color : theme.palette.primary.main) : alpha(theme.palette.divider, 0.3),
+                  color: active ? '#fff' : theme.palette.text.secondary,
+                  border: 'none', cursor: 'pointer',
+                  '&:hover': { bgcolor: active ? undefined : alpha(theme.palette.divider, 0.5) },
+                }}
+              />
+            );
+          })}
+        </Box>
+      )}
+
+      {/* Sections */}
+      {QUALITY_ORDER.filter(q => displayed[q]?.length > 0).map(q => (
+        <QualitySection key={q} quality={q} files={displayed[q]} allFiles={files} record={record} />
+      ))}
+    </Box>
+  );
+};
+
+// ─── SeriesFiles ──────────────────────────────────────────────────────────────
+
+const SeriesFiles = ({ files, record }) => {
+  const theme = useTheme();
+
+  const groupedBySeason = useMemo(() => {
+    const map = {};
+    files.forEach(f => {
+      const season = getSeason(f.general?.fileName) ?? 'Unknown';
+      if (!map[season]) map[season] = {};
+      const q = getQuality(f.video, f.general?.fileName);
+      if (!map[season][q]) map[season][q] = [];
+      map[season][q].push(f);
+    });
+    return map;
+  }, [files]);
+
+  const seasons = useMemo(() =>
+    Object.keys(groupedBySeason).sort((a, b) => {
+      if (a === 'Unknown') return 1;
+      if (b === 'Unknown') return -1;
+      return Number(a) - Number(b);
+    }),
+    [groupedBySeason]
+  );
+
+  // Active season filter — default to first season
+  const [activeSeason, setActiveSeason] = useState(() => seasons[0] ?? null);
+
+  // If seasons load/change and activeSeason not in list, reset
+  useEffect(() => {
+    if (seasons.length > 0 && !seasons.includes(activeSeason)) {
+      setActiveSeason(seasons[0]);
+    }
+  }, [seasons]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const seasonLabel = (s) => s === 'Unknown' ? 'Unknown' : `Season ${parseInt(s, 10)}`;
+
+  const activeSeasonData = groupedBySeason[activeSeason] ?? {};
+  const activeQualities = QUALITY_ORDER.filter(q => activeSeasonData[q]?.length > 0);
+  const totalFiles = Object.values(activeSeasonData).reduce((s, a) => s + a.length, 0);
+
+  return (
+    <Box>
+      {/* Season filter tabs */}
+      {seasons.length > 1 && (
+        <Box sx={{
+          display: 'flex', gap: 1, overflowX: 'auto', pb: 1.5, mb: 2.5,
+          scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
+        }}>
+          {seasons.map(s => {
+            const active = activeSeason === s;
+            const sData = groupedBySeason[s] ?? {};
+            const count = Object.values(sData).reduce((acc, a) => acc + a.length, 0);
+            const quals = QUALITY_ORDER.filter(q => sData[q]?.length > 0);
+            return (
+              <Box
+                key={s}
+                onClick={() => setActiveSeason(s)}
+                sx={{
+                  flexShrink: 0, cursor: 'pointer',
+                  px: 2, py: 1, borderRadius: 2,
+                  border: `1px solid ${active ? theme.palette.primary.main : alpha(theme.palette.divider, 0.4)}`,
+                  bgcolor: active ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.background.paper, 0.4),
+                  transition: 'all 0.18s',
+                  '&:hover': { bgcolor: active ? undefined : alpha(theme.palette.primary.main, 0.06) },
+                }}
+              >
+                <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: active ? theme.palette.primary.main : theme.palette.text.primary, lineHeight: 1.3 }}>
+                  {seasonLabel(s)}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'nowrap' }}>
+                  <Typography sx={{ fontSize: '0.65rem', color: theme.palette.text.disabled }}>
+                    {count} file{count !== 1 ? 's' : ''}
+                  </Typography>
+                  {quals.slice(0, 3).map(q => {
+                    const meta = QUALITY_META[q] || QUALITY_META['Unknown'];
+                    return (
+                      <Box key={q} sx={{ px: 0.6, borderRadius: 0.6, bgcolor: meta.color, color: '#fff', fontSize: '0.58rem', fontWeight: 800, lineHeight: 1.6 }}>
+                        {meta.label}
+                      </Box>
+                    );
+                  })}
+                  {quals.length > 3 && (
+                    <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.disabled }}>+{quals.length - 3}</Typography>
+                  )}
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+
+      {/* Active season content */}
+      {activeSeason && (
+        <Box>
+          {/* Season label + file count */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+            <Tv sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>
+              {seasonLabel(activeSeason)}
+            </Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: theme.palette.text.secondary }}>
+              · {totalFiles} file{totalFiles !== 1 ? 's' : ''}
+            </Typography>
+          </Box>
+
+          {activeQualities.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6, color: theme.palette.text.disabled }}>
+              <Typography>No files for this season</Typography>
+            </Box>
+          ) : (
+            activeQualities.map(q => (
+              <QualitySection key={q} quality={q} files={activeSeasonData[q]} allFiles={files} record={record} />
+            ))
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 const MediaDownloadViewer = (props) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { recordId: urlRecordId } = useParams();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
 
   const record = props.record || location.state?.record;
+  const resolvedRecordId = urlRecordId ?? record?.id ?? record?.recordId;
   const showBack = props.showBack ?? true;
   const onBack = props.onBack;
 
   const [mediaFileList, setMediaFileList] = useState([]);
-  const [mediaListLoader, setMediaListLoader] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
-  const [expandedSeasons, setExpandedSeasons] = useState(new Set());
-  const [expandedQualities, setExpandedQualities] = useState(new Set());
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (record?.recordId) {
-      setMediaListLoader(true);
-      loadStreamFileInfoByRecordId(record.recordId)
-        .then((response) => {
-          if (response.httpStatusCode === 200) {
-            const formatted = CommonServices.convertMediaInfoToCustomFormat(null, response.data);
-            setMediaFileList(formatted);
-          }
-        })
-        .catch((error) => {
-          console.error("Error loading media files:", error);
-        })
-        .finally(() => {
-          setMediaListLoader(false);
-        });
-    } else {
-      navigate(Constants.DB_CINEMA_BROWSE_ROUTE);
-    }
-  }, [record, navigate]);
-
-  const getQualityAndFormat = useMemo(() => (fileName, videoInfo) => {
-    const qualityMatch = fileName.match(/(\d{3,4}p|4K|8K)/i);
-    const baseQuality = qualityMatch ? qualityMatch[0] : "Unknown";
-    const hdrDetails = videoInfo?.hdrDetails || '';
-    const videoFormat = videoInfo?.format || '';
-    const isHDR = fileName.includes('HDR') || hdrDetails.includes('HDR');
-    const isDV = fileName.includes('DV') || hdrDetails.includes('DV');
-    const isH265 = videoFormat.includes('HEVC');
-    const isH264 = videoFormat.includes('AVC');
-    const isAV1 = videoFormat.includes('AV1');
-    const formats = [];
-
-    if (isAV1) formats.push('AV1');
-    else if (isH265) formats.push('H265');
-    else if (isH264) formats.push('H264');
-
-    if (isDV) formats.push('DV');
-    else if (isHDR) formats.push('HDR');
-
-    if (isHDR && isDV) formats.push('HDR+DV');
-
-    return {
-      baseQuality,
-      fullQuality: baseQuality + (formats.length ? ` (${formats.join(' + ')})` : ''),
-      formats,
-      isHDR,
-      isDV,
-      codec: isAV1 ? 'AV1' : isH265 ? 'H265' : isH264 ? 'H264' : 'Unknown'
-    };
-  }, []);
-
-  const { groupedBySeason, qualityStats } = useMemo(() => {
-    if (record?.type?.toLowerCase() !== "series") {
-      return { groupedBySeason: {}, qualityStats: {} };
-    }
-
-    const stats = {};
-    const grouped = mediaFileList.reduce((acc, ep) => {
-      const seasonMatch = ep?.general?.fileName?.match(/S(\d{2})/i);
-      const season = seasonMatch ? seasonMatch[1] : "Unknown";
-      const { baseQuality, formats, isHDR, isDV, codec } = getQualityAndFormat(ep.general.fileName, ep.video);
-
-      // Update quality statistics
-      if (!stats[baseQuality]) {
-        stats[baseQuality] = { count: 0, formats: new Set(), codecs: new Set(), hdr: 0, dv: 0 };
-      }
-      stats[baseQuality].count++;
-      formats.forEach(f => stats[baseQuality].formats.add(f));
-      stats[baseQuality].codecs.add(codec);
-      if (isHDR) stats[baseQuality].hdr++;
-      if (isDV) stats[baseQuality].dv++;
-
-      if (!acc[season]) acc[season] = {
-        qualities: {},
-        allFormats: new Set(),
-        episodeCount: 0
-      };
-
-      acc[season].episodeCount++;
-      formats.forEach(f => acc[season].allFormats.add(f));
-
-      if (!acc[season].qualities[baseQuality]) {
-        acc[season].qualities[baseQuality] = {
-          formats: {},
-          allFiles: [],
-          formatStats: { hdr: 0, dv: 0, codecs: new Set() }
-        };
-      }
-
-      acc[season].qualities[baseQuality].allFiles.push(ep);
-      acc[season].qualities[baseQuality].formatStats.hdr += isHDR ? 1 : 0;
-      acc[season].qualities[baseQuality].formatStats.dv += isDV ? 1 : 0;
-      acc[season].qualities[baseQuality].formatStats.codecs.add(codec);
-
-      if (formats.length > 0) {
-        const key = formats.join('+');
-        if (!acc[season].qualities[baseQuality].formats[key]) {
-          acc[season].qualities[baseQuality].formats[key] = [];
+    if (!resolvedRecordId) { navigate(Constants.DB_CINEMA_BROWSE_ROUTE); return; }
+    setLoading(true);
+    loadStreamFileInfoByRecordId(resolvedRecordId)
+      .then(res => {
+        if (res.httpStatusCode === 200) {
+          setMediaFileList(CommonServices.convertMediaInfoToCustomFormat(null, res.data));
         }
-        acc[season].qualities[baseQuality].formats[key].push(ep);
-      }
-      return acc;
-    }, {});
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [resolvedRecordId, navigate]);
 
-    return { groupedBySeason: grouped, qualityStats: stats };
-  }, [mediaFileList, record?.type, getQualityAndFormat]);
+  const isSeries = record?.type?.toLowerCase() === 'series';
 
-  const toggleSeason = (season) => {
-    setExpandedSeasons(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(season)) {
-        newSet.delete(season);
-      } else {
-        newSet.add(season);
-      }
-      return newSet;
-    });
-  };
-
-  const toggleQuality = (season, quality) => {
-    const key = `${season}-${quality}`;
-    setExpandedQualities(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(key)) {
-        newSet.delete(key);
-      } else {
-        newSet.add(key);
-      }
-      return newSet;
-    });
-  };
-
-  const QualityChip = ({ quality, count, size = "small" }) => {
-    return (
-      <Chip
-        size={size}
-        variant="outlined"
-        icon={<HighQuality />}
-        label={
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              pl: 0.5,
-            }}
-          >
-            <span>{quality}</span>
-
-            {/* BADGE FIXED – perfectly aligned */}
-            <Badge
-              badgeContent={count}
-              color="primary"
-              sx={{
-                paddingLeft: 0.5,
-                "& .MuiBadge-badge": {
-                  fontSize: "0.65rem",
-                  height: "16px",
-                  minWidth: "16px",
-                  lineHeight: "16px",
-                  borderRadius: "50%",
-                },
-                position: "relative",
-                top: "-1px", // fine tune vertical alignment
-              }}
-            />
-          </Box>
-        }
-        sx={{
-          borderColor: theme.palette.primary.main,
-          color: theme.palette.primary.main,
-          bgcolor: alpha(theme.palette.primary.main, 0.1),
-          fontWeight: 600,
-          p:1,
-          // Prevent icon from squishing content
-          "& .MuiChip-icon": {
-            fontSize: size === "small" ? "16px" : "20px",
-            ml: "-2px",
-          },
-
-        // FIX: allow label to fully expand
-        "& .MuiChip-label": {
-            display: "flex",
-            alignItems: "center",
-            px: 1,
-          },
-        }}
-      />
-    );
-  };
-
-  const RenderQualityGroup = ({ season, quality, qualityData }) => {
-    const formatKeys = Object.keys(qualityData.formats);
-    const qualityKey = `${season}-${quality}`;
-    const isExpanded = expandedQualities.has(qualityKey);
-
-    if (formatKeys.length <= 1) {
-      return (
-        <Grid container spacing={2}>
-          {qualityData.allFiles.map((ep, idx) => (
-            <Grid item xs={12} sm={6} lg={4} key={idx}>
-              <MediaInfoRender mediaInfo={ep} />
-            </Grid>
-          ))}
-        </Grid>
-      );
-    }
-
-    return (
-      <Box sx={{ width: '100%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-          <Tabs
-            value={activeTab}
-            onChange={(e, newValue) => setActiveTab(newValue)}
-            variant={isMobile ? "scrollable" : "standard"}
-            scrollButtons={isMobile ? "auto" : false}
-            sx={{
-              '& .MuiTabs-indicator': { backgroundColor: theme.palette.primary.main },
-              '& .MuiTab-root': {
-                color: theme.palette.text.secondary,
-                minWidth: 'auto',
-                px: 2
-              },
-              '& .Mui-selected': { color: theme.palette.primary.main }
-            }}
-          >
-            {formatKeys.map((formatKey, index) => (
-              <Tab
-                key={formatKey}
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {formatKey}
-                    <Chip
-                      label={qualityData.formats[formatKey].length}
-                      size="small"
-                      sx={{
-                        height: 20,
-                        fontSize: '0.65rem',
-                        bgcolor: activeTab === index
-                          ? alpha(theme.palette.primary.main, 0.2)
-                          : alpha(theme.palette.text.secondary, 0.1),
-                        color: activeTab === index ? theme.palette.primary.main : theme.palette.text.secondary
-                      }}
-                    />
-                  </Box>
-                }
-                sx={{ textTransform: 'none', minHeight: 'auto', py: 1 }}
-              />
-            ))}
-          </Tabs>
-
-          <Tooltip title={isExpanded ? "Collapse" : "Expand"}>
-            <IconButton
-              size="small"
-              onClick={() => toggleQuality(season, quality)}
-              sx={{
-                color: theme.palette.primary.main,
-                bgcolor: alpha(theme.palette.primary.main, 0.1),
-                '&:hover': {
-                  bgcolor: alpha(theme.palette.primary.main, 0.2)
-                }
-              }}
-            >
-              {isExpanded ? <ExpandLess /> : <ExpandMore />}
-            </IconButton>
-          </Tooltip>
-        </Box>
-
-        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-          <Grid container spacing={2}>
-            {qualityData.formats[formatKeys[activeTab]]?.map((ep, idx) => (
-              <Grid item xs={12} sm={6} lg={4} key={idx}>
-                <MediaInfoRender mediaInfo={ep} />
-              </Grid>
-            ))}
-          </Grid>
-        </Collapse>
-      </Box>
-    );
-  };
-
-  const RenderSeries = () => {
-    const seasons = Object.keys(groupedBySeason).sort();
-
-    return seasons.map((season) => {
-      const seasonData = groupedBySeason[season];
-      const qualityKeys = Object.keys(seasonData.qualities).sort((a, b) => {
-        const order = ['8K', '4K', '2160p', '1440p', '1080p', '720p', '480p'];
-        return order.indexOf(b) - order.indexOf(a);
-      });
-      const isSeasonExpanded = expandedSeasons.has(season);
-
-      return (
-        <Grid item xs={12} key={season}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Card
-              sx={{
-                mb: 2,
-                bgcolor: alpha(theme.palette.primary.main, 0.05),
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-              }}
-            >
-              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => toggleSeason(season)}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Tv color="primary" />
-                    <Typography variant="h6" sx={{ color: theme.palette.text.primary }}>
-                      Season {parseInt(season, 10)}
-                    </Typography>
-                    <Chip
-                      label={`${seasonData.episodeCount} episodes`}
-                      size="small"
-                      variant="outlined"
-                    />
-                    {/* <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {qualityKeys.map(quality => (
-                        <QualityChip
-                          key={quality}
-                          quality={quality}
-                          count={seasonData.qualities[quality].allFiles.length}
-                        />
-                      ))}
-                    </Box> */}
-                  </Box>
-                  <IconButton size="small">
-                    {isSeasonExpanded ? <ExpandLess /> : <ExpandMore />}
-                  </IconButton>
-                </Box>
-
-                <Collapse in={isSeasonExpanded} timeout="auto">
-                  <Divider sx={{ my: 2 }} />
-                  {qualityKeys.map(quality => (
-                    <motion.div
-                      key={quality}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3, delay: 0.1 }}
-                    >
-                      <Box sx={{ mb: 4 }}>
-                        <Box sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 2,
-                          mb: 2,
-                          flexWrap: 'wrap'
-                        }}>
-                          <Typography variant="subtitle1" sx={{
-                            fontWeight: 600,
-                            color: theme.palette.text.primary,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1
-                          }}>
-                            <HighQuality />
-                            {quality}
-                          </Typography>
-                          <Chip
-                            label={`${seasonData.qualities[quality].allFiles.length} files`}
-                            size="small"
-                            sx={{ bgcolor: theme.palette.grey[900] }}
-                          />
-                          {seasonData.qualities[quality].formatStats.hdr > 0 && (
-                            <Chip label="HDR" size="small" color="warning" variant="outlined" />
-                          )}
-                          {seasonData.qualities[quality].formatStats.dv > 0 && (
-                            <Chip label="Dolby Vision" size="small" color="success" variant="outlined" />
-                          )}
-                        </Box>
-                        <RenderQualityGroup
-                          season={season}
-                          quality={quality}
-                          qualityData={seasonData.qualities[quality]}
-                        />
-                      </Box>
-                    </motion.div>
-                  ))}
-                </Collapse>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </Grid>
-      );
-    });
-  };
-
-  const RenderMovie = () => (
-    <Grid container spacing={2}>
-      {mediaFileList.map((mediaInfo, idx) => (
-        <Grid item xs={12} sm={6} lg={4} key={idx}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: idx * 0.05 }}
-            style={{ height: '100%' }}
-          >
-            <MediaInfoRender mediaInfo={mediaInfo} />
-          </motion.div>
-        </Grid>
-      ))}
-    </Grid>
-  );
+  const posterPath = record?.tmdb?.posterPath || record?.tmdb?.poster_path
+    || record?.tmdb?.backdropPath || record?.tmdb?.backdrop_path;
+  const title = record?.tmdb?.title || record?.tmdb?.name || record?.title || '';
+  const overview = record?.tmdb?.overview || '';
+  const releaseYear = record?.tmdb?.releaseDate || record?.tmdb?.release_date;
 
   return (
-    <Box sx={{
-      backgroundColor: theme.palette.background.default,
-      minHeight: '100vh',
-      color: theme.palette.text.primary,
-      py: { xs: 2, sm: 3 }
-    }}>
-      <Container maxWidth="xl">
-        {/* Header Section */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 3, mb: 4, flexDirection: { xs: 'column', md: 'row' } }}>
-            {showBack && (
-              <Button
-                variant="outlined"
-                onClick={() => (onBack ? onBack() : navigate(-1))}
-                startIcon={<ArrowBack />}
+    <Box sx={{ bgcolor: theme.palette.background.default, minHeight: '100vh', color: theme.palette.text.primary }}>
+      {/* ── Hero / Header ── */}
+      <Box sx={{
+        position: 'relative', overflow: 'hidden',
+        background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)} 0%, ${theme.palette.background.default} 100%)`,
+      }}>
+        {/* Backdrop blur */}
+        {posterPath && (
+          <Box sx={{
+            position: 'absolute', inset: 0, zIndex: 0,
+            backgroundImage: `url(https://image.tmdb.org/t/p/w780${posterPath})`,
+            backgroundSize: 'cover', backgroundPosition: 'center top',
+            filter: 'blur(28px) brightness(0.18)',
+            transform: 'scale(1.1)',
+          }} />
+        )}
+
+        <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, pt: { xs: 2, sm: 3 }, pb: 4 }}>
+          {/* Back */}
+          {showBack && (
+            <Button
+              startIcon={<ArrowBack />} onClick={() => onBack ? onBack() : navigate(-1)}
+              size="small" variant="outlined"
+              sx={{ mb: 3, textTransform: 'none', borderColor: alpha('#fff', 0.25), color: alpha('#fff', 0.8), '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.08) } }}
+            >
+              Back
+            </Button>
+          )}
+
+          <Box sx={{ display: 'flex', gap: { xs: 2, sm: 3, md: 4 }, alignItems: 'flex-end', flexDirection: { xs: 'row' } }}>
+            {/* Poster */}
+            {posterPath && (
+              <Box
+                component="img"
+                src={`https://image.tmdb.org/t/p/w300${posterPath}`}
+                alt={title}
                 sx={{
-                  borderColor: theme.palette.primary.main,
-                  color: theme.palette.primary.main,
-                  '&:hover': {
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1)
-                  },
-                  flexShrink: 0
+                  width: { xs: 80, sm: 120, md: 160 },
+                  flexShrink: 0,
+                  borderRadius: 2,
+                  boxShadow: `0 8px 32px rgba(0,0,0,0.5)`,
+                  aspectRatio: '2/3',
+                  objectFit: 'cover',
                 }}
-              >
-                Back
-              </Button>
+              />
             )}
 
-            <Box sx={{ display: 'flex', gap: 3, flex: 1, width: '100%', flexDirection: { xs: 'column', sm: 'row' } }}>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Avatar
-                  src={`https://image.tmdb.org/t/p/w300${record?.tmdb?.poster_path || record?.tmdb?.backdrop_path}`}
-                  alt={record?.tmdb?.title}
-                  variant="rounded"
-                  sx={{
-                    width: { xs: 120, sm: 150, md: 200 },
-                    height: { xs: 180, sm: 225, md: 300 },
-                    boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.3)}`
-                  }}
+            {/* Info */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                <Chip
+                  icon={isSeries ? <Tv sx={{ fontSize: 14 }} /> : <Movie sx={{ fontSize: 14 }} />}
+                  label={isSeries ? 'TV Series' : 'Movie'}
+                  size="small"
+                  sx={{ bgcolor: alpha(theme.palette.primary.main, 0.2), color: theme.palette.primary.main, fontWeight: 700, fontSize: '0.7rem' }}
                 />
-              </motion.div>
-
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="h4" sx={{
-                  color: theme.palette.text.primary,
-                  mb: 1,
-                  fontSize: { xs: '1.75rem', sm: '2.125rem' },
-                  wordBreak: 'break-word'
-                }}>
-                  {record?.tmdb?.title}
-                </Typography>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                  <Chip
-                    icon={record?.type?.toLowerCase() === "series" ? <Tv /> : <Movie />}
-                    label={record?.type || "Movie"}
-                    color="primary"
-                    variant="outlined"
-                  />
-                  {record?.tmdb?.release_date && (
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                      {new Date(record.tmdb.release_date).getFullYear()}
-                    </Typography>
-                  )}
-                </Box>
-
-                {record?.tmdb?.overview && (
-                  <Typography variant="body1" sx={{
-                    color: theme.palette.text.secondary,
-                    lineHeight: 1.6,
-                    mb: 2
-                  }}>
-                    {record.tmdb.overview}
+                {releaseYear && (
+                  <Typography sx={{ fontSize: '0.8rem', color: alpha('#fff', 0.5) }}>
+                    {String(releaseYear).slice(0, 4)}
                   </Typography>
                 )}
               </Box>
-            </Box>
-          </Box>
-        </motion.div>
-
-        {/* Content Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            mb: 3,
-            flexWrap: 'wrap'
-          }}>
-            <Download color="primary" />
-            <Typography variant="h5" sx={{
-              color: theme.palette.text.primary,
-              fontSize: { xs: '1.5rem', sm: '1.75rem' }
-            }}>
-              Available Files
-            </Typography>
-            <Chip
-              label={`${mediaFileList.length} total files`}
-              color="primary"
-              variant="filled"
-            />
-          </Box>
-
-          {mediaListLoader ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-              >
-                <CircularProgress
-                  thickness={4}
-                  size={60}
-                  sx={{ color: theme.palette.primary.main }}
-                />
-              </motion.div>
-            </Box>
-          ) : mediaFileList.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <Alert
-                severity="info"
-                sx={{
-                  my: 5,
-                  backgroundColor: alpha(theme.palette.info.main, 0.1),
-                  color: theme.palette.info.contrastText
-                }}
-              >
-                No media files available for download
-              </Alert>
-            </motion.div>
-          ) : (
-            <AnimatePresence>
-              {record?.type?.toLowerCase() === "series" ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
-                >
-                  {/* <QualityOverview /> */}
-                  <Grid container spacing={2}>
-                    <RenderSeries />
-                  </Grid>
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
-                >
-                  <RenderMovie />
-                </motion.div>
+              <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ fontWeight: 800, color: '#fff', lineHeight: 1.15, mb: 1 }}>
+                {title}
+              </Typography>
+              {overview && !isMobile && (
+                <Typography sx={{
+                  fontSize: '0.85rem', color: alpha('#fff', 0.6), lineHeight: 1.6,
+                  display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  maxWidth: 600,
+                }}>
+                  {overview}
+                </Typography>
               )}
-            </AnimatePresence>
+            </Box>
+          </Box>
+        </Container>
+      </Box>
+
+      {/* ── Files Section ── */}
+      <Container maxWidth="xl" sx={{ pb: { xs: 10, sm: 6 } }}>
+        {/* Section title */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+          <VideoSettings color="primary" />
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Available Files
+          </Typography>
+          {!loading && (
+            <Chip
+              label={`${mediaFileList.length} total`}
+              size="small"
+              color="primary" variant="outlined"
+            />
           )}
-        </motion.div>
+        </Box>
+
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
+            <CircularProgress />
+          </Box>
+        ) : mediaFileList.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 12, color: theme.palette.text.disabled }}>
+            <VideoSettings sx={{ fontSize: 56, mb: 2, opacity: 0.3 }} />
+            <Typography>No media files available</Typography>
+          </Box>
+        ) : isSeries ? (
+          <SeriesFiles files={mediaFileList} record={record} />
+        ) : (
+          <MovieFiles files={mediaFileList} record={record} />
+        )}
       </Container>
     </Box>
   );

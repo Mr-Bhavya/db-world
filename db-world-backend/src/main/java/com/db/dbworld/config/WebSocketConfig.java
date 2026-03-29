@@ -1,7 +1,7 @@
 package com.db.dbworld.config;
 
-import com.db.dbworld.handler.MirrorStatusHandler;
-import com.db.dbworld.handler.UserCinemaActivityHandler;
+import com.db.dbworld.app.media.download.ws.MirrorStatusHandler;
+import com.db.dbworld.app.cinema.activity.ws.UserCinemaActivityHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;

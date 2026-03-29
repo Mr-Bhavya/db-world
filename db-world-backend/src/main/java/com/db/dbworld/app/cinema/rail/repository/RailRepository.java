@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.repository;
 
-import com.db.dbworld.cinema.enums.PageType;
-import com.db.dbworld.cinema.rail.entity.RailEntity;
+import com.db.dbworld.app.cinema.enums.PageType;
+import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

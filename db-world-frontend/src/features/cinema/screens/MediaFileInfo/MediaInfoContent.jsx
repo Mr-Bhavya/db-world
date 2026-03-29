@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import CommonServices from "../../../CommonServices";
+import CommonServices from '@shared/services/CommonServices';
 import {
     CardContent,
     Typography,
@@ -27,7 +27,7 @@ import {
     Folder,
     Movie
 } from "@mui/icons-material";
-import Constants from "../../../Constants";
+import Constants from '@shared/constants';
 
 export const MediaInfoContent = ({ mediaInfo }) => {
     const theme = useTheme();

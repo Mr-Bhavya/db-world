@@ -2,6 +2,10 @@ package com.db.dbworld.services.media;
 
 import lombok.Getter;
 
+/**
+ * @deprecated Migrated to {@link com.db.dbworld.app.media.stream.tag.MediaSource}.
+ */
+@Deprecated(forRemoval = true)
 @Getter
 public enum MediaSource {
 

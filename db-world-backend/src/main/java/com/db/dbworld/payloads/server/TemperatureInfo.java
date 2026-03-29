@@ -7,6 +7,8 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.TemperatureInfo} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -19,6 +21,8 @@ public class TemperatureInfo {
     private Double averageTemperatureF;
     private String highestSensor;
     private Double highestTemperatureC;
+    private Double maxTemperatureCelsius;
+    private java.util.List<java.util.Map<String, Object>> fanSensors;
 
     private String status;
     private String error;
