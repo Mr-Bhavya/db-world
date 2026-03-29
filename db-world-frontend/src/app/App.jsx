@@ -56,7 +56,7 @@ const LazyTmdbSyncManager     = lazy(() => import('@features/admin/TmdbSync/Tmdb
 const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
 const LazyServerInfo          = lazy(() => import('@features/admin/ServerInfo/ServerInfo.js'));
 const LazyRedisManager        = lazy(() => import('@features/admin/RedisManager.js'));
-const LazyFlmngrManager       = lazy(() => import('@features/admin/FileExplorer/FlmngrManager.js'));
+const LazyFileManager         = lazy(() => import('../features/adminv2/filemanager'));
 const LazySchedulerPanel      = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
 const LazyUserManagementV2    = lazy(() => import('../features/adminv2/users'));
 const LazyRecordManagementV2  = lazy(() => import('../features/adminv2/records'));
@@ -294,7 +294,7 @@ const ThemedApp = () => {
                     <Route path="system-info"   element={<LazyServerInfo />} />
                     <Route path="logs"          element={<LazyLogViewerV2 />} />
                     <Route path="redis"         element={<LazyRedisManager />} />
-                    <Route path="files"         element={<LazyFlmngrManager />} />
+                    <Route path="files"         element={<LazyFileManager />} />
                     <Route path="scheduler"     element={<LazySchedulerPanel />} />
                   </Route>
                 </Route>
