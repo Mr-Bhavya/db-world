@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.rail.entity;
 
-import com.db.dbworld.cinema.enums.PageType;
-import com.db.dbworld.cinema.enums.RailType;
-import com.db.dbworld.cinema.enums.RecordTagType;
-import com.db.dbworld.cinema.rail.converter.RailRuleJsonConverter;
-import com.db.dbworld.cinema.rail.rule.RailRule;
+import com.db.dbworld.app.cinema.enums.PageType;
+import com.db.dbworld.app.cinema.enums.RailType;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.rail.converter.RailRuleJsonConverter;
+import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import jakarta.persistence.*;
 import lombok.*;
 

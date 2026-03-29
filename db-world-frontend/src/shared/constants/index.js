@@ -56,6 +56,10 @@ export const DB_DONWLOAD_RECORD_ROUTE =
 
 export const DB_WEATHER_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-weather`;
 export const DB_GAMES_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-games`;
+export const DB_GAMES_TIC_TAC_TOE_ROUTE = `${DB_GAMES_ROUTE}/tic-tac-toe`;
+export const DB_GAMES_SNAKE_ROUTE = `${DB_GAMES_ROUTE}/snake`;
+export const DB_GAMES_MEMORY_MATCH_ROUTE = `${DB_GAMES_ROUTE}/memory-match`;
+export const DB_GAMES_2048_ROUTE = `${DB_GAMES_ROUTE}/2048`;
 
 export const DB_PASSWORD_MANAGER_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/db-password-manager`;
@@ -81,8 +85,11 @@ export const EDIT_USER_PROFILE_ROUTE =
 export const DB_ADMIN_TOOLS_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/admin-tools`;
 
+export const DB_ADMIN_BASE_ROUTE =
+  `${DB_WORLD_HOME_ROUTE}/admin`;
+
 export const ADD_RECORD_ROUTE =
-  `${DB_ADMIN_TOOLS_ROUTE}#active=records`;
+  `${DB_ADMIN_BASE_ROUTE}/records`;
 
 export const EDIT_RECORD_ROUTE =
   `${DB_CINEMA_ROUTE}/edit-record/:title`;
@@ -185,6 +192,10 @@ export default {
 
   DB_WEATHER_ROUTE,
   DB_GAMES_ROUTE,
+  DB_GAMES_TIC_TAC_TOE_ROUTE,
+  DB_GAMES_SNAKE_ROUTE,
+  DB_GAMES_MEMORY_MATCH_ROUTE,
+  DB_GAMES_2048_ROUTE,
 
   DB_PASSWORD_MANAGER_ROUTE,
   DB_GENERATE_PASSWORD_ROUTE,
@@ -201,6 +212,7 @@ export default {
   EDIT_USER_PROFILE_ROUTE,
 
   DB_ADMIN_TOOLS_ROUTE,
+  DB_ADMIN_BASE_ROUTE,
   ADD_RECORD_ROUTE,
   EDIT_RECORD_ROUTE,
 

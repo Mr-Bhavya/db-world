@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.client.dto;
 
-import com.db.dbworld.cinema.tmdb.media.dto.VideoDto;
+import com.db.dbworld.app.cinema.tmdb.media.dto.VideoDto;
 import lombok.Getter;
 import lombok.Setter;
 

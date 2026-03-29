@@ -1,14 +1,15 @@
 package com.db.dbworld.app.cinema.catalog.controllers;
 
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.cinema.catalog.dto.RecordAdminRowDto;
-import com.db.dbworld.cinema.catalog.dto.RecordDto;
-import com.db.dbworld.cinema.catalog.dto.request.AddTagRequest;
-import com.db.dbworld.cinema.catalog.dto.request.CreateRecordRequest;
-import com.db.dbworld.cinema.catalog.dto.request.UpdateRecordRequest;
-import com.db.dbworld.cinema.catalog.service.CatalogService;
-import com.db.dbworld.cinema.enums.RecordTagType;
-import com.db.dbworld.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
+import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.dto.request.AddTagRequest;
+import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
+import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
+import com.db.dbworld.app.cinema.catalog.service.CatalogService;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -26,6 +27,7 @@ public class CatalogAdminController {
        CREATE RECORD
        ========================= */
 
+    @AdminAccess
     @PostMapping
     public ApiResponse<RecordDto> create(@Valid @RequestBody CreateRecordRequest request) {
 
@@ -36,6 +38,7 @@ public class CatalogAdminController {
        UPDATE RECORD
        ========================= */
 
+    @AdminAccess
     @PutMapping("/{id}")
     public ApiResponse<RecordDto> update(
             @PathVariable Long id,
@@ -52,6 +55,7 @@ public class CatalogAdminController {
        DELETE RECORD
        ========================= */
 
+    @AdminAccess
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
 
@@ -64,6 +68,7 @@ public class CatalogAdminController {
        Admin Table
      ========================= */
 
+    @AdminAccess
     @GetMapping("/table")
     public ApiResponse<Page<RecordAdminRowDto>> table(
             @RequestParam(required = false) Long recordId,
@@ -86,7 +91,7 @@ public class CatalogAdminController {
         );
     }
 
-
+    @AdminAccess
     @PostMapping("/{recordId}/tags")
     public ApiResponse<Void> addTag(
             @PathVariable Long recordId,
@@ -98,6 +103,7 @@ public class CatalogAdminController {
         return ApiResponse.success("Tag assigned");
     }
 
+    @AdminAccess
     @DeleteMapping("/{recordId}/tags/{tagType}")
     public ApiResponse<Void> removeTag(
             @PathVariable Long recordId,

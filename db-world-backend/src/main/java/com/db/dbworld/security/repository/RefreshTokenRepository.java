@@ -1,6 +1,6 @@
-package com.db.dbworld.dao.user;
+package com.db.dbworld.security.repository;
 
-import com.db.dbworld.entities.user.RefreshTokenEntity;
+import com.db.dbworld.security.entity.RefreshTokenEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

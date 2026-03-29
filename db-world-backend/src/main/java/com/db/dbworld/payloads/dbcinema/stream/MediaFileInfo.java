@@ -1,6 +1,6 @@
 package com.db.dbworld.payloads.dbcinema.stream;
 
-import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

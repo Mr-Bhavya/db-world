@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.ServerInfo} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor

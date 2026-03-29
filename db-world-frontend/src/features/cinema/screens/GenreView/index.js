@@ -27,8 +27,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import requests from '../../services/requests';
-import Constants from '../../../Constants';
-import { loadDbCinemaRecordsFromUrl } from '../../../ApiServices';
+import Constants from '@shared/constants';
+import { loadDbCinemaRecordsFromUrl } from '@shared/services/ApiServices';
 import MediaCard from './MediaCard';
 
 const PAGE_SIZE = 20;

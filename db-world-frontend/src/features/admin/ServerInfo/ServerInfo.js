@@ -11,7 +11,7 @@ import {
   Paper
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import axiosInstance from '../../Utils/AxiosInstants';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 // OS-specific components
 import WindowsServerInfoDashboard from './WindowsServerInfoDashboard';
@@ -24,7 +24,7 @@ import { getMockRaspberryPiData } from './raspberryPiMock';
 const Main = styled('main')(({ theme }) => ({
   flexGrow: 1,
   padding: theme.spacing(3),
-  background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+  background: 'transparent',
   minHeight: '100vh',
   paddingInline: '0 !important',
 }));

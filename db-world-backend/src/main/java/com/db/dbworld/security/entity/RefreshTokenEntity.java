@@ -1,7 +1,7 @@
-package com.db.dbworld.entities.user;
+package com.db.dbworld.security.entity;
 
+import com.db.dbworld.core.user.entity.UserEntity;
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -18,10 +18,6 @@ import java.util.UUID;
 @Table(name = "refresh_token")
 @EntityListeners(AuditingEntityListener.class)
 public class RefreshTokenEntity {
-
-//    @Id
-//    @GeneratedValue(strategy = GenerationType.IDENTITY)
-//    private int tokenId;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

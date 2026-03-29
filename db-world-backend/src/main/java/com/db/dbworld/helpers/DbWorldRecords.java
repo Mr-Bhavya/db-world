@@ -1,6 +1,6 @@
 package com.db.dbworld.helpers;
 
-import com.db.dbworld.entities.user.UserEntity;
+import com.db.dbworld.core.user.entity.UserEntity;
 
 import java.time.Duration;
 import java.time.LocalDateTime;

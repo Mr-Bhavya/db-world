@@ -1,201 +1,111 @@
-// components/Navbar/CategoryModal.jsx
-import React from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  alpha,
-  useTheme
-} from '@mui/material';
+// Netflix-style genre dropdown — anchored below the AppBar
+import React, { useEffect, useRef } from 'react';
+import { Box, Typography, Chip } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const CategoryModal = ({ 
-  open, 
-  categories, 
-  selectedCategory, 
-  onSelect, 
-  onClear, 
-  onClose 
+// Positioned below the fixed AppBar — pass appBarHeight as prop or fall back to a default.
+const DEFAULT_APPBAR_H = 68;
+
+const CategoryModal = ({
+  open,
+  categories,
+  selectedCategory,
+  onSelect,
+  onClear,
+  onClose,
+  appBarHeight,
 }) => {
-  const theme = useTheme();
+  const TOP = appBarHeight ?? DEFAULT_APPBAR_H;
+  const panelRef = useRef(null);
 
-  const handleCategoryClick = (category) => {
-    onSelect(category);
-    // Modal closes automatically through the onSelect handler in Navbar
-  };
-
-  const handleClearClick = () => {
-    onClear();
-    // Modal closes automatically through the onClear handler in Navbar
-  };
-
-  const handleCloseClick = () => {
-    onClose();
-  };
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    // Delay so the click that opened the panel doesn't immediately close it
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 100);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('mousedown', handler);
+    };
+  }, [open, onClose]);
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          key="category-dropdown"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          ref={panelRef}
           style={{
             position: 'fixed',
-            top: 0,
+            top: TOP,
             left: 0,
             right: 0,
-            bottom: 0,
-            backgroundColor: alpha(theme.palette.common.black, 0.5),
-            backdropFilter: 'blur(8px)',
-            zIndex: 9998,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            zIndex: 1199, // just below AppBar (1200) but above content
+            background: 'rgba(20,20,20,0.97)',
+            backdropFilter: 'blur(6px)',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
+            padding: '20px 32px 24px',
           }}
-          onClick={onClose} // Close when clicking backdrop
         >
-          <motion.div
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 50, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking modal content
-          >
-            <Box
-              sx={{
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '90vw',
-                maxWidth: '500px',
-                maxHeight: '70vh',
-                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`,
-                backdropFilter: 'blur(40px)',
-                borderRadius: '20px',
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                boxShadow: `0 25px 50px ${alpha(theme.palette.common.black, 0.25)}`,
-                overflow: 'hidden',
-                zIndex: 9999,
-              }}
-            >
-              {/* Header */}
-              <Box sx={{ 
-                p: 3, 
-                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 100%)`
-              }}>
-                <Typography 
-                  variant="h5" 
-                  sx={{ 
-                    fontWeight: 700,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    color: 'transparent',
-                    textAlign: 'center'
-                  }}
-                >
-                  Browse Categories
-                </Typography>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    textAlign: 'center', 
-                    color: 'text.secondary',
-                    mt: 1
-                  }}
-                >
-                  Discover your favorite genres
-                </Typography>
-              </Box>
-
-              {/* Categories Grid */}
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                  gap: '12px',
-                  padding: '20px',
-                  maxHeight: '400px',
-                  overflowY: 'auto',
-                }}
+          {/* Header row */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              Genres
+            </Typography>
+            {selectedCategory && (
+              <Typography
+                onClick={onClear}
+                sx={{ color: '#e50914', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
               >
-                {categories.map((category) => (
-                  <motion.div
-                    key={category.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Box
-                      component="button"
-                      onClick={() => handleCategoryClick(category)}
-                      sx={{
-                        height: '48px',
-                        borderRadius: '12px',
-                        fontSize: '0.9rem',
-                        fontWeight: selectedCategory?.id === category.id ? 600 : 500,
-                        transition: 'all 0.3s ease',
-                        background: selectedCategory?.id === category.id
-                          ? `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
-                          : alpha(theme.palette.background.paper, 0.8),
-                        color: selectedCategory?.id === category.id ? theme.palette.common.white : theme.palette.text.primary,
-                        border: `1px solid ${selectedCategory?.id === category.id ? 'transparent' : alpha(theme.palette.divider, 0.2)}`,
-                        backdropFilter: 'blur(10px)',
-                        cursor: 'pointer',
-                        width: '100%',
-                        border: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: `0 4px 15px ${alpha(theme.palette.common.black, 0.1)}`,
-                        }
-                      }}
-                    >
-                      {category.name}
-                    </Box>
-                  </motion.div>
-                ))}
-              </Box>
+                Clear filter
+              </Typography>
+            )}
+          </Box>
 
-              {/* Actions */}
-              <Box sx={{ 
-                p: 3, 
-                borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                display: 'flex',
-                gap: 2
-              }}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={handleClearClick}
-                  sx={{
-                    borderRadius: '12px',
-                    py: 1.5,
-                    fontWeight: 600
+          {/* Genre chips */}
+          <Box sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 1,
+          }}>
+            {categories.map((cat) => {
+              const isActive = selectedCategory?.id === cat.id;
+              return (
+                <Chip
+                  key={cat.id}
+                  label={cat.name}
+                  size="small"
+                  onClick={() => {
+                    onSelect(isActive ? null : cat);
+                    if (!isActive) onClose();
                   }}
-                >
-                  Clear
-                </Button>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={handleCloseClick}
                   sx={{
-                    borderRadius: '12px',
-                    py: 1.5,
-                    fontWeight: 600,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
+                    bgcolor: isActive ? '#e50914' : 'rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    fontWeight: isActive ? 700 : 400,
+                    fontSize: '0.8rem',
+                    border: isActive ? 'none' : '1px solid rgba(255,255,255,0.15)',
+                    transition: 'all 0.15s',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      bgcolor: isActive ? '#c40812' : 'rgba(255,255,255,0.2)',
+                    },
+                    '& .MuiChip-label': { px: 1.5 },
                   }}
-                >
-                  Close
-                </Button>
-              </Box>
-            </Box>
-          </motion.div>
+                />
+              );
+            })}
+          </Box>
         </motion.div>
       )}
     </AnimatePresence>

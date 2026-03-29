@@ -1,17 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import {
-  likeRecord,
-  unLikeRecord,
-  // loveRecord,
-  // unLoveRecord,
-  // dislikeRecord,
-  // unDislikeRecord
-} from '../../ApiServices';
+import { addLike, removeLike } from '../api/cinemaApi';
 import { Tooltip, Zoom, IconButton, Box, Popover } from '@mui/material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
-import useRecordStore from '../../../store/recordStore';
-import { all } from 'axios';
+import useRecordStore from '@app/store/recordStore';
 
 const reactions = [
   { type: 'like', icon: 'fa-thumbs-up', label: 'Like' },
@@ -89,18 +81,14 @@ const Reaction = ({
 
   const removeCurrentReaction = async (type) => {
     switch (type) {
-      case 'like': return unLikeRecord(recordId);
-      // case 'love': return unLoveRecord(recordId);
-      // case 'dislike': return unDislikeRecord(recordId);
+      case 'like': return removeLike(recordId);
       default: return Promise.resolve();
     }
   };
 
   const addNewReaction = async (type) => {
     switch (type) {
-      case 'like': return likeRecord(recordId);
-      // case 'love': return loveRecord(recordId);
-      // case 'dislike': return dislikeRecord(recordId);
+      case 'like': return addLike(recordId);
       default: return Promise.resolve();
     }
   };

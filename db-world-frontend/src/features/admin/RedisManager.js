@@ -34,7 +34,7 @@ import {
     Schedule as TTLIcon,
     Warning as WarningIcon
 } from '@mui/icons-material';
-import axiosInstance from '../Utils/AxiosInstants';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { debounce } from 'lodash';
 
 const RedisManager = () => {

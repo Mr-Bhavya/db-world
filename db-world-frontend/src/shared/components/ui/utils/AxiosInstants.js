@@ -1,7 +1,7 @@
 import axios from 'axios';
-import Constants from '../Constants';
+import Constants from '@shared/constants';
 
-const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
+const REACT_APP_BASEURL = import.meta.env.VITE_API_BASE_URL || '';
 
 // Configuration
 const MAX_REFRESH_RETRIES = 3;
@@ -118,10 +118,11 @@ axiosInstance.interceptors.response.use(
                 // Process queued requests with error
                 processQueue(refreshError, null);
                 console.error('Token refresh failed:', refreshError);
-                
-                // Clear auth state and redirect to login
+
+                // Clear stored credentials and let the auth context handle navigation
+                // via the 'auth:force-logout' event — avoids a hard page reload.
                 localStorage.clear();
-                window.location.href = Constants.LOGIN_ROUTE;
+                window.dispatchEvent(new CustomEvent('auth:force-logout'));
                 return Promise.reject(refreshError);
             } finally {
                 // Reset refresh state

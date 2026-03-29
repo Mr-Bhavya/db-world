@@ -1,23 +1,23 @@
 package com.db.dbworld.app.cinema.rail.service.impl;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.catalog.mapper.RecordMapper;
-import com.db.dbworld.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.cinema.rail.builder.RailRecordBuilder;
-import com.db.dbworld.cinema.rail.cache.RailCacheService;
-import com.db.dbworld.cinema.rail.dto.*;
-import com.db.dbworld.cinema.rail.entity.*;
-import com.db.dbworld.cinema.rail.mapper.RailMapper;
-import com.db.dbworld.cinema.rail.projection.RailRecordProjection;
-import com.db.dbworld.cinema.rail.repository.*;
-import com.db.dbworld.cinema.rail.service.*;
-import com.db.dbworld.cinema.tmdb.genre.dto.GenreDto;
-import com.db.dbworld.cinema.tmdb.genre.entity.GenreEntity;
-import com.db.dbworld.cinema.tmdb.genre.mapper.GenreMapper;
-import com.db.dbworld.cinema.tmdb.genre.repository.GenreRepository;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.rail.builder.RailRecordBuilder;
+import com.db.dbworld.app.cinema.rail.cache.RailCacheService;
+import com.db.dbworld.app.cinema.rail.dto.*;
+import com.db.dbworld.app.cinema.rail.entity.*;
+import com.db.dbworld.app.cinema.rail.mapper.RailMapper;
+import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
+import com.db.dbworld.app.cinema.rail.repository.*;
+import com.db.dbworld.app.cinema.rail.service.*;
+import com.db.dbworld.app.cinema.tmdb.genre.dto.GenreDto;
+import com.db.dbworld.app.cinema.tmdb.genre.entity.GenreEntity;
+import com.db.dbworld.app.cinema.tmdb.genre.mapper.GenreMapper;
+import com.db.dbworld.app.cinema.tmdb.genre.repository.GenreRepository;
 
-import com.db.dbworld.cinema.enums.PageType;
-import com.db.dbworld.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.PageType;
+import com.db.dbworld.app.cinema.enums.RecordType;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -96,7 +96,10 @@ public class RailServiceImpl implements RailService {
                     .toList();
         }
 
+        Pageable probe = PageRequest.of(0, 1);
+
         return rails.stream()
+                .filter(rail -> railResolver.resolveIds(rail, probe, category).hasContent())
                 .map(railMapper::toDto)
                 .toList();
     }

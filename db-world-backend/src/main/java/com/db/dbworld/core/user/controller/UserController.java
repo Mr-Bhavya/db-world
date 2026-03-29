@@ -1,67 +1,175 @@
-package com.db.dbworld.controllers;
+package com.db.dbworld.core.user.controller;
 
+import com.db.dbworld.core.role.annotations.AdminAccess;
+import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.ResponsePayloads;
-import com.db.dbworld.payloads.user.UserDto;
+import com.db.dbworld.core.user.dto.*;
+import com.db.dbworld.audit.activity.dto.LoginDataDto;
 import com.db.dbworld.audit.activity.service.LoginDataService;
-import com.db.dbworld.services.user.UserService;
+import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldUtils;
-import jakarta.validation.Valid;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import jakarta.validation.Valid;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @CrossOrigin
 @RestController
 @RequestMapping("/api/user")
 @EnableMethodSecurity
+@RequiredArgsConstructor
 public class UserController {
 
-    @Autowired private UserService userService;
-    @Autowired private ModelMapper modelMapper;
-    @Autowired private DbWorldUtils dbWorldUtils;
-    @Autowired private LoginDataService loginDataService;
+    private final UserService userService;
+    private final LoginDataService loginDataService;
 
+    // ==============================
+    // ✅ CREATE USER
+    // ==============================
+    @AdminAccess
+    @PostMapping
+    public ApiResponse<UserDto> createUser(@Valid @RequestBody CreateUserRequest request) {
+        return ApiResponse.success(userService.createUser(request));
+    }
+
+    @AdminAccess
+    @PostMapping("/bulk")
+    public ApiResponse<List<UserDto>> createUsers(
+            @Valid @RequestBody List<CreateUserRequest> requests
+    ) {
+        return ApiResponse.success(userService.createUsers(requests));
+    }
+
+    // ==============================
+    // ✅ GET USER BY ID
+    // ==============================
+    @AdminAccess
     @GetMapping("/{userId}")
-    @PreAuthorize(DbWorldConstants.OWNER_AUTHORIZE)
-    public ApiResponse<List<UserDto>> getUserById(@PathVariable Long userId) {
-        return ApiResponse.success(List.of(userService.getUserDtoById(userId)));
+    public ApiResponse<UserDto> getUserById(@PathVariable Long userId) {
+        return ApiResponse.success(userService.getUserDtoById(userId));
     }
 
-    @GetMapping("/")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<List<ResponsePayloads.UserProfileResponse>> getUserProfile() {
+    // ==============================
+    // ✅ GET ALL USERS (ADMIN ONLY)
+    // ==============================
+    @AdminAccess
+    @GetMapping("/all")
+    public ApiResponse<List<UserDto>> getAllUsers(Pageable pageable) {
+        return ApiResponse.success(userService.getAllUsers(pageable));
+    }
+
+    // ==============================
+    // ✅ Search (Auto Complete)
+    // ==============================
+    @AnyRole
+    @GetMapping("/search")
+    public ApiResponse<List<UserSearchResponse>> searchUsers(
+            @RequestParam("q") String query,
+            @RequestParam(defaultValue = "5") int limit
+    ) {
+        return ApiResponse.success(userService.searchUsers(query, limit));
+    }
+
+    // ==============================
+    // ✅ GET PROFILE
+    // ==============================
+    @AnyRole
+    @GetMapping("/profile")
+    public ApiResponse<ResponsePayloads.UserProfileResponse> getUserProfile() {
+
         UserDto userDto = userService.getUserProfile();
-        ResponsePayloads.UserProfileResponse profile = modelMapper.map(userDto, ResponsePayloads.UserProfileResponse.class);
-        profile.setNoOfLogin(loginDataService.totalNumberOfLogin(userDto.getUserId()));
-        return ApiResponse.success(List.of(profile));
+
+        ResponsePayloads.UserProfileResponse profile =
+                new ResponsePayloads.UserProfileResponse();
+
+        // 🔒 Explicit safe mapping
+        profile.setUserId(userDto.getUserId());
+        profile.setFirstName(userDto.getFirstName());
+        profile.setLastName(userDto.getLastName());
+        profile.setEmail(userDto.getEmail());
+        profile.setMobileNo(userDto.getMobileNo());
+        profile.setUserRole(userDto.getUserRole());
+
+        profile.setNoOfLogin(
+                loginDataService.totalNumberOfLogin(userDto.getUserId())
+        );
+
+        return ApiResponse.success(profile);
     }
 
+    // ==============================
+    // ✅ UPDATE USER
+    // ==============================
+    @AnyRole
     @PutMapping("/{userId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<UserDto> updateUser(@Valid @RequestBody UserDto userDto, @PathVariable Long userId) {
-        return ApiResponse.success(userService.updateUser(userDto, userId));
+    public ApiResponse<UserDto> updateUser(
+            @Valid @RequestBody UpdateUserRequest request,
+            @PathVariable Long userId
+    ) {
+        return ApiResponse.success(userService.updateUser(request, userId));
     }
 
+    @AnyRole
+    @PatchMapping("/{userId}/role")
+    public ApiResponse<UserDto> updateUserRole(
+            @PathVariable Long userId,
+            @RequestParam Long roleId
+    ) {
+        return ApiResponse.success(userService.updateUserRole(userId, roleId));
+    }
+
+    // ==============================
+    // ✅ Delete USER
+    // ==============================
+    @AdminAccess
+    @DeleteMapping("/{userId}")
+    public ApiResponse<Void> deleteUser(@PathVariable Long userId) {
+
+        userService.deleteUserById(userId);
+
+        return ApiResponse.success("User deleted successfully");
+    }
+
+    // ==============================
+    // 🔐 CHANGE PASSWORD
+    // ==============================
+    @AnyRole
+    @PatchMapping("/change-password")
+    public ApiResponse<Void> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        userService.changePassword(request);
+        return ApiResponse.success("Password updated successfully");
+    }
+
+    // ==============================
+    // ✅ LOGIN HISTORY
+    // ==============================
+    @AnyRole
+    @GetMapping("/login-history")
+    public ApiResponse<List<LoginDataDto>> getLoginHistory() {
+        UserDto userDto = userService.getUserProfile();
+        return ApiResponse.success(loginDataService.getLoginHistory(userDto.getUserId()));
+    }
+
+    // ==============================
+    // ✅ GET ROLE
+    // ==============================
+    @AnyRole
     @GetMapping("/role")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getUserRole() {
-        Map<String, Object> r = new HashMap<>();
-        r.put("userId", userService.getUserIdFromToken());
-        r.put("role", userService.getRoleForUser());
-        return ApiResponse.success(r);
-    }
 
-    @PutMapping("/dob={dob}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<Void> updateDobForUser(@PathVariable @DateTimeFormat(pattern = "yyyy-MM-dd") Date dob) {
-        userService.updateDob(dob);
-        return ApiResponse.success("Dob is updated");
+        Map<String, Object> response = new HashMap<>();
+        response.put("role", userService.getRoleForUser());
+
+        return ApiResponse.success(response);
     }
 }

@@ -1,4 +1,4 @@
-package com.db.dbworld.logging.dto;
+package com.db.dbworld.infrastructure.logging.dto;
 
 import lombok.Getter;
 import lombok.Setter;

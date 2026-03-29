@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.catalog.tags.strategy.impl;
 
-import com.db.dbworld.cinema.catalog.tags.strategy.TagStrategy;
-import com.db.dbworld.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.catalog.tags.strategy.TagStrategy;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
 import org.springframework.stereotype.Component;
 
 /**

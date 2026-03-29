@@ -1,97 +1,12 @@
 // contexts/Authentication.js
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
-import { addUser } from '../redux/action/allActions';
-import axiosInstance from '../components/Utils/AxiosInstants';
-import { logOut, verify } from '../components/ApiServices';
-import { Box, CircularProgress, Typography, Backdrop, Paper } from '@mui/material';
+import { addUser } from '@app/redux/action/allActions';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import { logOut, verify } from '@shared/services/ApiServices';
+import { Box, LinearProgress, Typography, Backdrop, Paper } from '@mui/material';
 
 const AuthContext = createContext();
-
-// Enhanced Auth Loader Component with White Transparent Background
-const AuthLoader = () => (
-  <Backdrop
-    open={true}
-    sx={{
-      backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-dark backdrop
-      zIndex: 9999,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 3
-    }}
-  >
-    <Paper
-      elevation={16}
-      sx={{
-        padding: 5,
-        borderRadius: 4,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(15px)',
-        border: '1px solid rgba(255, 255, 255, 0.3)',
-        textAlign: 'center',
-        minWidth: 320,
-        maxWidth: 400
-      }}
-    >
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 3
-        }}
-      >
-        <CircularProgress 
-          size={60}
-          thickness={4}
-          sx={{
-            color: 'primary.main',
-            animation: 'rotate 2s linear infinite'
-          }}
-        />
-        <Box>
-          <Typography 
-            variant="h5" 
-            color="text.primary"
-            fontWeight="bold"
-            gutterBottom
-          >
-            Welcome Back
-          </Typography>
-          <Typography 
-            variant="body1" 
-            color="black"
-            sx={{
-              animation: 'fadeInOut 2s ease-in-out infinite',
-              mb: 1
-            }}
-          >
-            Initializing your session...
-          </Typography>
-          <Typography 
-            variant="body2" 
-            color="black"
-            sx={{ opacity: 0.8 }}
-          >
-            Please wait while we secure your access
-          </Typography>
-        </Box>
-      </Box>
-    </Paper>
-    <style>
-      {`
-        @keyframes rotate {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeInOut {
-          0%, 100% { opacity: 0.7; }
-          50% { opacity: 1; }
-        }
-      `}
-    </style>
-  </Backdrop>
-);
 
 // Network Status Checker
 const useNetworkStatus = () => {
@@ -170,24 +85,25 @@ const AuthProvider = ({ children }) => {
     setAuth(prev => ({ ...prev, error, loading: false }));
   }, []);
 
+  // Listen for forced-logout events dispatched by the axios interceptor
+  // when both the access token and refresh token are expired.
+  useEffect(() => {
+    const handleForceLogout = () => {
+      setAuth({ isAuthenticated: false, user: null, token: null, role: null, loading: false, error: null });
+    };
+    window.addEventListener('auth:force-logout', handleForceLogout);
+    return () => window.removeEventListener('auth:force-logout', handleForceLogout);
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
-      // Show loading state immediately
       setAuth(prev => ({ ...prev, loading: true }));
 
       const token = localStorage.getItem('token');
       const user = JSON.parse(localStorage.getItem('user') || 'null');
 
-      // Check network connectivity
       if (!isOnline) {
-        setAuth({
-          isAuthenticated: false,
-          user: null,
-          token: null,
-          role: null,
-          loading: false,
-          error: 'No internet connection'
-        });
+        setAuth({ isAuthenticated: false, user: null, token: null, role: null, loading: false, error: 'No internet connection' });
         return;
       }
 
@@ -197,52 +113,43 @@ const AuthProvider = ({ children }) => {
       }
 
       try {
-        // Add artificial delay to show loader (remove in production if not needed)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
         const response = await verify();
-        //console.log('Auth verification response:', response);
         const roles = response?.data?.roles || [];
         const role = roles[0] || null;
 
         if (role) {
-          login(token, user, role);
+          // Re-read token from localStorage — the axios interceptor may have
+          // silently refreshed it while verify() was in-flight, so the
+          // `token` variable captured above could already be stale.
+          const currentToken = localStorage.getItem('token') || token;
+          login(currentToken, user, role);
         } else {
           setAuthError('No valid role found');
           logout();
         }
       } catch (error) {
         console.error('Auth verification failed:', error);
-        setAuthError('Authentication failed. Please login again.');
-        
-        // Auto logout on verification failure
-        setTimeout(() => {
-          logout();
-        }, 2000);
+        // The interceptor already cleared localStorage and dispatched
+        // auth:force-logout, so just clean up React state.
+        setAuth({ isAuthenticated: false, user: null, token: null, role: null, loading: false, error: null });
       }
     };
 
     checkAuth();
   }, [login, logout, setAuthError, isOnline]);
 
-  // Show network error with white transparent background
   if (!isOnline && auth.loading) {
     return (
-      <Backdrop open={true} sx={{ backgroundColor: 'rgba(0, 0, 0, 0.6)', zIndex: 9999 }}>
-        <Paper
-          sx={{
-            padding: 4,
-            borderRadius: 3,
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)',
-            textAlign: 'center',
-            minWidth: 300
-          }}
-        >
-          <Typography variant="h6" color="text.primary" gutterBottom fontWeight="bold">
+      <Backdrop open={true} sx={{ bgcolor: 'rgba(0,0,0,0.75)', zIndex: 9999 }}>
+        <Paper sx={{
+          p: 4, borderRadius: 3, textAlign: 'center', minWidth: 300,
+          bgcolor: '#12121e', border: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(12px)',
+        }}>
+          <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 700 }} gutterBottom>
             No Internet Connection
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{ color: 'rgba(241,245,249,0.55)' }}>
             Please check your network connection and try again
           </Typography>
         </Paper>
@@ -250,47 +157,41 @@ const AuthProvider = ({ children }) => {
     );
   }
 
-  // Show auth error with white transparent background
   if (auth.error && !auth.loading) {
     return (
-      <Backdrop open={true} sx={{ backgroundColor: 'rgba(0, 0, 0, 0.6)', zIndex: 9999 }}>
-        <Paper
-          sx={{
-            padding: 4,
-            borderRadius: 3,
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)',
-            textAlign: 'center',
-            minWidth: 300
-          }}
-        >
-          <Typography variant="h6" color="error.main" gutterBottom fontWeight="bold">
+      <Backdrop open={true} sx={{ bgcolor: 'rgba(0,0,0,0.75)', zIndex: 9999 }}>
+        <Paper sx={{
+          p: 4, borderRadius: 3, textAlign: 'center', minWidth: 300,
+          bgcolor: '#12121e', border: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(12px)',
+        }}>
+          <Typography variant="h6" sx={{ color: '#f87171', fontWeight: 700 }} gutterBottom>
             Authentication Error
           </Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
+          <Typography variant="body2" sx={{ color: 'rgba(241,245,249,0.55)' }} gutterBottom>
             {auth.error}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ opacity: 0.7 }}>
-            Redirecting to login...
+          <Typography variant="body2" sx={{ color: 'rgba(241,245,249,0.35)' }}>
+            Redirecting to login…
           </Typography>
         </Paper>
       </Backdrop>
     );
   }
 
-  // Show loader while checking authentication
-  if (auth.loading) {
-    return <AuthLoader />;
-  }
-
   return (
-    <AuthContext.Provider value={{ 
-      auth, 
-      setUserRole, 
-      login, 
+    <AuthContext.Provider value={{
+      auth,
+      setUserRole,
+      login,
       logout,
-      setAuthError 
+      setAuthError
     }}>
+      {auth.loading && (
+        <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1400 }}>
+          <LinearProgress />
+        </Box>
+      )}
       {children}
     </AuthContext.Provider>
   );

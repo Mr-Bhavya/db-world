@@ -18,6 +18,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * @deprecated Superseded by {@link com.db.dbworld.app.media.watch.FileWatcherService}
+ * which uses the new MediaInfoService + SymlinkService pipeline.
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
 @Service
 public class MediaWatchService {

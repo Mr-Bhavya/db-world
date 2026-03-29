@@ -5,9 +5,9 @@ import {
   renameFileApi, 
   copyFileApi,
   createFolderApi 
-} from '../../ApiServices';
-import Constants from '../../Constants';
-import { toast } from '../../Toast';
+} from '@shared/services/ApiServices';
+import Constants from '@shared/constants';
+import { toast } from '@shared/components/ui/Toast';
 
 const useFileOperations = () => {
   const [showRenameModal, setShowRenameModal] = useState(false);

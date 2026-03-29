@@ -7,6 +7,8 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.NetworkAdapter} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -23,4 +25,15 @@ public class NetworkAdapter {
     private Long bytesReceived;
     private Long bytesSent;
     private String duplex;
+    // Live speed fields (bytes per second, 1-second delta)
+    private Long rxBytesTotal;
+    private Long txBytesTotal;
+    private Long rxBytesPerSec;
+    private Long txBytesPerSec;
+    private String rxBytesPerSecFormatted;
+    private String txBytesPerSecFormatted;
+    private Long rxErrors;
+    private Long txErrors;
+    private Long rxPackets;
+    private Long txPackets;
 }

@@ -1,12 +1,12 @@
-package com.db.dbworld.services.Impl;
+package com.db.dbworld.audit.activity.service.impl;
 
-import com.db.dbworld.security.repository.LoginDataRepository;
-import com.db.dbworld.dao.user.UserRepository;
-import com.db.dbworld.security.entity.LoginDataEntity;
-import com.db.dbworld.entities.user.UserEntity;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
-import com.db.dbworld.payloads.user.LoginDataDto;
-import com.db.dbworld.services.auth.LoginDataService;
+import com.db.dbworld.core.user.repository.UserRepository;
+import com.db.dbworld.core.user.entity.UserEntity;
+import com.db.dbworld.audit.activity.dto.LoginDataDto;
+import com.db.dbworld.audit.activity.entity.LoginDataEntity;
+import com.db.dbworld.audit.activity.repository.LoginDataRepository;
+import com.db.dbworld.audit.activity.service.LoginDataService;
 import jakarta.persistence.EntityManager;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,5 +48,13 @@ public class LoginDataServiceImpl implements LoginDataService {
     @Override
     public Long totalNumberOfLogin(Long userId) {
         return this.loginDataRepository.totalNumberOfLogin(userId);
+    }
+
+    @Override
+    public java.util.List<LoginDataDto> getLoginHistory(Long userId) {
+        return this.loginDataRepository.getLoginDataFromUserId(userId)
+                .stream()
+                .map(e -> this.modelMapper.map(e, LoginDataDto.class))
+                .collect(java.util.stream.Collectors.toList());
     }
 }

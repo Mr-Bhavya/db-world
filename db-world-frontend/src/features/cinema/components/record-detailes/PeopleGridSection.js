@@ -4,7 +4,7 @@ import { styled } from '@mui/material/styles';
 import { PeopleGrid, SubSectionTitle } from './CustomComponents';
 
 const PeopleGridSection = ({ title, people = [], getSecondaryText }) => {
-  const visiblePeople = people?.filter(p => p.profile_path).slice(0, 10);
+  const visiblePeople = people?.filter(p => p.profilePath ?? p.profile_path).slice(0, 10);
 
   if (!visiblePeople?.length) return null;
 
@@ -15,7 +15,7 @@ const PeopleGridSection = ({ title, people = [], getSecondaryText }) => {
         {visiblePeople.map(person => (
           <Box key={person.id}>
             <Avatar
-              src={`https://image.tmdb.org/t/p/w200${person.profile_path}`}
+              src={`https://image.tmdb.org/t/p/w200${person.profilePath ?? person.profile_path}`}
               alt={person.name}
               sx={{ width: 80, height: 80, mx: 'auto' }}
             />

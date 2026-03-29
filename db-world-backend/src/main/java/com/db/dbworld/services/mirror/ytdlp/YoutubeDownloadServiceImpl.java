@@ -1,10 +1,9 @@
 package com.db.dbworld.services.mirror.ytdlp;
 
-import com.db.dbworld.exceptions.ProcessExecutionException;
+import com.db.dbworld.core.exception.ProcessExecutionException;
 import com.db.dbworld.helpers.ProcessExecutor;
 import com.db.dbworld.payloads.mirror.ytdlp.YoutubeDownloadRequest;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -13,6 +12,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @deprecated Superseded by {@link com.db.dbworld.app.media.ingestion.download.YtDlpDownloadStrategy}.
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
 @Service
 public class YoutubeDownloadServiceImpl implements YoutubeDownloadService {

@@ -1,12 +1,12 @@
 package com.db.dbworld.services.media;
 
 import com.db.dbworld.entities.dbcinema.stream.*;
-import com.db.dbworld.exceptions.DbWorldException;
-import com.db.dbworld.exceptions.ProcessExecutionException;
+import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.core.exception.ProcessExecutionException;
 import com.db.dbworld.helpers.ProcessExecutor;
 import com.db.dbworld.payloads.mediafile.MediaFileDetails;
 import com.db.dbworld.services.media.resolver.MediaTagResolver;
-import com.db.dbworld.stream.processor.StreamProcessorFactory;
+import com.db.dbworld.core.processor.StreamProcessorFactory;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.DbWorldUtils;
@@ -24,6 +24,12 @@ import java.util.stream.Collectors;
 
 import static com.db.dbworld.services.media.resolver.MediaTagResolver.*;
 
+/**
+ * @deprecated Multi-step FFmpeg/mediainfo command orchestration superseded by
+ * {@link com.db.dbworld.app.media.info.service.MediaInfoService} (mediainfo) and
+ * {@link com.db.dbworld.app.media.enrichment.TmdbMediaEnrichmentService} (FFmpeg one-pass).
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
 @Service
 public class MediaInfoCommandService {

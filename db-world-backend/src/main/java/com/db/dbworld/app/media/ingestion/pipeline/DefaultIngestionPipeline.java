@@ -1,4 +1,164 @@
 package com.db.dbworld.app.media.ingestion.pipeline;
 
-public class DefaultIngestionPipeline {
+import com.db.dbworld.app.media.ingestion.model.*;
+import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
+import com.db.dbworld.app.media.ingestion.spi.*;
+import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
+import com.db.dbworld.app.media.ingestion.tracking.*;
+import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+
+@Log4j2
+@RequiredArgsConstructor
+public class DefaultIngestionPipeline implements IngestionPipeline {
+
+    private final List<SourceHandler>    sourceHandlers;
+    private final List<DownloadStrategy> downloadStrategies;
+    private final List<ProcessingStrategy> processors;
+
+    private final TrackingService    trackingService;
+    private final IngestionRepository repository;
+    private final ExecutorService    jobExecutor;
+    private final IngestionJobStore  jobStore;
+
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Override
+    public String start(IngestionRequest request) {
+        String jobId = UUID.randomUUID().toString();
+
+        IngestionContext ctx = new IngestionContext();
+        ctx.setJobId(jobId);
+        ctx.setRequest(request);
+        ctx.setStatus(MirrorStatus.QUEUED);
+        ctx.setLogCollector(new LogCollector());
+        ctx.setRecordId(request.getRecordId());
+
+        jobStore.register(jobId, request);
+        trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
+
+        jobExecutor.submit(() -> execute(ctx));
+        return jobId;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void execute(IngestionContext ctx) {
+        String jobId = ctx.getJobId();
+        try {
+            trackingService.updateStatus(jobId, MirrorStatus.STARTED);
+            ctx.log("PIPELINE", "Job started: " + jobId);
+
+            // ── Resolve source ───────────────────────────────────────────────
+            SourceHandler handler = sourceHandlers.stream()
+                    .filter(h -> h.supports(ctx.getRequest().getUri()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException(
+                            "No source handler for URI: " + ctx.getRequest().getUri()));
+
+            ctx.setSource(handler.resolve(ctx.getRequest().getUri()));
+            jobStore.setSourceType(jobId, ctx.getSource().getType());
+            ctx.log("SOURCE", "Resolved source type: " + ctx.getSource().getType());
+
+            // ── Cancellation check ───────────────────────────────────────────
+            if (isCancelled(ctx)) {
+                markCancelled(ctx);
+                return;
+            }
+
+            // ── Download ─────────────────────────────────────────────────────
+            trackingService.updateStatus(jobId, MirrorStatus.DOWNLOADING);
+            trackingService.updateStep(jobId, PipelineStepType.DOWNLOAD);
+
+            DownloadStrategy downloader = downloadStrategies.stream()
+                    .filter(d -> d.supports(ctx.getSource()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException(
+                            "No download strategy for source: " + ctx.getSource().getType()));
+
+            DownloadResult downloadResult = downloader.download(ctx);
+            ctx.setDownload(downloadResult);
+
+            if (!downloadResult.isSuccess()) {
+                throw new RuntimeException("Download failed: " + downloadResult.getErrorMessage());
+            }
+
+            ctx.log("DOWNLOAD", "Completed: " + downloadResult.getFileName());
+
+            if (isCancelled(ctx)) {
+                markCancelled(ctx);
+                return;
+            }
+
+            // ── Processing ───────────────────────────────────────────────────
+            trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
+
+            for (ProcessingStrategy processor : processors) {
+                if (!processor.supports(ctx)) continue;
+
+                ctx.log("PROCESS", "Running: " + processor.getClass().getSimpleName());
+                trackingService.updateStep(jobId, resolveStep(processor));
+
+                ProcessingResult result = processor.process(ctx);
+                ctx.setProcessing(result);
+
+                if (!result.isSuccess()) {
+                    ctx.logError("PROCESS", "Failed: " + result.getErrorMessage());
+                    break;
+                }
+
+                if (isCancelled(ctx)) {
+                    markCancelled(ctx);
+                    return;
+                }
+            }
+
+            // ── Complete ─────────────────────────────────────────────────────
+            ctx.setStatus(MirrorStatus.SUCCESS);
+            ctx.log("PIPELINE", "Job completed successfully");
+            trackingService.complete(jobId);
+            repository.save(ctx);
+
+        } catch (Exception e) {
+            log.error("Pipeline failed for jobId={}", jobId, e);
+            ctx.logError("PIPELINE", "Job failed: " + e.getMessage());
+            ctx.setMessage(e.getMessage());
+            trackingService.fail(jobId, e.getMessage());
+            safeRepositorySave(ctx);
+        } finally {
+            jobStore.remove(jobId);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private boolean isCancelled(IngestionContext ctx) {
+        return ctx.isCancelled() || trackingService.isCancelled(ctx.getJobId());
+    }
+
+    private void markCancelled(IngestionContext ctx) {
+        ctx.log("PIPELINE", "Job cancelled");
+        ctx.setStatus(MirrorStatus.CANCELLED);
+        trackingService.updateStatus(ctx.getJobId(), MirrorStatus.CANCELLED);
+        safeRepositorySave(ctx);
+    }
+
+    private void safeRepositorySave(IngestionContext ctx) {
+        try { repository.save(ctx); } catch (Exception e) {
+            log.warn("[{}] Failed to persist final state: {}", ctx.getJobId(), e.getMessage());
+        }
+    }
+
+    private PipelineStepType resolveStep(ProcessingStrategy processor) {
+        String name = processor.getClass().getSimpleName().toLowerCase();
+        if (name.contains("extract")) return PipelineStepType.EXTRACT;
+        if (name.contains("ffmpeg") || name.contains("media")) return PipelineStepType.FFMPEG;
+        if (name.contains("merge")) return PipelineStepType.MERGE;
+        return PipelineStepType.MEDIA_INFO;
+    }
 }

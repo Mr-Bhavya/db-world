@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.trending.dto;
 
-import com.db.dbworld.cinema.tmdb.dto.TmdbDto;
+import com.db.dbworld.app.cinema.tmdb.dto.TmdbDto;
 import lombok.Getter;
 import lombok.Setter;
 

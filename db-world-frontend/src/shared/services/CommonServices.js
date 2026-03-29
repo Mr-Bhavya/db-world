@@ -1,5 +1,5 @@
-import Constants from "./Constants";
-import { addUser, moviePageNumber, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from "../redux/action/allActions";
+import Constants from '@shared/constants';
+import { addUser, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from '@app/redux/action/allActions';
 import { useDispatch } from "react-redux";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
@@ -182,7 +182,7 @@ class CommonServices {
       toastCallback(success, message);
     }
     
-    if (process.env.NODE_ENV === "development") {
+    if (import.meta.env.MODE === "development") {
       //console.log(`Copy ${success ? "success" : "error"}:`, message);
     }
   }

@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.interaction.repository;
 
-import com.db.dbworld.cinema.interaction.entity.UserInteractionEntity;
-import com.db.dbworld.cinema.interaction.enums.InteractionType;
+import com.db.dbworld.app.cinema.interaction.entity.UserInteractionEntity;
+import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

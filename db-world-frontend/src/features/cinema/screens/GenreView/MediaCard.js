@@ -24,7 +24,7 @@ import {
     AccessTime
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import Constants from '../../../Constants';
+import Constants from '@shared/constants';
 
 const MediaCard = ({ record, onClick, index }) => {
     const theme = useTheme();

@@ -1,13 +1,13 @@
 package com.db.dbworld.app.cinema.bootstrap.service;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.cinema.catalog.entities.RecordTagEntity;
-import com.db.dbworld.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.cinema.enums.RecordTagType;
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.entities.MovieTmdbEntity;
-import com.db.dbworld.cinema.tmdb.entities.TvSeriesTmdbEntity;
-import com.db.dbworld.cinema.tmdb.ingestion.TmdbIngestionService;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordTagEntity;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

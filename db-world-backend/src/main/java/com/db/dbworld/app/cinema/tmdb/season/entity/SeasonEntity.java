@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.season.entity;
 
-import com.db.dbworld.cinema.tmdb.entities.TvSeriesTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

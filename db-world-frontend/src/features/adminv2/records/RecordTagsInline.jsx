@@ -7,41 +7,40 @@ import { useSnackbar } from 'notistack';
 import { addRecordTag, removeRecordTag } from '../api/adminApi';
 import { ALL_TAGS, TAG_COLORS } from './tagConstants';
 
+// tags comes from backend as a comma-separated string e.g. "FEATURED,TRENDING" or null
+const parseTags = (tags) =>
+  tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+
 export default function RecordTagsInline({ record, queryKey }) {
   const [anchor, setAnchor] = useState(null);
   const [pendingTag, setPendingTag] = useState(null);
   const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
-  const currentTagTypes = (record.tags ?? []).map(t => t.tagType);
+  const currentTagTypes = parseTags(record.tags);
   const availableTags = ALL_TAGS.filter(t => !currentTagTypes.includes(t));
 
   const addMutation = useMutation({
     mutationFn: ({ recordId, tagType }) => addRecordTag(recordId, { tagType }),
-    onMutate: ({ tagType }) => {
+    onMutate: async ({ tagType }) => {
       setPendingTag(tagType);
-      // Optimistic update
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData(queryKey);
       qc.setQueryData(queryKey, old => {
         if (!old) return old;
         return {
           ...old,
           content: old.content.map(r => r.recordId === record.recordId
-            ? { ...r, tags: [...(r.tags ?? []), { tagType, priority: 0 }] }
+            ? { ...r, tags: r.tags ? `${r.tags},${tagType}` : tagType }
             : r
           ),
         };
       });
+      return { previous };
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey }); enqueueSnackbar('Tag added', { variant:'success', autoHideDuration:1500 }); },
-    onError: (_, { tagType }) => {
-      // Rollback
-      qc.setQueryData(queryKey, old => ({
-        ...old,
-        content: old.content.map(r => r.recordId === record.recordId
-          ? { ...r, tags: (r.tags ?? []).filter(t => t.tagType !== tagType) }
-          : r
-        ),
-      }));
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
       enqueueSnackbar('Failed to add tag', { variant:'error' });
     },
     onSettled: () => { setPendingTag(null); setAnchor(null); },
@@ -55,7 +54,7 @@ export default function RecordTagsInline({ record, queryKey }) {
       qc.setQueryData(queryKey, old => ({
         ...old,
         content: old.content.map(r => r.recordId === record.recordId
-          ? { ...r, tags: (r.tags ?? []).filter(t => t.tagType !== tagType) }
+          ? { ...r, tags: parseTags(r.tags).filter(t => t !== tagType).join(',') || null }
           : r
         ),
       }));
@@ -70,28 +69,28 @@ export default function RecordTagsInline({ record, queryKey }) {
 
   return (
     <Box sx={{ display:'flex', flexWrap:'wrap', gap:.5, alignItems:'center' }}>
-      {(record.tags ?? []).map(tag => (
+      {currentTagTypes.map(tagType => (
         <Chip
-          key={tag.tagType}
-          label={tag.tagType.replace(/_/g,' ')}
+          key={tagType}
+          label={tagType.replace(/_/g,' ')}
           size="small"
-          onDelete={() => removeMutation.mutate({ recordId: record.recordId, tagType: tag.tagType })}
-          sx={{ height:18, fontSize:10, fontWeight:700, bgcolor:`${TAG_COLORS[tag.tagType] ?? '#6366f1'}22`, color: TAG_COLORS[tag.tagType] ?? '#6366f1', border:`1px solid ${TAG_COLORS[tag.tagType] ?? '#6366f1'}44`, '& .MuiChip-deleteIcon':{ color: TAG_COLORS[tag.tagType] ?? '#6366f1', fontSize:12 } }}
+          onDelete={() => removeMutation.mutate({ recordId: record.recordId, tagType })}
+          sx={{ height:18, fontSize:10, fontWeight:700, bgcolor:`${TAG_COLORS[tagType] ?? '#0d9488'}18`, color: TAG_COLORS[tagType] ?? '#0d9488', border:`1px solid ${TAG_COLORS[tagType] ?? '#0d9488'}44`, '& .MuiChip-deleteIcon':{ color: TAG_COLORS[tagType] ?? '#0d9488', fontSize:12 } }}
         />
       ))}
 
       {availableTags.length > 0 && (
         <>
           <IconButton size="small" onClick={e => setAnchor(e.currentTarget)}
-            sx={{ width:18, height:18, bgcolor:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.4)', '&:hover':{ bgcolor:'rgba(99,102,241,0.2)', color:'#6366f1' } }}>
+            sx={{ width:18, height:18, bgcolor:'rgba(0,0,0,0.06)', color:'rgba(15,23,42,0.4)', '&:hover':{ bgcolor:'rgba(13,148,136,0.12)', color:'#0d9488' } }}>
             {pendingTag ? <CircularProgress size={10} color="inherit" /> : <AddIcon sx={{ fontSize:12 }} />}
           </IconButton>
           <Popover open={Boolean(anchor)} anchorEl={anchor} onClose={() => setAnchor(null)}
-            PaperProps={{ sx:{ bgcolor:'#1a1a2e', border:'1px solid rgba(255,255,255,0.08)', color:'#fff', minWidth:160 } }}>
+            PaperProps={{ sx:{ bgcolor:'#ffffff', border:'1px solid rgba(0,0,0,0.1)', color:'#0f172a', minWidth:160, boxShadow:'0 4px 20px rgba(0,0,0,0.12)' } }}>
             <MenuList dense>
               {availableTags.map(t => (
                 <MenuItem key={t} onClick={() => addMutation.mutate({ recordId: record.recordId, tagType: t })}
-                  sx={{ fontSize:12, '&:hover':{ bgcolor:'rgba(99,102,241,0.15)' } }}>
+                  sx={{ fontSize:12, color:'#0f172a', '&:hover':{ bgcolor:'rgba(13,148,136,0.08)' } }}>
                   <Box sx={{ width:8, height:8, borderRadius:'50%', bgcolor: TAG_COLORS[t], mr:1, flexShrink:0 }} />
                   {t.replace(/_/g,' ')}
                 </MenuItem>

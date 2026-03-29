@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.media.dto;
 
-import com.db.dbworld.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import jakarta.persistence.*;
 import lombok.*;
 

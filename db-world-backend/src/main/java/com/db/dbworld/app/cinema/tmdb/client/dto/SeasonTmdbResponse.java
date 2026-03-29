@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.client.dto;
 
-import com.db.dbworld.cinema.tmdb.season.dto.EpisodeDto;
+import com.db.dbworld.app.cinema.tmdb.season.dto.EpisodeDto;
 import lombok.Getter;
 import lombok.Setter;
 

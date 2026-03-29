@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.tmdb.credits.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.*;
-import com.db.dbworld.cinema.tmdb.credits.dto.CreditDto;
-import com.db.dbworld.cinema.tmdb.credits.entity.CreditEntity;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
-import com.db.dbworld.cinema.tmdb.people.mapper.PersonMapper;
+import com.db.dbworld.app.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.tmdb.credits.dto.CreditDto;
+import com.db.dbworld.app.cinema.tmdb.credits.entity.CreditEntity;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.people.mapper.PersonMapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

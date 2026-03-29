@@ -47,7 +47,7 @@ export default function RecordManagementV2() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () => getRecordsTable(queryParams),
-    placeholderData: (prev) => prev,   // keepPreviousData equivalent in v5
+    placeholderData: (prev) => prev,
   });
 
   const { mutate: doDelete } = useMutation({
@@ -67,19 +67,20 @@ export default function RecordManagementV2() {
   const stats = useMemo(() => ({
     total:   data?.totalElements ?? 0,
     movies:  data?.content?.filter(r => r.type === 'MOVIE').length ?? 0,
-    series:  data?.content?.filter(r => r.type === 'SERIES').length ?? 0,
+    series:  data?.content?.filter(r => r.type === 'TV_SERIES').length ?? 0,
   }), [data]);
 
   return (
-    <Box sx={{ height:'100%', display:'flex', flexDirection:'column', bgcolor:'#0d0d18', color:'#fff', minHeight:0 }}>
+    <Box sx={{ height:'100%', display:'flex', flexDirection:'column', bgcolor:'#f0f9f8', color:'#0f172a', minHeight:0 }}>
       {/* Page header */}
       <Box sx={{ px:{ xs:2, md:3 }, pt:{ xs:2, md:3 }, pb:1, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <Box>
-          <Typography sx={{ fontWeight:700, fontSize:{ xs:18, md:22 } }}>Records</Typography>
-          <Typography sx={{ fontSize:12, color:'rgba(255,255,255,0.4)', mt:.25 }}>Manage movies and series catalog</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:{ xs:18, md:22 }, color:'#0f172a' }}>Records</Typography>
+          <Typography sx={{ fontSize:12, color:'rgba(15,23,42,0.5)', mt:.25 }}>Manage movies and series catalog</Typography>
         </Box>
         {!isMobile && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')} sx={{ bgcolor:'#6366f1','&:hover':{ bgcolor:'#5254cc' } }}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
+            sx={{ bgcolor:'#0d9488', '&:hover':{ bgcolor:'#0f766e' } }}>
             Add Record
           </Button>
         )}
@@ -88,18 +89,18 @@ export default function RecordManagementV2() {
       {/* Stats bar */}
       <Box sx={{ display:'flex', gap:2, px:{ xs:2, md:3 }, py:1, flexWrap:'wrap' }}>
         {[
-          { label:'Total',  value: stats.total,  icon:<ListIcon  sx={{ fontSize:14, color:'#6366f1' }} />, color:'#6366f1' },
-          { label:'Movies (page)', value: stats.movies, icon:<MovieIcon sx={{ fontSize:14, color:'#6366f1' }} />, color:'#6366f1' },
+          { label:'Total',        value: stats.total,  icon:<ListIcon  sx={{ fontSize:14, color:'#0d9488' }} />, color:'#0d9488' },
+          { label:'Movies (page)', value: stats.movies, icon:<MovieIcon sx={{ fontSize:14, color:'#0d9488' }} />, color:'#0d9488' },
           { label:'Series (page)', value: stats.series, icon:<TvIcon    sx={{ fontSize:14, color:'#10b981' }} />, color:'#10b981' },
         ].map(s => (
           <Box key={s.label} sx={{ display:'flex', alignItems:'center', gap:.75 }}>
             {s.icon}
-            <Typography sx={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>{s.label}:</Typography>
+            <Typography sx={{ fontSize:13, color:'rgba(15,23,42,0.6)' }}>{s.label}:</Typography>
             <Typography sx={{ fontSize:13, fontWeight:700, color:s.color }}>{s.value}</Typography>
           </Box>
         ))}
         {data?.totalElements != null && (
-          <Box sx={{ ml:'auto', fontSize:12, color:'rgba(255,255,255,0.3)' }}>
+          <Box sx={{ ml:'auto', fontSize:12, color:'rgba(15,23,42,0.4)' }}>
             Page {(data.number ?? 0) + 1} of {data.totalPages ?? 1}
           </Box>
         )}
@@ -111,7 +112,7 @@ export default function RecordManagementV2() {
       {/* Error */}
       {error && (
         <Box sx={{ p:2 }}>
-          <Box sx={{ bgcolor:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:2, p:2, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <Box sx={{ bgcolor:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:2, p:2, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <Typography sx={{ color:'#ef4444', fontSize:13 }}>Failed to load records</Typography>
             <Button size="small" onClick={refetch} sx={{ color:'#ef4444' }}>Retry</Button>
           </Box>
@@ -131,7 +132,7 @@ export default function RecordManagementV2() {
 
       {/* Mobile FAB */}
       {isMobile && (
-        <Fab onClick={() => openModal('create')} sx={{ position:'fixed', bottom:24, right:24, bgcolor:'#6366f1','&:hover':{ bgcolor:'#5254cc' } }}>
+        <Fab onClick={() => openModal('create')} sx={{ position:'fixed', bottom:24, right:24, bgcolor:'#0d9488', '&:hover':{ bgcolor:'#0f766e' } }}>
           <AddIcon />
         </Fab>
       )}

@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.client.dto;
 
-import com.db.dbworld.cinema.tmdb.enums.VideoSite;
-import com.db.dbworld.cinema.tmdb.enums.VideoType;
+import com.db.dbworld.app.cinema.tmdb.enums.VideoSite;
+import com.db.dbworld.app.cinema.tmdb.enums.VideoType;
 import lombok.Getter;
 import lombok.Setter;
 

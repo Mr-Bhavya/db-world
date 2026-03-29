@@ -1,9 +1,9 @@
 import axios from 'axios'
 import CommonServices from './CommonServices';
-import Constants from './Constants';
-import axiosInstance from './Utils/AxiosInstants';
-import { handleApiError } from './Utils/errorHandler';
-const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
+import Constants from '@shared/constants';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import { handleApiError } from '@shared/components/ui/utils/errorHandler';
+const REACT_APP_BASEURL = import.meta.env.VITE_API_BASE_URL || '';
 
 export const register = async (user) => {
   const response = await fetch("/api/auth/register", {
@@ -18,6 +18,7 @@ export const register = async (user) => {
 export const doLogin = async (email, password) => {
   try {
     // Use the axiosInstance for consistency
+    // return true;
     const response = await axios.post(`${REACT_APP_BASEURL}/api/auth/login`, { email, password });
     if (response.data?.data?.token) {
       localStorage.setItem('token', response.data.data.token);
@@ -31,18 +32,13 @@ export const doLogin = async (email, password) => {
 };
 
 export const verify = async () => {
-  try {
-    const response = await axiosInstance.get('/api/auth/verify');
-    return response.data;
-  } catch (error) {
-    console.error('Auth verification failed:', error);
-    handleApiError(error);
-  }
+  const response = await axiosInstance.get('/api/auth/verify');
+  return response.data;
 };
 
 export const logOut = async () => {
   try {
-    await axiosInstance.post('/api/auth/log-out', {}, { _retry: true });
+    await axiosInstance.post('/api/auth/logout', {}, { _retry: true });
   } catch (error) {
     console.error('Logout error:', error);
     handleApiError(error);
@@ -113,7 +109,7 @@ export const getAllUserRoles = async () => {
 
 export const getUserDetail = async () => {
   try {
-    const response = await axiosInstance.get('/api/user/');
+    const response = await axiosInstance.get('/api/user/profile');
     return response.data;
   } catch (error) {
     console.error('Error fetching user details:', error);
@@ -128,6 +124,26 @@ export const updateUserDetails = async (user) => {
     return response.data;
   } catch (error) {
     console.error('Error updating user details:', error);
+    throw error;
+  }
+};
+
+export const changePassword = async ({ oldPassword, newPassword }) => {
+  try {
+    const response = await axiosInstance.patch('/api/user/change-password', { oldPassword, newPassword });
+    return response.data;
+  } catch (error) {
+    console.error('Error changing password:', error);
+    throw error;
+  }
+};
+
+export const getLoginHistory = async () => {
+  try {
+    const response = await axiosInstance.get('/api/user/login-history');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching login history:', error);
     throw error;
   }
 };
@@ -279,7 +295,7 @@ export const loadMyWatchlist = async (userId) => {
 
 export const searchRecord = async (query, page, size) => {
   try {
-    const response = await axiosInstance.get(`/api/cinema/record`, {
+    const response = await axiosInstance.get(`/api/cinema/catalog/search`, {
       params: { q: query, page, size }
     });
     return response.data;
@@ -615,13 +631,14 @@ export const deleteTempFile = async () => {
 
 // Event Tracking
 export const saveUserEventInfo = async (event, value) => {
-  try {
-    const response = await axiosInstance.post('/api/event-info/', { event, value });
-    return response.data;
-  } catch (error) {
-    console.error('Error saving user event:', error);
-    throw error;
-  }
+return;
+//  try {
+//    const response = await axiosInstance.post('/api/event-info/', { event, value });
+//    return response.data;
+//  } catch (error) {
+//    console.error('Error saving user event:', error);
+//    throw error;
+//  }
 };
 
 // Media File Management
@@ -674,7 +691,27 @@ export const deleteFileApi = async (id) => {
     console.error('Error deleting file:', error);
     throw error;
   }
-}
+};
+
+export const copyFileApi = async (id, body) => {
+  try {
+    const response = await axiosInstance.post(`/api/file-explorer/${id}/copy`, body);
+    return response.data;
+  } catch (error) {
+    console.error('Error copying file:', error);
+    throw error;
+  }
+};
+
+export const createFolderApi = async (body) => {
+  try {
+    const response = await axiosInstance.post(`/api/file-explorer/folder`, body);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating folder:', error);
+    throw error;
+  }
+};
 
 /**
 * Get all recent activities (Admin only)

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Constants from '../../Constants';
-import { cancelledMirror, deleteMirror, deleteTempFile } from '../../ApiServices';
+import Constants from '@shared/constants';
+import { cancelledMirror, deleteMirror, deleteTempFile } from '@shared/services/ApiServices';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download as DownloadIcon,
@@ -24,8 +24,8 @@ import {
   VideoFile as VideoIcon
 } from '@mui/icons-material';
 import StatusCard from './StatusCard';
-import { toast } from '../../Toast';
-import axiosInstance from '../../Utils/AxiosInstants';
+import { toast } from '@shared/components/ui/Toast';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { CircularProgress, IconButton, useMediaQuery, useTheme, Button, MenuItem, Select, FormControl, Box, Typography, Chip } from '@mui/material';
 import Youtube_dl from '../Mirror/youtubedl/Youtube_dl';
 import HttpFile from '../Mirror/HttpFile';
@@ -523,8 +523,8 @@ function DownloadManager() {
 
   // Optimized WebSocket connection with better error handling
   const connectWebSocket = useCallback(() => {
-    const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_BASEURL
-      ? `${process.env.REACT_APP_WEBSOCKET_BASEURL}/ws/status`
+    const WEBSOCKET_URL = import.meta.env.VITE_WEBSOCKET_BASEURL || ''
+      ? `${import.meta.env.VITE_WEBSOCKET_BASEURL || ''}/ws/status`
       : 'ws://localhost:9000/ws/status';
 
     try {

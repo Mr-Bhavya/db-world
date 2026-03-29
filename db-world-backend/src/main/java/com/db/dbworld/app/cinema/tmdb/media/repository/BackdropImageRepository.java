@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.tmdb.media.repository;
 
-import com.db.dbworld.cinema.tmdb.media.entity.BackdropImageEntity;
-import com.db.dbworld.cinema.tmdb.media.projection.BackdropImageProjection;
-import com.db.dbworld.cinema.tmdb.media.projection.PosterImageProjection;
+import com.db.dbworld.app.cinema.tmdb.media.entity.BackdropImageEntity;
+import com.db.dbworld.app.cinema.tmdb.media.projection.BackdropImageProjection;
+import com.db.dbworld.app.cinema.tmdb.media.projection.PosterImageProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

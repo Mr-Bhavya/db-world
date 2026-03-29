@@ -1,6 +1,7 @@
 package com.db.dbworld.config;
 
-import com.db.dbworld.handler.TokenAuthenticationHandler;
+import com.db.dbworld.core.security.handler.TokenAuthenticationHandler;
+import com.db.dbworld.security.auth.CustomAuthenticationProvider;
 import com.db.dbworld.utils.DbWorldConstants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,6 +9,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -56,7 +58,7 @@ public class SecurityConfig {
 
         JwtGrantedAuthoritiesConverter converter = new JwtGrantedAuthoritiesConverter();
 
-        converter.setAuthoritiesClaimName("roles");
+        converter.setAuthoritiesClaimName("role");
         converter.setAuthorityPrefix(""); // keep only if using hasAuthority()
 
         JwtAuthenticationConverter jwtConverter = new JwtAuthenticationConverter();
@@ -69,7 +71,13 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:3000", "https://db-world.in"));
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:3000",
+                "http://localhost:*",
+                "http://192.168.*.*:*",   // local network (home/office)
+                "http://10.*.*.*:*",      // local network (corporate)
+                "https://db-world.in"
+        ));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowedMethods(List.of("*"));
         config.setAllowCredentials(true);
@@ -80,14 +88,21 @@ public class SecurityConfig {
         return source;
     }
 
+//    @Bean
+//    AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+//
+//        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+//        provider.setUserDetailsService(userDetailsService);
+//        provider.setPasswordEncoder(passwordEncoder);
+//
+//        return new ProviderManager(provider);
+//    }
+
     @Bean
-    AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
-
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder);
-
-        return new ProviderManager(provider);
+    public AuthenticationManager authenticationManager(HttpSecurity http, CustomAuthenticationProvider provider) throws Exception {
+        return http.getSharedObject(AuthenticationManagerBuilder.class)
+                .authenticationProvider(provider)
+                .build();
     }
 
 }

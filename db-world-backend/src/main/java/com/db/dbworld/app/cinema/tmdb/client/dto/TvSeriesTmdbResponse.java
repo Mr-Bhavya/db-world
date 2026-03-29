@@ -1,9 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.client.dto;
 
-import com.db.dbworld.cinema.tmdb.dto.TmdbDto;
-import com.db.dbworld.cinema.tmdb.people.dto.PersonDto;
-import com.db.dbworld.cinema.tmdb.season.dto.EpisodeDto;
-import com.db.dbworld.cinema.tmdb.season.dto.SeasonDto;
+import com.db.dbworld.app.cinema.tmdb.dto.TmdbDto;
+import com.db.dbworld.app.cinema.tmdb.people.dto.PersonDto;
+import com.db.dbworld.app.cinema.tmdb.season.dto.EpisodeDto;
+import com.db.dbworld.app.cinema.tmdb.season.dto.SeasonDto;
 import lombok.Getter;
 import lombok.Setter;
 

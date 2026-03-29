@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.rail.mapper;
 
-import com.db.dbworld.cinema.rail.dto.RailDto;
-import com.db.dbworld.cinema.rail.dto.RailRequest;
-import com.db.dbworld.cinema.rail.entity.RailEntity;
+import com.db.dbworld.app.cinema.rail.dto.RailDto;
+import com.db.dbworld.app.cinema.rail.dto.RailRequest;
+import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")

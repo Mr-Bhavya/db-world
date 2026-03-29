@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import "./ImageCard.css";
-import Constants from "../../Constants";
+import Constants from '@shared/constants';
 import ModalPortal from "./ModalProtal";
 import RecordPreviewModal from "./RecordPreviewModal";
 import LazyImage from "../components/LazyImage";
 import { CSSTransition, TransitionGroup } from "react-transition-group";
-import CommonServices from "../../CommonServices";
-import useRecordStore from "../../../store/recordStore";
-import { loadDbCinemaRecordsFromUrl } from "../../ApiServices";
+import CommonServices from '@shared/services/CommonServices';
+import useRecordStore from '@app/store/recordStore';
+import { loadDbCinemaRecordsFromUrl } from '@shared/services/ApiServices';
 
 const ImageCardItem = ({ record, horizontal }) => {
   const [imageUrl, setImageUrl] = useState(null);

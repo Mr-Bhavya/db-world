@@ -1,6 +1,8 @@
-package com.db.dbworld.controllers;
+package com.db.dbworld.app.pm.controller;
 
-import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.core.exception.DbWorldException;
+import com.db.dbworld.core.role.annotations.AdminAccess;
+import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
@@ -8,6 +10,7 @@ import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
 import com.db.dbworld.utils.DbWorldConstants;
+import jakarta.enterprise.inject.Any;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.extern.log4j.Log4j2;
@@ -30,7 +33,7 @@ public class PasswordManagerController {
     @Autowired private ModelMapper modelMapper;
 
     @GetMapping("/")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @AnyRole
     public ApiResponse<List<ResponsePayloads.PasswordManagerResponse>> getPasswordManagerByUser() {
         List<ResponsePayloads.PasswordManagerResponse> responses = passwordManagerService.getPasswordManagerByUser().stream().map(dto -> {
             ResponsePayloads.PasswordManagerResponse r = new ResponsePayloads.PasswordManagerResponse();
@@ -43,7 +46,7 @@ public class PasswordManagerController {
     }
 
     @PostMapping("/")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @AnyRole
     public ApiResponse<Void> addCredentialByUser(@RequestBody RequestPayloads.AddCredential addCredential) {
         try {
             String host = new URL(addCredential.getUrl().toLowerCase()).getHost();
@@ -55,8 +58,8 @@ public class PasswordManagerController {
         }
     }
 
+    @AnyRole
     @PostMapping("/credentials")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<Map<String, Object>> addCredentialsByUser(@RequestBody List<RequestPayloads.AddCredential> addCredentials) {
         Map<String, String> failed = new HashMap<>();
         List<String> success = new ArrayList<>();
@@ -76,7 +79,7 @@ public class PasswordManagerController {
     }
 
     @PutMapping("/{pmId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @AnyRole
     public ApiResponse<PasswordManagerDto> updateCredentialByPmId(@Valid @NotEmpty @PathVariable String pmId,@RequestBody RequestPayloads.AddCredential addCredential) {
         try {
             String host = new URL(addCredential.getUrl().toLowerCase()).getHost();
@@ -87,22 +90,22 @@ public class PasswordManagerController {
         }
     }
 
+    @AnyRole
     @DeleteMapping("/{pmId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<Void> deletePasswordMangerById(@Valid @NotEmpty @PathVariable String pmId) {
         passwordManagerService.deletePasswordManagerById(pmId);
         return ApiResponse.success("Deleted Successfully.");
     }
 
+    @AnyRole
     @DeleteMapping("/credential/{credentialId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<Void> deleteCredentialById(@Valid @NotEmpty @PathVariable String credentialId) {
         passwordManagerService.deleteCredentialById(credentialId);
         return ApiResponse.success("Deleted Successfully.");
     }
 
+    @AnyRole
     @GetMapping("/host")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
     public ApiResponse<List<String>> getAllHost() {
         return ApiResponse.success(passwordManagerService.getAllHosts());
     }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Constants from "./Constants";
+import Constants from '@shared/constants';
 import { motion } from "framer-motion";
 
 function ErrorPage() {

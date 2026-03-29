@@ -38,8 +38,8 @@ import {
   Search
 } from '@mui/icons-material';
 import { motion, AnimatePresence, LazyMotion, domAnimation } from 'framer-motion';
-import { handleApiError } from '../../Utils/errorHandler';
-import { getStreamMediaList } from '../../ApiServices';
+import { handleApiError } from '@shared/components/ui/utils/errorHandler';
+import { getStreamMediaList } from '@shared/services/ApiServices';
 import { styled, keyframes } from '@mui/material/styles';
 
 // Animations

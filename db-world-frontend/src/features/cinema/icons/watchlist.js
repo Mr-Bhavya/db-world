@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { watchlistRecord, removeWatchlistRecord } from '../../ApiServices';
+import { addWatchlist, removeWatchlist } from '../api/cinemaApi';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 import { Tooltip, Zoom, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
-import useRecordStore from '../../../store/recordStore';
+import useRecordStore from '@app/store/recordStore';
 
 function Watchlist({ recordId, isAddedToWatchList = false, size = "medium" }) {
   const [isWatchListed, setIsWatchListed] = useState(isAddedToWatchList);
@@ -13,14 +13,13 @@ function Watchlist({ recordId, isAddedToWatchList = false, size = "medium" }) {
   const handleToggleWatchlist = async () => {
     setLoading(true);
     try {
-      const response = isWatchListed
-        ? await removeWatchlistRecord(recordId)
-        : await watchlistRecord(recordId);
-
-      if (response.httpStatusCode === 200) {
-        setIsWatchListed(!isWatchListed);
-        onUpdate?.({ isWatchListed: !isWatchListed });
+      if (isWatchListed) {
+        await removeWatchlist(recordId);
+      } else {
+        await addWatchlist(recordId);
       }
+      setIsWatchListed(!isWatchListed);
+      onUpdate?.({ isWatchListed: !isWatchListed });
     } catch (error) {
       console.error(error);
     } finally {

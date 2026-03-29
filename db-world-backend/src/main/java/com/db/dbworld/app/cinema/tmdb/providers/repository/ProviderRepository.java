@@ -1,8 +1,8 @@
 package com.db.dbworld.app.cinema.tmdb.providers.repository;
 
-import com.db.dbworld.cinema.tmdb.enums.ProviderType;
-import com.db.dbworld.cinema.tmdb.providers.entity.ProviderEntity;
-import com.db.dbworld.cinema.tmdb.providers.entity.TmdbProviderEntity;
+import com.db.dbworld.app.cinema.tmdb.enums.ProviderType;
+import com.db.dbworld.app.cinema.tmdb.providers.entity.ProviderEntity;
+import com.db.dbworld.app.cinema.tmdb.providers.entity.TmdbProviderEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

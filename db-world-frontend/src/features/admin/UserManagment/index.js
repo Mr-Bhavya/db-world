@@ -26,9 +26,9 @@ import {
 } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfirm } from 'material-ui-confirm';
-import { getAllUsers, deleteUser, updateUserDetailsByAdmin } from '../../ApiServices';
-import { handleApiError } from '../../Utils/errorHandler';
-import { toast } from '../../Toast';
+import { getAllUsers, deleteUser, updateUserDetailsByAdmin } from '@shared/services/ApiServices';
+import { handleApiError } from '@shared/components/ui/utils/errorHandler';
+import { toast } from '@shared/components/ui/Toast';
 import UsersTableView from './UsersTableView';
 import MobileUserCard from './MobileUserCard';
 import { 

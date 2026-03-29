@@ -1,13 +1,16 @@
 package com.db.dbworld.app.cinema.tmdb.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.cinema.tmdb.dto.MovieTmdbDto;
-import com.db.dbworld.cinema.tmdb.dto.TvSeriesTmdbDto;
-import com.db.dbworld.cinema.tmdb.ingestion.TmdbIngestionService;
-import com.db.dbworld.cinema.tmdb.mapper.MovieTmdbMapper;
-import com.db.dbworld.cinema.tmdb.mapper.TvSeriesTmdbMapper;
-import com.db.dbworld.cinema.tmdb.people.dto.PersonDto;
-import com.db.dbworld.cinema.tmdb.people.mapper.PersonMapper;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.dto.MovieTmdbDto;
+import com.db.dbworld.app.cinema.tmdb.dto.TvSeriesTmdbDto;
+import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
+import com.db.dbworld.app.cinema.tmdb.mapper.MovieTmdbMapper;
+import com.db.dbworld.app.cinema.tmdb.mapper.TvSeriesTmdbMapper;
+import com.db.dbworld.app.cinema.tmdb.people.dto.PersonDto;
+import com.db.dbworld.app.cinema.tmdb.people.mapper.PersonMapper;
+import com.db.dbworld.app.cinema.tmdb.search.dto.TmdbSearchItemDto;
+import com.db.dbworld.app.cinema.tmdb.search.service.TmdbSearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +22,7 @@ import java.util.List;
 public class TmdbController {
 
     private final TmdbIngestionService ingestionService;
+    private final TmdbSearchService tmdbSearchService;
 
     private final MovieTmdbMapper movieMapper;
     private final TvSeriesTmdbMapper tvMapper;
@@ -120,6 +124,20 @@ public class TmdbController {
                         ingestionService.refreshPerson(personId)
                 )
         );
+    }
+
+    /* =========================
+       SEARCH
+       ========================= */
+
+    @GetMapping("/search")
+    public ApiResponse<List<TmdbSearchItemDto>> search(
+            @RequestParam RecordType type,
+            @RequestParam String query,
+            @RequestParam(required = false, defaultValue = "en-US") String language,
+            @RequestParam(required = false) Integer year
+    ) {
+        return ApiResponse.success(tmdbSearchService.search(type, query, language, year));
     }
 
     /* =========================

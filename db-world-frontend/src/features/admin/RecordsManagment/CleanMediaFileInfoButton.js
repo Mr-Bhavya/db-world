@@ -24,8 +24,8 @@ import {
     Error as ErrorIcon,
     Close as CloseIcon
 } from '@mui/icons-material';
-import { cleanMediaFileInfo } from '../../ApiServices';
-import Constants from '../../Constants';
+import { cleanMediaFileInfo } from '@shared/services/ApiServices';
+import Constants from '@shared/constants';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const MotionButton = motion(Button);

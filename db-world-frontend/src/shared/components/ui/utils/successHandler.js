@@ -1,4 +1,4 @@
-import { toast } from "../Toast";
+import { toast } from '@shared/components/ui/Toast';
 
 export const handleApiSuccess = (message, navigate, redirectPath = null, autoClose = 1000) => {
   const toastConfig = { autoClose };

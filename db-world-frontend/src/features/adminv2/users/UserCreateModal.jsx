@@ -36,7 +36,7 @@ export default function UserCreateModal({ open, onClose }) {
     <Dialog open={open} onClose={onClose} sx={dialogSx} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display:'flex', justifyContent:'space-between', alignItems:'center', pb:1 }}>
         Add User
-        <IconButton onClick={onClose} sx={{ color:'rgba(255,255,255,0.5)' }}><CloseIcon /></IconButton>
+        <IconButton onClick={onClose} sx={{ color:'rgba(15,23,42,0.45)' }}><CloseIcon /></IconButton>
       </DialogTitle>
       <form onSubmit={handleSubmit(d => mutate(d))}>
         <DialogContent sx={{ pt:1 }}>
@@ -67,8 +67,8 @@ export default function UserCreateModal({ open, onClose }) {
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px:3, pb:2 }}>
-          <Button onClick={onClose} sx={{ color:'rgba(255,255,255,0.5)' }}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={isPending} sx={{ bgcolor:'#6366f1','&:hover':{ bgcolor:'#5254cc' } }}>
+          <Button onClick={onClose} sx={{ color:'rgba(15,23,42,0.5)' }}>Cancel</Button>
+          <Button type="submit" variant="contained" disabled={isPending} sx={{ bgcolor:'#0d9488','&:hover':{ bgcolor:'#0f766e' } }}>
             {isPending ? <CircularProgress size={18} color="inherit" /> : 'Create User'}
           </Button>
         </DialogActions>

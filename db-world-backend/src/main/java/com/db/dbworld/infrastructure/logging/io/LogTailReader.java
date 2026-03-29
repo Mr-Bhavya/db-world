@@ -1,4 +1,4 @@
-package com.db.dbworld.logging.io;
+package com.db.dbworld.infrastructure.logging.io;
 
 import java.io.*;
 import java.nio.file.Path;

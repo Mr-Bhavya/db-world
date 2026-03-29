@@ -2,10 +2,10 @@ import React from "react";
 import { Button } from "@mui/material";
 import { PlayArrow } from "@mui/icons-material";
 import { Capacitor } from "@capacitor/core";
-import Constants from "../../Constants";
-import AndroidPlugins from "../../../android-app-components/AndroidPlugins";
+import Constants from '@shared/constants';
+import AndroidPlugins from '@platform/android/AndroidPlugins';
 import { CapacitorVideoPlayer } from "capacitor-video-player"; // Ensure this is installed and linked properly
-import { toast } from "../../Toast";
+import { toast } from '@shared/components/ui/Toast';
 
 const Play = ({
   streamUrl,

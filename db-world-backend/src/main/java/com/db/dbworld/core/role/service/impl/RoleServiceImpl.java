@@ -1,10 +1,12 @@
-package com.db.dbworld.services.Impl;
+package com.db.dbworld.core.role.service.impl;
 
-import com.db.dbworld.dao.user.UserRoleRepository;
-import com.db.dbworld.entities.user.UserRoleEntity;
+import com.db.dbworld.core.role.dto.RoleDto;
+import com.db.dbworld.core.role.entity.RoleEntity;
+import com.db.dbworld.core.role.enums.Role;
+import com.db.dbworld.core.role.repository.UserRoleRepository;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
 import com.db.dbworld.core.user.dto.UserDto;
-import com.db.dbworld.services.auth.RoleService;
+import com.db.dbworld.core.role.service.RoleService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,33 +23,33 @@ public class RoleServiceImpl implements RoleService {
     private ModelMapper modelMapper;
 
     @Override
-    public UserDto.UserRole addRole(UserDto.UserRole userRole) {
+    public RoleDto addRole(RoleDto userRole) {
         return null;
     }
 
     @Override
-    public UserDto.UserRole updateRole(UserDto.UserRole userRole) {
+    public RoleDto updateRole(RoleDto userRole) {
         return null;
     }
 
     @Override
-    public List<UserDto.UserRole> getRoles() {
-        List<UserRoleEntity> userRoleEntityList = this.userRoleRepository.findAll();
+    public List<RoleDto> getRoles() {
+        List<RoleEntity> userRoleEntityList = this.userRoleRepository.findAll();
         return userRoleEntityList.stream().map(
-                userRoleEntity -> this.modelMapper.map(userRoleEntity, UserDto.UserRole.class)
+                userRoleEntity -> this.modelMapper.map(userRoleEntity, RoleDto.class)
         ).toList();
     }
 
     @Override
-    public UserDto.UserRole getRoleById(String roleId) {
+    public RoleDto getRoleById(String roleId) {
         return this.modelMapper.map(userRoleRepository.findById(Integer.valueOf(roleId)).orElseThrow(
                 ()-> new ResourceNotFoundException("Role", "id", roleId)
-        ), UserDto.UserRole.class);
+        ), RoleDto.class);
     }
 
     @Override
-    public UserDto.UserRole getRoleByName(String roleName) {
-        return this.modelMapper.map(userRoleRepository.findByName(roleName), UserDto.UserRole.class);
+    public RoleDto getRoleByName(String roleName) {
+        return this.modelMapper.map(userRoleRepository.findByName(Role.fromString(roleName)), RoleDto.class);
     }
 
     @Override

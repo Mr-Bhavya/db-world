@@ -8,6 +8,11 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * @deprecated To be migrated to app.media.stream.service.StreamService.
+ * Still used by StreamController until that controller is migrated.
+ */
+@Deprecated(forRemoval = true)
 public interface StreamService {
 
     /* ========================= STREAMING ========================= */

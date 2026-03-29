@@ -1,12 +1,12 @@
 package com.db.dbworld.app.cinema.interaction.service.impl;
 
-import com.db.dbworld.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.cinema.interaction.cache.InteractionCacheService;
-import com.db.dbworld.cinema.interaction.dto.InteractionDto;
-import com.db.dbworld.cinema.interaction.entity.UserInteractionEntity;
-import com.db.dbworld.cinema.interaction.enums.InteractionType;
-import com.db.dbworld.cinema.interaction.repository.InteractionRepository;
-import com.db.dbworld.cinema.interaction.service.InteractionService;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.interaction.cache.InteractionCacheService;
+import com.db.dbworld.app.cinema.interaction.dto.InteractionDto;
+import com.db.dbworld.app.cinema.interaction.entity.UserInteractionEntity;
+import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
+import com.db.dbworld.app.cinema.interaction.repository.InteractionRepository;
+import com.db.dbworld.app.cinema.interaction.service.InteractionService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

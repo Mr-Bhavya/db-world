@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.tmdb.sync.service;
 
-import com.db.dbworld.cinema.common.constants.CinemaConstants.TmdbSync;
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.enums.SyncStatus;
-import com.db.dbworld.cinema.tmdb.sync.entity.TmdbRecordSyncEntity;
-import com.db.dbworld.cinema.tmdb.sync.repository.TmdbRecordSyncRepository;
+import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
+import com.db.dbworld.app.cinema.tmdb.sync.entity.TmdbRecordSyncEntity;
+import com.db.dbworld.app.cinema.tmdb.sync.repository.TmdbRecordSyncRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

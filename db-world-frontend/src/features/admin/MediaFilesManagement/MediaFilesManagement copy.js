@@ -63,8 +63,8 @@ import {
     rebuildAllSymlinksApi,
     deleteMediaFilesApi,
     cleanupMediaFilesApi
-} from '../../ApiServices';
-import { toast } from '../../Toast';
+} from '@shared/services/ApiServices';
+import { toast } from '@shared/components/ui/Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Reusable Media Search Filters Component

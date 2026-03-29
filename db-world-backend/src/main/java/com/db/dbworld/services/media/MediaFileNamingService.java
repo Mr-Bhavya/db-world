@@ -4,7 +4,7 @@ import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
 import com.db.dbworld.entities.dbcinema.stream.*;
 import com.db.dbworld.entities.dbcinema.tmdb.MovieTmdbDataEntity;
 import com.db.dbworld.entities.dbcinema.tmdb.SeriesTmdbDataEntity;
-import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.payloads.mediafile.MediaFileDetails;
 import com.db.dbworld.services.media.resolver.MediaTagResolver;
 import com.db.dbworld.utils.DbWorldConstants;
@@ -23,6 +23,13 @@ import java.util.stream.Collectors;
 
 import static org.apache.commons.lang3.StringUtils.containsIgnoreCase;
 
+/**
+ * @deprecated File naming logic superseded by
+ * {@link com.db.dbworld.app.cinema.tmdb.ingestion.impl.TmdbIngestionServiceImpl}
+ * and {@link com.db.dbworld.app.media.enrichment.TmdbMediaEnrichmentService}.
+ * Still referenced by old MediaFileUtils and MediaFileHandler until those are removed.
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
 @Service
 public class MediaFileNamingService {

@@ -1,9 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.service.impl;
 
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.client.TmdbClient;
-import com.db.dbworld.cinema.tmdb.client.dto.*;
-import com.db.dbworld.cinema.tmdb.service.TmdbService;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.client.TmdbClient;
+import com.db.dbworld.app.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.tmdb.service.TmdbService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

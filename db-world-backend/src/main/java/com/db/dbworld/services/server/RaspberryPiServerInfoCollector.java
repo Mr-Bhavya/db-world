@@ -17,8 +17,12 @@ import java.util.stream.Collectors;
  * Raspberry Pi specific server information collector.
  * Collects detailed information about Raspberry Pi hardware and configuration.
  */
+/**
+ * @deprecated Migrated to com.db.dbworld.app.system.info.collector.linux.RaspberryPiServerInfoCollector.
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
-@Service("raspberryPiServerInfoCollector")
+// @Service("raspberryPiServerInfoCollector")
 public class RaspberryPiServerInfoCollector extends ServerInfoCollector {
 
     // Common paths for Raspberry Pi

@@ -1,6 +1,6 @@
-package com.db.dbworld.dao.user;
+package com.db.dbworld.audit.activity.repository;
 
-import com.db.dbworld.entities.user.UserCinemaActivityEntity;
+import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity;
 import com.db.dbworld.core.user.entity.UserEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;

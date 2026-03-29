@@ -1,7 +1,5 @@
 package com.db.dbworld.config;
 
-import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
-import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
 import org.springdoc.core.models.GroupedOpenApi;
@@ -23,10 +21,6 @@ public class CoreBeansConfig {
                 .setMatchingStrategy(MatchingStrategies.STRICT)
                 .setFieldMatchingEnabled(true)
                 .setSkipNullEnabled(true);
-
-        // Custom mapping
-        mapper.typeMap(MediaFileInfoEntity.class, MediaFileInfo.class).addMappings(m ->
-                        m.map(src -> src.getDbCinemaRecord().getId(), MediaFileInfo::setDbCinemaRecordId));
 
         return mapper;
     }

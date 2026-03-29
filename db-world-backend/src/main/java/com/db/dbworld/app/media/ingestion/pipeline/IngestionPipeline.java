@@ -1,7 +1,7 @@
-package com.db.dbworld.app.media.ingestion.processing;
+package com.db.dbworld.app.media.ingestion.pipeline;
 
 import com.db.dbworld.app.media.ingestion.model.IngestionRequest;
 
 public interface IngestionPipeline {
-    void start(IngestionRequest request);
+    String start(IngestionRequest request);
 }

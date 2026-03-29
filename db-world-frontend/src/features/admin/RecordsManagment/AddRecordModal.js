@@ -17,10 +17,10 @@ import {
   Theaters as TheatersIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AddDbCinemaRecord, searchTmdbByQuery, UpdateDbCinemaRecord } from '../../ApiServices';
-import Constants from '../../Constants';
+import { AddDbCinemaRecord, searchTmdbByQuery, UpdateDbCinemaRecord } from '@shared/services/ApiServices';
+import Constants from '@shared/constants';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { toast } from '../../Toast';
+import { toast } from '@shared/components/ui/Toast';
 
 const MotionDialog = motion(Dialog);
 const MotionCard = motion(Card);

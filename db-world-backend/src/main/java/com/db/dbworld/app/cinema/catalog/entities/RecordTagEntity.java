@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.catalog.entities;
 
-import com.db.dbworld.cinema.enums.RecordTagType;
+import com.db.dbworld.app.cinema.enums.RecordTagType;
 import jakarta.persistence.*;
 import lombok.*;
 

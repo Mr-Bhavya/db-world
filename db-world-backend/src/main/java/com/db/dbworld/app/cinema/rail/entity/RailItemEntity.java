@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.rail.entity;
 
-import com.db.dbworld.cinema.catalog.entities.RecordEntity;
+import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import jakarta.persistence.*;
 import lombok.*;
 

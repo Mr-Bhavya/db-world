@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.interaction.service;
 
-import com.db.dbworld.cinema.interaction.dto.InteractionDto;
+import com.db.dbworld.app.cinema.interaction.dto.InteractionDto;
 
 import java.util.List;
 

@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.providers.dto;
 
-import com.db.dbworld.cinema.tmdb.enums.ProviderType;
+import com.db.dbworld.app.cinema.tmdb.enums.ProviderType;
 
 public interface ProviderProjection {
 

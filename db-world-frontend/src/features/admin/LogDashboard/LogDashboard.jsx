@@ -18,12 +18,12 @@ import {
   Timeline, Refresh, Download, Http,
   Terminal
 } from '@mui/icons-material';
-import { getLogs } from '../../ApiServices';
+import { getLogs } from '@shared/services/ApiServices';
 
 // ------------------------------------------------------------
 //  CONFIG
 // ------------------------------------------------------------
-const REACT_APP_BASEURL = process.env.REACT_APP_BASEURL;
+const REACT_APP_BASEURL = import.meta.env.VITE_API_BASE_URL || '';
 const MAX_LOGS = 10000;
 const FLUSH_INTERVAL = 200;
 const UI_RENDER_CAP = 3000;

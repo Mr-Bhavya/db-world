@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.PerformanceMetrics} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -26,4 +28,6 @@ public class PerformanceMetrics {
     private Long networkBytesIn;
     private Long networkBytesOut;
     private Long uptimeSeconds;
+    private Double cpuUsagePercent;
+    private Integer runningProcessCount;
 }

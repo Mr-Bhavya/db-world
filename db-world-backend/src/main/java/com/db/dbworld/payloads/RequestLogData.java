@@ -1,13 +1,13 @@
 package com.db.dbworld.payloads;
 
-import com.db.dbworld.entities.user.UserEntity;
+import com.db.dbworld.core.user.entity.UserEntity;
 import lombok.Builder;
 import lombok.Data;
 
 @Data
 @Builder
 public class RequestLogData {
-    private final UserEntity user;
+    private final long userId;
     private final String userEmail;
     private final String method;
     private final String uri;

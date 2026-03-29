@@ -16,6 +16,12 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * @deprecated Superseded by the new app.media.* pipeline.
+ * File detail resolution is now handled by MediaInfoService + SymlinkService.
+ * Still referenced by old MediaFileHandler until that is removed.
+ */
+@Deprecated(forRemoval = true)
 @Log4j2
 @Service
 public class MediaFileUtils {

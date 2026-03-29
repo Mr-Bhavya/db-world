@@ -1,4 +1,4 @@
-package com.db.dbworld.entities.user;
+package com.db.dbworld.audit.activity.entity;
 
 import com.db.dbworld.core.user.entity.UserEntity;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -20,9 +20,11 @@ public class UserActivityLogEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user")
-    private UserEntity user;
+    @Column(name = "user_id")
+    private Long userId;
+
+    @Column(name = "user_email")
+    private String userEmail;
 
     private String method;
     private String uri;
@@ -39,15 +41,4 @@ public class UserActivityLogEntity {
     private String requestId;
     private LocalDateTime timestamp;
 
-    // This will be serialized as "username" in the JSON
-    @JsonProperty("username")
-    public String getUsername() {
-        return user != null ? user.getEmail() : "Anonymous";
-    }
-
-    // Add this to expose user ID if needed
-    @JsonProperty("userId")
-    public Long getUserId() {
-        return user != null ? user.getUserId() : null;
-    }
 }

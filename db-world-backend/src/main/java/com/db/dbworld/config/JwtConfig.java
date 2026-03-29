@@ -1,7 +1,7 @@
 package com.db.dbworld.config;
 
 import com.db.dbworld.security.RsaKeyProvider;
-import com.db.dbworld.services.auth.JwtService;
+import com.db.dbworld.security.auth.JwtService;
 import com.nimbusds.jose.jwk.*;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,8 +31,9 @@ public class JwtConfig {
     JwtService jwtService(
             JwtProperties props,
             JwtEncoder encoder,
+            JwtDecoder decoder,
             @Value("${spring.application.name}") String appName) {
 
-        return new JwtService(appName, props.accessTokenTtl(), encoder);
+        return new JwtService(appName, props.accessTokenTtl(), encoder, decoder);
     }
 }

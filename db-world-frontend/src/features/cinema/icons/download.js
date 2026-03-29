@@ -9,8 +9,8 @@ import {
 import { Download as DownloadIcon } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles } from "./IconButtonStyles";
-import Constants from "../../Constants";
-import { toast } from "../../Toast";
+import Constants from '@shared/constants';
+import { toast } from '@shared/components/ui/Toast';
 
 function Download({ 
   record,

@@ -1,345 +1,202 @@
-// components/Navbar/Navbar.jsx
+// Navbar — Netflix-style with cover-colour tinting on mobile
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import Constants from '../../Constants';
-import useWindowSize from '../utils/hooks/useWindowSize';
+import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
-import { getGenresList } from '../../ApiServices';
-import DB_WORLD_TEAL_SVG from '../../../images/db_world_teal.svg';
+import { fetchPageCategories } from '../api/cinemaApi';
+import DB_WORLD_TEAL_SVG from '@assets/images/db_world_teal.svg';
 
-// MUI Components
 import {
   AppBar,
   Toolbar,
   IconButton,
   Button,
-  Typography,
   Box,
   useTheme,
   useMediaQuery,
-  Badge,
   styled,
-  alpha,
-  Slide,
-  Collapse
+  BottomNavigation,
+  BottomNavigationAction,
 } from '@mui/material';
 import {
-  ArrowBack as ArrowBackIcon,
   Search as SearchIcon,
-  Close as CloseIcon,
   ExpandMore as ExpandMoreIcon,
   Movie as MovieIcon,
   Tv as TvIcon,
   Category as CategoryIcon,
   Home as HomeIcon,
+  NotificationsOutlined as BellIcon,
+  ArrowBack as BackIcon,
 } from '@mui/icons-material';
 
-// Framer Motion
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import CategoryModal from './CategoryModal';
-
-// Context
 import { useCategory } from './CategoryContext';
 
-// Netflix-style motion variants
-const mobileNavVariants = {
-  visible: {
-    y: 0,
-    opacity: 1,
-    transition: { type: 'spring', stiffness: 120, damping: 20 }
-  },
-  hidden: {
-    y: -40,
-    opacity: 0,
-    height: 0,
-    transition: { type: 'spring', stiffness: 140, damping: 25 }
-  }
-};
+// ─── Styled components ────────────────────────────────────────────────────────
 
-// Blur width animation variants (Netflix style)
-const blurWidthVariants = {
-  visible: {
-    width: '100%',
-    backdropFilter: 'blur(20px)',
-    transition: {
-      type: "spring",
-      stiffness: 100,
-      damping: 15
-    }
-  },
-  hidden: {
-    width: '70%',
-    backdropFilter: 'blur(8px)',
-    transition: {
-      type: "spring",
-      stiffness: 120,
-      damping: 20
-    }
-  }
-};
-
-// Optimized Styled Components
 const StyledAppBar = styled(AppBar, {
-  shouldForwardProp: (prop) => prop !== 'scrolled' && prop !== 'coverColor',
-})(({ theme, scrolled, coverColor }) => ({
+  shouldForwardProp: (p) => !['scrolled', 'coverColor'].includes(p),
+})(({ scrolled, coverColor }) => ({
+  // At top: show poster colour. When scrolled: remove it (go dark/transparent).
   background: scrolled
-    ? `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.paper, 0.9)} 100%)`
-    : coverColor || 'transparent',
-  backdropFilter: scrolled ? 'blur(20px)' : 'none',
-  boxShadow: scrolled ? theme.shadows[4] : 'none',
-  borderBottom: scrolled ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : 'none',
-  transition: 'all 0.3s ease',
+    ? 'rgba(20,20,20,0.97)'
+    : coverColor
+      ? 'transparent'
+      : 'linear-gradient(180deg, rgba(0,0,0,0.72) 0%, transparent 100%)',
+  backdropFilter: scrolled ? 'blur(4px)' : 'none',
+  boxShadow: 'none',
+  borderBottom: 'none',
+  transition: 'background 0.5s ease',
   backgroundImage: 'none',
-  transform: 'translateZ(0)',
-  willChange: 'transform',
+  willChange: 'background',
 }));
 
-const NavButton = styled(Button, {
-  shouldForwardProp: (prop) => prop !== 'active' && prop !== 'hasnotification',
-})(({ theme, active, hasnotification }) => ({
-  color: active ? theme.palette.primary.main : theme.palette.text.primary,
+/** Desktop text-only nav link */
+const NavLink = styled(Button, {
+  shouldForwardProp: (p) => p !== 'active',
+})(({ active }) => ({
+  color: active ? '#fff' : 'rgba(255,255,255,0.72)',
   textTransform: 'none',
-  fontWeight: active ? 600 : 500,
-  borderRadius: '12px',
-  padding: '8px 16px',
-  position: 'relative',
-  transition: 'all 0.2s ease',
-  border: `1px solid ${active ? theme.palette.primary.main : alpha(theme.palette.divider, 0.2)}`,
-  background: active
-    ? alpha(theme.palette.primary.main, 0.1)
-    : alpha(theme.palette.background.paper, 0.1),
-  backdropFilter: 'blur(10px)',
-  overflow: 'hidden',
-  transform: 'translateZ(0)',
+  fontWeight: active ? 700 : 400,
+  fontSize: '0.875rem',
+  letterSpacing: '0.01em',
+  borderRadius: 0,
+  padding: '4px 10px',
   minWidth: 'auto',
-
-  '&::before': active ? {
+  lineHeight: 1.4,
+  background: 'none',
+  border: 'none',
+  boxShadow: 'none',
+  position: 'relative',
+  transition: 'color 0.15s ease',
+  '&:hover': { color: '#fff', background: 'none', boxShadow: 'none' },
+  '&::after': {
     content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '2px',
-    background: theme.palette.primary.main,
-    borderRadius: '2px 2px 0 0'
-  } : {},
-
-  '&::after': hasnotification ? {
-    content: '""',
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: '6px',
-    height: '6px',
-    borderRadius: '50%',
-    backgroundColor: theme.palette.secondary.main,
-  } : {},
-
-  '&:hover': {
-    transform: 'translateY(-1px)',
-    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}`,
-    background: active
-      ? alpha(theme.palette.primary.main, 0.15)
-      : alpha(theme.palette.background.paper, 0.2),
+    position: 'absolute', bottom: -1, left: '50%',
+    transform: 'translateX(-50%)',
+    width: active ? '4px' : 0, height: active ? '4px' : 0,
+    borderRadius: '50%', backgroundColor: '#e50914',
+    transition: 'width 0.2s ease, height 0.2s ease',
   },
-
-  '@media (hover: none)': {
-    '&:hover': {
-      transform: 'none',
-      boxShadow: 'none',
-    }
-  }
 }));
 
-function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
-  const theme = useTheme();
+/** Mobile pill chip */
+const Pill = styled(Button, {
+  shouldForwardProp: (p) => p !== 'active',
+})(({ active }) => ({
+  color: active ? '#141414' : 'rgba(255,255,255,0.9)',
+  background: active ? '#fff' : 'rgba(255,255,255,0.13)',
+  textTransform: 'none',
+  fontWeight: active ? 700 : 400,
+  fontSize: '0.8rem',
+  borderRadius: '14px',
+  padding: '5px 14px',
+  minWidth: 'auto',
+  border: 'none',
+  boxShadow: 'none',
+  flexShrink: 0,
+  transition: 'background 0.2s, color 0.2s',
+  '&:hover': { background: active ? '#fff' : 'rgba(255,255,255,0.22)' },
+}));
+
+/** Fixed bottom nav (mobile) */
+const MobileBottomNav = styled(BottomNavigation)(() => ({
+  position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1200,
+  background: 'rgba(14,14,14,0.97)', backdropFilter: 'blur(14px)',
+  borderTop: '1px solid rgba(255,255,255,0.08)', height: 60,
+}));
+
+const MobileBottomNavAction = styled(BottomNavigationAction)(() => ({
+  color: 'rgba(255,255,255,0.5)', minWidth: 0, padding: '6px 0 4px',
+  '&.Mui-selected': { color: '#fff' },
+  '& .MuiBottomNavigationAction-label': {
+    fontSize: '0.65rem',
+    '&.Mui-selected': { fontSize: '0.65rem', fontWeight: 600 },
+  },
+}));
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+/**
+ * Props:
+ *   coverColor  string | null  — 'r,g,b' from hero poster dominant colour
+ */
+function Navbar({ coverColor, onGenreSelect }) {
+  const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const screenSize = useWindowSize();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Use category context
   const {
     selectedCategory,
     selectedNav,
     selectCategory,
     clearCategory,
     selectNav,
-    clearNav
   } = useCategory();
 
-  const containerRef = useRef(null);
-  const buttonRefs = useRef({});
-  const navRef = useRef(null);
-  const scrollTimeoutRef = useRef(null);
+  const scrollTimerRef = useRef(null);
 
-  const [categoryList, setCategoryList] = useState([]);
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [searchActive, setSearchActive] = useState(false);
+  const [categoryList,     setCategoryList]     = useState([]);
+  const [isScrolled,       setIsScrolled]       = useState(false);
+  const [searchActive,     setSearchActive]     = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
-  const [hasNewContent, setHasNewContent] = useState(true);
-  
-  // Netflix-style scroll states
-  const [mobileNavVisible, setMobileNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-  const [scrollDirection, setScrollDirection] = useState('up');
-  const [scrollVelocity, setScrollVelocity] = useState(0);
 
-  // Memoized navbar buttons configuration
-  const navbarButtons = useMemo(() => [
-    {
-      id: 0,
-      title: 'Home',
-      route: Constants.DB_CINEMA_BROWSE_ROUTE,
-      icon: <HomeIcon />,
-      notification: false,
-    },
-    {
-      id: 1,
-      title: 'Movies',
-      route: Constants.DB_CINEMA_MOVIES_ROUTE,
-      icon: <MovieIcon />,
-      notification: false,
-    },
-    {
-      id: 2,
-      title: 'TV Shows',
-      route: Constants.DB_CINEMA_SERIES_ROUTE,
-      icon: <TvIcon />,
-      notification: false,
-    },
-    {
-      id: 3,
-      title: 'Categories',
-      icon: <CategoryIcon />,
-      notification: true,
-    }
+  // ─── nav config ─────────────────────────────────────────────────────────────
+  const navItems = useMemo(() => [
+    { id: 0, title: 'Home',      route: Constants.DB_CINEMA_BROWSE_ROUTE,  icon: <HomeIcon /> },
+    { id: 1, title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
+    { id: 2, title: 'TV Shows',  route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
+    { id: 3, title: 'Categories', route: null,                              icon: <CategoryIcon /> },
   ], []);
 
-  // Set default nav based on current route
+  // Sync selectedNav with URL
   useEffect(() => {
-    const currentPath = location.pathname;
+    const path = location.pathname;
+    let match = navItems[0];
+    if (path.includes(Constants.DB_CINEMA_MOVIES_ROUTE)) match = navItems[1];
+    else if (path.includes(Constants.DB_CINEMA_SERIES_ROUTE)) match = navItems[2];
+    selectNav(match);
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (!selectedNav) {
-      let defaultNav = navbarButtons[0];
-
-      if (currentPath.includes(Constants.DB_CINEMA_MOVIES_ROUTE)) {
-        defaultNav = navbarButtons[1];
-      } else if (currentPath.includes(Constants.DB_CINEMA_SERIES_ROUTE)) {
-        defaultNav = navbarButtons[2];
-      }
-
-      selectNav(defaultNav);
-    }
-  }, [location.pathname, selectedNav, navbarButtons, selectNav]);
-
-  // Check if we're on home page
-  const isHomePage = useMemo(() => {
-    return !selectedNav || selectedNav.id === 0;
-  }, [selectedNav]);
-
-  // Check if we're on movies or tv shows page
-  const isMediaPage = useMemo(() => {
-    return selectedNav && (selectedNav.id === 1 || selectedNav.id === 2);
-  }, [selectedNav]);
-
-  // Netflix-style scroll handling
+  // Scroll detection
   useEffect(() => {
-    if (!isMobile) return;
-
-    let lastScrollTime = Date.now();
-    let lastScrollPosition = 0;
-
-    const handleScroll = () => {
-      const currentScroll = window.scrollY;
-      const currentTime = Date.now();
-      
-      // Calculate scroll velocity
-      const timeDiff = currentTime - lastScrollTime;
-      const scrollDiff = Math.abs(currentScroll - lastScrollPosition);
-      const velocity = scrollDiff / (timeDiff || 1);
-      setScrollVelocity(velocity);
-
-      // Determine scroll direction
-      const direction = currentScroll > lastScrollY ? 'down' : 'up';
-      setScrollDirection(direction);
-
-      // Netflix-style logic: Hide on fast scroll down, show on scroll up
-      if (direction === 'down' && currentScroll > 100 && velocity > 0.5) {
-        setMobileNavVisible(false);
-      } else if (direction === 'up' || currentScroll < 50) {
-        setMobileNavVisible(true);
-      }
-
-      // Update scrolled state
-      setIsScrolled(currentScroll > 2);
-      
-      // Update tracking variables
-      setLastScrollY(currentScroll);
-      lastScrollPosition = currentScroll;
-      lastScrollTime = currentTime;
+    const onScroll = () => {
+      if (scrollTimerRef.current) cancelAnimationFrame(scrollTimerRef.current);
+      scrollTimerRef.current = requestAnimationFrame(() => setIsScrolled(window.scrollY > 10));
     };
-
-    // Throttle scroll events
-    const throttledScroll = () => {
-      if (scrollTimeoutRef.current) {
-        cancelAnimationFrame(scrollTimeoutRef.current);
-      }
-      scrollTimeoutRef.current = requestAnimationFrame(handleScroll);
-    };
-
-    window.addEventListener('scroll', throttledScroll, { passive: true });
-    
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      if (scrollTimeoutRef.current) {
-        cancelAnimationFrame(scrollTimeoutRef.current);
-      }
-      window.removeEventListener('scroll', throttledScroll);
+      if (scrollTimerRef.current) cancelAnimationFrame(scrollTimerRef.current);
+      window.removeEventListener('scroll', onScroll);
     };
-  }, [isMobile, lastScrollY]);
-
-  // Fetch categories
-  const fetchCategory = useCallback(async () => {
-    try {
-      const response = await getGenresList();
-      if (response?.httpStatusCode === 200 && Array.isArray(response.data)) {
-        setCategoryList(response.data);
-      } else {
-        setCategoryList([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch categories:', error);
-      setCategoryList([]);
-    }
   }, []);
 
+  // Load categories
   useEffect(() => {
-    fetchCategory();
-  }, [fetchCategory]);
+    fetchPageCategories('home')
+      .then(data => setCategoryList(Array.isArray(data) ? data : []))
+      .catch(() => setCategoryList([]));
+  }, []);
 
-  // Handle navbar button selection with navigation
-  const handleNavbarButtonSelect = useCallback((navbarButton) => {
-    if (navbarButton.id === 3) {
+  // ─── handlers ────────────────────────────────────────────────────────────────
+
+  const handleNavSelect = useCallback((item) => {
+    if (item.id === 3) {
       setCategoryModalOpen(true);
     } else {
-      selectNav(navbarButton);
+      selectNav(item);
       setCategoryModalOpen(false);
-
-      if (navbarButton.route) {
-        navigate(navbarButton.route);
-        onGenreSelect?.(null);
-        selectCategory(null);
-      }
+      navigate(item.route);
+      onGenreSelect?.(null);
+      selectCategory(null);
     }
   }, [selectNav, navigate, onGenreSelect, selectCategory]);
 
-  const handleBack = useCallback(() => {
-    clearNav();
-    clearCategory();
-    onGenreSelect?.(null);
-    selectCategory(null);
-    navigate(Constants.DB_CINEMA_BROWSE_ROUTE);
-  }, [clearNav, clearCategory, navigate, onGenreSelect, selectCategory]);
+  const handleBackToHome = useCallback(() => {
+    handleNavSelect(navItems[0]);
+  }, [handleNavSelect, navItems]);
 
   const handleCategorySelect = useCallback((category) => {
     selectCategory(category);
@@ -354,332 +211,196 @@ function Navbar({ coverColor, onCollapseChange = () => { }, onGenreSelect }) {
     setCategoryModalOpen(false);
   }, [clearCategory, onGenreSelect, selectCategory]);
 
-  const handleCloseCategoryModal = useCallback(() => {
-    setCategoryModalOpen(false);
-  }, []);
+  // ─── derived state ───────────────────────────────────────────────────────────
 
-  // Render main navbar buttons (Home, Movies, TV Shows, Categories)
-  const renderMainNavbarButtons = useCallback(() => {
-    return (
-      <Box
-        ref={containerRef}
-        sx={{
-          display: 'flex',
-          overflowX: 'auto',
-          gap: 1,
-          px: 1,
-          scrollbarWidth: 'none',
-          '&::-webkit-scrollbar': {
-            display: 'none',
-          },
-        }}
-      >
-        {navbarButtons.map((navbarButton) => (
-          <div
-            key={navbarButton.id}
-            ref={(el) => (buttonRefs.current[navbarButton.id] = el)}
-          >
-            <NavButton
-              active={selectedNav?.id === navbarButton.id}
-              hasnotification={navbarButton.notification && hasNewContent}
-              onClick={() => handleNavbarButtonSelect(navbarButton)}
-              startIcon={navbarButton.icon}
-              endIcon={navbarButton.id === 3 ? <ExpandMoreIcon /> : null}
-              sx={{
-                minWidth: 'auto',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {navbarButton.id !== 3
-                ? navbarButton.title
-                : selectedCategory?.name || navbarButton.title}
-            </NavButton>
-          </div>
-        ))}
-      </Box>
-    );
-  }, [navbarButtons, selectedNav, selectedCategory, handleNavbarButtonSelect, hasNewContent]);
+  const isMediaPage = selectedNav && (selectedNav.id === 1 || selectedNav.id === 2);
+  const bottomNavValue = selectedNav?.id ?? 0;
 
-  // Render secondary navbar buttons for mobile (only selected nav + categories)
-  const renderMobileSecondaryNavbarButtons = useCallback(() => {
-    if (!selectedNav || selectedNav.id === 0) return null;
+  // ─── Mobile Row 2 (filter chips) ─────────────────────────────────────────────
 
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          overflowX: 'auto',
-          gap: 1,
-          px: 1,
-          scrollbarWidth: 'none',
-          '&::-webkit-scrollbar': {
-            display: 'none',
-          },
-        }}
-      >
-        <NavButton
-          active
-          onClick={() => handleNavbarButtonSelect(selectedNav)}
-          sx={{
-            px: 3,
-            py: 1,
-            flexShrink: 0,
-          }}
-        >
-          {selectedNav.title}
-        </NavButton>
+  const mobileFilterRow = isMobile && (
+    // Collapse on scroll using maxHeight/opacity transition
+    <Box sx={{
+      maxHeight: isScrolled ? 0 : '52px',
+      overflow: 'hidden',
+      opacity: isScrolled ? 0 : 1,
+      transition: 'max-height 0.3s ease, opacity 0.25s ease',
+    }}>
+      <Box sx={{
+        display: 'flex', gap: 1, overflowX: 'auto',
+        px: 2, pb: 1.2, pt: 0.3,
+        scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
+      }}>
+        {!isMediaPage && (
+          <>
+            {/* Shows chip — nav shortcut, never active-styled */}
+            <Pill onClick={() => handleNavSelect(navItems[2])}>
+              Shows
+            </Pill>
+            {/* Movies chip — nav shortcut, never active-styled */}
+            <Pill onClick={() => handleNavSelect(navItems[1])}>
+              Movies
+            </Pill>
+          </>
+        )}
 
-        <NavButton
+        {/* Categories chip */}
+        <Pill
           onClick={() => setCategoryModalOpen(true)}
-          endIcon={<ExpandMoreIcon />}
-          sx={{
-            px: 3,
-            py: 1,
-            flexShrink: 0,
-          }}
+          endIcon={<ExpandMoreIcon sx={{ fontSize: '0.9rem !important', ml: -0.5 }} />}
+          active={!!selectedCategory}
         >
           {selectedCategory ? selectedCategory.name : 'Categories'}
-          {selectedCategory && (
-            <Typography
-              component="span"
-              sx={{
-                ml: 1,
-                color: 'primary.main',
-                fontWeight: 600
-              }}
-            >
-              •
-            </Typography>
-          )}
-        </NavButton>
+        </Pill>
       </Box>
-    );
-  }, [selectedNav, selectedCategory, handleNavbarButtonSelect]);
+    </Box>
+  );
 
-  const shouldShowBackButton = selectedNav && !isHomePage && isMobile;
-
-  // Netflix-style mobile navigation animation
-  const renderMobileNavigation = useCallback(() => {
-    if (!isMobile) return null;
-
-    return (
-      <motion.div
-        initial={false}
-        animate={mobileNavVisible ? 'visible' : 'hidden'}
-        variants={mobileNavVariants}
-        style={{
-          position: 'relative',
-          willChange: 'transform, opacity, backdrop-filter',
-          transformOrigin: 'top center',
-        }}
-      >
-        {/* Blur width animation container (Netflix style) */}
-        <motion.div
-          initial={false}
-          animate={mobileNavVisible ? 'visible' : 'hidden'}
-          variants={blurWidthVariants}
-          style={{
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '0 0 12px 12px',
-            // background: alpha(theme.palette.background.paper, 0.9),
-            margin: '0 auto',
-            willChange: 'width, backdrop-filter',
-          }}
-        >
-          {/* Main Navigation - Show when no nav selected or on home */}
-          {(!selectedNav || isHomePage) && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <Box sx={{ py: 1 }}>
-                {renderMainNavbarButtons()}
-              </Box>
-            </motion.div>
-          )}
-
-          {/* Secondary Navigation - Show when on Movies/TV Shows */}
-          {isMediaPage && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-            >
-              <Box sx={{ py: 1 }}>
-                {renderMobileSecondaryNavbarButtons()}
-              </Box>
-            </motion.div>
-          )}
-        </motion.div>
-      </motion.div>
-    );
-  }, [
-    isMobile,
-    mobileNavVisible,
-    selectedNav,
-    isHomePage,
-    isMediaPage,
-    renderMainNavbarButtons,
-    renderMobileSecondaryNavbarButtons,
-    theme
-  ]);
-
-  // Calculate spacer height
-  const spacerHeight = useMemo(() => {
-    if (!isMobile) return '70px';
-    
-    if (isMediaPage) {
-      return mobileNavVisible ? '120px' : '60px';
-    }
-    
-    return (selectedNav && !isHomePage) ? '120px' : (mobileNavVisible ? '120px' : '60px');
-  }, [isMobile, isMediaPage, mobileNavVisible, selectedNav, isHomePage]);
+  // ─── JSX ─────────────────────────────────────────────────────────────────────
 
   return (
     <>
+      {/* ── AppBar ── */}
       <StyledAppBar
         position="fixed"
         scrolled={isScrolled}
-        coverColor={coverColor}
-        ref={navRef}
+        coverColor={isMobile ? (coverColor ?? null) : null}
       >
-        <Toolbar sx={{
-          minHeight: { xs: '60px', md: '70px' },
-          px: { xs: 2, md: 3 }
-        }}>
-          {/* Left Section */}
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            flexGrow: 1,
-            gap: 2
-          }}>
-            {shouldShowBackButton ? (
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <IconButton
-                  onClick={handleBack}
-                  size="large"
-                  edge="start"
-                  color="inherit"
-                  sx={{
-                    mr: 1,
-                    background: alpha(theme.palette.background.paper, 0.1),
-                    backdropFilter: 'blur(10px)',
-                    '&:hover': {
-                      background: alpha(theme.palette.primary.main, 0.1),
-                    }
-                  }}
-                >
-                  <ArrowBackIcon />
-                </IconButton>
+        <Toolbar sx={{ minHeight: { xs: '52px', md: '68px' }, px: { xs: 1.5, md: 4 } }}>
 
-                <Typography
-                  variant="h6"
-                  sx={{
-                    color: 'text.primary',
-                    fontWeight: 600,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.text.primary} 100%)`,
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    color: 'transparent',
-                    display: { xs: 'block', sm: 'none' }
-                  }}
-                >
-                  {selectedNav.title}
-                </Typography>
-              </Box>
-            ) : (
-              <Link to={Constants.DB_WORLD_HOME_ROUTE} style={{ textDecoration: 'none' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <img
-                    className="logo"
-                    src={DB_WORLD_TEAL_SVG}
-                    alt="Logo"
-                    style={{ height: '32px' }}
-                  />
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      color: 'text.primary',
-                      fontWeight: 700,
-                      fontSize: '1.25rem',
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                      backgroundClip: 'text',
-                      WebkitBackgroundClip: 'text',
-                      color: 'transparent',
-                      display: { xs: 'none', sm: 'block' }
-                    }}
+          {/* LEFT */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, minWidth: 0 }}>
+            {isMobile ? (
+              isMediaPage ? (
+                // Movies / TV Shows page: back arrow + page title
+                <>
+                  <IconButton
+                    size="small"
+                    onClick={handleBackToHome}
+                    sx={{ color: '#fff', p: 0.5 }}
                   >
+                    <BackIcon sx={{ fontSize: '1.3rem' }} />
+                  </IconButton>
+                  <Box
+                    sx={{
+                      fontWeight: 700, fontSize: '1.2rem', color: '#fff',
+                      letterSpacing: '-0.01em', lineHeight: 1,
+                    }}
+                    component="span"
+                  >
+                    {selectedNav?.title}
+                  </Box>
+                </>
+              ) : (
+                // Home page: db-world icon + "Home"
+                <>
+                  <Link to={Constants.DB_WORLD_HOME_ROUTE} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <img src={DB_WORLD_TEAL_SVG} alt="Logo" style={{ height: 26 }} />
+                  </Link>
+                  <Box
+                    sx={{
+                      fontWeight: 700, fontSize: '1.2rem', color: '#fff',
+                      letterSpacing: '-0.01em', lineHeight: 1,
+                    }}
+                    component="span"
+                  >
+                    {selectedNav?.title ?? 'Home'}
+                  </Box>
+                </>
+              )
+            ) : (
+              // Desktop: logo + nav links
+              <>
+                <Link to={Constants.DB_WORLD_HOME_ROUTE} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <img src={DB_WORLD_TEAL_SVG} alt="Logo" style={{ height: 30 }} />
+                  <Box component="span" sx={{ fontWeight: 800, fontSize: '1.15rem', color: '#e50914', letterSpacing: '-0.02em', lineHeight: 1 }}>
                     DB Cinema
-                  </Typography>
-                </Box>
-              </Link>
-            )}
+                  </Box>
+                </Link>
 
-            {/* Desktop Navigation */}
-            {!isMobile && (
-              <Box sx={{
-                display: 'flex',
-                ml: { md: 2, lg: 4 },
-                gap: 1,
-                flexGrow: 1,
-                justifyContent: 'center'
-              }}>
-                {renderMainNavbarButtons()}
-              </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {navItems.map(item => (
+                    <NavLink
+                      key={item.id}
+                      active={selectedNav?.id === item.id}
+                      onClick={() => handleNavSelect(item)}
+                      endIcon={item.id === 3 ? <ExpandMoreIcon sx={{ fontSize: '1rem !important', ml: -0.5 }} /> : undefined}
+                    >
+                      {item.id === 3 && selectedCategory ? selectedCategory.name : item.title}
+                    </NavLink>
+                  ))}
+                </Box>
+              </>
             )}
           </Box>
 
-          {/* Right Section */}
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: { xs: 0.5, md: 1 }
-          }}>
+          {/* RIGHT: bell (mobile) + search */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
+            {isMobile && (
+              <IconButton size="medium" sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}>
+                <BellIcon sx={{ fontSize: '1.35rem' }} />
+              </IconButton>
+            )}
             <IconButton
-              color="inherit"
               onClick={() => setSearchActive(true)}
-              size="large"
-              sx={{
-                background: alpha(theme.palette.background.paper, 0.1),
-                backdropFilter: 'blur(10px)',
-                '&:hover': {
-                  background: alpha(theme.palette.primary.main, 0.1),
-                }
-              }}
+              size="medium"
+              sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}
             >
-              <SearchIcon />
+              <SearchIcon sx={{ fontSize: '1.35rem' }} />
             </IconButton>
           </Box>
         </Toolbar>
 
-        {/* Netflix-style mobile navigation animation */}
-        {isMobile && renderMobileNavigation()}
+        {/* Mobile Row 2: filter chips (collapses on scroll) */}
+        {mobileFilterRow}
       </StyledAppBar>
 
-      {/* Category Modal */}
+      {/* ── Category dropdown ── */}
       <CategoryModal
         open={categoryModalOpen}
         categories={categoryList}
         selectedCategory={selectedCategory}
         onSelect={handleCategorySelect}
         onClear={handleClearCategory}
-        onClose={handleCloseCategoryModal}
+        onClose={() => setCategoryModalOpen(false)}
+        appBarHeight={isMobile ? (isScrolled ? 52 : 96) : 68}
       />
 
-      {/* Search Overlay */}
+      {/* ── Search Overlay ── */}
       <AnimatePresence>
-        {searchActive && (
-          <SearchOverlay onClose={() => setSearchActive(false)} />
-        )}
+        {searchActive && <SearchOverlay onClose={() => setSearchActive(false)} />}
       </AnimatePresence>
 
-      {/* Spacer */}
-      <Box sx={{ height: spacerHeight }} />
+      {/* ── Spacer — shrinks when filter row is hidden ── */}
+      <Box sx={{
+        height: {
+          xs: isScrolled ? '52px' : '96px',
+          md: '68px',
+        },
+        transition: 'height 0.3s ease',
+      }} />
+
+      {/* ── Mobile bottom navigation ── */}
+      {isMobile && (
+        <MobileBottomNav
+          value={bottomNavValue}
+          onChange={(_, newValue) => handleNavSelect(navItems[newValue])}
+          showLabels
+        >
+          {navItems.map(item => (
+            <MobileBottomNavAction
+              key={item.id}
+              label={item.id === 2 ? 'TV Shows' : item.title}
+              icon={item.id === 3 ? <CategoryIcon /> : item.icon}
+            />
+          ))}
+        </MobileBottomNav>
+      )}
+
+      {/* Bottom spacer so content sits above bottom nav */}
+       {/* {isMobile && <Box sx={{ height: '60px' }} />} */}
     </>
   );
 }
 
-export default React.memo(Navbar);
+export default Navbar;

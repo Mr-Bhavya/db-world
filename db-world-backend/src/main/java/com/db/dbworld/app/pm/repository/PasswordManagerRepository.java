@@ -1,4 +1,4 @@
-package com.db.dbworld.dao.pm;
+package com.db.dbworld.app.pm.repository;
 
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
 import org.springframework.data.jpa.repository.JpaRepository;

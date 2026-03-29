@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { FlmngrPanel } from "@flmngr/flmngr-react";
 
 const FLMNGR_API_KEY =
-  process.env.FLMNGR_API_KEY || "abPhHyhIfD0gNqWnymrtCPeS";
+  import.meta.env.VITE_FLMNGR_API_KEY || 'abPhHyhIfD0gNqWnymrtCPeS' || "abPhHyhIfD0gNqWnymrtCPeS";
 
 export default function FlmngrStandalone() {
   const navigate = useNavigate();

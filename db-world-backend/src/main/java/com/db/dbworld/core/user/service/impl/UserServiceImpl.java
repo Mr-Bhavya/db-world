@@ -1,346 +1,238 @@
-package com.db.dbworld.services.Impl;
+package com.db.dbworld.core.user.service.impl;
 
-import com.db.dbworld.audit.activity.repository.LoginDataRepository;
-import com.db.dbworld.dao.user.UserRepository;
-import com.db.dbworld.dao.user.UserRoleRepository;
-import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
-import com.db.dbworld.audit.activity.entity.LoginDataEntity;
-import com.db.dbworld.entities.user.UserEntity;
-import com.db.dbworld.entities.user.UserRoleEntity;
+import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
-import com.db.dbworld.payloads.user.UserDto;
-import com.db.dbworld.services.auth.RoleService;
-import com.db.dbworld.services.user.UserService;
+import com.db.dbworld.core.role.entity.RoleEntity;
+import com.db.dbworld.core.role.enums.Role;
+import com.db.dbworld.core.role.repository.UserRoleRepository;
+import com.db.dbworld.core.user.dto.*;
+import com.db.dbworld.core.user.entity.UserEntity;
+import com.db.dbworld.core.user.mapper.UserMapper;
+import com.db.dbworld.core.user.repository.UserRepository;
+import com.db.dbworld.core.user.service.UserService;
+
 import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.Cacheable;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Date;
+import java.util.List;
 
-@Slf4j
+@Log4j2
 @Service
 @Transactional
-@CacheConfig(cacheNames = "User")
+@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+    private final UserRoleRepository roleRepository;
+    private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
+    private final UserContext userContext;
 
-    @Autowired
-    private UserRoleRepository userRoleRepository;
-
-    @Autowired
-    private ModelMapper modelMapper;
-
-    @Autowired
-    private LoginDataRepository loginDataRepository;
-
-    @Autowired
-    private DbWorldUtils dbWorldUtils;
-
-    @Autowired
-    private JwtDecoder jwtDecoder;
-
-    @Autowired
-    private RoleService roleService;
-
+    // ==============================
+    // ✅ CREATE USER
+    // ==============================
     @Override
-    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
-    public UserEntity getUserFromToken() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username;
+    public UserDto createUser(CreateUserRequest request) {
 
-        if (authentication == null) {
-            throw new DbWorldException("Unauthenticated access");
-        }
+        UserEntity entity = userMapper.toEntity(request);
 
-        Object principal = authentication.getPrincipal();
+        entity.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        if (principal instanceof UserDetails userDetails) {
-            username = userDetails.getUsername();
-        } else if (principal instanceof Jwt jwt) {
-            username = jwt.getSubject(); // or jwt.getClaim("sub")
-        } else if (principal instanceof String str) {
-            username = str; // Sometimes principal is a String username
+        RoleEntity role;
+        if (request.getRoleId() != null) {
+            role = roleRepository.findById(Math.toIntExact(request.getRoleId()))
+                    .orElseThrow(() -> new ResourceNotFoundException("Role", "id", request.getRoleId()));
         } else {
-            throw new DbWorldException("Unknown principal type: " + principal.getClass());
+            role = roleRepository.findByName(Role.VIEWER);
+            if (role == null) {
+                throw new ResourceNotFoundException("Role", "name", Role.VIEWER.name());
+            }
         }
 
-        return this.userRepository.findByEmail(username)
-                .orElseThrow(() -> new ResourceNotFoundException("user", "email", username));
+        entity.setRole(role);
+
+        return userMapper.toDto(userRepository.save(entity));
     }
 
     @Override
-    public String getUserFromToken(String token) {
-        try {
-            Jwt jwt =  jwtDecoder.decode(token);
-            return jwt.getSubject(); // or jwt.getClaimAsString("email")
-        } catch (JwtException e) {
-            throw new DbWorldException("Invalid JWT token: " + e.getMessage());
+    public List<UserDto> createUsers(List<CreateUserRequest> requests) {
+
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
         }
+
+        return requests.stream()
+                .map(this::createUser)
+                .toList();
+    }
+
+    // ==============================
+    // ✅ GET USER
+    // ==============================
+    @Override
+    public UserDto getUserDtoById(Long userId) {
+        return userMapper.toDto(getUserEntityById(userId));
     }
 
     @Override
-    public Long getUserIdFromToken() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            return jwt.getClaim("userId");
+    public UserEntity getUserEntityById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    @Override
+    public List<UserDto> getAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable)
+                .stream()
+                .map(userMapper::toDto)
+                .toList();
+    }
+
+    @Override
+    public List<UserSearchResponse> searchUsers(String query, int limit) {
+
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
         }
-        throw new IllegalStateException("Invalid authentication token");
+
+        return userRepository.searchUsers(query.trim(), PageRequest.of(0, limit))
+                .stream()
+                .map(p -> new UserSearchResponse(
+                        p.getUserId(),
+                        p.getFirstName() + " " + p.getLastName(),
+                        p.getEmail()
+                ))
+                .toList();
     }
 
+    // ==============================
+    // ✅ UPDATE USER (NO PASSWORD)
+    // ==============================
     @Override
-//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
-    public List<UserDto> getAllUsers() {
-        List<UserEntity> userEntities = this.userRepository.findAll();
-        return userEntities.stream().map(userEntity -> {
-                    try {
-                        Pageable pageable = PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "lastLoginDate"));
-                        List<LoginDataEntity> loginDataEntities = this.loginDataRepository
-                                .findByUserUserId(userEntity.getUserId(), pageable);
+    public UserDto updateUser(UpdateUserRequest request, Long userId) {
 
-                        pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "time"));
-//                        List<UserCinemaDataEntity> userCinemaDataEntities = userCinemaDataRepository.findAllByUserUserId(userEntity.getUserId(), pageable);
+        UserEntity entity = getUserEntityById(userId);
 
-                        loginDataRepository.totalNumberOfLogin(userEntity.getUserId());
+        userMapper.updateUserFromRequest(request, entity);
 
-                        UserDto userDto = this.modelMapper.map(userEntity, UserDto.class);
-                        userDto.setLoginData(
-                                loginDataEntities.stream().map(loginDataEntity -> this.modelMapper.map(
-                                        loginDataEntity, UserDto.LoginData.class
-                                )).toList()
-                        );
-
-                        userDto.setNoOfLogin(loginDataRepository.totalNumberOfLogin(userEntity.getUserId()));
-                        return userDto;
-                    } catch (Exception ex) {
-                        log.warn(ex.getMessage());
-                        return this.modelMapper.map(userEntity, UserDto.class);
-                    }
-                }
-        ).collect(Collectors.toList());
+        return userMapper.toDto(userRepository.save(entity));
     }
 
+    // ==============================
+    // ✅ CHANGE PASSWORD
+    // ==============================
     @Override
-    public List<UserSearchProjection> searchUsersByQuery(String query, int limit) {
-        return userRepository.searchUsers(query, limit);
+    public void changePassword(ChangePasswordRequest request) {
+
+        UserEntity user = getCurrentUser();
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new DbWorldException("Invalid old password");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        userRepository.save(user);
     }
 
-    @Override
-    public List<UserDto> createUser(List<UserDto> userDtoList) {
-        int viewerRoleId = 3;
-        UserRoleEntity userRoleEntity = this.userRoleRepository.findById(viewerRoleId).orElseThrow(
-                () -> new ResourceNotFoundException("User Role", "id", String.valueOf(viewerRoleId))
-        );
-        List<UserEntity> userEntities = new ArrayList<>();
-
-        userDtoList.forEach(userDto -> {
-            UserEntity userEntity = new UserEntity();
-            userEntity.setFirstName(userDto.getFirstName());
-            userEntity.setLastName(userDto.getLastName());
-            userEntity.setDob(userDto.getDob());
-            userEntity.setGender(userDto.getGender());
-            userEntity.setMobileNo(userDto.getMobileNo());
-            userEntity.setEmail(userDto.getEmail().toLowerCase());
-            userEntity.setPassword(userDto.getPassword());
-            userEntity.setRole(userRoleEntity);
-            userEntities.add(userEntity);
-        });
-        List<UserEntity> newUsers = this.userRepository.saveAll(userEntities);
-        return newUsers.stream().map(userEntity -> this.modelMapper.map(userEntity, UserDto.class)).toList();
-    }
-
-    @Override
-    public UserDto registerUser(UserDto userDto) {
-        return null;
-    }
-
-    @Override
-    public UserDto getUserDtoById(Long id) {
-        UserEntity userEntity = getUserEntityById(id);
-        return this.modelMapper.map(userEntity, UserDto.class);
-    }
-
-    @Override
-    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
-    public UserEntity getUserEntityById(Long id) {
-        return this.userRepository.findById(id).orElseThrow(
-                () -> new ResourceNotFoundException("User", "userid", id.toString())
-        );
-    }
-
+    // ==============================
+    // ✅ PROFILE
+    // ==============================
     @Override
     public UserDto getUserProfile() {
-        return this.modelMapper.map(getUserFromToken(), UserDto.class);
+        return userMapper.toDto(getCurrentUser());
+    }
+
+    // ==============================
+    // ✅ ROLE
+    // ==============================
+    @Override
+    public String getRoleForUser() {
+        return getCurrentUser().getRole().getName().name();
     }
 
     @Override
-    public long getUserIdByUsername(String username) {
-        UserEntity userEntity = this.userRepository.findByEmail(username).orElseThrow(
-                () -> new ResourceNotFoundException("User", "username", username)
-        );
-        return this.modelMapper.map(userEntity, UserDto.class).getUserId();
-    }
+    public UserDto updateUserRole(Long userId, Long roleId) {
 
-    @Override
-    public UserDto updateUser(UserDto userDto, Long userId) {
-        UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(
-                () -> new ResourceNotFoundException("User", "userId", userId)
-        );
-        try {
-            updateUserFields(userEntity, userDto);
-            return this.modelMapper.map(this.userRepository.save(userEntity), UserDto.class);
-        } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
+        UserEntity user = getUserEntityById(userId);
+
+        RoleEntity role = roleRepository.findById(Math.toIntExact(roleId))
+                .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
+
+        // avoid unnecessary DB update
+        if (user.getRole() != null && user.getRole().getId() == role.getId()) {
+            return userMapper.toDto(user);
         }
+
+        user.setRole(role);
+
+        return userMapper.toDto(userRepository.save(user));
     }
 
-    @Transactional
+    // ==============================
+    // ✅ DELETE
+    // ==============================
     @Override
-    public UserDto updateUserWithRole(UserDto userDto, Long userId) {
-        // 1. Input validation
-        Objects.requireNonNull(userDto, "UserDto cannot be null");
+    public void deleteUserById(Long userId) {
 
-        // 2. Fetch existing user
-        UserEntity userEntity = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "userId", userId));
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        try {
-            // 3. Update basic user fields
-            updateUserFields(userEntity, userDto);
+        if (userId.equals(userContext.userId())) {
+            throw new DbWorldException("You cannot delete yourself");
+        }
 
-            // 4. Handle role update only if provided
-            if (userDto.getUserRole() != null) {
-                updateUserRole(userEntity, userDto.getUserRole());
+        if (user.getRole().getName() == Role.ADMIN) {
+
+            long adminCount = userRepository.countByRoleName(Role.ADMIN);
+
+            if (adminCount <= 1) {
+                throw new DbWorldException("Cannot delete the last admin user");
             }
-
-            // 5. Save and return
-            UserEntity updatedUser = userRepository.save(userEntity);
-            return modelMapper.map(updatedUser, UserDto.class);
-
-        } catch (ResourceNotFoundException ex) {
-            throw ex; // Re-throw specific exceptions
-        } catch (Exception ex) {
-            throw new DbWorldException("Failed to update user: " + ex.getMessage(), ex);
         }
+
+        userRepository.delete(user);
+
+        log.warn("User [{}] deleted by [{}]", userId, userContext.userId());
     }
 
-    private void updateUserFields(UserEntity userEntity, UserDto userDto) {
-        userEntity.setFirstName(userDto.getFirstName());
-        userEntity.setLastName(userDto.getLastName());
-        userEntity.setEmail(userDto.getEmail());
-        userEntity.setGender(userDto.getGender());
-        userEntity.setMobileNo(userDto.getMobileNo());
-        userEntity.setDob(userDto.getDob());
-
-        // Only update password if provided and not empty
-        if (StringUtils.hasText(userDto.getPassword())) {
-            userEntity.setPassword(userDto.getPassword());
-        }
-    }
-
-    private void updateUserRole(UserEntity userEntity, UserDto.UserRole roleDto) {
-        // Validate role ID
-        if (!StringUtils.hasText(roleDto.getId())) {
-            throw new IllegalArgumentException("Role ID cannot be null or empty");
-        }
-
-        // Verify role exists
-        UserDto.UserRole existingRole = roleService.getRoleByName(roleDto.getName());
-        if (existingRole == null) {
-            throw new ResourceNotFoundException("Role", "name", roleDto.getName());
-        }
-
-        // Only update if role is different
-        if (userEntity.getRole() == null ||
-                userEntity.getRole().getId() != (Integer.parseInt(existingRole.getId()))) {
-
-            UserRoleEntity roleEntity = modelMapper.map(existingRole, UserRoleEntity.class);
-            userEntity.setRole(roleEntity);
-        }
-    }
-
-    @Override
-    public void deleteUserById(Long id) {
-        boolean isUserExists = this.userRepository.existsById(id);
-        if (isUserExists) {
-            this.userRepository.deleteById(id);
-        } else {
-            throw new ResourceNotFoundException("User", "userid", id.toString());
-        }
-    }
-
+    // ==============================
+    // ✅ EMAIL LOOKUP
+    // ==============================
     @Override
     public UserDto getUserDtoByEmail(String email) {
-        return this.modelMapper.map(getUserEntityByEmail(email), UserDto.class);
+        return userMapper.toDto(getUserEntityByEmail(email));
     }
 
     @Override
-    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
     public UserEntity getUserEntityByEmail(String email) {
-        return this.userRepository.findByEmail(email).orElseThrow(
-                () -> new ResourceNotFoundException("User", "email", email)
-        );
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
     }
 
-    @Override
-    public List<UserDto> searchUser(String key) {
-        return List.of();
-    }
-
-    @Override
-    public UserDto.UserRole addUpdateUserRoleByUserId(Long userId, UserDto.UserRole role) {
-        UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(
-                () -> new ResourceNotFoundException("User", "userId", userId)
-        );
-        UserRoleEntity userRoleEntity = this.userRoleRepository.findByName(role.getName());
-        userEntity.setRole(userRoleEntity);
-        userEntity = this.userRepository.save(userEntity);
-        return this.modelMapper.map(userEntity.getRole(), UserDto.UserRole.class);
-    }
-
-    @Override
-    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_USER_KEY_GENERATOR)
-    public UserDto.UserRole getRoleForUser() {
-        Long userId = getUserIdFromToken();
-        UserEntity userEntity = this.userRepository.findById(userId).orElseThrow(
-                () -> new ResourceNotFoundException("User", "userId", userId)
-        );
-        return this.modelMapper.map(userEntity.getRole(), UserDto.UserRole.class);
-    }
-
+    // ==============================
+    // ✅ UPDATE DOB
+    // ==============================
     @Override
     public void updateDob(Date dob) {
-        try {
-            UserEntity userEntity = getUserFromToken();
-            userEntity.setDob(dob);
-            userRepository.save(userEntity);
-        } catch (Exception ex) {
-            throw new DbWorldException(ex.getMessage());
-        }
+        UserEntity user = getCurrentUser();
+        user.setDob(dob);
+        userRepository.save(user);
     }
 
-    @Override
-    public UserDto updateRoleByUserId(String userId) {
-        return null;
+    // ==============================
+    // 🔒 INTERNAL
+    // ==============================
+    private UserEntity getCurrentUser() {
+        return getUserEntityById(userContext.userId());
     }
-
 }

@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.providers.entity;
 
-import com.db.dbworld.cinema.tmdb.entities.TmdbEntity;
-import com.db.dbworld.cinema.tmdb.enums.ProviderType;
+import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.enums.ProviderType;
 import jakarta.persistence.*;
 import lombok.*;
 

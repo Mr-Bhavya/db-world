@@ -1,14 +1,14 @@
 package com.db.dbworld.app.cinema.tmdb.sync.scheduler;
 
-import com.db.dbworld.cinema.common.constants.CinemaConstants.Scheduler;
-import com.db.dbworld.cinema.common.constants.CinemaConstants.Time;
-import com.db.dbworld.cinema.common.constants.CinemaConstants.TmdbSync;
-import com.db.dbworld.cinema.common.events.BulkRecordChangedEvent;
-import com.db.dbworld.cinema.enums.RecordType;
-import com.db.dbworld.cinema.tmdb.sync.dto.SyncMetrics;
-import com.db.dbworld.cinema.tmdb.sync.dto.SyncWindow;
-import com.db.dbworld.cinema.tmdb.sync.service.TmdbRecordSyncService;
-import com.db.dbworld.cinema.tmdb.sync.service.TmdbSyncOrchestratorService;
+import com.db.dbworld.app.cinema.common.constants.CinemaConstants.Scheduler;
+import com.db.dbworld.app.cinema.common.constants.CinemaConstants.Time;
+import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
+import com.db.dbworld.app.cinema.common.events.BulkRecordChangedEvent;
+import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.sync.dto.SyncMetrics;
+import com.db.dbworld.app.cinema.tmdb.sync.dto.SyncWindow;
+import com.db.dbworld.app.cinema.tmdb.sync.service.TmdbRecordSyncService;
+import com.db.dbworld.app.cinema.tmdb.sync.service.TmdbSyncOrchestratorService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;

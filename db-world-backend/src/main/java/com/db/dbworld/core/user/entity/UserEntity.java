@@ -1,6 +1,7 @@
-package com.db.dbworld.entities.user;
+package com.db.dbworld.core.user.entity;
 
 import com.db.dbworld.app.pm.entity.PasswordManagerEntity;
+import com.db.dbworld.core.role.entity.RoleEntity;
 import com.db.dbworld.security.entity.RefreshTokenEntity;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -48,7 +49,13 @@ public class UserEntity implements Serializable {
     @JsonProperty
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "role", referencedColumnName = "id")
-    private UserRoleEntity role;
+    private RoleEntity role;
+
+    @Column(name = "account_non_locked", nullable = false)
+    private boolean accountNonLocked = true;
+
+    @Column(name = "enabled", nullable = false)
+    private boolean enabled = true;
 
     @CreatedDate
     private Date creationDate;

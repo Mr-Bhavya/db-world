@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.validation;
 
-import com.db.dbworld.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.enums.RecordType;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 

@@ -1,9 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.season.mapper;
 
-import com.db.dbworld.cinema.tmdb.client.dto.SeasonTmdbResponse;
-import com.db.dbworld.cinema.tmdb.season.dto.SeasonDto;
-import com.db.dbworld.cinema.tmdb.season.entity.SeasonEntity;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.client.dto.SeasonTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.season.dto.SeasonDto;
+import com.db.dbworld.app.cinema.tmdb.season.entity.SeasonEntity;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;

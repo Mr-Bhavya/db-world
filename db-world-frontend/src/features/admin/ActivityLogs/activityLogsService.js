@@ -1,6 +1,6 @@
 // services/activityLogsService.js
 import axios from 'axios';
-import axiosInstance from '../../Utils/AxiosInstants';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 // Request interceptor to add auth token
 axiosInstance.interceptors.request.use(

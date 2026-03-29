@@ -7,6 +7,8 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.NetworkInfo} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -21,6 +23,7 @@ public class NetworkInfo {
     private Long bytesReceived;
     private Long bytesSent;
     private Integer adapterCount;
+    private Integer activeConnections;
 
     private String Error;
 }

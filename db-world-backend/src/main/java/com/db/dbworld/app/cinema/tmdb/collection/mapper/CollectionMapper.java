@@ -1,10 +1,10 @@
 package com.db.dbworld.app.cinema.tmdb.collection.mapper;
 
-import com.db.dbworld.cinema.tmdb.collection.dto.CollectionDto;
-import com.db.dbworld.cinema.tmdb.collection.entity.CollectionEntity;
-import com.db.dbworld.cinema.tmdb.client.dto.CollectionTmdbResponse;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapper;
-import com.db.dbworld.cinema.tmdb.mapper.BaseMapperConfig;
+import com.db.dbworld.app.cinema.tmdb.collection.dto.CollectionDto;
+import com.db.dbworld.app.cinema.tmdb.collection.entity.CollectionEntity;
+import com.db.dbworld.app.cinema.tmdb.client.dto.CollectionTmdbResponse;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapper;
+import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
 
 import org.mapstruct.InheritInverseConfiguration;
 import org.mapstruct.Mapper;

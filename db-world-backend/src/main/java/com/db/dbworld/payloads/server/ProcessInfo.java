@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/** @deprecated Use {@link com.db.dbworld.app.system.info.dto.ProcessInfo} instead. */
+@Deprecated(forRemoval = true)
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -20,9 +22,11 @@ public class ProcessInfo {
     private String state;
     private String commandLine;
     private Long startTime;
+    private String startTimeFormatted;
     private String session;
     private Integer priority;
     private Integer threads;
     private Long residentMemory;
     private Long virtualMemory;
+    private Double memoryPercent;
 }

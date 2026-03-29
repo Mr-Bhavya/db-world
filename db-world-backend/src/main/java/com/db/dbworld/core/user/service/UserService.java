@@ -1,56 +1,56 @@
-package com.db.dbworld.services.user;
+package com.db.dbworld.core.user.service;
 
-import com.db.dbworld.entities.dbcinema.user.UserSearchProjection;
-import com.db.dbworld.entities.user.UserEntity;
-import com.db.dbworld.payloads.user.UserDto;
-import org.springframework.transaction.annotation.Transactional;
+import com.db.dbworld.core.user.dto.*;
+import com.db.dbworld.core.user.entity.UserEntity;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Date;
 import java.util.List;
 
 public interface UserService {
 
-    UserEntity getUserFromToken();
+    // ==============================
+    // ✅ CREATE
+    // ==============================
+    UserDto createUser(CreateUserRequest request);
 
-    String getUserFromToken(String token);
+    List<UserDto> createUsers(List<CreateUserRequest> requests);
 
-    Long getUserIdFromToken();
+    // ==============================
+    // ✅ READ
+    // ==============================
+    UserDto getUserDtoById(Long userId);
 
-    List<UserDto> getAllUsers();
+    UserEntity getUserEntityById(Long userId); // internal use
 
-    List<UserSearchProjection> searchUsersByQuery(String query, int limit);
+    List<UserDto> getAllUsers(Pageable pageable);
 
-    List<UserDto> createUser(List<UserDto> userDtoList);
-
-    UserDto registerUser(UserDto userDto);
-
-    UserDto getUserDtoById(Long id);
-
-    UserEntity getUserEntityById(Long id);
+    List<UserSearchResponse> searchUsers(String query, int limit);
 
     UserDto getUserProfile();
 
-    long getUserIdByUsername(String username); //username = email
-
-    UserDto updateUser(UserDto userDto, Long userId);
-
-    @Transactional
-    UserDto updateUserWithRole(UserDto userDto, Long userId);
-
-    void deleteUserById(Long id);
-
     UserDto getUserDtoByEmail(String email);
 
-    UserEntity getUserEntityByEmail(String email);
+    UserEntity getUserEntityByEmail(String email); // internal use
 
-    List<UserDto> searchUser(String key);
-
-    UserDto.UserRole addUpdateUserRoleByUserId(Long userId, UserDto.UserRole role);
-    
-    UserDto.UserRole getRoleForUser();
+    // ==============================
+    // ✅ UPDATE
+    // ==============================
+    UserDto updateUser(UpdateUserRequest request, Long userId);
 
     void updateDob(Date dob);
 
-    UserDto updateRoleByUserId(String userId);
+    UserDto updateUserRole(Long userId, Long roleId);
 
+    // ==============================
+    // 🔐 SECURITY
+    // ==============================
+    void changePassword(ChangePasswordRequest request);
+
+    String getRoleForUser();
+
+    // ==============================
+    // 🗑 DELETE
+    // ==============================
+    void deleteUserById(Long id);
 }

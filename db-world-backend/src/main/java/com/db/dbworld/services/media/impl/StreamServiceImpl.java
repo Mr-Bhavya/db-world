@@ -1,13 +1,13 @@
 package com.db.dbworld.services.media.impl;
 
-import com.db.dbworld.exceptions.DbWorldException;
+import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.helpers.ProcessExecutor;
 import com.db.dbworld.payloads.dbcinema.stream.MediaFileInfo;
 import com.db.dbworld.services.DownloadType;
 import com.db.dbworld.services.media.MediaFileInfoService;
 import com.db.dbworld.services.media.StreamService;
-import com.db.dbworld.services.user.UserCinemaActivityService;
+import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
 import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.DbWorldUtils;
@@ -35,6 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * @deprecated Media file streaming service. To be migrated to app.media.stream.service.
+ * Still used by StreamController until that controller is migrated.
+ */
+@Deprecated(forRemoval = true)
 @Service
 @Log4j2
 @Transactional

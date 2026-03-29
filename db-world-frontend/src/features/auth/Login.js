@@ -1,474 +1,354 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Constants from './Constants';
-import { doLogin, updateDobForUser } from './ApiServices';
-// import Authentication from '../contexts/Authentication';
-import loginImage from '../images/login.png';
-
-// MUI Components
 import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CardMedia,
-  CircularProgress,
-  Container,
-  Divider,
-  FormControl,
-  FormHelperText,
-  Grid,
-  IconButton,
-  InputAdornment,
-  Modal,
-  TextField,
-  Typography,
-  useTheme,
-  useMediaQuery
+  Box, Button, CircularProgress, Dialog, DialogContent, DialogTitle,
+  Divider, IconButton, InputAdornment, TextField, Typography, Avatar,
 } from '@mui/material';
 import {
   Lock as LockIcon,
   Email as EmailIcon,
-  Close as CloseIcon,
   CalendarToday as CalendarIcon,
-  Login as LoginIcon,
-  PersonAdd as PersonAddIcon,
+  Visibility,
   VisibilityOff,
-  Visibility
+  Close as CloseIcon,
+  ArrowForward as ArrowForwardIcon,
 } from '@mui/icons-material';
-
-// Animation
 import { motion } from 'framer-motion';
-import { useAuth } from '../contexts/Authentication';
-import { toast } from './Toast';
-
-// Styles
-const modalStyle = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: { xs: '90%', sm: 400 },
-  maxWidth: '400px',
-  bgcolor: 'background.paper',
-  boxShadow: 24,
-  p: { xs: 2, sm: 3, md: 4 },
-  borderRadius: 2
-};
+import { useAuth } from '@features/auth/context/Authentication';
+import { doLogin, updateDobForUser } from '@shared/services/ApiServices';
+import { toast } from '@shared/components/ui/Toast';
+import Constants from '@shared/constants';
+import db_world_icon from '@assets/images/db_world_teal.svg';
+import { useT, getFieldSx, getGlowProps } from '@shared/theme';
 
 const Login = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const theme = useTheme();
-  const { login, logout } = useAuth();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
-  const isMediumScreen = useMediaQuery(theme.breakpoints.between('sm', 'md'));
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const { login } = useAuth();
 
-  // State
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [errors, setErrors] = useState({
-    email: false,
-    password: false
-  });
-  const [loading, setLoading] = useState(false);
-  const [dob, setDob] = useState('');
-  const [dobError, setDobError] = useState(false);
-  const [dobModalOpen, setDobModalOpen] = useState(false);
-  const [user, setUser] = useState(null);
+  const T     = useT();
+  const FIELD = { ...getFieldSx(T), mb: 2 };
+  const GLOW  = getGlowProps(T);
+
+  const [formData,     setFormData]     = useState({ email: '', password: '' });
+  const [errors,       setErrors]       = useState({ email: false, password: false });
+  const [loading,      setLoading]      = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // useEffect(() => {
-  //   logout(); // Clear auth state on mount
-  // }, [logout]);
+  // DOB dialog
+  const [dob,          setDob]          = useState('');
+  const [dobError,     setDobError]     = useState(false);
+  const [dobOpen,      setDobOpen]      = useState(false);
+  const [pendingUser,  setPendingUser]  = useState(null);
 
-  // Helpers
-  const getRedirectPath = () => {
-    if (location.search) {
-      return location.search.replace('?redirectTo=', '');
+  // ── Validation ─────────────────────────────────────────────────────────────
+  const validateField = (name, value) => {
+    if (name === 'email') {
+      const ok = !!value && !/\s/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      setErrors(p => ({ ...p, email: !ok }));
+      return ok;
     }
-    return null;
+    if (name === 'password') {
+      const ok = !!value && !/\s/.test(value);
+      setErrors(p => ({ ...p, password: !ok }));
+      return ok;
+    }
+    if (name === 'dob') {
+      const pattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+      const year = value.split('-')[0];
+      const now  = new Date().getFullYear();
+      const ok   = !!value && pattern.test(value) && year >= 1900 && year <= now;
+      setDobError(!ok);
+      return ok;
+    }
+    return true;
   };
 
-  // Handlers
-  const handleInputChange = (e) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(p => ({ ...p, [name]: value }));
     validateField(name, value);
   };
 
-  const validateField = (name, value) => {
-    let isValid = true;
-
-    if (name === 'email') {
-      isValid = !!value && !/\s/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-      setErrors(prev => ({ ...prev, email: !isValid }));
-    } else if (name === 'password') {
-      isValid = !!value && !/\s/.test(value);
-      setErrors(prev => ({ ...prev, password: !isValid }));
-    } else if (name === 'dob') {
-      const dobPattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
-      const year = value.split('-')[0];
-      const currentYear = new Date().getFullYear();
-      isValid = !!value && dobPattern.test(value) && year >= 1900 && year <= currentYear;
-      setDobError(!isValid);
-    }
-
-    return isValid;
-  };
-
+  // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    // Validate all fields
-    const isEmailValid = validateField('email', formData.email);
-    const isPasswordValid = validateField('password', formData.password);
-
-    if (!isEmailValid || !isPasswordValid) {
-      toast.warning('Please fill all required fields correctly.');
-      setLoading(false);
+    const emailOk = validateField('email',    formData.email);
+    const passOk  = validateField('password', formData.password);
+    if (!emailOk || !passOk) {
+      toast.warning('Please fill all fields correctly.');
       return;
     }
 
-    const loginRes = await doLogin(formData.email, formData.password);
-    if (loginRes && loginRes.httpStatusCode === 200) {
-      toast.success('Login successful!', {
-        duration: 1000, // MUI uses 'duration' instead of 'autoClose'
-        onClose: () => {
-          login(loginRes.data.token, loginRes.data.user, loginRes.data.user.role);
-          if (!loginRes.data.user.dob) {
-            setUser(loginRes.data.user);
-            setDobModalOpen(true);
-          } else {
-            navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-          }
-        }
-      });
+    setLoading(true);
+    try {
+      const res = await doLogin(formData.email, formData.password);
+      if (res?.httpStatusCode === 200) {
+        login(res.data.token, res.data.user, res.data.user.role);
+        toast.success('Welcome back!', {
+          autoClose: 800,
+          onClose: () => {
+            if (!res.data.user.dob) {
+              setPendingUser(res.data.user);
+              setDobOpen(true);
+            } else {
+              navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
+            }
+          },
+        });
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
+  // ── DOB submit ──────────────────────────────────────────────────────────────
   const handleDobSubmit = async () => {
     if (!validateField('dob', dob)) {
-      toast.warning('Please enter a valid date of birth');
+      toast.warning('Please enter a valid date of birth.');
       return;
     }
-
     try {
       const res = await updateDobForUser(dob);
       if (res.httpStatusCode === 200) {
-        toast.success('Date of birth updated successfully');
-        setDobModalOpen(false);
-        navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE);
+        toast.success('Date of birth saved.');
+        setDobOpen(false);
+        navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
       } else {
-        toast.error(res.message || 'Failed to update date of birth');
+        toast.error(res.message || 'Failed to save date of birth.');
       }
-    } catch (err) {
-      toast.error('Error updating date of birth');
+    } catch {
+      toast.error('Error saving date of birth.');
     }
   };
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        when: "beforeChildren"
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100
-      }
-    }
-  };
-
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <Container 
-      maxWidth="lg" 
-      sx={{ 
-        py: { xs: 2, sm: 3, md: 4 },
-        px: { xs: 1, sm: 2 }
-      }}
-    >
-      {/* Toast container */}
-      
+    <Box sx={{
+      minHeight: '100vh',
+      bgcolor: T.bg,
+      background: T.bgGradient,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      px: 2,
+      pt: { xs: 'calc(56px + 32px)', md: 'calc(64px + 32px)' },
+      pb: 4,
+      position: 'relative',
+    }}>
+      {/* Radial glow */}
+      <motion.div {...GLOW} />
 
-      {/* Login Card */}
+      {/* Card */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
+        style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 440 }}
       >
-        <Card sx={{ 
-          display: 'flex', 
-          flexDirection: { xs: 'column', md: 'row' },
-          borderRadius: { xs: 2, sm: 4 }, 
-          overflow: 'hidden',
-          minHeight: { xs: 'auto', md: '400px' }
+        <Box sx={{
+          bgcolor: T.glass,
+          border: `1px solid ${T.glassBorder}`,
+          borderRadius: 3,
+          p: { xs: 3, sm: 4 },
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
         }}>
-          {/* Image Section */}
-          <CardMedia
-            component="img"
-            sx={{
-              width: { xs: '100%', md: '35%' },
-              height: { xs: '200px', md: 'auto' },
-              objectFit: 'cover',
-            }}
-            image={loginImage}
-            alt="Login illustration"
-          />
 
-          {/* Form Section */}
-          <Box sx={{ flex: 1 }}>
-            <CardContent sx={{ 
-              p: { xs: 2, sm: 3, md: 4 },
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              minHeight: { xs: 'auto', md: '400px' }
-            }}>
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                <motion.div variants={itemVariants}>
-                  <Typography 
-                    variant={isSmallScreen ? "h5" : "h4"} 
-                    component="h1" 
-                    gutterBottom 
-                    sx={{ fontWeight: 'bold' }}
-                  >
-                    Welcome Back
-                  </Typography>
-                  <Typography 
-                    variant="body1" 
-                    color="text.secondary" 
-                    gutterBottom
-                    sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}
-                  >
-                    Sign in to continue to your account
-                  </Typography>
-                  <Divider sx={{ my: { xs: 2, sm: 3 } }} />
-                </motion.div>
-
-                <Box component="form" onSubmit={handleSubmit} noValidate>
-                  <motion.div variants={itemVariants}>
-                    <FormControl fullWidth margin="normal" error={errors.email}>
-                      <TextField
-                        label="Email Address"
-                        name="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        required
-                        fullWidth
-                        autoFocus
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <EmailIcon color={errors.email ? 'error' : 'action'} />
-                            </InputAdornment>
-                          ),
-                        }}
-                        error={errors.email}
-                        helperText={errors.email ? 'Please enter a valid email' : ''}
-                        size={isSmallScreen ? "small" : "medium"}
-                      />
-                    </FormControl>
-                  </motion.div>
-
-                  <motion.div variants={itemVariants}>
-                    <FormControl fullWidth margin="normal" error={errors.password}>
-                      <TextField
-                        label="Password"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        required
-                        fullWidth
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <LockIcon color={errors.password ? 'error' : 'action'} />
-                            </InputAdornment>
-                          ),
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                onClick={() => setShowPassword(!showPassword)}
-                                edge="end"
-                                size={isSmallScreen ? "small" : "medium"}
-                              >
-                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                              </IconButton>
-                            </InputAdornment>
-                          )
-                        }}
-                        error={errors.password}
-                        helperText={errors.password ? 'Password cannot be empty or contain spaces' : ''}
-                        size={isSmallScreen ? "small" : "medium"}
-                      />
-                    </FormControl>
-                  </motion.div>
-
-                  <motion.div variants={itemVariants}>
-                    <Box sx={{ 
-                      mt: 3, 
-                      display: 'flex', 
-                      flexDirection: { xs: 'column', sm: 'row' },
-                      justifyContent: 'space-between',
-                      gap: { xs: 2, sm: 0 }
-                    }}>
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        color="primary"
-                        size={isSmallScreen ? "medium" : "large"}
-                        startIcon={!isSmallScreen && <LoginIcon />}
-                        disabled={loading}
-                        sx={{ 
-                          minWidth: { xs: '100%', sm: 120 },
-                          order: { xs: 1, sm: 0 }
-                        }}
-                      >
-                        {loading ? (
-                          <>
-                            <CircularProgress size={24} color="inherit" />
-                            <Box component="span" sx={{ ml: 1 }}>Signing In...</Box>
-                          </>
-                        ) : 'Sign In'}
-                      </Button>
-
-                      <Button
-                        variant="outlined"
-                        color="secondary"
-                        size={isSmallScreen ? "medium" : "large"}
-                        onClick={() => navigate(Constants.DB_WORLD_HOME_ROUTE)}
-                        startIcon={!isSmallScreen && <CloseIcon />}
-                        sx={{ 
-                          minWidth: { xs: '100%', sm: 120 },
-                          order: { xs: 0, sm: 1 }
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </Box>
-                  </motion.div>
-                </Box>
-
-                <motion.div variants={itemVariants}>
-                  <Divider sx={{ my: { xs: 2, sm: 3 } }} />
-                  <Typography 
-                    variant="body2" 
-                    align="center" 
-                    sx={{ 
-                      mb: 2,
-                      fontSize: { xs: '0.8rem', sm: '0.875rem' }
-                    }}
-                  >
-                    Don't have an account?
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      size={isSmallScreen ? "medium" : "large"}
-                      startIcon={!isSmallScreen && <PersonAddIcon />}
-                      onClick={() => navigate(Constants.REGISTRATION_ROUTE)}
-                    >
-                      Create Account
-                    </Button>
-                  </Box>
-                </motion.div>
-              </motion.div>
-            </CardContent>
-          </Box>
-        </Card>
-      </motion.div>
-
-      {/* DOB Modal */}
-      <Modal
-        open={dobModalOpen}
-        onClose={() => setDobModalOpen(false)}
-        aria-labelledby="dob-modal-title"
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-        >
-          <Box sx={modalStyle}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography id="dob-modal-title" variant="h6" component="h2">
-                Update Your Date of Birth
-              </Typography>
-              <IconButton 
-                onClick={() => setDobModalOpen(false)}
-                size={isSmallScreen ? "small" : "medium"}
-              >
-                <CloseIcon />
-              </IconButton>
-            </Box>
-
-            <Typography variant="body1" sx={{ mb: 3, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-              Please provide your date of birth to continue. This information is required.
+          {/* Brand */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
+            <Avatar
+              src={db_world_icon}
+              sx={{
+                width: 52, height: 52,
+                bgcolor: T.tealBg,
+                border: `1px solid ${T.teal}`,
+                boxShadow: `0 0 24px ${T.tealGlow}`,
+                mb: 2,
+              }}
+            />
+            <Typography sx={{ fontWeight: 800, color: T.text, fontSize: '1.5rem', letterSpacing: '-0.02em' }}>
+              Welcome back
             </Typography>
+            <Typography sx={{ color: T.textMuted, fontSize: '0.875rem', mt: 0.5 }}>
+              Sign in to continue to DB World
+            </Typography>
+          </Box>
 
+          {/* Form */}
+          <Box component="form" onSubmit={handleSubmit} noValidate>
             <TextField
+              label="Email address"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
               fullWidth
-              type="date"
-              label="Date of Birth"
-              variant="outlined"
-              InputLabelProps={{ shrink: true }}
+              autoFocus
+              autoComplete="email"
+              error={errors.email}
+              helperText={errors.email ? 'Enter a valid email address' : ''}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <CalendarIcon color={dobError ? 'error' : 'action'} />
+                    <EmailIcon sx={{ fontSize: 18, color: errors.email ? T.error : T.textMuted }} />
                   </InputAdornment>
                 ),
               }}
-              value={dob}
-              onChange={(e) => {
-                setDob(e.target.value);
-                validateField('dob', e.target.value);
-              }}
-              error={dobError}
-              helperText={dobError ? 'Please enter a valid date (YYYY-MM-DD)' : ''}
-              sx={{ mb: 3 }}
-              size={isSmallScreen ? "small" : "medium"}
+              sx={FIELD}
             />
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                variant="contained"
-                onClick={handleDobSubmit}
-                startIcon={<CalendarIcon />}
-                size={isSmallScreen ? "medium" : "large"}
-              >
-                Submit
-              </Button>
-            </Box>
+            <TextField
+              label="Password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={handleChange}
+              fullWidth
+              autoComplete="current-password"
+              error={errors.password}
+              helperText={errors.password ? 'Password cannot be empty or contain spaces' : ''}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon sx={{ fontSize: 18, color: errors.password ? T.error : T.textMuted }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setShowPassword(p => !p)}
+                      sx={{ color: T.textMuted, '&:hover': { color: T.text } }}
+                    >
+                      {showPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={FIELD}
+            />
+
+            <Button
+              type="submit"
+              fullWidth
+              disabled={loading}
+              endIcon={!loading && <ArrowForwardIcon />}
+              sx={{
+                mt: 1, py: 1.4,
+                bgcolor: T.teal,
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                borderRadius: 1.5,
+                textTransform: 'none',
+                '&:hover': { bgcolor: T.tealHover },
+                '&.Mui-disabled': { bgcolor: T.tealBg, color: T.textFaint },
+              }}
+            >
+              {loading
+                ? <><CircularProgress size={18} color="inherit" sx={{ mr: 1 }} />Signing in…</>
+                : 'Sign in'
+              }
+            </Button>
           </Box>
-        </motion.div>
-      </Modal>
-    </Container>
+
+          {/* Divider */}
+          <Divider sx={{ borderColor: T.border, my: 3 }}>
+            <Typography sx={{ color: T.textFaint, fontSize: '0.75rem', px: 1 }}>
+              NEW TO DB WORLD?
+            </Typography>
+          </Divider>
+
+          {/* Register link */}
+          <Button
+            fullWidth
+            onClick={() => navigate(Constants.REGISTRATION_ROUTE)}
+            sx={{
+              py: 1.2,
+              border: `1px solid ${T.glassBorder}`,
+              color: T.textMuted,
+              borderRadius: 1.5,
+              textTransform: 'none',
+              fontWeight: 500,
+              '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: T.tealBg },
+            }}
+          >
+            Create an account
+          </Button>
+
+        </Box>
+      </motion.div>
+
+      {/* ── DOB Dialog ──────────────────────────────────────────────────────── */}
+      <Dialog
+        open={dobOpen}
+        onClose={() => setDobOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: T.sidebar,
+            border: `1px solid ${T.glassBorder}`,
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          color: T.text, pb: 1,
+        }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>
+            One more thing…
+          </Typography>
+          <IconButton size="small" onClick={() => setDobOpen(false)}
+            sx={{ color: T.textMuted, '&:hover': { color: T.text } }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent>
+          <Typography sx={{ color: T.textMuted, fontSize: '0.875rem', mb: 3 }}>
+            Please provide your date of birth to complete your profile.
+          </Typography>
+
+          <TextField
+            fullWidth
+            type="date"
+            label="Date of birth"
+            InputLabelProps={{ shrink: true }}
+            value={dob}
+            onChange={(e) => { setDob(e.target.value); validateField('dob', e.target.value); }}
+            error={dobError}
+            helperText={dobError ? 'Enter a valid date (YYYY-MM-DD)' : ''}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <CalendarIcon sx={{ fontSize: 18, color: dobError ? T.error : T.textMuted }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ ...FIELD, mb: 3 }}
+          />
+
+          <Button
+            fullWidth
+            onClick={handleDobSubmit}
+            sx={{
+              py: 1.3,
+              bgcolor: T.teal,
+              color: '#fff',
+              fontWeight: 700,
+              borderRadius: 1.5,
+              textTransform: 'none',
+              '&:hover': { bgcolor: T.tealHover },
+            }}
+          >
+            Save &amp; Continue
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </Box>
   );
 };
 
