@@ -1,5 +1,5 @@
 import {
-  Box, ButtonBase, Tooltip, IconButton, Select, MenuItem,
+  Box, Tooltip, IconButton, Select, MenuItem,
   ToggleButton, ToggleButtonGroup, Typography, Chip,
 } from '@mui/material';
 import UploadIcon from '@mui/icons-material/Upload';
@@ -42,6 +42,7 @@ export default function FileToolbar({ onPaste, onDeleteSelected, allItems = [] }
     filterType, setFilterType,
     selectedItems, selectAll, clearSelection,
     clipboard,
+    setClipboard,
     setUploadOpen, setSearchOpen, openOperation,
   } = useFileManagerStore();
 
@@ -73,11 +74,11 @@ export default function FileToolbar({ onPaste, onDeleteSelected, allItems = [] }
       {/* Clipboard actions */}
       {hasSelection && iconBtn('Cut', ContentCutIcon, () => {
         const items = allItems.filter(i => selectedItems.has(i.path));
-        useFileManagerStore.getState().setClipboard(items, 'cut');
+        setClipboard(items, 'cut');
       })}
       {hasSelection && iconBtn('Copy', ContentCopyIcon, () => {
         const items = allItems.filter(i => selectedItems.has(i.path));
-        useFileManagerStore.getState().setClipboard(items, 'copy');
+        setClipboard(items, 'copy');
       })}
       {clipboard && iconBtn('Paste', ContentPasteIcon, onPaste, T.teal)}
       {hasSelection && iconBtn('Delete Selected', DeleteIcon, onDeleteSelected, T.error ?? '#ef4444')}

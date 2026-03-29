@@ -36,7 +36,7 @@ export default function FileBreadcrumb() {
       </ButtonBase>
 
       {segments.map((seg, idx) => (
-        <Box key={idx} sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box key={getPathForIndex(idx)} sx={{ display: 'flex', alignItems: 'center' }}>
           <ChevronRightIcon sx={{ fontSize: 14, color: T.textFaint }} />
           <ButtonBase
             onClick={() => navigate(getPathForIndex(idx))}
