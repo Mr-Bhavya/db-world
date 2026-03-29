@@ -73,14 +73,20 @@ export default function FileManager() {
     }
   }, [doDelete]);
 
-  // Bulk delete
-  const handleDeleteSelected = useCallback(() => {
+  // Bulk delete — uses deleteItem directly so we get one summary snackbar + one cache invalidation
+  const handleDeleteSelected = useCallback(async () => {
     const paths = Array.from(selectedItems);
     if (paths.length === 0) return;
     if (!window.confirm(`Delete ${paths.length} item(s)?`)) return;
-    const items = (data?.items ?? []).filter(i => paths.includes(i.path));
-    items.forEach(item => doDelete(item));
-  }, [selectedItems, data?.items, doDelete]);
+    try {
+      await Promise.all(paths.map(p => deleteItem(p)));
+      qc.invalidateQueries({ queryKey: ['file-manager', currentPath] });
+      enqueueSnackbar(`Deleted ${paths.length} item(s)`, { variant: 'success' });
+      clearSelection();
+    } catch (e) {
+      enqueueSnackbar(e?.response?.data?.message ?? 'Bulk delete failed', { variant: 'error' });
+    }
+  }, [selectedItems, currentPath, qc, enqueueSnackbar, clearSelection]);
 
   // ── Paste ─────────────────────────────────────────────────────────────────
 
@@ -89,7 +95,8 @@ export default function FileManager() {
     const fn = clipboard.operation === 'cut' ? moveItem : copyItem;
     try {
       await Promise.all(clipboard.items.map(item => fn(item.path, currentPath)));
-      qc.invalidateQueries({ queryKey: ['file-manager', currentPath] });
+      // Invalidate all file-manager queries — cut moves files away from their source paths too
+      qc.invalidateQueries({ queryKey: ['file-manager'] });
       enqueueSnackbar(`${clipboard.operation === 'cut' ? 'Moved' : 'Copied'} ${clipboard.items.length} item(s)`, { variant: 'success' });
       clearClipboard();
     } catch (e) {
