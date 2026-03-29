@@ -1,30 +1,33 @@
-export const ROLE_COLORS = { OWNER:'#f59e0b', ADMIN:'#0d9488', VIEWER:'#10b981' };
+export const ROLE_COLORS = { OWNER: '#f59e0b', ADMIN: '#0d9488', VIEWER: '#10b981' };
 
-export const inputSx = {
+export const getInputSx = (T) => ({
   '& .MuiOutlinedInput-root': {
-    bgcolor: 'rgba(0,0,0,0.03)',
-    color: '#0f172a',
-    '& fieldset': { borderColor: 'rgba(0,0,0,0.12)' },
-    '&:hover fieldset': { borderColor: 'rgba(0,0,0,0.25)' },
-    '&.Mui-focused fieldset': { borderColor: '#0d9488' },
+    bgcolor: T.glass,
+    color: T.textPrimary,
+    '& fieldset':             { borderColor: T.glassBorder },
+    '&:hover fieldset':       { borderColor: T.teal },
+    '&.Mui-focused fieldset': { borderColor: T.teal },
   },
-  '& .MuiInputLabel-root': { color: 'rgba(15,23,42,0.55)' },
-  '& .MuiFormHelperText-root': { color: '#ef4444' },
-  '& .MuiSelect-icon': { color: 'rgba(15,23,42,0.4)' },
-};
+  '& .MuiInputLabel-root':             { color: T.textMuted },
+  '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
+  '& .MuiFormHelperText-root':         { color: T.textMuted },
+  '& .MuiFormHelperText-root.Mui-error': { color: T.error },
+  '& .MuiSelect-icon':                 { color: T.textMuted },
+  '& input':                           { color: T.textPrimary },
+});
 
-export const dialogSx = {
+export const getDialogSx = (T) => ({
   PaperProps: {
     sx: {
-      bgcolor: '#ffffff',
-      border: '1px solid rgba(0,0,0,0.1)',
-      color: '#0f172a',
+      bgcolor: T.sidebar,
+      border: `1px solid ${T.glassBorder}`,
+      color: T.textPrimary,
       width: '100%',
     },
   },
-};
+});
 
-export const tabSx = {
-  color: 'rgba(15,23,42,0.5)',
-  '&.Mui-selected': { color: '#0d9488' },
-};
+export const getTabSx = (T) => ({
+  color: T.textMuted,
+  '&.Mui-selected': { color: T.teal },
+});

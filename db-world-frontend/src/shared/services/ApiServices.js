@@ -17,17 +17,14 @@ export const register = async (user) => {
 
 export const doLogin = async (email, password) => {
   try {
-    // Use the axiosInstance for consistency
-    // return true;
-    const response = await axios.post(`${REACT_APP_BASEURL}/api/auth/login`, { email, password });
+    const response = await axiosInstance.post('/api/auth/login', { email, password });
     if (response.data?.data?.token) {
       localStorage.setItem('token', response.data.data.token);
     }
     return response.data;
   } catch (error) {
     console.error('Login error:', error);
-    handleApiError(error)
-    // throw error;
+    handleApiError(error);
   }
 };
 

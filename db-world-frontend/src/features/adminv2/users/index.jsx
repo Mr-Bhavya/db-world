@@ -1,4 +1,3 @@
-// db-world-frontend/src/features/adminv2/users/index.jsx
 import { useMemo, useCallback } from 'react';
 import { Box, Typography, Fab, useMediaQuery, useTheme, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -9,6 +8,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useT } from '@shared/theme';
 import { getAllUsers, deleteUser } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
 import UserFilters from './UserFilters';
@@ -21,7 +21,8 @@ import UserEditModal from './UserEditModal';
 import UserBulkModal from './UserBulkModal';
 
 export default function UserManagementV2() {
-  const theme = useTheme();
+  const T       = useT();
+  const theme   = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
@@ -36,7 +37,7 @@ export default function UserManagementV2() {
   const { mutate: doDelete } = useMutation({
     mutationFn: deleteUser,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); enqueueSnackbar('User deleted', { variant: 'success' }); },
-    onError: () => enqueueSnackbar('Delete failed', { variant: 'error' }),
+    onError:   () => enqueueSnackbar('Delete failed', { variant: 'error' }),
   });
 
   const filtered = useMemo(() => {
@@ -69,17 +70,17 @@ export default function UserManagementV2() {
   }), [allUsers]);
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#f0f9f8', color: '#0f172a', minHeight: 0 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: T.adminBg, color: T.textPrimary, minHeight: 0 }}>
 
       {/* Page header */}
       <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 }, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: { xs: 18, md: 22 }, color: '#0f172a' }}>User Management</Typography>
-          <Typography sx={{ fontSize: 12, color: 'rgba(15,23,42,0.5)', mt: .25 }}>Manage all platform users</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: { xs: 18, md: 22 }, color: T.textPrimary }}>User Management</Typography>
+          <Typography sx={{ fontSize: 12, color: T.textMuted, mt: 0.25 }}>Manage all platform users</Typography>
         </Box>
         {!isMobile && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
-            sx={{ bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' } }}>
+            sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600 }}>
             Add User
           </Button>
         )}
@@ -88,14 +89,14 @@ export default function UserManagementV2() {
       {/* Stats bar */}
       <Box sx={{ display: 'flex', gap: 2, px: { xs: 2, md: 3 }, py: 1, flexWrap: 'wrap' }}>
         {[
-          { label: 'Total',         value: stats.total,   icon: <GroupIcon sx={{ fontSize: 14, color: '#0d9488' }} />,                color: '#0d9488' },
-          { label: 'Admins/Owners', value: stats.admins,  icon: <AdminPanelSettingsIcon sx={{ fontSize: 14, color: '#f59e0b' }} />,   color: '#f59e0b' },
-          { label: 'Viewers',       value: stats.viewers, icon: <PersonIcon sx={{ fontSize: 14, color: '#10b981' }} />,               color: '#10b981' },
-          ...(filtered.length !== allUsers.length ? [{ label: 'Filtered', value: filtered.length, icon: <GroupIcon sx={{ fontSize: 14, color: 'rgba(15,23,42,0.4)' }} />, color: 'rgba(15,23,42,0.5)' }] : []),
+          { label: 'Total',         value: stats.total,   icon: <GroupIcon sx={{ fontSize: 14, color: T.teal }} />,                   color: T.teal },
+          { label: 'Admins/Owners', value: stats.admins,  icon: <AdminPanelSettingsIcon sx={{ fontSize: 14, color: '#f59e0b' }} />,    color: '#f59e0b' },
+          { label: 'Viewers',       value: stats.viewers, icon: <PersonIcon sx={{ fontSize: 14, color: '#10b981' }} />,                color: '#10b981' },
+          ...(filtered.length !== allUsers.length ? [{ label: 'Filtered', value: filtered.length, icon: <GroupIcon sx={{ fontSize: 14, color: T.textFaint }} />, color: T.textMuted }] : []),
         ].map(s => (
-          <Box key={s.label} sx={{ display: 'flex', alignItems: 'center', gap: .75 }}>
+          <Box key={s.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             {s.icon}
-            <Typography sx={{ fontSize: 13, color: 'rgba(15,23,42,0.6)' }}>{s.label}:</Typography>
+            <Typography sx={{ fontSize: 13, color: T.textMuted }}>{s.label}:</Typography>
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.value}</Typography>
           </Box>
         ))}
@@ -105,10 +106,11 @@ export default function UserManagementV2() {
       <AnimatePresence>
         {selectedRows.length > 0 && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: { xs: 2, md: 3 }, py: 1, bgcolor: 'rgba(13,148,136,0.08)', borderTop: '1px solid rgba(13,148,136,0.2)' }}>
-              <Typography sx={{ fontSize: 13, color: '#0d9488', fontWeight: 600 }}>{selectedRows.length} selected</Typography>
-              <Button size="small" startIcon={<DeleteSweepIcon />} onClick={() => openModal('bulk')} sx={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', border: '1px solid' }}>Bulk Actions</Button>
-              <Button size="small" onClick={clearSelection} sx={{ color: 'rgba(15,23,42,0.45)', ml: 'auto' }}>Clear</Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: { xs: 2, md: 3 }, py: 1, bgcolor: T.tealBg, borderTop: `1px solid ${T.glassBorderHover}` }}>
+              <Typography sx={{ fontSize: 13, color: T.teal, fontWeight: 600 }}>{selectedRows.length} selected</Typography>
+              <Button size="small" startIcon={<DeleteSweepIcon />} onClick={() => openModal('bulk')}
+                sx={{ color: T.error, borderColor: `${T.error}44`, border: '1px solid' }}>Bulk Actions</Button>
+              <Button size="small" onClick={clearSelection} sx={{ color: T.textMuted, ml: 'auto' }}>Clear</Button>
             </Box>
           </motion.div>
         )}
@@ -120,9 +122,9 @@ export default function UserManagementV2() {
       {/* Error */}
       {error && (
         <Box sx={{ p: 2 }}>
-          <Box sx={{ bgcolor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 2, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography sx={{ color: '#ef4444', fontSize: 13 }}>Failed to load users</Typography>
-            <Button size="small" onClick={refetch} sx={{ color: '#ef4444' }}>Retry</Button>
+          <Box sx={{ bgcolor: T.errorBg, border: `1px solid ${T.error}44`, borderRadius: 2, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography sx={{ color: T.error, fontSize: 13 }}>Failed to load users</Typography>
+            <Button size="small" onClick={refetch} sx={{ color: T.error }}>Retry</Button>
           </Box>
         </Box>
       )}
@@ -140,7 +142,7 @@ export default function UserManagementV2() {
 
       {/* Mobile FAB */}
       {isMobile && (
-        <Fab onClick={() => openModal('create')} sx={{ position: 'fixed', bottom: 24, right: 24, bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' } }}>
+        <Fab onClick={() => openModal('create')} sx={{ position: 'fixed', bottom: 24, right: 24, bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>
           <AddIcon />
         </Fab>
       )}

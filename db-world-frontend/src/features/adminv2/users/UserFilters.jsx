@@ -6,17 +6,12 @@ import TableRowsIcon from '@mui/icons-material/TableRows';
 import GridViewIcon from '@mui/icons-material/GridView';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import { useUserStore } from '../stores/useUserStore';
+import { useT } from '@shared/theme';
 
-const ROLE_OPTIONS = ['ALL','OWNER','ADMIN','VIEWER'];
-
-const sx = {
-  wrap:   { display:'flex', flexWrap:'wrap', gap:1, alignItems:'center', p:{ xs:'8px 12px', md:'12px 16px' }, borderBottom:'1px solid rgba(0,0,0,0.07)', bgcolor:'#f8fffe' },
-  search: { flex:'1 1 200px', minWidth:0, '& .MuiOutlinedInput-root':{ bgcolor:'#ffffff', borderRadius:2, color:'#0f172a', '& fieldset':{ borderColor:'rgba(0,0,0,0.12)' }, '&:hover fieldset':{ borderColor:'rgba(0,0,0,0.25)' }, '&.Mui-focused fieldset':{ borderColor:'#0d9488' } } },
-  chip:   (active) => ({ px:1.5, py:0.5, borderRadius:99, border:'1px solid', borderColor: active ? '#0d9488' : 'rgba(0,0,0,0.12)', color: active ? '#0d9488' : 'rgba(15,23,42,0.55)', bgcolor: active ? 'rgba(13,148,136,0.1)' : 'transparent', cursor:'pointer', fontSize:12, fontWeight:600, userSelect:'none', transition:'all .15s' }),
-  toggle: { bgcolor:'#ffffff', border:'1px solid rgba(0,0,0,0.12) !important', borderRadius:'8px !important', color:'rgba(15,23,42,0.45)', '&.Mui-selected':{ bgcolor:'rgba(13,148,136,0.1)', color:'#0d9488' } },
-};
+const ROLE_OPTIONS = ['ALL', 'OWNER', 'ADMIN', 'VIEWER'];
 
 export default function UserFilters({ onAddUser }) {
+  const T = useT();
   const { searchTerm, setSearchTerm, roleFilter, setRoleFilter, viewMode, setViewMode } = useUserStore();
   const timerRef = useRef(null);
 
@@ -27,35 +22,71 @@ export default function UserFilters({ onAddUser }) {
   };
 
   return (
-    <Box sx={sx.wrap}>
+    <Box sx={{
+      display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center',
+      p: { xs: '8px 12px', md: '10px 16px' },
+      borderBottom: `1px solid ${T.border}`,
+      bgcolor: T.sidebar,
+    }}>
       <TextField
         size="small"
         placeholder="Search name, email…"
         defaultValue={searchTerm}
         onChange={handleSearch}
-        sx={sx.search}
+        sx={{
+          flex: '1 1 200px', minWidth: 0,
+          '& .MuiOutlinedInput-root': {
+            bgcolor: T.glass, borderRadius: 2, color: T.textPrimary,
+            '& fieldset':             { borderColor: T.glassBorder },
+            '&:hover fieldset':       { borderColor: T.teal },
+            '&.Mui-focused fieldset': { borderColor: T.teal },
+          },
+          '& input': { color: T.textPrimary },
+          '& .MuiInputLabel-root': { color: T.textMuted },
+        }}
         InputProps={{
-          startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color:'rgba(15,23,42,0.35)', fontSize:18 }} /></InputAdornment>,
+          startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: T.textMuted, fontSize: 18 }} /></InputAdornment>,
           endAdornment: searchTerm && (
             <InputAdornment position="end">
-              <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ color:'rgba(15,23,42,0.4)' }}>
+              <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ color: T.textMuted }}>
                 <ClearIcon fontSize="small" />
               </IconButton>
             </InputAdornment>
           ),
         }}
       />
-      <Box sx={{ display:'flex', gap:0.75, flexShrink:0 }}>
+
+      <Box sx={{ display: 'flex', gap: 0.75, flexShrink: 0, flexWrap: 'wrap' }}>
         {ROLE_OPTIONS.map(r => (
-          <Box key={r} sx={sx.chip(roleFilter === r)} onClick={() => setRoleFilter(r)}>{r}</Box>
+          <Box
+            key={r}
+            onClick={() => setRoleFilter(r)}
+            sx={{
+              px: 1.5, py: 0.5, borderRadius: 99, border: '1px solid',
+              borderColor: roleFilter === r ? T.teal : T.glassBorder,
+              color:        roleFilter === r ? T.teal : T.textMuted,
+              bgcolor:      roleFilter === r ? T.tealBg : 'transparent',
+              cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              userSelect: 'none', transition: 'all .15s',
+              '&:hover': { borderColor: T.teal, color: T.teal },
+            }}
+          >
+            {r}
+          </Box>
         ))}
       </Box>
+
       <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, v) => v && setViewMode(v)}>
-        <ToggleButton value="table" sx={sx.toggle}><Tooltip title="Table"><TableRowsIcon fontSize="small" /></Tooltip></ToggleButton>
-        <ToggleButton value="grid"  sx={sx.toggle}><Tooltip title="Grid"><GridViewIcon fontSize="small" /></Tooltip></ToggleButton>
+        <ToggleButton value="table" sx={{ bgcolor: T.glass, border: `1px solid ${T.glassBorder} !important`, borderRadius: '8px !important', color: T.textMuted, '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal } }}>
+          <Tooltip title="Table"><TableRowsIcon fontSize="small" /></Tooltip>
+        </ToggleButton>
+        <ToggleButton value="grid"  sx={{ bgcolor: T.glass, border: `1px solid ${T.glassBorder} !important`, borderRadius: '8px !important', color: T.textMuted, '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal } }}>
+          <Tooltip title="Grid"><GridViewIcon fontSize="small" /></Tooltip>
+        </ToggleButton>
       </ToggleButtonGroup>
+
       <Tooltip title="Add User">
-        <IconButton onClick={onAddUser} sx={{ bgcolor:'#0d9488', color:'#fff', borderRadius:2, '&:hover':{ bgcolor:'#0f766e' } }}>
+        <IconButton onClick={onAddUser} sx={{ bgcolor: T.teal, color: '#fff', borderRadius: 2, '&:hover': { bgcolor: T.tealHover } }}>
           <GroupAddIcon fontSize="small" />
         </IconButton>
       </Tooltip>
