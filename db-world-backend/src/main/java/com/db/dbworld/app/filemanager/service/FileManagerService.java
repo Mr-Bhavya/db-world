@@ -2,6 +2,7 @@ package com.db.dbworld.app.filemanager.service;
 
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,8 +28,15 @@ public class FileManagerService {
     @Value("${file-manager.base-dir:/}")
     private String baseDirConfig;
 
+    private Path cachedBaseDir;
+
+    @PostConstruct
+    private void initBaseDir() {
+        this.cachedBaseDir = Path.of(baseDirConfig).toAbsolutePath().normalize();
+    }
+
     private Path baseDir() {
-        return Path.of(baseDirConfig).toAbsolutePath().normalize();
+        return cachedBaseDir;
     }
 
     // ── Path jail ─────────────────────────────────────────────────────────────
@@ -84,14 +92,14 @@ public class FileManagerService {
             .build();
     }
 
-    private String formatSize(long bytes) {
+    private static String formatSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         if (bytes < 1024L * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
         return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
-    private String guessMime(String ext) {
+    private static String guessMime(String ext) {
         return switch (ext) {
             case "jpg", "jpeg" -> "image/jpeg";
             case "png"   -> "image/png";
@@ -156,6 +164,9 @@ public class FileManagerService {
 
     public List<FileItemDto> searchFiles(String path, String query, boolean recursive) throws IOException {
         Path root = jailed(path);
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
         List<FileItemDto> results = new ArrayList<>();
         String lowerQ = query.toLowerCase();
         int maxResults = 200;
@@ -211,14 +222,15 @@ public class FileManagerService {
         for (MultipartFile f : files) {
             String name = Path.of(Objects.requireNonNull(f.getOriginalFilename())).getFileName().toString();
             Path dest = jailed(path + "/" + name);
-            f.transferTo(dest.toFile());
+            f.transferTo(dest);
             uploaded.add(toDto(dest));
         }
         return uploaded;
     }
 
     public FileItemDto createDirectory(String parentPath, String name) throws IOException {
-        Path parent = jailed(parentPath);
+        Path parent = jailed(parentPath); // validates parentPath is within jail and exists
+        if (!Files.isDirectory(parent)) throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
         if (name.contains("/") || name.contains("\\") || name.contains("..")) {
             throw new IllegalArgumentException("Invalid folder name: " + name);
         }
@@ -234,7 +246,11 @@ public class FileManagerService {
         }
         Path dest = jailed(toRelative(source.getParent()) + "/" + newName);
         if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists");
-        Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
+        try {
+            Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, dest);
+        }
         return toDto(dest);
     }
 
@@ -244,7 +260,11 @@ public class FileManagerService {
         if (!Files.isDirectory(destDir)) throw new IllegalArgumentException("Destination must be a directory");
         Path dest = jailed(destinationPath + "/" + source.getFileName().toString());
         if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
-        Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
+        try {
+            Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, dest);
+        }
         return toDto(dest);
     }
 
@@ -256,7 +276,8 @@ public class FileManagerService {
         if (Files.isDirectory(source)) {
             copyDirRecursive(source, dest);
         } else {
-            Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+            if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
+            Files.copy(source, dest);
         }
         return toDto(dest);
     }
@@ -284,11 +305,15 @@ public class FileManagerService {
 
     private void deleteDirectoryRecursive(Path dir) throws IOException {
         try (Stream<Path> walk = Files.walk(dir)) {
-            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
-                try { Files.delete(p); } catch (IOException e) {
+            List<Path> sorted = walk.sorted(Comparator.reverseOrder()).toList();
+            for (Path p : sorted) {
+                try {
+                    Files.delete(p);
+                } catch (IOException e) {
                     log.warn("Could not delete {}: {}", p, e.getMessage());
+                    throw new IOException("Failed to delete " + p + ": " + e.getMessage(), e);
                 }
-            });
+            }
         }
     }
 }
