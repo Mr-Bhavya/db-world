@@ -1,0 +1,648 @@
+@startuml
+!theme plain
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam ArrowColor #444
+skinparam ClassBorderColor #555
+skinparam DatabaseBorderColor #777
+skinparam NoteBorderColor #999
+
+title db-world · app.media — Technical Architecture\n(Ingestion Pipeline · MediaInfo · TMDB Enrichment · MySQL Storage)
+
+' ════════════════════════════════════════════════════════════════════════════
+' PACKAGE: app.media.ingestion
+' ════════════════════════════════════════════════════════════════════════════
+package "app.media.ingestion" #EEF5FF {
+
+    package "controller" #DDEEFF {
+        class IngestionController <<RestController>> {
+            POST   /api/ingestion
+            PUT    /{jobId}/cancel
+            PUT    /{jobId}/pause
+            PUT    /{jobId}/resume
+            POST   /{jobId}/rerun
+            DELETE /{jobId}
+            GET    /status
+            GET    /{jobId}/report
+            GET    /history
+            GET    /history/{jobId}
+            GET    /history/record/{recordId}
+        }
+    }
+
+    package "pipeline" #DDEEFF {
+        interface IngestionPipeline {
+            + start(request): String
+        }
+        class DefaultIngestionPipeline <<Component>> {
+            - sourceHandlers: List<SourceHandler>
+            - downloadStrategies: List<DownloadStrategy>
+            - processingStrategies: List<ProcessingStrategy>
+            - jobStore: IngestionJobStore
+            - repository: IngestionRepository
+            + start(request): String
+        }
+        enum PipelineStepType {
+            SOURCE_RESOLUTION
+            DOWNLOAD
+            EXTRACTION
+            PROCESSING
+            COMPLETE
+        }
+    }
+
+    package "store" #DDEEFF {
+        class IngestionJobStore <<Component>> {
+            - jobs: ConcurrentHashMap<String, JobMeta>
+            + register(jobId, request)
+            + setGid(jobId, gid)
+            + setCancelAction(jobId, fn)
+            + setPauseAction(jobId, fn)
+            + setResumeAction(jobId, fn)
+            + executeCancelAction(jobId)
+            + executePauseAction(jobId)
+            + executeResumeAction(jobId)
+            + getGid(jobId): Optional<String>
+            + getRequest(jobId): Optional<IngestionRequest>
+            + getSourceType(jobId): String
+            + remove(jobId)
+            == inner: JobMeta ==
+            gid: AtomicReference<String>
+            request: IngestionRequest
+            sourceType: SourceType
+            cancelFn, pauseFn, resumeFn: Runnable
+        }
+    }
+
+    package "spi" #DDEEFF {
+        interface SourceHandler {
+            + supports(uri): boolean
+            + resolve(uri): SourceMetadata
+        }
+        interface DownloadStrategy {
+            + supports(source): boolean
+            + download(ctx): DownloadResult
+            + cancel(jobId)
+        }
+        interface ProcessingStrategy {
+            + supports(ctx): boolean
+            + process(ctx): ProcessingResult
+        }
+        interface PipelineStep {
+            + execute(ctx)
+        }
+    }
+
+    package "download" #DDEEFF {
+        class YtDlpDownloadStrategy <<Component>> {
+            Order = 1
+            + supports: YOUTUBE
+            - cancellationFlag: AtomicBoolean
+        }
+        class Aria2DownloadStrategy <<Component>> {
+            Order = 2
+            + supports: HTTP, TORRENT
+            - jobStore: IngestionJobStore
+            registers GID after addUri()
+            poll loop handles PAUSED status
+        }
+    }
+
+    package "processing.strategy" #DDEEFF {
+        class ExtractionProcessingStrategy <<Component>> {
+            Order = 1
+            Handles .zip, .rar, .7z archives
+            Uses 7-zip process
+        }
+        class FfmpegProcessingStrategy <<Component>> {
+            Order = 10
+            1. Move temp → final dir
+            2. TMDB enrichment (cover + naming)
+            3. Collect & persist MediaInfo
+        }
+    }
+
+    package "processing.fs" #DDEEFF {
+        interface FileStorageService {
+            + resolveFinalDir(ctx): Path
+        }
+        class DefaultFileStorageService <<Component>>
+    }
+
+    package "persistence" #DDEEFF {
+        interface IngestionRepository {
+            + save(context)
+        }
+        class NoOpIngestionRepository <<Repository>>
+        class JpaIngestionRepository <<Repository>> <<Primary>> {
+            Persists complete snapshot at completion
+            Converts SourceType String → enum
+        }
+    }
+
+    package "repository" #DDEEFF {
+        interface IngestionJobRepository <<JpaRepository>> {
+            findByStatus(status)
+            findByRecordId(recordId)
+            findBySourceType(type)
+            findByFolderName(name)
+        }
+    }
+
+    package "entity" #DDEEFF {
+        class IngestionJobEntity <<Entity>> {
+            @Id jobId: String (UUID)
+            --
+            @Enumerated status: MirrorStatus
+            @Enumerated step: PipelineStepType
+            @Enumerated sourceType: SourceType
+            --
+            uri: String
+            folderName: String
+            fileName: String
+            gid: String        [Aria2 GID, null for yt-dlp]
+            downloadedBytes: Long
+            totalBytes: Long
+            failReason: String
+            --
+            mediaInfoJson: JSON  [MySQL JSON type]
+            recordId: Long
+            seasonNumber: Integer
+            episodeNumber: Integer
+            --
+            startedAt: Instant  [@CreatedDate]
+            updatedAt: Instant  [@LastModifiedDate]
+            completedAt: Instant
+        }
+    }
+
+    package "enums" #DDEEFF {
+        enum SourceType {
+            YOUTUBE
+            HTTP
+            TORRENT
+            UNKNOWN
+        }
+    }
+
+    package "model" #DDEEFF {
+        class IngestionRequest {
+            uri, uris: String / List<String>
+            folderName, fileName: String
+            username, password: String
+            urlProtected, extract, rename, onlyAudio: boolean
+            extractPassword: String
+            videoITag, audioITag: String
+            expectedSize: Long
+            recordId: Long
+            season: Integer
+            episode: Integer
+        }
+        class IngestionContext {
+            jobId: String
+            recordId: Long
+            request: IngestionRequest
+            source: SourceMetadata
+            download: DownloadResult
+            processing: ProcessingResult
+            status: MirrorStatus
+            currentStep: PipelineStepType
+            cancellationFlag: AtomicBoolean
+            logCollector: LogCollector
+        }
+        class SourceMetadata {
+            uri, type: String
+            attributes: Map<String,Object>
+        }
+        class DownloadResult {
+            filePath: Path
+            fileName: String
+            gid: String
+            size: Long
+            success: boolean
+            errorMessage: String
+        }
+        class ProcessingResult {
+            finalFile: Path
+            success: boolean
+            errorMessage: String
+            mediaInfo: Map<String,Object>
+        }
+    }
+
+    package "tracking" #DDEEFF {
+        interface TrackingService {
+            + updateStatus(jobId, status)
+            + getAll(): Map
+            + getHtmlReport(jobId): String
+        }
+        class MirrorStateMachine
+        class ProgressSnapshot
+        enum MirrorStatus {
+            QUEUED
+            STARTED
+            DOWNLOADING
+            PAUSED
+            PROCESSING
+            SUCCESS
+            FAILED
+            CANCELLED
+        }
+    }
+}
+
+' ════════════════════════════════════════════════════════════════════════════
+' PACKAGE: app.media.enrichment
+' ════════════════════════════════════════════════════════════════════════════
+package "app.media.enrichment" #FFF5EE {
+    interface TmdbMediaEnrichmentService {
+        + enrich(inputFile, recordId, season, episode, jobId): Path
+    }
+    class TmdbMediaEnrichmentServiceImpl <<Service>> <<Transactional>> {
+        TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original"
+        --
+        - recordRepository: RecordRepository
+        - processExecutor: ProcessExecutor
+        - httpClient: HttpClient
+        --
+        1. Load RecordEntity → TmdbEntity
+        2. Resolve episode info (series only)
+        3. Download poster/still from TMDB CDN
+        4. Run FFmpeg: embed cover art + metadata
+        5. Rename file (series: Title.SXXEXX.EpName.ext)
+        6. Delete temp poster + original input
+        --
+        - resolveEpisode(tvSeries, season, ep)
+        - downloadImage(posterPath, jobId): Path
+        - runFfmpegEnrich(input, poster, output, title, jobId)
+        - resolveOutputPath(input, seriesTitle, season, ep, epName): Path
+        - safeName(name): String
+    }
+}
+
+note right of TmdbMediaEnrichmentServiceImpl
+    FFmpeg command:
+    ffmpeg -y -i input.mkv -i poster.jpg
+           -map 0 -map 1 -c copy
+           -disposition:v:1 attached_pic
+           -metadata:s:v:1 mimetype=image/jpeg
+           -metadata title="&#123;EpisodeName&#125;"
+           output.mkv
+    --
+    Series filename pattern:
+    &#123;SafeTitle&#125;.S&#123;SS&#125;E&#123;EE&#125;.&#123;SafeEpName&#125;.&#123;ext&#125;
+    Movies: &#123;name&#125;_enriched.&#123;ext&#125;
+    (FFmpeg cannot edit files in-place)
+end note
+
+' ════════════════════════════════════════════════════════════════════════════
+' PACKAGE: app.media.info
+' ════════════════════════════════════════════════════════════════════════════
+package "app.media.info" #F0FFF0 {
+
+    package "controller" #DDFFD5 {
+        class MediaInfoController <<RestController>> {
+            GET    /api/media/info/record/{recordId}
+            GET    /api/media/info/{id}
+            POST   /api/media/info/scan
+            POST   /api/media/info/{id}/rescan
+            GET    /api/media/info/raw
+            DELETE /api/media/info/path
+            DELETE /api/media/info/record/{recordId}
+        }
+    }
+
+    package "service" #DDFFD5 {
+        interface MediaInfoService {
+            + collectAndPersist(path, recordId, jobId): MediaFileDto
+            + rescan(id): MediaFileDto
+            + getByRecordId(id): List<MediaFileDto>
+            + getById(id): Optional<MediaFileDto>
+            + getByFilePath(path): Optional<MediaFileDto>
+            + deleteByFilePath(path)
+            + deleteByRecordId(id)
+            + getRawJson(path): String
+        }
+        class MediaInfoServiceImpl <<Service>> {
+            Uses: mediainfo --output=JSON &#123;path&#125;
+            Parses JSON → TrackEntity hierarchy
+            Deletes existing before re-persisting
+        }
+    }
+
+    package "entity" #DDFFD5 {
+        class MediaFileEntity <<Entity>> {
+            @Id id: String (UUID)
+            record: RecordEntity  [@ManyToOne LAZY]
+            fileName: String
+            filePath: String [UNIQUE with record_id]
+            fileSize: Long
+            mimeType: String
+            ingestionJobId: String
+            rawMediaInfoJson: JSON  [MySQL JSON type]
+            createdAt: Instant  [@CreatedDate]
+            updatedAt: Instant  [@LastModifiedDate]
+            tracks: List<TrackEntity>  [@OneToMany CascadeALL]
+        }
+
+        abstract class TrackEntity <<Entity>> {
+            @Id id: Long  [AUTO]
+            mediaFile: MediaFileEntity  [@ManyToOne]
+            trackType: String  [discriminator]
+            streamOrder: Integer
+            extraJson: JSON  [MySQL JSON type — full raw data]
+        }
+
+        class GeneralTrackEntity <<Entity>> {
+            discriminator = "General"
+            format, formatVersion: String
+            fileSize, duration: Long  [duration in ms]
+            overallBitRate: Long
+            videoCount, audioCount, textCount: Integer
+            fileExtension, title: String
+            encodedApplication, encodedDate: String
+        }
+        class VideoTrackEntity <<Entity>> {
+            discriminator = "Video"
+            format, codecId, profile: String
+            width, height: Integer
+            displayAspectRatio, frameRate: String
+            bitRate, streamSize, duration: Long
+            bitDepth: Integer
+            colorSpace, hdrFormat, hdrFormatCompatibility: String
+            defaultTrack, forced: String
+        }
+        class AudioTrackEntity <<Entity>> {
+            discriminator = "Audio"
+            format, formatCommercial, codecId: String
+            language, title: String
+            channels: Integer
+            channelLayout: String
+            samplingRate, bitRate, streamSize, duration: Long
+            bitRateMode, compressionMode: String
+            defaultTrack, forced: String
+        }
+        class TextTrackEntity <<Entity>> {
+            discriminator = "Text"
+            format, codecId, language, title: String
+            streamSize, frameCount: Long
+            frameRate: String
+            defaultTrack, forced: String
+        }
+        class ImageTrackEntity <<Entity>> {
+            discriminator = "Image"
+            format: String  [JPEG, PNG]
+            width, height: Integer
+            title: String  [Cover, Thumbnail]
+            mimeType: String  [image/jpeg, image/png]
+            streamSize: Long
+            source: String  [EMBEDDED | TMDB]
+            tmdbPosterPath: String  [/abc.jpg — set when source=TMDB]
+        }
+    }
+
+    package "repository" #DDFFD5 {
+        interface MediaFileRepository <<JpaRepository>> {
+            @EntityGraph(tracks) findByRecord_Id(id)
+            @EntityGraph(tracks) findByFilePath(path)
+            deleteByFilePath(path)
+            deleteAllByRecord_Id(id)
+        }
+    }
+
+    package "dto" #DDFFD5 {
+        class MediaFileDto <<DTO>> {
+            @Builder @JsonInclude(NON_NULL)
+            id, recordId, fileName, filePath: String
+            fileSize: Long
+            mimeType, ingestionJobId: String
+            createdAt, updatedAt: Instant
+            tracks: List<TrackDto>
+            --
+            getGeneralTrack(): TrackDto
+            getPrimaryVideoTrack(): TrackDto
+            getPrimaryAudioTrack(): TrackDto
+        }
+        class TrackDto <<DTO>> {
+            @Builder @JsonInclude(NON_NULL)
+            type, format: String
+            streamOrder: Integer
+            fileSize, duration, overallBitRate: Long
+            videoCount, audioCount, textCount: Integer
+            width, height: Integer
+            frameRate, colorSpace, hdrFormat: String
+            bitRate: Long
+            bitDepth: Integer
+            language, title: String
+            channels: Integer
+            samplingRate: Long
+            defaultTrack, forced: String
+            mimeType, source, tmdbPosterPath: String  [Image]
+            extra: Map<String,Object>
+        }
+    }
+}
+
+' ════════════════════════════════════════════════════════════════════════════
+' PACKAGE: app.cinema (references only)
+' ════════════════════════════════════════════════════════════════════════════
+package "app.cinema (referenced)" #FFF8DC {
+    class RecordEntity <<Entity>> {
+        id: Long
+        title: String
+        tmdb: TmdbEntity
+    }
+    abstract class TmdbEntity <<Entity>> {
+        id: Long
+        title: String
+        posterPath: String
+    }
+    class MovieTmdbEntity <<Entity>> {
+        extends TmdbEntity
+        releaseDate, runtime...
+    }
+    class TvSeriesTmdbEntity <<Entity>> {
+        extends TmdbEntity
+        seasons: List<SeasonEntity>
+    }
+    class SeasonEntity <<Entity>> {
+        seasonNumber: Integer
+        episodes: List<EpisodeEntity>
+    }
+    class EpisodeEntity <<Entity>> {
+        episodeNumber: Integer
+        name: String
+        stillPath: String
+    }
+}
+
+' ════════════════════════════════════════════════════════════════════════════
+' DATABASE TABLES (MySQL, db_world schema)
+' ════════════════════════════════════════════════════════════════════════════
+package "MySQL · db_world schema" #F8F0FF {
+    class "ingestion_jobs" as DB_JOBS <<Database>> {
+        job_id VARCHAR(36) PK
+        status VARCHAR(20)       -- MirrorStatus enum
+        step VARCHAR(20)         -- PipelineStepType enum
+        source_type VARCHAR(20)  -- SourceType enum
+        uri VARCHAR(2000)
+        folder_name VARCHAR(500)
+        file_name VARCHAR(500)
+        gid VARCHAR(50)          -- Aria2 GID (NULL for yt-dlp)
+        downloaded_bytes BIGINT
+        total_bytes BIGINT
+        fail_reason VARCHAR(1000)
+        media_info_json JSON     -- MySQL JSON type
+        record_id BIGINT
+        season_number INT
+        episode_number INT
+        started_at DATETIME      -- @CreatedDate
+        updated_at DATETIME      -- @LastModifiedDate
+        completed_at DATETIME
+    }
+    class "media_files" as DB_FILES <<Database>> {
+        id VARCHAR(36) PK        -- UUID
+        record_id BIGINT FK      -- → records.id
+        file_name VARCHAR(1000)
+        file_path VARCHAR(1000)
+        file_size BIGINT
+        mime_type VARCHAR(100)
+        ingestion_job_id VARCHAR(36)
+        raw_media_info_json JSON -- MySQL JSON type
+        created_at DATETIME
+        updated_at DATETIME
+        UQ(record_id, file_path)
+    }
+    class "media_tracks" as DB_TRACKS <<Database>> {
+        id BIGINT PK AUTO
+        media_file_id VARCHAR(36) FK -- → media_files.id
+        track_type VARCHAR(31)        -- SINGLE_TABLE discriminator
+        stream_order INT
+        extra_json JSON               -- MySQL JSON type (full raw track data)
+        -- General track columns --
+        gen_format, gen_format_version, gen_file_ext...
+        -- Video track columns --
+        vid_format, vid_codec_id, vid_width, vid_height...
+        vid_hdr_format, vid_hdr_format_compatibility...
+        -- Audio track columns --
+        aud_format, aud_language, aud_channels, aud_sampling_rate...
+        -- Text track columns --
+        txt_format, txt_language, txt_frame_rate...
+        -- Image track columns --
+        img_format, img_width, img_height, img_title
+        img_mime_type, img_stream_size
+        img_source VARCHAR(20)        -- EMBEDDED | TMDB
+        img_tmdb_poster_path VARCHAR(300)
+    }
+}
+
+' ════════════════════════════════════════════════════════════════════════════
+' RELATIONSHIPS
+' ════════════════════════════════════════════════════════════════════════════
+
+' Pipeline wiring
+IngestionController --> IngestionPipeline
+IngestionController --> TrackingService
+IngestionController --> IngestionJobStore
+IngestionController --> IngestionJobRepository
+IngestionPipeline <|.. DefaultIngestionPipeline
+DefaultIngestionPipeline --> IngestionJobStore
+DefaultIngestionPipeline --> SourceHandler
+DefaultIngestionPipeline --> DownloadStrategy
+DefaultIngestionPipeline --> ProcessingStrategy
+DefaultIngestionPipeline --> IngestionRepository
+
+' Strategy implementations
+DownloadStrategy <|.. YtDlpDownloadStrategy
+DownloadStrategy <|.. Aria2DownloadStrategy
+Aria2DownloadStrategy --> IngestionJobStore : registers GID
+ProcessingStrategy <|.. ExtractionProcessingStrategy
+ProcessingStrategy <|.. FfmpegProcessingStrategy
+
+' FfmpegProcessingStrategy dependencies
+FfmpegProcessingStrategy --> TmdbMediaEnrichmentService
+FfmpegProcessingStrategy --> MediaInfoService
+
+' Enrichment
+TmdbMediaEnrichmentService <|.. TmdbMediaEnrichmentServiceImpl
+TmdbMediaEnrichmentServiceImpl --> RecordEntity : loads via RecordRepository
+TmdbMediaEnrichmentServiceImpl --> TvSeriesTmdbEntity : resolves episode
+TvSeriesTmdbEntity --> SeasonEntity
+SeasonEntity --> EpisodeEntity
+RecordEntity --> TmdbEntity
+TmdbEntity <|-- MovieTmdbEntity
+TmdbEntity <|-- TvSeriesTmdbEntity
+
+' MediaInfo
+MediaInfoService <|.. MediaInfoServiceImpl
+MediaInfoController --> MediaInfoService
+MediaInfoServiceImpl --> MediaFileRepository
+MediaInfoServiceImpl --> MediaFileEntity
+
+' Entities
+MediaFileEntity --> TrackEntity : tracks (OneToMany)
+TrackEntity <|-- GeneralTrackEntity
+TrackEntity <|-- VideoTrackEntity
+TrackEntity <|-- AudioTrackEntity
+TrackEntity <|-- TextTrackEntity
+TrackEntity <|-- ImageTrackEntity
+MediaFileEntity --> RecordEntity : record (ManyToOne)
+
+' Persistence
+IngestionRepository <|.. NoOpIngestionRepository
+IngestionRepository <|.. JpaIngestionRepository
+JpaIngestionRepository --> IngestionJobRepository
+IngestionJobRepository --> DB_JOBS
+MediaFileRepository --> DB_FILES
+MediaFileEntity ..> DB_FILES
+TrackEntity ..> DB_TRACKS
+
+' ════════════════════════════════════════════════════════════════════════════
+' SEQUENCE: GID Tracking for Aria2 Pause / Resume
+' ════════════════════════════════════════════════════════════════════════════
+legend right
+  **GID Tracking Flow (Aria2)**
+  ─────────────────────────────────────────────────────
+  1. POST /api/ingestion  →  pipeline.start(request)
+  2. DefaultIngestionPipeline  →  jobStore.register(jobId, request)
+  3. Aria2DownloadStrategy  →  aria2Rpc.addUri(url)  →  GID returned
+  4. Aria2DownloadStrategy  →  jobStore.setGid(jobId, gid)
+  5. Aria2DownloadStrategy  →  jobStore.setCancelAction(jobId, fn)
+  6. PUT /{jobId}/pause  →  controller reads jobStore.getGid(jobId)
+                          →  aria2Rpc.pause(gid)
+  7. PUT /{jobId}/resume →  aria2Rpc.unpause(gid)
+                          →  poll loop resumes automatically
+  8. YOUTUBE jobs:  pause/resume return HTTP 400
+  ─────────────────────────────────────────────────────
+  **TMDB Enrichment Flow (FfmpegProcessingStrategy)**
+  ─────────────────────────────────────────────────────
+  1. Move temp file → final directory
+  2. enrichmentService.enrich(file, recordId, season, ep, jobId)
+       a. Load RecordEntity → TmdbEntity
+       b. If TV: resolve EpisodeEntity (still image path, ep name)
+       c. Download poster/still from TMDB CDN (HttpClient)
+       d. FFmpeg: embed poster as attached_pic, set metadata title
+       e. Rename: Title.SXXEXX.EpName.ext (TV) / name_enriched.ext (movie)
+       f. Delete original + temp poster
+  3. mediaInfoService.collectAndPersist(enrichedFile, recordId, jobId)
+       a. Run: mediainfo --output=JSON {path}
+       b. Parse JSON → MediaFileEntity + TrackEntity hierarchy
+       c. Persist to media_files + media_tracks tables
+  ─────────────────────────────────────────────────────
+  **Enum Columns (all stored as VARCHAR via @Enumerated(STRING))**
+    MirrorStatus   : QUEUED | STARTED | DOWNLOADING | PAUSED |
+                     PROCESSING | SUCCESS | FAILED | CANCELLED
+    PipelineStepType: SOURCE_RESOLUTION | DOWNLOAD | EXTRACTION |
+                      PROCESSING | COMPLETE
+    SourceType     : YOUTUBE | HTTP | TORRENT | UNKNOWN
+  ─────────────────────────────────────────────────────
+  **Single-Table Inheritance (media_tracks)**
+    track_type discriminator values:
+      General | Video | Audio | Text | Image
+    All 5 subtypes share one table; unused columns are NULL
+    extraJson (MySQL JSON) stores full raw MediaInfo output
+    ImageTrackEntity.source: EMBEDDED (found in file) | TMDB (added by enrichment)
+end legend
+
+@enduml

@@ -4,14 +4,20 @@ import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.dto.MovieTmdbDto;
 import com.db.dbworld.app.cinema.tmdb.dto.TvSeriesTmdbDto;
+import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.mapper.MovieTmdbMapper;
 import com.db.dbworld.app.cinema.tmdb.mapper.TvSeriesTmdbMapper;
 import com.db.dbworld.app.cinema.tmdb.people.dto.PersonDto;
 import com.db.dbworld.app.cinema.tmdb.people.mapper.PersonMapper;
+import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.search.dto.TmdbSearchItemDto;
 import com.db.dbworld.app.cinema.tmdb.search.service.TmdbSearchService;
+import com.db.dbworld.core.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +29,7 @@ public class TmdbController {
 
     private final TmdbIngestionService ingestionService;
     private final TmdbSearchService tmdbSearchService;
+    private final TmdbRepository tmdbRepository;
 
     private final MovieTmdbMapper movieMapper;
     private final TvSeriesTmdbMapper tvMapper;
@@ -31,6 +38,17 @@ public class TmdbController {
     /* =========================
        MOVIES
        ========================= */
+
+    @GetMapping("/movies/{tmdbId}")
+    @Transactional(readOnly = true)
+    public ApiResponse<MovieTmdbDto> getMovieDetail(@PathVariable Long tmdbId) {
+        TmdbEntity entity = tmdbRepository.findById(tmdbId)
+                .orElseThrow(() -> new ResourceNotFoundException("TmdbEntity", "id", tmdbId));
+        if (!(entity instanceof MovieTmdbEntity movie)) {
+            throw new IllegalArgumentException("TMDB id " + tmdbId + " is not a movie");
+        }
+        return ApiResponse.success(movieMapper.toDto(movie));
+    }
 
     @PostMapping("/movies/{tmdbId}")
     public ApiResponse<MovieTmdbDto> ingestMovie(@PathVariable Long tmdbId) {
@@ -68,6 +86,17 @@ public class TmdbController {
     /* =========================
        TV SERIES
        ========================= */
+
+    @GetMapping("/tv/{tmdbId}")
+    @Transactional(readOnly = true)
+    public ApiResponse<TvSeriesTmdbDto> getTvDetail(@PathVariable Long tmdbId) {
+        TmdbEntity entity = tmdbRepository.findById(tmdbId)
+                .orElseThrow(() -> new ResourceNotFoundException("TmdbEntity", "id", tmdbId));
+        if (!(entity instanceof TvSeriesTmdbEntity series)) {
+            throw new IllegalArgumentException("TMDB id " + tmdbId + " is not a TV series");
+        }
+        return ApiResponse.success(tvMapper.toDto(series));
+    }
 
     @PostMapping("/tv/{tmdbId}")
     public ApiResponse<TvSeriesTmdbDto> ingestTvSeries(@PathVariable Long tmdbId) {

@@ -1,0 +1,389 @@
+package com.db.dbworld.app.media.info.service.impl;
+
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.media.info.dto.MediaFileDto;
+import com.db.dbworld.app.media.info.dto.TrackDto;
+import com.db.dbworld.app.media.info.entity.MediaFileEntity;
+import com.db.dbworld.app.media.info.entity.track.*;
+import com.db.dbworld.app.media.info.repository.MediaFileRepository;
+import com.db.dbworld.app.media.info.service.MediaInfoService;
+import com.db.dbworld.core.processor.ProcessExecutor;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+@Log4j2
+@Service
+@RequiredArgsConstructor
+public class MediaInfoServiceImpl implements MediaInfoService {
+
+    private final ProcessExecutor processExecutor;
+    private final MediaFileRepository mediaFileRepository;
+    private final RecordRepository recordRepository;
+    private final ObjectMapper objectMapper;
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Public API
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public MediaFileDto collectAndPersist(Path filePath, Long recordId, String ingestionJobId) {
+        String json = getRawJson(filePath);
+
+        // Delete existing entry for this path to avoid duplicates
+        mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString())
+                .ifPresent(mediaFileRepository::delete);
+
+        MediaFileEntity entity = buildEntity(filePath, json, recordId, ingestionJobId);
+        MediaFileEntity saved = mediaFileRepository.save(entity);
+
+        log.info("MediaInfo persisted: id={}, file={}, tracks={}",
+                saved.getId(), filePath.getFileName(), saved.getTracks().size());
+
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public MediaFileDto rescan(String mediaFileId) {
+        MediaFileEntity existing = mediaFileRepository.findById(mediaFileId)
+                .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + mediaFileId));
+
+        Path filePath = Path.of(existing.getFilePath());
+        Long recordId = existing.getRecord() != null ? existing.getRecord().getId() : null;
+        String jobId = existing.getIngestionJobId();
+
+        mediaFileRepository.delete(existing);
+
+        return collectAndPersist(filePath, recordId, jobId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MediaFileDto> getByRecordId(Long recordId) {
+        return mediaFileRepository.findByRecord_Id(recordId).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<MediaFileDto> getById(String id) {
+        return mediaFileRepository.findById(id).map(this::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<MediaFileDto> getByFilePath(String filePath) {
+        return mediaFileRepository.findByFilePath(filePath).map(this::toDto);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByFilePath(String filePath) {
+        mediaFileRepository.deleteByFilePath(filePath);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByRecordId(Long recordId) {
+        mediaFileRepository.deleteAllByRecord_Id(recordId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MediaFileDto> findAll() {
+        return mediaFileRepository.findAll().stream().map(this::toDto).toList();
+    }
+
+    @Override
+    public String getRawJson(Path filePath) {
+        try {
+            return processExecutor.runMediaInfoCommand(filePath);
+        } catch (Exception e) {
+            log.error("MediaInfo command failed for path={}: {}", filePath, e.getMessage());
+            throw new RuntimeException("MediaInfo failed: " + e.getMessage(), e);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Entity builder
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private MediaFileEntity buildEntity(Path filePath, String json, Long recordId, String ingestionJobId) {
+        MediaFileEntity entity = new MediaFileEntity();
+        entity.setFilePath(filePath.toAbsolutePath().toString());
+        entity.setFileName(filePath.getFileName().toString());
+        entity.setIngestionJobId(ingestionJobId);
+        entity.setRawMediaInfoJson(json);
+
+        try {
+            entity.setFileSize(Files.size(filePath));
+        } catch (Exception ignored) {}
+
+        if (recordId != null) {
+            recordRepository.findById(recordId).ifPresent(entity::setRecord);
+        }
+
+        parseTracksInto(entity, json);
+
+        return entity;
+    }
+
+    private void parseTracksInto(MediaFileEntity entity, String json) {
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode tracks = root.path("media").path("track");
+
+            if (!tracks.isArray()) return;
+
+            int streamOrder = 0;
+            for (JsonNode trackNode : tracks) {
+                String type = trackNode.path("@type").asText("");
+                TrackEntity track = buildTrack(type, trackNode, streamOrder++);
+                if (track != null) entity.addTrack(track);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse MediaInfo JSON for {}: {}", entity.getFileName(), e.getMessage());
+        }
+    }
+
+    private TrackEntity buildTrack(String type, JsonNode node, int order) {
+        String extraJson = node.toString();
+
+        return switch (type) {
+            case "General" -> {
+                GeneralTrackEntity t = new GeneralTrackEntity();
+                t.setStreamOrder(order);
+                t.setExtraJson(extraJson);
+                t.setFormat(text(node, "Format"));
+                t.setFormatVersion(text(node, "Format_Version"));
+                t.setFileSize(longVal(node, "FileSize"));
+                t.setDuration(parseDurationMs(node, "Duration"));
+                t.setOverallBitRate(longVal(node, "OverallBitRate"));
+                t.setVideoCount(intVal(node, "VideoCount"));
+                t.setAudioCount(intVal(node, "AudioCount"));
+                t.setTextCount(intVal(node, "TextCount"));
+                t.setFileExtension(text(node, "FileExtension"));
+                t.setTitle(text(node, "Title"));
+                t.setEncodedApplication(text(node, "Encoded_Application"));
+                t.setEncodedDate(text(node, "Encoded_Date"));
+                yield t;
+            }
+            case "Video" -> {
+                VideoTrackEntity t = new VideoTrackEntity();
+                t.setStreamOrder(order);
+                t.setExtraJson(extraJson);
+                t.setFormat(text(node, "Format"));
+                t.setCodecId(text(node, "CodecID"));
+                t.setProfile(text(node, "Format_Profile"));
+                t.setWidth(intVal(node, "Width"));
+                t.setHeight(intVal(node, "Height"));
+                t.setDisplayAspectRatio(text(node, "DisplayAspectRatio_String"));
+                t.setFrameRate(text(node, "FrameRate"));
+                t.setBitRate(longVal(node, "BitRate"));
+                t.setBitDepth(intVal(node, "BitDepth"));
+                t.setColorSpace(text(node, "ColorSpace"));
+                t.setHdrFormat(text(node, "HDR_Format"));
+                t.setHdrFormatCompatibility(text(node, "HDR_Format_Compatibility"));
+                t.setDuration(parseDurationMs(node, "Duration"));
+                t.setStreamSize(longVal(node, "StreamSize"));
+                t.setDefaultTrack(text(node, "Default"));
+                t.setForced(text(node, "Forced"));
+                yield t;
+            }
+            case "Audio" -> {
+                AudioTrackEntity t = new AudioTrackEntity();
+                t.setStreamOrder(order);
+                t.setExtraJson(extraJson);
+                t.setFormat(text(node, "Format"));
+                t.setFormatCommercial(text(node, "Format_Commercial_IfAny"));
+                t.setCodecId(text(node, "CodecID"));
+                t.setLanguage(text(node, "Language"));
+                t.setTitle(text(node, "Title"));
+                t.setChannels(intVal(node, "Channels"));
+                t.setChannelLayout(text(node, "ChannelLayout"));
+                t.setSamplingRate(longVal(node, "SamplingRate"));
+                t.setBitRate(longVal(node, "BitRate"));
+                t.setBitRateMode(text(node, "BitRate_Mode"));
+                t.setCompressionMode(text(node, "Compression_Mode"));
+                t.setDuration(parseDurationMs(node, "Duration"));
+                t.setStreamSize(longVal(node, "StreamSize"));
+                t.setDefaultTrack(text(node, "Default"));
+                t.setForced(text(node, "Forced"));
+                yield t;
+            }
+            case "Text" -> {
+                TextTrackEntity t = new TextTrackEntity();
+                t.setStreamOrder(order);
+                t.setExtraJson(extraJson);
+                t.setFormat(text(node, "Format"));
+                t.setCodecId(text(node, "CodecID"));
+                t.setLanguage(text(node, "Language"));
+                t.setTitle(text(node, "Title"));
+                t.setDefaultTrack(text(node, "Default"));
+                t.setForced(text(node, "Forced"));
+                t.setStreamSize(longVal(node, "StreamSize"));
+                t.setFrameRate(text(node, "FrameRate"));
+                t.setFrameCount(longVal(node, "FrameCount"));
+                yield t;
+            }
+            case "Image" -> {
+                ImageTrackEntity t = new ImageTrackEntity();
+                t.setStreamOrder(order);
+                t.setExtraJson(extraJson);
+                t.setFormat(text(node, "Format"));
+                t.setWidth(intVal(node, "Width"));
+                t.setHeight(intVal(node, "Height"));
+                t.setTitle(text(node, "Title"));
+                t.setStreamSize(longVal(node, "StreamSize"));
+                // Derive MIME type from format
+                String fmt = text(node, "Format");
+                if (fmt != null) {
+                    t.setMimeType(fmt.equalsIgnoreCase("PNG") ? "image/png" : "image/jpeg");
+                }
+                t.setSource("EMBEDDED");
+                yield t;
+            }
+            default -> {
+                log.debug("Skipping unsupported track type: {}", type);
+                yield null;
+            }
+        };
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // DTO mapper
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private MediaFileDto toDto(MediaFileEntity entity) {
+        List<TrackDto> trackDtos = entity.getTracks().stream()
+                .map(this::toTrackDto)
+                .toList();
+
+        return MediaFileDto.builder()
+                .id(entity.getId())
+                .recordId(entity.getRecord() != null ? entity.getRecord().getId() : null)
+                .fileName(entity.getFileName())
+                .filePath(entity.getFilePath())
+                .fileSize(entity.getFileSize())
+                .mimeType(entity.getMimeType())
+                .ingestionJobId(entity.getIngestionJobId())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .tracks(trackDtos)
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private TrackDto toTrackDto(TrackEntity track) {
+        TrackDto.TrackDtoBuilder b = TrackDto.builder()
+                .type(track.getTrackType())
+                .streamOrder(track.getStreamOrder());
+
+        // Parse extra JSON for the `extra` map
+        Map<String, Object> extra = null;
+        try {
+            if (track.getExtraJson() != null) {
+                extra = objectMapper.readValue(track.getExtraJson(), Map.class);
+            }
+        } catch (Exception ignored) {}
+
+        b.extra(extra);
+
+        if (track instanceof GeneralTrackEntity g) {
+            b.format(g.getFormat())
+             .fileSize(g.getFileSize())
+             .duration(g.getDuration())
+             .overallBitRate(g.getOverallBitRate())
+             .videoCount(g.getVideoCount())
+             .audioCount(g.getAudioCount())
+             .textCount(g.getTextCount());
+        } else if (track instanceof VideoTrackEntity v) {
+            b.format(v.getFormat())
+             .width(v.getWidth())
+             .height(v.getHeight())
+             .frameRate(v.getFrameRate())
+             .bitRate(v.getBitRate())
+             .bitDepth(v.getBitDepth())
+             .colorSpace(v.getColorSpace())
+             .hdrFormat(v.getHdrFormat())
+             .hdrFormatCompatibility(v.getHdrFormatCompatibility())
+             .duration(v.getDuration())
+             .defaultTrack(v.getDefaultTrack())
+             .forced(v.getForced());
+        } else if (track instanceof AudioTrackEntity a) {
+            b.format(a.getFormat())
+             .language(a.getLanguage())
+             .title(a.getTitle())
+             .channels(a.getChannels())
+             .samplingRate(a.getSamplingRate())
+             .bitRate(a.getBitRate())
+             .duration(a.getDuration())
+             .defaultTrack(a.getDefaultTrack())
+             .forced(a.getForced());
+        } else if (track instanceof TextTrackEntity t) {
+            b.format(t.getFormat())
+             .language(t.getLanguage())
+             .title(t.getTitle())
+             .defaultTrack(t.getDefaultTrack())
+             .forced(t.getForced());
+        } else if (track instanceof ImageTrackEntity img) {
+            b.format(img.getFormat())
+             .width(img.getWidth())
+             .height(img.getHeight())
+             .title(img.getTitle())
+             .mimeType(img.getMimeType())
+             .source(img.getSource())
+             .tmdbPosterPath(img.getTmdbPosterPath());
+        }
+
+        return b.build();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // JSON extraction helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private String text(JsonNode node, String field) {
+        JsonNode n = node.get(field);
+        return (n != null && !n.isNull()) ? n.asText(null) : null;
+    }
+
+    private Long longVal(JsonNode node, String field) {
+        JsonNode n = node.get(field);
+        if (n == null || n.isNull()) return null;
+        try { return n.asLong(); } catch (Exception e) { return null; }
+    }
+
+    private Integer intVal(JsonNode node, String field) {
+        JsonNode n = node.get(field);
+        if (n == null || n.isNull()) return null;
+        try { return n.asInt(); } catch (Exception e) { return null; }
+    }
+
+    /**
+     * MediaInfo reports Duration as floating-point seconds in JSON.
+     * Convert to milliseconds for storage.
+     */
+    private Long parseDurationMs(JsonNode node, String field) {
+        JsonNode n = node.get(field);
+        if (n == null || n.isNull()) return null;
+        try {
+            double seconds = Double.parseDouble(n.asText());
+            return (long) (seconds * 1000);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}

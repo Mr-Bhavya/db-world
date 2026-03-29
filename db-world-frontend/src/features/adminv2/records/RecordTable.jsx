@@ -1,13 +1,15 @@
-// db-world-frontend/src/features/adminv2/records/RecordTable.jsx
 import { useCallback, useMemo } from 'react';
-import { Box, Chip, IconButton, Tooltip, Link } from '@mui/material';
+import { Box, Chip, IconButton, Tooltip } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import VideoFileIcon from '@mui/icons-material/VideoFile';
 import { formatDistanceToNow } from 'date-fns';
+import { useT } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
 import RecordTagsInline from './RecordTagsInline';
 
@@ -16,41 +18,68 @@ const SORT_FIELD_MAP = {
   year: 'year', tmdbId: 'tmdbId', createdAt: 'createdAt', updatedAt: 'updatedAt',
 };
 
-const gridSx = {
-  bgcolor: 'transparent', border: 'none', color: '#0f172a',
-  '& .MuiDataGrid-columnHeaders': {
-    bgcolor: 'rgba(13,148,136,0.04)',
-    borderBottom: '1px solid rgba(0,0,0,0.08)',
-    color: 'rgba(15,23,42,0.55)',
-    fontSize: 11, textTransform: 'uppercase', letterSpacing: .5,
-  },
-  '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 700 },
-  '& .MuiDataGrid-row': {
-    borderBottom: '1px solid rgba(0,0,0,0.04)',
-    '&:hover': { bgcolor: 'rgba(13,148,136,0.04)' },
-  },
-  '& .MuiDataGrid-cell': {
-    borderBottom: 'none', color: '#0f172a', fontSize: 13,
-    display: 'flex', alignItems: 'center',
-  },
-  '& .MuiDataGrid-footerContainer': {
-    borderTop: '1px solid rgba(0,0,0,0.07)',
-    color: 'rgba(15,23,42,0.55)',
-    bgcolor: 'rgba(13,148,136,0.02)',
-  },
-  '& .MuiCheckbox-root': { color: 'rgba(15,23,42,0.3)' },
-  '& .MuiDataGrid-columnSeparator': { color: 'rgba(0,0,0,0.08)' },
-  '& .MuiDataGrid-sortIcon': { color: '#0d9488' },
-  '& .MuiDataGrid-menuIconButton': { color: 'rgba(15,23,42,0.4)' },
-  '& .MuiTablePagination-root': { color: 'rgba(15,23,42,0.6)' },
-  '& .MuiTablePagination-selectIcon': { color: 'rgba(15,23,42,0.5)' },
-  '& .MuiDataGrid-selectedRowCount': { color: '#0d9488' },
-  '& .MuiDataGrid-overlay': { bgcolor: '#f8fffe' },
-  '& .MuiDataGrid-virtualScroller': { bgcolor: '#ffffff' },
-};
+export default function RecordTable({ rows, totalElements, loading, onDelete }) {
+  const T = useT();
+  const { sortModel, setSortModel, setSelectedRows, openDrawer, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
 
-export default function RecordTable({ data, loading, onDelete, queryKey }) {
-  const { page, pageSize, sortModel, setPage, setPageSize, setSortModel, setSelectedRows, openDrawer, openModal } = useRecordStore();
+  const gridSx = useMemo(() => ({
+    // v8 CSS variables override container/pinned backgrounds
+    '--DataGrid-containerBackground': T.tealBg,
+    '--DataGrid-pinnedBackground':    T.sidebar,
+    border: 'none',
+    color: T.textPrimary,
+    bgcolor: T.adminBg,
+
+    // Column header — force background + text via !important to beat v8 CSS vars
+    '& .MuiDataGrid-columnHeaders': {
+      backgroundColor: `${T.tealBg} !important`,
+      borderBottom: `1px solid ${T.border}`,
+    },
+    '& .MuiDataGrid-columnHeader': {
+      backgroundColor: `${T.tealBg} !important`,
+      color: `${T.textMuted} !important`,
+      '&:focus, &:focus-within': { outline: 'none' },
+    },
+    '& .MuiDataGrid-columnHeaderTitle': {
+      fontWeight: 700, color: `${T.textMuted} !important`,
+      fontSize: 11, textTransform: 'uppercase', letterSpacing: .5,
+    },
+    '& .MuiDataGrid-columnHeaderTitleContainer': { color: T.textMuted },
+    '& .MuiDataGrid-iconSeparator':  { color: T.border },
+    '& .MuiDataGrid-sortIcon':       { color: T.teal },
+    '& .MuiDataGrid-menuIconButton': { color: T.textMuted },
+
+    // Rows
+    '& .MuiDataGrid-row': {
+      borderBottom: `1px solid ${T.border}`,
+      backgroundColor: T.adminBg,
+      '&:hover': { backgroundColor: `${T.tealBg} !important` },
+    },
+    '& .MuiDataGrid-cell': {
+      borderBottom: 'none', color: T.textPrimary, fontSize: 13,
+      display: 'flex', alignItems: 'center',
+      '&:focus, &:focus-within': { outline: 'none' },
+    },
+
+    // Scrollable area + overlay
+    '& .MuiDataGrid-virtualScroller':        { backgroundColor: T.adminBg },
+    '& .MuiDataGrid-virtualScrollerContent': { backgroundColor: T.adminBg },
+    '& .MuiDataGrid-overlay':                { backgroundColor: T.adminBg },
+
+    // Footer
+    '& .MuiDataGrid-footerContainer': {
+      borderTop: `1px solid ${T.border}`,
+      backgroundColor: `${T.tealBg} !important`,
+      color: T.textMuted,
+    },
+    '& .MuiDataGrid-selectedRowCount': { color: T.teal },
+    '& .MuiTablePagination-root':       { color: T.textMuted },
+    '& .MuiTablePagination-selectIcon': { color: T.textMuted },
+    '& .MuiTablePagination-displayedRows': { color: T.textMuted },
+
+    // Checkbox
+    '& .MuiCheckbox-root': { color: T.textFaint },
+  }), [T]);
 
   const handleSortChange = useCallback((model) => {
     setSortModel(model.map(s => ({ ...s, field: SORT_FIELD_MAP[s.field] ?? s.field })));
@@ -61,76 +90,114 @@ export default function RecordTable({ data, loading, onDelete, queryKey }) {
   [sortModel]);
 
   const columns = useMemo(() => [
-    { field: 'recordId', headerName: 'ID', width: 80, type: 'number' },
+    {
+      field: 'recordId', headerName: 'ID', width: 80,
+      renderCell: ({ value }) => (
+        <Box
+          onClick={() => openRecordDetail(value)}
+          sx={{ color: T.teal, fontWeight: 700, cursor: 'pointer', fontSize: 13, '&:hover': { textDecoration: 'underline' } }}
+        >
+          {value}
+        </Box>
+      ),
+    },
     {
       field: 'name', headerName: 'Name', flex: 1.5, minWidth: 160,
       renderCell: ({ value, row }) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {row.type === 'MOVIE'
-            ? <MovieIcon sx={{ fontSize: 16, color: '#0d9488', flexShrink: 0 }} />
-            : <TvIcon    sx={{ fontSize: 16, color: '#10b981', flexShrink: 0 }} />}
-          <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{value}</Box>
+            ? <MovieIcon sx={{ fontSize: 15, color: T.teal, flexShrink: 0 }} />
+            : <TvIcon    sx={{ fontSize: 15, color: T.success, flexShrink: 0 }} />}
+          <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.textPrimary }}>{value}</Box>
         </Box>
       ),
     },
     {
-      field: 'type', headerName: 'Type', width: 100,
+      field: 'type', headerName: 'Type', width: 95,
       renderCell: ({ value }) => (
-        <Chip label={value} size="small" sx={{
-          bgcolor: value === 'MOVIE' ? 'rgba(13,148,136,0.1)' : 'rgba(16,185,129,0.12)',
-          color: value === 'MOVIE' ? '#0d9488' : '#10b981',
+        <Chip label={value === 'TV_SERIES' ? 'Series' : 'Movie'} size="small" sx={{
+          bgcolor: value === 'MOVIE' ? T.tealBg : `${T.success}20`,
+          color: value === 'MOVIE' ? T.teal : T.success,
           fontWeight: 700, fontSize: 10,
         }} />
       ),
     },
-    { field: 'year', headerName: 'Year', width: 80, type: 'number' },
+    { field: 'year', headerName: 'Year', width: 72, type: 'number' },
     {
-      field: 'tmdbId', headerName: 'TMDB ID', width: 110,
+      field: 'tmdbId', headerName: 'TMDB ID', width: 120,
       renderCell: ({ value, row }) => value ? (
-        <Link href={`https://www.themoviedb.org/${row.type === 'MOVIE' ? 'movie' : 'tv'}/${value}`} target="_blank" sx={{ color: '#0d9488', fontSize: 13 }}>{value}</Link>
-      ) : '—',
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: .5 }}>
+          <Tooltip title="View TMDB data">
+            <Box
+              onClick={() => openTmdbModal(row)}
+              sx={{ color: T.teal, fontSize: 13, cursor: 'pointer', fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}
+            >{value}</Box>
+          </Tooltip>
+          <Box
+            component="a"
+            href={`https://www.themoviedb.org/${row.type === 'MOVIE' ? 'movie' : 'tv'}/${value}`}
+            target="_blank" rel="noreferrer"
+            onClick={e => e.stopPropagation()}
+            sx={{ color: T.textFaint, display: 'flex', alignItems: 'center', '&:hover': { color: T.teal } }}
+          >
+            <OpenInNewIcon sx={{ fontSize: 11 }} />
+          </Box>
+        </Box>
+      ) : <Box sx={{ color: T.textFaint }}>—</Box>,
     },
     {
       field: 'tags', headerName: 'Tags', flex: 1.5, minWidth: 180, sortable: false,
-      renderCell: ({ row }) => <RecordTagsInline record={row} queryKey={queryKey} />,
+      renderCell: ({ row }) => <RecordTagsInline record={row} />,
     },
     {
-      field: 'createdAt', headerName: 'Created', width: 130,
-      renderCell: ({ value }) => value ? <Box sx={{ fontSize: 12, color: 'rgba(15,23,42,0.45)' }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box> : '—',
+      field: 'createdAt', headerName: 'Created', width: 125,
+      renderCell: ({ value }) => value
+        ? <Box sx={{ fontSize: 12, color: T.textFaint }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box>
+        : <Box sx={{ color: T.textFaint }}>—</Box>,
     },
     {
-      field: 'updatedAt', headerName: 'Updated', width: 130,
-      renderCell: ({ value }) => value ? <Box sx={{ fontSize: 12, color: 'rgba(15,23,42,0.45)' }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box> : '—',
+      field: 'updatedAt', headerName: 'Updated', width: 125,
+      renderCell: ({ value }) => value
+        ? <Box sx={{ fontSize: 12, color: T.textFaint }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box>
+        : <Box sx={{ color: T.textFaint }}>—</Box>,
     },
     {
-      field: 'actions', headerName: '', width: 120, sortable: false,
+      field: 'mediaFiles', headerName: 'Files', width: 72, sortable: false,
+      renderCell: ({ row }) => (
+        <Tooltip title="View media files">
+          <IconButton size="small" onClick={() => openMediaFiles(row.recordId)}
+            sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
+            <VideoFileIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+    {
+      field: 'actions', headerName: '', width: 108, sortable: false,
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', gap: .5 }}>
-          <Tooltip title="View"><IconButton size="small" onClick={() => openDrawer(row.recordId)} sx={{ color: 'rgba(15,23,42,0.35)', '&:hover': { color: '#0d9488', bgcolor: 'rgba(13,148,136,0.08)' } }}><VisibilityIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
-          <Tooltip title="Edit"><IconButton size="small" onClick={() => openModal('edit', row.recordId)} sx={{ color: 'rgba(15,23,42,0.35)', '&:hover': { color: '#10b981', bgcolor: 'rgba(16,185,129,0.08)' } }}><EditIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
-          <Tooltip title="Delete"><IconButton size="small" onClick={() => onDelete(row.recordId)} sx={{ color: 'rgba(15,23,42,0.35)', '&:hover': { color: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' } }}><DeleteIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+          <Tooltip title="View"><IconButton size="small" onClick={() => openDrawer(row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}><VisibilityIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+          <Tooltip title="Edit"><IconButton size="small" onClick={() => openModal('edit', row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.success, bgcolor: `${T.success}15` } }}><EditIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+          <Tooltip title="Delete"><IconButton size="small" onClick={() => onDelete(row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.error, bgcolor: T.errorBg } }}><DeleteIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
         </Box>
       ),
     },
-  ], [onDelete, openDrawer, openModal, queryKey]);
+  ], [T, onDelete, openDrawer, openModal, openTmdbModal, openRecordDetail, openMediaFiles]);
 
   return (
     <DataGrid
-      rows={data?.content ?? []}
+      rows={rows}
       columns={columns}
       getRowId={r => r.recordId}
       loading={loading}
-      rowCount={data?.totalElements ?? 0}
-      paginationMode="server"
+      rowCount={totalElements}
       sortingMode="server"
-      paginationModel={{ page, pageSize }}
-      onPaginationModelChange={({ page: p, pageSize: s }) => { setPage(p); setPageSize(s); }}
       sortModel={displaySortModel}
       onSortModelChange={handleSortChange}
-      pageSizeOptions={[10, 25, 50, 100]}
       checkboxSelection
       disableRowSelectionOnClick
       onRowSelectionModelChange={ids => setSelectedRows(Array.from(ids))}
+      hideFooterPagination
       sx={gridSx}
       slotProps={{ loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' } }}
       keepNonExistentRowsSelected

@@ -1,5 +1,7 @@
 package com.db.dbworld.core.user.service.impl;
 
+import com.db.dbworld.audit.activity.entity.LoginDataEntity;
+import com.db.dbworld.audit.activity.repository.LoginDataRepository;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
@@ -36,6 +38,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final UserContext userContext;
+    private final LoginDataRepository loginDataRepository;
 
     // ==============================
     // ✅ CREATE USER
@@ -93,7 +96,21 @@ public class UserServiceImpl implements UserService {
     public List<UserDto> getAllUsers(Pageable pageable) {
         return userRepository.findAll(pageable)
                 .stream()
-                .map(userMapper::toDto)
+                .map(entity -> {
+                    UserDto dto = userMapper.toDto(entity);
+                    Long uid = entity.getUserId();
+                    dto.setNoOfLogin(loginDataRepository.totalNumberOfLogin(uid));
+                    dto.setLoginData(loginDataRepository.getLoginDataFromUserId(uid)
+                            .stream()
+                            .map(ld -> {
+                                UserDto.LoginData entry = new UserDto.LoginData();
+                                entry.setLastLoginDate(ld.getLastLoginDate());
+                                entry.setLoginAgent(ld.getLoginAgent());
+                                return entry;
+                            })
+                            .toList());
+                    return dto;
+                })
                 .toList();
     }
 
@@ -123,6 +140,10 @@ public class UserServiceImpl implements UserService {
         UserEntity entity = getUserEntityById(userId);
 
         userMapper.updateUserFromRequest(request, entity);
+
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            entity.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
 
         return userMapper.toDto(userRepository.save(entity));
     }

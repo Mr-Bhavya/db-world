@@ -24,6 +24,16 @@ public class CatalogAdminController {
     private final CatalogService catalogService;
 
     /* =========================
+       GET RECORD (admin)
+       ========================= */
+
+    @AdminAccess
+    @GetMapping("/{id}")
+    public ApiResponse<RecordDto> getRecord(@PathVariable Long id) {
+        return ApiResponse.success(catalogService.getRecord(id));
+    }
+
+    /* =========================
        CREATE RECORD
        ========================= */
 

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@app/*":      ["src/app/*"],
+      "@features/*": ["src/features/*"],
+      "@shared/*":   ["src/shared/*"],
+      "@assets/*":   ["src/assets/*"],
+      "@platform/*": ["src/platform/*"],
+      "@styles/*":   ["src/styles/*"]
+    },
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2020"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "build"]
+}

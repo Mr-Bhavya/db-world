@@ -60,7 +60,31 @@ export const updateTag = (tagId, body) =>
 export const deleteTag = (tagId) =>
   axiosInstance.delete(`/api/cinema/admin/catalog/tags/${tagId}`).then(r => r.data);
 
-/* ─── TMDB SEARCH ───────────────────────────────────────────────── */
+/* ─── TMDB SEARCH & DETAIL ──────────────────────────────────────── */
 
 export const searchTmdb = (type, query, year, language = 'en-US') =>
   axiosInstance.get('/api/cinema/admin/tmdb/search', { params: { type, query, year, language } }).then(r => r.data.data);
+
+export const getTmdbDetail = (type, tmdbId) => {
+  const seg = type === 'MOVIE' ? 'movies' : 'tv';
+  return axiosInstance.get(`/api/cinema/admin/tmdb/${seg}/${tmdbId}`).then(r => r.data.data);
+};
+
+/* ─── RECORD DETAIL ─────────────────────────────────────────────── */
+
+export const getAdminRecordDetail = (recordId) =>
+  axiosInstance.get(`/api/cinema/admin/catalog/${recordId}`).then(r => r.data.data);
+
+/* ─── MEDIA FILES ───────────────────────────────────────────────── */
+
+export const getMediaFiles = (recordId) =>
+  axiosInstance.get(`/api/media/info/record/${recordId}`).then(r => r.data.data);
+
+export const deleteMediaFile = (filePath) =>
+  axiosInstance.delete('/api/media/info/path', { params: { path: filePath } }).then(r => r.data);
+
+export const rescanMediaFile = (id) =>
+  axiosInstance.post(`/api/media/info/${id}/rescan`).then(r => r.data.data);
+
+export const seedMediaFiles = (recordId) =>
+  axiosInstance.post(`/api/media/info/seed/${recordId}`).then(r => r.data.data);

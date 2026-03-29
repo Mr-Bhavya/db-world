@@ -14,16 +14,54 @@ export default function UserTable({ users, loading, onDelete }) {
   const { setSelectedRows, sortModel, setSortModel, openDrawer, openModal } = useUserStore();
 
   const gridSx = useMemo(() => ({
-    bgcolor: 'transparent', border: 'none', color: T.textPrimary,
-    '& .MuiDataGrid-columnHeaders':   { bgcolor: T.tealBg, borderBottom: `1px solid ${T.border}`, color: T.textMuted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
-    '& .MuiDataGrid-row':             { borderBottom: `1px solid ${T.border}`, '&:hover': { bgcolor: T.hoverBg } },
-    '& .MuiDataGrid-cell':            { borderBottom: 'none', color: T.textPrimary, fontSize: 13 },
-    '& .MuiDataGrid-footerContainer': { borderTop: `1px solid ${T.border}`, color: T.textMuted, bgcolor: T.tealBg },
-    '& .MuiCheckbox-root':            { color: T.textMuted },
-    '& .MuiDataGrid-virtualScroller': { minHeight: 200, bgcolor: T.sidebar },
-    '& .MuiTablePagination-root':     { color: T.textMuted },
-    '& .MuiTablePagination-select':   { color: T.textPrimary },
-    '& .MuiSvgIcon-root':             { color: T.textMuted },
+    '--DataGrid-containerBackground': T.tealBg,
+    '--DataGrid-pinnedBackground':    T.sidebar,
+    border: 'none',
+    color: T.textPrimary,
+    bgcolor: T.adminBg,
+
+    '& .MuiDataGrid-columnHeaders': {
+      backgroundColor: `${T.tealBg} !important`,
+      borderBottom: `1px solid ${T.border}`,
+    },
+    '& .MuiDataGrid-columnHeader': {
+      backgroundColor: `${T.tealBg} !important`,
+      color: `${T.textMuted} !important`,
+      '&:focus, &:focus-within': { outline: 'none' },
+    },
+    '& .MuiDataGrid-columnHeaderTitle': {
+      fontWeight: 700, color: `${T.textMuted} !important`,
+      fontSize: 11, textTransform: 'uppercase', letterSpacing: .5,
+    },
+    '& .MuiDataGrid-columnHeaderTitleContainer': { color: T.textMuted },
+    '& .MuiDataGrid-iconSeparator':  { color: T.border },
+    '& .MuiDataGrid-sortIcon':       { color: T.teal },
+    '& .MuiDataGrid-menuIconButton': { color: T.textMuted },
+
+    '& .MuiDataGrid-row': {
+      borderBottom: `1px solid ${T.border}`,
+      backgroundColor: T.adminBg,
+      '&:hover': { backgroundColor: `${T.hoverBg} !important` },
+    },
+    '& .MuiDataGrid-cell': {
+      borderBottom: 'none', color: T.textPrimary, fontSize: 13,
+      '&:focus, &:focus-within': { outline: 'none' },
+    },
+    '& .MuiDataGrid-virtualScroller':        { minHeight: 200, backgroundColor: T.adminBg },
+    '& .MuiDataGrid-virtualScrollerContent': { backgroundColor: T.adminBg },
+    '& .MuiDataGrid-overlay':                { backgroundColor: T.adminBg },
+    '& .MuiDataGrid-footerContainer': {
+      borderTop: `1px solid ${T.border}`,
+      backgroundColor: `${T.tealBg} !important`,
+      color: T.textMuted,
+    },
+    '& .MuiDataGrid-selectedRowCount': { color: T.teal },
+    '& .MuiTablePagination-root':        { color: T.textMuted },
+    '& .MuiTablePagination-select':      { color: T.textPrimary },
+    '& .MuiTablePagination-selectIcon':  { color: T.textMuted },
+    '& .MuiTablePagination-displayedRows': { color: T.textMuted },
+    '& .MuiCheckbox-root': { color: T.textMuted },
+    '& .MuiSvgIcon-root':  { color: T.textMuted },
   }), [T]);
 
   const columns = useMemo(() => [
