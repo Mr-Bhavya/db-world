@@ -137,6 +137,28 @@ public class GlobalExceptionHandler {
     }
 
     /* =========================
+       FILE MANAGER
+       ========================= */
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSecurity(SecurityException ex) {
+        log.warn("Security exception: {}", ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, "Access denied: " + ex.getMessage());
+    }
+
+    @ExceptionHandler(java.nio.file.NoSuchFileException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoSuchFile(java.nio.file.NoSuchFileException ex) {
+        log.warn("File not found: {}", ex.getFile());
+        return build(HttpStatus.NOT_FOUND, "File not found: " + ex.getFile());
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException ex) {
+        log.warn("Illegal state: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /* =========================
        DATABASE
        ========================= */
 
