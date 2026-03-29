@@ -98,7 +98,7 @@ export default function UploadDialog() {
               <ListItem key={idx} sx={{ px: 0, gap: 1 }}>
                 <ListItemText
                   primary={f.file.name}
-                  secondary={`${(f.file.size / 1024).toFixed(1)} KB`}
+                  secondary={formatBytes(f.file.size)}
                   primaryTypographyProps={{ fontSize: 13, color: T.textPrimary, noWrap: true }}
                   secondaryTypographyProps={{ fontSize: 11, color: T.textFaint }}
                   sx={{ flex: 1, minWidth: 0 }}
@@ -137,4 +137,11 @@ export default function UploadDialog() {
       </DialogActions>
     </Dialog>
   );
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }

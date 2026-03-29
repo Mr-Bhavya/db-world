@@ -1,5 +1,5 @@
 import {
-  Drawer, Box, Typography, IconButton, Divider, Chip,
+  Drawer, Box, Typography, IconButton, Divider, Chip, Tooltip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -102,25 +102,33 @@ export default function FileInfoDrawer({ onDelete }) {
 
         {/* Actions */}
         <Box sx={{ display: 'flex', gap: 1, p: 1.5, flexWrap: 'wrap' }}>
-          <IconButton size="small" onClick={() => openOperation('rename', item)}
-            sx={{ color: T.textMuted, bgcolor: T.hoverBg, borderRadius: 1.5, '&:hover': { color: T.teal } }}>
-            <EditIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-          <IconButton size="small" onClick={() => openOperation('move', item)}
-            sx={{ color: T.textMuted, bgcolor: T.hoverBg, borderRadius: 1.5, '&:hover': { color: T.teal } }}>
-            <DriveFileMoveIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-          {!item.directory && (
-            <IconButton size="small" component="a" href={getDownloadUrl(item.path)} download
+          <Tooltip title="Rename">
+            <IconButton size="small" onClick={() => openOperation('rename', item)}
               sx={{ color: T.textMuted, bgcolor: T.hoverBg, borderRadius: 1.5, '&:hover': { color: T.teal } }}>
-              <DownloadIcon sx={{ fontSize: 16 }} />
+              <EditIcon sx={{ fontSize: 16 }} />
             </IconButton>
+          </Tooltip>
+          <Tooltip title="Move">
+            <IconButton size="small" onClick={() => openOperation('move', item)}
+              sx={{ color: T.textMuted, bgcolor: T.hoverBg, borderRadius: 1.5, '&:hover': { color: T.teal } }}>
+              <DriveFileMoveIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          {!item.directory && (
+            <Tooltip title="Download">
+              <IconButton size="small" component="a" href={getDownloadUrl(item.path)} download
+                sx={{ color: T.textMuted, bgcolor: T.hoverBg, borderRadius: 1.5, '&:hover': { color: T.teal } }}>
+                <DownloadIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
           )}
           <Box sx={{ flex: 1 }} />
-          <IconButton size="small" onClick={() => { onDelete(item); clearInfoItem(); }}
-            sx={{ color: '#ef4444', bgcolor: '#ef444422', borderRadius: 1.5, '&:hover': { bgcolor: '#ef444433' } }}>
-            <DeleteIcon sx={{ fontSize: 16 }} />
-          </IconButton>
+          <Tooltip title="Delete">
+            <IconButton size="small" onClick={() => { onDelete(item); clearInfoItem(); }}
+              sx={{ color: '#ef4444', bgcolor: '#ef444422', borderRadius: 1.5, '&:hover': { bgcolor: '#ef444433' } }}>
+              <DeleteIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
     </Drawer>

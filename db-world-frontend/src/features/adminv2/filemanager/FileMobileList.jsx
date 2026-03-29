@@ -93,22 +93,24 @@ export default function FileMobileList({ items = [], loading, onDelete, onNaviga
         onClose={() => setMenuState({ anchor: null, item: null })}
         PaperProps={{ sx: { bgcolor: T.cardBg ?? T.sidebar, border: `1px solid ${T.border}`, minWidth: 160 } }}
       >
-        {menuState.item && [
-          <MenuItem key="info" onClick={() => { setInfoItem(menuState.item); setMenuState({ anchor: null, item: null }); }}
-            sx={{ fontSize: 13, color: T.textPrimary }}>Info</MenuItem>,
-          <MenuItem key="rename" onClick={() => { openOperation('rename', menuState.item); setMenuState({ anchor: null, item: null }); }}
-            sx={{ fontSize: 13, color: T.textPrimary }}>Rename</MenuItem>,
-          <MenuItem key="move" onClick={() => { openOperation('move', menuState.item); setMenuState({ anchor: null, item: null }); }}
-            sx={{ fontSize: 13, color: T.textPrimary }}>Move to…</MenuItem>,
-          <MenuItem key="copy" onClick={() => { openOperation('copy', menuState.item); setMenuState({ anchor: null, item: null }); }}
-            sx={{ fontSize: 13, color: T.textPrimary }}>Copy to…</MenuItem>,
-          !menuState.item?.directory && (
-            <MenuItem key="dl" component="a" href={getDownloadUrl(menuState.item?.path ?? '')} download
-              onClick={() => setMenuState({ anchor: null, item: null })} sx={{ fontSize: 13, color: T.textPrimary }}>Download</MenuItem>
-          ),
-          <MenuItem key="delete" onClick={() => { onDelete(menuState.item); setMenuState({ anchor: null, item: null }); }}
-            sx={{ fontSize: 13, color: '#ef4444' }}>Delete</MenuItem>,
-        ]}
+        {menuState.item && (
+          <>
+            <MenuItem key="info" onClick={() => { setInfoItem(menuState.item); setMenuState({ anchor: null, item: null }); }}
+              sx={{ fontSize: 13, color: T.textPrimary }}>Info</MenuItem>
+            <MenuItem key="rename" onClick={() => { openOperation('rename', menuState.item); setMenuState({ anchor: null, item: null }); }}
+              sx={{ fontSize: 13, color: T.textPrimary }}>Rename</MenuItem>
+            <MenuItem key="move" onClick={() => { openOperation('move', menuState.item); setMenuState({ anchor: null, item: null }); }}
+              sx={{ fontSize: 13, color: T.textPrimary }}>Move to…</MenuItem>
+            <MenuItem key="copy" onClick={() => { openOperation('copy', menuState.item); setMenuState({ anchor: null, item: null }); }}
+              sx={{ fontSize: 13, color: T.textPrimary }}>Copy to…</MenuItem>
+            {!menuState.item?.directory && (
+              <MenuItem key="dl" component="a" href={getDownloadUrl(menuState.item?.path ?? '')} download
+                onClick={() => setMenuState({ anchor: null, item: null })} sx={{ fontSize: 13, color: T.textPrimary }}>Download</MenuItem>
+            )}
+            <MenuItem key="delete" onClick={() => { onDelete(menuState.item); setMenuState({ anchor: null, item: null }); }}
+              sx={{ fontSize: 13, color: '#ef4444' }}>Delete</MenuItem>
+          </>
+        )}
       </Menu>
     </Box>
   );
