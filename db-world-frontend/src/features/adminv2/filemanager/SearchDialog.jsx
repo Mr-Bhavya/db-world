@@ -130,7 +130,7 @@ export default function SearchDialog() {
               );
             })}
           </List>
-          {results.length === 200 && (
+          {results.length >= 200 && (
             <Typography sx={{ textAlign: 'center', py: 1, fontSize: 11, color: T.textFaint }}>
               Showing first 200 results — refine your search
             </Typography>
