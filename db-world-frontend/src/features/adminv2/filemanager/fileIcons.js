@@ -21,7 +21,7 @@ export function getFileEmoji(item) {
   if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return '🖼️';
   if (['pdf'].includes(ext)) return '📄';
   if (['zip','tar','gz','rar','7z'].includes(ext)) return '📦';
-  if (['js','ts','jsx','tsx','py','java','go'].includes(ext)) return '💻';
+  if (['js','ts','jsx','tsx','py','java','go','rs'].includes(ext)) return '💻';
   if (['txt','md','log'].includes(ext)) return '📝';
   return '📄';
 }

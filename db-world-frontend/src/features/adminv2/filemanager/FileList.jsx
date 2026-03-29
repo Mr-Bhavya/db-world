@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from './useFileManagerStore';
-import { getFileColor, getFileEmoji } from './fileIcons';
+import { getFileColor } from './fileIcons';
 import { getDownloadUrl } from './fileManagerApi';
 
 const COL = { name: '40%', size: '12%', type: '12%', modified: '18%', actions: '18%' };
