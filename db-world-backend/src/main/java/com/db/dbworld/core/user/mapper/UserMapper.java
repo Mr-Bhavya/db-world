@@ -20,5 +20,6 @@ public interface UserMapper {
 
     // ✅ Update Request → Entity (partial update)
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "password", ignore = true) // encoded manually in service
     void updateUserFromRequest(UpdateUserRequest request, @MappingTarget UserEntity entity);
 }

@@ -14,8 +14,10 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
-import { useT } from '@shared/theme';
+import { AdminThemeProvider, useThemeMode, useT } from '@shared/theme';
 import Constants from '@shared/constants';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -93,8 +95,8 @@ const ContentLoader = () => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const AdminLayout = () => {
-  const T        = useT();
+const AdminLayoutInner = () => {
+  const { T, mode, toggleMode } = useThemeMode();
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
@@ -338,6 +340,12 @@ const AdminLayout = () => {
             </>}
           </Box>
           <Box sx={{ flex: 1 }} />
+          <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <IconButton size="small" onClick={toggleMode}
+              sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
+              {mode === 'dark' ? <LightModeIcon sx={{ fontSize: 18 }} /> : <DarkModeIcon sx={{ fontSize: 18 }} />}
+            </IconButton>
+          </Tooltip>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Circle sx={{ fontSize: 8, color: '#10b981' }} />
             <Typography sx={{ fontSize: '0.7rem', color: '#10b981' }}>Online</Typography>
@@ -369,5 +377,11 @@ const AdminLayout = () => {
     </Box>
   );
 };
+
+const AdminLayout = () => (
+  <AdminThemeProvider>
+    <AdminLayoutInner />
+  </AdminThemeProvider>
+);
 
 export default AdminLayout;

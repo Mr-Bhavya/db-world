@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { z } from 'zod';
 import { useT, getSelectMenuProps } from '@shared/theme';
-import { updateUser, getUserById } from '../api/adminApi';
+import { updateUser, getUserById, updateUserRole } from '../api/adminApi';
 import { getInputSx, getDialogSx, getTabSx } from './constants';
 
 const profileSchema = z.object({
@@ -122,6 +122,47 @@ function PasswordTab({ userId, onClose }) {
   );
 }
 
+function RoleTab({ userId, onClose }) {
+  const T  = useT();
+  const qc = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const { data: user } = useQuery({ queryKey: ['user', userId], queryFn: () => getUserById(userId), enabled: !!userId });
+  const [roleId, setRoleId] = useState('');
+
+  useEffect(() => {
+    if (user?.userRole?.id) setRoleId(user.userRole.id);
+  }, [user]);
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: () => updateUserRole(userId, roleId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['user', userId] });
+      enqueueSnackbar('Role updated', { variant: 'success' });
+      onClose();
+    },
+    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Role update failed', { variant: 'error' }),
+  });
+
+  return (
+    <Box sx={{ pt: 1.5, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      <TextField select label="Role" value={roleId} onChange={e => setRoleId(e.target.value)}
+        size="small" fullWidth sx={getInputSx(T)} SelectProps={{ MenuProps: { PaperProps: { sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}` } } } }}>
+        <MenuItem value={1} sx={{ color: T.textPrimary }}>Owner</MenuItem>
+        <MenuItem value={2} sx={{ color: T.textPrimary }}>Admin</MenuItem>
+        <MenuItem value={3} sx={{ color: T.textPrimary }}>Viewer</MenuItem>
+      </TextField>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+        <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
+        <Button onClick={() => mutate()} variant="contained" disabled={!roleId || isPending}
+          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600 }}>
+          {isPending ? <CircularProgress size={18} color="inherit" /> : 'Update Role'}
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
 export default function UserEditModal({ open, userId, onClose }) {
   const T   = useT();
   const [tab, setTab] = useState(0);
@@ -134,10 +175,12 @@ export default function UserEditModal({ open, userId, onClose }) {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 2, borderBottom: `1px solid ${T.border}`, '& .MuiTabs-indicator': { bgcolor: T.teal } }}>
         <Tab label="Profile"  sx={getTabSx(T)} />
         <Tab label="Password" sx={getTabSx(T)} />
+        <Tab label="Role"     sx={getTabSx(T)} />
       </Tabs>
       <DialogContent>
         {tab === 0 && <ProfileTab  userId={userId} onClose={onClose} />}
         {tab === 1 && <PasswordTab userId={userId} onClose={onClose} />}
+        {tab === 2 && <RoleTab     userId={userId} onClose={onClose} />}
       </DialogContent>
     </Dialog>
   );
