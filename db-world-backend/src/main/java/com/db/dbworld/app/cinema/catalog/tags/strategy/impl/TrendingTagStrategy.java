@@ -27,6 +27,8 @@ public class TrendingTagStrategy implements TagStrategy {
                 FROM records r
                 JOIN tmdb_data t ON r.tmdb_id = t.id
                 WHERE t.popularity >= 80
+                ORDER BY t.popularity DESC
+                LIMIT 30
                 """;
     }
 }

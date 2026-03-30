@@ -52,13 +52,13 @@ export const removeRecordTag = (recordId, tagType) =>
 
 // Full tag CRUD by tagId — supports priority field (used by RecordEditModal for full management)
 export const createTag = (recordId, body) =>
-  axiosInstance.post(`/api/cinema/admin/catalog/tags/${recordId}`, body).then(r => r.data.data);
+  axiosInstance.post(`/api/cinema/admin/tags/record/${recordId}`, body).then(r => r.data.data);
 
 export const updateTag = (tagId, body) =>
-  axiosInstance.put(`/api/cinema/admin/catalog/tags/${tagId}`, body).then(r => r.data.data);
+  axiosInstance.put(`/api/cinema/admin/tags/entry/${tagId}`, body).then(r => r.data.data);
 
 export const deleteTag = (tagId) =>
-  axiosInstance.delete(`/api/cinema/admin/catalog/tags/${tagId}`).then(r => r.data);
+  axiosInstance.delete(`/api/cinema/admin/tags/entry/${tagId}`).then(r => r.data);
 
 /* ─── TMDB SEARCH & DETAIL ──────────────────────────────────────── */
 
@@ -88,3 +88,37 @@ export const rescanMediaFile = (id) =>
 
 export const seedMediaFiles = (recordId) =>
   axiosInstance.post(`/api/media/info/seed/${recordId}`).then(r => r.data.data);
+
+/* ─── TAG ADMIN ─────────────────────────────────────────────────── */
+
+export const getTagSummary = () =>
+  axiosInstance.get('/api/cinema/admin/tags/summary').then(r => r.data.data);
+
+export const getRecordsByTag = (tagType, params) =>
+  axiosInstance.get(`/api/cinema/admin/tags/${tagType}/records`, { params }).then(r => r.data.data);
+
+export const bulkAddTag = (tagType, recordIds, priority = 50) =>
+  axiosInstance.post(`/api/cinema/admin/tags/${tagType}/bulk-add`, { recordIds, priority }).then(r => r.data.data);
+
+export const bulkRemoveTag = (tagType, recordIds) =>
+  axiosInstance.delete(`/api/cinema/admin/tags/${tagType}/bulk-remove`, { data: { recordIds } }).then(r => r.data.data);
+
+export const recalculateTag = (tagType) =>
+  axiosInstance.post(`/api/cinema/admin/tags/${tagType}/recalculate`).then(r => r.data);
+
+export const recalculateAllTags = () =>
+  axiosInstance.post('/api/cinema/admin/tags/recalculate-all').then(r => r.data);
+
+/* ─── RAILS ─────────────────────────────────────────────────────── */
+
+export const getRails = (pageType) =>
+  axiosInstance.get('/api/cinema/rails', { params: pageType ? { pageType } : undefined }).then(r => r.data.data);
+
+export const createRail = (body) =>
+  axiosInstance.post('/api/cinema/rails', body).then(r => r.data.data);
+
+export const updateRail = (id, body) =>
+  axiosInstance.put(`/api/cinema/rails/${id}`, body).then(r => r.data.data);
+
+export const deleteRail = (id) =>
+  axiosInstance.delete(`/api/cinema/rails/${id}`).then(r => r.data);

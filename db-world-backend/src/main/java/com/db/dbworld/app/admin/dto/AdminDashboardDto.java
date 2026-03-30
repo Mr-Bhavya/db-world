@@ -5,7 +5,6 @@ import lombok.Data;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 @Data
 @Builder
@@ -63,7 +62,7 @@ public class AdminDashboardDto {
     public static class TagStats {
         private long trending;
         private long featured;
-        private long newRelease;
+        private long availableForDownload;
         private long editorPick;
         private long showOnTop;
         private long recentlyAdded;

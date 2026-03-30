@@ -285,6 +285,40 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     );
 
     /* ================================================================
+       TAG ADMIN — paginated admin table rows filtered by a single tag
+    ================================================================= */
+
+    @Query(value = """
+            SELECT
+                r.id AS recordId,
+                r.name AS name,
+                r.type AS type,
+                tm.id AS tmdbId,
+                YEAR(COALESCE(tm.release_date, tm.first_air_date)) AS year,
+                r.created_at AS createdAt,
+                r.updated_at AS updatedAt,
+                GROUP_CONCAT(t.tag_type ORDER BY t.priority SEPARATOR ',') AS tags
+            FROM records r
+            LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
+            LEFT JOIN record_tags t ON r.id = t.record_id
+            WHERE EXISTS (
+                SELECT 1 FROM record_tags tt
+                WHERE tt.record_id = r.id AND tt.tag_type = :tagType
+            )
+            GROUP BY r.id
+            """,
+            countQuery = """
+                    SELECT COUNT(DISTINCT r.id)
+                    FROM records r
+                    INNER JOIN record_tags tt ON tt.record_id = r.id AND tt.tag_type = :tagType
+                    """,
+            nativeQuery = true)
+    Page<RecordAdminRowDto> findAdminTableByTag(
+            @org.springframework.data.repository.query.Param("tagType") String tagType,
+            Pageable pageable
+    );
+
+    /* ================================================================
        MISC
     ================================================================= */
 

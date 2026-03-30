@@ -1,12 +1,38 @@
-// db-world-frontend/src/features/adminv2/records/tagConstants.js
-export const ALL_TAGS = ['FEATURED','NEW_RELEASE','TRENDING','EDITOR_PICK','SHOW_ON_TOP','RECENTLY_ADDED','TOP_10'];
+export const ALL_TAGS = [
+  'TRENDING',
+  'TOP_10',
+  'FEATURED',
+  'EDITOR_PICK',
+  'RECENTLY_ADDED',
+  'AVAILABLE_FOR_DOWNLOAD',
+];
+
+/** Tags that are auto-assigned by the scheduler — cannot be manually added/removed. */
+export const AUTO_TAGS = new Set([
+  'TRENDING',
+  'TOP_10',
+  'FEATURED',
+  'RECENTLY_ADDED',
+  'AVAILABLE_FOR_DOWNLOAD',
+]);
+
+/** Tags that admins can assign manually. */
+export const MANUAL_TAGS = ALL_TAGS.filter(t => !AUTO_TAGS.has(t));
 
 export const TAG_COLORS = {
-  FEATURED:       '#f59e0b',
-  NEW_RELEASE:    '#10b981',
-  TRENDING:       '#ef4444',
-  EDITOR_PICK:    '#8b5cf6',
-  SHOW_ON_TOP:    '#6366f1',
-  RECENTLY_ADDED: '#06b6d4',
-  TOP_10:         '#ec4899',
+  TRENDING:               '#ef4444',
+  TOP_10:                 '#ec4899',
+  FEATURED:               '#f59e0b',
+  EDITOR_PICK:            '#8b5cf6',
+  RECENTLY_ADDED:         '#06b6d4',
+  AVAILABLE_FOR_DOWNLOAD: '#22c55e',
+};
+
+export const TAG_LABELS = {
+  TRENDING:               'Trending',
+  TOP_10:                 'Top 10',
+  FEATURED:               'Featured',
+  EDITOR_PICK:            'Editor Pick',
+  RECENTLY_ADDED:         'Recently Added',
+  AVAILABLE_FOR_DOWNLOAD: 'Available for Download',
 };

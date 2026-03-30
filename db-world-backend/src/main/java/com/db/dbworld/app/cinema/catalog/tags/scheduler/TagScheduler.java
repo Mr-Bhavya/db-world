@@ -13,7 +13,7 @@ public class TagScheduler {
 
     private final RecordTaggingService recordTaggingService;
 
-//    @Scheduled(cron = "0 * * * * *")
+    @Scheduled(cron = "0 0 */6 * * *")
     public void updateTags() {
 
         log.info("Starting catalog tag recalculation");
