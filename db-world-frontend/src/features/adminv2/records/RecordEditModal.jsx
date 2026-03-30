@@ -10,7 +10,7 @@ import { useSnackbar } from 'notistack';
 import { useT, getSelectMenuProps } from '@shared/theme';
 import { updateRecord, addRecordTag, removeRecordTag } from '../api/adminApi';
 import { updateRecordSchema } from '../schemas/recordSchemas';
-import { ALL_TAGS, TAG_COLORS } from './tagConstants';
+import { MANUAL_TAGS, AUTO_TAGS, TAG_COLORS, TAG_LABELS } from './tagConstants';
 
 export default function RecordEditModal({ open, record, onClose }) {
   const T = useT();
@@ -60,7 +60,7 @@ export default function RecordEditModal({ open, record, onClose }) {
   });
 
   const currentTags   = parseTags(record?.tags);
-  const availableTags = ALL_TAGS.filter(t => !currentTags.includes(t));
+  const availableTags = MANUAL_TAGS.filter(t => !currentTags.includes(t));
 
   if (!record) return null;
 
@@ -92,14 +92,21 @@ export default function RecordEditModal({ open, record, onClose }) {
           <Box>
             <Typography sx={{ fontSize: 12, color: T.textFaint, textTransform: 'uppercase', letterSpacing: .6, mb: 1 }}>Tags</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: .75 }}>
-              {currentTags.map(tagType => (
-                <Chip
-                  key={tagType} label={tagType.replace(/_/g, ' ')} size="small"
-                  onDelete={() => doRemoveTag(tagType)}
-                  deleteIcon={<DeleteIcon sx={{ fontSize: '12px !important' }} />}
-                  sx={{ bgcolor: `${TAG_COLORS[tagType] ?? T.teal}18`, color: TAG_COLORS[tagType] ?? T.teal, border: `1px solid ${TAG_COLORS[tagType] ?? T.teal}44`, fontWeight: 700, fontSize: 11 }}
-                />
-              ))}
+              {currentTags.map(tagType => {
+                const isAuto = AUTO_TAGS.has(tagType);
+                const color = TAG_COLORS[tagType] ?? T.teal;
+                return (
+                  <Chip
+                    key={tagType}
+                    label={TAG_LABELS[tagType] ?? tagType.replace(/_/g, ' ')}
+                    size="small"
+                    onDelete={isAuto ? undefined : () => doRemoveTag(tagType)}
+                    deleteIcon={isAuto ? undefined : <DeleteIcon sx={{ fontSize: '12px !important' }} />}
+                    sx={{ bgcolor: `${color}18`, color, border: `1px solid ${color}44`, fontWeight: 700, fontSize: 11,
+                      opacity: isAuto ? 0.8 : 1 }}
+                  />
+                );
+              })}
               {currentTags.length === 0 && (
                 <Typography sx={{ fontSize: 12, color: T.textFaint }}>No tags assigned</Typography>
               )}
@@ -113,7 +120,7 @@ export default function RecordEditModal({ open, record, onClose }) {
                     <Box key={t} onClick={() => doAddTag({ tagType: t })}
                       sx={{ px: 1.25, py: .35, borderRadius: 99, border: `1px solid ${TAG_COLORS[t]}66`, color: TAG_COLORS[t], fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: .5, '&:hover': { bgcolor: `${TAG_COLORS[t]}18` }, transition: 'all .15s' }}>
                       {addingTag ? <CircularProgress size={10} color="inherit" /> : <AddIcon sx={{ fontSize: 12 }} />}
-                      {t.replace(/_/g, ' ')}
+                      {TAG_LABELS[t]}
                     </Box>
                   ))}
                 </Box>

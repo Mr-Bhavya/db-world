@@ -42,8 +42,20 @@ public class TmdbController {
     @GetMapping("/movies/{tmdbId}")
     @Transactional(readOnly = true)
     public ApiResponse<MovieTmdbDto> getMovieDetail(@PathVariable Long tmdbId) {
-        TmdbEntity entity = tmdbRepository.findById(tmdbId)
+        // One JOIN FETCH per List bag — Hibernate forbids fetching multiple bags in one query.
+        // All queries share the same L1 cache so each one initialises a different collection
+        // on the same entity instance.
+        TmdbEntity entity = tmdbRepository.findWithGenres(tmdbId)
                 .orElseThrow(() -> new ResourceNotFoundException("TmdbEntity", "id", tmdbId));
+        tmdbRepository.findWithVideos(tmdbId);
+        tmdbRepository.findWithImages(tmdbId);
+        tmdbRepository.findWithReviews(tmdbId);
+        tmdbRepository.findWithProductionCompanies(tmdbId);
+        tmdbRepository.findWithProductionCountries(tmdbId);
+        tmdbRepository.findWithSpokenLanguages(tmdbId);
+        tmdbRepository.findWithCredits(tmdbId);
+        tmdbRepository.findWithProviders(tmdbId);
+
         if (!(entity instanceof MovieTmdbEntity movie)) {
             throw new IllegalArgumentException("TMDB id " + tmdbId + " is not a movie");
         }
@@ -90,8 +102,21 @@ public class TmdbController {
     @GetMapping("/tv/{tmdbId}")
     @Transactional(readOnly = true)
     public ApiResponse<TvSeriesTmdbDto> getTvDetail(@PathVariable Long tmdbId) {
-        TmdbEntity entity = tmdbRepository.findById(tmdbId)
+        // One JOIN FETCH per List bag — see getMovieDetail for explanation.
+        TmdbEntity entity = tmdbRepository.findWithGenres(tmdbId)
                 .orElseThrow(() -> new ResourceNotFoundException("TmdbEntity", "id", tmdbId));
+        tmdbRepository.findWithVideos(tmdbId);
+        tmdbRepository.findWithImages(tmdbId);
+        tmdbRepository.findWithReviews(tmdbId);
+        tmdbRepository.findWithProductionCompanies(tmdbId);
+        tmdbRepository.findWithProductionCountries(tmdbId);
+        tmdbRepository.findWithSpokenLanguages(tmdbId);
+        tmdbRepository.findWithCredits(tmdbId);
+        tmdbRepository.findWithProviders(tmdbId);
+        tmdbRepository.findWithSeasons(tmdbId);
+        // createdBy / lastEpisodeToAir / nextEpisodeToAir are on the TvSeriesTmdbEntity
+        // subclass and will lazy-load within this @Transactional method (single extra query each).
+
         if (!(entity instanceof TvSeriesTmdbEntity series)) {
             throw new IllegalArgumentException("TMDB id " + tmdbId + " is not a TV series");
         }

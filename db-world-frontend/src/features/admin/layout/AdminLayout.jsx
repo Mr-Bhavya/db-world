@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Dashboard, Assignment, Movie, VideoLibrary,
-  Label, Sync, Download, TrackChanges, Computer, Analytics,
+  LocalOffer, Sync, Download, TrackChanges, Computer, Analytics,
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home,
@@ -42,7 +42,7 @@ const NAV = [
     items: [
       { id: 'records',     label: 'Records',       icon: <Movie />,        path: 'records' },
       { id: 'media-files', label: 'Media Files',   icon: <VideoLibrary />, path: 'media-files' },
-      { id: 'tags-rails',  label: 'Tags & Rails',  icon: <Label />,        path: 'tags-rails' },
+      { id: 'tag-management', label: 'Tags & Rails', icon: <LocalOffer />, path: 'tag-management' },
       { id: 'tmdb-sync',   label: 'TMDB Sync',     icon: <Sync />,         path: 'tmdb-sync' },
     ],
   },

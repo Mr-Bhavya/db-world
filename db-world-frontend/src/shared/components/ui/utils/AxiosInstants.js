@@ -68,12 +68,21 @@ const refreshTokenWithRetry = async () => {
     }
 };
 
+// Public auth endpoints that must NOT carry a stale/expired access token.
+// Spring Security's JWT decoder rejects requests with invalid Bearer tokens
+// with 401 even for permitAll() paths, so we skip the header entirely for these.
+// /api/auth/verify and /api/auth/logout still need the token — excluded below.
+const NO_TOKEN_PATHS = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh-token'];
+
 // Request interceptor to add auth token
 axiosInstance.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+        const skipToken = NO_TOKEN_PATHS.some(p => config.url?.includes(p));
+        if (!skipToken) {
+            const token = localStorage.getItem('token');
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
         }
         return config;
     },
@@ -86,8 +95,13 @@ axiosInstance.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        // Only handle 401/403 errors and avoid infinite retry loops
-        if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
+        // Only handle 401/403 errors on endpoints that should carry a token.
+        // NO_TOKEN_PATHS (login, register, refresh-token) are public — a 401 from them
+        // means bad credentials or an expired refresh cookie, not a stale access token,
+        // so we must not attempt a refresh loop.
+        // /api/auth/verify DOES carry a token and SHOULD trigger refresh on 401.
+        const isNoTokenPath = NO_TOKEN_PATHS.some(p => originalRequest.url?.includes(p));
+        if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry && !isNoTokenPath) {
             
             // If refresh is already in progress, add to queue
             if (isRefreshing) {

@@ -51,7 +51,6 @@ import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 const LazyAdminDashboard      = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
 const LazyActivityLogs        = lazy(() => import('@features/admin/ActivityLogs/ActivityLogs.js'));
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/MediaFilesManagement/MediaFilesManagement.js'));
-const LazyTagsRailsManager    = lazy(() => import('@features/admin/TagsRails/TagsRailsManager.jsx'));
 const LazyTmdbSyncManager     = lazy(() => import('@features/admin/TmdbSync/TmdbSyncManager.jsx'));
 const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
 const LazyServerInfo          = lazy(() => import('@features/admin/ServerInfo/ServerInfo.js'));
@@ -61,6 +60,7 @@ const LazySchedulerPanel      = lazy(() => import('@features/admin/Scheduler/Sch
 const LazyUserManagementV2    = lazy(() => import('../features/adminv2/users'));
 const LazyRecordManagementV2  = lazy(() => import('../features/adminv2/records'));
 const LazyLogViewerV2         = lazy(() => import('../features/adminv2/logs/LogViewer'));
+const LazyTagManagement       = lazy(() => import('../features/adminv2/tags'));
 const LazyCinemaActivity      = lazy(() => import('../features/adminv2/activity'));
 const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
 const LazyMovieDetailsPage    = lazy(() => import('@features/cinema/screens/movie-details/index.js'));
@@ -287,7 +287,7 @@ const ThemedApp = () => {
                     <Route path="activity-logs" element={<LazyActivityLogs />} />
                     <Route path="records"       element={<LazyRecordManagementV2 />} />
                     <Route path="media-files"   element={<LazyMediaFilesManagement />} />
-                    <Route path="tags-rails"    element={<LazyTagsRailsManager />} />
+                    <Route path="tag-management" element={<LazyTagManagement />} />
                     <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
                     <Route path="downloads"     element={<LazyDownloadManager />} />
                     <Route path="user-activity" element={<LazyCinemaActivity />} />

@@ -18,6 +18,7 @@ import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
+import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 public class CatalogServiceImpl implements CatalogService {
 
     private final RecordRepository recordRepository;
+    private final TmdbRepository tmdbRepository;
     private final RecordTaggingService recordTaggingService;
     private final TmdbIngestionService tmdbIngestionService;
     private final ApplicationEventPublisher publisher;
@@ -120,7 +122,28 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     @Transactional(readOnly = true)
     public RecordDto getRecord(Long recordId) {
-        return recordMapper.toDto(getRecordOrThrow(recordId));
+        RecordEntity record = getRecordOrThrow(recordId);
+
+        // Pre-initialise all TMDB collections in the same session (one JOIN FETCH per
+        // List bag — combining them in one query causes MultipleBagFetchException).
+        // Hibernate's L1 cache reuses the same TmdbEntity instance across all queries.
+        if (record.getTmdb() != null) {
+            Long tmdbId = record.getTmdb().getId();
+            tmdbRepository.findWithGenres(tmdbId);
+            tmdbRepository.findWithVideos(tmdbId);
+            tmdbRepository.findWithImages(tmdbId);
+            tmdbRepository.findWithReviews(tmdbId);
+            tmdbRepository.findWithProductionCompanies(tmdbId);
+            tmdbRepository.findWithProductionCountries(tmdbId);
+            tmdbRepository.findWithSpokenLanguages(tmdbId);
+            tmdbRepository.findWithCredits(tmdbId);
+            tmdbRepository.findWithProviders(tmdbId);
+            if (record.getType() == RecordType.TV_SERIES) {
+                tmdbRepository.findWithSeasons(tmdbId);
+            }
+        }
+
+        return recordMapper.toDto(record);
     }
 
     @Override

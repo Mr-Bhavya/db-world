@@ -67,10 +67,12 @@ public class RailResolverImpl implements RailResolver {
                     .map(RailItemEntity::getRecord);
 
             case "tag" -> {
-
-                RecordTagType tag =
-                        RecordTagType.valueOf(rule.getTag().toUpperCase());
-
+                RecordTagType tag;
+                try {
+                    tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    yield new SliceImpl<>(List.of(), pageable, false);
+                }
                 yield recordRepository.findByTag(tag, sortedPageable);
             }
 
@@ -149,7 +151,12 @@ public class RailResolverImpl implements RailResolver {
     private Slice<Long> resolveTagIds(RailRule rule, RecordType effectiveType,
                                       Long category, Pageable pageable) {
 
-        RecordTagType tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
+        RecordTagType tag;
+        try {
+            tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return new SliceImpl<>(List.of(), pageable, false);
+        }
 
         if (category != null) {
             return effectiveType != null

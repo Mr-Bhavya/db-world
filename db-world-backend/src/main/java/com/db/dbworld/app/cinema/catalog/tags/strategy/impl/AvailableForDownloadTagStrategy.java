@@ -5,29 +5,28 @@ import com.db.dbworld.app.cinema.enums.RecordTagType;
 import org.springframework.stereotype.Component;
 
 /**
- * Records added to the catalog within the last 30 days.
- * Window extended to 30 days since admins manually add OTT arrivals
- * and content should stay visible for at least a month.
+ * Marks records that have at least one associated media file available for download.
+ * Queries the media_files table directly — no TMDB join needed.
  */
 @Component
-public class RecentlyAddedTagStrategy implements TagStrategy {
+public class AvailableForDownloadTagStrategy implements TagStrategy {
 
     @Override
     public RecordTagType tagType() {
-        return RecordTagType.RECENTLY_ADDED;
+        return RecordTagType.AVAILABLE_FOR_DOWNLOAD;
     }
 
     @Override
     public int priority() {
-        return 40;
+        return 50;
     }
 
     @Override
     public String selectSql() {
         return """
-                SELECT r.id
-                FROM records r
-                WHERE r.created_at >= NOW() - INTERVAL 30 DAY
+                SELECT DISTINCT mf.record_id AS id
+                FROM db_world.media_files mf
+                WHERE mf.record_id IS NOT NULL
                 """;
     }
 }

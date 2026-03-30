@@ -11,7 +11,7 @@ import java.util.Optional;
 @Component
 public class RecentlyAddedRule implements RecordTagRule {
 
-    private static final int DAYS = 14;
+    private static final int DAYS = 30;
 
     @Override
     public Optional<TagAssignment> evaluate(RecordEntity record) {

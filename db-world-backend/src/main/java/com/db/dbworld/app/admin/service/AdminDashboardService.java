@@ -137,9 +137,8 @@ public class AdminDashboardService {
         return AdminDashboardDto.TagStats.builder()
                 .trending(    safeTagCount(RecordTagType.TRENDING))
                 .featured(    safeTagCount(RecordTagType.FEATURED))
-                .newRelease(  safeTagCount(RecordTagType.NEW_RELEASE))
                 .editorPick(  safeTagCount(RecordTagType.EDITOR_PICK))
-                .showOnTop(   safeTagCount(RecordTagType.SHOW_ON_TOP))
+                .availableForDownload(   safeTagCount(RecordTagType.AVAILABLE_FOR_DOWNLOAD))
                 .recentlyAdded(safeTagCount(RecordTagType.RECENTLY_ADDED))
                 .top10(        safeTagCount(RecordTagType.TOP_10))
                 .build();
