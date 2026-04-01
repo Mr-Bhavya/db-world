@@ -1,208 +1,118 @@
-// contexts/Authentication.js
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { addUser } from '@app/redux/action/allActions';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
-import { logOut, verify } from '@shared/services/ApiServices';
-import { Box, LinearProgress, Typography, Backdrop, Paper } from '@mui/material';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
-// Network Status Checker
-const useNetworkStatus = () => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  return isOnline;
+const INITIAL_AUTH = {
+  isAuthenticated: false,
+  user: null,
+  token: null,
+  role: null,
+  loading: true,   // true until the initial verify completes
 };
 
-const AuthProvider = ({ children }) => {
-  const dispatch = useDispatch();
-  const [auth, setAuth] = useState({
-    isAuthenticated: false,
-    user: null,
-    token: null,
-    role: null,
-    loading: true,
-    error: null
-  });
-  
-  const isOnline = useNetworkStatus();
+export const AuthProvider = ({ children }) => {
+  const dispatch   = useDispatch();
+  const [auth, setAuth] = useState(INITIAL_AUTH);
+  const initialized = useRef(false); // guard against strict-mode double-mount
 
-  const login = useCallback((token, user, role = null) => {
+  /* ── login ──────────────────────────────────────────────────────── */
+
+  const login = useCallback((token, user, role) => {
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('role', role);
-
-    setAuth({
-      isAuthenticated: true,
-      token,
-      user,
-      role,
-      loading: false,
-      error: null
-    });
-
+    localStorage.setItem('user',  JSON.stringify(user));
+    localStorage.setItem('role',  role);
     dispatch(addUser(user));
+    setAuth({ isAuthenticated: true, token, user, role, loading: false });
   }, [dispatch]);
+
+  /* ── logout ─────────────────────────────────────────────────────── */
 
   const logout = useCallback(async () => {
     try {
-      await logOut();
-    } catch (error) {
-      console.error('Logout error:', error);
+      // Tell the server to revoke the refresh token.
+      // This may fail (404/401/network) if the cookie already expired — that is fine.
+      await axiosInstance.post('/api/auth/logout', {});
+    } catch {
+      // Intentionally swallowed — client-side cleanup always runs.
     } finally {
       localStorage.clear();
-      setAuth({
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        role: null,
-        loading: false,
-        error: null
-      });
+      dispatch(addUser(null));
+      setAuth({ ...INITIAL_AUTH, loading: false });
     }
-  }, []);
+  }, [dispatch]);
 
-  const setUserRole = useCallback((role) => {
-    localStorage.setItem('role', role);
-    setAuth(prev => ({ ...prev, role }));
-  }, []);
+  /* ── Force-logout event from axios interceptor ───────────────────── */
 
-  const setAuthError = useCallback((error) => {
-    setAuth(prev => ({ ...prev, error, loading: false }));
-  }, []);
-
-  // Listen for forced-logout events dispatched by the axios interceptor
-  // when both the access token and refresh token are expired.
   useEffect(() => {
-    const handleForceLogout = () => {
-      setAuth({ isAuthenticated: false, user: null, token: null, role: null, loading: false, error: null });
+    const handler = () => {
+      // The interceptor already cleared localStorage.
+      dispatch(addUser(null));
+      setAuth({ ...INITIAL_AUTH, loading: false });
     };
-    window.addEventListener('auth:force-logout', handleForceLogout);
-    return () => window.removeEventListener('auth:force-logout', handleForceLogout);
-  }, []);
+    window.addEventListener('auth:force-logout', handler);
+    return () => window.removeEventListener('auth:force-logout', handler);
+  }, [dispatch]);
+
+  /* ── One-time session verification on app mount ──────────────────── */
 
   useEffect(() => {
-    const checkAuth = async () => {
-      setAuth(prev => ({ ...prev, loading: true }));
+    // React StrictMode mounts twice in dev; the ref prevents double-verification.
+    if (initialized.current) return;
+    initialized.current = true;
 
-      const token = localStorage.getItem('token');
-      const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const verify = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUser  = JSON.parse(localStorage.getItem('user') || 'null');
 
-      if (!isOnline) {
-        setAuth({ isAuthenticated: false, user: null, token: null, role: null, loading: false, error: 'No internet connection' });
-        return;
-      }
-
-      if (!token || !user) {
-        setAuth(prev => ({ ...prev, loading: false }));
+      // No stored credentials → immediately mark as unauthenticated.
+      if (!storedToken || !storedUser) {
+        setAuth({ ...INITIAL_AUTH, loading: false });
         return;
       }
 
       try {
-        const response = await verify();
-        const roles = response?.data?.roles || [];
-        const role = roles[0] || null;
+        // verify() carries the Bearer token; if it's expired the axios interceptor
+        // silently refreshes it and retries before we ever see the response.
+        const res   = await axiosInstance.get('/api/auth/verify');
+        const roles = res.data?.data?.roles ?? [];
+        const role  = roles[0] ?? null;
 
-        if (role) {
-          // Re-read token from localStorage — the axios interceptor may have
-          // silently refreshed it while verify() was in-flight, so the
-          // `token` variable captured above could already be stale.
-          const currentToken = localStorage.getItem('token') || token;
-          login(currentToken, user, role);
-        } else {
-          setAuthError('No valid role found');
-          logout();
+        if (!role) {
+          // Token decoded OK but no role claim — treat as invalid.
+          localStorage.clear();
+          dispatch(addUser(null));
+          setAuth({ ...INITIAL_AUTH, loading: false });
+          return;
         }
-      } catch (error) {
-        console.error('Auth verification failed:', error);
-        // The interceptor already cleared localStorage and dispatched
-        // auth:force-logout, so just clean up React state.
-        setAuth({ isAuthenticated: false, user: null, token: null, role: null, loading: false, error: null });
+
+        // The interceptor may have stored a newer token while refresh happened.
+        const freshToken = localStorage.getItem('token') ?? storedToken;
+        login(freshToken, storedUser, role);
+
+      } catch {
+        // The interceptor already dispatched 'auth:force-logout' and cleared
+        // localStorage if this was a refresh failure. Just reset local state.
+        setAuth({ ...INITIAL_AUTH, loading: false });
       }
     };
 
-    checkAuth();
-  }, [login, logout, setAuthError, isOnline]);
+    verify();
+  }, []); // ← empty: run exactly once on mount
 
-  if (!isOnline && auth.loading) {
-    return (
-      <Backdrop open={true} sx={{ bgcolor: 'rgba(0,0,0,0.75)', zIndex: 9999 }}>
-        <Paper sx={{
-          p: 4, borderRadius: 3, textAlign: 'center', minWidth: 300,
-          bgcolor: '#12121e', border: '1px solid rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(12px)',
-        }}>
-          <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 700 }} gutterBottom>
-            No Internet Connection
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(241,245,249,0.55)' }}>
-            Please check your network connection and try again
-          </Typography>
-        </Paper>
-      </Backdrop>
-    );
-  }
-
-  if (auth.error && !auth.loading) {
-    return (
-      <Backdrop open={true} sx={{ bgcolor: 'rgba(0,0,0,0.75)', zIndex: 9999 }}>
-        <Paper sx={{
-          p: 4, borderRadius: 3, textAlign: 'center', minWidth: 300,
-          bgcolor: '#12121e', border: '1px solid rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(12px)',
-        }}>
-          <Typography variant="h6" sx={{ color: '#f87171', fontWeight: 700 }} gutterBottom>
-            Authentication Error
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(241,245,249,0.55)' }} gutterBottom>
-            {auth.error}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(241,245,249,0.35)' }}>
-            Redirecting to login…
-          </Typography>
-        </Paper>
-      </Backdrop>
-    );
-  }
+  /* ── Context value ───────────────────────────────────────────────── */
 
   return (
-    <AuthContext.Provider value={{
-      auth,
-      setUserRole,
-      login,
-      logout,
-      setAuthError
-    }}>
-      {auth.loading && (
-        <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1400 }}>
-          <LinearProgress />
-        </Box>
-      )}
+    <AuthContext.Provider value={{ auth, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 };
-
-export { AuthProvider, useAuth };

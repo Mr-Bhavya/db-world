@@ -34,7 +34,7 @@ public class DbWorldConstants {
     public static final String CDN_STREAM_PATH = "/cdn/stream/path/";
 
     // Encryption
-    public static final String KEY_FACTORY_ALGORITHM = "PBKDF2WithHmacSHA256";
+    public static final String KEY_FACTORY_ALGORITHM = "PBEWITHHMACSHA512ANDAES_256";
     public static final String KEY_SPEC_ALGORITHM = "AES";
     public static final String ENCRYPT_ALGORITHM = "AES/CBC/PKCS5Padding";
 

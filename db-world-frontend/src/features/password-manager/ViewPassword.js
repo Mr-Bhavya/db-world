@@ -1,631 +1,542 @@
-import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useSnackbar } from 'notistack';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Box, Button, CircularProgress, Collapse, Container,
+  Avatar, Box, Button, CircularProgress, Container,
   Dialog, DialogActions, DialogContent, DialogTitle,
-  Divider, Grid, IconButton, InputAdornment,
-  TextField, Typography, Tooltip, Chip,
+  Divider, IconButton, InputAdornment, Skeleton,
+  TextField, Tooltip, Typography,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
-  ExpandMore as ExpandMoreIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  ContentCopy as CopyIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
-  ArrowBack as ArrowBackIcon,
-  VpnKey as KeyIcon,
-  Lock as LockIcon,
+  ArrowBack, ContentCopy, Delete, Edit, Lock,
+  Search, Visibility, VisibilityOff, Language,
+  Add, CheckCircleOutline, ErrorOutline,
 } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useT, getGlowProps, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
 import {
-  deleteCredentialByCredentialId,
-  deleteHostById,
-  getCredential,
-  updateCredential,
+  getCredential, updateCredential,
+  deleteCredentialByCredentialId, deleteHostById,
 } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
-import { toast } from '@shared/components/ui/Toast';
 
-const T = {
-  bg:          '#0a0a0f',
-  teal:        '#0d9488',
-  glass:       'rgba(255,255,255,0.04)',
-  glassBorder: 'rgba(255,255,255,0.08)',
-  glassHover:  'rgba(255,255,255,0.07)',
-  textPrimary: '#f1f5f9',
-  textMuted:   'rgba(241,245,249,0.55)',
-  textFaint:   'rgba(241,245,249,0.35)',
-  red:         '#f87171',
-  blue:        '#60a5fa',
+// ─── Edit schema ────────────────────────────────────────────────────────────
+const editSchema = z.object({
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().optional().default(''),
+  pin: z.string().optional().default(''),
+  notes: z.string().optional().default(''),
+});
+
+// ─── Sub-components ─────────────────────────────────────────────────────────
+
+const HostAvatar = ({ host, size = 32 }) => {
+  const [err, setErr] = useState(false);
+  const src = `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
+  if (err) return (
+    <Avatar sx={{ width: size, height: size, bgcolor: 'rgba(13,148,136,0.15)', fontSize: size * 0.5 }}>
+      <Language sx={{ fontSize: size * 0.6, color: '#0d9488' }} />
+    </Avatar>
+  );
+  return (
+    <Avatar src={src} onError={() => setErr(true)} sx={{ width: size, height: size, bgcolor: 'transparent' }}>
+      <Language sx={{ color: '#0d9488' }} />
+    </Avatar>
+  );
 };
 
-const DARK_FIELD = {
-  '& .MuiInputLabel-root': { color: T.textMuted },
-  '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
-  '& .MuiOutlinedInput-root': {
-    color: T.textPrimary,
-    '& fieldset': { borderColor: T.glassBorder },
-    '&:hover fieldset': { borderColor: 'rgba(13,148,136,0.45)' },
-    '&.Mui-focused fieldset': { borderColor: T.teal },
-    '&.Mui-disabled': {
-      '& fieldset': { borderColor: 'rgba(255,255,255,0.05)' },
-      bgcolor: 'rgba(255,255,255,0.02)',
+const CopyBtn = ({ value, label, copied, onCopy, T }) => (
+  <Tooltip title={copied ? 'Copied!' : `Copy ${label}`}>
+    <IconButton
+      size="small"
+      onClick={() => onCopy(value)}
+      disabled={!value}
+      sx={{ color: copied ? '#10b981' : T.textMuted, '&:hover': { color: T.teal } }}
+    >
+      {copied ? <CheckCircleOutline fontSize="small" /> : <ContentCopy fontSize="small" />}
+    </IconButton>
+  </Tooltip>
+);
+
+// ─── Edit Dialog ─────────────────────────────────────────────────────────────
+const EditDialog = ({ target, onClose }) => {
+  const T = useT();
+  const FIELD = getFieldSx(T);
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const [showPw, setShowPw] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+
+  const { control, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      username: target.cred.username ?? '',
+      password: target.cred.password ?? '',
+      pin: target.cred.pin ?? '',
+      notes: target.cred.notes ?? '',
     },
-  },
-  '& .MuiInputBase-input': { color: T.textPrimary },
-  '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: T.textMuted, opacity: 1 },
+  });
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (data) => updateCredential(target.pmId, { id: target.cred.id, ...data }),
+    onSuccess: () => {
+      enqueueSnackbar('Credential updated', { variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+      onClose();
+    },
+    onError: (err) => {
+      enqueueSnackbar(err?.response?.data?.message ?? 'Failed to update', { variant: 'error' });
+    },
+  });
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: { bgcolor: T.bg, border: `1px solid ${T.glassBorder}`, borderRadius: 3 },
+      }}
+    >
+      <DialogTitle sx={{ color: T.textPrimary, fontWeight: 700, pb: 1 }}>
+        Edit Credential
+        <Typography sx={{ fontSize: '0.8rem', color: T.textMuted, fontWeight: 400, mt: 0.25 }}>
+          {target.host}
+        </Typography>
+      </DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+        <Controller name="username" control={control} render={({ field }) => (
+          <TextField {...field} label="Username / Email" size="small"
+            error={!!errors.username} helperText={errors.username?.message} sx={FIELD} />
+        )} />
+        <Controller name="password" control={control} render={({ field }) => (
+          <TextField {...field} label="Password" size="small" type={showPw ? 'text' : 'password'}
+            InputProps={{ endAdornment: (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setShowPw(!showPw)} sx={{ color: T.teal }}>
+                  {showPw ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                </IconButton>
+              </InputAdornment>
+            )}} sx={FIELD} />
+        )} />
+        <Controller name="pin" control={control} render={({ field }) => (
+          <TextField {...field} label="PIN (optional)" size="small" type={showPin ? 'text' : 'password'}
+            inputProps={{ inputMode: 'numeric' }}
+            InputProps={{ endAdornment: (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setShowPin(!showPin)} sx={{ color: T.teal }}>
+                  {showPin ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                </IconButton>
+              </InputAdornment>
+            )}} sx={FIELD} />
+        )} />
+        <Controller name="notes" control={control} render={({ field }) => (
+          <TextField {...field} label="Notes (optional)" size="small" multiline rows={2} sx={FIELD} />
+        )} />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+        <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit((d) => mutate(d))}
+          disabled={isPending}
+          startIcon={isPending && <CircularProgress size={14} color="inherit" />}
+          sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 700, borderRadius: 2, '&:hover': { bgcolor: '#0f766e' } }}
+        >
+          {isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
 };
 
-const BLANK_FORM = { pmId: null, host: null, credentialId: null, username: null, password: null, pin: null, notes: null };
+// ─── Confirm Delete Dialog ───────────────────────────────────────────────────
+const ConfirmDialog = ({ title, body, loading, onConfirm, onClose }) => {
+  const T = useT();
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: { bgcolor: T.bg, border: `1px solid ${T.glassBorder}`, borderRadius: 3 },
+      }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#f87171', fontWeight: 700 }}>
+        <ErrorOutline /> {title}
+      </DialogTitle>
+      <DialogContent>
+        <Typography sx={{ color: T.textMuted, fontSize: '0.9rem' }}>{body}</Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+        <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
+        <Button
+          variant="contained"
+          onClick={onConfirm}
+          disabled={loading}
+          startIcon={loading && <CircularProgress size={14} color="inherit" />}
+          sx={{ bgcolor: '#ef4444', color: '#fff', fontWeight: 700, borderRadius: 2, '&:hover': { bgcolor: '#dc2626' } }}
+        >
+          {loading ? 'Deleting…' : 'Delete'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
-// ── Credential row (collapsible) ──────────────────────────────────────────────
-const CredentialItem = ({ credential, host, pmId, onEdit, onDelete }) => {
-  const [expanded, setExpanded] = useState(false);
-  const { id, username, password, pin, notes } = credential;
+// ─── Credential Row ──────────────────────────────────────────────────────────
+const CredRow = ({ cred, pmId, host, T, enqueueSnackbar, onEdit, onDelete }) => {
+  const [revealed, setRevealed] = useState(false);
+  const [copiedKey, setCopiedKey] = useState('');
 
-  const copy = async (text, label) => {
+  const copy = async (text, key) => {
     const res = await CommonServices.handleCopy(text);
-    if (res.success) toast.success(`${label} copied`);
-    else toast.error(res.message);
+    if (res.success) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(''), 1500);
+    } else {
+      enqueueSnackbar('Copy failed', { variant: 'error' });
+    }
   };
 
   return (
-    <Box sx={{
-      mb: 1, borderRadius: 1.5,
-      bgcolor: 'rgba(255,255,255,0.03)', border: `1px solid ${T.glassBorder}`,
-      transition: 'border-color 0.2s',
-      '&:hover': { borderColor: 'rgba(13,148,136,0.3)' },
-    }}>
-      {/* Header row */}
-      <Box
-        onClick={() => setExpanded(!expanded)}
-        sx={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          px: 2, py: 1.25, cursor: 'pointer',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          <KeyIcon sx={{ fontSize: 16, color: T.teal, flexShrink: 0 }} />
-          <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: T.textPrimary }} noWrap>
-            {username}
-          </Typography>
-        </Box>
-        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.25 }}>
-          <ExpandMoreIcon sx={{ fontSize: 18, color: T.textMuted }} />
-        </motion.div>
+    <Box
+      sx={{
+        p: 2, borderRadius: 2,
+        bgcolor: 'rgba(255,255,255,0.025)',
+        border: `1px solid ${T.glassBorder}`,
+        '&:hover': { borderColor: 'rgba(13,148,136,0.3)' },
+        transition: 'border-color 0.2s',
+      }}
+    >
+      {/* Username row */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: cred.password || cred.pin ? 1 : 0 }}>
+        <Typography sx={{ flex: 1, fontSize: '0.875rem', fontWeight: 600, color: T.textPrimary, wordBreak: 'break-all' }}>
+          {cred.username}
+        </Typography>
+        <CopyBtn value={cred.username} label="username" copied={copiedKey === 'u'} onCopy={(v) => copy(v, 'u')} T={T} />
+        <Tooltip title="Edit">
+          <IconButton size="small" onClick={() => onEdit({ pmId, cred, host })}
+            sx={{ color: T.textMuted, '&:hover': { color: T.teal } }}>
+            <Edit fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Delete credential">
+          <IconButton size="small" onClick={() => onDelete({ credId: cred.id, label: cred.username })}
+            sx={{ color: T.textMuted, '&:hover': { color: '#f87171' } }}>
+            <Delete fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      {/* Expanded details */}
-      <Collapse in={expanded} timeout="auto" unmountOnExit>
-        <Divider sx={{ borderColor: T.glassBorder }} />
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <Grid container spacing={1.5}>
-            {/* Username */}
-            <Grid item xs={12} sm={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: T.textMuted, minWidth: 72 }}>Username</Typography>
-                <Typography sx={{ fontSize: '0.8rem', fontFamily: 'monospace', color: T.textPrimary, flex: 1 }} noWrap>
-                  {username}
-                </Typography>
-                <Tooltip title="Copy username">
-                  <IconButton size="small" onClick={() => copy(username, 'Username')} sx={{ color: T.teal }}>
-                    <CopyIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Grid>
-
-            {/* Password */}
-            <Grid item xs={12} sm={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: T.textMuted, minWidth: 72 }}>Password</Typography>
-                <Typography sx={{ fontSize: '0.8rem', fontFamily: 'monospace', color: T.textPrimary, flex: 1 }}>
-                  ••••••••
-                </Typography>
-                <Tooltip title="Copy password">
-                  <IconButton size="small" onClick={() => copy(password, 'Password')} sx={{ color: T.teal }}>
-                    <CopyIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Grid>
-
-            {/* PIN */}
-            {pin && (
-              <Grid item xs={12} sm={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: T.textMuted, minWidth: 72 }}>PIN</Typography>
-                  <Typography sx={{ fontSize: '0.8rem', fontFamily: 'monospace', color: T.textPrimary, flex: 1 }}>
-                    {pin}
-                  </Typography>
-                  <Tooltip title="Copy PIN">
-                    <IconButton size="small" onClick={() => copy(pin, 'PIN')} sx={{ color: T.teal }}>
-                      <CopyIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Grid>
-            )}
-
-            {/* Notes */}
-            {notes && (
-              <Grid item xs={12}>
-                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: T.textMuted, mb: 0.5 }}>Notes</Typography>
-                <Typography sx={{ fontSize: '0.8rem', fontStyle: 'italic', color: T.textMuted, whiteSpace: 'pre-wrap' }}>
-                  {notes}
-                </Typography>
-              </Grid>
-            )}
-          </Grid>
-
-          {/* Actions */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1.5 }}>
-            <Tooltip title="Edit">
-              <IconButton
-                size="small"
-                onClick={(e) => { e.stopPropagation(); onEdit({ host, username, password, pin, notes, credentialId: id, pmId }); }}
-                sx={{ color: T.blue, bgcolor: 'rgba(96,165,250,0.1)', '&:hover': { bgcolor: 'rgba(96,165,250,0.2)' } }}
-              >
-                <EditIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Delete">
-              <IconButton
-                size="small"
-                onClick={(e) => { e.stopPropagation(); onDelete({ host, username, password, pin, notes, credentialId: id, pmId }); }}
-                sx={{ color: T.red, bgcolor: 'rgba(248,113,113,0.1)', '&:hover': { bgcolor: 'rgba(248,113,113,0.2)' } }}
-              >
-                <DeleteIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
+      {/* Password row */}
+      {cred.password && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography sx={{ flex: 1, fontSize: '0.8rem', color: T.textMuted, fontFamily: 'monospace', letterSpacing: revealed ? 0 : 2 }}>
+            {revealed ? cred.password : '••••••••••••'}
+          </Typography>
+          <Tooltip title={revealed ? 'Hide' : 'Show password'}>
+            <IconButton size="small" onClick={() => setRevealed(!revealed)}
+              sx={{ color: T.textMuted, '&:hover': { color: T.teal } }}>
+              {revealed ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+          <CopyBtn value={cred.password} label="password" copied={copiedKey === 'pw'} onCopy={(v) => copy(v, 'pw')} T={T} />
         </Box>
-      </Collapse>
+      )}
+
+      {/* PIN row */}
+      {cred.pin && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+          <Typography sx={{ fontSize: '0.75rem', color: T.textMuted, mr: 0.5 }}>PIN</Typography>
+          <Typography sx={{ flex: 1, fontSize: '0.8rem', color: T.textMuted, fontFamily: 'monospace', letterSpacing: 2 }}>
+            ••••
+          </Typography>
+          <CopyBtn value={cred.pin} label="PIN" copied={copiedKey === 'pin'} onCopy={(v) => copy(v, 'pin')} T={T} />
+        </Box>
+      )}
+
+      {/* Notes */}
+      {cred.notes && (
+        <Typography sx={{ mt: 1, fontSize: '0.75rem', color: T.textMuted, fontStyle: 'italic', wordBreak: 'break-word' }}>
+          {cred.notes}
+        </Typography>
+      )}
     </Box>
   );
 };
 
-// ── Host card ─────────────────────────────────────────────────────────────────
-const HostCard = ({ hostData, index, onEdit, onDeleteCredential, onDeleteHost }) => {
-  const { id: pmId, host, credentials } = hostData;
+// ─── Host Card ───────────────────────────────────────────────────────────────
+const HostCard = ({ entry, T, enqueueSnackbar, onEdit, onDeleteCred, onDeleteHost }) => (
+  <Box sx={{ p: { xs: 2, md: 2.5 }, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3 }}>
+    {/* Header */}
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+      <HostAvatar host={entry.host} size={36} />
+      <Typography sx={{ flex: 1, fontWeight: 700, fontSize: '0.95rem', color: T.textPrimary }}>
+        {entry.host}
+      </Typography>
+      <Tooltip title="Delete all credentials for this site">
+        <IconButton
+          size="small"
+          onClick={() => onDeleteHost({ pmId: entry.id, host: entry.host })}
+          sx={{ color: T.textMuted, '&:hover': { color: '#f87171' } }}
+        >
+          <Delete fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </Box>
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05 }}
-    >
-      <Box sx={{
-        bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2.5,
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        '&:hover': { borderColor: 'rgba(13,148,136,0.3)', boxShadow: '0 0 24px rgba(13,148,136,0.08)' },
-      }}>
-        {/* Host header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2 }}>
-          <img
-            src={`https://t1.gstatic.com/faviconV2?client=PASSWORD_MANAGER&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=32&url=https%3A%2F%2F${host}`}
-            alt={host}
-            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(13,148,136,0.3)', flexShrink: 0 }}
-            onError={(e) => { e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSI0IiBmaWxsPSIjMGQ5NDg4Ii8+PC9zdmc+'; }}
-          />
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, color: T.textPrimary }} noWrap>
-              {host}
-            </Typography>
-            <Chip
-              label={`${credentials.length} credential${credentials.length !== 1 ? 's' : ''}`}
-              size="small"
-              sx={{
-                height: 18, fontSize: '0.7rem', fontWeight: 600,
-                bgcolor: 'rgba(13,148,136,0.1)', color: T.teal, mt: 0.25,
-              }}
-            />
-          </Box>
-          <Tooltip title="Delete host and all credentials">
-            <IconButton
-              size="small"
-              onClick={() => onDeleteHost({ host, pmId })}
-              sx={{ color: T.red, bgcolor: 'rgba(248,113,113,0.08)', '&:hover': { bgcolor: 'rgba(248,113,113,0.18)' } }}
-            >
-              <DeleteIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Tooltip>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {entry.credentials.map((cred) => (
+        <CredRow
+          key={cred.id}
+          cred={cred}
+          pmId={entry.id}
+          host={entry.host}
+          T={T}
+          enqueueSnackbar={enqueueSnackbar}
+          onEdit={onEdit}
+          onDelete={onDeleteCred}
+        />
+      ))}
+    </Box>
+  </Box>
+);
+
+// ─── Loading skeleton ────────────────────────────────────────────────────────
+const VaultSkeleton = ({ T }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    {[1, 2, 3].map((i) => (
+      <Box key={i} sx={{ p: 2.5, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+          <Skeleton variant="circular" width={36} height={36} sx={{ bgcolor: T.glassBorder }} />
+          <Skeleton variant="text" width={120} sx={{ bgcolor: T.glassBorder }} />
         </Box>
-
-        <Divider sx={{ borderColor: T.glassBorder }} />
-
-        {/* Credentials list */}
-        <Box sx={{ p: 1.5 }}>
-          {credentials.map((cred) => (
-            <CredentialItem
-              key={cred.id}
-              credential={cred}
-              host={host}
-              pmId={pmId}
-              onEdit={onEdit}
-              onDelete={onDeleteCredential}
-            />
-          ))}
-        </Box>
+        <Skeleton variant="rounded" height={60} sx={{ bgcolor: T.glassBorder }} />
       </Box>
-    </motion.div>
-  );
-};
+    ))}
+  </Box>
+);
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ─── Main component ──────────────────────────────────────────────────────────
 const ViewPassword = () => {
+  const T = useT();
+  const GLOW = getGlowProps(T);
+  const FIELD = getFieldSx(T);
   const navigate = useNavigate();
-  const location = useLocation();
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
 
-  const [loading, setLoading]                     = useState(true);
-  const [credCache, setCredCache]                 = useState([]);
-  const [credentials, setCredentials]             = useState([]);
-  const [search, setSearch]                       = useState('');
-  const [isUpdating, setIsUpdating]               = useState(false);
-  const [isDeleting, setIsDeleting]               = useState(false);
-  const [isDeletingHost, setIsDeletingHost]       = useState(false);
-  const [showEditPwd, setShowEditPwd]             = useState(false);
-  const [openEdit, setOpenEdit]                   = useState(false);
-  const [openDeleteCred, setOpenDeleteCred]       = useState(false);
-  const [openDeleteHost, setOpenDeleteHost]       = useState(false);
-  const [form, setForm]                           = useState(BLANK_FORM);
+  const [search, setSearch]               = useState('');
+  const [editTarget, setEditTarget]       = useState(null);   // { pmId, cred, host }
+  const [deleteCredTarget, setDelCred]    = useState(null);   // { credId, label }
+  const [deleteHostTarget, setDelHost]    = useState(null);   // { pmId, host }
 
-  const fetchCredentials = async () => {
-    try {
+  // ── Fetch vault
+  const { data: vault = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ['pm-vault'],
+    queryFn: async () => {
       const res = await getCredential();
-      if (res.httpStatusCode === 200) {
-        setCredCache(res.data);
-        setCredentials(res.data);
-      } else if (res.httpStatusCode === 401) {
-        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-      } else {
-        toast.error(res.message);
-      }
-    } catch {
-      toast.error('Failed to fetch credentials');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data ?? [];
+    },
+    staleTime: 2 * 60 * 1000,
+  });
 
-  useEffect(() => { fetchCredentials(); }, []);
-
-  const handleSearch = (q) => {
-    setSearch(q);
-    if (!q) { setCredentials(credCache); return; }
-    const lq = q.toLowerCase();
-    setCredentials(
-      credCache.filter(({ host, credentials: creds }) =>
-        host.toLowerCase().includes(lq) ||
-        creds.some(({ username }) => username.toLowerCase().includes(lq))
-      )
+  // ── Filtered list
+  const filtered = useMemo(() => {
+    if (!search.trim()) return vault;
+    const q = search.toLowerCase();
+    return vault.filter((entry) =>
+      entry.host.toLowerCase().includes(q) ||
+      entry.credentials.some((c) => c.username.toLowerCase().includes(q))
     );
-  };
+  }, [vault, search]);
 
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    setIsUpdating(true);
-    const { credentialId, pmId, host, username, password, pin, notes } = form;
-    try {
-      const res = await updateCredential(pmId, {
-        id: credentialId, url: `https://${host}`,
-        username, password, pin: pin === '' ? null : pin, notes,
-      });
-      if (res.httpStatusCode === 200) {
-        toast.success(res.message);
-        await fetchCredentials();
-        setOpenEdit(false);
-      } else if (res.httpStatusCode === 401) {
-        toast.error(res.message, { autoClose: 1000, onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } }) });
-      } else {
-        toast.error(res.message);
-      }
-    } catch {
-      toast.error('An error occurred while updating credential');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  // ── Delete credential
+  const { mutate: deleteCred, isPending: deletingCred } = useMutation({
+    mutationFn: (credId) => deleteCredentialByCredentialId(credId),
+    onSuccess: () => {
+      enqueueSnackbar('Credential deleted', { variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+      setDelCred(null);
+    },
+    onError: () => enqueueSnackbar('Failed to delete credential', { variant: 'error' }),
+  });
 
-  const handleDeleteCred = async () => {
-    setIsDeleting(true);
-    try {
-      const res = await deleteCredentialByCredentialId(form.credentialId);
-      if (res.httpStatusCode === 200) {
-        toast.success(res.message);
-        await fetchCredentials();
-        setOpenDeleteCred(false);
-      } else if (res.httpStatusCode === 401) {
-        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-      } else {
-        toast.error(res.message);
-      }
-    } catch {
-      toast.error('An error occurred while deleting credential');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  // ── Delete host entry
+  const { mutate: deleteHost, isPending: deletingHost } = useMutation({
+    mutationFn: (pmId) => deleteHostById(pmId),
+    onSuccess: () => {
+      enqueueSnackbar('Entry deleted', { variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
+      queryClient.invalidateQueries({ queryKey: ['pm-hosts'] });
+      setDelHost(null);
+    },
+    onError: () => enqueueSnackbar('Failed to delete entry', { variant: 'error' }),
+  });
 
-  const handleDeleteHost = async () => {
-    setIsDeletingHost(true);
-    try {
-      const res = await deleteHostById(form.pmId);
-      if (res.httpStatusCode === 200) {
-        toast.success(res.message);
-        await fetchCredentials();
-        setOpenDeleteHost(false);
-      } else if (res.httpStatusCode === 401) {
-        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-      } else {
-        toast.error(res.message);
-      }
-    } catch {
-      toast.error('An error occurred while deleting host');
-    } finally {
-      setIsDeletingHost(false);
-    }
-  };
+  const totalCreds = vault.reduce((s, e) => s + e.credentials.length, 0);
 
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-      background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1a1a 60%, #0a0f0f 100%)',
-    }}>
-      {/* Teal glow */}
-      <motion.div
-        animate={{ opacity: [0.06, 0.13, 0.06] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-          background: 'radial-gradient(ellipse 50% 40% at 50% 30%, rgba(13,148,136,0.15) 0%, transparent 70%)',
-        }}
-      />
+    <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary, pt: { xs: '56px', md: '64px' } }}>
+      <motion.div {...GLOW} />
 
-      <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, py: { xs: 4, md: 6 } }}>
-        {/* Back */}
-        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Box sx={{ mb: 3 }}>
-            <Button
-              startIcon={<ArrowBackIcon />}
-              onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
-              sx={{ color: T.textMuted, fontWeight: 500, fontSize: '0.875rem', '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
-            >
-              Password Manager
-            </Button>
-          </Box>
-        </motion.div>
+      <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, py: { xs: 3, md: 5 } }}>
+        {/* Top bar */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <Button
+            startIcon={<ArrowBack />}
+            onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
+            sx={{ color: T.textMuted, fontWeight: 500, '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
+          >
+            Password Manager
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button
+            size="small"
+            startIcon={<Add />}
+            onClick={() => navigate(Constants.DB_ADD_PASSWORD_ROUTE)}
+            sx={{ borderColor: T.teal, color: T.teal, borderRadius: 2, border: '1px solid', fontWeight: 600,
+              '&:hover': { bgcolor: T.tealBg } }}
+          >
+            Add Credential
+          </Button>
+        </Box>
 
-        {/* Title */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-            <Box sx={{
-              width: 40, height: 40, borderRadius: 1.5,
-              bgcolor: 'rgba(13,148,136,0.12)', border: '1px solid rgba(13,148,136,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <LockIcon sx={{ fontSize: 20, color: T.teal }} />
-            </Box>
-            <Box>
-              <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: T.textPrimary }}>Password Vault</Typography>
-              <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>Your stored credentials</Typography>
-            </Box>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 1.5,
+            bgcolor: T.tealBg, border: `1px solid ${T.tealBg}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Lock sx={{ fontSize: 20, color: T.teal }} />
           </Box>
-        </motion.div>
+          <Box>
+            <Typography sx={{ fontSize: '1.25rem', fontWeight: 800, color: T.textPrimary }}>
+              Your Vault
+            </Typography>
+            {!isLoading && (
+              <Typography sx={{ fontSize: '0.8rem', color: T.textMuted }}>
+                {vault.length} {vault.length === 1 ? 'site' : 'sites'} · {totalCreds} {totalCreds === 1 ? 'credential' : 'credentials'}
+              </Typography>
+            )}
+          </Box>
+        </Box>
 
         {/* Search */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
-          <Box sx={{ mb: 4, maxWidth: 480 }}>
-            <TextField
-              fullWidth
-              placeholder="Search by host or username..."
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: T.textMuted, fontSize: 18 }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ ...DARK_FIELD }}
-            />
-          </Box>
-        </motion.div>
+        {!isLoading && vault.length > 0 && (
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search by site or username…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ color: T.textMuted, fontSize: 18 }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 3, ...FIELD }}
+          />
+        )}
 
         {/* Content */}
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', pt: 6 }}>
-            <CircularProgress sx={{ color: T.teal }} />
+        {isLoading ? (
+          <VaultSkeleton T={T} />
+        ) : isError ? (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <ErrorOutline sx={{ fontSize: 48, color: '#f87171', mb: 2 }} />
+            <Typography sx={{ color: T.textMuted, mb: 2 }}>Failed to load vault</Typography>
+            <Button onClick={refetch} sx={{ color: T.teal }}>Retry</Button>
           </Box>
-        ) : credentials.length === 0 ? (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-            <Box sx={{
-              p: 6, textAlign: 'center',
-              bgcolor: T.glass, border: `2px dashed rgba(13,148,136,0.25)`, borderRadius: 3,
-            }}>
-              <LockIcon sx={{ fontSize: 56, color: 'rgba(13,148,136,0.3)', mb: 2 }} />
-              <Typography sx={{ fontSize: '1.1rem', fontWeight: 600, color: T.textMuted, mb: 1 }}>
-                {search ? 'No matching credentials' : 'Vault is empty'}
-              </Typography>
-              <Typography sx={{ fontSize: '0.82rem', color: T.textFaint }}>
-                {search ? 'Try different search terms' : 'Add your first credential to get started'}
-              </Typography>
-            </Box>
-          </motion.div>
+        ) : vault.length === 0 ? (
+          <Box sx={{
+            textAlign: 'center', py: 8,
+            bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3,
+          }}>
+            <Lock sx={{ fontSize: 48, color: T.teal, opacity: 0.4, mb: 2 }} />
+            <Typography sx={{ fontWeight: 700, color: T.textPrimary, mb: 1 }}>Vault is empty</Typography>
+            <Typography sx={{ color: T.textMuted, fontSize: '0.875rem', mb: 3 }}>
+              No credentials saved yet.
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => navigate(Constants.DB_ADD_PASSWORD_ROUTE)}
+              sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 700, borderRadius: 2, '&:hover': { bgcolor: '#0f766e' } }}
+            >
+              Save Your First Credential
+            </Button>
+          </Box>
+        ) : filtered.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <Search sx={{ fontSize: 40, color: T.textMuted, mb: 1.5 }} />
+            <Typography sx={{ color: T.textMuted }}>No results for "{search}"</Typography>
+          </Box>
         ) : (
-          <Grid container spacing={2.5}>
-            <AnimatePresence>
-              {credentials.map((hostData, idx) => (
-                <Grid item key={hostData.id} xs={12} sm={6} lg={4}>
+          <AnimatePresence>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {filtered.map((entry, i) => (
+                <motion.div
+                  key={entry.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.05 }}
+                >
                   <HostCard
-                    hostData={hostData}
-                    index={idx}
-                    onEdit={(f) => { setForm(f); setOpenEdit(true); setShowEditPwd(false); }}
-                    onDeleteCredential={(f) => { setForm(f); setOpenDeleteCred(true); }}
-                    onDeleteHost={(f) => { setForm(f); setOpenDeleteHost(true); }}
+                    entry={entry}
+                    T={T}
+                    enqueueSnackbar={enqueueSnackbar}
+                    onEdit={setEditTarget}
+                    onDeleteCred={setDelCred}
+                    onDeleteHost={setDelHost}
                   />
-                </Grid>
+                </motion.div>
               ))}
-            </AnimatePresence>
-          </Grid>
+            </Box>
+          </AnimatePresence>
         )}
       </Container>
 
-      {/* ── Edit Dialog ─────────────────────────────────────────────────────── */}
-      <Dialog
-        open={openEdit}
-        onClose={() => !isUpdating && setOpenEdit(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: '#12121a', border: `1px solid ${T.glassBorder}`,
-            borderRadius: 3, boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
-          },
-        }}
-      >
-        <DialogTitle sx={{
-          borderBottom: `1px solid ${T.glassBorder}`, py: 2, px: 3,
-          display: 'flex', alignItems: 'center', gap: 1,
-          color: T.textPrimary, fontWeight: 700, fontSize: '1rem',
-        }}>
-          <EditIcon sx={{ fontSize: 18, color: T.teal }} />
-          Update Credential
-        </DialogTitle>
+      {/* Edit dialog */}
+      {editTarget && (
+        <EditDialog
+          target={editTarget}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
 
-        <DialogContent sx={{ p: 3 }}>
-          <Box component="form" id="edit-form" onSubmit={handleUpdate}>
-            <Grid container spacing={2} sx={{ mt: 0 }}>
-              <Grid item xs={12}>
-                <TextField fullWidth label="Host" name="host" value={form.host || ''} disabled sx={DARK_FIELD} />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField fullWidth label="Username" name="username" value={form.username || ''} disabled sx={DARK_FIELD} />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth label="Password" name="password"
-                  type={showEditPwd ? 'text' : 'password'}
-                  value={form.password || ''}
-                  onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton onClick={() => setShowEditPwd(!showEditPwd)} sx={{ color: T.teal }} size="small">
-                          {showEditPwd ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={DARK_FIELD}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth label="PIN (optional)" name="pin"
-                  value={form.pin || ''}
-                  onChange={(e) => setForm(prev => ({ ...prev, pin: e.target.value }))}
-                  sx={DARK_FIELD}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth label="Notes (optional)" name="notes"
-                  multiline minRows={3} maxRows={6}
-                  value={form.notes || ''}
-                  onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
-                  sx={{
-                    ...DARK_FIELD,
-                    '& .MuiInputBase-input': { color: T.textPrimary, fontFamily: 'monospace', lineHeight: 1.6 },
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
-        </DialogContent>
+      {/* Delete credential confirm */}
+      {deleteCredTarget && (
+        <ConfirmDialog
+          title="Delete Credential"
+          body={`Remove "${deleteCredTarget.label}" from your vault? This cannot be undone.`}
+          loading={deletingCred}
+          onConfirm={() => deleteCred(deleteCredTarget.credId)}
+          onClose={() => setDelCred(null)}
+        />
+      )}
 
-        <DialogActions sx={{ borderTop: `1px solid ${T.glassBorder}`, px: 3, py: 2, gap: 1 }}>
-          <Button
-            onClick={() => setOpenEdit(false)} disabled={isUpdating}
-            sx={{ color: T.textMuted, '&:hover': { color: T.textPrimary } }}
-          >
-            Cancel
-          </Button>
-          <Button
-            form="edit-form" type="submit" variant="contained" disabled={isUpdating}
-            startIcon={isUpdating ? <CircularProgress size={14} color="inherit" /> : null}
-            sx={{ bgcolor: T.teal, color: '#fff', fontWeight: 600, '&:hover': { bgcolor: '#0f766e' }, '&:disabled': { bgcolor: 'rgba(13,148,136,0.3)' } }}
-          >
-            {isUpdating ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── Delete Credential Dialog ─────────────────────────────────────────── */}
-      <Dialog
-        open={openDeleteCred}
-        onClose={() => !isDeleting && setOpenDeleteCred(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { bgcolor: '#12121a', border: `1px solid ${T.glassBorder}`, borderRadius: 3 } }}
-      >
-        <DialogTitle sx={{ color: T.textPrimary, fontWeight: 700, fontSize: '1rem', pb: 1 }}>
-          Delete Credential
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ color: T.textMuted, fontSize: '0.875rem' }}>
-            Delete <Box component="span" sx={{ color: T.textPrimary, fontWeight: 600 }}>{form.username}</Box> from{' '}
-            <Box component="span" sx={{ color: T.teal, fontWeight: 600 }}>{form.host}</Box>? This cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button onClick={() => setOpenDeleteCred(false)} disabled={isDeleting} sx={{ color: T.textMuted }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteCred} variant="contained" disabled={isDeleting}
-            startIcon={isDeleting ? <CircularProgress size={14} color="inherit" /> : <DeleteIcon sx={{ fontSize: 16 }} />}
-            sx={{ bgcolor: T.red, color: '#fff', fontWeight: 600, '&:hover': { bgcolor: '#dc2626' }, '&:disabled': { bgcolor: 'rgba(248,113,113,0.3)' } }}
-          >
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── Delete Host Dialog ───────────────────────────────────────────────── */}
-      <Dialog
-        open={openDeleteHost}
-        onClose={() => !isDeletingHost && setOpenDeleteHost(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { bgcolor: '#12121a', border: `1px solid ${T.glassBorder}`, borderRadius: 3 } }}
-      >
-        <DialogTitle sx={{ color: T.textPrimary, fontWeight: 700, fontSize: '1rem', pb: 1 }}>
-          Delete Host
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ color: T.textMuted, fontSize: '0.875rem' }}>
-            Delete <Box component="span" sx={{ color: T.teal, fontWeight: 600 }}>{form.host}</Box> and all its credentials? This cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button onClick={() => setOpenDeleteHost(false)} disabled={isDeletingHost} sx={{ color: T.textMuted }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteHost} variant="contained" disabled={isDeletingHost}
-            startIcon={isDeletingHost ? <CircularProgress size={14} color="inherit" /> : <DeleteIcon sx={{ fontSize: 16 }} />}
-            sx={{ bgcolor: T.red, color: '#fff', fontWeight: 600, '&:hover': { bgcolor: '#dc2626' }, '&:disabled': { bgcolor: 'rgba(248,113,113,0.3)' } }}
-          >
-            {isDeletingHost ? 'Deleting...' : 'Delete All'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Delete host confirm */}
+      {deleteHostTarget && (
+        <ConfirmDialog
+          title="Delete Site Entry"
+          body={`Remove all credentials for "${deleteHostTarget.host}"? This cannot be undone.`}
+          loading={deletingHost}
+          onConfirm={() => deleteHost(deleteHostTarget.pmId)}
+          onClose={() => setDelHost(null)}
+        />
+      )}
     </Box>
   );
 };

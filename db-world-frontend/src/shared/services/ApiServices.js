@@ -5,41 +5,42 @@ import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { handleApiError } from '@shared/components/ui/utils/errorHandler';
 const REACT_APP_BASEURL = import.meta.env.VITE_API_BASE_URL || '';
 
+/**
+ * Register a new user.
+ * Throws on HTTP error so callers can handle failure.
+ */
 export const register = async (user) => {
-  const response = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    }, body: JSON.stringify(user)
-  })
-  return response.json();
-}
+  const res = await axiosInstance.post('/api/auth/register', user);
+  return res.data;
+};
 
+/**
+ * Log in with email + password.
+ * Returns the raw ApiResponse data object; throws on failure.
+ * Note: Login.js now calls axiosInstance directly — this function is kept
+ * for backward compatibility with the registration page and any other callers.
+ */
 export const doLogin = async (email, password) => {
-  try {
-    const response = await axiosInstance.post('/api/auth/login', { email, password });
-    if (response.data?.data?.token) {
-      localStorage.setItem('token', response.data.data.token);
-    }
-    return response.data;
-  } catch (error) {
-    console.error('Login error:', error);
-    handleApiError(error);
-  }
+  const res = await axiosInstance.post('/api/auth/login', { email: email.trim().toLowerCase(), password });
+  return res.data; // ApiResponse<{ token, user }>
 };
 
+/**
+ * Verify the current access token.
+ * Returns ApiResponse<{ username, roles }>.
+ * The axios interceptor handles silent refresh if the token is expired.
+ */
 export const verify = async () => {
-  const response = await axiosInstance.get('/api/auth/verify');
-  return response.data;
+  const res = await axiosInstance.get('/api/auth/verify');
+  return res.data;
 };
 
+/**
+ * Revoke the refresh token on the server.
+ * Succeeds even if the cookie is missing (server handles gracefully).
+ */
 export const logOut = async () => {
-  try {
-    await axiosInstance.post('/api/auth/logout', {}, { _retry: true });
-  } catch (error) {
-    console.error('Logout error:', error);
-    handleApiError(error);
-  }
+  await axiosInstance.post('/api/auth/logout', {});
 };
 
 export const findAllUsersService = async () => {

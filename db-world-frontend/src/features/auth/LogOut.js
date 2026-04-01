@@ -1,42 +1,46 @@
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addUser } from '@app/redux/action/allActions';
-import { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import Constants from '@shared/constants';
+import { Box, CircularProgress, Typography } from '@mui/material';
 import { useAuth } from '@features/auth/context/Authentication';
-// import { Authentication } from '@features/auth/context/Authentication';
+import Constants from '@shared/constants';
 
+/**
+ * Logout route — cleans up auth state then redirects to login.
+ *
+ * Rendered as a full-screen page so the user sees feedback while
+ * the server revokes the refresh token.
+ */
 function LogOut() {
+  const navigate     = useNavigate();
+  const { logout }   = useAuth();
+  const didLogout    = useRef(false); // prevent double-call in StrictMode
 
-    const navigate = useNavigate();
-    const dispatch = useDispatch();
-    const [loader, setLoader] = useState(true)
-    const { logout } = useAuth();
+  useEffect(() => {
+    if (didLogout.current) return;
+    didLogout.current = true;
 
-    useEffect(() => {
-        dispatch(addUser(null));
-
-        // Local Storage
-        localStorage.setItem('login',false);
-        localStorage.setItem('user', null);
-        localStorage.setItem('token', null);
-        localStorage.clear();
-        logout();
-        navigate(Constants.LOGIN_ROUTE, { replace: true });
-        
-        setLoader(false)
+    logout().finally(() => {
+      navigate(Constants.LOGIN_ROUTE, { replace: true });
     });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    return (
-        <>
-            {loader && <div className="d-flex justify-content-center" style={{background:"(255,255,255,0)"}}>
-                <div className="spinner-border text-danger" style={{width:"3rem", height:"3rem"}} role="status">
-                    <span className="sr-only">Loading...</span>
-                </div>
-            </div>}
-        </>
-    )
-
+  return (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 2,
+      }}
+    >
+      <CircularProgress size={36} />
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        Signing out…
+      </Typography>
+    </Box>
+  );
 }
 
 export default LogOut;

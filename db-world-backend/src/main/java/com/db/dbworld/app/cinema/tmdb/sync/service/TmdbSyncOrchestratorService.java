@@ -136,7 +136,7 @@ public class TmdbSyncOrchestratorService {
             } catch (Exception e) {
                 log.error("{} sync failed: {}", type, tmdbId, e);
 
-                syncService.markFailed(tmdbId, type);
+                syncService.markFailed(tmdbId, type, e);
                 metrics.incrementFailed();
             }
 

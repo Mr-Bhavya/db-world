@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 @Log4j2
 @RestController
 @RequestMapping("/api/stream")
-@CrossOrigin
 @RequiredArgsConstructor
 public class StreamController {
 

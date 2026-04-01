@@ -209,25 +209,37 @@ function MediaTab({ tmdb }) {
 
 function CreditsTab({ tmdb }) {
   const T = useT();
-  const cast = (tmdb.credits ?? []).filter(c => c.creditType === 'CAST' || c.character);
-  const crew = (tmdb.credits ?? []).filter(c => c.creditType === 'CREW' || (c.job && !c.character));
+  // CreditDto shape: { person: {name, profilePath, ...}, creditType, character, job, department, castOrder, creditId }
+  const cast = (tmdb.credits ?? []).filter(c => c.creditType === 'CAST');
+  const crew = (tmdb.credits ?? []).filter(c => c.creditType === 'CREW');
+
+  // Sort cast by order
+  const sortedCast = [...cast].sort((a, b) => (a.castOrder ?? 999) - (b.castOrder ?? 999));
 
   return (
     <Box>
-      {cast.length > 0 && (
+      {sortedCast.length > 0 && (
         <>
-          <SectionTitle>Cast ({cast.length})</SectionTitle>
-          {cast.map((c, i) => (
-            <Box key={i} sx={{ display: 'flex', gap: 1, py: .5, borderBottom: `1px solid ${T.border}` }}>
+          <SectionTitle>Cast ({sortedCast.length})</SectionTitle>
+          {sortedCast.map((c, i) => (
+            <Box key={c.creditId ?? i} sx={{ display: 'flex', gap: 1, py: .5, borderBottom: `1px solid ${T.border}` }}>
               <Box sx={{ minWidth: 140, flexShrink: 0 }}>
-                <Typography sx={{ fontSize: 12, color: T.textPrimary, fontWeight: 600 }}>{c.name}</Typography>
-                {c.character && <Typography sx={{ fontSize: 11, color: T.textMuted }}>as {c.character}</Typography>}
+                <Typography sx={{ fontSize: 12, color: T.textPrimary, fontWeight: 600 }}>
+                  {c.person?.name ?? '—'}
+                </Typography>
+                {c.character && (
+                  <Typography sx={{ fontSize: 11, color: T.textMuted }}>as {c.character}</Typography>
+                )}
               </Box>
               <Box sx={{ flex: 1 }}>
-                {c.profilePath && (
-                  <Typography sx={{ fontSize: 10, color: T.teal, fontFamily: 'monospace' }}>{c.profilePath}</Typography>
+                {c.person?.profilePath && (
+                  <Typography sx={{ fontSize: 10, color: T.teal, fontFamily: 'monospace' }}>
+                    {c.person.profilePath}
+                  </Typography>
                 )}
-                {c.order !== undefined && <Typography sx={{ fontSize: 10, color: T.textFaint }}>Order: {c.order}</Typography>}
+                {c.castOrder != null && (
+                  <Typography sx={{ fontSize: 10, color: T.textFaint }}>Order: {c.castOrder}</Typography>
+                )}
               </Box>
             </Box>
           ))}
@@ -239,13 +251,19 @@ function CreditsTab({ tmdb }) {
         <>
           <SectionTitle>Crew ({crew.length})</SectionTitle>
           {crew.map((c, i) => (
-            <Box key={i} sx={{ display: 'flex', gap: 1, py: .5, borderBottom: `1px solid ${T.border}` }}>
+            <Box key={c.creditId ?? i} sx={{ display: 'flex', gap: 1, py: .5, borderBottom: `1px solid ${T.border}` }}>
               <Box sx={{ minWidth: 140, flexShrink: 0 }}>
-                <Typography sx={{ fontSize: 12, color: T.textPrimary, fontWeight: 600 }}>{c.name}</Typography>
-                <Typography sx={{ fontSize: 11, color: T.textMuted }}>{c.job} · {c.department}</Typography>
+                <Typography sx={{ fontSize: 12, color: T.textPrimary, fontWeight: 600 }}>
+                  {c.person?.name ?? '—'}
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: T.textMuted }}>
+                  {[c.job, c.department].filter(Boolean).join(' · ')}
+                </Typography>
               </Box>
-              {c.profilePath && (
-                <Typography sx={{ fontSize: 10, color: T.teal, fontFamily: 'monospace' }}>{c.profilePath}</Typography>
+              {c.person?.profilePath && (
+                <Typography sx={{ fontSize: 10, color: T.teal, fontFamily: 'monospace', flex: 1, wordBreak: 'break-all' }}>
+                  {c.person.profilePath}
+                </Typography>
               )}
             </Box>
           ))}
@@ -261,24 +279,48 @@ function CreditsTab({ tmdb }) {
 
 // ── Providers Tab ─────────────────────────────────────────────────
 
+// Group providers by type for better readability
+const PROVIDER_TYPE_LABEL = { FLATRATE: 'Streaming', RENT: 'Rent', BUY: 'Buy', NETWORK: 'Network' };
+
 function ProvidersTab({ tmdb }) {
   const T = useT();
+  // TmdbProviderDto shape: { id, provider: {id, name, logoPath, displayPriority}, providerType, regionCode }
   const providers = tmdb.providers ?? [];
   if (providers.length === 0) {
     return <Typography sx={{ fontSize: 13, color: T.textMuted }}>No providers linked.</Typography>;
   }
+
+  // Group by providerType
+  const grouped = providers.reduce((acc, p) => {
+    const type = p.providerType ?? 'OTHER';
+    (acc[type] = acc[type] ?? []).push(p);
+    return acc;
+  }, {});
+
   return (
     <Box>
-      <SectionTitle>Streaming Providers ({providers.length})</SectionTitle>
-      {providers.map((p, i) => (
-        <Box key={i} sx={{ display: 'flex', gap: 1, py: .5, borderBottom: `1px solid ${T.border}` }}>
-          <Box sx={{ minWidth: 200, flexShrink: 0 }}>
-            <Typography sx={{ fontSize: 12, color: T.textPrimary, fontWeight: 600 }}>{p.providerName}</Typography>
-            {p.watchType && <Typography sx={{ fontSize: 10, color: T.textMuted }}>{p.watchType}</Typography>}
-          </Box>
-          {p.logoPath && (
-            <Typography sx={{ fontSize: 10, color: T.teal, fontFamily: 'monospace' }}>{p.logoPath}</Typography>
-          )}
+      {Object.entries(grouped).map(([type, list]) => (
+        <Box key={type} sx={{ mb: 2 }}>
+          <SectionTitle>{PROVIDER_TYPE_LABEL[type] ?? type} ({list.length})</SectionTitle>
+          {list
+            .sort((a, b) => (a.provider?.displayPriority ?? 99) - (b.provider?.displayPriority ?? 99))
+            .map((p, i) => (
+              <Box key={p.id ?? i} sx={{ display: 'flex', gap: 1, py: .5, borderBottom: `1px solid ${T.border}` }}>
+                <Box sx={{ minWidth: 200, flexShrink: 0 }}>
+                  <Typography sx={{ fontSize: 12, color: T.textPrimary, fontWeight: 600 }}>
+                    {p.provider?.name ?? '—'}
+                  </Typography>
+                  {p.regionCode && (
+                    <Typography sx={{ fontSize: 10, color: T.textMuted }}>Region: {p.regionCode}</Typography>
+                  )}
+                </Box>
+                {p.provider?.logoPath && (
+                  <Typography sx={{ fontSize: 10, color: T.teal, fontFamily: 'monospace', flex: 1, wordBreak: 'break-all' }}>
+                    {p.provider.logoPath}
+                  </Typography>
+                )}
+              </Box>
+            ))}
         </Box>
       ))}
 

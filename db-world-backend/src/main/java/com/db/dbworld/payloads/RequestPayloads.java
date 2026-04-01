@@ -35,6 +35,17 @@ public class RequestPayloads {
     }
 
     @Data
+    public static class UpdateCredential {
+        @NotEmpty
+        private String id;
+        @NotEmpty
+        private String username;
+        private String password;
+        private String pin;
+        private String notes;
+    }
+
+    @Data
     public static class AddUserRole{
         @NotEmpty
         private String name;

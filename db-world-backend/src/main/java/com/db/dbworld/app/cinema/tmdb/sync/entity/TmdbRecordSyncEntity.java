@@ -39,4 +39,8 @@ public class TmdbRecordSyncEntity {
     @Column(name = "status")
     @Enumerated(EnumType.STRING)
     private SyncStatus status;
+
+    /** Last error message from a failed sync attempt. Cleared on success. */
+    @Column(name = "error_message", length = 1000)
+    private String errorMessage;
 }

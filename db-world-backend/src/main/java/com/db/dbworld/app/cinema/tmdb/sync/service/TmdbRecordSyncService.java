@@ -42,7 +42,19 @@ public class TmdbRecordSyncService {
     }
 
     public void markFailed(Long tmdbId, RecordType type) {
-        update(tmdbId, type, SyncStatus.FAILED, false);
+        markFailed(tmdbId, type, (String) null);
+    }
+
+    public void markFailed(Long tmdbId, RecordType type, String errorMessage) {
+        TmdbRecordSyncEntity entity = getOrCreate(tmdbId, type);
+        entity.setLastCheckedAt(Instant.now());
+        entity.setStatus(SyncStatus.FAILED);
+        entity.setErrorMessage(truncate(errorMessage, 1000));
+        repository.save(entity);
+    }
+
+    public void markFailed(Long tmdbId, RecordType type, Throwable cause) {
+        markFailed(tmdbId, type, rootMessage(cause));
     }
 
     public void markSkipped(Long tmdbId, RecordType type) {
@@ -67,6 +79,7 @@ public class TmdbRecordSyncService {
         if (setSyncedTime) {
             entity.setLastSyncedAt(now);
             entity.setSyncVersion(System.currentTimeMillis());
+            entity.setErrorMessage(null); // clear previous error on success
         }
 
         if (status != null) {
@@ -74,6 +87,21 @@ public class TmdbRecordSyncService {
         }
 
         repository.save(entity);
+    }
+
+    private static String truncate(String s, int max) {
+        if (s == null) return null;
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    static String rootMessage(Throwable t) {
+        if (t == null) return null;
+        Throwable cause = t;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        String msg = cause.getMessage();
+        return (msg != null && !msg.isBlank()) ? msg : t.getMessage();
     }
 
     private TmdbRecordSyncEntity getOrCreate(Long tmdbId, RecordType type) {

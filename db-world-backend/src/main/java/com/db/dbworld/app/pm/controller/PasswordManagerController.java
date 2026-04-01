@@ -1,7 +1,6 @@
 package com.db.dbworld.app.pm.controller;
 
 import com.db.dbworld.core.exception.DbWorldException;
-import com.db.dbworld.core.role.annotations.AdminAccess;
 import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
@@ -9,14 +8,11 @@ import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.app.pm.dto.CredentialDto;
 import com.db.dbworld.app.pm.dto.PasswordManagerDto;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
-import com.db.dbworld.utils.DbWorldConstants;
-import jakarta.enterprise.inject.Any;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.MalformedURLException;
@@ -24,7 +20,6 @@ import java.net.URL;
 import java.util.*;
 
 @Log4j2
-@CrossOrigin
 @RestController
 @RequestMapping("/api/pm")
 public class PasswordManagerController {
@@ -68,7 +63,7 @@ public class PasswordManagerController {
                 String host = new URL(c.getUrl().toLowerCase()).getHost();
                 CredentialDto credential = modelMapper.map(c, CredentialDto.class);
                 passwordManagerService.addCredential(host, credential);
-                success.add(c.toString());
+                success.add(c.getUrl() + " / " + c.getUsername());
             } catch (Exception ex) {
                 failed.put(c.toString(), ex.getMessage());
                 log.error("Failed to add credential {} : {}", c, ex.getMessage());
@@ -80,14 +75,11 @@ public class PasswordManagerController {
 
     @PutMapping("/{pmId}")
     @AnyRole
-    public ApiResponse<PasswordManagerDto> updateCredentialByPmId(@Valid @NotEmpty @PathVariable String pmId,@RequestBody RequestPayloads.AddCredential addCredential) {
-        try {
-            String host = new URL(addCredential.getUrl().toLowerCase()).getHost();
-            CredentialDto credential = modelMapper.map(addCredential, CredentialDto.class);
-            return ApiResponse.success("Credential is updated.", passwordManagerService.updateCredential(pmId, credential));
-        } catch (MalformedURLException ex) {
-            throw new DbWorldException("Invalid URL format: " + ex.getMessage());
-        }
+    public ApiResponse<PasswordManagerDto> updateCredentialByPmId(
+            @Valid @NotEmpty @PathVariable String pmId,
+            @RequestBody @Valid RequestPayloads.UpdateCredential updateCredential) {
+        CredentialDto credential = modelMapper.map(updateCredential, CredentialDto.class);
+        return ApiResponse.success("Credential is updated.", passwordManagerService.updateCredential(pmId, credential));
     }
 
     @AnyRole

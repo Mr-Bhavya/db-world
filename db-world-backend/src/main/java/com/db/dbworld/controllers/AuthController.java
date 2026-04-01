@@ -12,7 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
-import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -28,7 +28,6 @@ import static org.springframework.http.HttpHeaders.SET_COOKIE;
 
 @Log4j2
 @RestController
-@CrossOrigin
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
@@ -36,69 +35,73 @@ public class AuthController {
     private final UserService userService;
     private final AuthenticationService authenticationService;
 
-    // ==============================
-    // ✅ REGISTER
-    // ==============================
+    /* ── Register ──────────────────────────────────────────────────── */
+
     @PostMapping("/register")
     public ApiResponse<UserDto> register(@Valid @RequestBody CreateUserRequest request) {
-
         UserDto createdUser = userService.createUser(request);
-
         log.info("New user registered: {}", createdUser.getEmail());
-
         return ApiResponse.success("User registered successfully", createdUser);
     }
 
-    // ==============================
-    // ✅ LOGIN
-    // ==============================
+    /* ── Login ─────────────────────────────────────────────────────── */
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<ResponsePayloads.LoginResponse>> login(
             @Valid @RequestBody LoginRequest loginRequest,
             @RequestHeader(value = "User-Agent", defaultValue = "unknown") String userAgent
     ) {
-
         var tokens = authenticationService.authenticate(
                 userAgent,
                 loginRequest.getEmail().toLowerCase(),
                 loginRequest.getPassword()
         );
 
-        ResponsePayloads.LoginResponse response =
-                new ResponsePayloads.LoginResponse(
-                        tokens.accessToken(),
-                        tokens.user() // ⚠️ see note below
-                );
+        ResponsePayloads.LoginResponse response = new ResponsePayloads.LoginResponse(
+                tokens.accessToken(),
+                tokens.user()
+        );
 
         return ResponseEntity.ok()
                 .header(SET_COOKIE,
-                        addCookie(
-                                REFRESH_TOKEN_COOKIE_NAME,
-                                tokens.refreshToken(),
-                                tokens.refreshTokenTtl()
-                        ).toString()
+                        addCookie(REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken(), tokens.refreshTokenTtl()).toString()
                 )
                 .body(ApiResponse.success("Login successful", response));
     }
 
-    // ==============================
-    // 🔄 REFRESH TOKEN
-    // ==============================
+    /* ── Refresh token ─────────────────────────────────────────────── */
+
+    /**
+     * Exchange a valid refresh-token cookie for a new access token.
+     *
+     * Returns 401 (not 400) when the cookie is absent so that the frontend
+     * axios interceptor treats it identically to an expired access token and
+     * triggers the force-logout flow instead of an unhandled 400 error.
+     */
     @PostMapping("/refresh-token")
-    public ApiResponse<Map<String, String>> refreshAccessToken(
-            @CookieValue(REFRESH_TOKEN_COOKIE_NAME) String refreshToken
+    public ResponseEntity<?> refreshAccessToken(
+            @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken
     ) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(HttpStatus.UNAUTHORIZED, "No refresh token cookie"));
+        }
 
         var tokens = authenticationService.refreshToken(refreshToken);
 
-        return ApiResponse.success(Map.of(
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "accessToken", tokens.accessToken()
-        ));
+        )));
     }
 
-    // ==============================
-    // ✅ VERIFY TOKEN
-    // ==============================
+    /* ── Verify ────────────────────────────────────────────────────── */
+
+    /**
+     * Lightweight endpoint that confirms the Bearer token is valid.
+     * Spring Security validates the JWT before this method is invoked;
+     * an expired token triggers a 401 → the client interceptor refreshes it.
+     */
     @GetMapping("/verify")
     public ApiResponse<Map<String, Object>> verifyToken(Authentication authentication) {
 
@@ -106,24 +109,38 @@ public class AuthController {
             throw new RuntimeException("Invalid authentication");
         }
 
+        List<String> roles = authentication.getAuthorities()
+                .stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList();
+
         return ApiResponse.success(Map.of(
                 "username", authentication.getName(),
-                "roles", authentication.getAuthorities()
-                        .stream()
-                        .map(GrantedAuthority::getAuthority)
-                        .toList()
+                "roles",    roles
         ));
     }
 
-    // ==============================
-    // 🚪 LOGOUT
-    // ==============================
+    /* ── Logout ────────────────────────────────────────────────────── */
+
+    /**
+     * Revoke the refresh token and clear the cookie.
+     *
+     * The cookie is optional (required = false) — if it is already expired
+     * or absent the endpoint still succeeds and clears the cookie header,
+     * so the client always ends up fully logged out regardless of server state.
+     */
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
-            @CookieValue(REFRESH_TOKEN_COOKIE_NAME) String refreshToken
+            @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken
     ) {
-
-        authenticationService.revokeRefreshToken(refreshToken);
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            try {
+                authenticationService.revokeRefreshToken(refreshToken);
+            } catch (Exception e) {
+                // Token may already be expired / deleted — not an error from the client's view.
+                log.warn("Logout: refresh token revocation skipped — {}", e.getMessage());
+            }
+        }
 
         return ResponseEntity.ok()
                 .header(SET_COOKIE, removeCookie(REFRESH_TOKEN_COOKIE_NAME).toString())

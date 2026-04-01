@@ -122,3 +122,62 @@ export const updateRail = (id, body) =>
 
 export const deleteRail = (id) =>
   axiosInstance.delete(`/api/cinema/rails/${id}`).then(r => r.data);
+
+/* ─── TMDB SYNC ─────────────────────────────────────────────── */
+
+export const getTmdbSyncStats = () =>
+  axiosInstance.get('/api/cinema/admin/tmdb/sync/stats').then(r => r.data.data);
+
+export const getTmdbSyncRecords = (params) =>
+  axiosInstance.get('/api/cinema/admin/tmdb/sync/records', { params }).then(r => r.data.data);
+
+export const triggerTmdbSync = (type) =>
+  axiosInstance.post('/api/cinema/admin/tmdb/sync/trigger', null, {
+    params: type ? { type } : undefined,
+  }).then(r => r.data);
+
+export const retryTmdbSync = (id) =>
+  axiosInstance.post(`/api/cinema/admin/tmdb/sync/retry/${id}`).then(r => r.data);
+
+/* ─── REDIS CACHE ───────────────────────────────────────────── */
+
+export const getRedisInfo = () =>
+  axiosInstance.get('/api/admin/redis/info').then(r => r.data.data);
+
+export const getRedisKeys = (params) =>
+  axiosInstance.get('/api/admin/redis/keys', { params }).then(r => r.data.data);
+
+export const getRedisKey = (key) =>
+  axiosInstance.get('/api/admin/redis/key', { params: { key } }).then(r => r.data.data);
+
+export const setRedisKey = (body) =>
+  axiosInstance.post('/api/admin/redis/key', body).then(r => r.data);
+
+export const updateRedisKey = (key, value) =>
+  axiosInstance.put('/api/admin/redis/key', { value }, { params: { key } }).then(r => r.data);
+
+export const updateRedisTtl = (key, ttlSeconds) =>
+  axiosInstance.patch('/api/admin/redis/key/ttl', null, { params: { key, ttlSeconds } }).then(r => r.data);
+
+export const deleteRedisKey = (key) =>
+  axiosInstance.delete('/api/admin/redis/key', { params: { key } }).then(r => r.data);
+
+export const deleteRedisKeys = (keys) =>
+  axiosInstance.delete('/api/admin/redis/keys', { data: keys }).then(r => r.data);
+
+export const flushRedisKeys = ({ pattern, confirm }) =>
+  axiosInstance.delete('/api/admin/redis/flush', { params: { pattern, confirm } }).then(r => r.data);
+
+/* ─── SYSTEM INFO ───────────────────────────────────────────── */
+
+export const getServerInfo = () =>
+  axiosInstance.get('/api/server/info').then(r => r.data.data);
+
+export const getServerInfoQuick = () =>
+  axiosInstance.get('/api/server/info/quick').then(r => r.data.data);
+
+export const getServerHealth = () =>
+  axiosInstance.get('/api/server/health').then(r => r.data.data);
+
+export const refreshServerInfoCache = () =>
+  axiosInstance.post('/api/server/cache/refresh').then(r => r.data);
