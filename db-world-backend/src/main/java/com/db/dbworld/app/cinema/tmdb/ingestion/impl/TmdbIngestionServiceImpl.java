@@ -288,8 +288,7 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
         validateTmdbId(tmdbId);
 
         try {
-            deleteMedia(tmdbId);
-            MovieTmdbEntity movieTmdbEntity = ingestMovie(tmdbId);
+            return fetchAndSaveMovie(tmdbId);
         } catch (Exception e) {
             log.error("Failed to refresh movie {}", tmdbId, e);
             throw new TmdbIngestionException("Failed to refresh movie " + tmdbId, e);
@@ -301,8 +300,7 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
         validateTmdbId(tmdbId);
 
         try {
-            deleteMedia(tmdbId);
-            return ingestTvSeries(tmdbId);
+            return fetchAndSaveTvSeries(tmdbId);
         } catch (Exception e) {
             log.error("Failed to refresh TV series {}", tmdbId, e);
             throw new TmdbIngestionException("Failed to refresh TV series " + tmdbId, e);
