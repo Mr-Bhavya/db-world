@@ -221,8 +221,8 @@ public class CatalogServiceImpl implements CatalogService {
 
         RecordEntity record = getRecordOrThrow(recordId);
 
-        record.setTmdb(null);
-        recordRepository.save(record);
+//        record.setTmdb(null);
+//        recordRepository.save(record);
 
         TmdbEntity refreshed = ingestTmdbByType(
                 record.getType(),

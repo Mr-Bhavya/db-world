@@ -1,38 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Constants from '@shared/constants';
+import { useSnackbar } from 'notistack';
+import { motion } from 'framer-motion';
 import {
   Box, Button, Container, Divider, IconButton,
   InputAdornment, Slider, TextField, Typography,
 } from '@mui/material';
-import {
-  Visibility, VisibilityOff, ContentCopy, ArrowBack, VpnKey,
-} from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { Visibility, VisibilityOff, ContentCopy, ArrowBack, VpnKey } from '@mui/icons-material';
+import { useT, getGlowProps, getFieldSx } from '@shared/theme';
+import Constants from '@shared/constants';
 import CommonServices from '@shared/services/CommonServices';
-import { toast } from '@shared/components/ui/Toast';
-
-const T = {
-  bg:          '#0a0a0f',
-  teal:        '#0d9488',
-  glass:       'rgba(255,255,255,0.04)',
-  glassBorder: 'rgba(255,255,255,0.08)',
-  glassHover:  'rgba(255,255,255,0.07)',
-  textPrimary: '#f1f5f9',
-  textMuted:   'rgba(241,245,249,0.55)',
-};
-
-const DARK_FIELD = {
-  '& .MuiInputLabel-root': { color: T.textMuted },
-  '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
-  '& .MuiOutlinedInput-root': {
-    color: T.textPrimary,
-    '& fieldset': { borderColor: T.glassBorder },
-    '&:hover fieldset': { borderColor: 'rgba(13,148,136,0.45)' },
-    '&.Mui-focused fieldset': { borderColor: T.teal },
-  },
-  '& .MuiInputBase-input': { color: T.textPrimary },
-};
 
 function generateSecurePassword(length) {
   const upper   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -50,7 +27,6 @@ function generateSecurePassword(length) {
   const pwd = [rand(upper), rand(lower), rand(digits), rand(symbols)];
   for (let i = pwd.length; i < length; i++) pwd.push(rand(all));
 
-  // Fisher-Yates shuffle using crypto.getRandomValues
   for (let i = pwd.length - 1; i > 0; i--) {
     const arr = new Uint32Array(1);
     crypto.getRandomValues(arr);
@@ -61,11 +37,16 @@ function generateSecurePassword(length) {
 }
 
 const GeneratePassword = () => {
+  const T = useT();
+  const GLOW = getGlowProps(T);
+  const FIELD = getFieldSx(T);
   const navigate = useNavigate();
-  const [generated, setGenerated]   = useState('');
-  const [length, setLength]         = useState(16);
-  const [showPwd, setShowPwd]       = useState(false);
-  const [copied, setCopied]         = useState(false);
+  const { enqueueSnackbar } = useSnackbar();
+
+  const [generated, setGenerated] = useState('');
+  const [length, setLength]       = useState(16);
+  const [showPwd, setShowPwd]     = useState(false);
+  const [copied, setCopied]       = useState(false);
 
   const handleSlider = (_, val) => setLength(val);
   const handleInput  = (e) => {
@@ -81,93 +62,58 @@ const GeneratePassword = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } else {
-      toast.error(result.message);
+      enqueueSnackbar('Copy failed — try manually', { variant: 'error' });
     }
   };
 
   return (
-    <Box sx={{
-      bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary,
-      pt: { xs: '56px', md: '64px' },
-      background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1a1a 60%, #0a0f0f 100%)',
-    }}>
-      {/* Teal glow */}
-      <motion.div
-        animate={{ opacity: [0.06, 0.13, 0.06] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-          background: 'radial-gradient(ellipse 50% 40% at 50% 30%, rgba(13,148,136,0.15) 0%, transparent 70%)',
-        }}
-      />
+    <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary, pt: { xs: '56px', md: '64px' } }}>
+      <motion.div {...GLOW} />
 
       <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1, py: { xs: 4, md: 6 } }}>
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45 }}
-        >
-          {/* Back button */}
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
           <Box sx={{ mb: 3 }}>
             <Button
               startIcon={<ArrowBack />}
               onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
-              sx={{
-                color: T.textMuted, fontWeight: 500, fontSize: '0.875rem',
-                '&:hover': { color: T.teal, bgcolor: 'transparent' },
-              }}
+              sx={{ color: T.textMuted, fontWeight: 500, '&:hover': { color: T.teal, bgcolor: 'transparent' } }}
             >
               Password Manager
             </Button>
           </Box>
 
-          {/* Card */}
-          <Box sx={{
-            p: { xs: 3, md: 4 },
-            bgcolor: T.glass,
-            border: `1px solid ${T.glassBorder}`,
-            borderRadius: 3,
-          }}>
-            {/* Header */}
+          <Box sx={{ p: { xs: 3, md: 4 }, bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
               <Box sx={{
                 width: 40, height: 40, borderRadius: 1.5,
-                bgcolor: 'rgba(13,148,136,0.12)',
-                border: '1px solid rgba(13,148,136,0.2)',
+                bgcolor: T.tealBg, border: `1px solid ${T.tealBg}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <VpnKey sx={{ fontSize: 20, color: T.teal }} />
               </Box>
-              <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: T.textPrimary }}>
-                Password Generator
-              </Typography>
+              <Box>
+                <Typography sx={{ fontSize: '1.15rem', fontWeight: 700, color: T.textPrimary }}>
+                  Password Generator
+                </Typography>
+                <Typography sx={{ fontSize: '0.8rem', color: T.textMuted }}>
+                  Cryptographically secure · 8–64 characters
+                </Typography>
+              </Box>
             </Box>
 
             <Divider sx={{ borderColor: T.glassBorder, mb: 3 }} />
 
-            {/* Info */}
-            <Box sx={{ mb: 3 }}>
-              {[
-                'Generates cryptographically secure passwords.',
-                'Contains uppercase, lowercase, digits and symbols.',
-                'Password length: 8 – 64 characters.',
-              ].map((txt) => (
-                <Typography key={txt} sx={{ fontSize: '0.82rem', color: T.textMuted, mb: 0.5 }}>
-                  • {txt}
-                </Typography>
-              ))}
-            </Box>
-
-            {/* Length control */}
             <Box sx={{ mb: 3 }}>
               <Typography sx={{ fontSize: '0.875rem', color: T.textMuted, mb: 1.5 }}>
-                Length: <Box component="span" sx={{ color: T.teal, fontWeight: 700 }}>{length}</Box>
+                Length:{' '}
+                <Box component="span" sx={{ color: T.teal, fontWeight: 700 }}>{length}</Box>
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Slider
                   value={length}
                   onChange={handleSlider}
-                  min={8} max={64}
+                  min={8}
+                  max={64}
                   sx={{
                     flexGrow: 1, color: T.teal,
                     '& .MuiSlider-rail': { bgcolor: T.glassBorder },
@@ -179,26 +125,24 @@ const GeneratePassword = () => {
                   value={length}
                   onChange={handleInput}
                   inputProps={{ min: 8, max: 64 }}
-                  sx={{ width: 76, ...DARK_FIELD }}
+                  sx={{ width: 76, ...FIELD }}
                 />
               </Box>
             </Box>
 
-            {/* Generate button */}
             <Button
               fullWidth
               variant="contained"
               onClick={handleGenerate}
               sx={{
                 bgcolor: T.teal, color: '#fff', fontWeight: 700,
-                py: 1.25, borderRadius: 2, fontSize: '0.9rem',
+                py: 1.25, borderRadius: 2,
                 '&:hover': { bgcolor: '#0f766e' },
               }}
             >
               Generate Password
             </Button>
 
-            {/* Result */}
             {generated && (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
@@ -217,13 +161,17 @@ const GeneratePassword = () => {
                       readOnly: true,
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton onClick={() => setShowPwd(!showPwd)} sx={{ color: T.teal }} size="small">
+                          <IconButton
+                            onClick={() => setShowPwd(!showPwd)}
+                            size="small"
+                            sx={{ color: T.teal }}
+                          >
                             {showPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                           </IconButton>
                         </InputAdornment>
                       ),
                     }}
-                    sx={{ flexGrow: 1, minWidth: 0, ...DARK_FIELD }}
+                    sx={{ flexGrow: 1, minWidth: 0, ...FIELD }}
                   />
                   <Button
                     variant={copied ? 'contained' : 'outlined'}
@@ -236,7 +184,7 @@ const GeneratePassword = () => {
                     } : {
                       borderColor: T.teal, color: T.teal, fontWeight: 600,
                       borderRadius: 2, whiteSpace: 'nowrap',
-                      '&:hover': { bgcolor: 'rgba(13,148,136,0.1)', borderColor: T.teal },
+                      '&:hover': { bgcolor: T.tealBg, borderColor: T.teal },
                     }}
                   >
                     {copied ? 'Copied!' : 'Copy'}

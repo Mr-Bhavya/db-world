@@ -72,10 +72,11 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of(
-                "http://localhost:3000",
                 "http://localhost:*",
-                "http://192.168.*.*:*",   // local network (home/office)
-                "http://10.*.*.*:*",      // local network (corporate)
+                "http://127.0.0.1:*",
+                "http://192.168.*",       // local network (home/office)
+                "http://10.*",            // local network (corporate)
+                "http://172.16.*",        // local network (docker/office)
                 "https://db-world.in"
         ));
         config.setAllowedHeaders(List.of("*"));

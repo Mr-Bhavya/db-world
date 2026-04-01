@@ -1,5 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.ingestion.impl;
 
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.client.dto.*;
 import com.db.dbworld.app.cinema.tmdb.collection.entity.CollectionEntity;
@@ -26,6 +27,7 @@ import com.db.dbworld.app.cinema.tmdb.season.repository.EpisodeRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 import com.db.dbworld.app.cinema.tmdb.service.TmdbService;
 
+import com.db.dbworld.core.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -59,7 +61,7 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
     private final EpisodeRepository episodeRepository;
     private final SpokenLanguageRepository languageRepository;
     private final CollectionRepository collectionRepository;
-    private final TmdbProviderRepository tmdbProviderRepository;
+    private final RecordRepository recordRepository;
 
     // Caches for better performance
     private final Map<Long, PersonEntity> personCache = new ConcurrentHashMap<>();
@@ -287,7 +289,7 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
 
         try {
             deleteMedia(tmdbId);
-            return ingestMovie(tmdbId);
+            MovieTmdbEntity movieTmdbEntity = ingestMovie(tmdbId);
         } catch (Exception e) {
             log.error("Failed to refresh movie {}", tmdbId, e);
             throw new TmdbIngestionException("Failed to refresh movie " + tmdbId, e);

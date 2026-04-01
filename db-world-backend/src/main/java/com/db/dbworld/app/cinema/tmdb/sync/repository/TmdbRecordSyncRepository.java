@@ -3,6 +3,8 @@ package com.db.dbworld.app.cinema.tmdb.sync.repository;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.tmdb.sync.entity.TmdbRecordSyncEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
@@ -22,4 +24,12 @@ public interface TmdbRecordSyncRepository extends JpaRepository<TmdbRecordSyncEn
 
     /** Most recently synced entry — for "last sync at" display. */
     Optional<TmdbRecordSyncEntity> findTopByOrderByLastSyncedAtDesc();
+
+    /* ── Admin paginated queries ── */
+
+    Page<TmdbRecordSyncEntity> findByStatus(SyncStatus status, Pageable pageable);
+
+    Page<TmdbRecordSyncEntity> findByRecordType(RecordType recordType, Pageable pageable);
+
+    Page<TmdbRecordSyncEntity> findByStatusAndRecordType(SyncStatus status, RecordType recordType, Pageable pageable);
 }

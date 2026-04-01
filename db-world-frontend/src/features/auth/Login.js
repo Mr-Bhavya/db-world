@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Button, CircularProgress, Dialog, DialogContent, DialogTitle,
-  Divider, IconButton, InputAdornment, TextField, Typography, Avatar,
+  Divider, IconButton, InputAdornment, TextField, Typography, Avatar, Alert,
 } from '@mui/material';
 import {
   Lock as LockIcon,
@@ -15,8 +15,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
-import { doLogin, updateDobForUser } from '@shared/services/ApiServices';
-import { toast } from '@shared/components/ui/Toast';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import Constants from '@shared/constants';
 import db_world_icon from '@assets/images/db_world_teal.svg';
 import { useT, getFieldSx, getGlowProps } from '@shared/theme';
@@ -33,18 +32,19 @@ const Login = () => {
   const [formData,     setFormData]     = useState({ email: '', password: '' });
   const [errors,       setErrors]       = useState({ email: false, password: false });
   const [loading,      setLoading]      = useState(false);
+  const [loginError,   setLoginError]   = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // DOB dialog
-  const [dob,          setDob]          = useState('');
-  const [dobError,     setDobError]     = useState(false);
-  const [dobOpen,      setDobOpen]      = useState(false);
-  const [pendingUser,  setPendingUser]  = useState(null);
+  // DOB dialog state
+  const [dob,        setDob]        = useState('');
+  const [dobError,   setDobError]   = useState(false);
+  const [dobOpen,    setDobOpen]    = useState(false);
+  const [dobLoading, setDobLoading] = useState(false);
 
-  // ── Validation ─────────────────────────────────────────────────────────────
+  // ── Validation ──────────────────────────────────────────────────────
   const validateField = (name, value) => {
     if (name === 'email') {
-      const ok = !!value && !/\s/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      const ok = !!value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
       setErrors(p => ({ ...p, email: !ok }));
       return ok;
     }
@@ -54,10 +54,8 @@ const Login = () => {
       return ok;
     }
     if (name === 'dob') {
-      const pattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
-      const year = value.split('-')[0];
-      const now  = new Date().getFullYear();
-      const ok   = !!value && pattern.test(value) && year >= 1900 && year <= now;
+      const year = Number(value?.split('-')[0]);
+      const ok   = !!value && /^\d{4}-\d{2}-\d{2}$/.test(value) && year >= 1900 && year <= new Date().getFullYear();
       setDobError(!ok);
       return ok;
     }
@@ -67,67 +65,68 @@ const Login = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(p => ({ ...p, [name]: value }));
+    if (loginError) setLoginError('');
     validateField(name, value);
   };
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
+  // ── Submit ──────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     const emailOk = validateField('email',    formData.email);
     const passOk  = validateField('password', formData.password);
-    if (!emailOk || !passOk) {
-      toast.warning('Please fill all fields correctly.');
-      return;
-    }
+    if (!emailOk || !passOk) return;
 
     setLoading(true);
+    setLoginError('');
+
     try {
-      const res = await doLogin(formData.email, formData.password);
-      if (res?.httpStatusCode === 200) {
-        login(res.data.token, res.data.user, res.data.user.role);
-        toast.success('Welcome back!', {
-          autoClose: 800,
-          onClose: () => {
-            if (!res.data.user.dob) {
-              setPendingUser(res.data.user);
-              setDobOpen(true);
-            } else {
-              navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-            }
-          },
-        });
+      const res = await axiosInstance.post('/api/auth/login', {
+        email:    formData.email.trim().toLowerCase(),
+        password: formData.password,
+      });
+
+      const payload = res.data?.data; // { token, user: { userId, email, name, dob, role } }
+      if (!payload?.token) throw new Error('Unexpected response from server');
+
+      login(payload.token, payload.user, payload.user.role);
+
+      const destination = location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE;
+
+      if (!payload.user.dob) {
+        setDobOpen(true);
+      } else {
+        navigate(destination, { replace: true });
       }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Invalid email or password';
+      setLoginError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  // ── DOB submit ──────────────────────────────────────────────────────────────
+  // ── DOB submit ──────────────────────────────────────────────────────
   const handleDobSubmit = async () => {
-    if (!validateField('dob', dob)) {
-      toast.warning('Please enter a valid date of birth.');
-      return;
-    }
+    if (!validateField('dob', dob)) return;
+
+    setDobLoading(true);
     try {
-      const res = await updateDobForUser(dob);
-      if (res.httpStatusCode === 200) {
-        toast.success('Date of birth saved.');
-        setDobOpen(false);
-        navigate(location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE, { replace: true });
-      } else {
-        toast.error(res.message || 'Failed to save date of birth.');
-      }
+      await axiosInstance.put(`/api/user/dob=${dob}`);
+      setDobOpen(false);
+      const destination = location.state?.from?.pathname || Constants.DB_WORLD_HOME_ROUTE;
+      navigate(destination, { replace: true });
     } catch {
-      toast.error('Error saving date of birth.');
+      setDobError(true);
+    } finally {
+      setDobLoading(false);
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────
   return (
     <Box sx={{
       minHeight: '100vh',
       bgcolor: T.bg,
-      background: T.bgGradient,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -136,10 +135,8 @@ const Login = () => {
       pb: 4,
       position: 'relative',
     }}>
-      {/* Radial glow */}
       <motion.div {...GLOW} />
 
-      {/* Card */}
       <motion.div
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
@@ -174,6 +171,17 @@ const Login = () => {
               Sign in to continue to DB World
             </Typography>
           </Box>
+
+          {/* Error alert */}
+          {loginError && (
+            <Alert
+              severity="error"
+              onClose={() => setLoginError('')}
+              sx={{ mb: 2, borderRadius: 1.5, fontSize: '0.875rem' }}
+            >
+              {loginError}
+            </Alert>
+          )}
 
           {/* Form */}
           <Box component="form" onSubmit={handleSubmit} noValidate>
@@ -219,6 +227,7 @@ const Login = () => {
                     <IconButton
                       size="small"
                       onClick={() => setShowPassword(p => !p)}
+                      tabIndex={-1}
                       sx={{ color: T.textMuted, '&:hover': { color: T.text } }}
                     >
                       {showPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
@@ -253,14 +262,12 @@ const Login = () => {
             </Button>
           </Box>
 
-          {/* Divider */}
           <Divider sx={{ borderColor: T.border, my: 3 }}>
             <Typography sx={{ color: T.textFaint, fontSize: '0.75rem', px: 1 }}>
               NEW TO DB WORLD?
             </Typography>
           </Divider>
 
-          {/* Register link */}
           <Button
             fullWidth
             onClick={() => navigate(Constants.REGISTRATION_ROUTE)}
@@ -276,11 +283,10 @@ const Login = () => {
           >
             Create an account
           </Button>
-
         </Box>
       </motion.div>
 
-      {/* ── DOB Dialog ──────────────────────────────────────────────────────── */}
+      {/* DOB Dialog */}
       <Dialog
         open={dobOpen}
         onClose={() => setDobOpen(false)}
@@ -298,9 +304,7 @@ const Login = () => {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           color: T.text, pb: 1,
         }}>
-          <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>
-            One more thing…
-          </Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>One more thing…</Typography>
           <IconButton size="small" onClick={() => setDobOpen(false)}
             sx={{ color: T.textMuted, '&:hover': { color: T.text } }}>
             <CloseIcon fontSize="small" />
@@ -334,6 +338,7 @@ const Login = () => {
           <Button
             fullWidth
             onClick={handleDobSubmit}
+            disabled={dobLoading}
             sx={{
               py: 1.3,
               bgcolor: T.teal,
@@ -342,9 +347,10 @@ const Login = () => {
               borderRadius: 1.5,
               textTransform: 'none',
               '&:hover': { bgcolor: T.tealHover },
+              '&.Mui-disabled': { bgcolor: T.tealBg, color: T.textFaint },
             }}
           >
-            Save &amp; Continue
+            {dobLoading ? <CircularProgress size={18} color="inherit" /> : 'Save & Continue'}
           </Button>
         </DialogContent>
       </Dialog>
