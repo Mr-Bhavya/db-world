@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string-array name="exo_controls_playback_speeds">
+    <item>0,25x</item>
+    <item>0,5x</item>
+    <item>0,75x</item>
+    <item>Normale</item>
+    <item>1,25x</item>
+    <item>1,5x</item>
+    <item>2x</item>
+  </string-array>
+    <plurals name="exo_controls_fastforward_by_amount_description">
+    <item quantity="one">Avanti di %d secondo</item>
+    <item quantity="other">Avanti di %d secondi</item>
+  </plurals>
+    <plurals name="exo_controls_rewind_by_amount_description">
+    <item quantity="one">Indietro di %d secondo</item>
+    <item quantity="other">Indietro di %d secondi</item>
+  </plurals>
+    <string msgid="5976598919945601918" name="abc_action_bar_home_description">"Portami a casa"</string>
+    <string msgid="8388173803310557296" name="abc_action_bar_up_description">"Torna indietro"</string>
+    <string msgid="3937310113216875497" name="abc_action_menu_overflow_description">"Altre opzioni"</string>
+    <string msgid="4692188335987374352" name="abc_action_mode_done">"Fine"</string>
+    <string msgid="1189761859438369441" name="abc_activity_chooser_view_see_all">"Mostra tutto"</string>
+    <string msgid="2165779757652331008" name="abc_activitychooserview_choose_application">"Scelta di un\'app"</string>
+    <string msgid="4215997306490295099" name="abc_capital_off">"OFF"</string>
+    <string msgid="884982626291842264" name="abc_capital_on">"ON"</string>
+    <string msgid="8833365367933412986" name="abc_menu_alt_shortcut_label">"ALT +"</string>
+    <string msgid="2223301931652355242" name="abc_menu_ctrl_shortcut_label">"CTRL +"</string>
+    <string msgid="838001238306846836" name="abc_menu_delete_shortcut_label">"CANC"</string>
+    <string msgid="7986526966204849475" name="abc_menu_enter_shortcut_label">"INVIO"</string>
+    <string msgid="375214403600139847" name="abc_menu_function_shortcut_label">"FUNZIONE +"</string>
+    <string msgid="4192209724446364286" name="abc_menu_meta_shortcut_label">"META +"</string>
+    <string msgid="4741552369836443843" name="abc_menu_shift_shortcut_label">"MAIUSC +"</string>
+    <string msgid="5473865519181928982" name="abc_menu_space_shortcut_label">"SPAZIO"</string>
+    <string msgid="6180552449598693998" name="abc_menu_sym_shortcut_label">"SYM +"</string>
+    <string msgid="5520303668377388990" name="abc_prepend_shortcut_label">"MENU +"</string>
+    <string msgid="7208076849092622260" name="abc_search_hint">"Cerca…"</string>
+    <string msgid="3741173234950517107" name="abc_searchview_description_clear">"Cancella query"</string>
+    <string msgid="693312494995508443" name="abc_searchview_description_query">"Query di ricerca"</string>
+    <string msgid="3417662926640357176" name="abc_searchview_description_search">"Cerca"</string>
+    <string msgid="1486535517437947103" name="abc_searchview_description_submit">"Invia query"</string>
+    <string msgid="2293578557972875415" name="abc_searchview_description_voice">"Ricerca vocale"</string>
+    <string msgid="8875138169939072951" name="abc_shareactionprovider_share_with">"Condividi con"</string>
+    <string msgid="9055268688411532828" name="abc_shareactionprovider_share_with_application">"Condividi tramite <ns1:g id="APPLICATION_NAME">%s</ns1:g>"</string>
+    <string msgid="1656852541809559762" name="abc_toolbar_collapse_description">"Comprimi"</string>
+    <string name="authentication_required">Autenticazione richiesta</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Rispondi"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Video"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Rifiuta"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Riaggancia"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Chiamata in arrivo"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Chiamata in corso"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Applicazione filtro a chiamata in arrivo"</string>
+    <string name="cast_ad_label">Annuncio</string>
+    <string name="cast_casting_to_device">Trasmissione a %1$s</string>
+    <string name="cast_closed_captions">Sottotitoli codificati</string>
+    <string name="cast_closed_captions_unavailable">Sottotitoli codificati non disponibili</string>
+    <string name="cast_connecting_to_device">Collegamento a %1$s</string>
+    <string name="cast_device_chooser_searching_for_devices">Ricerca di dispositivi</string>
+    <string name="cast_device_chooser_title">Trasmetti a</string>
+    <string name="cast_disconnect">Disconnetti</string>
+    <string name="cast_dynamic_group_name_format">%1$s + %2$d</string>
+    <string name="cast_expanded_controller_ad_image_description">Immagine mostrata mentre il ricevitore Cast riproduce un annuncio</string>
+    <string name="cast_expanded_controller_ad_in_progress">Annuncio in corso…</string>
+    <string name="cast_expanded_controller_background_image">Copertina</string>
+    <string name="cast_expanded_controller_live_head_description">La posizione corrente è all\'inizio del live streaming</string>
+    <string name="cast_expanded_controller_live_stream_indicator">Live stream</string>
+    <string name="cast_expanded_controller_loading">Caricamento…</string>
+    <string name="cast_expanded_controller_skip_ad_label">Salta annuncio</string>
+    <string name="cast_expanded_controller_skip_ad_text">Puoi saltare l\'annuncio tra %1$d…</string>
+    <string name="cast_forward">Avanti</string>
+    <string name="cast_forward_10">Avanti di dieci secondi</string>
+    <string name="cast_forward_30">Avanti di trenta secondi</string>
+    <string name="cast_intro_overlay_button_text">@android:string/ok</string>
+    <string name="cast_live_label">IN DIRETTA</string>
+    <string name="cast_mute">Disattiva audio</string>
+    <string name="cast_notification_connected_message">Connesso a %1$s</string>
+    <string name="cast_notification_connecting_message">Connessione a %1$s</string>
+    <string name="cast_notification_default_channel_name">Cast</string>
+    <string name="cast_notification_disconnect">Disconnetti</string>
+    <string name="cast_pause">Pausa</string>
+    <string name="cast_play">Riproduci</string>
+    <string name="cast_rewind">Indietro</string>
+    <string name="cast_rewind_10">Indietro di dieci secondi</string>
+    <string name="cast_rewind_30">Indietro di 30 secondi</string>
+    <string name="cast_seek_bar">Controllo riproduzione</string>
+    <string name="cast_skip_next">Vai all\'elemento successivo</string>
+    <string name="cast_skip_prev">Vai all\'elemento precedente</string>
+    <string name="cast_stop">Interrompi</string>
+    <string name="cast_stop_live_stream">Interrompi live stream</string>
+    <string name="cast_tracks_chooser_dialog_audio">Audio</string>
+    <string name="cast_tracks_chooser_dialog_cancel">Annulla</string>
+    <string name="cast_tracks_chooser_dialog_closed_captions">Sottotitoli codificati</string>
+    <string name="cast_tracks_chooser_dialog_default_track_name">Traccia %1$d</string>
+    <string name="cast_tracks_chooser_dialog_none">Nessuna</string>
+    <string name="cast_tracks_chooser_dialog_ok">OK</string>
+    <string name="cast_tracks_chooser_dialog_subtitles">Sottotitoli</string>
+    <string name="cast_unmute">Riattiva audio</string>
+    <string name="cast_wifi_warning_description">Assicurati che il tuo dispositivo e quello di trasmissione siano collegati alla stessa rete Wi-Fi. \n\n<a href="https://support.google.com/chromecastbuiltin/answer/3006709">Scopri di più</a></string>
+    <string name="cast_wifi_warning_title">Controlla la rete Wi-Fi \n</string>
+    <string name="cast_zero_devices_found">Nessun dispositivo trovato.\n</string>
+    <string name="cast_zero_devices_found_done_button_label">Fine</string>
+    <string name="cast_zero_devices_learn_more_description"><a href="https://support.google.com/chromecastbuiltin/answer/3006709">Scopri di più</a> su come trasmettere i tuoi contenuti ad altri dispositivi.</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Attiva</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">%1$s non funzionerà se non attivi Google Play Services.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Attiva Google Play Services</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Installa</string>
+    <string name="common_google_play_services_install_text">L\'app %1$s non funzionerà senza Google Play Services, non presente sul tuo dispositivo.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Installa Google Play Services</string>
+    <string name="common_google_play_services_notification_channel_name">Disponibilità di Google Play Services</string>
+    <string name="common_google_play_services_notification_ticker">Errore Google Play Services</string>
+    <string name="common_google_play_services_unknown_issue">%1$s sta riscontrando problemi con Google Play Services. Riprova.</string>
+    <string name="common_google_play_services_unsupported_text">%1$s non funzionerà senza Google Play Services, non supportati dal tuo dispositivo.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Aggiorna</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">%1$s non funzionerà se non aggiorni Google Play Services.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Aggiorna Google Play Services</string>
+    <string name="common_google_play_services_updating_text">%1$s non funzionerà senza Google Play Services, attualmente in fase di aggiornamento.</string>
+    <string name="common_google_play_services_wear_update_text">È richiesta una nuova versione di Google Play Services. L\'aggiornamento automatico verrà eseguito a breve.</string>
+    <string name="common_open_on_phone">Apri sul telefono</string>
+    <string name="common_signin_button_text">Accedi</string>
+    <string name="common_signin_button_text_long">Accedi con Google</string>
+    <string msgid="3260749812566568062" name="copy_toast_msg">"Link copiato negli appunti"</string>
+    <string name="default_notification_channel_name">Ora in riproduzione</string>
+    <string name="exo_controls_cc_disabled_description">Attiva i sottotitoli</string>
+    <string name="exo_controls_cc_enabled_description">Disattiva i sottotitoli</string>
+    <string name="exo_controls_fastforward_description">Avanti veloce</string>
+    <string name="exo_controls_fullscreen_enter_description">Attiva schermo intero</string>
+    <string name="exo_controls_fullscreen_exit_description">Esci da schermo intero</string>
+    <string name="exo_controls_hide">Nascondi i controlli del player</string>
+    <string name="exo_controls_next_description">Avanti</string>
+    <string name="exo_controls_overflow_hide_description">Nascondi impostazioni aggiuntive</string>
+    <string name="exo_controls_overflow_show_description">Mostra impostazioni aggiuntive</string>
+    <string name="exo_controls_pause_description">Pausa</string>
+    <string name="exo_controls_play_description">Riproduci</string>
+    <string name="exo_controls_playback_speed">Velocità</string>
+    <string name="exo_controls_previous_description">Indietro</string>
+    <string name="exo_controls_repeat_all_description">Modalità attuale: Ripeti tutto. Cambia modalità di ripetizione.</string>
+    <string name="exo_controls_repeat_off_description">Modalità attuale: Non ripetere nulla. Cambia modalità di ripetizione.</string>
+    <string name="exo_controls_repeat_one_description">Modalità attuale: Ripeti uno. Cambia modalità di ripetizione.</string>
+    <string name="exo_controls_rewind_description">Riavvolgi</string>
+    <string name="exo_controls_seek_bar_description">Avanzamento della riproduzione</string>
+    <string name="exo_controls_settings_description">Impostazioni</string>
+    <string name="exo_controls_show">Mostra i controlli del player</string>
+    <string name="exo_controls_shuffle_off_description">Attiva la riproduzione casuale</string>
+    <string name="exo_controls_shuffle_on_description">Disattiva la riproduzione casuale</string>
+    <string name="exo_controls_stop_description">Interrompi</string>
+    <string name="exo_controls_vr_description">Modalità VR</string>
+    <string name="exo_download_completed">Download completato</string>
+    <string name="exo_download_description">Scarica</string>
+    <string name="exo_download_downloading">Download in corso…</string>
+    <string name="exo_download_failed">Download non riuscito</string>
+    <string name="exo_download_notification_channel_name">Download</string>
+    <string name="exo_download_paused">Download in pausa</string>
+    <string name="exo_download_paused_for_network">Download in attesa di rete</string>
+    <string name="exo_download_paused_for_wifi">Download in attesa di Wi-Fi</string>
+    <string name="exo_download_removing">Rimozione dei download…</string>
+    <string name="exo_item_list">%1$s, %2$s</string>
+    <string name="exo_media_action_repeat_all_description">Ripeti tutto</string>
+    <string name="exo_media_action_repeat_off_description">Non ripetere nulla</string>
+    <string name="exo_media_action_repeat_one_description">Ripeti uno</string>
+    <string name="exo_track_bitrate">%1$.2f Mbps</string>
+    <string name="exo_track_mono">Mono</string>
+    <string name="exo_track_resolution">%1$d × %2$d</string>
+    <string name="exo_track_role_alternate">Versione alternativa</string>
+    <string name="exo_track_role_closed_captions">Sottotitoli</string>
+    <string name="exo_track_role_commentary">Commenti</string>
+    <string name="exo_track_role_supplementary">Contenuti supplementari</string>
+    <string name="exo_track_selection_auto">Auto</string>
+    <string name="exo_track_selection_none">Nessuno</string>
+    <string name="exo_track_selection_title_audio">Audio</string>
+    <string name="exo_track_selection_title_text">Testo</string>
+    <string name="exo_track_selection_title_video">Video</string>
+    <string name="exo_track_stereo">Stereo</string>
+    <string name="exo_track_surround">Audio surround</string>
+    <string name="exo_track_surround_5_point_1">Audio surround 5.1</string>
+    <string name="exo_track_surround_7_point_1">Audio surround 7.1</string>
+    <string name="exo_track_unknown">Sconosciuta</string>
+    <string name="exo_track_unknown_name">Sconosciute (%1$s)</string>
+    <string msgid="4566929209979330987" name="fallback_menu_item_copy_link">"Copia link"</string>
+    <string msgid="3413186855122069269" name="fallback_menu_item_open_in_browser">"Apri nel browser"</string>
+    <string msgid="7145444925855055364" name="fallback_menu_item_share_link">"Condividi link"</string>
+    <string name="media3_controls_pause_description">Metti in pausa</string>
+    <string name="media3_controls_play_description">Riproduci</string>
+    <string name="media3_controls_seek_back_description">Vai indietro</string>
+    <string name="media3_controls_seek_forward_description">Vai avanti</string>
+    <string name="media3_controls_seek_to_next_description">Vai all\'elemento successivo</string>
+    <string name="media3_controls_seek_to_previous_description">Vai all\'elemento precedente</string>
+    <string name="media_notification_channel_name">Trasmissione</string>
+    <string msgid="2939063992730535343" name="mr_button_content_description">"Trasmetti"</string>
+    <string msgid="6073720094880410356" name="mr_cast_button_connected">"Trasmetti. Connesso"</string>
+    <string msgid="6629927151350192407" name="mr_cast_button_connecting">"Trasmetti. Connessione"</string>
+    <string msgid="8071109333469380363" name="mr_cast_button_disconnected">"Trasmetti. Disconnesso"</string>
+    <string msgid="2175930138959078155" name="mr_cast_dialog_title_view_placeholder">"Nessuna informazione disponibile"</string>
+    <string msgid="6114250663023140921" name="mr_chooser_searching">"Ricerca di dispositivi"</string>
+    <string msgid="1419936397646839840" name="mr_chooser_title">"Trasmetti a"</string>
+    <string msgid="3330502667672708728" name="mr_controller_album_art">"Copertina dell\'album"</string>
+    <string msgid="9171231064758955152" name="mr_controller_casting_screen">"Trasmissione dello schermo attiva"</string>
+    <string msgid="5684434439232634509" name="mr_controller_close_description">"Chiudi"</string>
+    <string msgid="2585048604188129749" name="mr_controller_collapse_group">"Comprimi"</string>
+    <string msgid="7812275474138309497" name="mr_controller_disconnect">"Disconnetti"</string>
+    <string msgid="4521419834052044261" name="mr_controller_expand_group">"Espandi"</string>
+    <string msgid="855271725131981086" name="mr_controller_no_info_available">"Nessuna informazione disponibile"</string>
+    <string msgid="5495452265246139458" name="mr_controller_no_media_selected">"Nessun contenuto multimediale selezionato"</string>
+    <string msgid="747801650871398383" name="mr_controller_pause">"Metti in pausa"</string>
+    <string msgid="1253345086594430054" name="mr_controller_play">"Riproduci"</string>
+    <string msgid="5497722768305745508" name="mr_controller_stop">"Interrompi"</string>
+    <string msgid="804210341192624074" name="mr_controller_stop_casting">"Interrompi trasmissione"</string>
+    <string msgid="2955862765169128170" name="mr_controller_volume_slider">"Dispositivo di scorrimento del volume"</string>
+    <string msgid="4115858704575247342" name="mr_dialog_default_group_name">"Gruppo"</string>
+    <string msgid="4307018456678388936" name="mr_dialog_groupable_header">"Aggiungi un dispositivo"</string>
+    <string msgid="6068257520605505468" name="mr_dialog_transferable_header">"Riproduci su un gruppo"</string>
+    <string msgid="7449553026175453403" name="mr_system_route_name">"Sistema"</string>
+    <string msgid="4088331695424166162" name="mr_user_route_category_name">"Dispositivi"</string>
+    <string msgid="6264217191555673260" name="search_menu_title">"Cerca"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+</resources>
