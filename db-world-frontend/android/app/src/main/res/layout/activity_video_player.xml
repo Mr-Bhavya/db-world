@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DB-World native video player layout.
+  PlayerView fills the screen; controls_container sits on top and auto-hides.
+  lock_overlay covers everything and blocks touch when screen is locked.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <!-- ── Video surface ──────────────────────────────────────────────────── -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:use_controller="false"
+        app:resize_mode="fit"
+        app:surface_type="surface_view"
+        app:show_subtitle_button="false" />
+
+    <!-- ── Controls container (auto-hides) ───────────────────────────────── -->
+    <FrameLayout
+        android:id="@+id/controls_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Top gradient -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:background="@drawable/gradient_top" />
+
+        <!-- Bottom gradient -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/gradient_bottom" />
+
+        <!-- ── Top bar ─────────────────────────────────────────────────── -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <ImageButton
+                android:id="@+id/btn_back"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:tint="@android:color/white"
+                android:contentDescription="Back" />
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_toEndOf="@id/btn_back"
+                android:layout_toStartOf="@+id/btn_pip"
+                android:layout_centerVertical="true"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:shadowColor="@android:color/black"
+                android:shadowRadius="3"
+                android:textColor="@android:color/white"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btn_pip"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_slideshow"
+                android:tint="@android:color/white"
+                android:contentDescription="Picture-in-Picture" />
+        </RelativeLayout>
+
+        <!-- ── Centre seek-flash labels + play/pause ──────────────────── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- Left-third: double-tap seek −10 s -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center">
+                <TextView
+                    android:id="@+id/tv_seek_left"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="◀◀  10 s"
+                    android:textColor="@android:color/white"
+                    android:textSize="18sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <!-- Centre: play / pause -->
+            <ImageButton
+                android:id="@+id/btn_play_pause"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:background="#55000000"
+                android:src="@android:drawable/ic_media_pause"
+                android:tint="@android:color/white"
+                android:contentDescription="Play / Pause" />
+
+            <!-- Right-third: double-tap seek +10 s -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center">
+                <TextView
+                    android:id="@+id/tv_seek_right"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="10 s  ▶▶"
+                    android:textColor="@android:color/white"
+                    android:textSize="18sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- ── Bottom bar ─────────────────────────────────────────────── -->
+        <LinearLayout
+            android:id="@+id/bottom_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="12dp">
+
+            <!-- Seekbar -->
+            <SeekBar
+                android:id="@+id/seek_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:progressBackgroundTint="#66FFFFFF"
+                android:progressTint="@android:color/white"
+                android:thumbTint="@android:color/white"
+                android:secondaryProgressTint="#88FFFFFF" />
+
+            <!-- Time + action buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="2dp">
+
+                <TextView
+                    android:id="@+id/tv_time"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="0:00 / 0:00"
+                    android:textColor="@android:color/white"
+                    android:textSize="12sp" />
+
+                <!-- Audio tracks -->
+                <ImageButton
+                    android:id="@+id/btn_audio_track"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_btn_speak_now"
+                    android:tint="@android:color/white"
+                    android:contentDescription="Audio tracks" />
+
+                <!-- Subtitles -->
+                <ImageButton
+                    android:id="@+id/btn_subtitle_track"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_agenda"
+                    android:tint="@android:color/white"
+                    android:contentDescription="Subtitles" />
+
+                <!-- Lock -->
+                <ImageButton
+                    android:id="@+id/btn_lock"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_lock_idle_lock"
+                    android:tint="@android:color/white"
+                    android:contentDescription="Lock screen" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ── Brightness / Volume gesture indicator ───────────────────── -->
+        <LinearLayout
+            android:id="@+id/gesture_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="72dp"
+            android:background="#CC000000"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/gesture_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_lock_silent_mode_off"
+                android:tint="@android:color/white" />
+
+            <TextView
+                android:id="@+id/gesture_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="50%"
+                android:textColor="@android:color/white"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+    </FrameLayout><!-- end controls_container -->
+
+    <!-- ── Lock overlay (blocks all touches, shows unlock button) ────────── -->
+    <FrameLayout
+        android:id="@+id/lock_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/btn_unlock"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_gravity="center_vertical|start"
+            android:layout_marginStart="20dp"
+            android:background="#66000000"
+            android:src="@android:drawable/ic_lock_idle_lock"
+            android:tint="@android:color/white"
+            android:contentDescription="Unlock" />
+    </FrameLayout>
+
+    <!-- ── Buffering spinner ──────────────────────────────────────────────── -->
+    <ProgressBar
+        android:id="@+id/buffering_indicator"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="center"
+        android:indeterminate="true"
+        android:indeterminateTint="@android:color/white"
+        android:visibility="gone" />
+
+</FrameLayout>

@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string-array name="exo_controls_playback_speeds">
+    <item>0,25 k.</item>
+    <item>0,5 k.</item>
+    <item>0,75 k.</item>
+    <item>Įprasta</item>
+    <item>1,25 k.</item>
+    <item>1,5 k.</item>
+    <item>2 k.</item>
+  </string-array>
+    <plurals name="exo_controls_fastforward_by_amount_description">
+    <item quantity="one">Prasukti pirmyn %d sekundę</item>
+    <item quantity="few">Prasukti pirmyn %d sekundes</item>
+    <item quantity="many">Prasukti pirmyn %d sekundės</item>
+    <item quantity="other">Prasukti pirmyn %d sekundžių</item>
+  </plurals>
+    <plurals name="exo_controls_rewind_by_amount_description">
+    <item quantity="one">Atsukti atgal %d sekundę</item>
+    <item quantity="few">Atsukti atgal %d sekundes</item>
+    <item quantity="many">Atsukti atgal %d sekundės</item>
+    <item quantity="other">Atsukti atgal %d sekundžių</item>
+  </plurals>
+    <string msgid="5976598919945601918" name="abc_action_bar_home_description">"Eiti į pagrindinį puslapį"</string>
+    <string msgid="8388173803310557296" name="abc_action_bar_up_description">"Naršyti aukštyn"</string>
+    <string msgid="3937310113216875497" name="abc_action_menu_overflow_description">"Daugiau parinkčių"</string>
+    <string msgid="4692188335987374352" name="abc_action_mode_done">"Atlikta"</string>
+    <string msgid="1189761859438369441" name="abc_activity_chooser_view_see_all">"Žr. viską"</string>
+    <string msgid="2165779757652331008" name="abc_activitychooserview_choose_application">"Pasirinkite programą"</string>
+    <string msgid="4215997306490295099" name="abc_capital_off">"IŠJUNGTI"</string>
+    <string msgid="884982626291842264" name="abc_capital_on">"ĮJUNGTI"</string>
+    <string msgid="8833365367933412986" name="abc_menu_alt_shortcut_label">"„Alt“ +"</string>
+    <string msgid="2223301931652355242" name="abc_menu_ctrl_shortcut_label">"„Ctrl“ +"</string>
+    <string msgid="838001238306846836" name="abc_menu_delete_shortcut_label">"„delete“"</string>
+    <string msgid="7986526966204849475" name="abc_menu_enter_shortcut_label">"„enter“"</string>
+    <string msgid="375214403600139847" name="abc_menu_function_shortcut_label">"„Function“ +"</string>
+    <string msgid="4192209724446364286" name="abc_menu_meta_shortcut_label">"„Meta“ +"</string>
+    <string msgid="4741552369836443843" name="abc_menu_shift_shortcut_label">"„Shift“ +"</string>
+    <string msgid="5473865519181928982" name="abc_menu_space_shortcut_label">"„space“"</string>
+    <string msgid="6180552449598693998" name="abc_menu_sym_shortcut_label">"„Sym“ +"</string>
+    <string msgid="5520303668377388990" name="abc_prepend_shortcut_label">"„Menu“ +"</string>
+    <string msgid="7208076849092622260" name="abc_search_hint">"Ieškoti…"</string>
+    <string msgid="3741173234950517107" name="abc_searchview_description_clear">"Išvalyti užklausą"</string>
+    <string msgid="693312494995508443" name="abc_searchview_description_query">"Paieškos užklausa"</string>
+    <string msgid="3417662926640357176" name="abc_searchview_description_search">"Ieškoti"</string>
+    <string msgid="1486535517437947103" name="abc_searchview_description_submit">"Pateikti užklausą"</string>
+    <string msgid="2293578557972875415" name="abc_searchview_description_voice">"Paieška balsu"</string>
+    <string msgid="8875138169939072951" name="abc_shareactionprovider_share_with">"Bendrinti su"</string>
+    <string msgid="9055268688411532828" name="abc_shareactionprovider_share_with_application">"Bendrinti naudojant programą „<ns1:g id="APPLICATION_NAME">%s</ns1:g>“"</string>
+    <string msgid="1656852541809559762" name="abc_toolbar_collapse_description">"Sutraukti"</string>
+    <string name="authentication_required">Būtina nustatyti tapatybę</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Atsakyti"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Vaizdo įrašas"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Atmesti"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Baigti pok."</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Gaunamasis skambutis"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Vykstantis skambutis"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Gaunamojo skambučio tikrinimas"</string>
+    <string name="cast_ad_label">Skelbimas</string>
+    <string name="cast_casting_to_device">Perduodama į „%1$s“</string>
+    <string name="cast_closed_captions">Subtitrai</string>
+    <string name="cast_closed_captions_unavailable">Subtitrai nepasiekiami</string>
+    <string name="cast_connecting_to_device">Prisijungiama prie „%1$s“</string>
+    <string name="cast_device_chooser_searching_for_devices">Ieškoma įrenginių</string>
+    <string name="cast_device_chooser_title">Perduoti į</string>
+    <string name="cast_disconnect">Atjungti</string>
+    <string name="cast_dynamic_group_name_format">%1$s + %2$d</string>
+    <string name="cast_expanded_controller_ad_image_description">Vaizdas, rodomas, kol „Cast“ imtuvas leidžia skelbimą</string>
+    <string name="cast_expanded_controller_ad_in_progress">Skelbimas apdorojamas…</string>
+    <string name="cast_expanded_controller_background_image">Albumo viršelis</string>
+    <string name="cast_expanded_controller_live_head_description">Dabartinė pozicija yra tiesioginio srauto viršuje</string>
+    <string name="cast_expanded_controller_live_stream_indicator">Tiesioginė transliacija</string>
+    <string name="cast_expanded_controller_loading">Įkeliama…</string>
+    <string name="cast_expanded_controller_skip_ad_label">Praleisti skelbimą</string>
+    <string name="cast_expanded_controller_skip_ad_text">Skelbimą galėsite praleisti po %1$d…</string>
+    <string name="cast_forward">Pirmyn</string>
+    <string name="cast_forward_10">Pirmyn dešimt sekundžių</string>
+    <string name="cast_forward_30">Pirmyn trisdešimt sekundžių</string>
+    <string name="cast_intro_overlay_button_text">@android:string/ok</string>
+    <string name="cast_live_label">TIESIOGIAI</string>
+    <string name="cast_mute">Nutildyti</string>
+    <string name="cast_notification_connected_message">Prisijungta prie „%1$s“</string>
+    <string name="cast_notification_connecting_message">Prisijungiama prie „%1$s“</string>
+    <string name="cast_notification_default_channel_name">Cast</string>
+    <string name="cast_notification_disconnect">Atsijungti</string>
+    <string name="cast_pause">Pristabdyti</string>
+    <string name="cast_play">Leisti</string>
+    <string name="cast_rewind">Atsukti atgal</string>
+    <string name="cast_rewind_10">Atsukti dešimt sekundžių atgal</string>
+    <string name="cast_rewind_30">Atsukti trisdešimt sekundžių atgal</string>
+    <string name="cast_seek_bar">Atkūrimo paieškos valdiklis</string>
+    <string name="cast_skip_next">Pereiti prie kito elemento</string>
+    <string name="cast_skip_prev">Pereiti prie ankstesnio elemento</string>
+    <string name="cast_stop">Sustabdyti</string>
+    <string name="cast_stop_live_stream">Sustabdyti tiesioginį srautą</string>
+    <string name="cast_tracks_chooser_dialog_audio">Garsas</string>
+    <string name="cast_tracks_chooser_dialog_cancel">Atšaukti</string>
+    <string name="cast_tracks_chooser_dialog_closed_captions">Subtitrai</string>
+    <string name="cast_tracks_chooser_dialog_default_track_name">%1$d takelis</string>
+    <string name="cast_tracks_chooser_dialog_none">Nėra</string>
+    <string name="cast_tracks_chooser_dialog_ok">Gerai</string>
+    <string name="cast_tracks_chooser_dialog_subtitles">Subtitrai</string>
+    <string name="cast_unmute">Įjungti garsą</string>
+    <string name="cast_wifi_warning_description">Įsitikinkite, kad jūsų ir perdavimo įrenginiai prijungti prie to paties „Wi-Fi“ tinklo. \n\n<a href="https://support.google.com/chromecastbuiltin/answer/3006709">Sužinokite daugiau</a></string>
+    <string name="cast_wifi_warning_title">Patikrinkite „Wi-Fi“ tinklą \n</string>
+    <string name="cast_zero_devices_found">Įrenginių nerasta.\n</string>
+    <string name="cast_zero_devices_found_done_button_label">Atlikta</string>
+    <string name="cast_zero_devices_learn_more_description"><a href="https://support.google.com/chromecastbuiltin/answer/3006709">Sužinokite daugiau</a> apie tai, kaip perduoti turinį į kitus įrenginius.</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Įgalinti</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">„%1$s“ neveiks, jei neįgalinsite „Google Play“ paslaugų.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Įgalinkite „Google Play“ paslaugas</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Įdiegti</string>
+    <string name="common_google_play_services_install_text">Programa „%1$s“ nebus paleidžiama be „Google Play“ paslaugų, kurių nėra įrenginyje.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Gaukite „Google Play“ paslaugas</string>
+    <string name="common_google_play_services_notification_channel_name">„Google Play“ paslaugų pasiekiamumas</string>
+    <string name="common_google_play_services_notification_ticker">„Google Play“ paslaugų klaida</string>
+    <string name="common_google_play_services_unknown_issue">Naudojant programą „%1$s“ kilo problemų dėl „Google Play“ paslaugų. Bandykite dar kartą.</string>
+    <string name="common_google_play_services_unsupported_text">Programa „%1$s“ nebus paleidžiama be „Google Play“ paslaugų, kurių jūsų įrenginys nepalaiko.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Atnaujinti</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">„%1$s“ nebus paleidžiama, jei neatnaujinsite „Google Play“ paslaugų.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Atnaujinkite „Google Play“ paslaugas</string>
+    <string name="common_google_play_services_updating_text">„%1$s“ nebus paleidžiama be „Google Play“ paslaugų, kurios šiuo metu atnaujinamos.</string>
+    <string name="common_google_play_services_wear_update_text">Reikia naujos versijos „Google Play“ paslaugų. Jos netrukus bus atnaujintos.</string>
+    <string name="common_open_on_phone">Atidaryti telefone</string>
+    <string name="common_signin_button_text">Prisijungti</string>
+    <string name="common_signin_button_text_long">Prisijungti naudojant „Google“</string>
+    <string msgid="3260749812566568062" name="copy_toast_msg">"Nuoroda nukopijuota į iškarpinę"</string>
+    <string name="default_notification_channel_name">Dabar leidžiama</string>
+    <string name="exo_controls_cc_disabled_description">Įgalinti subtitrus</string>
+    <string name="exo_controls_cc_enabled_description">Išjungti subtitrus</string>
+    <string name="exo_controls_fastforward_description">Sukti pirmyn</string>
+    <string name="exo_controls_fullscreen_enter_description">Įjungti viso ekrano režimą</string>
+    <string name="exo_controls_fullscreen_exit_description">Išjungti viso ekrano režimą</string>
+    <string name="exo_controls_hide">Slėpti leistuvės valdiklius</string>
+    <string name="exo_controls_next_description">Kitas</string>
+    <string name="exo_controls_overflow_hide_description">Slėpti papildomus nustatymus</string>
+    <string name="exo_controls_overflow_show_description">Rodyti papildomus nustatymus</string>
+    <string name="exo_controls_pause_description">Pristabdyti</string>
+    <string name="exo_controls_play_description">Leisti</string>
+    <string name="exo_controls_playback_speed">Sparta</string>
+    <string name="exo_controls_previous_description">Ankstesnės</string>
+    <string name="exo_controls_repeat_all_description">Dabart. rež.: kart. viską. Perj. pakart. r.</string>
+    <string name="exo_controls_repeat_off_description">Dabart. rež.: nekart. nieko. Perj. pakart. r.</string>
+    <string name="exo_controls_repeat_one_description">Dabart. rež.: kart. vieną. Perj. pakart. r.</string>
+    <string name="exo_controls_rewind_description">Sukti atgal</string>
+    <string name="exo_controls_seek_bar_description">Atkūrimo eiga</string>
+    <string name="exo_controls_settings_description">Nustatymai</string>
+    <string name="exo_controls_show">Rodyti leistuvės valdiklius</string>
+    <string name="exo_controls_shuffle_off_description">Įgalinti maišymo režimą</string>
+    <string name="exo_controls_shuffle_on_description">Išjungti maišymo režimą</string>
+    <string name="exo_controls_stop_description">Sustabdyti</string>
+    <string name="exo_controls_vr_description">VR režimas</string>
+    <string name="exo_download_completed">Atsisiuntimo procesas baigtas</string>
+    <string name="exo_download_description">Atsisiųsti</string>
+    <string name="exo_download_downloading">Atsisiunčiama</string>
+    <string name="exo_download_failed">Nepavyko atsisiųsti</string>
+    <string name="exo_download_notification_channel_name">Atsisiuntimai</string>
+    <string name="exo_download_paused">Atsisiuntimai pristabdyti</string>
+    <string name="exo_download_paused_for_network">Norint tęsti atsis., laukiama tinklo</string>
+    <string name="exo_download_paused_for_wifi">Norint tęsti atsis., laukiama „Wi-Fi“</string>
+    <string name="exo_download_removing">Pašalinami atsisiuntimai</string>
+    <string name="exo_item_list">%1$s, %2$s</string>
+    <string name="exo_media_action_repeat_all_description">Kartoti viską</string>
+    <string name="exo_media_action_repeat_off_description">Nekartoti nieko</string>
+    <string name="exo_media_action_repeat_one_description">Kartoti vieną</string>
+    <string name="exo_track_bitrate">%1$.2f Mb/s</string>
+    <string name="exo_track_mono">Monofoninis</string>
+    <string name="exo_track_resolution">%1$d × %2$d</string>
+    <string name="exo_track_role_alternate">Alternatyvus</string>
+    <string name="exo_track_role_closed_captions">Subtitrai</string>
+    <string name="exo_track_role_commentary">Komentaras</string>
+    <string name="exo_track_role_supplementary">Papildomas</string>
+    <string name="exo_track_selection_auto">Automatinė</string>
+    <string name="exo_track_selection_none">Nėra</string>
+    <string name="exo_track_selection_title_audio">Garso įrašas</string>
+    <string name="exo_track_selection_title_text">Tekstas</string>
+    <string name="exo_track_selection_title_video">Vaizdo įrašas</string>
+    <string name="exo_track_stereo">Stereofoninis</string>
+    <string name="exo_track_surround">Erdvinis garsas</string>
+    <string name="exo_track_surround_5_point_1">5.1 erdvinis garsas</string>
+    <string name="exo_track_surround_7_point_1">7.1 erdvinis garsas</string>
+    <string name="exo_track_unknown">Nežinomas</string>
+    <string name="exo_track_unknown_name">Nežinoma (%1$s)</string>
+    <string msgid="4566929209979330987" name="fallback_menu_item_copy_link">"Kopijuoti nuorodą"</string>
+    <string msgid="3413186855122069269" name="fallback_menu_item_open_in_browser">"Atidaryti naršyklėje"</string>
+    <string msgid="7145444925855055364" name="fallback_menu_item_share_link">"Bendrinti nuorodą"</string>
+    <string name="media3_controls_pause_description">Pristabdyti</string>
+    <string name="media3_controls_play_description">Paleisti</string>
+    <string name="media3_controls_seek_back_description">Prasukti atgal</string>
+    <string name="media3_controls_seek_forward_description">Prasukti pirmyn</string>
+    <string name="media3_controls_seek_to_next_description">Prasukti į kitą elementą</string>
+    <string name="media3_controls_seek_to_previous_description">Prasukti į ankstesnį elementą</string>
+    <string name="media_notification_channel_name">Cast</string>
+    <string msgid="2939063992730535343" name="mr_button_content_description">"Perduoti"</string>
+    <string msgid="6073720094880410356" name="mr_cast_button_connected">"Perduoti. Prisijungta"</string>
+    <string msgid="6629927151350192407" name="mr_cast_button_connecting">"Perduoti. Prisijungiama"</string>
+    <string msgid="8071109333469380363" name="mr_cast_button_disconnected">"Perduoti. Atsijungta"</string>
+    <string msgid="2175930138959078155" name="mr_cast_dialog_title_view_placeholder">"Nėra jokios informacijos"</string>
+    <string msgid="6114250663023140921" name="mr_chooser_searching">"Randami įrenginiai"</string>
+    <string msgid="1419936397646839840" name="mr_chooser_title">"Perduoti į"</string>
+    <string msgid="3330502667672708728" name="mr_controller_album_art">"Albumo viršelis"</string>
+    <string msgid="9171231064758955152" name="mr_controller_casting_screen">"Perduodamas ekranas"</string>
+    <string msgid="5684434439232634509" name="mr_controller_close_description">"Uždaryti"</string>
+    <string msgid="2585048604188129749" name="mr_controller_collapse_group">"Sutraukti"</string>
+    <string msgid="7812275474138309497" name="mr_controller_disconnect">"Atjungti"</string>
+    <string msgid="4521419834052044261" name="mr_controller_expand_group">"Išskleisti"</string>
+    <string msgid="855271725131981086" name="mr_controller_no_info_available">"Informacija nepasiekiama"</string>
+    <string msgid="5495452265246139458" name="mr_controller_no_media_selected">"Nepasirinkta jokios medijos"</string>
+    <string msgid="747801650871398383" name="mr_controller_pause">"Pristabdyti"</string>
+    <string msgid="1253345086594430054" name="mr_controller_play">"Leisti"</string>
+    <string msgid="5497722768305745508" name="mr_controller_stop">"Sustabdyti"</string>
+    <string msgid="804210341192624074" name="mr_controller_stop_casting">"Sustabdyti perdavimą"</string>
+    <string msgid="2955862765169128170" name="mr_controller_volume_slider">"Garsumo šliaužiklis"</string>
+    <string msgid="4115858704575247342" name="mr_dialog_default_group_name">"Grupė"</string>
+    <string msgid="4307018456678388936" name="mr_dialog_groupable_header">"Įrenginio pridėjimas"</string>
+    <string msgid="6068257520605505468" name="mr_dialog_transferable_header">"Leidimas grupėje"</string>
+    <string msgid="7449553026175453403" name="mr_system_route_name">"Sistema"</string>
+    <string msgid="4088331695424166162" name="mr_user_route_category_name">"Įrenginiai"</string>
+    <string msgid="6264217191555673260" name="search_menu_title">"Ieškoti"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+</resources>
