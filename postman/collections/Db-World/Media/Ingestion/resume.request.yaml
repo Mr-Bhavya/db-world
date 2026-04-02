@@ -1,0 +1,5 @@
+$kind: http-request
+name: resume
+url: "{{baseUrl}}/api/ingestion/{{jobId}}/resume"
+method: PUT
+order: 4501741045523295

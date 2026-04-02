@@ -1,0 +1,36 @@
+$kind: http-request
+name: ingestion
+url: "{{baseUrl}}/api/ingestion"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"uri\": \"https://example.com/video.mp4\",\r
+
+    \    \"folderName\": \"1-test\",\r
+
+    \    \"urlProtected\": false,\r
+
+    \    \"fileName\": \"test-video.mp4\",\r
+
+    \    \"expectedSize\": 104857600,\r
+
+    \    \"extract\": false,\r
+
+    \    \"rename\": false,\r
+
+    \    \"videoITag\": null,\r
+
+    \    \"audioITag\": null,\r
+
+    \    \"onlyAudio\": false,\r
+
+    \    \"recordId\": 1,\r
+
+    \    \"season\": 0,\r
+
+    \    \"episode\": null\r
+
+    }"
+order: 1775108943159

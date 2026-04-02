@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/stream/list?path=/South&ftp=false"
+method: GET
+queryParams:
+  path: /South
+  ftp: "false"
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcwNjk1NTkxOSwiZXhwIjoxNzA2OTkxOTE5fQ.X4lVkuCtz94GHPO7NYz1QZcxvsCgsd5EX_NnfUhuKe4uB5W_PIX2HRah7oYlD4IN5S_JHZzS2dtF4cgnp4eu6Q
+order: 2000

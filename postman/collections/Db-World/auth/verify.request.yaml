@@ -1,0 +1,5 @@
+$kind: http-request
+name: verify
+url: "{{baseUrl}}/api/auth/verify"
+method: GET
+order: 1000

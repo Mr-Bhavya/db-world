@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/admin/cinema/record/2350"
+method: DELETE
+body:
+  type: json
+  content: ""
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTczMDQ1MDEyMiwiZXhwIjoxNzMwNDg2MTIyfQ.-tSxzSneVpkbYusaK_Qh023puhwjoxIw-_g5lUncspn1k-9Ehj8k5mcKkbPAXDWJaDjubJLOh72dVy-WS0MkFQ
+order: 14000

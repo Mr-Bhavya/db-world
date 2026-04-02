@@ -1,0 +1,9 @@
+$kind: http-request
+name: Refresh/Update TMDB data
+url: "{{LOCALHOST_BASE_URL}}/api/cinema/records/update"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcwOTcyOTQ3MywiZXhwIjoxNzA5NzY1NDczfQ.mEf3QX555JLTq40ZslPpzYj_xVMrAWE65dvfk4xgIwuhJVxlTqQ0-2syVUBqpLwOKBMcwc-FmnNo25GDlngV7A
+order: 2000

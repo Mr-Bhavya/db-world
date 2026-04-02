@@ -1,0 +1,23 @@
+name: LOCAL
+values:
+  - key: baseUrl
+    value: ''
+    enabled: true
+  - key: email
+    value: ''
+    enabled: true
+  - key: pass
+    value: ''
+    enabled: true
+  - key: isRetry
+    value: ''
+    enabled: true
+  - key: accessToken
+    value: ''
+    enabled: true
+  - key: isRefreshing
+    value: ''
+    enabled: true
+  - key: jobId
+    value: ''
+    enabled: true

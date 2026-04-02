@@ -181,7 +181,10 @@ const CinemaPage = ({ pageType = 'home' }) => {
     else selectCategory(genreOrNull);
   }, [selectCategory, clearCategory]);
 
-  const remainingRails = useMemo(() => rails.slice(1), [rails]);
+  const remainingRails = useMemo(
+    () => rails.length > 1 ? rails.slice(1) : [],
+    [rails]
+  );
 
   return (
     <Box
@@ -232,20 +235,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
           </>
         ) : (
           <>
-            {heroRail && (
-              <RailRow
-                rail={heroRail}
-                category={category}
-                interactions={interactions}
-                onWatchlist={handleWatchlist}
-                onLike={handleLike}
-                onLove={handleLove}
-                onWatched={handleWatched}
-                onExplore={handleExploreAll}
-                wide={true}
-                eager={true}
-              />
-            )}
+
 
             {remainingRails.map((rail, idx) => (
               <RailRow

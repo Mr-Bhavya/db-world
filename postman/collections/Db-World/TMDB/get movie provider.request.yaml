@@ -1,0 +1,6 @@
+$kind: http-request
+url: https://api.themoviedb.org/3/movie/527511/watch/providers?api_key=30061af77dba3722bbe14a2691055544
+method: GET
+queryParams:
+  api_key: 30061af77dba3722bbe14a2691055544
+order: 2000

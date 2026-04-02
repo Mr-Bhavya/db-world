@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/utils/mirror/1716397057927"
+method: DELETE
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcxNjM5MTQzMywiZXhwIjoxNzE2NDI3NDMzfQ.qRjBeAk0V-W0rNeAcXee_8FI6Jti2mmdI78Ve4DyLDRNH-YwGAuWEXbAp8lYCxgGZ4iF4mFBks3rfsHi8ocdww
+order: 5000

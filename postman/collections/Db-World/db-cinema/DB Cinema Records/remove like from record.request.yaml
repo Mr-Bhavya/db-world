@@ -1,0 +1,6 @@
+$kind: http-request
+url: http://localhost:9090/api/cinema/record/657186e21db08a385c3a1dfa/unlike?userId=656d5aa1a7459d4d4d0bbb4f
+method: GET
+queryParams:
+  userId: 656d5aa1a7459d4d4d0bbb4f
+order: 7000

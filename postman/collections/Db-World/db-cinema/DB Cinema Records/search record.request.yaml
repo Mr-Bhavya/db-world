@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/cinema/record/search?q=dwrt"
+method: GET
+queryParams:
+  q: dwrt
+order: 3000

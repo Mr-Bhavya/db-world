@@ -30,6 +30,7 @@ async function extractDominantColor(imgUrl) {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
     img.onload = () => {
       try {
         const SIZE = 60;

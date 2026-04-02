@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/bhavya.dudhia/IdeaProjects/db-world/db-world-backend/src/main/resources -type f \\\\\\(-name *.sql -o -name *migration* -o -name *changelog* -o -name V*.sql -o -name U*.sql \\\\\\))",
+      "Bash(git -C C:/Users/bhavya.dudhia/IdeaProjects/db-world ls-files db-world-frontend/src/android-app-components/)",
+      "Bash(git -C C:/Users/bhavya.dudhia/IdeaProjects/db-world ls-files db-world-frontend/src/images/)",
+      "Bash(python3 -:*)",
+      "Bash(python -:*)",
+      "Bash(python -c \":*)",
+      "Bash(find C:/Users/bhavya.dudhia/IdeaProjects/db-world/db-world-frontend -type f \\\\\\(-name *.gradle -o -name capacitor.config.* -o -name AndroidManifest.xml \\\\\\))",
+      "Bash(find C:Usersbhavya.dudhiaIdeaProjectsdb-worlddb-world-frontendsrc -maxdepth 3 -type f \\\\\\(-name *route* -o -name *Route* -o -name *App.js -o -name *Sidebar* -o -name *Navbar* \\\\\\))",
+      "Bash(find /c/Users/bhavya.dudhia/IdeaProjects/db-world/db-world-frontend/src/features/admin -type f \\\\\\(-name *.js -o -name *.jsx \\\\\\))",
+      "Bash(grep -E '\"\"zod\"\"|\"\"zustand\"\"|\"\"@tanstack/react-query\"\"' package.json)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(mvn compile:*)",
+      "Bash(C:\\\\Users\\\\bhavya.dudhia\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.0.6\\\\scripts\\\\start-server.sh --project-dir C:\\\\Users\\\\bhavya.dudhia\\\\IdeaProjects\\\\db-world)",
+      "Read(//c/Users/BHAVYA~1.DUD/AppData/Local/Temp/claude/**)",
+      "Bash(find /tmp -name \"bp6et1gyi.output\")",
+      "Bash(bash \"/c/Users/bhavya.dudhia/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6/scripts/start-server.sh\" --project-dir \"/c/Users/bhavya.dudhia/IdeaProjects/db-world\")",
+      "Bash(git:*)",
+      "Bash(node -e \"const z = require\\(''zod''\\); console.log\\(typeof z.string\\(\\).startsWith\\)\")",
+      "Bash(uipro init:*)",
+      "Bash(claude plugin:*)",
+      "Bash(/plugin marketplace:*)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__ide__getDiagnostics",
+      "Bash(find /c/Users/bhavya.dudhia/IdeaProjects/db-world/db-world-frontend/src/shared -type f \\\\\\(-name *AxiosInstant* -o -name index.js -o -name constants.js \\\\\\))"
+    ]
+  }
+}

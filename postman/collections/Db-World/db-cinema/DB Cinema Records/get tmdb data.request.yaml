@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:9090/api/cinema/tmdb/movie/545609
+method: GET
+order: 8000

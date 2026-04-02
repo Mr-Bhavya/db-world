@@ -330,16 +330,30 @@ const RecordCard = ({
   // ── dimensions ────────────────────────────────────────────────────────────
   // Prime rail uses a FIXED height — only width changes on hover (true horizontal expand).
   // Wide rail uses 16:9 aspect ratio.  Poster rail uses 2:3.
-  const PRIME_HEIGHT = { xs: 160, sm: 190, md: 220 };   // tall enough to be distinct
-  const baseWidth    = expandOnHover
-    ? { xs: 285, sm: 338, md: 390 }    // ~16:9 at the given height
+  const PRIME_WIDTH = { xs: 180, sm: 220,
+      md: isExpanded
+                                                ? `min(calc(420px * ${16/9}), 680px)`
+                                                : `calc(420px * ${9/16})` };
+const PRIME_HEIGHT = { xs: 160, sm: 190, md: 420 };
+const getPrimeWidth = (h, expanded) => {
+  const ratio = expanded ? (16 / 9) : (9 / 16);
+  return `calc(${h}px * ${ratio})`;
+};
+  const cardWidth = expandOnHover
+    ? {
+        xs: isExpanded ? `calc(160px * ${16/9})` : `calc(160px * ${9/16})`,
+        sm: isExpanded ? `calc(190px * ${16/9})` : `calc(190px * ${9/16})`,
+        md: isExpanded ? `calc(420px * ${16/9})` : `calc(420px * ${9/16})`,
+      }
     : wide
       ? { xs: 200, sm: 240, md: 280 }
       : { xs: 110, sm: 130, md: 150 };
 
-  const expandedWidth = { xs: 450, sm: 530, md: 620 };  // expands horizontally at same height
-  const cardWidth     = isExpanded ? expandedWidth : baseWidth;
-  const aspectRatio   = expandOnHover ? undefined : wide ? '16/9' : '2/3';
+  const aspectRatio = expandOnHover
+    ? (isExpanded ? '16 / 9' : '9 / 16')   // 👈 MAGIC
+    : wide
+      ? '16 / 9'
+      : '2 / 3';
 
   // ── hover ─────────────────────────────────────────────────────────────────
   const onMouseEnter = useCallback(() => {
@@ -403,15 +417,14 @@ const RecordCard = ({
       <Box
         sx={{
           width: cardWidth,
-          ...(expandOnHover
-            ? { height: PRIME_HEIGHT }          // fixed height — only width animates
-            : { aspectRatio }),
+              height: expandOnHover ? PRIME_HEIGHT : undefined,
+              aspectRatio: !expandOnHover ? aspectRatio : undefined,
           borderRadius: 1.5,
           overflow: 'hidden',
           bgcolor: 'rgba(255,255,255,.06)',
           position: 'relative',
           boxShadow: hovered ? '0 16px 48px rgba(0,0,0,.75)' : '0 2px 8px rgba(0,0,0,.3)',
-          transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1), box-shadow .25s',
+          transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1), transform 0.2s',
         }}
       >
         {/* Skeleton */}

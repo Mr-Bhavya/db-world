@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/test/4"
+method: GET
+auth:
+  type: noauth
+order: 4000

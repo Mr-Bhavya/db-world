@@ -1,0 +1,29 @@
+$kind: http-request
+url: http://localhost:9090/api/user/65315b24e8030748c39f776d
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \            \"firstName\": \"sam1\",\r
+
+    \            \"lastName\": \"ple1\",\r
+
+    \            \"age\": null,\r
+
+    \            \"dob\": \"1999-06-03\",\r
+
+    \            \"gender\": \"male\",\r
+
+    \            \"mobileNo\": 8980184608,\r
+
+    \            \"email\": \"sam1@gmail.com\",\r
+
+    \            \"password\": \"1234\"\r
+
+    \        }"
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJkYm1vdmllczBAZ21haWwuY29tIiwiaWF0IjoxNjk3NDY0NTk4LCJleHAiOjE2OTc1MDA1OTh9.QxBhZpmAdaUUk1nVVLjLAYfGIHqFh6fiRHywY-6xTZBCDybe7BW0Cb3lkm1o2F1YowULMJJJFxgVQ_L7uSFCxA
+order: 4000

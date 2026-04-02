@@ -1,0 +1,5 @@
+$kind: http-request
+name: purge
+url: "{{baseUrl}}/api/ingestion/{{jobId}}"
+method: DELETE
+order: 4502905807910742

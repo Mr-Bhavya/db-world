@@ -1,0 +1,5 @@
+$kind: http-request
+name: history-all
+url: "{{baseUrl}}/api/ingestion/history"
+method: GET
+order: 4503148704487774
