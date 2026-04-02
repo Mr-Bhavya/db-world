@@ -1,0 +1,11 @@
+$kind: http-request
+url: http://localhost:9090/api/role/
+method: POST
+body:
+  type: json
+  content: "{\r\n    \"name\": \"VIEWER\"\r\n}"
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcwMzY3NDQ5MSwiZXhwIjoxNzAzNzEwNDkxfQ.8CcDPxEChdqPvek9T8HNkel2m6S4tROtKY49hMNgDRPjEWZktqIsJTnvGIvtNMyL1UE_8v6My7DP51fl9sduUA
+order: 1000

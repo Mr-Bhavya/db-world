@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/utils/mirror/status"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcxNjk3MjExNywiZXhwIjoxNzE3MDA4MTE3fQ.jE0E-3lZt27Fhrceyw2d8hQU0kQ7BwnndHzZLuw6apwHOWZZJvoWrUGMer8xKwCXclkwige23BuE9fjIs2kZsg
+order: 4000

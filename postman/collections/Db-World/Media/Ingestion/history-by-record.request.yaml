@@ -1,0 +1,5 @@
+$kind: http-request
+name: history-by-record
+url: "{{baseUrl}}/api/ingestion/history/record/{{recordId}}"
+method: GET
+order: 4503532700557581

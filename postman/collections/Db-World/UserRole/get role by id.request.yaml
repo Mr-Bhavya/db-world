@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/role/658d012dd69482433a9f4aea"
+method: PATCH
+body:
+  type: json
+  content: ""
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJkYm1vdmllczBAZ21haWwuY29tIiwiaWF0IjoxNzE5NTU0Nzk5LCJleHAiOjE3MTk1OTA3OTl9.bG2jQXYx1XqE5G8QHQfHtiFPYV8TGAcF2Th3XtcND9fToPkxZdSP5aooc6Ko0RppLuM93SgBefxF62nlnsG-AQ
+order: 3000

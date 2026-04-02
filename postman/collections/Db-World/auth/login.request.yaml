@@ -1,0 +1,30 @@
+$kind: http-request
+name: login
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"email\": \"{{email}}\",\r
+
+    \    \"password\": \"{{pass}}\"\r
+
+    }"
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: "const res = pm.response.json();\r
+
+      \r
+
+      if (res?.data?.token) {\r
+
+      \    pm.environment.set(\"accessToken\", res.data.token);\r
+
+      \    console.log(\"✅ Login token saved\");\r
+
+      }"
+    language: text/javascript
+order: 3000

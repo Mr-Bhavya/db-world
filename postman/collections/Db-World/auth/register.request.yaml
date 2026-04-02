@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/auth/register"
+method: POST
+body:
+  type: json
+  content: " {\r
+
+    \  \"firstName\": \"sam5\",\r
+
+    \  \"lastName\": \"ple5\",\r
+
+    \  \"dob\": \"1999-06-03\",\r
+
+    \  \"gender\": \"male\",\r
+
+    \  \"mobileNo\": \"8980184608\",\r
+
+    \  \"email\": \"sam5@gmail.com\",\r
+
+    \  \"password\": \"1234\"\r
+
+    \ }"
+order: 5000

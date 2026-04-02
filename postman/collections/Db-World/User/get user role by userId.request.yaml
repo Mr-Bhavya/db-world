@@ -1,0 +1,8 @@
+$kind: http-request
+url: http://localhost:9090/api/user/656d5aa1a7459d4d4d0bbb4f/role
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcwMzc0Mzk5NSwiZXhwIjoxNzAzNzc5OTk1fQ.qNjyB6ATs0tXqhsQkw2CsCIMOm4dEnBfWrQLc5eQ3ewzINrKIUdSpFeNld1h0FTTTHkEJTqd2Oxmi8GrwEi37A
+order: 7000

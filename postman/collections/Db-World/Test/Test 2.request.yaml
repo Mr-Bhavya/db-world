@@ -1,0 +1,8 @@
+$kind: http-request
+url: http://localhost:9090/test/2
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcwMzU2OTA0OSwiZXhwIjoxNzAzNjA1MDQ5fQ.sDuQptkySEkjmUXwWBjzhWzWNRl3LFMw3ou3tbJA9Ef9UOQR05dwgyn-T0CXaeKVKdQd24cHTd6YSHbh19kgsw
+order: 1000

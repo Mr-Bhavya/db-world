@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:9090/api/cinema/record
+method: GET
+order: 9000

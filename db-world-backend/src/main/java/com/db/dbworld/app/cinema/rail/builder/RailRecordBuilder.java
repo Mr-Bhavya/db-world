@@ -122,7 +122,7 @@ public class RailRecordBuilder {
     private List<String> limitGenres(List<String> genres) {
         return genres.size() <= MAX_GENRES
                 ? genres
-                : genres.subList(0, MAX_GENRES);
+                : new ArrayList<>(genres.subList(0, MAX_GENRES));
     }
 
     /* =========================================================

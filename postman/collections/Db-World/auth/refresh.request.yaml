@@ -1,0 +1,28 @@
+$kind: http-request
+name: refresh
+url: "{{baseUrl}}/api/auth/refresh-token"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"email\": {{email}},\r
+
+    \    \"password\": {{pass}}\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: "const res = pm.response.json();\r
+
+      \r
+
+      if (res?.data?.accessToken) {\r
+
+      \    pm.environment.set(\"accessToken\", res.data.accessToken);\r
+
+      \    console.log(\"✅ Login token saved\");\r
+
+      }"
+    language: text/javascript
+order: 2891

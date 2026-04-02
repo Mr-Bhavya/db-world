@@ -1,0 +1,5 @@
+$kind: http-request
+name: history-single
+url: "{{baseUrl}}/api/ingestion/history/{{jobId}}"
+method: GET
+order: 4503391695984382
