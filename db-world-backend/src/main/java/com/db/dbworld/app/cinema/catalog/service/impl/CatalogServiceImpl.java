@@ -19,6 +19,7 @@ import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
+import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ public class CatalogServiceImpl implements CatalogService {
 
     private final RecordRepository recordRepository;
     private final TmdbRepository tmdbRepository;
+    private final SeasonRepository seasonRepository;
     private final RecordTaggingService recordTaggingService;
     private final TmdbIngestionService tmdbIngestionService;
     private final ApplicationEventPublisher publisher;
@@ -140,6 +142,7 @@ public class CatalogServiceImpl implements CatalogService {
             tmdbRepository.findWithProviders(tmdbId);
             if (record.getType() == RecordType.TV_SERIES) {
                 tmdbRepository.findWithSeasons(tmdbId);
+                seasonRepository.findWithEpisodesByTvShowId(tmdbId);
             }
         }
 

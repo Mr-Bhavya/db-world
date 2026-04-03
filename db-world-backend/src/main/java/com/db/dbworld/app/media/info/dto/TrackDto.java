@@ -59,6 +59,11 @@ public class TrackDto {
     /** TMDB poster path (e.g. /abc123.jpg) — set when source = "TMDB". */
     private String tmdbPosterPath;
 
-    /** Full raw JSON fields for this track — always available. */
-    private Map<String, Object> extra;
+    /**
+     * Full raw JSON from MediaInfo for this track.
+     * Named "rawMediaInfo" (not "extra") to avoid confusion with MediaInfo's own
+     * nested "extra" sub-object that appears inside this map for codec parameters.
+     * Access codec-specific values via rawMediaInfo.get("extra").
+     */
+    private Map<String, Object> rawMediaInfo;
 }

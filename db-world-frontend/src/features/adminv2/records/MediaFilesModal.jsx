@@ -22,6 +22,21 @@ const fmtSize = (bytes) => {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 };
 
+// duration is stored as milliseconds by MediaInfo
+const fmtDuration = (ms) => {
+  if (!ms) return null;
+  const s = Math.round(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h > 0 ? `${h}h ${m}m ${sec}s` : `${m}m ${sec}s`;
+};
+
+const fmtBitrate = (bps) => {
+  if (!bps) return null;
+  return bps >= 1_000_000 ? `${(bps / 1_000_000).toFixed(1)} Mbps` : `${Math.round(bps / 1000)} kbps`;
+};
+
 const TrackRow = ({ label, track }) => {
   const T = useT();
   if (!track) return null;
@@ -147,10 +162,11 @@ export default function MediaFilesModal() {
         {files.map((file) => {
           const isDeleting  = deletingId  === file.filePath;
           const isRescanning = rescanningId === file.id;
-          const videoTrack  = file.tracks?.find(t => t.type === 'Video');
-          const audioTrack  = file.tracks?.find(t => t.type === 'Audio');
-          const generalTrack = file.tracks?.find(t => t.type === 'General');
-          const textTracks  = file.tracks?.filter(t => t.type === 'Text') ?? [];
+          // Prefer the convenience fields the API provides; fall back to scanning tracks
+          const videoTrack   = file.primaryVideoTrack  ?? file.tracks?.find(t => t.type === 'Video' && t.defaultTrack === 'Yes') ?? file.tracks?.find(t => t.type === 'Video');
+          const audioTrack   = file.primaryAudioTrack  ?? file.tracks?.find(t => t.type === 'Audio');
+          const generalTrack = file.generalTrack        ?? file.tracks?.find(t => t.type === 'General');
+          const textTracks   = file.tracks?.filter(t => t.type === 'Text') ?? [];
 
           return (
             <Box key={file.id} sx={{ borderBottom: `1px solid ${T.border}`, '&:last-child': { borderBottom: 'none' } }}>
@@ -171,8 +187,12 @@ export default function MediaFilesModal() {
                         sx={{ height: 18, fontSize: 10, bgcolor: T.glass, color: T.textMuted, border: `1px solid ${T.glassBorder}` }} />
                     )}
                     {generalTrack?.duration && (
-                      <Chip label={generalTrack.duration} size="small"
+                      <Chip label={fmtDuration(generalTrack.duration)} size="small"
                         sx={{ height: 18, fontSize: 10, bgcolor: T.tealBg, color: T.teal }} />
+                    )}
+                    {generalTrack?.overallBitRate && (
+                      <Chip label={fmtBitrate(generalTrack.overallBitRate)} size="small"
+                        sx={{ height: 18, fontSize: 10, bgcolor: T.glass, color: T.textMuted, border: `1px solid ${T.glassBorder}` }} />
                     )}
                   </Box>
                 </Box>
