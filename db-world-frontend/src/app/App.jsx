@@ -63,8 +63,7 @@ const LazyLogViewerV2         = lazy(() => import('../features/adminv2/logs/LogV
 const LazyTagManagement       = lazy(() => import('../features/adminv2/tags'));
 const LazyCinemaActivity      = lazy(() => import('../features/adminv2/activity'));
 const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
-const LazyMovieDetailsPage    = lazy(() => import('@features/cinema/screens/movie-details/index.js'));
-const LazySeriesDetailsPage   = lazy(() => import('@features/cinema/screens/series-details/SeriesDetailsPage.js'));
+const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 
 // Loading Component
@@ -217,8 +216,8 @@ const routeConfig = {
     { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
-    { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyMovieDetailsPage /> },
-    { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazySeriesDetailsPage /> },
+    { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
+    { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],

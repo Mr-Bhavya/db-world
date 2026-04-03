@@ -299,7 +299,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             }
         } catch (Exception ignored) {}
 
-        b.extra(extra);
+        b.rawMediaInfo(extra);
 
         if (track instanceof GeneralTrackEntity g) {
             b.format(g.getFormat())

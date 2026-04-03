@@ -1,7 +1,9 @@
 package com.db.dbworld.app.cinema.tmdb.mapper;
 
 import com.db.dbworld.app.cinema.tmdb.dto.TmdbDto;
+import com.db.dbworld.app.cinema.tmdb.dto.TvSeriesTmdbDto;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 
 import com.db.dbworld.app.cinema.tmdb.genre.mapper.GenreMapper;
 import com.db.dbworld.app.cinema.tmdb.company.mapper.ProductionCompanyMapper;
@@ -17,6 +19,7 @@ import com.db.dbworld.app.cinema.tmdb.providers.mapper.TmdbProviderMapper;
 import com.db.dbworld.app.cinema.tmdb.review.mapper.ReviewMapper;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.SubclassMapping;
 
 @Mapper(
         config = BaseMapperConfig.class,
@@ -31,6 +34,7 @@ import org.mapstruct.Mapper;
                 ProviderMapper.class,
                 ReviewMapper.class,
                 TmdbProviderMapper.class,
+                TvSeriesTmdbMapper.class,
         }
 )
 public interface TmdbMapper extends BaseMapper<TmdbDto, TmdbEntity> {
@@ -39,6 +43,7 @@ public interface TmdbMapper extends BaseMapper<TmdbDto, TmdbEntity> {
     TmdbEntity toEntity(TmdbDto dto);
 
     @Override
+    @SubclassMapping(source = TvSeriesTmdbEntity.class, target = TvSeriesTmdbDto.class)
     TmdbDto toDto(TmdbEntity entity);
 
 }

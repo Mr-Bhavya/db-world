@@ -87,3 +87,21 @@ export const updateProgress = (userId, recordId, progress) =>
   axiosInstance.post(`${BASE}/interactions/progress`, null, {
     params: { userId, recordId, progress },
   });
+
+// ─── User Reviews ─────────────────────────────────────────────────────────────
+
+/** GET /api/cinema/reviews/record/{recordId} → List<UserReviewDto> */
+export const fetchUserReviews = (recordId) =>
+  axiosInstance.get(`${BASE}/reviews/record/${recordId}`).then(unwrap);
+
+/** GET /api/cinema/reviews/mine?recordId= → UserReviewDto | null */
+export const fetchMyReview = (recordId) =>
+  axiosInstance.get(`${BASE}/reviews/mine`, { params: { recordId } }).then(unwrap);
+
+/** POST /api/cinema/reviews?recordId= + body {rating, content} → UserReviewDto */
+export const upsertReview = (recordId, rating, content) =>
+  axiosInstance.post(`${BASE}/reviews`, { rating, content }, { params: { recordId } }).then(unwrap);
+
+/** DELETE /api/cinema/reviews?recordId= */
+export const deleteReview = (recordId) =>
+  axiosInstance.delete(`${BASE}/reviews`, { params: { recordId } }).then(unwrap);
