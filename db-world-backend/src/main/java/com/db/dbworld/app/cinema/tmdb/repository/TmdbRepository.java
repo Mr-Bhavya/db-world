@@ -66,12 +66,12 @@ public interface TmdbRepository extends JpaRepository<TmdbEntity, Long> {
     Optional<TmdbEntity> findWithProviders(@Param("id") Long id);
 
     /**
-     * TV-only: initialises seasons together with their episode lists.
+     * TV-only: initialises the seasons bag (episodes loaded separately via SeasonRepository
+     * to avoid MultipleBagFetchException when fetching two List collections in one query).
      */
     @Query("""
             SELECT DISTINCT t FROM TmdbEntity t
-            LEFT JOIN FETCH t.seasons s
-            LEFT JOIN FETCH s.episodes
+            LEFT JOIN FETCH t.seasons
             WHERE t.id = :id
             """)
     Optional<TmdbEntity> findWithSeasons(@Param("id") Long id);

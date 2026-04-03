@@ -2,6 +2,8 @@ package com.db.dbworld.config;
 
 import com.db.dbworld.payloads.dbcinema.stream.PathAdapter;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -28,6 +30,19 @@ public class SerializationConfig {
     @Bean
     @SuppressWarnings({"rawtypes", "unchecked"})
     Jackson2ObjectMapperBuilderCustomizer jacksonCustomizer() {
+        // Jackson 2.15+ introduced StreamReadConstraints / StreamWriteConstraints with a
+        // default maxNestingDepth of 1000. Large TV-series responses (seasons + episodes)
+        // can exceed this. Override globally so all factories share the relaxed limits.
+        StreamReadConstraints.overrideDefaultStreamReadConstraints(
+                StreamReadConstraints.builder()
+                        .maxNestingDepth(Integer.MAX_VALUE)
+                        .maxStringLength(Integer.MAX_VALUE)
+                        .build());
+        StreamWriteConstraints.overrideDefaultStreamWriteConstraints(
+                StreamWriteConstraints.builder()
+                        .maxNestingDepth(Integer.MAX_VALUE)
+                        .build());
+
         SimpleModule extras = new SimpleModule();
         extras.addSerializer(Page.class, new PageJacksonSerializer());
         extras.addSerializer(Path.class, new PathJacksonSerializer());

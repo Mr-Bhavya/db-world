@@ -53,3 +53,8 @@ build/
 /db-world_new.war
 /db-world-frontend/package-lock.json
 /TMDB_NEW/
+/temp/
+/db-world-frontend/android/.gradle/
+/db-world-frontend/android/.idea/
+/runtime/
+/.postman/

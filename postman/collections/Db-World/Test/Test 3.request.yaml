@@ -1,6 +1,0 @@
-$kind: http-request
-url: http://localhost:5000/api/media/record
-method: GET
-auth:
-  type: noauth
-order: 3000

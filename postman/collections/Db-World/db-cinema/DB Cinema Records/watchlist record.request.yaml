@@ -6,5 +6,5 @@ queryParams:
 auth:
   type: bearer
   credentials:
-    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcxNTY2NjExNSwiZXhwIjoxNzE1NzAyMTE1fQ.JCShvyJKb2iGbyjC9P6CDHZPgFaD3lIxQU9ctvVhNvMj30v6nd1s_USj4nrsq6948am3f_E6d8HDJbI1bin_wg
+    token: {{token}}
 order: 4000
