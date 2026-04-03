@@ -11,7 +11,7 @@ import { useT, getSelectMenuProps } from '@shared/theme';
 import { createRecord, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
 
-const TMDB_IMG = 'https://image.tmdb.org/t/p/w185';
+const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 
 export default function RecordCreateModal({ open, onClose }) {
   const T = useT();

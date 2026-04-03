@@ -58,11 +58,11 @@ Inside `<application>`:
 
 In `android/app/src/main/java/com/db/dbworld/MainActivity.kt`:
 ```kotlin
-import com.db.dbworld.plugins.MediaPlayerPlugin
+import com.db.dbworld.plugins.DbWorldPlayer
 
 class MainActivity : BridgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        registerPlugin(MediaPlayerPlugin::class.java)
+        registerPlugin(DbWorldPlayer::class.java)
         super.onCreate(savedInstanceState)
     }
 }
@@ -76,7 +76,7 @@ The plugin is already registered:
 ```json
 "plugins" {
     "DbWorldPlayer": {
-        "package": "com.db.dbworld.plugins"
+        "package": "com.db.dbworld.player"
     }
 }
 ```

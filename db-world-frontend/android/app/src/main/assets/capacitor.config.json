@@ -7,16 +7,13 @@
 	"cordova": {},
 	"server": {
 		"cleartext": true,
-		"url": "http://192.168.1.8:3000",
-		"originalUrl": "http://192.168.1.8:3000"
+		"url": "http://192.168.1.14:3000",
+		"originalUrl": "http://192.168.1.14:3000"
 	},
 	"appendUserAgent": "===> Db-world APK <===",
 	"plugins": {
 		"CapacitorHttp": {
 			"enabled": true
-		},
-		"MyMedia3Player": {
-			"package": "com.db.dbworld.plugins"
 		}
 	}
 }

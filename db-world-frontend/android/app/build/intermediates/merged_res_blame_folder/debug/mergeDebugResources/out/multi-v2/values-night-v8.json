@@ -4,7 +4,17 @@
             "outputFile": "com.db.dbworld.app-mergeDebugResources-47:/values-night-v8/values-night-v8.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\28b9762deb0ce620a4ebce0e249b3430\\transformed\\appcompat-1.7.0\\res\\values-night-v8\\values-night-v8.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\cda7e17528c9829615ac0d8d4b1844c9\\transformed\\core-splashscreen-1.0.1\\res\\values-night-v8\\values-night-v8.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "85",
+                        "endOffsets": "136"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\c4852f56209961e3ced7a0f4aa8ab80c\\transformed\\appcompat-1.7.0\\res\\values-night-v8\\values-night-v8.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
                         "startColumns": "4,4,4,4,4,4,4,4",
@@ -18,16 +28,6 @@
                         "startOffsets": "141,211,295,379,475,577,679,773",
                         "endColumns": "69,83,83,95,101,101,93,88",
                         "endOffsets": "206,290,374,470,572,674,768,857"
-                    }
-                },
-                {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\2ad08e305f4922358f2ac5d5700c0199\\transformed\\core-splashscreen-1.0.1\\res\\values-night-v8\\values-night-v8.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endColumns": "85",
-                        "endOffsets": "136"
                     }
                 }
             ]

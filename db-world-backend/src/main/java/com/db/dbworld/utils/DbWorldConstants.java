@@ -50,6 +50,7 @@ public class DbWorldConstants {
     // Public APIs
     public static final String[] PUBLIC_APIS = {
             "/api/server/**",
+            "/api/cinema/admin/bootstrap",
             "/api/hls/**",
             "/api/auth/**",
             "/api/logs/app/*/follow",
