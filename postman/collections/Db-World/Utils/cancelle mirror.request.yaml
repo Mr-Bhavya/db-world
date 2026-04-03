@@ -4,5 +4,5 @@ method: DELETE
 auth:
   type: bearer
   credentials:
-    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcxNjM5MTQzMywiZXhwIjoxNzE2NDI3NDMzfQ.qRjBeAk0V-W0rNeAcXee_8FI6Jti2mmdI78Ve4DyLDRNH-YwGAuWEXbAp8lYCxgGZ4iF4mFBks3rfsHi8ocdww
+    token: {{token}}
 order: 5000

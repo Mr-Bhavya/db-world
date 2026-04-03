@@ -13,6 +13,7 @@ import com.db.dbworld.app.cinema.tmdb.mapper.TvSeriesTmdbMapper;
 import com.db.dbworld.app.cinema.tmdb.people.dto.PersonDto;
 import com.db.dbworld.app.cinema.tmdb.people.mapper.PersonMapper;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
+import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 import com.db.dbworld.app.cinema.tmdb.search.dto.TmdbSearchItemDto;
 import com.db.dbworld.app.cinema.tmdb.search.service.TmdbSearchService;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
@@ -30,6 +31,7 @@ public class TmdbController {
     private final TmdbIngestionService ingestionService;
     private final TmdbSearchService tmdbSearchService;
     private final TmdbRepository tmdbRepository;
+    private final SeasonRepository seasonRepository;
 
     private final MovieTmdbMapper movieMapper;
     private final TvSeriesTmdbMapper tvMapper;
@@ -114,6 +116,7 @@ public class TmdbController {
         tmdbRepository.findWithCredits(tmdbId);
         tmdbRepository.findWithProviders(tmdbId);
         tmdbRepository.findWithSeasons(tmdbId);
+        seasonRepository.findWithEpisodesByTvShowId(tmdbId);
         // createdBy / lastEpisodeToAir / nextEpisodeToAir are on the TvSeriesTmdbEntity
         // subclass and will lazy-load within this @Transactional method (single extra query each).
 

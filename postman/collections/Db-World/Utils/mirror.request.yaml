@@ -27,5 +27,5 @@ body:
 auth:
   type: bearer
   credentials:
-    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcxNjk3MjExNywiZXhwIjoxNzE3MDA4MTE3fQ.jE0E-3lZt27Fhrceyw2d8hQU0kQ7BwnndHzZLuw6apwHOWZZJvoWrUGMer8xKwCXclkwige23BuE9fjIs2kZsg
+    token: {{token}}
 order: 1000

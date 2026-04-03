@@ -4,5 +4,5 @@ method: GET
 auth:
   type: bearer
   credentials:
-    token: eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzYW04QGdtYWlsLmNvbSIsImlhdCI6MTcwMzU2OTA0OSwiZXhwIjoxNzAzNjA1MDQ5fQ.sDuQptkySEkjmUXwWBjzhWzWNRl3LFMw3ou3tbJA9Ef9UOQR05dwgyn-T0CXaeKVKdQd24cHTd6YSHbh19kgsw
+    token: {{token}}
 order: 5000
