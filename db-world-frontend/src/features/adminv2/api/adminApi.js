@@ -67,7 +67,13 @@ export const searchTmdb = (type, query, year, language = 'en-US') =>
 
 export const getTmdbDetail = (type, tmdbId) => {
   const seg = type === 'MOVIE' ? 'movies' : 'tv';
-  return axiosInstance.get(`/api/cinema/admin/tmdb/${seg}/${tmdbId}`).then(r => r.data.data);
+  return axiosInstance.get(`/api/cinema/admin/tmdb/${seg}/${tmdbId}`).then(r => {
+    // ApiResponse.success === false means a backend error slipped through as 2xx
+    // (e.g. Jackson cut the body short after the 200 status was committed).
+    // Throw so TanStack Query records it as an error, not as blank/null data.
+    if (!r.data?.success) throw new Error(r.data?.message ?? 'Request failed');
+    return r.data.data;
+  });
 };
 
 /* ─── RECORD DETAIL ─────────────────────────────────────────────── */

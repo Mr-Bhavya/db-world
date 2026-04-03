@@ -425,7 +425,7 @@ export default function TmdbDetailModal({ record, onClose }) {
   const { data: tmdb, isLoading, error } = useQuery({
     queryKey: ['tmdbDetail', record?.type, record?.tmdbId],
     queryFn:  () => getTmdbDetail(record.type, record.tmdbId),
-    enabled:  open && Boolean(record?.tmdbId),
+    enabled:  open && Boolean(record?.tmdbId) && Boolean(record?.type),
     staleTime: 5 * 60 * 1000,
   });
 
