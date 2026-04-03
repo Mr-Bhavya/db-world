@@ -17,7 +17,9 @@ import CinemaPlayer from '../../player/CinemaPlayer';
 import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
-import AndroidPlugins from '@platform/android/AndroidPlugins';
+//import AndroidPlugins from '@platform/android/AndroidPlugins';
+import { registerPlugin } from '@capacitor/core';
+const DbWorldPlayer = registerPlugin('DbWorldPlayer');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -202,8 +204,13 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
   const bitDepth = video?.bitDepth;
 
   const handlePlay = () => {
+  console.log("Plugins: ", window.Capacitor?.Plugins);
     if (Capacitor.getPlatform() === 'android') {
-      AndroidPlugins.MyMedia3Player?.(mediaInfo.streamUrl, general?.fileName);
+    DbWorldPlayer.launch({
+        url: "https://db-world.in/api/stream/watch/uuid/29eb4932-a309-479f-ba06-9bbfed31e8d7?t=eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJkYi13b3JsZCIsInN1YiI6ImR1ZGhpYWJoYXZ5YUBnbWFpbC5jb20iLCJleHAiOjE3NzUyMzc4MTQsImlhdCI6MTc3NTE1MTQxNCwidXNlcklkIjoxMDAxLCJyb2xlcyI6WyJPV05FUiJdfQ.jG5TFlVHxSKx4NDi5eUMS9ueemIc8IDcoixYbUT2WmlFy_XEhm2bnMu_NJyj9H6qlvWsmqxUYuUVO0C1c7oe_fP0i6QD_hp_XjM6B4PF7l3prINrW-fASAijkKxIpSouaXOuFHHwq-TTsA0O_QEV2-ej8e7yvOTZn7H2x8pJ61PVx6_N7S5U45xBTYar2d74P9ENyJ1ZPJjPmfCqoC0e0LZi8ds_LbP5vWQYMvZdZaQSzzyDZqiY-diIbRbo_rFpsSmddY-YwkrfiU7Mj91-un1kncoPF9ML43QrE20Uf-TIfVY4w0kT31ozSBfhlQlKV3ipwl4URNd6UzCzbUDTlg",
+//        url: mediaInfo.streamUrl,
+        fileName: general?.fileName
+      });
     } else {
       setPlayerOpen(true);
     }

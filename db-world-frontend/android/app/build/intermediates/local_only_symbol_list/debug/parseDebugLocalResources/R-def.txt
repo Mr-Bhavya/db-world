@@ -38,5 +38,6 @@ string title_activity_main
 style AppTheme
 style AppTheme.NoActionBar
 style AppTheme.NoActionBarLaunch
+style Theme.DbWorld.Player
 xml config
 xml file_paths

@@ -2846,6 +2846,7 @@ int style Theme_AppCompat_Light_Dialog_MinWidth 0x7f11014f
 int style Theme_AppCompat_Light_DialogWhenLarge 0x7f110150
 int style Theme_AppCompat_Light_NoActionBar 0x7f110151
 int style Theme_AppCompat_NoActionBar 0x7f110152
+int style Theme_DbWorld_Player 0x7f1101b3
 int style Theme_MediaRouter 0x7f110153
 int style Theme_MediaRouter_Light 0x7f110154
 int style Theme_MediaRouter_Light_DarkControlPanel 0x7f110155

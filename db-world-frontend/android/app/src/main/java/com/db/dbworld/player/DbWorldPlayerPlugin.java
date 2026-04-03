@@ -36,4 +36,10 @@ public class DbWorldPlayerPlugin extends Plugin {
         getContext().startActivity(intent);
         call.resolve();
     }
+
+    @Override
+    public void load() {
+        super.load();
+        android.util.Log.d("DbWorldPlayer", "Plugin loaded");
+    }
 }

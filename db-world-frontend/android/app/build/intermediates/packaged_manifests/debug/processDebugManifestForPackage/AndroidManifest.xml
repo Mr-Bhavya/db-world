@@ -62,7 +62,7 @@
             android:launchMode="singleTop"
             android:screenOrientation="sensor"
             android:supportsPictureInPicture="true"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:theme="@style/Theme.DbWorld.Player"
             android:windowSoftInputMode="adjustNothing" />
 
         <provider

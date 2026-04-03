@@ -51,6 +51,9 @@ import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { MediaInfoContent } from "./MediaInfoContent";
 import PlayerSelectionDialog from "./PlayerSelectionDialog";
+import { Plugins } from '@capacitor/core';
+
+const { MyMedia3Player } = Plugins;
 
 // Enhanced Action Button Component with Feedback States
 const ActionButton = ({
@@ -299,7 +302,8 @@ export const MediaInfoRender = ({
 
   const handlePlayClick = () => {
     if (Capacitor.getPlatform() === "android") {
-      AndroidPlugins.MyMedia3Player?.(mediaInfo.streamUrl, mediaInfo.general?.fileName);
+//       AndroidPlugins.MyMedia3Player?.(mediaInfo.streamUrl, mediaInfo.general?.fileName);
+      MyMedia3Player?.(mediaInfo.streamUrl, mediaInfo.general?.fileName);
     } else {
       setPlayerDialogOpen(true);
     }

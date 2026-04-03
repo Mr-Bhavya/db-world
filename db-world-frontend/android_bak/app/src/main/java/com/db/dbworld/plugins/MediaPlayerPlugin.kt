@@ -21,7 +21,7 @@ import com.getcapacitor.annotation.CapacitorPlugin
  *   });
  */
 @CapacitorPlugin(name = "DbWorldPlayer")
-class MediaPlayerPlugin : Plugin() {
+class DbWorldPlayer : Plugin() {
 
     @PluginMethod
     fun launch(call: PluginCall) {

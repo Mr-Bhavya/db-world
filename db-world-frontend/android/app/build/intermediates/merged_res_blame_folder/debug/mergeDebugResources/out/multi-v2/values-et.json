@@ -4,24 +4,41 @@
             "outputFile": "com.db.dbworld.app-mergeDebugResources-47:/values-et/values-et.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\083bb65c3c40a92e83324bd61c877c72\\transformed\\extension-mediasession-2.19.0\\res\\values-et\\values-et.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\f56a812fa0336ff46bb151524ad77b8b\\transformed\\media3-session-1.3.1\\res\\values-et\\values-et.xml",
                     "from": {
-                        "startLines": "2,3,4",
-                        "startColumns": "4,4,4",
-                        "startOffsets": "55,135,220",
-                        "endColumns": "79,84,78",
-                        "endOffsets": "130,215,294"
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,130,208,280,351,432,515,617",
+                        "endColumns": "74,77,71,70,80,82,101,104",
+                        "endOffsets": "125,203,275,346,427,510,612,717"
                     },
                     "to": {
-                        "startLines": "158,159,160",
-                        "startColumns": "4,4,4",
-                        "startOffsets": "13384,13464,13549",
-                        "endColumns": "79,84,78",
-                        "endOffsets": "13459,13544,13623"
+                        "startLines": "46,123,182,183,184,185,186,187",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3474,10604,15077,15149,15220,15301,15384,15486",
+                        "endColumns": "74,77,71,70,80,82,101,104",
+                        "endOffsets": "3544,10677,15144,15215,15296,15379,15481,15586"
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\3be70983c6cda38429646a8b5339fa13\\transformed\\media3-ui-1.3.1\\res\\values-et\\values-et.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\64f5f5a82f48d69b4b99f8aa34fc073b\\transformed\\media3-exoplayer-1.3.1\\res\\values-et\\values-et.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10",
+                        "startColumns": "4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,129,196,263,337,419,490,580,672",
+                        "endColumns": "73,66,66,73,81,70,89,91,76",
+                        "endOffsets": "124,191,258,332,414,485,575,667,744"
+                    },
+                    "to": {
+                        "startLines": "148,149,150,151,152,153,154,155,156",
+                        "startColumns": "4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "12637,12711,12778,12845,12919,13001,13072,13162,13254",
+                        "endColumns": "73,66,66,73,81,70,89,91,76",
+                        "endOffsets": "12706,12773,12840,12914,12996,13067,13157,13249,13326"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\fb7da1328513abe518f8f7e70b3550bf\\transformed\\media3-ui-1.3.1\\res\\values-et\\values-et.xml",
                     "from": {
                         "startLines": "2,11,15,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -40,58 +57,24 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\28b9762deb0ce620a4ebce0e249b3430\\transformed\\appcompat-1.7.0\\res\\values-et\\values-et.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\3d3abab305078239787740170e315cd5\\transformed\\core-1.15.0\\res\\values-et\\values-et.xml",
                     "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "105,211,310,421,507,609,726,807,884,976,1070,1166,1268,1377,1471,1572,1666,1758,1851,1934,2045,2149,2248,2358,2460,2559,2725,2827",
-                        "endColumns": "105,98,110,85,101,116,80,76,91,93,95,101,108,93,100,93,91,92,82,110,103,98,109,101,98,165,101,82",
-                        "endOffsets": "206,305,416,502,604,721,802,879,971,1065,1161,1263,1372,1466,1567,1661,1753,1846,1929,2040,2144,2243,2353,2455,2554,2720,2822,2905"
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,150,252,350,453,559,664,784",
+                        "endColumns": "94,101,97,102,105,104,119,100",
+                        "endOffsets": "145,247,345,448,554,659,779,880"
                     },
                     "to": {
-                        "startLines": "19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,214",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "752,858,957,1068,1154,1256,1373,1454,1531,1623,1717,1813,1915,2024,2118,2219,2313,2405,2498,2581,2692,2796,2895,3005,3107,3206,3372,18148",
-                        "endColumns": "105,98,110,85,101,116,80,76,91,93,95,101,108,93,100,93,91,92,82,110,103,98,109,101,98,165,101,82",
-                        "endOffsets": "853,952,1063,1149,1251,1368,1449,1526,1618,1712,1808,1910,2019,2113,2214,2308,2400,2493,2576,2687,2791,2890,3000,3102,3201,3367,3469,18226"
+                        "startLines": "47,48,49,50,51,52,53,215",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3549,3644,3746,3844,3947,4053,4158,18231",
+                        "endColumns": "94,101,97,102,105,104,119,100",
+                        "endOffsets": "3639,3741,3839,3942,4048,4153,4273,18327"
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\61bf0cc33ef6eb07e792ffe4b2fcfd66\\transformed\\media3-exoplayer-1.3.1\\res\\values-et\\values-et.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10",
-                        "startColumns": "4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,129,196,263,337,419,490,580,672",
-                        "endColumns": "73,66,66,73,81,70,89,91,76",
-                        "endOffsets": "124,191,258,332,414,485,575,667,744"
-                    },
-                    "to": {
-                        "startLines": "148,149,150,151,152,153,154,155,156",
-                        "startColumns": "4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "12637,12711,12778,12845,12919,13001,13072,13162,13254",
-                        "endColumns": "73,66,66,73,81,70,89,91,76",
-                        "endOffsets": "12706,12773,12840,12914,12996,13067,13157,13249,13326"
-                    }
-                },
-                {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\889ae1a6e8c8aa0e9b27cea8abffee1d\\transformed\\browser-1.8.0\\res\\values-et\\values-et.xml",
-                    "from": {
-                        "startLines": "2,3,4,5",
-                        "startColumns": "4,4,4,4",
-                        "startOffsets": "55,155,255,362",
-                        "endColumns": "99,99,106,98",
-                        "endOffsets": "150,250,357,456"
-                    },
-                    "to": {
-                        "startLines": "122,179,180,181",
-                        "startColumns": "4,4,4,4",
-                        "startOffsets": "10504,14771,14871,14978",
-                        "endColumns": "99,99,106,98",
-                        "endOffsets": "10599,14866,14973,15072"
-                    }
-                },
-                {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\ab9457db83d523b051e7e4364e800c5f\\transformed\\play-services-base-18.5.0\\res\\values-et\\values.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\5fa0bea5d7ed770e269eb71d8f565cf5\\transformed\\play-services-base-18.5.0\\res\\values-et\\values.xml",
                     "from": {
                         "startLines": "4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20",
                         "startColumns": "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0",
@@ -108,7 +91,7 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\2dcddb10915d738a624b618cbd1686e9\\transformed\\play-services-basement-18.4.0\\res\\values-et\\values.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\e1d7c0e6ab9d324ec32cb94059f309a1\\transformed\\play-services-basement-18.4.0\\res\\values-et\\values.xml",
                     "from": {
                         "startLines": "4",
                         "startColumns": "0",
@@ -125,7 +108,24 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\eb1f99ffd16f99dd539300912bb0c797\\transformed\\mediarouter-1.3.0\\res\\values-et\\values-et.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\28fb496358c36bcc9062446239f47bc7\\transformed\\extension-mediasession-2.19.0\\res\\values-et\\values-et.xml",
+                    "from": {
+                        "startLines": "2,3,4",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "55,135,220",
+                        "endColumns": "79,84,78",
+                        "endOffsets": "130,215,294"
+                    },
+                    "to": {
+                        "startLines": "158,159,160",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "13384,13464,13549",
+                        "endColumns": "79,84,78",
+                        "endOffsets": "13459,13544,13623"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\8d8fe28ee95dbd54ddb49c039683621b\\transformed\\mediarouter-1.3.0\\res\\values-et\\values-et.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -142,7 +142,24 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\e79875c1c9fe9433a001eaccf06e0703\\transformed\\play-services-cast-21.3.0\\res\\values-et\\values.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\64f42ed153172a8d59122f8ac79517e6\\transformed\\browser-1.8.0\\res\\values-et\\values-et.xml",
+                    "from": {
+                        "startLines": "2,3,4,5",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "55,155,255,362",
+                        "endColumns": "99,99,106,98",
+                        "endOffsets": "150,250,357,456"
+                    },
+                    "to": {
+                        "startLines": "122,179,180,181",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "10504,14771,14871,14978",
+                        "endColumns": "99,99,106,98",
+                        "endOffsets": "10599,14866,14973,15072"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\edf410a42ebebed6cf8ab9d6b15e38a7\\transformed\\play-services-cast-21.3.0\\res\\values-et\\values.xml",
                     "from": {
                         "startLines": "4,5,6,7,8",
                         "startColumns": "0,0,0,0,0",
@@ -159,24 +176,24 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\04b1d2bd82b6a345c034fd61aaaf8fa6\\transformed\\media3-session-1.3.1\\res\\values-et\\values-et.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\c4852f56209961e3ced7a0f4aa8ab80c\\transformed\\appcompat-1.7.0\\res\\values-et\\values-et.xml",
                     "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,130,208,280,351,432,515,617",
-                        "endColumns": "74,77,71,70,80,82,101,104",
-                        "endOffsets": "125,203,275,346,427,510,612,717"
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "105,211,310,421,507,609,726,807,884,976,1070,1166,1268,1377,1471,1572,1666,1758,1851,1934,2045,2149,2248,2358,2460,2559,2725,2827",
+                        "endColumns": "105,98,110,85,101,116,80,76,91,93,95,101,108,93,100,93,91,92,82,110,103,98,109,101,98,165,101,82",
+                        "endOffsets": "206,305,416,502,604,721,802,879,971,1065,1161,1263,1372,1466,1567,1661,1753,1846,1929,2040,2144,2243,2353,2455,2554,2720,2822,2905"
                     },
                     "to": {
-                        "startLines": "46,123,182,183,184,185,186,187",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3474,10604,15077,15149,15220,15301,15384,15486",
-                        "endColumns": "74,77,71,70,80,82,101,104",
-                        "endOffsets": "3544,10677,15144,15215,15296,15379,15481,15586"
+                        "startLines": "19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,214",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "752,858,957,1068,1154,1256,1373,1454,1531,1623,1717,1813,1915,2024,2118,2219,2313,2405,2498,2581,2692,2796,2895,3005,3107,3206,3372,18148",
+                        "endColumns": "105,98,110,85,101,116,80,76,91,93,95,101,108,93,100,93,91,92,82,110,103,98,109,101,98,165,101,82",
+                        "endOffsets": "853,952,1063,1149,1251,1368,1449,1526,1618,1712,1808,1910,2019,2113,2214,2308,2400,2493,2576,2687,2791,2890,3000,3102,3201,3367,3469,18226"
                     }
                 },
                 {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\429f512a6292bb82d32de06264066e58\\transformed\\play-services-cast-framework-21.3.0\\res\\values-et\\values.xml",
+                    "source": "C:\\Users\\Bhavya\\.gradle\\caches\\8.11.1\\transforms\\d7d2a9f0d26e5dc02e5823c971f073f9\\transformed\\play-services-cast-framework-21.3.0\\res\\values-et\\values.xml",
                     "from": {
                         "startLines": "4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49",
                         "startColumns": "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0",
@@ -190,23 +207,6 @@
                         "startOffsets": "4278,4328,4406,4466,4552,4632,4720,4787,4919,5062,5151,5237,5357,5447,5520,5607,5714,5766,5836,5912,5990,6044,6417,6462,6506,6558,6628,6704,6776,6848,6919,6963,7040,7106,7176,7258,7342,7415,7476,7552,7610,7824,7906,7980,8057,15591",
                         "endColumns": "49,77,59,85,79,87,66,60,142,88,85,119,89,72,86,106,51,69,75,77,53,46,44,43,51,69,75,71,71,70,43,76,65,69,81,83,72,60,75,57,213,81,73,76,228,71",
                         "endOffsets": "4323,4401,4461,4547,4627,4715,4782,4843,5057,5146,5232,5352,5442,5515,5602,5709,5761,5831,5907,5985,6039,6086,6457,6501,6553,6623,6699,6771,6843,6914,6958,7035,7101,7171,7253,7337,7410,7471,7547,7605,7819,7901,7975,8052,8281,15658"
-                    }
-                },
-                {
-                    "source": "C:\\Users\\bhavya.dudhia\\.gradle\\caches\\8.11.1\\transforms\\725e61fcd29c2c9d97854061b9c01b02\\transformed\\core-1.15.0\\res\\values-et\\values-et.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,150,252,350,453,559,664,784",
-                        "endColumns": "94,101,97,102,105,104,119,100",
-                        "endOffsets": "145,247,345,448,554,659,779,880"
-                    },
-                    "to": {
-                        "startLines": "47,48,49,50,51,52,53,215",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3549,3644,3746,3844,3947,4053,4158,18231",
-                        "endColumns": "94,101,97,102,105,104,119,100",
-                        "endOffsets": "3639,3741,3839,3942,4048,4153,4273,18327"
                     }
                 }
             ]

@@ -6,8 +6,8 @@
 6    <uses-sdk android:minSdkVersion="23" />
 7
 8    <application android:usesCleartextTraffic="true" >
-8-->C:\Users\bhavya.dudhia\IdeaProjects\db-world\db-world-frontend\android\capacitor-cordova-android-plugins\src\main\AndroidManifest.xml:4:1-6:15
-8-->C:\Users\bhavya.dudhia\IdeaProjects\db-world\db-world-frontend\android\capacitor-cordova-android-plugins\src\main\AndroidManifest.xml:4:15-50
+8-->C:\Users\Bhavya\workspace\db_world\db-world-frontend\android\capacitor-cordova-android-plugins\src\main\AndroidManifest.xml:4:1-6:15
+8-->C:\Users\Bhavya\workspace\db_world\db-world-frontend\android\capacitor-cordova-android-plugins\src\main\AndroidManifest.xml:4:15-50
 9    </application>
 10
 11</manifest>
