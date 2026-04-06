@@ -53,6 +53,7 @@ const LazyActivityLogs        = lazy(() => import('@features/admin/ActivityLogs/
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/MediaFilesManagement/MediaFilesManagement.js'));
 const LazyTmdbSyncManager     = lazy(() => import('../features/adminv2/tmdb-sync'));
 const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
+const LazyIngestionPage       = lazy(() => import('@features/admin/Ingestion/IngestionPage.jsx'));
 const LazyServerInfo          = lazy(() => import('../features/adminv2/system-info'));
 const LazyRedisManager        = lazy(() => import('../features/adminv2/redis'));
 const LazyFileManager         = lazy(() => import('../features/adminv2/filemanager'));
@@ -289,6 +290,7 @@ const ThemedApp = () => {
                     <Route path="tag-management" element={<LazyTagManagement />} />
                     <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
                     <Route path="downloads"     element={<LazyDownloadManager />} />
+                    <Route path="ingestion"     element={<LazyIngestionPage />} />
                     <Route path="user-activity" element={<LazyCinemaActivity />} />
                     <Route path="system-info"   element={<LazyServerInfo />} />
                     <Route path="logs"          element={<LazyLogViewerV2 />} />

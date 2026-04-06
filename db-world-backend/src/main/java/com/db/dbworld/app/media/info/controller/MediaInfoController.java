@@ -87,6 +87,44 @@ public class MediaInfoController {
         return ApiResponse.success("Deleted");
     }
 
+    // ── Unassigned files ────────────────────────────────────────────────────
+
+    /**
+     * List media files with no linked record (ingested without record selection).
+     * Optional {@code q} filters by filename substring.
+     */
+    @GetMapping("/unassigned")
+    public ApiResponse<List<MediaFileDto>> getUnassigned(
+            @RequestParam(required = false) String q
+    ) {
+        List<MediaFileEntity> entities = (q != null && !q.isBlank())
+                ? mediaFileRepository.findUnassignedByName(q.trim())
+                : mediaFileRepository.findUnassigned();
+        return ApiResponse.success(entities.stream()
+                .map(mediaInfoService::toDto)
+                .toList());
+    }
+
+    /**
+     * Link an existing media file to a cinema record.
+     * Sets {@code record_id} on the MediaFileEntity.
+     */
+    @PatchMapping("/{id}/link-record")
+    @Transactional
+    public ApiResponse<MediaFileDto> linkRecord(
+            @PathVariable String id,
+            @RequestParam Long recordId
+    ) {
+        MediaFileEntity entity = mediaFileRepository.findById(id)
+                .orElseThrow(() -> new com.db.dbworld.core.exception.ResourceNotFoundException("MediaFile", "id", id));
+        RecordEntity record = recordRepository.findById(recordId)
+                .orElseThrow(() -> new com.db.dbworld.core.exception.ResourceNotFoundException("Record", "id", recordId));
+        entity.setRecord(record);
+        mediaFileRepository.save(entity);
+        log.info("MediaFile {} linked to record {}", id, recordId);
+        return ApiResponse.success("Linked successfully", mediaInfoService.toDto(entity));
+    }
+
     /**
      * Seed realistic test media file data for a record.
      * Creates two fake MKV entries (1080p + 4K HDR) with full track metadata.

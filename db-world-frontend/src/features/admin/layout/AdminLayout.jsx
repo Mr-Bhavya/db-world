@@ -51,6 +51,7 @@ const NAV = [
     label: 'Activity',
     items: [
       { id: 'downloads',     label: 'Download Manager', icon: <Download />,     path: 'downloads' },
+      { id: 'ingestion',     label: 'Media Ingestion',  icon: <Download />,     path: 'ingestion' },
       { id: 'user-activity', label: 'Cinema Activity',  icon: <TrackChanges />, path: 'user-activity' },
     ],
   },

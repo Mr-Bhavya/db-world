@@ -62,4 +62,7 @@ public interface MediaInfoService {
      * Used by {@code SymlinkService.ensureAll()} for bulk symlink repair.
      */
     List<MediaFileDto> findAll();
+
+    /** Convert an entity to DTO (exposed for controller use). */
+    MediaFileDto toDto(MediaFileEntity entity);
 }

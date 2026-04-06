@@ -9,6 +9,8 @@ import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -54,6 +56,31 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             trackingService.updateStatus(jobId, MirrorStatus.STARTED);
             ctx.log("PIPELINE", "Job started: " + jobId);
 
+            // ── Local file shortcut (link-existing) ──────────────────────────
+            String localFilePath = ctx.getRequest().getLocalFilePath();
+            if (localFilePath != null && !localFilePath.isBlank()) {
+                Path localFile = Path.of(localFilePath);
+                if (!Files.exists(localFile)) {
+                    throw new RuntimeException("Local file not found: " + localFilePath);
+                }
+                SourceMetadata src = new SourceMetadata();
+                src.setType("LOCAL");
+                src.setUri(localFilePath);
+                ctx.setSource(src);
+                jobStore.setSourceType(jobId, "LOCAL");
+
+                DownloadResult localResult = DownloadResult.success(
+                        jobId, localFile, localFile.getFileName().toString(), Files.size(localFile));
+                ctx.setDownload(localResult);
+
+                trackingService.updateJobMeta(jobId, "LOCAL",
+                        localFile.getFileName().toString(), localFilePath,
+                        ctx.getRequest().getRecordId());
+                ctx.log("SOURCE", "Using local file: " + localFile.getFileName());
+                runProcessing(ctx);
+                return;
+            }
+
             // ── Resolve source ───────────────────────────────────────────────
             SourceHandler handler = sourceHandlers.stream()
                     .filter(h -> h.supports(ctx.getRequest().getUri()))
@@ -65,11 +92,12 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             jobStore.setSourceType(jobId, ctx.getSource().getType());
             ctx.log("SOURCE", "Resolved source type: " + ctx.getSource().getType());
 
+            // seed uri into tracking so WS shows it immediately
+            trackingService.updateJobMeta(jobId, ctx.getSource().getType(),
+                    null, ctx.getRequest().getUri(), ctx.getRequest().getRecordId());
+
             // ── Cancellation check ───────────────────────────────────────────
-            if (isCancelled(ctx)) {
-                markCancelled(ctx);
-                return;
-            }
+            if (isCancelled(ctx)) { markCancelled(ctx); return; }
 
             // ── Download ─────────────────────────────────────────────────────
             trackingService.updateStatus(jobId, MirrorStatus.DOWNLOADING);
@@ -88,41 +116,16 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 throw new RuntimeException("Download failed: " + downloadResult.getErrorMessage());
             }
 
+            // update fileName in tracking once we know it
+            trackingService.updateJobMeta(jobId, ctx.getSource().getType(),
+                    downloadResult.getFileName(), ctx.getRequest().getUri(),
+                    ctx.getRequest().getRecordId());
+
             ctx.log("DOWNLOAD", "Completed: " + downloadResult.getFileName());
 
-            if (isCancelled(ctx)) {
-                markCancelled(ctx);
-                return;
-            }
+            if (isCancelled(ctx)) { markCancelled(ctx); return; }
 
-            // ── Processing ───────────────────────────────────────────────────
-            trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
-
-            for (ProcessingStrategy processor : processors) {
-                if (!processor.supports(ctx)) continue;
-
-                ctx.log("PROCESS", "Running: " + processor.getClass().getSimpleName());
-                trackingService.updateStep(jobId, resolveStep(processor));
-
-                ProcessingResult result = processor.process(ctx);
-                ctx.setProcessing(result);
-
-                if (!result.isSuccess()) {
-                    ctx.logError("PROCESS", "Failed: " + result.getErrorMessage());
-                    break;
-                }
-
-                if (isCancelled(ctx)) {
-                    markCancelled(ctx);
-                    return;
-                }
-            }
-
-            // ── Complete ─────────────────────────────────────────────────────
-            ctx.setStatus(MirrorStatus.SUCCESS);
-            ctx.log("PIPELINE", "Job completed successfully");
-            trackingService.complete(jobId);
-            repository.save(ctx);
+            runProcessing(ctx);
 
         } catch (Exception e) {
             log.error("Pipeline failed for jobId={}", jobId, e);
@@ -133,6 +136,34 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         } finally {
             jobStore.remove(jobId);
         }
+    }
+
+    private void runProcessing(IngestionContext ctx) throws Exception {
+        String jobId = ctx.getJobId();
+
+        trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
+
+        for (ProcessingStrategy processor : processors) {
+            if (!processor.supports(ctx)) continue;
+
+            ctx.log("PROCESS", "Running: " + processor.getClass().getSimpleName());
+            trackingService.updateStep(jobId, resolveStep(processor));
+
+            ProcessingResult result = processor.process(ctx);
+            ctx.setProcessing(result);
+
+            if (!result.isSuccess()) {
+                ctx.logError("PROCESS", "Failed: " + result.getErrorMessage());
+                throw new RuntimeException("Processing failed: " + result.getErrorMessage());
+            }
+
+            if (isCancelled(ctx)) { markCancelled(ctx); return; }
+        }
+
+        ctx.setStatus(MirrorStatus.SUCCESS);
+        ctx.log("PIPELINE", "Job completed successfully");
+        trackingService.complete(jobId);
+        repository.save(ctx);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
