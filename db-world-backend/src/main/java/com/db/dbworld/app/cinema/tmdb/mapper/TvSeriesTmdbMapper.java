@@ -70,6 +70,11 @@ public interface TvSeriesTmdbMapper extends BaseMapper<TvSeriesTmdbDto, TvSeries
     @Mapping(source = "next_episode_to_air", target = "nextEpisodeToAir")
     @Mapping(source = "original_language", target = "originalLanguage")
     @Mapping(source = "created_by", target = "createdBy")
+    // Seasons are managed separately by ingestSeasonsBlocking — mapping them here
+    // creates plain-ArrayList episodes that corrupt Hibernate's PersistentBag
+    // references when the entity is merged, causing the
+    // "collection no longer referenced" HibernateException.
+    @Mapping(target = "seasons", ignore = true)
     TvSeriesTmdbEntity fromTmdb(TvSeriesTmdbResponse response);
 
     /* =========================

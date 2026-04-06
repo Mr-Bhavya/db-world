@@ -393,7 +393,9 @@ const AdminMuiThemeWrapper = ({ children }) => {
         background: { default: '#f8fafc', paper: '#ffffff' },
         text: { primary: '#000000', secondary: 'rgba(0,0,0,0.55)' },
       } : {
-        background: { default: '#000000', paper: 'rgba(255,255,255,0.04)' },
+        // Use opaque dark values — rgba glass tokens are NOT suitable for
+        // MUI Drawer/Select/Autocomplete popup backgrounds (they appear transparent)
+        background: { default: '#000000', paper: '#111111' },
         text: { primary: '#ffffff', secondary: 'rgba(255,255,255,0.55)' },
       }),
     },
