@@ -110,6 +110,11 @@ public class InMemoryTrackingService implements TrackingService {
         return reportBuilder.build(state.logCollector);
     }
 
+    @Override
+    public LogCollector getLogCollector(String jobId) {
+        return getOrCreate(jobId).logCollector;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Internals
     // ──────────────────────────────────────────────────────────────────────────

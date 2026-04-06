@@ -43,6 +43,8 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
         jobStore.register(jobId, request);
         trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
+        // Share the TrackingService's LogCollector so ctx.log() entries appear in the HTML report
+        ctx.setLogCollector(trackingService.getLogCollector(jobId));
 
         jobExecutor.submit(() -> execute(ctx));
         return jobId;

@@ -1,10 +1,11 @@
-import React, { useState, useCallback, Suspense } from 'react';
+import React, { useState, useCallback, Suspense, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText,
   Typography, Divider, IconButton, Tooltip, Avatar, Chip,
   useTheme, useMediaQuery, alpha, Collapse,
 } from '@mui/material';
+import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
   Dashboard, Assignment, Movie, VideoLibrary,
   LocalOffer, Sync, Download, TrackChanges, Computer, Analytics,
@@ -379,9 +380,32 @@ const AdminLayoutInner = () => {
   );
 };
 
+/** Wraps admin content in a MUI ThemeProvider synced to the admin theme mode.
+ *  This ensures MUI Paper, Card, Typography etc. use light/dark palette
+ *  matching the admin toggle — not the global dark-default MUI theme.
+ */
+const AdminMuiThemeWrapper = ({ children }) => {
+  const { mode } = useThemeMode();
+  const muiTheme = useMemo(() => createTheme({
+    palette: {
+      mode,
+      ...(mode === 'light' ? {
+        background: { default: '#f8fafc', paper: '#ffffff' },
+        text: { primary: '#000000', secondary: 'rgba(0,0,0,0.55)' },
+      } : {
+        background: { default: '#000000', paper: 'rgba(255,255,255,0.04)' },
+        text: { primary: '#ffffff', secondary: 'rgba(255,255,255,0.55)' },
+      }),
+    },
+  }), [mode]);
+  return <MuiThemeProvider theme={muiTheme}>{children}</MuiThemeProvider>;
+};
+
 const AdminLayout = () => (
   <AdminThemeProvider>
-    <AdminLayoutInner />
+    <AdminMuiThemeWrapper>
+      <AdminLayoutInner />
+    </AdminMuiThemeWrapper>
   </AdminThemeProvider>
 );
 
