@@ -168,7 +168,11 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
                     }
                 }
 
-                // For SPA routes (non-static paths), serve index.html
+                // For SPA routes (non-static paths), serve index.html (only if it exists)
+                if (!indexResource.exists()) {
+                    log.debug("SPA index.html not found in classpath; skipping SPA fallback for: {}", requestPath);
+                    return null;
+                }
                 indexServed.incrementAndGet();
                 putInCache(requestPath, indexResource);
                 logSpaRequest(request, requestPath, startTime);
@@ -209,9 +213,13 @@ public class SinglePageAppConfig implements WebMvcConfigurer {
                 return false;
             }
 
+            // Normalize: AntPathMatcher patterns start with '/', but the requestPath
+            // delivered by Spring's resource handler chain may not have a leading slash.
+            String normalizedPath = path.startsWith("/") ? path : "/" + path;
+
             // Check against API patterns
             for (String pattern : API_PATH_PATTERNS) {
-                if (pathMatcher.match(pattern, path)) {
+                if (pathMatcher.match(pattern, normalizedPath)) {
                     return true;
                 }
             }

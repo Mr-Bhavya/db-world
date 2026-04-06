@@ -50,7 +50,7 @@ import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 // Lazy load heavy components for better performance
 const LazyAdminDashboard      = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
 const LazyActivityLogs        = lazy(() => import('@features/admin/ActivityLogs/ActivityLogs.js'));
-const LazyMediaFilesManagement = lazy(() => import('@features/admin/MediaFilesManagement/MediaFilesManagement.js'));
+const LazyMediaFilesManagement = lazy(() => import('../features/adminv2/mediafiles'));
 const LazyTmdbSyncManager     = lazy(() => import('../features/adminv2/tmdb-sync'));
 const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
 const LazyIngestionPage       = lazy(() => import('../features/adminv2/ingestion'));

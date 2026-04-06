@@ -28,7 +28,7 @@ public class DefaultFileStorageService implements FileStorageService {
 
     @Override
     public Path resolveFinalDir(IngestionContext ctx) {
-        return runtimeProperties.getIntegrationPath().resolve(safeFolderName(ctx));
+        return runtimeProperties.getStreamPath().resolve(safeFolderName(ctx));
     }
 
     @Override

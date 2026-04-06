@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -57,15 +58,25 @@ public class AuthController {
                 loginRequest.getPassword()
         );
 
+        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken())
+                .httpOnly(true)
+                .secure(false) // ⚠️ IMPORTANT for localhost (HTTP)
+                .sameSite("Lax") // ✅ works for local dev
+                .path("/") // ✅ VERY IMPORTANT
+                .maxAge(tokens.refreshTokenTtl())
+                .build();
+
+//        Production (HTTPS)
+//                .secure(true)
+//                .sameSite("None")
+
         ResponsePayloads.LoginResponse response = new ResponsePayloads.LoginResponse(
                 tokens.accessToken(),
                 tokens.user()
         );
 
         return ResponseEntity.ok()
-                .header(SET_COOKIE,
-                        addCookie(REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken(), tokens.refreshTokenTtl()).toString()
-                )
+                .header("Set-Cookie", refreshCookie.toString())
                 .body(ApiResponse.success("Login successful", response));
     }
 

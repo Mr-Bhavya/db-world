@@ -130,10 +130,13 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     // Polling loop
     // ──────────────────────────────────────────────────────────────────────────
 
+    private static final int MAX_CONSECUTIVE_POLL_ERRORS = 5;
+
     private DownloadResult pollUntilDone(IngestionContext ctx, String gid, Path tempDir)
             throws InterruptedException {
         String jobId = ctx.getJobId();
         long iterations = 0;
+        int consecutiveErrors = 0;
 
         while (iterations < MAX_POLL_ITERATIONS) {
 
@@ -153,6 +156,8 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                     ctx.logError("ARIA2", "Null status for GID: " + gid);
                     continue;
                 }
+
+                consecutiveErrors = 0; // reset on successful poll
 
                 updateProgress(ctx, status);
 
@@ -175,7 +180,13 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                 // "paused" → keep polling until resume or cancel
 
             } catch (Exception e) {
-                log.warn("[{}] Poll error for GID {}: {}", jobId, gid, e.getMessage());
+                consecutiveErrors++;
+                log.warn("[{}] Poll error #{} for GID {}: {}", jobId, consecutiveErrors, gid, e.getMessage());
+                if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+                    String msg = "Aria2 RPC unreachable after " + consecutiveErrors + " retries: " + e.getMessage();
+                    ctx.logError("ARIA2", msg);
+                    return DownloadResult.failure(jobId, msg);
+                }
             }
         }
 

@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.ingestion.tracking;
 
 import com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType;
+import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 
 import java.util.Map;
 
@@ -24,4 +25,11 @@ public interface TrackingService {
     Map<String, Object> getAll();
 
     String getHtmlReport(String jobId);
+
+    /**
+     * Returns the LogCollector for a job so the pipeline context can share the same
+     * instance as the tracking service — ensuring logs written via ctx.log() appear
+     * in the HTML report.
+     */
+    LogCollector getLogCollector(String jobId);
 }

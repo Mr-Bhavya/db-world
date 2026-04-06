@@ -95,6 +95,31 @@ export const rescanMediaFile = (id) =>
 export const seedMediaFiles = (recordId) =>
   axiosInstance.post(`/api/media/info/seed/${recordId}`).then(r => r.data.data);
 
+// All media files (global, not per-record)
+export const getAllMediaFiles = () =>
+  axiosInstance.get('/api/admin/media/files').then(r => r.data.data ?? r.data);
+
+export const deleteMediaFileById = (id) =>
+  axiosInstance.delete(`/api/admin/media/files/${id}`).then(r => r.data);
+
+export const bulkDeleteMediaFiles = (ids) =>
+  axiosInstance.delete('/api/admin/media/files', { data: ids }).then(r => r.data);
+
+export const cleanupOrphanedFiles = () =>
+  axiosInstance.post('/api/admin/media/files/cleanup').then(r => r.data);
+
+export const repairAllSymlinks = (dryRun = false) =>
+  axiosInstance.post(`/api/admin/media/symlinks/repair?dryRun=${dryRun}`).then(r => r.data);
+
+export const repairSymlink = (fileId) =>
+  axiosInstance.post(`/api/admin/media/symlinks/repair/${fileId}`).then(r => r.data);
+
+export const rebuildAllSymlinks = () =>
+  axiosInstance.post('/api/admin/media/symlinks/rebuild').then(r => r.data);
+
+export const linkMediaFileToRecord = (mediaFileId, recordId) =>
+  axiosInstance.patch(`/api/media/info/${mediaFileId}/link-record`, null, { params: { recordId } }).then(r => r.data);
+
 /* ─── TAG ADMIN ─────────────────────────────────────────────────── */
 
 export const getTagSummary = () =>
