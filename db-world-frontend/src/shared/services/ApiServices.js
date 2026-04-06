@@ -523,9 +523,19 @@ export const deleteCredentialByCredentialId = async (credentialId) => {
   }
 };
 
+// export const mirror = async (body) => {
+//   try {
+//     const response = await axiosInstance.post('/api/utils/mirror', body);
+//     return response.data;
+//   } catch (error) {
+//     console.error('Error creating mirror:', error);
+//     throw error;
+//   }
+// };
+
 export const mirror = async (body) => {
   try {
-    const response = await axiosInstance.post('/api/utils/mirror', body);
+    const response = await axiosInstance.post('/api/ingestion', body);
     return response.data;
   } catch (error) {
     console.error('Error creating mirror:', error);

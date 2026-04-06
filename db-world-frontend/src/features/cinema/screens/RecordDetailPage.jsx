@@ -82,6 +82,7 @@ import Constants from '@shared/constants';
 
 const DbWorldPlayer = registerPlugin('DbWorldPlayer');
 import { useT } from '@shared/theme/ThemeContext';
+import MediaDownloadViewer from './download';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -159,6 +160,7 @@ const CODEC_META = {
 };
 
 function getQuality(video, fileName) {
+  console.log('Determining quality for video:', video, 'and filename:', fileName);
   if (video?.resolution) {
     const [w, h] = video.resolution.split('x').map(Number);
     if (h >= 4320 || w >= 7680) return '8K';
@@ -1657,7 +1659,8 @@ function WatchTab({ recordId, record }) {
       .then(res => {
         if (res?.httpStatusCode === 200 || res?.data) {
           const converted = CommonServices.convertMediaInfoToCustomFormat(null, res.data ?? res);
-          setFiles(converted);
+          // setFiles(converted);
+          setFiles(res.data ?? res);
         }
       })
       .catch(() => setHasError(true))
@@ -1675,6 +1678,8 @@ function WatchTab({ recordId, record }) {
   }, [files]);
 
   const sortedQualities = QUALITY_ORDER.filter(q => grouped[q]);
+
+  console.log('sorted : ', sortedQualities);
 
   if (loading) {
     return (
@@ -1904,6 +1909,7 @@ export default function RecordDetailPage() {
         {tabs[activeTab] === 'Seasons'    && <SeasonsTab record={record} />}
         {tabs[activeTab] === 'Reviews'    && <ReviewsTab record={record} recordId={id} />}
         {tabs[activeTab] === 'Watch'      && <WatchTab recordId={id} record={record} />}
+        {/* {tabs[activeTab] === 'Watch'      && <MediaDownloadViewer recordId={id} record={record} />} */}
       </Container>
 
       {/* Trailer dialog */}
