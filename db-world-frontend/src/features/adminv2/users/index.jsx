@@ -131,10 +131,10 @@ export default function UserManagementV2() {
 
       {/* Data view */}
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        {isMobile ? (
-          <UserMobileList users={filtered} loading={isLoading} onDelete={handleDelete} />
-        ) : viewMode === 'table' ? (
+        {viewMode === 'table' ? (
           <UserTable users={filtered} loading={isLoading} onDelete={handleDelete} />
+        ) : isMobile ? (
+          <UserMobileList users={filtered} loading={isLoading} onDelete={handleDelete} />
         ) : (
           <UserGrid users={filtered} loading={isLoading} onDelete={handleDelete} />
         )}

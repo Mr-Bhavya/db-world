@@ -11,7 +11,7 @@ export const useRecordStore = create((set) => ({
   pageSize:    25,
   setPageSize: (s) => set({ pageSize: s }),
 
-  sortModel:    [],
+  sortModel:    [{ field: 'recordId', sort: 'desc' }],
   setSortModel: (v) => set({ sortModel: v }),
 
   selectedRows:    [],

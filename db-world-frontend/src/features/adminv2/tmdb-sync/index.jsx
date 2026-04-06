@@ -85,6 +85,8 @@ export default function TmdbSyncPage() {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [sortField, setSortField] = useState('lastCheckedAt');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   /* ── Queries ── */
 
@@ -95,12 +97,13 @@ export default function TmdbSyncPage() {
   });
 
   const { data: recordsPage, isFetching: recordsLoading } = useQuery({
-    queryKey: ['tmdb-sync-records', page, rowsPerPage, filterStatus, filterType],
+    queryKey: ['tmdb-sync-records', page, rowsPerPage, filterStatus, filterType, sortField, sortOrder],
     queryFn: () => getTmdbSyncRecords({
       page,
       size: rowsPerPage,
       ...(filterStatus && { status: filterStatus }),
       ...(filterType   && { recordType: filterType }),
+      sort: `${sortField},${sortOrder}`,
     }),
     keepPreviousData: true,
   });
@@ -138,6 +141,33 @@ export default function TmdbSyncPage() {
   const handleFilterChange = (setter) => (e) => {
     setter(e.target.value);
     setPage(0);
+  };
+
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+    setPage(0);
+  };
+
+  const SortHeader = ({ field, label }) => {
+    const active = sortField === field;
+    return (
+      <Box
+        onClick={() => toggleSort(field)}
+        sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', userSelect: 'none',
+          color: active ? T.teal : T.textMuted,
+          '&:hover': { color: T.teal } }}
+      >
+        {label}
+        <Box sx={{ fontSize: '0.6rem', opacity: active ? 1 : 0.4 }}>
+          {active && sortOrder === 'desc' ? '▼' : '▲'}
+        </Box>
+      </Box>
+    );
   };
 
   const isSyncing = triggerMutation.isPending;
@@ -212,6 +242,27 @@ export default function TmdbSyncPage() {
         ))}
       </Grid>
 
+      {/* Quick size buttons */}
+      <Box sx={{ display: 'flex', gap: 0.75, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Typography sx={{ fontSize: '0.72rem', color: T.textFaint, mr: 0.5 }}>Show:</Typography>
+        {[20, 50, 100].map(n => (
+          <Box
+            key={n}
+            onClick={() => { setRowsPerPage(n); setPage(0); }}
+            sx={{
+              px: 1.5, py: 0.4, borderRadius: 99, border: '1px solid', cursor: 'pointer',
+              fontSize: '0.72rem', fontWeight: 600, userSelect: 'none', transition: 'all .15s',
+              borderColor: rowsPerPage === n ? T.teal : T.border,
+              color:        rowsPerPage === n ? T.teal : T.textMuted,
+              bgcolor:      rowsPerPage === n ? T.tealBg : 'transparent',
+              '&:hover': { borderColor: T.teal, color: T.teal },
+            }}
+          >
+            {n}
+          </Box>
+        ))}
+      </Box>
+
       {/* Filters */}
       <Box sx={{ display: 'flex', gap: 1.5, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -285,11 +336,12 @@ export default function TmdbSyncPage() {
                   py: 1.25,
                 },
               }}>
-                <TableCell>TMDB ID</TableCell>
+                <TableCell><SortHeader field="tmdbId" label="TMDB ID" /></TableCell>
+                <TableCell>Name</TableCell>
                 <TableCell>Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Last Checked</TableCell>
-                <TableCell>Last Synced</TableCell>
+                <TableCell><SortHeader field="status" label="Status" /></TableCell>
+                <TableCell><SortHeader field="lastCheckedAt" label="Last Checked" /></TableCell>
+                <TableCell><SortHeader field="lastSyncedAt" label="Last Synced" /></TableCell>
                 <TableCell>Version</TableCell>
                 <TableCell>Error</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -312,6 +364,15 @@ export default function TmdbSyncPage() {
                     >
                       {row.tmdbId}
                     </Typography>
+                  </TableCell>
+
+                  <TableCell sx={{ maxWidth: 200 }}>
+                    <Tooltip title={row.name ?? row.recordName ?? ''}>
+                      <Typography sx={{ fontSize: '0.78rem', color: T.text, fontWeight: 500,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+                        {row.name ?? row.recordName ?? '—'}
+                      </Typography>
+                    </Tooltip>
                   </TableCell>
 
                   <TableCell>
@@ -361,18 +422,16 @@ export default function TmdbSyncPage() {
                   </TableCell>
 
                   <TableCell align="right">
-                    {row.status === 'FAILED' && (
-                      <Tooltip title="Retry sync">
-                        <IconButton
-                          size="small"
-                          onClick={() => retryMutation.mutate(row.id)}
-                          disabled={retryMutation.isPending}
-                          sx={{ color: T.textFaint, '&:hover': { color: '#f59e0b' } }}
-                        >
-                          <Refresh sx={{ fontSize: 15 }} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    <Tooltip title={row.status === 'FAILED' ? 'Retry sync' : 'Re-sync'}>
+                      <IconButton
+                        size="small"
+                        onClick={() => retryMutation.mutate(row.id)}
+                        disabled={retryMutation.isPending}
+                        sx={{ color: T.textFaint, '&:hover': { color: row.status === 'FAILED' ? '#f59e0b' : T.teal } }}
+                      >
+                        <Refresh sx={{ fontSize: 15 }} />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
@@ -380,7 +439,7 @@ export default function TmdbSyncPage() {
               {!recordsLoading && records.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     sx={{ textAlign: 'center', py: 6, color: T.textMuted, borderBottom: 'none', fontSize: '0.875rem' }}
                   >
                     No sync records found

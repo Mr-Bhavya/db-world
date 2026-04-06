@@ -11,6 +11,7 @@ import { useT } from '@shared/theme';
 import {
   Add, Delete, Link as LinkIcon, MusicNote, Lock, Archive,
   Send, Clear, VideoSettings, Info, CloudDownload, FolderOpen,
+  UploadFile, Close,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSnackbar } from 'notistack';
@@ -188,6 +189,9 @@ export default function IngestionForm({ onSubmitted }) {
   const { enqueueSnackbar } = useSnackbar();
   const setFormOpen = useIngestionStore((s) => s.setFormOpen);
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
+  const torrentInputRef = useRef(null);
+  const [torrentFile, setTorrentFile] = useState(null);
+  const [torrentBase64, setTorrentBase64] = useState(null);
 
   const { control, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } =
     useForm({
@@ -243,12 +247,30 @@ export default function IngestionForm({ onSubmitted }) {
   const { data: formatsData, isFetching: formatsLoading, error: formatsError } =
     useYtFormats(fetchUrl);
 
+  const handleTorrentFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTorrentFile(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      setTorrentBase64(base64);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   // ── Submit ───────────────────────────────────────────────────────────────
 
   const onSubmit = useCallback(async (data) => {
     const uris = data.urls
       .map((u) => u.url.trim())
       .filter(Boolean);
+
+    if (!torrentBase64 && uris.length === 0) {
+      enqueueSnackbar('Provide at least one URL or upload a .torrent file', { variant: 'warning' });
+      return;
+    }
 
     const body = {
       uris,
@@ -269,6 +291,8 @@ export default function IngestionForm({ onSubmitted }) {
       // rename (take first customName if set)
       rename:    data.urls[0]?.rename || false,
       fileName:  data.urls[0]?.rename ? data.urls[0]?.customName : undefined,
+      // torrent file
+      ...(torrentBase64 && { torrentBase64 }),
     };
 
     try {
@@ -280,6 +304,8 @@ export default function IngestionForm({ onSubmitted }) {
         );
         reset();
         setFetchUrl('');
+        setTorrentFile(null);
+        setTorrentBase64(null);
         setActiveTab(1); // switch to Live Jobs tab
         onSubmitted?.();
       } else {
@@ -334,11 +360,44 @@ export default function IngestionForm({ onSubmitted }) {
             </Stack>
           </AnimatePresence>
 
-          {errors.urls && (
+          {errors.urls && !torrentBase64 && (
             <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
               {errors.urls.message || errors.urls.root?.message}
             </Typography>
           )}
+
+          {/* Torrent file upload */}
+          <Box sx={{ mt: 1 }}>
+            <input
+              ref={torrentInputRef}
+              type="file"
+              accept=".torrent"
+              style={{ display: 'none' }}
+              onChange={handleTorrentFile}
+            />
+            {torrentFile ? (
+              <Chip
+                icon={<UploadFile sx={{ fontSize: '14px !important' }} />}
+                label={torrentFile.name}
+                onDelete={() => { setTorrentFile(null); setTorrentBase64(null); }}
+                deleteIcon={<Close sx={{ fontSize: '14px !important' }} />}
+                color="info"
+                variant="outlined"
+                size="small"
+                sx={{ maxWidth: '100%', fontSize: '0.72rem' }}
+              />
+            ) : (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<UploadFile sx={{ fontSize: 15 }} />}
+                onClick={() => torrentInputRef.current?.click()}
+                sx={{ fontSize: '0.75rem', borderStyle: 'dashed' }}
+              >
+                Upload .torrent file
+              </Button>
+            )}
+          </Box>
         </Box>
 
         {/* ── YouTube Format Picker ──────────────────────────────────────── */}
