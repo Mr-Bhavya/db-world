@@ -59,6 +59,15 @@ public class InMemoryTrackingService implements TrackingService {
     }
 
     @Override
+    public void updateJobMeta(String jobId, String sourceType, String fileName, String uri, Long recordId) {
+        JobState state = getOrCreate(jobId);
+        state.sourceType = sourceType;
+        state.fileName   = fileName;
+        state.uri        = uri;
+        state.recordId   = recordId;
+    }
+
+    @Override
     public void fail(String jobId, String reason) {
         JobState state = getOrCreate(jobId);
         state.status.set(MirrorStatus.FAILED);
@@ -111,20 +120,24 @@ public class InMemoryTrackingService implements TrackingService {
 
     private Map<String, Object> toSummary(String jobId, JobState state) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("jobId", jobId);
-        map.put("status", state.status.get());
-        map.put("step", state.step.get() != null ? state.step.get().name() : null);
-        map.put("startTime", state.startTime);
-        map.put("elapsedMs", System.currentTimeMillis() - state.startTime);
+        map.put("jobId",      jobId);
+        map.put("status",     state.status.get());
+        map.put("step",       state.step.get() != null ? state.step.get().name() : null);
+        map.put("sourceType", state.sourceType);
+        map.put("fileName",   state.fileName);
+        map.put("uri",        state.uri);
+        map.put("recordId",   state.recordId);
+        map.put("startTime",  state.startTime);
+        map.put("elapsedMs",  System.currentTimeMillis() - state.startTime);
         if (state.failReason != null) map.put("failReason", state.failReason);
 
         ProgressSnapshot p = state.progress.get();
         if (p != null) {
             Map<String, Object> progressMap = new LinkedHashMap<>();
             progressMap.put("downloaded", p.downloadedBytes());
-            progressMap.put("total", p.totalBytes());
-            progressMap.put("speed", p.speed());
-            progressMap.put("eta", p.eta());
+            progressMap.put("total",      p.totalBytes());
+            progressMap.put("speed",      p.speed());
+            progressMap.put("eta",        p.eta());
             if (p.totalBytes() > 0) {
                 progressMap.put("percent",
                         Math.round(((double) p.downloadedBytes() / p.totalBytes()) * 100 * 10.0) / 10.0);
@@ -140,12 +153,17 @@ public class InMemoryTrackingService implements TrackingService {
 
     private static class JobState {
         final String jobId;
-        final AtomicReference<MirrorStatus> status = new AtomicReference<>(MirrorStatus.QUEUED);
-        final AtomicReference<PipelineStepType> step = new AtomicReference<>();
+        final AtomicReference<MirrorStatus>    status   = new AtomicReference<>(MirrorStatus.QUEUED);
+        final AtomicReference<PipelineStepType> step    = new AtomicReference<>();
         final AtomicReference<ProgressSnapshot> progress = new AtomicReference<>();
         final LogCollector logCollector = new LogCollector();
         final long startTime = System.currentTimeMillis();
         volatile String failReason;
+        // Meta set by pipeline after source resolution / download
+        volatile String sourceType;
+        volatile String fileName;
+        volatile String uri;
+        volatile Long   recordId;
 
         JobState(String jobId) {
             this.jobId = jobId;

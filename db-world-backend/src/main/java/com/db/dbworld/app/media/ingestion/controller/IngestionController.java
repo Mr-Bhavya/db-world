@@ -2,9 +2,11 @@ package com.db.dbworld.app.media.ingestion.controller;
 
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.ingestion.entity.IngestionJobEntity;
-import com.db.dbworld.app.media.ingestion.model.IngestionRequest;
+import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
 import com.db.dbworld.app.media.ingestion.repository.IngestionJobRepository;
+import com.db.dbworld.app.media.ingestion.service.FileBrowserService;
+import com.db.dbworld.app.media.ingestion.service.YtFormatService;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
@@ -50,19 +52,25 @@ public class IngestionController {
     private final IngestionJobStore      jobStore;
     private final Aria2RpcService        aria2RpcService;
     private final IngestionJobRepository jobRepository;
+    private final YtFormatService        ytFormatService;
+    private final FileBrowserService     fileBrowserService;
 
     public IngestionController(
             IngestionPipeline      pipeline,
             TrackingService        trackingService,
             IngestionJobStore      jobStore,
             Aria2RpcService        aria2RpcService,
-            IngestionJobRepository jobRepository
+            IngestionJobRepository jobRepository,
+            YtFormatService        ytFormatService,
+            FileBrowserService     fileBrowserService
     ) {
-        this.pipeline        = pipeline;
-        this.trackingService = trackingService;
-        this.jobStore        = jobStore;
-        this.aria2RpcService = aria2RpcService;
-        this.jobRepository   = jobRepository;
+        this.pipeline           = pipeline;
+        this.trackingService    = trackingService;
+        this.jobStore           = jobStore;
+        this.aria2RpcService    = aria2RpcService;
+        this.jobRepository      = jobRepository;
+        this.ytFormatService    = ytFormatService;
+        this.fileBrowserService = fileBrowserService;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -240,6 +248,76 @@ public class IngestionController {
     @GetMapping("/history/record/{recordId}")
     public ApiResponse<List<IngestionJobEntity>> getHistoryByRecord(@PathVariable Long recordId) {
         return ApiResponse.success(jobRepository.findByRecordId(recordId));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // YOUTUBE FORMATS
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Fetch available video/audio formats for a YouTube (or compatible) URL.
+     * The frontend uses this to populate the format picker before submitting.
+     */
+    @GetMapping("/yt/formats")
+    public ApiResponse<YtFormatsResponse> getYtFormats(@RequestParam String url) {
+        try {
+            return ApiResponse.success(ytFormatService.fetchFormats(url));
+        } catch (Exception e) {
+            log.error("Failed to fetch yt formats for url={}", url, e);
+            return ApiResponse.error(500, "Failed to fetch formats: " + e.getMessage(), (YtFormatsResponse) null);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // FILE BROWSER  (stream-path / temp-path)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * List files in the server's stream-path or temp-path.
+     * Used by the "Link existing file" browser dialog.
+     *
+     * @param root    "stream" or "temp"
+     * @param subPath relative sub-directory, default = root of the chosen area
+     */
+    @GetMapping("/files/browse")
+    public ApiResponse<java.util.List<FileBrowserItem>> browseFiles(
+            @RequestParam String root,
+            @RequestParam(required = false, defaultValue = "") String subPath
+    ) {
+        try {
+            return ApiResponse.success(fileBrowserService.browse(root, subPath));
+        } catch (SecurityException e) {
+            return ApiResponse.error(403, e.getMessage(), (java.util.List<FileBrowserItem>) null);
+        } catch (Exception e) {
+            log.error("File browser error root={} subPath={}", root, subPath, e);
+            return ApiResponse.error(500, e.getMessage(), (java.util.List<FileBrowserItem>) null);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LINK EXISTING FILE  (skip download, run processing only)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Start an ingestion job for a file already present on the server.
+     * The DOWNLOAD step is skipped; the pipeline runs MEDIAINFO → FFMPEG → DB save.
+     *
+     * Body must include {@code localFilePath} (absolute server path).
+     * Optionally include {@code recordId}, {@code season}, {@code episode}, {@code trackFilter}.
+     */
+    @PostMapping("/link-existing")
+    public ApiResponse<String> linkExisting(@RequestBody IngestionRequest request) {
+        if (request.getLocalFilePath() == null || request.getLocalFilePath().isBlank()) {
+            return ApiResponse.error(400, "localFilePath is required for link-existing", (String) null);
+        }
+        try {
+            String jobId = pipeline.start(request);
+            log.info("Link-existing job started jobId={} path={}", jobId, request.getLocalFilePath());
+            return ApiResponse.success("Link-existing job started", jobId);
+        } catch (Exception e) {
+            log.error("Link-existing failed path={}", request.getLocalFilePath(), e);
+            return ApiResponse.error(500, e.getMessage(), (String) null);
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════

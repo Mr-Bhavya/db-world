@@ -266,7 +266,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     // DTO mapper
     // ──────────────────────────────────────────────────────────────────────────
 
-    private MediaFileDto toDto(MediaFileEntity entity) {
+    @Override
+    public MediaFileDto toDto(MediaFileEntity entity) {
         List<TrackDto> trackDtos = entity.getTracks().stream()
                 .map(this::toTrackDto)
                 .toList();

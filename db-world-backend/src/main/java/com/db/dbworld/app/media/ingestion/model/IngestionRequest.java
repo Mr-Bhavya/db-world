@@ -51,6 +51,13 @@ public class IngestionRequest {
     private Integer episode;
 
     /**
+     * Absolute server path to an already-downloaded file.
+     * When set the DOWNLOAD step is skipped; the pipeline starts directly at PROCESSING.
+     * Used by the "link existing file" flow.
+     */
+    private String localFilePath;
+
+    /**
      * Optional FFmpeg track filter applied during TMDB enrichment.
      * All filtering (audio language selection, subtitle removal, etc.)
      * is folded into the same single FFmpeg pass as cover-art embedding

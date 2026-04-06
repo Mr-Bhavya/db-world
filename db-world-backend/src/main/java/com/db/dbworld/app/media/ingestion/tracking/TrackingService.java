@@ -12,6 +12,9 @@ public interface TrackingService {
 
     void updateProgress(String jobId, ProgressSnapshot progress);
 
+    /** Store display metadata broadcast via WebSocket (sourceType, fileName, uri, recordId). */
+    void updateJobMeta(String jobId, String sourceType, String fileName, String uri, Long recordId);
+
     void fail(String jobId, String reason);
 
     void complete(String jobId);
