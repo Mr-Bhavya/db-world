@@ -6,7 +6,7 @@ export const useUserStore = create((set) => ({
 
   searchTerm:    '',
   roleFilter:    'ALL',
-  sortModel:     [],
+  sortModel:     [{ field: 'userId', sort: 'desc' }],
   setSearchTerm: (v) => set({ searchTerm: v }),
   setRoleFilter: (v) => set({ roleFilter: v }),
   setSortModel:  (v) => set({ sortModel: v }),

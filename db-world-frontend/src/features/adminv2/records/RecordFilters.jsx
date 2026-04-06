@@ -1,16 +1,31 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Box, TextField, ToggleButton, ToggleButtonGroup, InputAdornment, IconButton, Tooltip, MenuItem } from '@mui/material';
+import { Box, TextField, ToggleButton, ToggleButtonGroup, InputAdornment, IconButton, Tooltip, MenuItem, Select } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import GridViewIcon from '@mui/icons-material/GridView';
 import FilterListOffIcon from '@mui/icons-material/FilterListOff';
 import AddIcon from '@mui/icons-material/Add';
+import SortIcon from '@mui/icons-material/Sort';
 import { useT, getSelectMenuProps } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
 
+const SORT_OPTIONS = [
+  { value: 'recordId,desc', label: 'Latest' },
+  { value: 'recordId,asc',  label: 'Oldest' },
+  { value: 'name,asc',      label: 'Name A–Z' },
+  { value: 'name,desc',     label: 'Name Z–A' },
+  { value: 'year,desc',     label: 'Year (New)' },
+  { value: 'year,asc',      label: 'Year (Old)' },
+];
+
 export default function RecordFilters({ onAdd }) {
   const T = useT();
-  const { filters, setFilter, clearFilters, viewMode, setViewMode } = useRecordStore();
+  const { filters, setFilter, clearFilters, viewMode, setViewMode, sortModel, setSortModel } = useRecordStore();
+  const sortKey = sortModel.length > 0 ? `${sortModel[0].field},${sortModel[0].sort}` : 'recordId,desc';
+  const handleSortChange = (e) => {
+    const [field, sort] = e.target.value.split(',');
+    setSortModel([{ field, sort }]);
+  };
   const searchTimer = useRef(null);
 
   useEffect(() => () => clearTimeout(searchTimer.current), []);
@@ -79,6 +94,24 @@ export default function RecordFilters({ onAdd }) {
           </IconButton>
         </Tooltip>
       )}
+
+      <Select
+        size="small"
+        value={sortKey}
+        onChange={handleSortChange}
+        startAdornment={<SortIcon sx={{ fontSize: 14, color: T.textFaint, mr: 0.5 }} />}
+        sx={{
+          color: T.textPrimary, fontSize: 12, height: 32,
+          bgcolor: T.inputBg,
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: T.glassBorder },
+          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },
+          '& .MuiSelect-icon': { color: T.textMuted },
+        }}
+      >
+        {SORT_OPTIONS.map(o => (
+          <MenuItem key={o.value} value={o.value} sx={{ fontSize: 12 }}>{o.label}</MenuItem>
+        ))}
+      </Select>
 
       <Box sx={{ flex: 1 }} />
 

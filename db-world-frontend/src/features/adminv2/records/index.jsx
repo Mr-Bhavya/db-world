@@ -283,10 +283,10 @@ export default function RecordManagementV2() {
         '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 3 } }}>
         {isLoading ? (
           <SkeletonRows T={T} />
-        ) : isMobile ? (
-          <RecordMobileList rows={rows} loading={false} onDelete={handleDelete} />
         ) : viewMode === 'table' ? (
           <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />
+        ) : isMobile ? (
+          <RecordMobileList rows={rows} loading={false} onDelete={handleDelete} />
         ) : (
           <RecordGrid rows={rows} loading={false} onDelete={handleDelete} />
         )}

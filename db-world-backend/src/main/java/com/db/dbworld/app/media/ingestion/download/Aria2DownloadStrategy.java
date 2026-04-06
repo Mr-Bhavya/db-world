@@ -50,7 +50,8 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
 
     @Override
     public boolean supports(SourceMetadata metadata) {
-        return "HTTP".equals(metadata.getType()) || "TORRENT".equals(metadata.getType());
+        return "HTTP".equals(metadata.getType()) || "TORRENT".equals(metadata.getType())
+                || "TORRENT_FILE".equals(metadata.getType());
     }
 
     @Override
@@ -62,13 +63,16 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             Path tempDir = fileStorageService.resolveTempDir(ctx);
 
             Map<String, Object> options = buildAria2Options(ctx, tempDir);
-            ctx.log("ARIA2", "Starting download: " + ctx.getRequest().getUri());
 
-            Aria2AddDownloadResponse addResponse = aria2RpcService.addUri(
-                    jobId,
-                    ctx.getRequest().getUri(),
-                    options
-            );
+            Aria2AddDownloadResponse addResponse;
+            String torrentBase64 = ctx.getRequest().getTorrentBase64();
+            if (torrentBase64 != null && !torrentBase64.isBlank()) {
+                ctx.log("ARIA2", "Starting torrent download via .torrent file");
+                addResponse = aria2RpcService.addTorrent(jobId, torrentBase64, options);
+            } else {
+                ctx.log("ARIA2", "Starting download: " + ctx.getRequest().getUri());
+                addResponse = aria2RpcService.addUri(jobId, ctx.getRequest().getUri(), options);
+            }
 
             String gid = addResponse.getGid();
 

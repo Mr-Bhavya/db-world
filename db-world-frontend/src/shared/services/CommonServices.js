@@ -434,7 +434,7 @@ class CommonServices {
         streamUrl: urlBase
       };
 
-      mediaFile?.trackInfos?.forEach(track => {
+      (mediaFile?.tracks ?? mediaFile?.trackInfos)?.forEach(track => {
         if (!track?.type) return;
 
         const type = track.type;

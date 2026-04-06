@@ -218,8 +218,10 @@ public class Aria2RpcService {
             return result;
 
         } catch (Exception e) {
-            log.error("RPC call failed — method={}, jobId={}", method, jobId, e);
-            throw new DbWorldException("RPC call failed [" + method + "]: " + e.getMessage(), e);
+            Throwable root = ("Self-suppression not permitted".equals(e.getMessage()) && e.getCause() != null)
+                    ? e.getCause() : e;
+            log.error("RPC call failed — method={}, jobId={}", method, jobId, root);
+            throw new DbWorldException("RPC call failed [" + method + "]: " + root.getMessage(), root);
         }
     }
 

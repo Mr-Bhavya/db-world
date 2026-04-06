@@ -34,6 +34,12 @@ public class IngestionRequest {
     private String audioITag;
     private boolean onlyAudio;
 
+    /**
+     * Base64-encoded .torrent file content.
+     * When set, aria2c's addTorrent RPC is used instead of addUri.
+     */
+    private String torrentBase64;
+
     /** Optional: link this ingestion job to a cinema record (RecordEntity.id). */
     private Long recordId;
 
