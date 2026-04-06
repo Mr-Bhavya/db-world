@@ -3,8 +3,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
-  Box, Button, Paper, Stack, TextField, Typography,
-  Alert, CircularProgress, Chip, Divider, useTheme, alpha,
+  Box, Button, Stack, TextField, Typography,
+  Alert, CircularProgress, Chip, Divider,
 } from '@mui/material';
 import { FolderOpen, Send, Clear, InsertDriveFile } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
@@ -33,7 +33,6 @@ const schema = z.object({
  *   - They are downloadable via the same /api/stream/{mediaFileId} endpoint
  */
 export default function LinkFileForm() {
-  const theme = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
@@ -45,8 +44,8 @@ export default function LinkFileForm() {
       defaultValues: {
         localFilePath: '',
         record:        null,
-        season:        '',
-        episode:       '',
+        season:        null,
+        episode:       null,
       },
     });
 

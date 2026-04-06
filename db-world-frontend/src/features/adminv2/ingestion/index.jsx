@@ -1,8 +1,9 @@
 import React from 'react';
 import {
   Box, Tab, Tabs, Typography, Paper, Stack, Chip,
-  useTheme, alpha, useMediaQuery, Collapse, Button,
+  useTheme, alpha, useMediaQuery,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import {
   Add, CloudDownload, History, LinkOff, FolderSpecial,
   FiberManualRecord as DotIcon, SignalCellularAlt,
@@ -19,16 +20,16 @@ import LinkFileForm from './files/LinkFileForm';
 // ── Connection status badge ───────────────────────────────────────────────
 
 function WsBadge() {
-  const theme    = useTheme();
+  const T        = useT();
   const wsStatus = useIngestionStore((s) => s.wsStatus);
   const jobs     = useIngestionStore((s) => s.jobs);
   const lastUpdated = useIngestionStore((s) => s.lastUpdated);
 
   const cfgMap = {
-    connected:    { color: theme.palette.success.main,  text: 'Live' },
-    connecting:   { color: theme.palette.warning.main,  text: 'Connecting…' },
-    disconnected: { color: theme.palette.grey[500],     text: 'Offline' },
-    error:        { color: theme.palette.error.main,    text: 'Error' },
+    connected:    { color: T.success,   text: 'Live' },
+    connecting:   { color: T.warning,   text: 'Connecting…' },
+    disconnected: { color: T.textFaint, text: 'Offline' },
+    error:        { color: T.error,     text: 'Error' },
   };
   const cfg = cfgMap[wsStatus] ?? cfgMap.disconnected;
   const activeCount = Object.values(jobs).filter(
@@ -84,6 +85,7 @@ export default function IngestionPage() {
   // Start WebSocket
   useIngestionWS();
 
+  const T        = useT();
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -140,8 +142,8 @@ export default function IngestionPage() {
           variant={isMobile ? 'scrollable' : 'standard'}
           scrollButtons="auto"
           sx={{
-            borderBottom: `1px solid ${theme.palette.divider}`,
-            bgcolor: alpha(theme.palette.background.default, 0.5),
+            borderBottom: `1px solid ${T.border}`,
+            bgcolor: alpha(T.bg, 0.5),
             minHeight: 46,
             '& .MuiTab-root': { minHeight: 46, py: 0.75 },
           }}

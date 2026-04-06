@@ -53,7 +53,7 @@ const LazyActivityLogs        = lazy(() => import('@features/admin/ActivityLogs/
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/MediaFilesManagement/MediaFilesManagement.js'));
 const LazyTmdbSyncManager     = lazy(() => import('../features/adminv2/tmdb-sync'));
 const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
-const LazyIngestionPage       = lazy(() => import('@features/admin/Ingestion/IngestionPage.jsx'));
+const LazyIngestionPage       = lazy(() => import('../features/adminv2/ingestion'));
 const LazyServerInfo          = lazy(() => import('../features/adminv2/system-info'));
 const LazyRedisManager        = lazy(() => import('../features/adminv2/redis'));
 const LazyFileManager         = lazy(() => import('../features/adminv2/filemanager'));

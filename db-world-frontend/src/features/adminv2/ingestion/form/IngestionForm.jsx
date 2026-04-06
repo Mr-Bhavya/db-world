@@ -5,8 +5,9 @@ import { z } from 'zod';
 import {
   Box, Button, Collapse, Divider, FormControlLabel, IconButton,
   InputAdornment, Paper, Stack, Switch, TextField, Tooltip,
-  Typography, CircularProgress, Chip, Alert, useTheme, alpha,
+  Typography, CircularProgress, Chip, Alert, alpha,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import {
   Add, Delete, Link as LinkIcon, MusicNote, Lock, Archive,
   Send, Clear, VideoSettings, Info, CloudDownload, FolderOpen,
@@ -51,13 +52,13 @@ const schema = z.object({
 // ── Source type badge ──────────────────────────────────────────────────────
 
 function SourceBadge({ type }) {
-  const theme = useTheme();
+  const T = useT();
   const colors = {
-    youtube: theme.palette.error.main,
-    ytdlp:   theme.palette.warning.main,
-    magnet:  theme.palette.secondary.main,
-    torrent: theme.palette.info.main,
-    http:    theme.palette.success.main,
+    youtube: T.error,
+    ytdlp:   T.warning,
+    magnet:  '#9c27b0',
+    torrent: '#0288d1',
+    http:    T.success,
   };
   if (type === 'unknown') return null;
   return (
@@ -65,8 +66,8 @@ function SourceBadge({ type }) {
       label={sourceLabel(type)}
       size="small"
       sx={{
-        bgcolor: alpha(colors[type] || theme.palette.grey[600], 0.12),
-        color:   colors[type] || 'text.secondary',
+        bgcolor: alpha(colors[type] || T.textFaint, 0.12),
+        color:   colors[type] || T.textMuted,
         fontWeight: 600,
         fontSize: '0.7rem',
         height: 22,
@@ -78,7 +79,7 @@ function SourceBadge({ type }) {
 // ── Single URL row ─────────────────────────────────────────────────────────
 
 function UrlRow({ index, control, watch, remove, isOnly, isYtMode }) {
-  const theme = useTheme();
+  const T = useT();
   const url  = watch(`urls.${index}.url`);
   const type = detectUrlType(url);
 
@@ -95,9 +96,9 @@ function UrlRow({ index, control, watch, remove, isOnly, isYtMode }) {
           p: 1.5,
           borderRadius: 1.5,
           borderColor: type !== 'unknown' ? alpha(
-            type === 'youtube' ? '#f44336' :
+            type === 'youtube' ? T.error :
             type === 'magnet'  ? '#9c27b0' :
-            '#2196f3', 0.3
+            T.teal, 0.3
           ) : undefined,
         }}
       >
@@ -184,7 +185,6 @@ function UrlRow({ index, control, watch, remove, isOnly, isYtMode }) {
 // ── Main form ──────────────────────────────────────────────────────────────
 
 export default function IngestionForm({ onSubmitted }) {
-  const theme = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const setFormOpen = useIngestionStore((s) => s.setFormOpen);
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
@@ -195,8 +195,8 @@ export default function IngestionForm({ onSubmitted }) {
       defaultValues: {
         urls:      [{ url: '', customName: '', rename: false }],
         record:    null,
-        season:    '',
-        episode:   '',
+        season:    null,
+        episode:   null,
         username:  '',
         password:  '',
         useAuth:   false,

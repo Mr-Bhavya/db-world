@@ -131,18 +131,19 @@ export default function RecordCreateModal({ open, onClose }) {
                       '&:hover': { borderColor: T.teal, bgcolor: T.tealBg },
                     }}>
                     <Box sx={{ width: 44, height: 66, borderRadius: 1, overflow: 'hidden', flexShrink: 0, bgcolor: T.glass }}>
-                      {r.posterPath && <Box component="img" src={`${TMDB_IMG}${r.posterPath}`} alt={r.title ?? r.name} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      {r.poster_path && <Box component="img" src={`${TMDB_IMG}${r.poster_path}`} alt={r.title ?? r.name} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                     </Box>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography sx={{ fontWeight: 600, fontSize: 14, color: T.textPrimary }}>{r.title ?? r.name}</Typography>
                       <Box sx={{ display: 'flex', gap: 1, mt: .25 }}>
-                        {(r.releaseDate ?? r.firstAirDate) && <Chip label={(r.releaseDate ?? r.firstAirDate).slice(0, 4)} size="small" sx={{ height: 18, fontSize: 10, bgcolor: T.glass, color: T.textMuted }} />}
-                        {r.voteAverage > 0 && <Chip label={`★ ${r.voteAverage.toFixed(1)}`} size="small" sx={{ height: 18, fontSize: 10, bgcolor: `${T.warning}18`, color: T.warning }} />}
+                        {(r.release_date ?? r.first_air_date) && <Chip label={(r.release_date ?? r.first_air_date).slice(0, 4)} size="small" sx={{ height: 18, fontSize: 10, bgcolor: T.glass, color: T.textMuted }} />}
+                        {r.vote_average > 0 && <Chip label={`★ ${r.vote_average.toFixed(1)}`} size="small" sx={{ height: 18, fontSize: 10, bgcolor: `${T.warning}18`, color: T.warning }} />}
                       </Box>
                       <Typography sx={{ fontSize: 12, color: T.textMuted, mt: .5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{r.overview}</Typography>
                     </Box>
                     {isSelected && <CheckCircleIcon sx={{ color: T.teal, flexShrink: 0 }} />}
                   </Box>
+
                 );
               })}
             </Box>
