@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   Box, Card, CardContent, Chip, LinearProgress, Stack, Typography,
-  Tooltip, useTheme, alpha,
+  Tooltip, alpha,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import {
   Download, Archive, Merge, VideoSettings, CheckCircle,
   Error as ErrorIcon, Pause, HourglassEmpty, Queue,
@@ -69,7 +70,7 @@ const SOURCE_ICONS = {
 const PIPELINE_STEPS = ['DOWNLOAD', 'EXTRACT', 'MERGE', 'FFMPEG', 'MEDIA_INFO'];
 
 function StageBar({ step, status }) {
-  const theme = useTheme();
+  const T = useT();
   const idx = PIPELINE_STEPS.indexOf(step);
   const done = status === 'SUCCESS';
   const failed = status === 'FAILED';
@@ -87,10 +88,10 @@ function StageBar({ step, status }) {
                 height: 4,
                 flex: 1,
                 borderRadius: 2,
-                bgcolor: isFail  ? theme.palette.error.main
-                       : past    ? theme.palette.success.light
-                       : active  ? theme.palette.primary.main
-                       :           alpha(theme.palette.text.primary, 0.1),
+                bgcolor: isFail  ? T.error
+                       : past    ? T.success
+                       : active  ? T.teal
+                       :           alpha(T.text, 0.1),
                 transition: 'background-color 0.4s',
                 position: 'relative',
                 overflow: 'hidden',
@@ -101,7 +102,7 @@ function StageBar({ step, status }) {
                   sx={{
                     position: 'absolute', top: 0, left: '-100%',
                     width: '100%', height: '100%',
-                    bgcolor: alpha(theme.palette.primary.light, 0.5),
+                    bgcolor: alpha(T.teal, 0.5),
                     animation: 'shimmer 1.5s infinite',
                     '@keyframes shimmer': {
                       '0%':   { left: '-100%' },
@@ -121,7 +122,7 @@ function StageBar({ step, status }) {
 // ── Main card ─────────────────────────────────────────────────────────────
 
 export default function JobCard({ job }) {
-  const theme = useTheme();
+  const T = useT();
   const [logOpen, setLogOpen] = useState(false);
 
   const {
@@ -156,11 +157,11 @@ export default function JobCard({ job }) {
           variant="outlined"
           sx={{
             borderRadius: 2,
-            borderColor: status === 'FAILED'    ? alpha(theme.palette.error.main, 0.4)
-                       : status === 'SUCCESS'   ? alpha(theme.palette.success.main, 0.3)
-                       : status === 'PAUSED'    ? alpha(theme.palette.warning.main, 0.4)
-                       : isActive               ? alpha(theme.palette.primary.main, 0.3)
-                       :                          theme.palette.divider,
+            borderColor: status === 'FAILED'    ? alpha(T.error, 0.4)
+                       : status === 'SUCCESS'   ? alpha(T.success, 0.3)
+                       : status === 'PAUSED'    ? alpha(T.warning, 0.4)
+                       : isActive               ? alpha(T.teal, 0.3)
+                       :                          T.border,
             transition: 'border-color 0.3s',
           }}
         >

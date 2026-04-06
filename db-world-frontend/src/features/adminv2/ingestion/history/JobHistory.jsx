@@ -3,8 +3,9 @@ import { DataGrid } from '@mui/x-data-grid';
 import {
   Box, Chip, Typography, IconButton, Tooltip, Stack,
   CircularProgress, Alert, TextField, InputAdornment, Button,
-  useTheme, alpha,
+  alpha,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import {
   Replay, Article, Delete, Search, Refresh,
   YouTube, Http, Folder,
@@ -41,7 +42,7 @@ function fmtDuration(ms) {
 }
 
 export default function JobHistory() {
-  const theme = useTheme();
+  const T = useT();
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const [logJobId, setLogJobId] = useState(null);
@@ -213,10 +214,10 @@ export default function JobHistory() {
           pageSizeOptions={[25, 50, 100]}
           initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
           sx={{
-            border: `1px solid ${theme.palette.divider}`,
+            border: `1px solid ${T.border}`,
             borderRadius: 2,
             '& .MuiDataGrid-row:hover': {
-              bgcolor: alpha(theme.palette.primary.main, 0.04),
+              bgcolor: alpha(T.teal, 0.04),
             },
           }}
         />

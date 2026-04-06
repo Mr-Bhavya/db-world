@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
   Box, Typography, Stack, Chip, ToggleButtonGroup, ToggleButton,
-  useTheme, alpha, Divider,
+  alpha,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import {
   PlayArrow, Queue, Pause, CheckCircle, Error as ErrorIcon,
   Cancel, AllInclusive,
@@ -21,7 +22,7 @@ const GROUPS = [
 ];
 
 function SummaryBar({ jobs }) {
-  const theme = useTheme();
+  const T = useT();
   const counts = useMemo(() => {
     let active = 0, queued = 0, done = 0, failed = 0, totalSpeed = 0;
     Object.values(jobs).forEach((j) => {
@@ -38,10 +39,10 @@ function SummaryBar({ jobs }) {
   return (
     <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1.5 }}>
       {[
-        { label: 'Active',  value: counts.active,  color: theme.palette.primary.main },
-        { label: 'Queued',  value: counts.queued,  color: theme.palette.info.main },
-        { label: 'Done',    value: counts.done,    color: theme.palette.success.main },
-        { label: 'Failed',  value: counts.failed,  color: theme.palette.error.main },
+        { label: 'Active',  value: counts.active,  color: T.teal },
+        { label: 'Queued',  value: counts.queued,  color: '#0288d1' },
+        { label: 'Done',    value: counts.done,    color: T.success },
+        { label: 'Failed',  value: counts.failed,  color: T.error },
       ].map((s) => (
         <Chip
           key={s.label}

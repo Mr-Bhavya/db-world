@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Drawer, Box, Typography, IconButton, Divider,
+  Drawer, Box, Typography, IconButton,
   CircularProgress, Alert, Tooltip, Stack, Chip,
-  useTheme, alpha,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import { Close, Refresh, Download } from '@mui/icons-material';
 import { getJobReport } from '../services/ingestionApi';
 
@@ -12,7 +12,7 @@ import { getJobReport } from '../services/ingestionApi';
  * Props: jobId, open, onClose
  */
 export default function LogViewerDrawer({ jobId, open, onClose }) {
-  const theme = useTheme();
+  const T = useT();
   const [html, setHtml]       = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
@@ -64,7 +64,7 @@ export default function LogViewerDrawer({ jobId, open, onClose }) {
           display: 'flex',
           alignItems: 'center',
           gap: 1,
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          borderBottom: `1px solid ${T.border}`,
         }}
       >
         <Typography variant="subtitle1" fontWeight={600} flex={1}>
@@ -122,7 +122,7 @@ export default function LogViewerDrawer({ jobId, open, onClose }) {
               width: '100%',
               height: '100%',
               minHeight: 400,
-              backgroundColor: theme.palette.background.paper,
+              backgroundColor: T.glass,
             }}
           />
         )}

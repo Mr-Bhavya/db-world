@@ -4,8 +4,9 @@ import {
   Button, List, ListItemButton, ListItemIcon, ListItemText,
   CircularProgress, Alert, Breadcrumbs, Link, Typography,
   Stack, Chip, ToggleButton, ToggleButtonGroup, IconButton,
-  Tooltip, useTheme, alpha, Box,
+  Tooltip, alpha, Box,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import {
   Folder, FolderOpen, InsertDriveFile, NavigateNext,
   Home, CheckCircle,
@@ -29,7 +30,7 @@ function fmtSize(b) {
  *   title      — dialog title
  */
 export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Browse Server Files' }) {
-  const theme = useTheme();
+  const T = useT();
   const [root, setRoot]       = useState('temp');
   const [subPath, setSubPath] = useState('');
   const [selected, setSelected] = useState(null);
@@ -79,7 +80,7 @@ export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Br
           direction="row"
           alignItems="center"
           spacing={0.5}
-          sx={{ px: 2, py: 1, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.default, 0.5) }}
+          sx={{ px: 2, py: 1, borderBottom: `1px solid ${T.border}`, bgcolor: alpha(T.bg, 0.5) }}
         >
           <Tooltip title="Root">
             <IconButton size="small" onClick={goHome}>
@@ -147,8 +148,8 @@ export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Br
                       }
                     }}
                     sx={{
-                      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                      bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.08) : undefined,
+                      borderBottom: `1px solid ${alpha(T.border, 0.5)}`,
+                      bgcolor: isSelected ? alpha(T.teal, 0.08) : undefined,
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 36 }}>

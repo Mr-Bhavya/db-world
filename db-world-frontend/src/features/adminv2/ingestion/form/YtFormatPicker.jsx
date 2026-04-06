@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import {
   Box, Typography, ToggleButtonGroup, ToggleButton,
   Table, TableBody, TableCell, TableHead, TableRow,
-  Alert, CircularProgress, Chip, Paper, useTheme, alpha,
+  Alert, CircularProgress, Chip, Paper, alpha,
 } from '@mui/material';
+import { useT } from '@shared/theme';
 import { Videocam, Audiotrack } from '@mui/icons-material';
 
 function fmtBitrate(kbps) {
@@ -36,7 +37,7 @@ export default function YtFormatPicker({
   selectedVideo, selectedAudio,
   onSelectVideo, onSelectAudio,
 }) {
-  const theme = useTheme();
+  const T = useT();
   const [tab, setTab] = useState(audioOnly ? 'audio' : 'video');
 
   if (loading) {
@@ -110,7 +111,7 @@ export default function YtFormatPicker({
                     sx={{
                       cursor: 'pointer',
                       bgcolor: selected
-                        ? alpha(theme.palette.primary.main, 0.08)
+                        ? alpha(T.teal, 0.08)
                         : undefined,
                     }}
                   >

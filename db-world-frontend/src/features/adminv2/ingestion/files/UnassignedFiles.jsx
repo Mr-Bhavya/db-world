@@ -3,7 +3,7 @@ import {
   Box, Typography, Stack, TextField, InputAdornment,
   Card, CardContent, Chip, IconButton, Tooltip,
   Alert, CircularProgress, Button, Skeleton,
-  useTheme, alpha, Dialog, DialogTitle, DialogContent,
+  Dialog, DialogTitle, DialogContent,
   DialogActions, Autocomplete,
 } from '@mui/material';
 import {
@@ -117,7 +117,6 @@ function LinkDialog({ fileId, fileName, open, onClose }) {
 // ── File card ──────────────────────────────────────────────────────────────
 
 function UnassignedFileCard({ file }) {
-  const theme = useTheme();
   const [linkOpen, setLinkOpen] = useState(false);
 
   const general = file.tracks?.find((t) => t.type === 'General');
