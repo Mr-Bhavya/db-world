@@ -125,6 +125,8 @@ function HttpFile({ onDownloadAdded }) {
             // Prepare data for each link
             const downloadRequests = validLinks.map(link => ({
                 urls: [link.url],
+                // uris: [link.url],
+                uri: link.url,
                 username,
                 password,
                 folderName: recordName,
