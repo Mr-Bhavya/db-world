@@ -15,6 +15,7 @@ import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
@@ -167,6 +168,18 @@ public class GlobalExceptionHandler {
         log.error("Database error: {}", ex.getMessage());
         log.debug("Stack trace: ", ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Database operation failed");
+    }
+
+    /* =========================
+       STATIC RESOURCE NOT FOUND
+       These fire when a path reaches the SPA resource handler but has no match.
+       Return a clean 404 JSON — no stack trace, no ERROR log.
+       ========================= */
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
+        log.debug("No resource found: {}", ex.getResourcePath());
+        return build(HttpStatus.NOT_FOUND, "Not found: " + ex.getResourcePath());
     }
 
     /* =========================
