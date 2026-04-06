@@ -1,22 +1,30 @@
 import React, { useState, useCallback } from 'react';
-import { Autocomplete, TextField, Chip, CircularProgress } from '@mui/material';
+import {
+  Autocomplete,
+  TextField,
+  Chip,
+  CircularProgress,
+  Avatar,
+  Box,
+  Typography
+} from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { searchRecords } from '../services/ingestionApi';
 
-/**
- * Async record search autocomplete.
- * value: { id, name, type, tmdbId, posterPath } | null  (matches RecordAutocompleteDto)
- * onChange(record | null)
- */
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w92';
+
 export default function RecordSearch({ value, onChange, error, helperText }) {
-  const [options, setOptions]     = useState([]);
-  const [loading, setLoading]     = useState(false);
+  const [options, setOptions] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const { enqueueSnackbar }       = useSnackbar();
-  const timerRef                  = React.useRef(null);
+  const { enqueueSnackbar } = useSnackbar();
+  const timerRef = React.useRef(null);
 
   const fetchOptions = useCallback(async (q) => {
-    if (!q || q.length < 2) { setOptions([]); return; }
+    if (!q || q.length < 2) {
+      setOptions([]);
+      return;
+    }
     setLoading(true);
     try {
       const res = await searchRecords(q);
@@ -34,6 +42,9 @@ export default function RecordSearch({ value, onChange, error, helperText }) {
     timerRef.current = setTimeout(() => fetchOptions(newInput), 300);
   }, [fetchOptions]);
 
+  const getPoster = (path) =>
+    path ? `${TMDB_IMG}${path}` : '/fallback-poster.png';
+
   return (
     <Autocomplete
       value={value}
@@ -42,15 +53,53 @@ export default function RecordSearch({ value, onChange, error, helperText }) {
       onInputChange={handleInputChange}
       options={options}
       loading={loading}
-      getOptionLabel={(o) => o ? `${o.id} – ${o.name}` : ''}
+      getOptionLabel={(o) => (o ? `${o.id} – ${o.name}` : '')}
       isOptionEqualToValue={(a, b) => a?.id === b?.id}
-      filterOptions={(x) => x}  // server-side filtering
+      filterOptions={(x) => x}
+
+      // ✅ Dropdown option with poster
       renderOption={(props, option) => (
         <li {...props} key={option.id}>
-          <span style={{ flex: 1 }}>{option.id} – {option.name}</span>
-          <Chip label={option.type} size="small" sx={{ ml: 1, fontSize: '0.65rem' }} />
+          <Box display="flex" alignItems="center" width="100%" gap={1}>
+            <Avatar
+              variant="rounded"
+              src={getPoster(option.posterPath)}
+              sx={{ width: 40, height: 60 }}
+            />
+            <Box flex={1} overflow="hidden">
+              <Typography variant="body2" noWrap>
+                {option.name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                ID: {option.id}
+              </Typography>
+            </Box>
+            <Chip
+              label={option.type}
+              size="small"
+              sx={{ fontSize: '0.65rem' }}
+            />
+          </Box>
         </li>
       )}
+      renderTags={(value, getTagProps) =>
+        value
+          ? [
+              <Chip
+                {...getTagProps({ index: 0 })}
+                key={value.id}
+                avatar={
+                  <Avatar
+                    src={getPoster(value.posterPath)}
+                    variant="rounded"
+                  />
+                }
+                label={value.name}
+              />,
+            ]
+          : []
+      }
+
       renderInput={(params) => (
         <TextField
           {...params}
