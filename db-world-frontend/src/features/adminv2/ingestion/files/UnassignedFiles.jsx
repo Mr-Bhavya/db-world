@@ -47,7 +47,7 @@ function LinkDialog({ fileId, fileName, open, onClose }) {
     if (!record) return;
     setBusy(true);
     try {
-      const res = await linkFileToRecord(fileId, record.recordId);
+      const res = await linkFileToRecord(fileId, record.id);
       if (res.httpStatusCode === 200) {
         enqueueSnackbar(`Linked to "${record.name}"`, { variant: 'success' });
         qc.invalidateQueries({ queryKey: ['unassigned-files'] });
@@ -74,8 +74,8 @@ function LinkDialog({ fileId, fileName, open, onClose }) {
           onChange={(_, v) => setRecord(v)}
           options={options}
           loading={loading}
-          getOptionLabel={(o) => o ? `${o.recordId} – ${o.name}` : ''}
-          isOptionEqualToValue={(a, b) => a?.recordId === b?.recordId}
+          getOptionLabel={(o) => o ? `${o.id} – ${o.name}` : ''}
+          isOptionEqualToValue={(a, b) => a?.id === b?.id}
           filterOptions={(x) => x}
           onInputChange={(_, q) => {
             clearTimeout(timerRef.current);

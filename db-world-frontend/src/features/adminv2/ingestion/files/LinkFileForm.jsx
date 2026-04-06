@@ -58,7 +58,7 @@ export default function LinkFileForm() {
   const onSubmit = async (data) => {
     const body = {
       localFilePath: data.localFilePath,
-      recordId:  data.record?.recordId ?? null,
+      recordId:  data.record?.id ?? null,
       season:    data.season  ? Number(data.season)  : null,
       episode:   data.episode ? Number(data.episode) : null,
     };
