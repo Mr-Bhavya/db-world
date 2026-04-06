@@ -102,6 +102,6 @@ export const linkFileToRecord = async (mediaFileId, recordId) => {
 // ── Record search ─────────────────────────────────────────────────────────────
 
 export const searchRecords = async (q) => {
-  const res = await axiosInstance.get('/api/admin/cinema/record/search', { params: { q } });
+  const res = await axiosInstance.get('/api/cinema/catalog/autocomplete', { params: { q } });
   return res.data;
 };

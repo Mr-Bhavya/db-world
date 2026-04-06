@@ -5,7 +5,7 @@ import { searchRecords } from '../services/ingestionApi';
 
 /**
  * Async record search autocomplete.
- * value: { recordId, name, type } | null
+ * value: { id, name, type, tmdbId, posterPath } | null  (matches RecordAutocompleteDto)
  * onChange(record | null)
  */
 export default function RecordSearch({ value, onChange, error, helperText }) {
@@ -42,12 +42,12 @@ export default function RecordSearch({ value, onChange, error, helperText }) {
       onInputChange={handleInputChange}
       options={options}
       loading={loading}
-      getOptionLabel={(o) => o ? `${o.recordId} – ${o.name}` : ''}
-      isOptionEqualToValue={(a, b) => a?.recordId === b?.recordId}
+      getOptionLabel={(o) => o ? `${o.id} – ${o.name}` : ''}
+      isOptionEqualToValue={(a, b) => a?.id === b?.id}
       filterOptions={(x) => x}  // server-side filtering
       renderOption={(props, option) => (
-        <li {...props} key={option.recordId}>
-          <span style={{ flex: 1 }}>{option.recordId} – {option.name}</span>
+        <li {...props} key={option.id}>
+          <span style={{ flex: 1 }}>{option.id} – {option.name}</span>
           <Chip label={option.type} size="small" sx={{ ml: 1, fontSize: '0.65rem' }} />
         </li>
       )}
