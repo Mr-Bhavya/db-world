@@ -126,4 +126,12 @@ public class IngestionJobEntity {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    /**
+     * Full HTML progress report captured at job completion.
+     * Stored as LONGTEXT so it can be retrieved from history without the
+     * in-memory TrackingService (which evicts jobs after completion).
+     */
+    @Column(name = "html_report", columnDefinition = "LONGTEXT")
+    private String htmlReport;
 }

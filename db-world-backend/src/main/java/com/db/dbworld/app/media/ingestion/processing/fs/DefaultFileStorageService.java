@@ -31,7 +31,30 @@ public class DefaultFileStorageService implements FileStorageService {
 
     @Override
     public Path resolveFinalDir(IngestionContext ctx) {
-        return runtimeProperties.getStreamPath().resolve(safeFolderName(ctx));
+        Long recordId = ctx.getRecordId() != null
+                ? ctx.getRecordId()
+                : (ctx.getRequest() != null ? ctx.getRequest().getRecordId() : null);
+
+        String recordTypePath = resolveRecordType(recordId);
+        Path base = runtimeProperties.getStreamPath()
+                .resolve(recordTypePath)
+                .resolve(safeFolderName(ctx));
+
+        // For TV series, create a season subfolder (S01, S02, …)
+        if ("TV_SERIES".equals(recordTypePath)) {
+            Integer season = ctx.getRequest() != null ? ctx.getRequest().getSeason() : null;
+            if (season != null) {
+                base = base.resolve(String.format("S%02d", season));
+            }
+        }
+        return base;
+    }
+
+    private String resolveRecordType(Long recordId) {
+        if (recordId == null) return "unassigned";
+        return recordRepository.findById(recordId)
+                .map(r -> r.getType().name())   // "MOVIE" or "TV_SERIES"
+                .orElse("unassigned");
     }
 
     @Override

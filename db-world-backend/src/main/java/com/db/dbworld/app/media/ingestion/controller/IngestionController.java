@@ -226,6 +226,15 @@ public class IngestionController {
 
     @GetMapping("/{jobId}/report")
     public ApiResponse<String> getHtmlReport(@PathVariable String jobId) {
+        // Prefer DB version (completed/failed/cancelled jobs with persisted report)
+        String persisted = jobRepository.findById(jobId)
+                .map(e -> e.getHtmlReport())
+                .filter(r -> r != null && !r.isBlank())
+                .orElse(null);
+        if (persisted != null) {
+            return ApiResponse.success(org.springframework.http.HttpStatus.OK, null, persisted);
+        }
+        // Fall back to in-memory for currently active jobs
         return ApiResponse.success(org.springframework.http.HttpStatus.OK, null, trackingService.getHtmlReport(jobId));
     }
 

@@ -118,7 +118,7 @@ export default function RecordSearch({ value, onChange, error, helperText }) {
             ),
           }}
         />
-      )}
+      )} 
     />
   );
 }

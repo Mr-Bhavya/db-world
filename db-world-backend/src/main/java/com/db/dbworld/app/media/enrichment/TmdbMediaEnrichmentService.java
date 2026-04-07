@@ -48,6 +48,7 @@ public interface TmdbMediaEnrichmentService {
             String releaseYear,
             String seriesTitle,
             String episodeName,
-            String posterPath
+            String posterPath,
+            String overview
     ) {}
 }

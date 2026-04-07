@@ -27,6 +27,7 @@ public class IngestionContext {
     private boolean queueManaged;
 
     private String message;
+    private String htmlReport;
 
     private LogCollector logCollector = new LogCollector();
     private final AtomicBoolean cancellationFlag = new AtomicBoolean(false);
