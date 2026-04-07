@@ -105,14 +105,14 @@ public class FileBrowserService {
             if (dot >= 0) ext = name.substring(dot + 1).toLowerCase();
         }
 
-        return FileBrowserItem.builder()
-                .name(name)
-                .path(p.toAbsolutePath().toString())
-                .relativePath(rel)
-                .directory(isDir)
-                .size(size)
-                .lastModified(modified)
-                .extension(ext)
-                .build();
+        return new FileBrowserItem(
+                name,
+                p.toAbsolutePath().toString(),
+                rel,
+                isDir,
+                size,
+                modified,
+                ext
+        );
     }
 }

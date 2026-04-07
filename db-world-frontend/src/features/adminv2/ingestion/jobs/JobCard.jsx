@@ -23,6 +23,17 @@ function fmtBytes(b) {
   return `${(b / 1024 ** 3).toFixed(2)} GB`;
 }
 
+function fmtDurationMs(ms) {
+  if (!ms && ms !== 0) return '—';
+  const totalSeconds = Math.floor(ms / 1000);
+  const hh = Math.floor(totalSeconds / 3600);
+  const mm = Math.floor((totalSeconds % 3600) / 60);
+  const ss = totalSeconds % 60;
+  if (hh > 0) return `${hh}h ${mm}m ${ss}s`;
+  if (mm > 0) return `${mm}m ${ss}s`;
+  return `${ss}s`;
+}
+
 function fmtSpeed(bps) {
   if (!bps) return null;
   if (bps < 1024) return `${bps.toFixed(0)} B/s`;
@@ -133,16 +144,25 @@ export default function JobCard({ job }) {
 
   const cfg     = STATUS_CFG[status] ?? STATUS_CFG.STARTED;
   const SourceIcon = SOURCE_ICONS[sourceType] ?? Http;
+  const isTerminal = ['SUCCESS', 'FAILED', 'CANCELLED'].includes(status);
+  const statusLabel = isTerminal
+    ? cfg.label
+    : (step ? (STEP_LABELS[step]?.label ?? step) : cfg.label);
 
   const percent   = progress?.percent   ?? 0;
   const speed     = fmtSpeed(progress?.speed);
   const eta       = fmtEta(progress?.eta);
   const downloaded = fmtBytes(progress?.downloaded);
   const total     = fmtBytes(progress?.total);
+  const isFfmpegStep = step === 'FFMPEG' && status === 'PROCESSING';
+  const isExtractStep = step === 'EXTRACT' && status === 'PROCESSING';
+  const ffmpegDone = fmtDurationMs(progress?.downloaded);
+  const ffmpegTotal = fmtDurationMs(progress?.total);
+  const extractDone = progress?.percent > 0 ? `${progress.percent.toFixed(1)}%` : 'Starting…';
 
   const displayName = fileName ?? (uri ? uri.split('/').pop().split('?')[0] : jobId);
   const isActive    = !['SUCCESS', 'FAILED', 'CANCELLED'].includes(status);
-  const showProgress = isActive && progress && (progress.downloaded > 0 || status === 'DOWNLOADING');
+  const showProgress = isActive && progress && (progress.downloaded > 0 || status === 'DOWNLOADING' || isFfmpegStep || isExtractStep);
 
   return (
     <>
@@ -192,7 +212,7 @@ export default function JobCard({ job }) {
               <Stack direction="row" spacing={0.75} alignItems="center" flexShrink={0}>
                 <Chip
                   icon={<cfg.Icon sx={{ fontSize: '12px !important' }} />}
-                  label={step ? (STEP_LABELS[step]?.label ?? step) : cfg.label}
+                  label={statusLabel}
                   color={cfg.color}
                   size="small"
                   sx={{ fontSize: '0.7rem', height: 22 }}
@@ -209,7 +229,11 @@ export default function JobCard({ job }) {
               <Box sx={{ mt: 1 }}>
                 <Stack direction="row" justifyContent="space-between" mb={0.4}>
                   <Typography variant="caption" color="text.secondary">
-                    {downloaded} / {total}
+                    {isFfmpegStep
+                      ? `${ffmpegDone} / ${ffmpegTotal}`
+                      : isExtractStep
+                        ? extractDone
+                        : `${downloaded} / ${total}`}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {speed && `${speed}  `}{eta && `ETA ${eta}  `}{percent > 0 && `${percent.toFixed(1)}%`}

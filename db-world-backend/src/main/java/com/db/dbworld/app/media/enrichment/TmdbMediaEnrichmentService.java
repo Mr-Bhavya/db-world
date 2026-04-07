@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.enrichment;
 
 import java.nio.file.Path;
+import java.util.Optional;
 
 /**
  * Enriches a downloaded media file with TMDB metadata in a SINGLE FFmpeg pass.
@@ -16,6 +17,8 @@ import java.nio.file.Path;
  * If {@code recordId} is {@code null} enrichment is skipped and the input path is returned.
  */
 public interface TmdbMediaEnrichmentService {
+
+    Optional<MediaNamingInfo> resolveNamingInfo(Long recordId, Integer season, Integer episode, String jobId);
 
     /**
      * Full enrichment with optional track filtering.
@@ -39,4 +42,12 @@ public interface TmdbMediaEnrichmentService {
                         String jobId) {
         return enrich(inputFile, recordId, season, episode, null, jobId);
     }
+
+    record MediaNamingInfo(
+            String title,
+            String releaseYear,
+            String seriesTitle,
+            String episodeName,
+            String posterPath
+    ) {}
 }

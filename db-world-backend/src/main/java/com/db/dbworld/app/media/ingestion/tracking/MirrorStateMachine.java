@@ -11,9 +11,15 @@ public class MirrorStateMachine {
         if (isTerminal(from)) return false;
 
         return switch (from) {
-            case QUEUED -> to == MirrorStatus.STARTED || to == MirrorStatus.CANCELLED;
+            case QUEUED -> to == MirrorStatus.STARTED ||
+                    to == MirrorStatus.DOWNLOADING ||
+                    to == MirrorStatus.PROCESSING ||
+                    to == MirrorStatus.CANCELLED;
 
-            case STARTED -> to == MirrorStatus.DOWNLOADING || to == MirrorStatus.FAILED;
+            case STARTED -> to == MirrorStatus.QUEUED ||
+                    to == MirrorStatus.DOWNLOADING ||
+                    to == MirrorStatus.PROCESSING ||
+                    to == MirrorStatus.FAILED;
 
             case DOWNLOADING -> to == MirrorStatus.PROCESSING ||
                     to == MirrorStatus.PAUSED ||

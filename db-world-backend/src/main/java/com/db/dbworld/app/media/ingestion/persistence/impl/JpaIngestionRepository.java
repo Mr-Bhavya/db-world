@@ -47,8 +47,16 @@ public class JpaIngestionRepository implements IngestionRepository {
                 entity.setEpisodeNumber(context.getRequest().getEpisode());
             }
 
-            if (context.getDownload() != null) {
+            if (context.getProcessing() != null && context.getProcessing().getFinalFile() != null) {
+                entity.setFileName(context.getProcessing().getFinalFile().getFileName().toString());
+                if (entity.getFolderName() == null && context.getProcessing().getFinalFile().getParent() != null) {
+                    entity.setFolderName(context.getProcessing().getFinalFile().getParent().getFileName().toString());
+                }
+            } else if (context.getDownload() != null) {
                 entity.setFileName(context.getDownload().getFileName());
+            }
+
+            if (context.getDownload() != null) {
                 entity.setGid(context.getDownload().getGid());
                 entity.setDownloadedBytes(context.getDownload().getSize());
                 entity.setTotalBytes(context.getDownload().getSize());

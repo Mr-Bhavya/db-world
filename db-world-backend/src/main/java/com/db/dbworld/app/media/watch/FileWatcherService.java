@@ -5,6 +5,7 @@ import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
+import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.FileIdentityUtils;
 import com.db.dbworld.utils.RecordPathResolver;
@@ -299,7 +300,7 @@ public class FileWatcherService {
                 entity.setFilePath(newPath);
                 entity.setFileName(file.getFileName().toString());
                 MediaFileEntity saved = mediaFileRepository.save(entity);
-                symlinkService.ensure(saved.getId(), saved.getFilePath());
+                ensureSystemLink(saved.getId(), saved.getFilePath());
             } else {
                 log.info("{} [DRY RUN] Would update: {} -> {}", TAG, entity.getFilePath(), newPath);
             }
@@ -319,7 +320,7 @@ public class FileWatcherService {
                 com.db.dbworld.app.media.info.dto.MediaFileDto dto =
                         mediaInfoService.collectAndPersist(file, recordId, null);
                 if (!dryRun) {
-                    symlinkService.ensure(dto.getId(), dto.getFilePath());
+                    ensureSystemLink(dto.getId(), dto.getFilePath());
                     log.info("{} Saved id={} for: {}", TAG, dto.getId(), filePath);
                 } else {
                     log.info("{} [DRY RUN] Would save for: {}", TAG, filePath);
@@ -344,6 +345,15 @@ public class FileWatcherService {
             }
             processedCount.incrementAndGet();
         });
+    }
+
+    private void ensureSystemLink(String fileId, String filePath) {
+        try {
+            symlinkService.ensure(fileId, filePath);
+        } catch (DbWorldException ex) {
+            log.warn("{} Link creation skipped for id={} path={}: {}",
+                    TAG, fileId, filePath, ex.getMessage());
+        }
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────

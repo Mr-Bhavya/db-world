@@ -147,6 +147,11 @@ public class Aria2RpcService {
             callRpc("aria2.forceRemove", new Object[]{gid}, mappingService.getJobIdByGid(gid));
             mappingService.removeByGid(gid);
         } catch (Exception e) {
+            if (isGidNotFound(e)) {
+                log.warn("forceRemove skipped for missing GID {}", gid);
+                mappingService.removeByGid(gid);
+                return;
+            }
             log.error("forceRemove failed for GID {}", gid, e);
             throw new DbWorldException("forceRemove failed for GID " + gid + ": " + e.getMessage(), e);
         }
@@ -283,5 +288,17 @@ public class Aria2RpcService {
         s.setErrorMessage(message);
         s.setErrorCode(-1);
         return s;
+    }
+
+    private boolean isGidNotFound(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("is not found")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

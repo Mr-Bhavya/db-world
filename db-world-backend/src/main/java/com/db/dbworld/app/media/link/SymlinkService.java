@@ -9,11 +9,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.FileSystemException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -60,10 +63,13 @@ public class SymlinkService {
         }
         try {
             Path symlinkRoot = runtimeProperties.getSymlinkPath();
-            Path realFile    = Path.of(filePath);
+            Path realFile    = Path.of(filePath).toAbsolutePath().normalize();
             Path symlink     = symlinkRoot.resolve(fileId);
 
             Files.createDirectories(symlinkRoot);
+            if (!Files.exists(realFile)) {
+                throw new DbWorldException("Cannot create link for missing file: " + realFile);
+            }
 
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
                 Files.delete(symlink);
@@ -71,9 +77,19 @@ public class SymlinkService {
 
             // Use a relative target so the symlink survives directory moves
             Path relativeTarget = symlinkRoot.relativize(realFile);
-            Files.createSymbolicLink(symlink, relativeTarget);
-
-            log.debug("{} Created {} -> {}", TAG, symlink, relativeTarget);
+            try {
+                Files.createSymbolicLink(symlink, relativeTarget);
+                log.debug("{} Created symlink {} -> {}", TAG, symlink, relativeTarget);
+                return;
+            } catch (Exception ex) {
+                if (!shouldFallbackToHardLink(ex, symlink, realFile)) {
+                    throw ex;
+                }
+                Files.createLink(symlink, realFile);
+                log.warn("{} Symlink privilege unavailable for fileId={}; created hard link {} -> {}",
+                        TAG, fileId, symlink, realFile);
+                return;
+            }
 
         } catch (Exception ex) {
             log.error("{} Failed to create symlink for fileId={}", TAG, fileId, ex);
@@ -112,8 +128,7 @@ public class SymlinkService {
     public boolean isValid(String fileId) {
         try {
             Path symlink = runtimeProperties.getSymlinkPath().resolve(fileId);
-            return Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)
-                    && Files.exists(symlink.toRealPath());
+            return Files.exists(symlink, LinkOption.NOFOLLOW_LINKS) && Files.isRegularFile(symlink);
         } catch (Exception ex) {
             return false;
         }
@@ -214,7 +229,7 @@ public class SymlinkService {
         // Symlink dir → DB: remove orphans
         if (Files.exists(symlinkRoot)) {
             try (Stream<Path> paths = Files.list(symlinkRoot)) {
-                paths.filter(Files::isSymbolicLink).forEach(path -> {
+                paths.filter(path -> Files.exists(path, LinkOption.NOFOLLOW_LINKS)).forEach(path -> {
                     try {
                         String fileId = path.getFileName().toString();
                         if (!dbIds.contains(fileId)) {
@@ -235,5 +250,43 @@ public class SymlinkService {
         return ResponsePayloads.SymlinkRepairResult.builder()
                 .total(entities.size()).repaired(repaired).deleted(deleted.get())
                 .skipped(skipped).failed(failed.get()).dryRun(dryRun).build();
+    }
+
+    private boolean shouldFallbackToHardLink(Exception ex, Path symlink, Path realFile) {
+        if (!isWindows()) {
+            return false;
+        }
+        if (!sameRoot(symlink, realFile)) {
+            return false;
+        }
+        return isPrivilegeFailure(ex) || ex instanceof UnsupportedOperationException;
+    }
+
+    private boolean sameRoot(Path left, Path right) {
+        Path leftRoot = left.toAbsolutePath().normalize().getRoot();
+        Path rightRoot = right.toAbsolutePath().normalize().getRoot();
+        return leftRoot != null && leftRoot.equals(rightRoot);
+    }
+
+    private boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private boolean isPrivilegeFailure(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof FileSystemException fse && messageContainsPrivilegeFailure(fse.getMessage())) {
+                return true;
+            }
+            if (current instanceof IOException ioe && messageContainsPrivilegeFailure(ioe.getMessage())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean messageContainsPrivilegeFailure(String message) {
+        return message != null && message.toLowerCase(Locale.ROOT).contains("required privilege");
     }
 }

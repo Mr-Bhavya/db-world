@@ -3,6 +3,7 @@ package com.db.dbworld.app.media.ingestion.config;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.pipeline.DefaultIngestionPipeline;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
+import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.spi.DownloadStrategy;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
 import com.db.dbworld.app.media.ingestion.spi.SourceHandler;
@@ -44,7 +45,8 @@ public class IngestionConfig {
             TrackingService          trackingService,
             IngestionRepository      ingestionRepository,
             ExecutorService          ingestionJobExecutor,
-            IngestionJobStore        jobStore          // ← wired here
+            IngestionJobStore        jobStore,
+            IngestionDownloadQueue   downloadQueue
     ) {
         log.info("Configuring IngestionPipeline: {} sources, {} downloaders, {} processors",
                 sourceHandlers.size(), downloadStrategies.size(), processingStrategies.size());
@@ -56,7 +58,8 @@ public class IngestionConfig {
                 trackingService,
                 ingestionRepository,
                 ingestionJobExecutor,
-                jobStore
+                jobStore,
+                downloadQueue
         );
     }
 }
