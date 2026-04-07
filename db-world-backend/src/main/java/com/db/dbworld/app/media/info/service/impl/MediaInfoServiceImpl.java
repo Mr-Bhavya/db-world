@@ -288,8 +288,20 @@ public class MediaInfoServiceImpl implements MediaInfoService {
 
     @SuppressWarnings("unchecked")
     private TrackDto toTrackDto(TrackEntity track) {
+        // getTrackType() reads from the discriminator column which is insertable=false/updatable=false —
+        // it is only populated when Hibernate reads the entity back from DB.
+        // For newly persisted (not re-fetched) entities it is null, so we derive the type
+        // from the class hierarchy to ensure getPrimaryVideoTrack() etc. always work.
+        String trackType;
+        if      (track instanceof VideoTrackEntity)   trackType = "Video";
+        else if (track instanceof AudioTrackEntity)   trackType = "Audio";
+        else if (track instanceof TextTrackEntity)    trackType = "Text";
+        else if (track instanceof ImageTrackEntity)   trackType = "Image";
+        else if (track instanceof GeneralTrackEntity) trackType = "General";
+        else                                          trackType = track.getTrackType();
+
         TrackDto.TrackDtoBuilder b = TrackDto.builder()
-                .type(track.getTrackType())
+                .type(trackType)
                 .streamOrder(track.getStreamOrder());
 
         // Parse extra JSON for the `extra` map
