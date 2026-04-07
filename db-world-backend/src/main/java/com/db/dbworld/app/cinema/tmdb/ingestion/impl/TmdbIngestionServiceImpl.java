@@ -28,6 +28,8 @@ import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 import com.db.dbworld.app.cinema.tmdb.service.TmdbService;
 
 import com.db.dbworld.core.exception.ResourceNotFoundException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -62,6 +64,9 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
     private final SpokenLanguageRepository languageRepository;
     private final CollectionRepository collectionRepository;
     private final RecordRepository recordRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     // Caches for better performance
     private final Map<Long, PersonEntity> personCache = new ConcurrentHashMap<>();
@@ -874,6 +879,12 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
             existing.getProviders().clear();
             if (existing.getImages() != null) existing.getImages().clear();
             tmdbRepository.saveAndFlush(existing);
+            // Evict from the L1 cache so the subsequent merge(detachedEntity) does not
+            // find a conflicting managed instance holding a PersistentBag for `seasons`.
+            // Without this, Hibernate sees two collection owners for the same entity and
+            // throws "collection with cascade=all-delete-orphan was no longer referenced"
+            // at commit time.
+            entityManager.detach(existing);
         });
     }
 

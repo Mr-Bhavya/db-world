@@ -14,6 +14,8 @@ import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,6 +63,17 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private final ProcessExecutor  processExecutor;
     private final TrackingService  trackingService;
 
+    /**
+     * Self-reference through the Spring proxy.
+     * Required so that {@link #enrich} can call {@link #resolveNamingInfo}
+     * through the proxy and trigger the {@code @Transactional} session —
+     * direct internal calls (self-invocation) bypass the proxy and skip the transaction,
+     * causing {@code LazyInitializationException} on LAZY collections like {@code seasons}.
+     */
+    @Lazy
+    @Autowired
+    private TmdbMediaEnrichmentService self;
+
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -71,7 +84,10 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     @Override
     public Path enrich(Path inputFile, Long recordId, Integer season, Integer episode,
                        TrackFilter trackFilter, String jobId) {
-        Optional<MediaNamingInfo> namingInfo = resolveNamingInfo(recordId, season, episode, jobId);
+        // Call through self-proxy so @Transactional on resolveNamingInfo opens a real session.
+        // The transaction is closed when resolveNamingInfo returns (short-lived, read-only).
+        // FFmpeg then runs outside any DB transaction.
+        Optional<MediaNamingInfo> namingInfo = self.resolveNamingInfo(recordId, season, episode, jobId);
         if (namingInfo.isEmpty()) {
             log.debug("[{}] No recordId — skipping TMDB enrichment", jobId);
             return inputFile;
