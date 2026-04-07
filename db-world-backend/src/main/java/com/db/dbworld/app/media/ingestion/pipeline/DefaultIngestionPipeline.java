@@ -143,6 +143,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             ctx.setStatus(MirrorStatus.FAILED);
             ctx.setMessage(e.getMessage());
             trackingService.fail(jobId, e.getMessage());
+            ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
             safeRepositorySave(ctx);
         } finally {
             if (ctx.isQueueManaged()) {
@@ -188,6 +189,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         ctx.setStatus(MirrorStatus.SUCCESS);
         ctx.log("PIPELINE", "Job completed successfully");
         trackingService.complete(jobId);
+        ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
         repository.save(ctx);
     }
 
@@ -201,6 +203,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         ctx.log("PIPELINE", "Job cancelled");
         ctx.setStatus(MirrorStatus.CANCELLED);
         trackingService.updateStatus(ctx.getJobId(), MirrorStatus.CANCELLED);
+        ctx.setHtmlReport(trackingService.getHtmlReport(ctx.getJobId()));
         safeRepositorySave(ctx);
     }
 

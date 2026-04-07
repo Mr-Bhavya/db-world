@@ -73,6 +73,11 @@ public class JpaIngestionRepository implements IngestionRepository {
                 entity.setFailReason(context.getMessage());
             }
 
+            // Persist the HTML progress report so history can show it without in-memory tracking
+            if (context.getHtmlReport() != null) {
+                entity.setHtmlReport(context.getHtmlReport());
+            }
+
             jobRepository.save(entity);
             log.info("[{}] Job persisted — status={}", context.getJobId(), entity.getStatus());
 

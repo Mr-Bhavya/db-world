@@ -20,11 +20,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Moves the downloaded file from temp to the final directory, then:
@@ -41,6 +44,9 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
+    private static final Set<String> MEDIA_EXTENSIONS = Set.of(
+            "mkv", "mp4", "avi", "mov", "ts", "m2ts", "m4v", "wmv", "flv", "webm", "mpg", "mpeg"
+    );
 
     private final FileStorageService         fileStorageService;
     private final MediaInfoService           mediaInfoService;
@@ -48,66 +54,154 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     @Override
     public boolean supports(IngestionContext ctx) {
-        if (ctx.getDownload() == null || !ctx.getDownload().isSuccess()) return false;
-        // Skip if extraction succeeded — extraction already owns the final file
-        if (ctx.getRequest().isExtract()
-                && ctx.getProcessing() != null
-                && ctx.getProcessing().isSuccess()) {
-            return false;
-        }
-        return true;
+        return ctx.getDownload() != null && ctx.getDownload().isSuccess()
+                && ctx.getDownload().getFilePath() != null;
     }
 
     @Override
     public ProcessingResult process(IngestionContext ctx) {
         ProcessingResult result = new ProcessingResult();
-
         try {
             Path sourceFile = ctx.getDownload().getFilePath();
-
-            if (sourceFile == null || !Files.exists(sourceFile)) {
+            if (sourceFile == null) {
+                result.setSuccess(false);
+                result.setErrorMessage("Source file path is null");
+                return result;
+            }
+            // After ZIP extraction the path is a directory — process every media file inside
+            if (Files.isDirectory(sourceFile)) {
+                return processDirectory(ctx, sourceFile);
+            }
+            if (!Files.exists(sourceFile)) {
                 result.setSuccess(false);
                 result.setErrorMessage("Downloaded temp file not found: " + sourceFile);
                 return result;
             }
-
-            // ── 1. Stage file in temp working directory ────────────────────
-            Path workingFile = stageForProcessing(ctx, sourceFile);
-
-            // ── 2. TMDB enrichment: cover art + series naming + metadata ───
-            Path stagedFile = enrichWithTmdb(ctx, workingFile);
-
-            // ── 3. Collect metadata, rename in temp, then move to final ────
-            MediaFileDto mediaInfo = mediaInfoService.collectAndPersist(
-                    stagedFile,
-                    ctx.getRecordId(),
-                    ctx.getJobId()
-            );
-            ctx.log("MEDIA_INFO", "Persisted: id=" + mediaInfo.getId()
-                    + ", tracks=" + (mediaInfo.getTracks() != null ? mediaInfo.getTracks().size() : 0));
-
-            Path canonicalTempFile = renameCanonicalFile(ctx, stagedFile, mediaInfo);
-            MediaFileDto canonicalDto = canonicalTempFile.equals(stagedFile)
-                    ? mediaInfo
-                    : recollectMediaInfo(ctx, stagedFile, canonicalTempFile);
-
-            Path finalFile = moveToFinalLocation(ctx, canonicalTempFile);
-            MediaFileDto finalDto = finalFile.equals(canonicalTempFile)
-                    ? canonicalDto
-                    : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
-
-            result.setFinalFile(finalFile);
-            result.setSuccess(true);
-            result.setMediaInfo(toMediaInfoMap(finalDto));
-
+            return processSingleFile(ctx, sourceFile);
         } catch (IOException e) {
             log.error("[{}] FfmpegProcessingStrategy failed: {}", ctx.getJobId(), e.getMessage());
             ctx.logError("FFMPEG", "Failed: " + e.getMessage());
             result.setSuccess(false);
             result.setErrorMessage(e.getMessage());
+            return result;
+        }
+    }
+
+    // ── Multi-file: after ZIP/RAR extraction ─────────────────────────────────
+
+    private ProcessingResult processDirectory(IngestionContext ctx, Path dir) throws IOException {
+        List<Path> mediaFiles;
+        try (var stream = Files.walk(dir)) {
+            mediaFiles = stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> MEDIA_EXTENSIONS.contains(extension(p.getFileName().toString()).toLowerCase(Locale.ROOT)))
+                    .sorted()
+                    .collect(Collectors.toList());
         }
 
+        if (mediaFiles.isEmpty()) {
+            ProcessingResult result = new ProcessingResult();
+            result.setSuccess(false);
+            result.setErrorMessage("No media files found in extracted directory: " + dir);
+            return result;
+        }
+
+        ctx.log("FFMPEG", "Processing " + mediaFiles.size() + " extracted file(s)");
+
+        Integer originalSeason  = ctx.getRequest().getSeason();
+        Integer originalEpisode = ctx.getRequest().getEpisode();
+
+        Path lastFinalFile = null;
+        Map<String, Object> lastMediaInfo = null;
+        int successCount = 0;
+
+        for (Path file : mediaFiles) {
+            // If season/episode were not provided by the user, infer them per-file
+            if (originalSeason == null) {
+                EpisodeRef ref = detectFromFilename(file);
+                if (ref != null) {
+                    ctx.getRequest().setSeason(ref.season());
+                    ctx.getRequest().setEpisode(ref.episode());
+                }
+            }
+
+            ctx.log("FFMPEG", "Processing extracted: " + file.getFileName());
+            try {
+                ProcessingResult fileResult = processSingleFile(ctx, file);
+                if (fileResult.isSuccess()) {
+                    lastFinalFile = fileResult.getFinalFile();
+                    lastMediaInfo = fileResult.getMediaInfo();
+                    successCount++;
+                } else {
+                    ctx.logError("FFMPEG", "Failed on " + file.getFileName() + ": " + fileResult.getErrorMessage());
+                }
+            } catch (Exception e) {
+                ctx.logError("FFMPEG", "Error on " + file.getFileName() + ": " + e.getMessage());
+            }
+
+            // Restore original request values for the next iteration
+            ctx.getRequest().setSeason(originalSeason);
+            ctx.getRequest().setEpisode(originalEpisode);
+        }
+
+        ProcessingResult result = new ProcessingResult();
+        if (successCount == 0) {
+            result.setSuccess(false);
+            result.setErrorMessage("All " + mediaFiles.size() + " extracted files failed FFmpeg processing");
+        } else {
+            result.setFinalFile(lastFinalFile);
+            result.setMediaInfo(lastMediaInfo);
+            result.setSuccess(true);
+            ctx.log("FFMPEG", "Completed: " + successCount + "/" + mediaFiles.size() + " files processed");
+        }
         return result;
+    }
+
+    // ── Single-file processing ────────────────────────────────────────────────
+
+    private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile) throws IOException {
+        ProcessingResult result = new ProcessingResult();
+
+        // ── 1. Stage file in temp working directory ────────────────────
+        Path workingFile = stageForProcessing(ctx, sourceFile);
+
+        // ── 2. TMDB enrichment: cover art + series naming + metadata ───
+        Path stagedFile = enrichWithTmdb(ctx, workingFile);
+
+        // ── 3. Collect metadata, rename in temp, then move to final ────
+        MediaFileDto mediaInfo = mediaInfoService.collectAndPersist(
+                stagedFile,
+                ctx.getRecordId(),
+                ctx.getJobId()
+        );
+        ctx.log("MEDIA_INFO", "Persisted: id=" + mediaInfo.getId()
+                + ", tracks=" + (mediaInfo.getTracks() != null ? mediaInfo.getTracks().size() : 0));
+
+        Path canonicalTempFile = renameCanonicalFile(ctx, stagedFile, mediaInfo);
+        MediaFileDto canonicalDto = canonicalTempFile.equals(stagedFile)
+                ? mediaInfo
+                : recollectMediaInfo(ctx, stagedFile, canonicalTempFile);
+
+        Path finalFile = moveToFinalLocation(ctx, canonicalTempFile);
+        MediaFileDto finalDto = finalFile.equals(canonicalTempFile)
+                ? canonicalDto
+                : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
+
+        result.setFinalFile(finalFile);
+        result.setSuccess(true);
+        result.setMediaInfo(toMediaInfoMap(finalDto));
+
+        return result;
+    }
+
+    private EpisodeRef detectFromFilename(Path file) {
+        Matcher matcher = SEASON_EPISODE_PATTERN.matcher(file.getFileName().toString());
+        if (!matcher.find()) return null;
+        try {
+            return new EpisodeRef(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

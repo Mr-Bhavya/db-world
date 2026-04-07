@@ -120,7 +120,8 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                         seriesTitle = firstNonBlank(record.getName(), title);
                     }
 
-                    return new MediaNamingInfo(title, releaseYear, seriesTitle, episodeName, posterPath);
+                    String overview = tmdb.getOverview();
+                    return new MediaNamingInfo(title, releaseYear, seriesTitle, episodeName, posterPath, overview);
                 })
                 .filter(info -> info != null);
     }
@@ -136,7 +137,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             Path outputFile = resolveOutputPath(inputFile, namingInfo.title(), namingInfo.seriesTitle(), season, episode, namingInfo.episodeName());
 
             // ── ONE FFmpeg pass ───────────────────────────────────────────
-            runFfmpegOnePass(inputFile, posterFile, outputFile, namingInfo.title(), filter, jobId);
+            runFfmpegOnePass(inputFile, posterFile, outputFile, namingInfo.title(), namingInfo.overview(), filter, jobId);
             // ─────────────────────────────────────────────────────────────
 
             if (!outputFile.equals(inputFile)) {
@@ -190,7 +191,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
      * rips have exactly one video stream so the flag is a no-op for them.
      */
     private void runFfmpegOnePass(Path input, Path poster, Path output,
-                                  String metadataTitle, TrackFilter filter,
+                                  String metadataTitle, String overview, TrackFilter filter,
                                   String jobId) throws ProcessExecutionException {
         List<String> cmd = new ArrayList<>();
         cmd.add("-y");
@@ -203,6 +204,9 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         if (hasPoster) {
             cmd.addAll(List.of("-i", poster.toAbsolutePath().toString()));
         }
+
+        // Clear all global metadata from input so we start clean
+        cmd.addAll(List.of("-map_metadata", "-1"));
 
         boolean hasFilter = filter != null && filter.hasAnyFilter();
 
@@ -252,8 +256,16 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             cmd.addAll(List.of("-metadata:s:v:1",  "mimetype=image/jpeg"));
         }
 
+        // Global metadata: title, overview/description
         if (metadataTitle != null && !metadataTitle.isBlank()) {
             cmd.addAll(List.of("-metadata", "title=" + metadataTitle));
+            // Set video track title to match
+            cmd.addAll(List.of("-metadata:s:v:0", "title=" + metadataTitle));
+        }
+        if (overview != null && !overview.isBlank()) {
+            // "description" works for MKV; "comment" is a common fallback for other containers
+            cmd.addAll(List.of("-metadata", "description=" + overview));
+            cmd.addAll(List.of("-metadata", "comment=" + overview));
         }
 
         cmd.add(output.toAbsolutePath().toString());
