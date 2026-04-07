@@ -15,6 +15,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 /**
  * Sequential download queue for HTTP/HTTPS downloads via Aria2.
@@ -64,6 +65,20 @@ public class IngestionDownloadQueue {
         trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
 
         log.info("[{}] Queued for HTTP download (queue size: {})", jobId, queue.size());
+        tryStartNext();
+        notifyAll();
+        return true;
+    }
+
+    public synchronized boolean awaitTurn(String jobId, BooleanSupplier cancelled) throws InterruptedException {
+        while (!jobId.equals(currentlyRunningJobId)) {
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                cancel(jobId);
+                return false;
+            }
+            wait(1000L);
+            tryStartNext();
+        }
         return true;
     }
 
@@ -117,7 +132,7 @@ public class IngestionDownloadQueue {
     // Called by the download strategy to signal completion
     // ─────────────────────────────────────────────────────────────────────────
 
-    public void signalComplete(String jobId) {
+    public synchronized void signalComplete(String jobId) {
         if (jobId.equals(currentlyRunningJobId)) {
             log.info("[{}] Signalled complete → releasing queue", jobId);
             releaseRunning();
@@ -125,11 +140,21 @@ public class IngestionDownloadQueue {
         entryMap.remove(jobId);
     }
 
+    public synchronized void cancel(String jobId) {
+        queue.removeIf(entry -> entry.jobId.equals(jobId));
+        entryMap.remove(jobId);
+        if (jobId.equals(currentlyRunningJobId)) {
+            releaseRunning();
+        } else {
+            notifyAll();
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Internals
     // ─────────────────────────────────────────────────────────────────────────
 
-    private void tryStartNext() {
+    private synchronized void tryStartNext() {
         if (!running.compareAndSet(false, true)) return;
 
         QueueEntry next = queue.poll();
@@ -140,15 +165,18 @@ public class IngestionDownloadQueue {
 
         currentlyRunningJobId = next.jobId;
         log.info("[{}] Starting from HTTP queue (remaining: {})", next.jobId, queue.size());
+        notifyAll();
         // The actual download is already submitted async by the pipeline; this just tracks slot occupancy
     }
 
-    private void releaseRunning() {
+    private synchronized void releaseRunning() {
         if (!running.compareAndSet(true, false)) return;
         String finished = currentlyRunningJobId;
         currentlyRunningJobId = null;
         entryMap.remove(finished);
         log.info("[{}] Queue slot released", finished);
+        tryStartNext();
+        notifyAll();
     }
 
     private boolean isTimedOut(QueueEntry entry) {

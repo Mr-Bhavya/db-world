@@ -4,6 +4,7 @@ import com.db.dbworld.app.media.ingestion.model.DownloadResult;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.SourceMetadata;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
+import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
@@ -45,6 +46,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     private final FileStorageService fileStorageService;
     private final TrackingService    trackingService;
     private final IngestionJobStore  jobStore;
+    private final IngestionDownloadQueue downloadQueue;
 
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -57,8 +59,28 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     @Override
     public DownloadResult download(IngestionContext ctx) {
         String jobId = ctx.getJobId();
+        boolean queued = false;
 
         try {
+            boolean isMagnet = isMagnet(ctx);
+            queued = downloadQueue.enqueue(jobId, isMagnet);
+            if (queued) {
+                ctx.setQueueManaged(true);
+                ctx.log("QUEUE", "Waiting for download slot");
+                boolean allowed = downloadQueue.awaitTurn(jobId,
+                        () -> ctx.isCancelled() || trackingService.isCancelled(jobId));
+                if (!allowed) {
+                    ctx.log("QUEUE", "Removed from queue due to cancellation");
+                    return DownloadResult.failure(jobId, "Cancelled");
+                }
+                ctx.log("QUEUE", "Download slot acquired");
+            }
+
+            trackingService.updateStatus(jobId, com.db.dbworld.app.media.ingestion.tracking.MirrorStatus.DOWNLOADING);
+            ctx.setStatus(com.db.dbworld.app.media.ingestion.tracking.MirrorStatus.DOWNLOADING);
+            ctx.setCurrentStep(com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType.DOWNLOAD);
+            trackingService.updateStep(jobId, com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType.DOWNLOAD);
+
             fileStorageService.prepareDirectories(ctx);
             Path tempDir = fileStorageService.resolveTempDir(ctx);
 
@@ -81,6 +103,8 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             jobStore.setCancelAction(jobId, () -> {
                 try { aria2RpcService.forceRemove(gid); } catch (Exception e) {
                     log.warn("[{}] forceRemove failed: {}", jobId, e.getMessage());
+                } finally {
+                    downloadQueue.cancel(jobId);
                 }
             });
             jobStore.setPauseAction(jobId, () -> {
@@ -264,5 +288,11 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                                 speed != null ? speed.doubleValue() : 0.0, eta));
             }
         } catch (Exception ignored) {}
+    }
+
+    private boolean isMagnet(IngestionContext ctx) {
+        if (ctx.getSource() == null || ctx.getSource().getAttributes() == null) return false;
+        Object flag = ctx.getSource().getAttributes().get("isMagnet");
+        return flag != null && Boolean.parseBoolean(flag.toString());
     }
 }

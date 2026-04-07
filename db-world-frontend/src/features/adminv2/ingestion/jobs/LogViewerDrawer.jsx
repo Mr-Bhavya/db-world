@@ -24,7 +24,7 @@ export default function LogViewerDrawer({ jobId, open, onClose }) {
     setError(null);
     try {
       const res = await getJobReport(jobId);
-      setHtml(res.data ?? '');
+      setHtml(typeof res?.data === 'string' ? res.data : '');
     } catch (e) {
       setError(e?.response?.data?.message ?? 'Failed to load report');
     } finally {
@@ -111,7 +111,7 @@ export default function LogViewerDrawer({ jobId, open, onClose }) {
           </Box>
         )}
 
-        {html && !loading && (
+        {typeof html === 'string' && html && !loading && (
           <iframe
             ref={iframeRef}
             title="Job Report"
@@ -127,7 +127,7 @@ export default function LogViewerDrawer({ jobId, open, onClose }) {
           />
         )}
 
-        {!html && !loading && !error && (
+        {(!html || typeof html !== 'string') && !loading && !error && (
           <Box sx={{ p: 3, textAlign: 'center' }}>
             <Typography color="text.secondary">No logs available yet.</Typography>
           </Box>

@@ -1,6 +1,8 @@
 package com.db.dbworld.app.media.ingestion.processing.fs;
 
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.utils.PathSanitizer;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -20,6 +22,7 @@ import java.nio.file.Path;
 public class DefaultFileStorageService implements FileStorageService {
 
     private final DbWorldRuntimeProperties runtimeProperties;
+    private final RecordRepository         recordRepository;
 
     @Override
     public Path resolveTempDir(IngestionContext ctx) {
@@ -72,7 +75,25 @@ public class DefaultFileStorageService implements FileStorageService {
 
     private String safeFolderName(IngestionContext ctx) {
         String folder = ctx.getRequest() != null ? ctx.getRequest().getFolderName() : null;
-        return StringUtils.hasText(folder) ? folder : "unassigned";
+        if (StringUtils.hasText(folder)) {
+            return PathSanitizer.sanitizePathComponent(folder);
+        }
+
+        Long recordId = ctx.getRecordId() != null
+                ? ctx.getRecordId()
+                : (ctx.getRequest() != null ? ctx.getRequest().getRecordId() : null);
+
+        if (recordId != null) {
+            String derived = recordRepository.findById(recordId)
+                    .map(record -> recordId + "-" + PathSanitizer.sanitizePathComponent(record.getName()))
+                    .orElse(String.valueOf(recordId));
+            if (ctx.getRequest() != null) {
+                ctx.getRequest().setFolderName(derived);
+            }
+            return derived;
+        }
+
+        return "unassigned";
     }
 
     private String safeFileName(IngestionContext ctx) {

@@ -24,6 +24,7 @@ public class IngestionContext {
 
     private MirrorStatus status;
     private PipelineStepType currentStep;
+    private boolean queueManaged;
 
     private String message;
 

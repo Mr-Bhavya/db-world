@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.ingestion.pipeline;
 
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
+import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
 import com.db.dbworld.app.media.ingestion.spi.*;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.*;
@@ -27,6 +28,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final IngestionRepository repository;
     private final ExecutorService    jobExecutor;
     private final IngestionJobStore  jobStore;
+    private final IngestionDownloadQueue downloadQueue;
 
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -56,6 +58,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         String jobId = ctx.getJobId();
         try {
             trackingService.updateStatus(jobId, MirrorStatus.STARTED);
+            ctx.setStatus(MirrorStatus.STARTED);
             ctx.log("PIPELINE", "Job started: " + jobId);
 
             // ── Local file shortcut (link-existing) ──────────────────────────
@@ -102,9 +105,6 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             if (isCancelled(ctx)) { markCancelled(ctx); return; }
 
             // ── Download ─────────────────────────────────────────────────────
-            trackingService.updateStatus(jobId, MirrorStatus.DOWNLOADING);
-            trackingService.updateStep(jobId, PipelineStepType.DOWNLOAD);
-
             DownloadStrategy downloader = downloadStrategies.stream()
                     .filter(d -> d.supports(ctx.getSource()))
                     .findFirst()
@@ -115,6 +115,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             ctx.setDownload(downloadResult);
 
             if (!downloadResult.isSuccess()) {
+                if (isCancelled(ctx) || "Cancelled".equalsIgnoreCase(downloadResult.getErrorMessage())) {
+                    markCancelled(ctx);
+                    return;
+                }
                 throw new RuntimeException("Download failed: " + downloadResult.getErrorMessage());
             }
 
@@ -130,12 +134,20 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             runProcessing(ctx);
 
         } catch (Exception e) {
+            if (isCancelled(ctx)) {
+                markCancelled(ctx);
+                return;
+            }
             log.error("Pipeline failed for jobId={}", jobId, e);
             ctx.logError("PIPELINE", "Job failed: " + e.getMessage());
+            ctx.setStatus(MirrorStatus.FAILED);
             ctx.setMessage(e.getMessage());
             trackingService.fail(jobId, e.getMessage());
             safeRepositorySave(ctx);
         } finally {
+            if (ctx.isQueueManaged()) {
+                downloadQueue.signalComplete(jobId);
+            }
             jobStore.remove(jobId);
         }
     }
@@ -144,12 +156,13 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         String jobId = ctx.getJobId();
 
         trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
+        ctx.setStatus(MirrorStatus.PROCESSING);
 
         for (ProcessingStrategy processor : processors) {
             if (!processor.supports(ctx)) continue;
 
             ctx.log("PROCESS", "Running: " + processor.getClass().getSimpleName());
-            trackingService.updateStep(jobId, resolveStep(processor));
+            updateStep(ctx, resolveStep(processor));
 
             ProcessingResult result = processor.process(ctx);
             ctx.setProcessing(result);
@@ -157,6 +170,16 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             if (!result.isSuccess()) {
                 ctx.logError("PROCESS", "Failed: " + result.getErrorMessage());
                 throw new RuntimeException("Processing failed: " + result.getErrorMessage());
+            }
+
+            if (result.getFinalFile() != null) {
+                String finalFileName = result.getFinalFile().getFileName().toString();
+                trackingService.updateJobMeta(jobId, ctx.getSource() != null ? ctx.getSource().getType() : null,
+                        finalFileName, ctx.getRequest() != null ? ctx.getRequest().getUri() : null, ctx.getRecordId());
+                if (ctx.getDownload() != null) {
+                    ctx.getDownload().setFilePath(result.getFinalFile());
+                    ctx.getDownload().setFileName(finalFileName);
+                }
             }
 
             if (isCancelled(ctx)) { markCancelled(ctx); return; }
@@ -193,5 +216,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         if (name.contains("ffmpeg") || name.contains("media")) return PipelineStepType.FFMPEG;
         if (name.contains("merge")) return PipelineStepType.MERGE;
         return PipelineStepType.MEDIA_INFO;
+    }
+
+    private void updateStep(IngestionContext ctx, PipelineStepType step) {
+        ctx.setCurrentStep(step);
+        trackingService.updateStep(ctx.getJobId(), step);
     }
 }

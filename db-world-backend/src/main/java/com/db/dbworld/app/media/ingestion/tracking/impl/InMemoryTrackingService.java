@@ -36,6 +36,10 @@ public class InMemoryTrackingService implements TrackingService {
         JobState state = getOrCreate(jobId);
         MirrorStatus current = state.status.get();
 
+        if (current == newStatus) {
+            return;
+        }
+
         if (stateMachine.canTransition(current, newStatus) || newStatus == MirrorStatus.CANCELLED) {
             state.status.set(newStatus);
             state.logCollector.info(newStatus.name(), "Status → " + newStatus);

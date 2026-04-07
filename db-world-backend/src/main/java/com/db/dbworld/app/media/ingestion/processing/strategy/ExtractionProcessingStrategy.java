@@ -3,6 +3,8 @@ package com.db.dbworld.app.media.ingestion.processing.strategy;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
+import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
+import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.exception.ProcessExecutionException;
 import com.db.dbworld.core.processor.StreamProcessor;
 import com.db.dbworld.core.processor.ProcessExecutor;
@@ -15,6 +17,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Extracts downloaded archive files (zip, rar, 7z, tar) using 7z.
@@ -26,8 +30,10 @@ import java.time.Duration;
 @Order(1)
 @RequiredArgsConstructor
 public class ExtractionProcessingStrategy implements ProcessingStrategy {
+    private static final Pattern PERCENT_PATTERN = Pattern.compile("\\b(\\d{1,3})%");
 
     private final ProcessExecutor processExecutor;
+    private final TrackingService trackingService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -57,6 +63,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
                     Duration.ofHours(2)
             );
 
+            trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(100, 100, 0.0, 0));
             ctx.log("EXTRACT", "Extraction complete → " + extractDir);
 
             result.setFinalFile(extractDir);
@@ -79,17 +86,37 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
     }
 
     private StreamProcessor buildStreamProcessor(IngestionContext ctx) {
+        long startedAt = System.currentTimeMillis();
         return new StreamProcessor() {
             @Override
             protected void processLine(String line, boolean isErrorStream) {
                 if (line == null || line.isBlank()) return;
-                if (isErrorStream) {
-                    ctx.logError("7Z_ERR", line);
-                } else {
-                    ctx.log("7Z", line);
+                String trimmed = line.trim();
+                Matcher matcher = PERCENT_PATTERN.matcher(trimmed);
+                if (matcher.find()) {
+                    int percent = Math.min(100, Integer.parseInt(matcher.group(1)));
+                    long eta = estimateEtaSeconds(startedAt, percent);
+                    trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(percent, 100, 0.0, eta));
+                    ctx.log("EXTRACT", trimmed);
+                    return;
                 }
+
+                if (isErrorStream) {
+                    ctx.logError("7Z_ERR", trimmed);
+                    return;
+                }
+                ctx.log("7Z", trimmed);
             }
         };
+    }
+
+    private long estimateEtaSeconds(long startedAt, int percent) {
+        if (percent <= 0 || percent >= 100) {
+            return 0;
+        }
+        long elapsedMs = Math.max(1L, System.currentTimeMillis() - startedAt);
+        long estimatedTotalMs = (elapsedMs * 100L) / percent;
+        return Math.max(0L, (estimatedTotalMs - elapsedMs) / 1000L);
     }
 
     private String stripExtension(String fileName) {

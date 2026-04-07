@@ -225,8 +225,8 @@ public class IngestionController {
     }
 
     @GetMapping("/{jobId}/report")
-    public ApiResponse<Void> getHtmlReport(@PathVariable String jobId) {
-        return ApiResponse.success(trackingService.getHtmlReport(jobId));
+    public ApiResponse<String> getHtmlReport(@PathVariable String jobId) {
+        return ApiResponse.success(org.springframework.http.HttpStatus.OK, null, trackingService.getHtmlReport(jobId));
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -339,9 +339,12 @@ public class IngestionController {
         r.setVideoITag(base.getVideoITag());
         r.setAudioITag(base.getAudioITag());
         r.setOnlyAudio(base.isOnlyAudio());
+        r.setTorrentBase64(base.getTorrentBase64());
         r.setRecordId(base.getRecordId());
         r.setSeason(base.getSeason());
         r.setEpisode(base.getEpisode());
+        r.setTrackFilter(base.getTrackFilter());
+        r.setLocalFilePath(base.getLocalFilePath());
         return r;
     }
 

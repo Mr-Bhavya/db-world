@@ -2,11 +2,15 @@ package com.db.dbworld.app.media.ingestion.processing.strategy;
 
 import com.db.dbworld.app.media.enrichment.TmdbMediaEnrichmentService;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
+import com.db.dbworld.app.media.info.dto.TrackDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
+import com.db.dbworld.app.stream.tag.MediaSource;
+import com.db.dbworld.app.stream.tag.MediaTagResolver;
+import com.db.dbworld.utils.PathSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.core.annotation.Order;
@@ -16,7 +20,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Moves the downloaded file from temp to the final directory, then:
@@ -32,6 +40,7 @@ import java.util.Map;
 @Order(10)
 @RequiredArgsConstructor
 public class FfmpegProcessingStrategy implements ProcessingStrategy {
+    private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
 
     private final FileStorageService         fileStorageService;
     private final MediaInfoService           mediaInfoService;
@@ -54,36 +63,42 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         ProcessingResult result = new ProcessingResult();
 
         try {
-            Path tempFile = ctx.getDownload().getFilePath();
+            Path sourceFile = ctx.getDownload().getFilePath();
 
-            if (tempFile == null || !Files.exists(tempFile)) {
+            if (sourceFile == null || !Files.exists(sourceFile)) {
                 result.setSuccess(false);
-                result.setErrorMessage("Downloaded temp file not found: " + tempFile);
+                result.setErrorMessage("Downloaded temp file not found: " + sourceFile);
                 return result;
             }
 
-            // ── 1. Move to final directory ─────────────────────────────────
-            Path finalDir = fileStorageService.resolveFinalDir(ctx);
-            Files.createDirectories(finalDir);
-
-            String fileName = ctx.getDownload().getFileName() != null
-                    ? ctx.getDownload().getFileName()
-                    : tempFile.getFileName().toString();
-
-            Path movedFile = finalDir.resolve(fileName);
-            ctx.log("FFMPEG", "Moving: " + tempFile.getFileName() + " → " + finalDir);
-            Files.move(tempFile, movedFile, StandardCopyOption.REPLACE_EXISTING);
-            ctx.log("FFMPEG", "Move complete");
+            // ── 1. Stage file in temp working directory ────────────────────
+            Path workingFile = stageForProcessing(ctx, sourceFile);
 
             // ── 2. TMDB enrichment: cover art + series naming + metadata ───
-            Path finalFile = enrichWithTmdb(ctx, movedFile);
+            Path stagedFile = enrichWithTmdb(ctx, workingFile);
 
-            // ── 3. Collect and persist MediaInfo ───────────────────────────
-            Map<String, Object> mediaInfoResult = collectMediaInfo(ctx, finalFile);
+            // ── 3. Collect metadata, rename in temp, then move to final ────
+            MediaFileDto mediaInfo = mediaInfoService.collectAndPersist(
+                    stagedFile,
+                    ctx.getRecordId(),
+                    ctx.getJobId()
+            );
+            ctx.log("MEDIA_INFO", "Persisted: id=" + mediaInfo.getId()
+                    + ", tracks=" + (mediaInfo.getTracks() != null ? mediaInfo.getTracks().size() : 0));
+
+            Path canonicalTempFile = renameCanonicalFile(ctx, stagedFile, mediaInfo);
+            MediaFileDto canonicalDto = canonicalTempFile.equals(stagedFile)
+                    ? mediaInfo
+                    : recollectMediaInfo(ctx, stagedFile, canonicalTempFile);
+
+            Path finalFile = moveToFinalLocation(ctx, canonicalTempFile);
+            MediaFileDto finalDto = finalFile.equals(canonicalTempFile)
+                    ? canonicalDto
+                    : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
 
             result.setFinalFile(finalFile);
             result.setSuccess(true);
-            result.setMediaInfo(mediaInfoResult);
+            result.setMediaInfo(toMediaInfoMap(finalDto));
 
         } catch (IOException e) {
             log.error("[{}] FfmpegProcessingStrategy failed: {}", ctx.getJobId(), e.getMessage());
@@ -99,16 +114,19 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     private Path enrichWithTmdb(IngestionContext ctx, Path movedFile) {
         try {
+            EpisodeRef episodeRef = resolveEpisodeRef(ctx, movedFile);
             Path enriched = enrichmentService.enrich(
                     movedFile,
                     ctx.getRecordId(),
-                    ctx.getRequest().getSeason(),
-                    ctx.getRequest().getEpisode(),
+                    episodeRef != null ? episodeRef.season() : null,
+                    episodeRef != null ? episodeRef.episode() : null,
                     ctx.getRequest().getTrackFilter(),
                     ctx.getJobId()
             );
             if (!enriched.equals(movedFile)) {
                 ctx.log("FFMPEG", "Enriched → " + enriched.getFileName());
+            } else {
+                ctx.log("FFMPEG", "Final file → " + enriched.getFileName());
             }
             return enriched;
         } catch (Exception e) {
@@ -117,23 +135,315 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         }
     }
 
-    private Map<String, Object> collectMediaInfo(IngestionContext ctx, Path finalFile) {
+    private MediaFileDto recollectMediaInfo(IngestionContext ctx, Path previousFile, Path canonicalFile) {
         try {
+            mediaInfoService.deleteByFilePath(previousFile.toAbsolutePath().toString());
             MediaFileDto dto = mediaInfoService.collectAndPersist(
-                    finalFile,
+                    canonicalFile,
                     ctx.getRecordId(),
                     ctx.getJobId()
             );
-            ctx.log("MEDIA_INFO", "Persisted: id=" + dto.getId()
-                    + ", tracks=" + (dto.getTracks() != null ? dto.getTracks().size() : 0));
-
-            return Map.of(
-                    "mediaFileId", dto.getId(),
-                    "fileName",    dto.getFileName() != null ? dto.getFileName() : ""
-            );
+            ctx.log("MEDIA_INFO", "Re-persisted after rename: " + canonicalFile.getFileName());
+            return dto;
         } catch (Exception e) {
-            ctx.logError("MEDIA_INFO", "MediaInfo failed (non-fatal): " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    private MediaFileDto repersistAtFinalLocation(IngestionContext ctx, Path previousFile, Path finalFile) {
+        try {
+            mediaInfoService.deleteByFilePath(previousFile.toAbsolutePath().toString());
+            MediaFileDto dto = mediaInfoService.collectAndPersist(finalFile, ctx.getRecordId(), ctx.getJobId());
+            ctx.log("MEDIA_INFO", "Persisted final output: " + finalFile.getFileName());
+            return dto;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Map<String, Object> toMediaInfoMap(MediaFileDto dto) {
+        return Map.of(
+                "mediaFileId", dto.getId(),
+                "fileName", dto.getFileName() != null ? dto.getFileName() : ""
+        );
+    }
+
+    private Path renameCanonicalFile(IngestionContext ctx, Path file, MediaFileDto mediaInfo) throws IOException {
+        String desiredName = buildCanonicalFileName(ctx, file, mediaInfo);
+        if (desiredName == null || desiredName.isBlank() || desiredName.equals(file.getFileName().toString())) {
+            return file;
+        }
+        Path renamed = file.getParent().resolve(desiredName);
+        Files.move(file, renamed, StandardCopyOption.REPLACE_EXISTING);
+        ctx.log("FFMPEG", "Canonical rename → " + renamed.getFileName());
+        return renamed;
+    }
+
+    private String buildCanonicalFileName(IngestionContext ctx, Path file, MediaFileDto mediaInfo) {
+        EpisodeRef episodeRef = resolveEpisodeRef(ctx, file);
+        Optional<TmdbMediaEnrichmentService.MediaNamingInfo> namingInfo =
+                enrichmentService.resolveNamingInfo(ctx.getRecordId(),
+                        episodeRef != null ? episodeRef.season() : null,
+                        episodeRef != null ? episodeRef.episode() : null,
+                        ctx.getJobId());
+
+        String ext = extension(file.getFileName().toString());
+        TrackDto video = mediaInfo.getPrimaryVideoTrack();
+        TrackDto audio = mediaInfo.getPrimaryAudioTrack();
+
+        String resolution = MediaTagResolver.resolveResolution(video != null ? video.getHeight() : null);
+        String source = inferSource(file, ctx);
+        String sourceType = inferSourceType(file);
+        String videoCodec = normalizeVideoCodec(video != null ? video.getFormat() : null);
+        String hdr = sanitizeHdr(video);
+        String bitDepth = normalizeBitDepth(video);
+        String language = normalizeLanguage(audio != null ? audio.getLanguage() : null);
+        String audioCodec = normalizeAudioCodec(audio != null ? audio.getFormat() : null);
+        String channels = normalizeChannels(audio != null ? audio.getChannels() : null);
+
+        StringBuilder name = new StringBuilder();
+        if (episodeRef != null) {
+            String seriesTitle = namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::seriesTitle)
+                    .filter(t -> !t.isBlank())
+                    .orElseGet(() -> inferSeriesTitle(file, namingInfo));
+            name.append(sanitizeToken(seriesTitle))
+                    .append(".S").append(String.format("%02d", episodeRef.season()))
+                    .append("E").append(String.format("%02d", episodeRef.episode()));
+            String episodeName = namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::episodeName)
+                    .filter(t -> !t.isBlank())
+                    .orElse(null);
+            if (episodeName != null) {
+                name.append(".").append(sanitizeToken(episodeName));
+            }
+        } else {
+            String title = namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::title)
+                    .filter(t -> !t.isBlank())
+                    .orElseGet(() -> stripExt(file.getFileName().toString()));
+            name.append(sanitizeToken(title));
+            namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::releaseYear)
+                    .filter(y -> !y.isBlank())
+                    .ifPresent(y -> name.append(".").append(y));
+        }
+
+        appendSegment(name, resolution);
+        appendSegment(name, source);
+        appendSegment(name, sourceType);
+        appendSegment(name, videoCodec);
+        appendSegment(name, hdr);
+        appendSegment(name, bitDepth);
+        appendSegment(name, language);
+        appendSegment(name, audioCodec);
+        appendSegment(name, channels);
+
+        return name.append(".").append(ext.toLowerCase()).toString();
+    }
+
+    private Path stageForProcessing(IngestionContext ctx, Path sourceFile) throws IOException {
+        Path tempDir = fileStorageService.resolveTempDir(ctx);
+        Files.createDirectories(tempDir);
+
+        if (sourceFile.toAbsolutePath().normalize().startsWith(tempDir.toAbsolutePath().normalize())) {
+            return sourceFile;
+        }
+
+        Path staged = tempDir.resolve(sourceFile.getFileName().toString());
+        ctx.log("FFMPEG", "Staging in temp: " + sourceFile.getFileName() + " → " + tempDir);
+        Files.copy(sourceFile, staged, StandardCopyOption.REPLACE_EXISTING);
+        return staged;
+    }
+
+    private Path moveToFinalLocation(IngestionContext ctx, Path file) throws IOException {
+        Path finalDir = fileStorageService.resolveFinalDir(ctx);
+        Files.createDirectories(finalDir);
+
+        Path normalizedFile = file.toAbsolutePath().normalize();
+        Path normalizedFinalDir = finalDir.toAbsolutePath().normalize();
+        if (normalizedFile.getParent() != null && normalizedFile.getParent().equals(normalizedFinalDir)) {
+            return file;
+        }
+
+        Path finalPath = finalDir.resolve(file.getFileName().toString());
+        ctx.log("FFMPEG", "Promoting to final: " + file.getFileName() + " → " + finalDir);
+        Files.move(file, finalPath, StandardCopyOption.REPLACE_EXISTING);
+        return finalPath;
+    }
+
+    private void appendSegment(StringBuilder builder, String value) {
+        if (value != null && !value.isBlank()) {
+            builder.append(".").append(value);
+        }
+    }
+
+    private String inferSource(Path file, IngestionContext ctx) {
+        MediaSource detected = MediaTagResolver.detectSource(file.getFileName().toString());
+        if (detected != MediaSource.UNKNOWN && !isGenericSource(detected)) {
+            return sanitizeToken(detected.getLabel());
+        }
+        if (ctx.getSource() != null && "YOUTUBE".equalsIgnoreCase(ctx.getSource().getType())) {
+            return "YOUTUBE";
+        }
+        return null;
+    }
+
+    private String inferSourceType(Path file) {
+        MediaSource detected = MediaTagResolver.detectSource(file.getFileName().toString());
+        if (detected != MediaSource.UNKNOWN && detected.getDefaultType() != null && !detected.getDefaultType().isBlank()) {
+            return normalizeSourceType(detected.getDefaultType());
+        }
+
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.contains("remux")) return "REMUX";
+        if (name.contains("web-dl") || name.contains("webdl")) return "WEB-DL";
+        if (name.contains("webrip") || name.contains("web-rip")) return "WEBRip";
+        if (name.contains("bluray") || name.contains("blu-ray")) return "BluRay";
+        if (name.contains("bdrip")) return "BDRip";
+        if (name.contains("hdtv")) return "HDTV";
+        return "WEB-DL";
+    }
+
+    private String sanitizeHdr(TrackDto video) {
+        if (video == null) return null;
+        if (video.getHdrFormat() != null && !video.getHdrFormat().isBlank()) {
+            return normalizeHdr(video.getHdrFormat());
+        }
+        if (video.getHdrFormatCompatibility() != null && !video.getHdrFormatCompatibility().isBlank()) {
+            return normalizeHdr(video.getHdrFormatCompatibility());
+        }
+        return null;
+    }
+
+    private String sanitizeToken(String value) {
+        if (value == null || value.isBlank()) return null;
+        return PathSanitizer.sanitizePathComponent(value)
+                .replace(' ', '.')
+                .replaceAll("\\.+", ".");
+    }
+
+    private String normalizeVideoCodec(String format) {
+        String resolved = MediaTagResolver.resolveVideoCodec(format);
+        if (resolved != null) return sanitizeToken(resolved);
+        if (format == null || format.isBlank()) return null;
+        String upper = format.trim().toUpperCase(Locale.ROOT);
+        if (upper.contains("AVC") || upper.contains("H.264") || upper.contains("H264")) return "H264";
+        if (upper.contains("HEVC") || upper.contains("H.265") || upper.contains("H265")) return "H265";
+        if (upper.contains("XVID")) return "XviD";
+        if (upper.contains("DIVX")) return "DivX";
+        if (upper.contains("VP9")) return "VP9";
+        if (upper.contains("AV1")) return "AV1";
+        return sanitizeToken(format);
+    }
+
+    private String normalizeAudioCodec(String format) {
+        String resolved = MediaTagResolver.resolveAudioCodec(format);
+        if (resolved != null) return sanitizeToken(resolved.replace("EAC3", "DDP"));
+        if (format == null || format.isBlank()) return null;
+        String upper = format.trim().toUpperCase(Locale.ROOT);
+        if (upper.contains("AAC")) return "AAC";
+        if (upper.contains("E-AC-3") || upper.contains("EAC3") || upper.contains("DDP")) return "DDP";
+        if (upper.contains("AC-3") || upper.contains("AC3") || upper.contains("DD")) return "AC3";
+        if (upper.contains("DTS-HD") || upper.contains("DTS HD")) return "DTS-HD";
+        if (upper.contains("DTS")) return "DTS";
+        if (upper.contains("TRUEHD")) return "TrueHD";
+        if (upper.contains("FLAC")) return "FLAC";
+        if (upper.contains("OPUS")) return "Opus";
+        if (upper.contains("MP3") || upper.contains("MPEG AUDIO")) return "MP3";
+        return sanitizeToken(format);
+    }
+
+    private String normalizeHdr(String hdrValue) {
+        String resolved = MediaTagResolver.resolveHdr(hdrValue);
+        if (resolved != null) {
+            return sanitizeToken(resolved.replace("DV HDR", "DV.HDR").replace("HDR10+", "HDR10Plus"));
+        }
+        String upper = hdrValue.trim().toUpperCase(Locale.ROOT);
+        if (upper.contains("DOLBY") || upper.contains("DV")) return "DV";
+        if (upper.contains("HDR10+")) return "HDR10Plus";
+        if (upper.contains("HDR10")) return "HDR10";
+        if (upper.contains("HLG")) return "HLG";
+        if (upper.contains("HDR")) return "HDR";
+        return sanitizeToken(hdrValue);
+    }
+
+    private String normalizeBitDepth(TrackDto video) {
+        if (video == null || video.getBitDepth() == null) return null;
+        return MediaTagResolver.BIT_DEPTH_MAP.getOrDefault(video.getBitDepth(), video.getBitDepth() + "Bit");
+    }
+
+    private String normalizeLanguage(String language) {
+        if (language == null || language.isBlank()) return null;
+        String resolved = MediaTagResolver.resolveLanguage(language);
+        if (resolved != null && !"Unknown".equalsIgnoreCase(resolved)) {
+            return sanitizeToken(resolved);
+        }
+        return sanitizeToken(language.trim());
+    }
+
+    private String normalizeChannels(Integer channels) {
+        if (channels == null || channels <= 0) return null;
+        return switch (channels) {
+            case 1 -> "1.0";
+            case 2 -> "2.0";
+            case 6 -> "5.1";
+            case 8 -> "7.1";
+            default -> channels + "Ch";
+        };
+    }
+
+    private boolean isGenericSource(MediaSource source) {
+        return switch (source) {
+            case BLURAY, UHD_BLURAY, REMUX, DVD, WEB_DL, WEB_RIP, HDTV, CAM, TS, TELECINE, WORKPRINT, UNKNOWN -> true;
+            default -> false;
+        };
+    }
+
+    private String normalizeSourceType(String sourceType) {
+        String upper = sourceType.trim().toUpperCase(Locale.ROOT);
+        return switch (upper) {
+            case "WEBRIP", "WEB-RIP" -> "WEBRip";
+            case "WEB-DL", "WEBDL" -> "WEB-DL";
+            case "BLURAY", "BLU-RAY" -> "BluRay";
+            case "REMUX" -> "REMUX";
+            case "DVD" -> "DVD";
+            case "HDTV" -> "HDTV";
+            case "CAM" -> "CAM";
+            case "TS" -> "TS";
+            case "TC" -> "TC";
+            case "WORKPRINT" -> "WORKPRINT";
+            default -> sanitizeToken(sourceType);
+        };
+    }
+
+    private String inferSeriesTitle(Path file, Optional<TmdbMediaEnrichmentService.MediaNamingInfo> namingInfo) {
+        String candidate = namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::title)
+                .filter(t -> !t.isBlank())
+                .orElseGet(() -> stripExt(file.getFileName().toString()));
+        return candidate.replaceAll("(?i)[. _-]S\\d{2}E\\d{2}.*$", "").replace('.', ' ').trim();
+    }
+
+    private EpisodeRef resolveEpisodeRef(IngestionContext ctx, Path file) {
+        if (ctx.getRequest().getSeason() != null && ctx.getRequest().getEpisode() != null) {
+            return new EpisodeRef(ctx.getRequest().getSeason(), ctx.getRequest().getEpisode());
+        }
+        Matcher matcher = SEASON_EPISODE_PATTERN.matcher(file.getFileName().toString());
+        if (!matcher.find()) {
             return null;
         }
+        try {
+            return new EpisodeRef(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private record EpisodeRef(int season, int episode) {}
+
+    private String extension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(dot + 1) : "mkv";
+    }
+
+    private String stripExt(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
     }
 }
