@@ -209,6 +209,18 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private void runFfmpegOnePass(Path input, Path poster, Path output,
                                   String metadataTitle, String overview, TrackFilter filter,
                                   String jobId) throws ProcessExecutionException {
+        // For MKV containers the cover art is embedded as a Matroska attachment
+        // (via -attach) rather than a mapped video stream.  This means MediaInfo
+        // reports it under "General" / as an attachment — never as a "Video" track —
+        // so the primary-video-track selector always finds the real video stream.
+        // For MP4 and other containers the classic -map 1 / attached_pic approach is used.
+        String inputName = input.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        boolean isMkv    = inputName.endsWith(".mkv");
+
+        boolean hasPoster       = poster != null && Files.exists(poster);
+        boolean posterAsInput   = hasPoster && !isMkv;  // mapped as video stream (non-MKV)
+        boolean posterAsAttach  = hasPoster && isMkv;   // attached as Matroska attachment (MKV)
+
         List<String> cmd = new ArrayList<>();
         cmd.add("-y");
         cmd.add("-progress");
@@ -216,8 +228,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         cmd.add("-nostats");
         cmd.addAll(List.of("-i", input.toAbsolutePath().toString()));
 
-        boolean hasPoster = poster != null && Files.exists(poster);
-        if (hasPoster) {
+        if (posterAsInput) {
             cmd.addAll(List.of("-i", poster.toAbsolutePath().toString()));
         }
 
@@ -229,7 +240,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         if (!hasFilter) {
             // ── Case A / B: simple copy ────────────────────────────────────
             cmd.addAll(List.of("-map", "0"));
-            if (hasPoster) {
+            if (posterAsInput) {
                 cmd.addAll(List.of("-map", "1"));
             }
         } else {
@@ -258,16 +269,15 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                 }
             }
 
-            if (hasPoster) {
+            if (posterAsInput) {
                 cmd.addAll(List.of("-map", "1"));
             }
         }
 
         cmd.addAll(List.of("-c", "copy"));
 
-        if (hasPoster) {
-            // The poster is always the last mapped video stream.
-            // v:1 is correct when input has exactly one real video stream (standard case).
+        if (posterAsInput) {
+            // Non-MKV: poster is the last mapped video stream (v:1 for standard single-video files).
             cmd.addAll(List.of("-disposition:v:1", "attached_pic"));
             cmd.addAll(List.of("-metadata:s:v:1",  "mimetype=image/jpeg"));
         }
@@ -282,6 +292,16 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             // "description" works for MKV; "comment" is a common fallback for other containers
             cmd.addAll(List.of("-metadata", "description=" + overview));
             cmd.addAll(List.of("-metadata", "comment=" + overview));
+        }
+
+        // MKV: embed poster as a proper Matroska attachment (not a video stream)
+        if (posterAsAttach) {
+            String posterName = poster.getFileName().toString();
+            String mime = posterName.endsWith(".png") ? "image/png" : "image/jpeg";
+            String coverName = posterName.endsWith(".png") ? "cover.png" : "cover.jpg";
+            cmd.addAll(List.of("-attach", poster.toAbsolutePath().toString()));
+            cmd.addAll(List.of("-metadata:s:t:0", "mimetype=" + mime));
+            cmd.addAll(List.of("-metadata:s:t:0", "filename=" + coverName));
         }
 
         cmd.add(output.toAbsolutePath().toString());

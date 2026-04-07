@@ -209,6 +209,17 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private Path enrichWithTmdb(IngestionContext ctx, Path movedFile) {
         try {
             EpisodeRef episodeRef = resolveEpisodeRef(ctx, movedFile);
+
+            // If season/episode were inferred from the filename (not supplied by the caller),
+            // persist them back on the request so that downstream steps — specifically
+            // resolveFinalDir() (which creates the S0x season sub-folder) and
+            // buildCanonicalFileName() (which looks up the episode name from TMDB) — can
+            // use the detected values without repeating the filename-parsing logic.
+            if (episodeRef != null && ctx.getRequest().getSeason() == null) {
+                ctx.getRequest().setSeason(episodeRef.season());
+                ctx.getRequest().setEpisode(episodeRef.episode());
+            }
+
             Path enriched = enrichmentService.enrich(
                     movedFile,
                     ctx.getRecordId(),
