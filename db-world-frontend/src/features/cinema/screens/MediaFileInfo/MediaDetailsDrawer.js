@@ -17,7 +17,7 @@ import {
   Audiotrack, Subtitles, FourK, Hd,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { loadStreamFileInfoByFiledId } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
@@ -26,6 +26,8 @@ import { MediaInfoContent } from './MediaInfoContent';
 import CinemaPlayer from '../../player/CinemaPlayer';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import { toast } from '@shared/components/ui/Toast';
+
+const DbWorldDownload = registerPlugin('DbWorldDownload');
 
 // ─── Re-use the same badge helpers from download page ─────────────────────────
 
@@ -125,8 +127,8 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
       AndroidPlugins.launchNativePlayer({
         url:            mediaInfo.streamUrl,
         title:          record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName,
-        fileName:       general?.fileName,
-        fileId:         general?.fileId ?? mediaInfo.streamUrl,
+        fileName:       general?.fileName || '',
+        fileId:         String(mediaInfo.id || ''),
         preferredAudio: 'Hindi',
         preferredSub:   null,
       });
@@ -136,7 +138,12 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   };
 
   const handleDownload = () => {
-    CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
+    if (Capacitor.getPlatform() === 'android') {
+      DbWorldDownload.startDownload({ url: mediaInfo.downloadUrl, fileName: general?.fileName || 'download' })
+        .catch(e => console.error('Download failed', e));
+    } else {
+      CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
+    }
   };
 
   return (

@@ -663,7 +663,7 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
       url:            currentFile?.streamUrl,
       title:          record?.tmdb?.title || record?.tmdb?.name || record?.name || title,
       fileName:       currentFile?.general?.fileName,
-      fileId:         currentFile?.general?.fileId ?? currentFile?.streamUrl,
+      fileId:         String(currentFile?.id || ''),
       preferredAudio: 'Hindi',
       preferredSub:   null,
     });

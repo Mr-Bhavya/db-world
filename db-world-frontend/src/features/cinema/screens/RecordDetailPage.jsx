@@ -81,9 +81,11 @@ import CommonServices from '@shared/services/CommonServices';
 import CinemaPlayer from '../player/CinemaPlayer';
 import Constants from '@shared/constants';
 
-const DbWorldPlayer = registerPlugin('DbWorldPlayer');
+import AndroidPlugins from '@platform/android/AndroidPlugins';
 import { useT } from '@shared/theme/ThemeContext';
 import MediaDownloadViewer from './download';
+
+const DbWorldDownload = registerPlugin('DbWorldDownload');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1566,14 +1568,28 @@ function FileCard({ mediaInfo, allFiles, record }) {
 
   const handlePlay = () => {
     if (Capacitor.getPlatform() === 'android') {
-      DbWorldPlayer.launch({ url: mediaInfo.streamUrl, fileName: general?.fileName });
+      AndroidPlugins.launchNativePlayer({
+        url: mediaInfo.streamUrl,
+        title: record?.tmdb?.title || record?.title || general?.fileName || '',
+        fileName: general?.fileName || '',
+        fileId: String(mediaInfo.id || ''),
+        preferredAudio: 'Hindi',
+        preferredSub: null,
+      });
     } else {
       setPlayerOpen(true);
     }
   };
 
   const handleDownload = () => {
-    CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
+    if (Capacitor.getPlatform() === 'android') {
+      DbWorldDownload.startDownload({
+        url: mediaInfo.downloadUrl,
+        fileName: general?.fileName || 'download',
+      }).catch(e => console.error('Download failed', e));
+    } else {
+      CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
+    }
   };
 
   return (

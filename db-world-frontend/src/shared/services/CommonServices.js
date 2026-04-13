@@ -1,8 +1,7 @@
 import Constants from '@shared/constants';
 import { addUser, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from '@app/redux/action/allActions';
 import { useDispatch } from "react-redux";
-import { Capacitor } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 class CommonServices {
   // ========== TIME & DATE UTILITIES ==========
@@ -226,7 +225,7 @@ class CommonServices {
 
       // Native platform handling (Capacitor)
       if (Capacitor.isNativePlatform()) {
-        return await this._handleNativeDownload(url);
+        return await this._handleNativeDownload(url, fileName);
       }
 
       // Web platform handling
@@ -243,29 +242,30 @@ class CommonServices {
   }
 
   /**
-   * Handle download for native platforms
+   * Handle download for native platforms using DbWorldDownload plugin
    * @private
    */
-  static _handleNativeDownload = async (url) => {
+  static _handleNativeDownload = async (url, fileName = null) => {
     try {
-      await Browser.open({ 
-        url: url,
-        windowName: "_blank"
+      const DbWorldDownload = registerPlugin('DbWorldDownload');
+      const result = await DbWorldDownload.startDownload({
+        url,
+        fileName: fileName || url.split('/').pop().split('?')[0] || 'download',
       });
-      
-      return { 
-        success: true, 
-        message: "Opened in browser",
+      return {
+        success: true,
+        message: "Download started",
         platform: "native",
-        method: "browser"
+        method: "downloadManager",
+        downloadId: result?.downloadId,
       };
     } catch (error) {
-      console.error("Native browser open failed:", error);
-      return { 
-        success: false, 
-        message: "Failed to open in native browser",
+      console.error("Native download failed:", error);
+      return {
+        success: false,
+        message: "Download failed",
         platform: "native",
-        error: error 
+        error: error
       };
     }
   }
