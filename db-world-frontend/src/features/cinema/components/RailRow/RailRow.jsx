@@ -86,14 +86,28 @@ const RailRow = ({
     return () => el.removeEventListener('scroll', updateButtons);
   }, [updateButtons, records]);
 
-  // Load more when near right end
-  const handleScroll = useCallback(() => {
+  // ── Horizontal scroll persistence ────────────────────────────────────────
+  const hScrollKey = rail?.id ? `cinema_rail_h_${rail.id}` : null;
+
+  // Restore saved horizontal position after records load
+  useEffect(() => {
+    if (!hScrollKey || !records.length || !scrollRef.current) return;
+    const saved = parseInt(sessionStorage.getItem(hScrollKey) || '0', 10);
+    if (saved > 0) {
+      scrollRef.current.scrollLeft = saved;
+    }
+  }, [records.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save horizontal position on scroll
+  const handleScrollWithSave = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     updateButtons();
+    if (hScrollKey) sessionStorage.setItem(hScrollKey, String(el.scrollLeft));
     const nearEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 200;
     if (nearEnd && hasNext && !loading) loadMore();
-  }, [updateButtons, hasNext, loading, loadMore]);
+  }, [updateButtons, hasNext, loading, loadMore, hScrollKey]);
+
 
   const scroll = (dir) => {
     const el = scrollRef.current;
@@ -191,7 +205,7 @@ const RailRow = ({
           {/* Cards row */}
           <Box
             ref={scrollRef}
-            onScroll={handleScroll}
+            onScroll={handleScrollWithSave}
             sx={{
               display: 'flex', gap: { xs: top10 ? 0.5 : 1, md: top10 ? 0.5 : 1.5 },
               overflowX: 'auto', overflowY: 'visible',

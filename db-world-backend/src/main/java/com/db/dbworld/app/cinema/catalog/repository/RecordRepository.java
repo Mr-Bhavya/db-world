@@ -216,6 +216,24 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     Page<RecordEntity> search(String query, Pageable pageable);
 
     @Query("""
+            SELECT r.id           as id,
+                   tm.title       as title,
+                   r.type         as type,
+                   tm.posterPath  as posterPath,
+                   tm.backdropPath as backdropPath,
+                   tm.voteAverage as voteAverage,
+                   tm.popularity  as popularity,
+                   COALESCE(tm.releaseDate, tm.firstAirDate) as releaseDate,
+                   tm.overview    as overview,
+                   tm.id          as tmdbId
+            FROM RecordEntity r
+            JOIN r.tmdb tm
+            WHERE LOWER(tm.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
+               OR LOWER(tm.title)         LIKE LOWER(CONCAT('%', :query, '%'))
+            """)
+    Page<RailRecordProjection> searchProjection(String query, Pageable pageable);
+
+    @Query("""
             SELECT new com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto(
                 r.id,
                 r.name,

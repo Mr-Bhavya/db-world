@@ -4,6 +4,7 @@ import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.api.response.PageResponse;
 import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.dto.SearchRecordDto;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.catalog.service.SearchService;
 import com.db.dbworld.core.role.annotations.AnyRole;
@@ -40,7 +41,7 @@ public class CatalogController {
 
     @AnyRole
     @GetMapping("/search")
-    public ApiResponse<PageResponse<RecordDto>> search(
+    public ApiResponse<PageResponse<SearchRecordDto>> search(
             @RequestParam String q,
             Pageable pageable
     ) {

@@ -192,24 +192,21 @@ const EmptyState = styled(Box)(({ theme }) => ({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getPosterPath(tmdb) {
-  if (!tmdb) return null;
-  return tmdb.posterPath || tmdb.poster_path || null;
-}
-
 function buildRoute(record) {
   const isMovie = record.type?.toLowerCase() === Constants.RECORD_TYPE_MOVIE;
   const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
-  const slug = record.id + '-' + (record.name || '').toLowerCase().replace(/ /g, '-');
+  const slug = record.id + '-' + (record.title || '').toLowerCase().replace(/ /g, '-');
   return base.replace(':title', slug);
 }
 
 function PosterCardItem({ record, showAvailable, fileCount, onClick }) {
   const [imgError, setImgError] = useState(false);
-  const posterPath = getPosterPath(record.tmdb);
+  const posterPath = record.posterPath;
   const imgSrc = posterPath && !imgError
     ? `https://image.tmdb.org/t/p/w300${posterPath}`
     : null;
+  const displayTitle = record.title || '';
+  const year = record.releaseDate ? new Date(record.releaseDate).getFullYear() : null;
 
   return (
     <PosterCard
@@ -231,25 +228,22 @@ function PosterCardItem({ record, showAvailable, fileCount, onClick }) {
       {imgSrc ? (
         <PosterImg
           src={imgSrc}
-          alt={record.name || record.tmdb?.title || ''}
+          alt={displayTitle}
           onError={() => setImgError(true)}
           className="poster-img"
         />
       ) : (
         <PosterFallback>
-          {record.name || record.tmdb?.title || 'No Image'}
+          {displayTitle || 'No Image'}
         </PosterFallback>
       )}
       <PosterOverlay className="poster-overlay">
         <Typography sx={{ color: '#fff', fontSize: '0.75rem', fontWeight: 600, lineHeight: 1.3 }}>
-          {record.name || record.tmdb?.title}
+          {displayTitle}
         </Typography>
-        {(record.tmdb?.releaseDate || record.tmdb?.release_date || record.tmdb?.firstAirDate || record.tmdb?.first_air_date) && (
+        {year && (
           <Typography sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.65rem' }}>
-            {new Date(
-              record.tmdb?.releaseDate || record.tmdb?.release_date ||
-              record.tmdb?.firstAirDate || record.tmdb?.first_air_date
-            ).getFullYear()}
+            {year}
           </Typography>
         )}
       </PosterOverlay>
@@ -315,12 +309,7 @@ function SearchOverlay({ onClose }) {
       const res = await searchRecord(modifiedQuery, page, PAGE_SIZE);
 
       if (res.httpStatusCode === 200) {
-        const mapped = res.data.content.map(record => {
-          record.tmdb = record.type === Constants.RECORD_TYPE_MOVIE
-            ? record.movieTmdb
-            : record.seriesTmdb;
-          return record;
-        });
+        const mapped = res.data.content;
         if (isLoadMore) {
           setRecords(prev => [...prev, ...mapped]);
         } else {
