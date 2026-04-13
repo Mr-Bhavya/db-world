@@ -101,22 +101,27 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             // ── Register GID and actions in the job store ──────────────────
             jobStore.setGid(jobId, gid);
             jobStore.setCancelAction(jobId, () -> {
-                try { aria2RpcService.forceRemove(gid); } catch (Exception e) {
+                try {
+                    jobStore.getGid(jobId).ifPresent(aria2RpcService::forceRemove);
+                } catch (Exception e) {
                     log.warn("[{}] forceRemove failed: {}", jobId, e.getMessage());
                 } finally {
                     downloadQueue.cancel(jobId);
                 }
             });
-            jobStore.setPauseAction(jobId, () -> {
-                try { aria2RpcService.pause(gid); } catch (Exception e) {
-                    log.warn("[{}] pause failed: {}", jobId, e.getMessage());
-                }
-            });
-            jobStore.setResumeAction(jobId, () -> {
-                try { aria2RpcService.unpause(gid); } catch (Exception e) {
-                    log.warn("[{}] unpause failed: {}", jobId, e.getMessage());
-                }
-            });
+            jobStore.setPauseAction(jobId, () ->
+                    jobStore.getGid(jobId).ifPresent(g -> {
+                        try { aria2RpcService.pause(g); }
+                        catch (Exception e) { log.warn("[{}] pause failed: {}", jobId, e.getMessage()); }
+                    })
+            );
+            jobStore.setResumeAction(jobId, () ->
+                    jobStore.getGid(jobId).ifPresent(g -> {
+                        try { aria2RpcService.unpause(g); }
+                        catch (Exception e) { log.warn("[{}] unpause failed: {}", jobId, e.getMessage()); }
+                    })
+            );
+
             // ──────────────────────────────────────────────────────────────
 
             ctx.log("ARIA2", "Download queued with GID: " + gid);
@@ -173,23 +178,36 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             Thread.sleep(POLL_INTERVAL_MS);
             iterations++;
 
+            String activeGid = null;
+
             try {
-                Aria2StatusParam status = aria2RpcService.tellStatus(gid);
+
+                activeGid = jobStore.getGid(jobId).orElse(null);
+                if (activeGid == null) {
+                    return DownloadResult.failure(jobId, "Missing active GID");
+                }
+
+                Aria2StatusParam status = aria2RpcService.tellStatus(activeGid);
 
                 if (status == null) {
-                    ctx.logError("ARIA2", "Null status for GID: " + gid);
+                    ctx.logError("ARIA2", "Null status for GID: " + activeGid);
                     continue;
                 }
 
-                consecutiveErrors = 0; // reset on successful poll
+                consecutiveErrors = 0;
 
                 updateProgress(ctx, status);
 
                 String aria2Status = status.getStatus();
 
                 if ("complete".equals(aria2Status)) {
-                    return handleComplete(ctx, gid, status, tempDir);
+                    if (status.isMetadataDownload()) {
+                        ctx.log("ARIA2", "Metadata complete, waiting for actual payload download...");
+                        continue;
+                    }
+                    return handleComplete(ctx, activeGid, status, tempDir);
                 }
+
                 if ("error".equals(aria2Status)) {
                     String msg = status.getErrorMessage() != null
                             ? status.getErrorMessage()
@@ -197,6 +215,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                     ctx.logError("ARIA2", "Error: " + msg);
                     return DownloadResult.failure(jobId, msg);
                 }
+
                 if ("removed".equals(aria2Status)) {
                     ctx.log("ARIA2", "Download removed");
                     return DownloadResult.failure(jobId, "Removed");
@@ -205,7 +224,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
 
             } catch (Exception e) {
                 consecutiveErrors++;
-                log.warn("[{}] Poll error #{} for GID {}: {}", jobId, consecutiveErrors, gid, e.getMessage());
+                log.warn("[{}] Poll error #{} for GID {}: {}", jobId, consecutiveErrors, activeGid, e.getMessage());
                 if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
                     String msg = "Aria2 RPC unreachable after " + consecutiveErrors + " retries: " + e.getMessage();
                     ctx.logError("ARIA2", msg);
@@ -247,7 +266,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
 
     private Path resolveDownloadedFile(Aria2StatusParam status, Path tempDir) {
         if (status.getFiles() != null && !status.getFiles().isEmpty()) {
-            String fp = status.getFiles().get(0).getPath();
+            String fp = status.getFiles().getFirst().getPath();
             if (fp != null && !fp.isBlank()) {
                 Path p = Paths.get(fp);
                 if (Files.exists(p)) return p;
