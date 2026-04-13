@@ -894,6 +894,7 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
             if (existing instanceof TvSeriesTmdbEntity tvSeries) {
                 tvSeries.getSeasons();
             }
+            existing.getCredits();
 
             tmdbRepository.saveAndFlush(existing);
             // Do NOT detach: the entity must remain in the L1 cache so that the

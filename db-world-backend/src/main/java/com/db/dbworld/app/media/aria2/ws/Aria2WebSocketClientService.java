@@ -235,8 +235,16 @@ public class Aria2WebSocketClientService {
         List<String> followedBy = status.getFollowedBy();
         if (followedBy == null || followedBy.isEmpty()) return;
 
-        String actualGid = followedBy.get(0);
+        String actualGid = followedBy.getFirst();
         String jobId     = resolveJobId(metadataGid);
+
+        if (mappingService.getJobIdByGid(actualGid) != null) {
+            return;
+        }
+
+        if (actualGid.equals(jobStore.getGid(jobId))) {
+            return;
+        }
 
         log.info("{} Torrent metadata complete for GID {} → actual GID {}", TAG, metadataGid, actualGid);
 
@@ -361,6 +369,9 @@ public class Aria2WebSocketClientService {
                 case "aria2.onDownloadError" -> {
                     log.warn("{} Download error notification for GID {}", TAG, gid);
                     // Polling loop will detect error and fail the job
+                }
+                case "aria2.onDownloadStart" -> {
+                    log.info("{} Download started for GID {}", TAG, gid);
                 }
                 default -> log.debug("{} Unhandled notification: {} gid={}", TAG, method, gid);
             }
