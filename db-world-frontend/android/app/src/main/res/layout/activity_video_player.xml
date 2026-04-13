@@ -54,8 +54,7 @@
                 android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_menu_close_clear_cancel"
-                android:tint="@android:color/white"
+                android:src="@drawable/ic_player_back"
                 android:contentDescription="Back" />
 
             <TextView
@@ -82,8 +81,7 @@
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_menu_slideshow"
-                android:tint="@android:color/white"
+                android:src="@drawable/ic_player_pip"
                 android:contentDescription="Picture-in-Picture" />
         </RelativeLayout>
 
@@ -117,8 +115,7 @@
                 android:layout_width="72dp"
                 android:layout_height="72dp"
                 android:background="#55000000"
-                android:src="@android:drawable/ic_media_pause"
-                android:tint="@android:color/white"
+                android:src="@drawable/ic_player_pause"
                 android:contentDescription="Play / Pause" />
 
             <!-- Right-third: double-tap seek +10 s -->
@@ -183,8 +180,7 @@
                     android:layout_width="44dp"
                     android:layout_height="44dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@android:drawable/ic_btn_speak_now"
-                    android:tint="@android:color/white"
+                    android:src="@drawable/ic_player_audio"
                     android:contentDescription="Audio tracks" />
 
                 <!-- Subtitles -->
@@ -193,8 +189,7 @@
                     android:layout_width="44dp"
                     android:layout_height="44dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@android:drawable/ic_menu_agenda"
-                    android:tint="@android:color/white"
+                    android:src="@drawable/ic_player_subtitle"
                     android:contentDescription="Subtitles" />
 
                 <!-- Playback speed -->
@@ -216,8 +211,7 @@
                     android:layout_width="44dp"
                     android:layout_height="44dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@android:drawable/ic_menu_crop"
-                    android:tint="@android:color/white"
+                    android:src="@drawable/ic_player_aspect"
                     android:contentDescription="Aspect ratio" />
 
                 <!-- Lock -->
@@ -226,8 +220,7 @@
                     android:layout_width="44dp"
                     android:layout_height="44dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@android:drawable/ic_lock_idle_lock"
-                    android:tint="@android:color/white"
+                    android:src="@drawable/ic_player_lock"
                     android:contentDescription="Lock screen" />
             </LinearLayout>
         </LinearLayout>
@@ -279,8 +272,7 @@
             android:layout_gravity="center_vertical|start"
             android:layout_marginStart="20dp"
             android:background="#66000000"
-            android:src="@android:drawable/ic_lock_idle_lock"
-            android:tint="@android:color/white"
+            android:src="@drawable/ic_player_unlock"
             android:contentDescription="Unlock" />
     </FrameLayout>
 

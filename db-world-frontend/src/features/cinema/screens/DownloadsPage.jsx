@@ -129,7 +129,6 @@ export default function DownloadsPage() {
 
   return (
     <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.text }}>
-      <Navbar />
 
       <Box sx={{ px: { xs: 2, md: 4 }, py: 3, maxWidth: 700, mx: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>

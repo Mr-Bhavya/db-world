@@ -679,8 +679,8 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         if (player == null) return;
         btnPlayPause.setImageResource(
                 player.isPlaying()
-                        ? android.R.drawable.ic_media_pause
-                        : android.R.drawable.ic_media_play);
+                        ? R.drawable.ic_player_pause
+                        : R.drawable.ic_player_play);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -836,7 +836,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         playerView.setResizeMode(ASPECT_MODES[currentAspectIdx]);
         // Brief toast-like feedback via the gesture indicator
         gestureIndicator.setVisibility(View.VISIBLE);
-        gestureIcon.setImageResource(android.R.drawable.ic_menu_crop);
+        gestureIcon.setImageResource(R.drawable.ic_player_aspect);
         gestureValue.setText(ASPECT_LABELS[currentAspectIdx]);
         handler.postDelayed(() -> gestureIndicator.setVisibility(View.GONE), 900);
     }
