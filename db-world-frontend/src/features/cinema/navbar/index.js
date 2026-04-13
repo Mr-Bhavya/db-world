@@ -27,7 +27,9 @@ import {
   Home as HomeIcon,
   NotificationsOutlined as BellIcon,
   ArrowBack as BackIcon,
+  FileDownload as DownloadIcon,
 } from '@mui/icons-material';
+import { Capacitor } from '@capacitor/core';
 
 import { AnimatePresence } from 'framer-motion';
 import CategoryModal from './CategoryModal';
@@ -144,12 +146,15 @@ function Navbar({ coverColor, onGenreSelect }) {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
 
   // ─── nav config ─────────────────────────────────────────────────────────────
+  const isAndroid = Capacitor.getPlatform() === 'android';
+
   const navItems = useMemo(() => [
-    { id: 0, title: 'Home',      route: Constants.DB_CINEMA_BROWSE_ROUTE,  icon: <HomeIcon /> },
-    { id: 1, title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
-    { id: 2, title: 'TV Shows',  route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
-    { id: 3, title: 'Categories', route: null,                              icon: <CategoryIcon /> },
-  ], []);
+    { id: 0, title: 'Home',       route: Constants.DB_CINEMA_BROWSE_ROUTE,  icon: <HomeIcon /> },
+    { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
+    { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
+    { id: 3, title: 'Categories', route: null,                               icon: <CategoryIcon /> },
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: '/cinema/downloads', icon: <DownloadIcon /> }] : []),
+  ], [isAndroid]);
 
   // Sync selectedNav with URL
   useEffect(() => {
@@ -188,7 +193,7 @@ function Navbar({ coverColor, onGenreSelect }) {
     } else {
       selectNav(item);
       setCategoryModalOpen(false);
-      navigate(item.route);
+      if (item.route) navigate(item.route);
       onGenreSelect?.(null);
       selectCategory(null);
     }
@@ -334,11 +339,20 @@ function Navbar({ coverColor, onGenreSelect }) {
             )}
           </Box>
 
-          {/* RIGHT: bell (mobile) + search */}
+          {/* RIGHT: bell (mobile) + download (Android) + search */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
             {isMobile && (
               <IconButton size="medium" sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}>
                 <BellIcon sx={{ fontSize: '1.35rem' }} />
+              </IconButton>
+            )}
+            {isAndroid && (
+              <IconButton
+                onClick={() => navigate('/cinema/downloads')}
+                size="medium"
+                sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}
+              >
+                <DownloadIcon sx={{ fontSize: '1.35rem' }} />
               </IconButton>
             )}
             <IconButton

@@ -197,6 +197,29 @@
                     android:tint="@android:color/white"
                     android:contentDescription="Subtitles" />
 
+                <!-- Playback speed -->
+                <TextView
+                    android:id="@+id/btn_speed"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:gravity="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:text="1×"
+                    android:textColor="@android:color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:contentDescription="Playback speed" />
+
+                <!-- Aspect ratio -->
+                <ImageButton
+                    android:id="@+id/btn_aspect"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_crop"
+                    android:tint="@android:color/white"
+                    android:contentDescription="Aspect ratio" />
+
                 <!-- Lock -->
                 <ImageButton
                     android:id="@+id/btn_lock"

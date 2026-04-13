@@ -103,6 +103,29 @@ const CinemaPage = ({ pageType = 'home' }) => {
     clearCategory();
   }, [apiPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Scroll position restore / save ────────────────────────────────────────
+  const scrollKey = `cinema_scroll_${apiPage}`;
+  const scrollRestored = React.useRef(false);
+
+  // Save vertical scroll on unmount
+  useEffect(() => {
+    scrollRestored.current = false;
+    return () => {
+      sessionStorage.setItem(scrollKey, String(window.scrollY));
+    };
+  }, [apiPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore vertical scroll once rails are loaded
+  useEffect(() => {
+    if (loadingMeta || rails.length === 0 || scrollRestored.current) return;
+    const saved = parseInt(sessionStorage.getItem(scrollKey) || '0', 10);
+    if (saved > 0) {
+      scrollRestored.current = true;
+      const t = setTimeout(() => window.scrollTo({ top: saved, behavior: 'instant' }), 80);
+      return () => clearTimeout(t);
+    }
+  }, [loadingMeta, rails.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Hero: eagerly load the first rail's records
   const heroRail = rails[0] ?? null;
   const { records: heroRecords, loading: heroLoading, trigger: heroTrigger } =

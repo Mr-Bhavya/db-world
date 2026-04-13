@@ -66,6 +66,7 @@ const LazyCinemaActivity      = lazy(() => import('../features/adminv2/activity'
 const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
+const LazyDownloadsPage       = lazy(() => import('@features/cinema/screens/DownloadsPage.jsx'));
 
 // Loading Component
 const LoadingFallback = () => (
@@ -219,6 +220,7 @@ const routeConfig = {
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
+    { path: '/cinema/downloads', element: <LazyDownloadsPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],

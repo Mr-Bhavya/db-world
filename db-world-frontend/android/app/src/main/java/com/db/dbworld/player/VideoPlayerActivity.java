@@ -23,6 +23,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import androidx.media3.ui.AspectRatioFrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
@@ -90,14 +91,28 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     private FrameLayout  controlsContainer;
     private FrameLayout  lockOverlay;
     private ImageButton  btnBack, btnPip, btnPlayPause;
-    private ImageButton  btnAudioTrack, btnSubtitleTrack, btnLock, btnUnlock;
-    private TextView     tvTitle, tvTime;
+    private ImageButton  btnAudioTrack, btnSubtitleTrack, btnLock, btnUnlock, btnAspect;
+    private TextView     tvTitle, tvTime, btnSpeed;
     private TextView     tvSeekLeft, tvSeekRight;
     private SeekBar      seekBar;
     private ProgressBar  bufferingIndicator;
     private LinearLayout gestureIndicator;
     private ImageView    gestureIcon;
     private TextView     gestureValue;
+
+    // ── Playback speed ─────────────────────────────────────────────────────────
+    private static final float[] SPEEDS        = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+    private static final String[] SPEED_LABELS = {"0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×"};
+    private int currentSpeedIdx = 2; // 1.0×
+
+    // ── Aspect ratio ───────────────────────────────────────────────────────────
+    private static final int[] ASPECT_MODES  = {
+        AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        AspectRatioFrameLayout.RESIZE_MODE_FILL,
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+    };
+    private static final String[] ASPECT_LABELS = {"Fit", "Fill", "Zoom"};
+    private int currentAspectIdx = 0;
 
     // ── State ──────────────────────────────────────────────────────────────────
     private boolean controlsVisible    = true;
@@ -371,6 +386,8 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         btnPlayPause       = findViewById(R.id.btn_play_pause);
         btnAudioTrack      = findViewById(R.id.btn_audio_track);
         btnSubtitleTrack   = findViewById(R.id.btn_subtitle_track);
+        btnSpeed           = findViewById(R.id.btn_speed);
+        btnAspect          = findViewById(R.id.btn_aspect);
         btnLock            = findViewById(R.id.btn_lock);
         btnUnlock          = findViewById(R.id.btn_unlock);
         tvTitle            = findViewById(R.id.tv_title);
@@ -403,6 +420,24 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         btnSubtitleTrack.setOnClickListener(v -> {
             scheduleHideControls();
             showSubtitleTrackDialog();
+        });
+
+        // Playback speed — cycle through SPEEDS on click, long-press shows picker
+        btnSpeed.setOnClickListener(v -> {
+            currentSpeedIdx = (currentSpeedIdx + 1) % SPEEDS.length;
+            applyPlaybackSpeed();
+            scheduleHideControls();
+        });
+        btnSpeed.setOnLongClickListener(v -> {
+            showSpeedDialog();
+            return true;
+        });
+
+        // Aspect ratio — cycle through ASPECT_MODES
+        btnAspect.setOnClickListener(v -> {
+            currentAspectIdx = (currentAspectIdx + 1) % ASPECT_MODES.length;
+            applyAspectRatio();
+            scheduleHideControls();
         });
 
         btnLock.setOnClickListener(v -> {
@@ -766,6 +801,44 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
             player.release();
             player = null;
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Playback speed
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void applyPlaybackSpeed() {
+        if (player == null) return;
+        float speed = SPEEDS[currentSpeedIdx];
+        player.setPlaybackSpeed(speed);
+        btnSpeed.setText(SPEED_LABELS[currentSpeedIdx]);
+    }
+
+    private void showSpeedDialog() {
+        int currentSel = currentSpeedIdx;
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Playback Speed")
+                .setSingleChoiceItems(SPEED_LABELS, currentSel, (d, which) -> {
+                    currentSpeedIdx = which;
+                    applyPlaybackSpeed();
+                    d.dismiss();
+                    scheduleHideControls();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Aspect ratio
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void applyAspectRatio() {
+        playerView.setResizeMode(ASPECT_MODES[currentAspectIdx]);
+        // Brief toast-like feedback via the gesture indicator
+        gestureIndicator.setVisibility(View.VISIBLE);
+        gestureIcon.setImageResource(android.R.drawable.ic_menu_crop);
+        gestureValue.setText(ASPECT_LABELS[currentAspectIdx]);
+        handler.postDelayed(() -> gestureIndicator.setVisibility(View.GONE), 900);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
