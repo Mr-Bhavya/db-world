@@ -1,18 +1,15 @@
 package com.db.dbworld.app.cinema.catalog.dto;
 
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.providers.dto.TmdbProviderDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.List;
 
-/**
- * Lightweight DTO returned by the search API.
- * Contains only what the search UI needs (poster, title, year, rating)
- * — much smaller than the full RecordDto.
- */
 @Data
 @Builder
 @NoArgsConstructor
@@ -23,15 +20,32 @@ public class SearchRecordDto {
 
     private String title;
 
-    private RecordType type;          // MOVIE / TV_SERIES
+    private RecordType type; // MOVIE / TV
 
     private Long tmdbId;
 
-    private String posterPath;        // TMDB poster path (e.g. /abc.jpg)
+    private List<String> genres;
+
+    // Posters
+    private String posterPath;          // preferred poster (usually with title)
+    private String posterPathClean;     // poster without text
+
+    // Backdrops
+    private String backdropPath;        // preferred backdrop (clean)
+    private String backdropPathText;    // backdrop with title/logo
 
     private double voteAverage;
 
-    private LocalDate releaseDate;    // COALESCE(release_date, first_air_date)
+    private double popularity;
 
+    private LocalDate releaseDate;
+
+    // Hover preview
     private String overview;
+
+    // Hover trailer
+    private String previewVideoUrl;
+
+    // Streaming providers
+    private List<TmdbProviderDto> providers;
 }
