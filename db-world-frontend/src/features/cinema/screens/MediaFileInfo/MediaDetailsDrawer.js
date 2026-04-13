@@ -19,13 +19,13 @@ import {
 import { motion } from 'framer-motion';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 import { loadStreamFileInfoByFiledId } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
 import CinemaPlayer from '../../player/CinemaPlayer';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
-import { toast } from '@shared/components/ui/Toast';
 
 const DbWorldDownload = registerPlugin('DbWorldDownload');
 
@@ -113,6 +113,7 @@ const CopyButton = ({ url, label, size = 'small' }) => {
 
 const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const [playerOpen, setPlayerOpen] = useState(false);
 
   const { general, video, audio, subtitle } = mediaInfo;
@@ -137,10 +138,17 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (Capacitor.getPlatform() === 'android') {
-      DbWorldDownload.startDownload({ url: mediaInfo.downloadUrl, fileName: general?.fileName || 'download' })
-        .catch(e => console.error('Download failed', e));
+      try {
+        await DbWorldDownload.startDownload({ url: mediaInfo.downloadUrl, fileName: general?.fileName || 'download' });
+        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
+          variant: 'success', autoHideDuration: 3000,
+        });
+      } catch (e) {
+        console.error('Download failed', e);
+        enqueueSnackbar('Failed to start download', { variant: 'error' });
+      }
     } else {
       CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
     }

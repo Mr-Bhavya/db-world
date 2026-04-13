@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { useSnackbar } from 'notistack';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import CommonServices from '@shared/services/CommonServices';
 
@@ -14,6 +15,7 @@ const DbWorldDownload = registerPlugin('DbWorldDownload');
  */
 export function useMediaActions(mediaInfo, record = null) {
   const [playerOpen, setPlayerOpen] = useState(false);
+  const { enqueueSnackbar } = useSnackbar();
 
   const handlePlay = useCallback(() => {
     if (!mediaInfo) return;
@@ -32,21 +34,29 @@ export function useMediaActions(mediaInfo, record = null) {
     }
   }, [mediaInfo, record]);
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!mediaInfo) return;
     const { general } = mediaInfo;
     if (Capacitor.getPlatform() === 'android') {
-      DbWorldDownload.startDownload({
-        url: mediaInfo.downloadUrl,
-        fileName: general?.fileName || 'download',
-      }).catch(e => console.error('Download failed', e));
+      try {
+        await DbWorldDownload.startDownload({
+          url: mediaInfo.downloadUrl,
+          fileName: general?.fileName || 'download',
+        });
+        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
+          variant: 'success', autoHideDuration: 3000,
+        });
+      } catch (e) {
+        console.error('Download failed', e);
+        enqueueSnackbar('Failed to start download', { variant: 'error' });
+      }
     } else {
       CommonServices.handleDownload(mediaInfo.downloadUrl, {
         fileName: general?.fileName,
         openInNewTab: true,
       });
     }
-  }, [mediaInfo]);
+  }, [mediaInfo, enqueueSnackbar]);
 
   return { handlePlay, handleDownload, playerOpen, setPlayerOpen };
 }

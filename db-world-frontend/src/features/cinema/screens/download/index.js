@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useSnackbar } from 'notistack';
 import { Capacitor } from '@capacitor/core';
 import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
 import CinemaPlayer from '../../player/CinemaPlayer';
@@ -194,6 +195,7 @@ const StatItem = ({ icon, label, value }) => {
 
 const FileCard = ({ mediaInfo, allFiles = [], record }) => {
   const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
 
@@ -218,12 +220,20 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (Capacitor.getPlatform() === 'android') {
-      DbWorldDownload.startDownload({
-        url: mediaInfo.downloadUrl,
-        fileName: general?.fileName || 'download',
-      }).catch(e => console.error('Download failed', e));
+      try {
+        await DbWorldDownload.startDownload({
+          url: mediaInfo.downloadUrl,
+          fileName: general?.fileName || 'download',
+        });
+        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
+          variant: 'success', autoHideDuration: 3000,
+        });
+      } catch (e) {
+        console.error('Download failed', e);
+        enqueueSnackbar('Failed to start download', { variant: 'error' });
+      }
     } else {
       CommonServices.handleDownload(mediaInfo.downloadUrl, {
         fileName: general?.fileName,

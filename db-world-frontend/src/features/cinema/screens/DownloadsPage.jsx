@@ -5,10 +5,7 @@ import {
   CircularProgress, Alert,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import FolderOpenIcon from '@mui/icons-material/Folder';
 import { useT } from '@shared/theme/ThemeContext';
-import Navbar from '../navbar';
 
 const DbWorldDownload = registerPlugin('DbWorldDownload');
 
@@ -28,9 +25,9 @@ function formatBytes(bytes) {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-function DownloadItem({ item, onCancel }) {
+function DownloadItem({ item, onRemove }) {
   const T = useT();
-  const isRunning = item.status === 'running' || item.status === 'pending';
+  const isActive = item.status === 'running' || item.status === 'pending';
 
   return (
     <Box
@@ -42,8 +39,6 @@ function DownloadItem({ item, onCancel }) {
         border: `1px solid ${T.glassBorder}`,
       }}
     >
-      <FolderOpenIcon sx={{ color: T.textFaint, fontSize: 20, flexShrink: 0 }} />
-
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           variant="body2"
@@ -56,7 +51,11 @@ function DownloadItem({ item, onCancel }) {
           <Chip
             label={item.status}
             size="small"
-            sx={{ bgcolor: `${STATUS_COLORS[item.status]}22`, color: STATUS_COLORS[item.status], fontWeight: 700, fontSize: '0.6rem', height: 18 }}
+            sx={{
+              bgcolor: `${STATUS_COLORS[item.status] ?? STATUS_COLORS.unknown}22`,
+              color: STATUS_COLORS[item.status] ?? STATUS_COLORS.unknown,
+              fontWeight: 700, fontSize: '0.6rem', height: 18,
+            }}
           />
           {item.bytesTotal > 0 && (
             <Typography variant="caption" sx={{ color: T.textFaint }}>
@@ -65,25 +64,28 @@ function DownloadItem({ item, onCancel }) {
           )}
         </Box>
 
-        {isRunning && item.bytesTotal > 0 && (
+        {isActive && item.bytesTotal > 0 && (
           <LinearProgress
             variant="determinate"
             value={item.progress}
-            sx={{ mt: 0.75, borderRadius: 1, height: 4, bgcolor: `${STATUS_COLORS.running}22`, '& .MuiLinearProgress-bar': { bgcolor: STATUS_COLORS.running } }}
+            sx={{
+              mt: 0.75, borderRadius: 1, height: 4,
+              bgcolor: `${STATUS_COLORS.running}22`,
+              '& .MuiLinearProgress-bar': { bgcolor: STATUS_COLORS.running },
+            }}
           />
         )}
-        {isRunning && item.bytesTotal <= 0 && (
+        {isActive && item.bytesTotal <= 0 && (
           <LinearProgress sx={{ mt: 0.75, borderRadius: 1, height: 4 }} />
         )}
       </Box>
 
-      {(isRunning || item.status === 'failed') && (
-        <Tooltip title="Cancel">
-          <IconButton size="small" onClick={() => onCancel(item.downloadId)} sx={{ color: T.textFaint }}>
-            <DeleteIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Tooltip>
-      )}
+      {/* Show remove/cancel button for every status */}
+      <Tooltip title={isActive ? 'Cancel' : 'Remove'}>
+        <IconButton size="small" onClick={() => onRemove(item.downloadId)} sx={{ color: T.textFaint }}>
+          <DeleteIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 }
@@ -98,7 +100,6 @@ export default function DownloadsPage() {
     try {
       const result = await DbWorldDownload.listDownloads();
       const list = result.downloads ?? [];
-      // Sort: running first, then pending, then success, then failed
       const order = { running: 0, pending: 1, paused: 2, success: 3, failed: 4, unknown: 5 };
       list.sort((a, b) => (order[a.status] ?? 5) - (order[b.status] ?? 5));
       setDownloads(list);
@@ -109,19 +110,18 @@ export default function DownloadsPage() {
     }
   }, []);
 
-  // Poll every 1.5 s while there are active downloads
   useEffect(() => {
     fetchDownloads();
     pollRef.current = setInterval(fetchDownloads, 1500);
     return () => clearInterval(pollRef.current);
   }, [fetchDownloads]);
 
-  const handleCancel = useCallback(async (downloadId) => {
+  const handleRemove = useCallback(async (downloadId) => {
     try {
       await DbWorldDownload.cancelDownload({ downloadId });
       await fetchDownloads();
     } catch (e) {
-      console.error('Cancel failed', e);
+      console.error('Remove failed', e);
     }
   }, [fetchDownloads]);
 
@@ -129,7 +129,6 @@ export default function DownloadsPage() {
 
   return (
     <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.text }}>
-
       <Box sx={{ px: { xs: 2, md: 4 }, py: 3, maxWidth: 700, mx: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 700, color: T.text }}>
@@ -154,7 +153,7 @@ export default function DownloadsPage() {
           </Alert>
         ) : (
           downloads.map(item => (
-            <DownloadItem key={item.downloadId} item={item} onCancel={handleCancel} />
+            <DownloadItem key={item.downloadId} item={item} onRemove={handleRemove} />
           ))
         )}
       </Box>
