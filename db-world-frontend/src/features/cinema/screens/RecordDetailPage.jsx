@@ -1559,6 +1559,7 @@ function CopyBtn({ url }) {
 
 function FileCard({ mediaInfo, allFiles, record }) {
   const T = useT();
+  const { enqueueSnackbar } = useSnackbar();
   const [playerOpen, setPlayerOpen] = useState(false);
   const { general, video, audio, subtitle } = mediaInfo;
   const quality = getQuality(video, general?.fileName);
@@ -1581,12 +1582,20 @@ function FileCard({ mediaInfo, allFiles, record }) {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (Capacitor.getPlatform() === 'android') {
-      DbWorldDownload.startDownload({
-        url: mediaInfo.downloadUrl,
-        fileName: general?.fileName || 'download',
-      }).catch(e => console.error('Download failed', e));
+      try {
+        await DbWorldDownload.startDownload({
+          url: mediaInfo.downloadUrl,
+          fileName: general?.fileName || 'download',
+        });
+        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
+          variant: 'success', autoHideDuration: 3000,
+        });
+      } catch (e) {
+        console.error('Download failed', e);
+        enqueueSnackbar('Failed to start download', { variant: 'error' });
+      }
     } else {
       CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
     }
@@ -2053,8 +2062,7 @@ export default function RecordDetailPage() {
         {tabs[activeTab] === 'Gallery'    && <GalleryTab record={record} />}
         {tabs[activeTab] === 'Seasons'    && <SeasonsTab record={record} />}
         {tabs[activeTab] === 'Reviews'    && <ReviewsTab record={record} recordId={id} />}
-        {tabs[activeTab] === 'Watch'      && <WatchTab recordId={id} record={record} />}
-        {/* {tabs[activeTab] === 'Watch'      && <MediaDownloadViewer recordId={id} record={record} />} */}
+        {tabs[activeTab] === 'Watch'      && <MediaDownloadViewer recordId={id} record={record} />}
       </Container>
 
       {/* Trailer dialog */}
