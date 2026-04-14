@@ -7,11 +7,16 @@ export const ALL_TAGS = [
   'AVAILABLE_FOR_DOWNLOAD',
 ];
 
-/** Tags that are auto-assigned by the scheduler — cannot be manually added/removed. */
+/**
+ * Tags auto-assigned by the scheduler via TagStrategy.
+ * EDITOR_PICK now runs a strategy too (quality + time-decay scoring),
+ * but admins can still supplement it manually via bulk-add.
+ */
 export const AUTO_TAGS = new Set([
   'TRENDING',
   'TOP_10',
   'FEATURED',
+  'EDITOR_PICK',
   'RECENTLY_ADDED',
   'AVAILABLE_FOR_DOWNLOAD',
 ]);

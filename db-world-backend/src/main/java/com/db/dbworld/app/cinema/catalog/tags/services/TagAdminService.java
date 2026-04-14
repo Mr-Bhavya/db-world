@@ -30,11 +30,16 @@ public class TagAdminService {
     private final RecordTagMapper tagMapper;
     private final TagStrategyExecutor tagStrategyExecutor;
 
-    /** Auto-managed tag types — cannot be manually added via bulk operations. */
+    /**
+     * Auto-managed tag types — refreshed by the scheduler via TagStrategy.
+     * EDITOR_PICK now runs a strategy (quality + time-decay scoring) but admins
+     * can still supplement it manually with bulk-add after a recalculate run.
+     */
     private static final Set<RecordTagType> AUTO_TAGS = Set.of(
             RecordTagType.TRENDING,
             RecordTagType.TOP_10,
             RecordTagType.FEATURED,
+            RecordTagType.EDITOR_PICK,
             RecordTagType.RECENTLY_ADDED,
             RecordTagType.AVAILABLE_FOR_DOWNLOAD
     );
