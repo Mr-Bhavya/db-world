@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -172,15 +173,26 @@ public class RailServiceImpl implements RailService {
 
         List<RailRecordProjection> records = recordRepository.findRailRecordProjection(recordIds);
 
-        List<Long> tmdbIds = extractTmdbIds(records);
+        // findRailRecordProjection uses IN :ids — MySQL does NOT guarantee the output
+        // matches the input order. Re-sort the projections to honour the ordering from
+        // resolveIds (which applied the rail's sort: tagPriority, createdAt, etc.).
+        Map<Long, RailRecordProjection> byId = records.stream()
+                .collect(Collectors.toMap(RailRecordProjection::getId, r -> r));
+        List<RailRecordProjection> orderedRecords = recordIds.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .toList();
+
+        List<Long> tmdbIds = extractTmdbIds(orderedRecords);
 
         if (tmdbIds.isEmpty()) {
-            return buildMinimalRailPage(railId, page, pageSize, slice.hasNext(), records);
+            return buildMinimalRailPage(railId, page, pageSize, slice.hasNext(), orderedRecords);
         }
 
         RailAggregationResult aggregate = railAggregationService.aggregate(tmdbIds);
 
-        List<RailRecordDto> result = records.parallelStream()
+        // Use sequential stream — parallelStream() does not preserve encounter order.
+        List<RailRecordDto> result = orderedRecords.stream()
                 .map(r -> railRecordBuilder.build(
                         r, aggregate.genres(), aggregate.posters(), aggregate.backdrops(),
                         aggregate.videos(), aggregate.providers())

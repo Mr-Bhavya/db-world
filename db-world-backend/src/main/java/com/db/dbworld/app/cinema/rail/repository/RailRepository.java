@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface RailRepository extends JpaRepository<RailEntity, Long> {
 
@@ -22,4 +23,6 @@ public interface RailRepository extends JpaRepository<RailEntity, Long> {
     List<RailEntity> findByPageTypeAndActiveTrueOrderByPriorityAsc(PageType pageType);
 
     boolean existsByTitle(String title);
+
+    Optional<RailEntity> findByTitle(String title);
 }
