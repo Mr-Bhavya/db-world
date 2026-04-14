@@ -2062,7 +2062,7 @@ export default function RecordDetailPage() {
         {tabs[activeTab] === 'Gallery'    && <GalleryTab record={record} />}
         {tabs[activeTab] === 'Seasons'    && <SeasonsTab record={record} />}
         {tabs[activeTab] === 'Reviews'    && <ReviewsTab record={record} recordId={id} />}
-        {tabs[activeTab] === 'Watch'      && <MediaDownloadViewer recordId={id} record={record} />}
+        {tabs[activeTab] === 'Watch'      && <MediaDownloadViewer recordId={id} record={record} showBack={false} showHeroSection={false} />}
       </Container>
 
       {/* Trailer dialog */}

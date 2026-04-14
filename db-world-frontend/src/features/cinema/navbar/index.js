@@ -153,7 +153,7 @@ function Navbar({ coverColor, onGenreSelect }) {
     { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
     { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
     { id: 3, title: 'Categories', route: null,                               icon: <CategoryIcon /> },
-    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: '/cinema/downloads', icon: <DownloadIcon /> }] : []),
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_CINEMA_DOWNLOADS, icon: <DownloadIcon /> }] : []),
   ], [isAndroid]);
 
   // Sync selectedNav with URL
@@ -348,7 +348,7 @@ function Navbar({ coverColor, onGenreSelect }) {
             )}
             {isAndroid && (
               <IconButton
-                onClick={() => navigate('/cinema/downloads')}
+                onClick={() => navigate(Constants.DB_CINEMA_DOWNLOADS)}
                 size="medium"
                 sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}
               >
