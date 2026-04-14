@@ -29,7 +29,7 @@ public interface TagStrategy {
     int priority();
 
     /**
-     * Native SQL that returns {@code record_id} column
+     * Native SQL that returns a single {@code id} column
      * for all records that should receive this tag.
      *
      * <p>Example:
@@ -42,4 +42,21 @@ public interface TagStrategy {
      * <p>The framework wraps this into an INSERT ... SELECT statement.
      */
     String selectSql();
+
+    /**
+     * Native SQL that returns {@code (id, score)} columns for bulk INSERT.
+     *
+     * <p>The {@code score} column is stored as {@code record_tags.priority},
+     * which allows tag-sorted rails to order by computed relevance rather
+     * than a flat constant.
+     *
+     * <p>The default implementation wraps {@link #selectSql()} and attaches
+     * the static {@link #priority()} value as the score — meaning all records
+     * for this tag get the same priority. Override this method in strategies
+     * that compute per-record scores (e.g. {@code TrendingTagStrategy}).
+     */
+    default String selectSqlWithScore() {
+        return "SELECT scored.id, " + priority() + " AS score "
+                + "FROM (" + selectSql() + ") scored";
+    }
 }

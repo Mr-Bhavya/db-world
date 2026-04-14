@@ -80,6 +80,104 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     Slice<Long> findIdsByTagAndType(RecordTagType tag, RecordType recordType, Pageable pageable);
 
     /* ================================================================
+       TAG RAILS — sorted by record_tags.priority (tagPriority sort)
+       Used when TagDefinition.defaultSort = "tagPriority".
+       ORDER BY is hard-coded in the query; pass unsorted Pageable.
+    ================================================================= */
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            WHERE t.tagType = :tag
+            ORDER BY t.priority DESC
+            """)
+    Slice<Long> findIdsByTagOrderByPriorityDesc(RecordTagType tag, Pageable pageable);
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            WHERE t.tagType = :tag
+            AND r.type = :recordType
+            ORDER BY t.priority DESC
+            """)
+    Slice<Long> findIdsByTagAndTypeOrderByPriorityDesc(RecordTagType tag, RecordType recordType, Pageable pageable);
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            JOIN tmdb.genres g2
+            WHERE t.tagType = :tag
+            AND g2.id = :category
+            ORDER BY t.priority DESC
+            """)
+    Slice<Long> findIdsByTagAndCategoryOrderByPriorityDesc(RecordTagType tag, Long category, Pageable pageable);
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            JOIN tmdb.genres g2
+            WHERE t.tagType = :tag
+            AND r.type = :recordType
+            AND g2.id = :category
+            ORDER BY t.priority DESC
+            """)
+    Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityDesc(RecordTagType tag, RecordType recordType, Long category, Pageable pageable);
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            WHERE t.tagType = :tag
+            ORDER BY t.priority ASC
+            """)
+    Slice<Long> findIdsByTagOrderByPriorityAsc(RecordTagType tag, Pageable pageable);
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            WHERE t.tagType = :tag
+            AND r.type = :recordType
+            ORDER BY t.priority ASC
+            """)
+    Slice<Long> findIdsByTagAndTypeOrderByPriorityAsc(RecordTagType tag, RecordType recordType, Pageable pageable);
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            JOIN tmdb.genres g2
+            WHERE t.tagType = :tag
+            AND g2.id = :category
+            ORDER BY t.priority ASC
+            """)
+    Slice<Long> findIdsByTagAndCategoryOrderByPriorityAsc(RecordTagType tag, Long category, Pageable pageable);
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags t
+            JOIN r.tmdb tmdb
+            JOIN tmdb.genres g2
+            WHERE t.tagType = :tag
+            AND r.type = :recordType
+            AND g2.id = :category
+            ORDER BY t.priority ASC
+            """)
+    Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityAsc(RecordTagType tag, RecordType recordType, Long category, Pageable pageable);
+
+    /* ================================================================
        GENRE RAILS
        Already JOINs tmdb via tm.genres — alias as tmdb for sort.
     ================================================================= */

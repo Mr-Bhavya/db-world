@@ -140,6 +140,18 @@ export const recalculateTag = (tagType) =>
 export const recalculateAllTags = () =>
   axiosInstance.post('/api/cinema/admin/tags/recalculate-all').then(r => r.data);
 
+/* ─── TAG DEFINITIONS ───────────────────────────────────────────── */
+
+export const getTagDefinitions = () =>
+  axiosInstance.get('/api/cinema/admin/tags/definitions').then(r => r.data.data);
+
+export const updateTagDefinition = (tagType, body) =>
+  axiosInstance.put(`/api/cinema/admin/tags/definitions/${tagType}`, body).then(r => r.data.data);
+
+/** Returns { sortFields, ruleTypes, pageTypes, recordTypes, tagTypes } */
+export const getRailMetadata = () =>
+  axiosInstance.get('/api/cinema/admin/tags/rail-metadata').then(r => r.data.data);
+
 /* ─── RAILS ─────────────────────────────────────────────────────── */
 
 export const getRails = (pageType) =>

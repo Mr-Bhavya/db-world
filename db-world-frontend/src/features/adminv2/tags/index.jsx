@@ -21,6 +21,8 @@ import EditIcon               from '@mui/icons-material/Edit';
 import PlaylistPlayIcon       from '@mui/icons-material/PlaylistPlay';
 import DragIndicatorIcon      from '@mui/icons-material/DragIndicator';
 import CloseIcon              from '@mui/icons-material/Close';
+import TuneIcon               from '@mui/icons-material/Tune';
+import SettingsIcon           from '@mui/icons-material/Settings';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useT, getSelectMenuProps } from '@shared/theme';
@@ -28,6 +30,7 @@ import {
   getTagSummary, getRecordsByTag, getRecordsTable,
   bulkAddTag, bulkRemoveTag, recalculateTag, recalculateAllTags,
   getRails, createRail, updateRail, deleteRail,
+  getTagDefinitions, updateTagDefinition, getRailMetadata,
 } from '../api/adminApi';
 import { TAG_COLORS, TAG_LABELS, AUTO_TAGS, ALL_TAGS } from '../records/tagConstants';
 
@@ -386,6 +389,217 @@ function TagRecordTable({ tagType }) {
   );
 }
 
+// ── Tag definitions panel ─────────────────────────────────────────────────────
+const SORT_FIELD_LABELS = {
+  tagPriority: 'tagPriority ★ (computed score)',
+  popularity: 'popularity',
+  voteAverage: 'voteAverage',
+  voteCount: 'voteCount',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  releaseDate: 'releaseDate',
+  firstAirDate: 'firstAirDate',
+  name: 'name',
+  id: 'id',
+};
+
+function TagDefinitionsPanel() {
+  const T = useT();
+  const qc = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const [editDef, setEditDef] = useState(null); // { tagType, displayName, ... }
+
+  const { data: defs = [], isLoading: defsLoading } = useQuery({
+    queryKey: ['tagDefinitions'],
+    queryFn:  getTagDefinitions,
+    staleTime: 60_000,
+  });
+
+  const { data: meta } = useQuery({
+    queryKey: ['railMetadata'],
+    queryFn:  getRailMetadata,
+    staleTime: Infinity,
+  });
+  const sortFields = meta?.sortFields ?? Object.keys(SORT_FIELD_LABELS);
+
+  const { mutate: doSaveDef, isPending: savingDef } = useMutation({
+    mutationFn: ({ tagType, ...body }) => updateTagDefinition(tagType, body),
+    onSuccess: () => {
+      enqueueSnackbar('Tag config saved', { variant: 'success' });
+      qc.invalidateQueries({ queryKey: ['tagDefinitions'] });
+      setEditDef(null);
+    },
+    onError: () => enqueueSnackbar('Save failed', { variant: 'error' }),
+  });
+
+  const inputSx = {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: T.inputBg, color: T.textPrimary,
+      '& fieldset': { borderColor: T.glassBorder },
+      '&:hover fieldset': { borderColor: T.borderHover },
+      '&.Mui-focused fieldset': { borderColor: T.teal },
+    },
+    '& .MuiInputLabel-root': { color: T.textMuted },
+    '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
+    '& .MuiSelect-icon': { color: T.textMuted },
+    '& .MuiFormHelperText-root': { color: T.textFaint, mt: '2px' },
+  };
+
+  if (defsLoading) return null;
+
+  return (
+    <Box sx={{ mt: 2.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+        <TuneIcon sx={{ fontSize: 16, color: T.teal }} />
+        <Typography sx={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          Tag Configurations
+        </Typography>
+        <Typography sx={{ fontSize: 11, color: T.textFaint }}>
+          — define default sort, pool size, and active state for each tag
+        </Typography>
+      </Box>
+
+      <Box sx={{ border: `1px solid ${T.glassBorder}`, borderRadius: 2, overflow: 'hidden', bgcolor: T.glass }}>
+        {/* Header row */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 72px 60px 64px', gap: 1,
+          px: 2, py: 0.75, bgcolor: T.inputBg, borderBottom: `1px solid ${T.border}` }}>
+          {['Tag', 'Default Sort', 'Direction', 'Pool', 'Active', ''].map(h => (
+            <Typography key={h} sx={{ fontSize: 10, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+              {h}
+            </Typography>
+          ))}
+        </Box>
+
+        {defs.map((def, i) => {
+          const color = TAG_COLORS[def.tagType] ?? T.teal;
+          const label = TAG_LABELS[def.tagType] ?? def.tagType;
+          return (
+            <Box key={def.tagType}>
+              {i > 0 && <Divider sx={{ borderColor: T.border }} />}
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 72px 60px 64px', gap: 1,
+                px: 2, py: 1, alignItems: 'center', '&:hover': { bgcolor: T.hoverBg } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>{label}</Typography>
+                  {def.lastRefreshedAt && (
+                    <Typography sx={{ fontSize: 10, color: T.textFaint }}>
+                      ·&nbsp;{new Date(def.lastRefreshedAt).toLocaleString()}
+                    </Typography>
+                  )}
+                </Box>
+                <Typography sx={{ fontSize: 12, color: T.textMuted, fontFamily: 'monospace' }}>
+                  {def.defaultSort ?? '—'}
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: T.textMuted }}>
+                  {def.defaultDirection ?? '—'}
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: T.textMuted }}>{def.poolSize}</Typography>
+                <Chip
+                  label={def.active ? 'ON' : 'OFF'}
+                  size="small"
+                  sx={{
+                    height: 18, fontSize: '0.6rem', fontWeight: 700,
+                    bgcolor: def.active ? `${T.teal}22` : `${T.error}18`,
+                    color: def.active ? T.teal : T.error,
+                    border: `1px solid ${def.active ? T.teal : T.error}44`,
+                  }}
+                />
+                <Tooltip title="Edit config">
+                  <IconButton size="small" onClick={() => setEditDef({ ...def })}
+                    sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
+                    <SettingsIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+
+      {/* Edit dialog */}
+      {editDef && (
+        <Dialog open onClose={() => setEditDef(null)} maxWidth="sm" fullWidth
+          PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, color: T.textPrimary, borderRadius: 2 } }}>
+          <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            fontWeight: 700, fontSize: '0.95rem', pb: 1, borderBottom: `1px solid ${T.border}` }}>
+            Configure: {TAG_LABELS[editDef.tagType] ?? editDef.tagType}
+            <IconButton size="small" onClick={() => setEditDef(null)} sx={{ color: T.textMuted }}>
+              <CloseIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </DialogTitle>
+
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+            <TextField label="Display Name" size="small" fullWidth sx={inputSx}
+              value={editDef.displayName ?? ''} onChange={e => setEditDef(p => ({ ...p, displayName: e.target.value }))} />
+
+            <TextField label="Description" size="small" fullWidth multiline rows={2} sx={inputSx}
+              value={editDef.description ?? ''} onChange={e => setEditDef(p => ({ ...p, description: e.target.value }))} />
+
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <FormControl size="small" fullWidth sx={inputSx}>
+                <InputLabel>Default Sort Field</InputLabel>
+                <Select value={editDef.defaultSort ?? ''} label="Default Sort Field"
+                  onChange={e => setEditDef(p => ({ ...p, defaultSort: e.target.value }))}
+                  MenuProps={getSelectMenuProps(T)}>
+                  {sortFields.map(f => (
+                    <MenuItem key={f} value={f}>
+                      <Typography sx={{ fontSize: 13, fontFamily: 'monospace' }}>
+                        {f === 'tagPriority' ? 'tagPriority ★ (computed score)' : f}
+                      </Typography>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 110, ...inputSx }}>
+                <InputLabel>Direction</InputLabel>
+                <Select value={editDef.defaultDirection ?? 'DESC'} label="Direction"
+                  onChange={e => setEditDef(p => ({ ...p, defaultDirection: e.target.value }))}
+                  MenuProps={getSelectMenuProps(T)}>
+                  <MenuItem value="DESC">DESC</MenuItem>
+                  <MenuItem value="ASC">ASC</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <TextField label="Pool Size" type="number" size="small" sx={{ minWidth: 120, ...inputSx }}
+                value={editDef.poolSize ?? 30} inputProps={{ min: 1, max: 500 }}
+                onChange={e => setEditDef(p => ({ ...p, poolSize: Number(e.target.value) }))}
+                helperText="Max records tagged per scheduler run" />
+              <TextField label="Refresh Cron" size="small" fullWidth sx={inputSx}
+                value={editDef.refreshCron ?? ''} placeholder="0 0 */6 * * *"
+                onChange={e => setEditDef(p => ({ ...p, refreshCron: e.target.value }))}
+                helperText="Spring cron (sec min hr dom mon dow)" />
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Switch size="small" checked={editDef.active ?? true}
+                onChange={e => setEditDef(p => ({ ...p, active: e.target.checked }))}
+                sx={{ '& .MuiSwitch-thumb': { bgcolor: editDef.active ? T.teal : undefined },
+                  '& .MuiSwitch-track': { bgcolor: editDef.active ? `${T.teal}66 !important` : undefined } }} />
+              <Typography sx={{ fontSize: 13, color: T.textMuted }}>Active</Typography>
+              {!editDef.active && (
+                <Typography sx={{ fontSize: 11, color: T.error, ml: 1 }}>
+                  Inactive tags are skipped by the scheduler and hidden from rails.
+                </Typography>
+              )}
+            </Box>
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, pb: 2, borderTop: `1px solid ${T.border}`, pt: 1.5 }}>
+            <Button onClick={() => setEditDef(null)} sx={{ color: T.textMuted }}>Cancel</Button>
+            <Button variant="contained" disabled={savingDef}
+              onClick={() => doSaveDef(editDef)}
+              sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600 }}>
+              {savingDef ? <CircularProgress size={18} color="inherit" /> : 'Save'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+    </Box>
+  );
+}
+
 // ── Tags tab ──────────────────────────────────────────────────────────────────
 function TagsTab() {
   const T                                   = useT();
@@ -468,13 +682,16 @@ function TagsTab() {
         </Box>
 
         {!selectedTag && !isLoading && (
-          <Alert severity="info" sx={{ mt: 2, bgcolor: `${T.teal}12`, color: T.textMuted,
-            border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
-            <strong>Auto tags</strong> (Trending, Top 10, Featured, Recently Added, Available for Download)
-            are recalculated every 6 hours by the scheduler. Click a card to inspect its records, or use{' '}
-            <strong>Recalculate All</strong> to refresh immediately.{' '}
-            <strong>Editor Pick</strong> is manual — assign it freely to curate content.
-          </Alert>
+          <>
+            <Alert severity="info" sx={{ mt: 2, bgcolor: `${T.teal}12`, color: T.textMuted,
+              border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
+              <strong>Auto tags</strong> (Trending, Top 10, Featured, Recently Added, Available for Download)
+              are recalculated every 6 hours by the scheduler. Click a card to inspect its records, or use{' '}
+              <strong>Recalculate All</strong> to refresh immediately.{' '}
+              <strong>Editor Pick</strong> is manual — assign it freely to curate content.
+            </Alert>
+            <TagDefinitionsPanel />
+          </>
         )}
 
         {selectedTag && <TagRecordTable tagType={selectedTag} />}
@@ -556,6 +773,13 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
   const T = useT();
   const [form, setForm]       = useState({ ...BLANK_RAIL });
   const [langInput, setLangInput] = useState('');
+
+  const { data: meta } = useQuery({
+    queryKey: ['railMetadata'],
+    queryFn:  getRailMetadata,
+    staleTime: Infinity,
+  });
+  const sortFields = meta?.sortFields ?? ['popularity', 'voteAverage', 'voteCount', 'createdAt', 'updatedAt', 'releaseDate', 'firstAirDate', 'name', 'id', 'tagPriority'];
 
   useEffect(() => {
     if (data) {
@@ -739,8 +963,18 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <TextField label="Sort Field" size="small" value={rule.sort ?? ''} onChange={setRule('sort')}
-            fullWidth sx={inputSx} helperText="e.g. popularity, voteAverage, createdAt" />
+          <FormControl size="small" fullWidth sx={inputSx}>
+            <InputLabel>Sort Field</InputLabel>
+            <Select value={rule.sort ?? ''} label="Sort Field"
+              onChange={e => setRuleV('sort', e.target.value)} MenuProps={getSelectMenuProps(T)}>
+              <MenuItem value=""><em>Default (from Tag Config)</em></MenuItem>
+              {sortFields.map(f => (
+                <MenuItem key={f} value={f}>
+                  {f === 'tagPriority' ? 'tagPriority — computed score ★' : f}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <FormControl size="small" sx={{ minWidth: 110, ...inputSx }}>
             <InputLabel>Direction</InputLabel>
             <Select value={rule.direction ?? 'DESC'} label="Direction"
