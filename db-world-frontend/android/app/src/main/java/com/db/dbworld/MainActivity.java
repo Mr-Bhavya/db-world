@@ -2,7 +2,7 @@ package com.db.dbworld;
 
 import android.os.Bundle;
 
-import com.db.dbworld.download.DbWorldDownloadPlugin;
+import com.db.dbworld.downloader.DbWorldDownloadPlugin;
 import com.db.dbworld.player.DbWorldPlayerPlugin;
 import com.getcapacitor.BridgeActivity;
 

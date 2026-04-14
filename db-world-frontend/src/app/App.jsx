@@ -220,7 +220,7 @@ const routeConfig = {
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
-    { path: '/cinema/downloads', element: <LazyDownloadsPage /> },
+    { path: Constants.DB_CINEMA_DOWNLOADS, element: <LazyDownloadsPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],

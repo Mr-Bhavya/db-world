@@ -53,6 +53,7 @@ export const DB_MOVIE_DETIALS_ROUTE = `${DB_CINEMA_ROUTE}/movie/:title`;
 export const DB_SERIES_DETIALS_ROUTE = `${DB_CINEMA_ROUTE}/series/:title`;
 export const DB_DONWLOAD_RECORD_ROUTE =
   `${DB_CINEMA_ROUTE}/record/:recordId/download`;
+export const DB_CINEMA_DOWNLOADS = `${DB_CINEMA_ROUTE}/downloads`;
 
 export const DB_WEATHER_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-weather`;
 export const DB_GAMES_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-games`;
@@ -189,6 +190,7 @@ export default {
   DB_MOVIE_DETIALS_ROUTE,
   DB_SERIES_DETIALS_ROUTE,
   DB_DONWLOAD_RECORD_ROUTE,
+  DB_CINEMA_DOWNLOADS,
 
   DB_WEATHER_ROUTE,
   DB_GAMES_ROUTE,

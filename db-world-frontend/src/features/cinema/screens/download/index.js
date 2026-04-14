@@ -208,7 +208,7 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
   const handlePlay = () => {
     if (Capacitor.getPlatform() === 'android') {
       AndroidPlugins.launchNativePlayer({
-        url: mediaInfo.streamUrl,
+        url: "https://db-world.in/api/stream/watch/uuid/1ffbd207-ef51-4227-a9b8-44a7340f14a5?t=eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJkYi13b3JsZCIsInN1YiI6ImR1ZGhpYWJoYXZ5YUBnbWFpbC5jb20iLCJleHAiOjE3NzYxNTI1NjcsImlhdCI6MTc3NjA2NjE2NywidXNlcklkIjoxMDAxLCJyb2xlcyI6WyJPV05FUiJdfQ.Pcr3v3yZBM7TDb6wgSrR3NYwTcelrxUO7bXpmmkv9yqEs23FuynQGwMJ17gsBEh2D2dcAh9B1TuL6ul9W1JHazSJFCz7ybY-OyyEtkHCo56ZEC2a5HJf5LZiudkyD5R2SC8uSLu_GY-eqWMyE5ovzYj8KPXoB1cMatilQT1SlyCiyze6VqA0yh2PRsrbZF1vdas0kNCwiQgjnI3sx5GTuMrpsqOL2m_dHU3b5J9HufcGiZLx7okEy7PG3mahw8-vT6iNn1UImeCFRxArtOG6pfvdVAnMWtUhieP_GkXcRwKaWiSZ2FYwKA2HcIAiajIiWiv7GRvBHsSKn3NegS3ZhA",
         title: record?.tmdb?.title || general?.fileName || '',
         fileName: general?.fileName || '',
         fileId: String(mediaInfo.id || ''),
@@ -224,7 +224,7 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
     if (Capacitor.getPlatform() === 'android') {
       try {
         await DbWorldDownload.startDownload({
-          url: mediaInfo.downloadUrl,
+          url: "https://db-world.in/api/stream/download/uuid/1ffbd207-ef51-4227-a9b8-44a7340f14a5?t=eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJkYi13b3JsZCIsInN1YiI6ImR1ZGhpYWJoYXZ5YUBnbWFpbC5jb20iLCJleHAiOjE3NzYxNTI1NjcsImlhdCI6MTc3NjA2NjE2NywidXNlcklkIjoxMDAxLCJyb2xlcyI6WyJPV05FUiJdfQ.Pcr3v3yZBM7TDb6wgSrR3NYwTcelrxUO7bXpmmkv9yqEs23FuynQGwMJ17gsBEh2D2dcAh9B1TuL6ul9W1JHazSJFCz7ybY-OyyEtkHCo56ZEC2a5HJf5LZiudkyD5R2SC8uSLu_GY-eqWMyE5ovzYj8KPXoB1cMatilQT1SlyCiyze6VqA0yh2PRsrbZF1vdas0kNCwiQgjnI3sx5GTuMrpsqOL2m_dHU3b5J9HufcGiZLx7okEy7PG3mahw8-vT6iNn1UImeCFRxArtOG6pfvdVAnMWtUhieP_GkXcRwKaWiSZ2FYwKA2HcIAiajIiWiv7GRvBHsSKn3NegS3ZhA",
           fileName: general?.fileName || 'download',
         });
         enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
@@ -633,6 +633,7 @@ const MediaDownloadViewer = (props) => {
   const record = props.record || location.state?.record;
   const resolvedRecordId = urlRecordId ?? record?.id ?? record?.recordId;
   const showBack = props.showBack ?? true;
+  const showHeroSection = props.showHeroSection ?? props.record ?? false;
   const onBack = props.onBack;
 
   const [mediaFileList, setMediaFileList] = useState([]);
@@ -661,7 +662,19 @@ const MediaDownloadViewer = (props) => {
 
   return (
     <Box sx={{ bgcolor: theme.palette.background.default, minHeight: '100vh', color: theme.palette.text.primary }}>
+      {/* Back */}
+                {showBack && (
+                  <Button
+                    startIcon={<ArrowBack />} onClick={() => onBack ? onBack() : navigate(-1)}
+                    size="small" variant="outlined"
+                    sx={{ my: 3, mx: 2, textTransform: 'none', borderColor: alpha('#fff', 0.25), color: alpha('#fff', 0.8), '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.08) } }}
+                  >
+                    Back
+                  </Button>
+                )}
+
       {/* ── Hero / Header ── */}
+      {showHeroSection &&
       <Box sx={{
         position: 'relative', overflow: 'hidden',
         background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)} 0%, ${theme.palette.background.default} 100%)`,
@@ -678,17 +691,6 @@ const MediaDownloadViewer = (props) => {
         )}
 
         <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, pt: { xs: 2, sm: 3 }, pb: 4 }}>
-          {/* Back */}
-          {showBack && (
-            <Button
-              startIcon={<ArrowBack />} onClick={() => onBack ? onBack() : navigate(-1)}
-              size="small" variant="outlined"
-              sx={{ mb: 3, textTransform: 'none', borderColor: alpha('#fff', 0.25), color: alpha('#fff', 0.8), '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.08) } }}
-            >
-              Back
-            </Button>
-          )}
-
           <Box sx={{ display: 'flex', gap: { xs: 2, sm: 3, md: 4 }, alignItems: 'flex-end', flexDirection: { xs: 'row' } }}>
             {/* Poster */}
             {posterPath && (
@@ -738,9 +740,10 @@ const MediaDownloadViewer = (props) => {
           </Box>
         </Container>
       </Box>
+      }
 
       {/* ── Files Section ── */}
-      <Container maxWidth="xl" sx={{ pb: { xs: 10, sm: 6 } }}>
+      <Container maxWidth="xl" sx={{ pb: { xs: 10, sm: 6 }, mt:1 }}>
         {/* Section title */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
           <VideoSettings color="primary" />
