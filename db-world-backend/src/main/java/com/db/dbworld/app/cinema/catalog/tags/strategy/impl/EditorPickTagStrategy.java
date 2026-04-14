@@ -58,7 +58,7 @@ public class EditorPickTagStrategy implements TagStrategy {
                     SELECT r.id,
                         (COALESCE(t.vote_average, 0) * 10 + COALESCE(t.vote_count, 0) * 0.01)
                         * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(t.release_date, t.first_air_date)) / 120.0
+                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 120.0
                         ) AS score
                     FROM records r
                     JOIN tmdb_data t ON r.tmdb_id = t.id
@@ -78,7 +78,7 @@ public class EditorPickTagStrategy implements TagStrategy {
                     SELECT r.id,
                         (COALESCE(t.vote_average, 0) * 10 + COALESCE(t.vote_count, 0) * 0.01)
                         * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(t.release_date, t.first_air_date)) / 120.0
+                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 120.0
                         ) AS score
                     FROM records r
                     JOIN tmdb_data t ON r.tmdb_id = t.id

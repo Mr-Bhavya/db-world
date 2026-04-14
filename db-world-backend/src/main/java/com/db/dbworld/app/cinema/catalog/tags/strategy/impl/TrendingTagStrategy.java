@@ -60,21 +60,20 @@ public class TrendingTagStrategy implements TagStrategy {
                         (
                             COALESCE(t.popularity, 0)
                             + CASE
-                                WHEN t.release_date   >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
-                                WHEN t.first_air_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
+                                WHEN NULLIF(t.release_date,   '') >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
+                                WHEN NULLIF(t.first_air_date, '') >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
                                 ELSE 0
                               END
                             + CASE
-                                WHEN MAX(se.air_date) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) THEN 50
+                                WHEN NULLIF(MAX(se.air_date), '') >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) THEN 50
                                 ELSE 0
                               END
                         ) * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(t.release_date, t.first_air_date)) / 30.0
+                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 30.0
                         ) AS score
                     FROM records r
-                    JOIN tmdb_data t  ON r.tmdb_id = t.id
-                    LEFT JOIN tv_series s  ON t.id = s.tmdb_id
-                    LEFT JOIN season   se ON s.id  = se.series_id
+                    JOIN tmdb_data t ON r.tmdb_id = t.id
+                    LEFT JOIN tmdb_seasons se ON t.id = se.tmdb_id
                     GROUP BY r.id, t.popularity, t.release_date, t.first_air_date
                 ) scored
                 WHERE scored.score >= %d
@@ -92,21 +91,20 @@ public class TrendingTagStrategy implements TagStrategy {
                         (
                             COALESCE(t.popularity, 0)
                             + CASE
-                                WHEN t.release_date   >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
-                                WHEN t.first_air_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
+                                WHEN NULLIF(t.release_date,   '') >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
+                                WHEN NULLIF(t.first_air_date, '') >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 30
                                 ELSE 0
                               END
                             + CASE
-                                WHEN MAX(se.air_date) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) THEN 50
+                                WHEN NULLIF(MAX(se.air_date), '') >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) THEN 50
                                 ELSE 0
                               END
                         ) * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(t.release_date, t.first_air_date)) / 30.0
+                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 30.0
                         ) AS score
                     FROM records r
-                    JOIN tmdb_data t  ON r.tmdb_id = t.id
-                    LEFT JOIN tv_series s  ON t.id = s.tmdb_id
-                    LEFT JOIN season   se ON s.id  = se.series_id
+                    JOIN tmdb_data t ON r.tmdb_id = t.id
+                    LEFT JOIN tmdb_seasons se ON t.id = se.tmdb_id
                     GROUP BY r.id, t.popularity, t.release_date, t.first_air_date
                 ) scored
                 WHERE scored.score >= %d
