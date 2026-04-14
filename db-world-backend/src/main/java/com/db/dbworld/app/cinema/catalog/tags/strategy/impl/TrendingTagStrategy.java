@@ -15,33 +15,30 @@ import org.springframework.stereotype.Component;
  *           * exp(-days_since_release / 30)   -- exponential time-decay (half-life ≈ 21 days)
  * </pre>
  *
- * <h3>Previous bug (fixed here)</h3>
- * The old formula was:
- * <pre>
- *   popularity + recency_boost + new_season_boost * EXP(...)
- * </pre>
- * Due to SQL operator precedence (* beats +), the decay was only applied to the
- * new_season_boost term, leaving base popularity and recency completely undecayed.
- * Old content with high TMDB popularity would permanently dominate the rail.
+ * <h3>Previous bug (fixed)</h3>
+ * The old formula applied decay only to {@code new_season_boost} due to SQL operator
+ * precedence (* beats +). Old content with high TMDB popularity permanently dominated.
+ * Fix: parenthesise the full sum before multiplying by EXP(…).
  *
- * <h3>Diversity</h3>
- * Pool is set to 60 records (up from 30).  Rails that apply a record-type filter
- * (MOVIES page → MOVIE only, SERIES page → TV_SERIES only) each pull from this
- * same pool independently, so they don't exhaust each other.
+ * <h3>Pool size</h3>
+ * 60 records are tagged (up from 30). Rails that apply a record-type filter
+ * (MOVIES → MOVIE only, SERIES → TV_SERIES only) draw from this pool independently,
+ * so they do not exhaust each other.
  *
  * <h3>Score storage</h3>
- * {@link #selectSqlWithScore()} returns {@code (id, score)} so the executor can
- * store the computed score as {@code record_tags.priority}.  Rails with
- * {@code defaultSort = "tagPriority"} then sort by this stored value, ensuring
- * the display order matches the actual trending relevance — not just TMDB popularity.
+ * {@code selectSqlWithScore()} stores the computed score as {@code record_tags.priority},
+ * so rails sorted by {@code tagPriority} honour actual trending relevance.
+ *
+ * <h3>String formatting</h3>
+ * All SQL uses {@code String.formatted()} rather than text-block concatenation.
+ * Java text blocks strip trailing whitespace on each line, which caused
+ * {@code LIMIT60} (missing space) when the closing {@code """} immediately
+ * followed the keyword.
  */
 @Component
 public class TrendingTagStrategy implements TagStrategy {
 
-    /** Minimum computed score for a record to be included in the TRENDING pool. */
     private static final int MIN_SCORE = 5;
-
-    /** Maximum pool size — how many records are tagged as TRENDING per refresh. */
     private static final int POOL_SIZE = 60;
 
     @Override
@@ -49,21 +46,11 @@ public class TrendingTagStrategy implements TagStrategy {
         return RecordTagType.TRENDING;
     }
 
-    /**
-     * Static fallback priority (used only if {@link #selectSqlWithScore()} is bypassed).
-     * Normal operation stores per-record computed scores via {@link #selectSqlWithScore()}.
-     */
     @Override
     public int priority() {
         return 70;
     }
 
-    /**
-     * Returns record IDs ordered by trending score (descending).
-     *
-     * <p>This variant returns only the {@code id} column. It is kept correct for
-     * backwards-compatibility but the executor always uses {@link #selectSqlWithScore()}.
-     */
     @Override
     public String selectSql() {
         return """
@@ -90,17 +77,12 @@ public class TrendingTagStrategy implements TagStrategy {
                     LEFT JOIN season   se ON s.id  = se.series_id
                     GROUP BY r.id, t.popularity, t.release_date, t.first_air_date
                 ) scored
-                WHERE scored.score >= """ + MIN_SCORE + """
-
+                WHERE scored.score >= %d
                 ORDER BY scored.score DESC
-                LIMIT """ + POOL_SIZE;
+                LIMIT %d
+                """.formatted(MIN_SCORE, POOL_SIZE);
     }
 
-    /**
-     * Returns {@code (id, score)} so the executor can persist the computed relevance
-     * score as {@code record_tags.priority}.  Rails sorted by {@code tagPriority}
-     * will then honour the actual trending rank.
-     */
     @Override
     public String selectSqlWithScore() {
         return """
@@ -127,9 +109,9 @@ public class TrendingTagStrategy implements TagStrategy {
                     LEFT JOIN season   se ON s.id  = se.series_id
                     GROUP BY r.id, t.popularity, t.release_date, t.first_air_date
                 ) scored
-                WHERE scored.score >= """ + MIN_SCORE + """
-
+                WHERE scored.score >= %d
                 ORDER BY scored.score DESC
-                LIMIT """ + POOL_SIZE;
+                LIMIT %d
+                """.formatted(MIN_SCORE, POOL_SIZE);
     }
 }
