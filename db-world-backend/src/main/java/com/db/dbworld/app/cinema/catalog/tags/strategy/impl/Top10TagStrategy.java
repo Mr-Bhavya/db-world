@@ -50,7 +50,7 @@ public class Top10TagStrategy implements TagStrategy {
                     SELECT r.id,
                         COALESCE(t.popularity, 0)
                         * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(t.release_date, t.first_air_date)) / 60.0
+                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 60.0
                         ) AS score
                     FROM records r
                     JOIN tmdb_data t ON r.tmdb_id = t.id
@@ -70,7 +70,7 @@ public class Top10TagStrategy implements TagStrategy {
                     SELECT r.id,
                         COALESCE(t.popularity, 0)
                         * EXP(
-                            -DATEDIFF(CURDATE(), COALESCE(t.release_date, t.first_air_date)) / 60.0
+                            -DATEDIFF(CURDATE(), COALESCE(NULLIF(t.release_date, ''), NULLIF(t.first_air_date, ''))) / 60.0
                         ) AS score
                     FROM records r
                     JOIN tmdb_data t ON r.tmdb_id = t.id
