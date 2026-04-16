@@ -1,5 +1,6 @@
 package com.db.dbworld.app.media.ingestion.pipeline;
 
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.media.ingestion.model.*;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.queue.IngestionDownloadQueue;
@@ -29,6 +30,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final ExecutorService    jobExecutor;
     private final IngestionJobStore  jobStore;
     private final IngestionDownloadQueue downloadQueue;
+    private final RecordRepository   recordRepository;
 
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -54,8 +56,24 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
     // ──────────────────────────────────────────────────────────────────────────
 
+    private String resolveRecordName(Long recordId) {
+        if (recordId == null) return null;
+        try {
+            return recordRepository.findById(recordId)
+                    .map(r -> r.getName())
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("Could not resolve record name for id={}: {}", recordId, e.getMessage());
+            return null;
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+
     private void execute(IngestionContext ctx) {
         String jobId = ctx.getJobId();
+        // Resolve record name once — carried through all updateJobMeta calls
+        final String recordName = resolveRecordName(ctx.getRequest().getRecordId());
         try {
             trackingService.updateStatus(jobId, MirrorStatus.STARTED);
             ctx.setStatus(MirrorStatus.STARTED);
@@ -80,9 +98,9 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
                 trackingService.updateJobMeta(jobId, "LOCAL",
                         localFile.getFileName().toString(), localFilePath,
-                        ctx.getRequest().getRecordId());
+                        ctx.getRequest().getRecordId(), recordName);
                 ctx.log("SOURCE", "Using local file: " + localFile.getFileName());
-                runProcessing(ctx);
+                runProcessing(ctx, recordName);
                 return;
             }
 
@@ -99,7 +117,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
             // seed uri into tracking so WS shows it immediately
             trackingService.updateJobMeta(jobId, ctx.getSource().getType(),
-                    null, ctx.getRequest().getUri(), ctx.getRequest().getRecordId());
+                    null, ctx.getRequest().getUri(), ctx.getRequest().getRecordId(), recordName);
 
             // ── Cancellation check ───────────────────────────────────────────
             if (isCancelled(ctx)) { markCancelled(ctx); return; }
@@ -125,13 +143,13 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             // update fileName in tracking once we know it
             trackingService.updateJobMeta(jobId, ctx.getSource().getType(),
                     downloadResult.getFileName(), ctx.getRequest().getUri(),
-                    ctx.getRequest().getRecordId());
+                    ctx.getRequest().getRecordId(), recordName);
 
             ctx.log("DOWNLOAD", "Completed: " + downloadResult.getFileName());
 
             if (isCancelled(ctx)) { markCancelled(ctx); return; }
 
-            runProcessing(ctx);
+            runProcessing(ctx, recordName);
 
         } catch (Exception e) {
             if (isCancelled(ctx)) {
@@ -153,7 +171,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         }
     }
 
-    private void runProcessing(IngestionContext ctx) throws Exception {
+    private void runProcessing(IngestionContext ctx, String recordName) throws Exception {
         String jobId = ctx.getJobId();
 
         trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
@@ -176,7 +194,7 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             if (result.getFinalFile() != null) {
                 String finalFileName = result.getFinalFile().getFileName().toString();
                 trackingService.updateJobMeta(jobId, ctx.getSource() != null ? ctx.getSource().getType() : null,
-                        finalFileName, ctx.getRequest() != null ? ctx.getRequest().getUri() : null, ctx.getRecordId());
+                        finalFileName, ctx.getRequest() != null ? ctx.getRequest().getUri() : null, ctx.getRecordId(), recordName);
                 if (ctx.getDownload() != null) {
                     ctx.getDownload().setFilePath(result.getFinalFile());
                     ctx.getDownload().setFileName(finalFileName);
