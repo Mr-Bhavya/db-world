@@ -9,8 +9,8 @@ import com.db.dbworld.app.media.ingestion.repository.IngestionJobRepository;
 import com.db.dbworld.app.media.ingestion.service.FileBrowserService;
 import com.db.dbworld.app.media.ingestion.service.YtFormatService;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
-import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
 import com.db.dbworld.app.media.ingestion.migration.StreamMigrationService;
+import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.extern.log4j.Log4j2;
@@ -375,9 +375,9 @@ public class IngestionController {
             StreamMigrationService.MigrationReport report = streamMigrationService.scanAndLink();
             return ResponseEntity.ok(report);
         } catch (Exception e) {
-            log.error("Stream migration failed: {}", e.getMessage(), e);
+            log.error("Stream migration scan failed", e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of("error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
     }
 
