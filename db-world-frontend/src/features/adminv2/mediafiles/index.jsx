@@ -466,7 +466,7 @@ export default function MediaFilesPage() {
   const [search, setSearch] = useState('');
   const [filterLinked, setFilterLinked] = useState('all'); // all | linked | unlinked
   const [filterRes, setFilterRes] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState('created_desc');
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
@@ -584,18 +584,38 @@ export default function MediaFilesPage() {
       });
     }
 
-    result.sort((a, b) => {
-      let av, bv;
-      switch (sortBy) {
-        case 'name': av = (a.fileName ?? a.filePath ?? '').toLowerCase(); bv = (b.fileName ?? b.filePath ?? '').toLowerCase(); break;
-        case 'size': av = a.fileSize ?? 0; bv = b.fileSize ?? 0; break;
-        case 'duration': av = a.duration ?? a.durationMs ?? 0; bv = b.duration ?? b.durationMs ?? 0; break;
-        case 'record': av = a.recordId ?? 0; bv = b.recordId ?? 0; break;
-        default: av = 0; bv = 0;
-      }
-      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
+    if (sortBy === 'created_desc') {
+      result = [...result].sort((a, b) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tb - ta;
+      });
+    } else if (sortBy === 'created_asc') {
+      result = [...result].sort((a, b) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return ta - tb;
+      });
+    } else if (sortBy === 'updated_desc') {
+      result = [...result].sort((a, b) => {
+        const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return tb - ta;
+      });
+    } else {
+      result.sort((a, b) => {
+        let av, bv;
+        switch (sortBy) {
+          case 'name': av = (a.fileName ?? a.filePath ?? '').toLowerCase(); bv = (b.fileName ?? b.filePath ?? '').toLowerCase(); break;
+          case 'size': av = a.fileSize ?? 0; bv = b.fileSize ?? 0; break;
+          case 'duration': av = a.duration ?? a.durationMs ?? 0; bv = b.duration ?? b.durationMs ?? 0; break;
+          case 'record': av = a.recordId ?? 0; bv = b.recordId ?? 0; break;
+          default: av = 0; bv = 0;
+        }
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
 
     return result;
   }, [files, search, filterLinked, filterRes, sortBy, sortDir]);
@@ -710,8 +730,8 @@ export default function MediaFilesPage() {
           <Grid item xs={6} sm={2}>
             <FormControl size="small" fullWidth>
               <InputLabel sx={{ color: T.textMuted }}>Sort</InputLabel>
-              <Select value={`${sortBy},${sortDir}`} label="Sort"
-                onChange={e => { const [f, d] = e.target.value.split(','); setSortBy(f); setSortDir(d); setPage(0); }}
+              <Select value={['created_desc', 'created_asc', 'updated_desc'].includes(sortBy) ? sortBy : `${sortBy},${sortDir}`} label="Sort"
+                onChange={e => { const [f, d] = e.target.value.split(','); setSortBy(f); if (d) setSortDir(d); setPage(0); }}
                 sx={{ color: T.text, '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border } }}>
                 <MenuItem value="name,asc">Name A–Z</MenuItem>
                 <MenuItem value="name,desc">Name Z–A</MenuItem>
@@ -719,6 +739,9 @@ export default function MediaFilesPage() {
                 <MenuItem value="size,asc">Smallest first</MenuItem>
                 <MenuItem value="duration,desc">Longest first</MenuItem>
                 <MenuItem value="record,asc">By record</MenuItem>
+                <MenuItem value="created_desc">Newest first</MenuItem>
+                <MenuItem value="created_asc">Oldest first</MenuItem>
+                <MenuItem value="updated_desc">Last modified first</MenuItem>
               </Select>
             </FormControl>
           </Grid>
