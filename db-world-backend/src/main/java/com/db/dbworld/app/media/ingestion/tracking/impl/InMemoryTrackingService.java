@@ -63,12 +63,14 @@ public class InMemoryTrackingService implements TrackingService {
     }
 
     @Override
-    public void updateJobMeta(String jobId, String sourceType, String fileName, String uri, Long recordId) {
+    public void updateJobMeta(String jobId, String sourceType, String fileName, String uri,
+                              Long recordId, String recordName) {
         JobState state = getOrCreate(jobId);
-        state.sourceType = sourceType;
-        state.fileName   = fileName;
-        state.uri        = uri;
-        state.recordId   = recordId;
+        state.sourceType  = sourceType;
+        state.fileName    = fileName;
+        state.uri         = uri;
+        state.recordId    = recordId;
+        state.recordName  = recordName;
     }
 
     @Override
@@ -136,6 +138,7 @@ public class InMemoryTrackingService implements TrackingService {
         map.put("fileName",   state.fileName);
         map.put("uri",        state.uri);
         map.put("recordId",   state.recordId);
+        if (state.recordName != null) map.put("recordName", state.recordName);
         map.put("startTime",  state.startTime);
         map.put("elapsedMs",  System.currentTimeMillis() - state.startTime);
         if (state.failReason != null) map.put("failReason", state.failReason);
@@ -173,6 +176,7 @@ public class InMemoryTrackingService implements TrackingService {
         volatile String fileName;
         volatile String uri;
         volatile Long   recordId;
+        volatile String recordName;
 
         JobState(String jobId) {
             this.jobId = jobId;
