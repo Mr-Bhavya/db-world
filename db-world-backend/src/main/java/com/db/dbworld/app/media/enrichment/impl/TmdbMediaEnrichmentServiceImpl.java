@@ -28,6 +28,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,26 +61,26 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private static final String TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
 
-    private static final java.util.Map<String, String> LANG_CODE_TO_NAME = java.util.Map.ofEntries(
-        java.util.Map.entry("hin", "Hindi"),
-        java.util.Map.entry("eng", "English"),
-        java.util.Map.entry("guj", "Gujarati"),
-        java.util.Map.entry("tam", "Tamil"),
-        java.util.Map.entry("tel", "Telugu"),
-        java.util.Map.entry("jpn", "Japanese"),
-        java.util.Map.entry("kor", "Korean"),
-        java.util.Map.entry("chi", "Chinese"),
-        java.util.Map.entry("fra", "French"),
-        java.util.Map.entry("spa", "Spanish"),
-        java.util.Map.entry("ara", "Arabic"),
-        java.util.Map.entry("por", "Portuguese"),
-        java.util.Map.entry("ger", "German"),
-        java.util.Map.entry("ita", "Italian"),
-        java.util.Map.entry("rus", "Russian"),
-        java.util.Map.entry("tha", "Thai"),
-        java.util.Map.entry("vie", "Vietnamese"),
-        java.util.Map.entry("msa", "Malay"),
-        java.util.Map.entry("und", "Unknown")
+    private static final Map<String, String> LANG_CODE_TO_NAME = Map.ofEntries(
+        Map.entry("hin", "Hindi"),
+        Map.entry("eng", "English"),
+        Map.entry("guj", "Gujarati"),
+        Map.entry("tam", "Tamil"),
+        Map.entry("tel", "Telugu"),
+        Map.entry("jpn", "Japanese"),
+        Map.entry("kor", "Korean"),
+        Map.entry("chi", "Chinese"),
+        Map.entry("fra", "French"),
+        Map.entry("spa", "Spanish"),
+        Map.entry("ara", "Arabic"),
+        Map.entry("por", "Portuguese"),
+        Map.entry("ger", "German"),
+        Map.entry("ita", "Italian"),
+        Map.entry("rus", "Russian"),
+        Map.entry("tha", "Thai"),
+        Map.entry("vie", "Vietnamese"),
+        Map.entry("msa", "Malay"),
+        Map.entry("und", "Unknown")
     );
 
     private String langName(String code) {
@@ -205,8 +207,9 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
 
     /**
      * Appends per-audio-track language, title, and disposition metadata to the FFmpeg command.
-     * Assumes audio tracks in the output are ordered as: index 0 = langs.get(0), etc.
-     * (This holds because we use -map 0:a:m:language:X? in priority order.)
+     * Uses language-tag stream specifiers (e.g. {@code a:m:language:hin}) instead of index-based
+     * specifiers so that metadata is correctly applied even when the source has multiple tracks
+     * of the same language (e.g. Hindi 7.1 + Hindi 2.0).
      */
     private void applyAudioTrackMetadata(List<String> cmd, TrackFilter filter) {
         if (filter == null || filter.getKeepAudioLanguages() == null
@@ -215,54 +218,59 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         }
         List<String> langs = filter.getKeepAudioLanguages();
 
-        // Determine which index gets the default disposition
+        // Determine the default language
         String defaultLang = filter.getDefaultAudioLanguage();
-        int defaultIdx = 0;
-        if (defaultLang != null) {
-            int found = langs.indexOf(defaultLang);
-            if (found >= 0) defaultIdx = found;
+        if (defaultLang == null) {
+            defaultLang = langs.get(0);
+        } else if (!langs.contains(defaultLang)) {
+            log.warn("defaultAudioLanguage '{}' not found in keepAudioLanguages {}; using first as default",
+                    defaultLang, langs);
+            defaultLang = langs.get(0);
         }
 
-        for (int i = 0; i < langs.size(); i++) {
-            String lang = langs.get(i);
+        for (String lang : langs) {
             String name = langName(lang);
+            String spec = "a:m:language:" + lang;
 
-            // Language tag (ISO 639-2/B)
-            cmd.addAll(List.of("-metadata:s:a:" + i, "language=" + lang));
-
-            // Human-readable title
+            cmd.addAll(List.of("-metadata:s:" + spec, "language=" + lang));
             if (name != null) {
-                cmd.addAll(List.of("-metadata:s:a:" + i, "title=" + name));
+                cmd.addAll(List.of("-metadata:s:" + spec, "title=" + name));
             }
+        }
 
-            // Default disposition: exactly one track is default, rest are 0
-            cmd.addAll(List.of("-disposition:a:" + i, i == defaultIdx ? "default" : "0"));
+        // Disposition: use language specifier so all tracks of the default language are
+        // marked default; all other kept languages are explicitly set to non-default.
+        cmd.addAll(List.of("-disposition:a:m:language:" + defaultLang, "default"));
+        for (String lang : langs) {
+            if (!lang.equals(defaultLang)) {
+                cmd.addAll(List.of("-disposition:a:m:language:" + lang, "0"));
+            }
         }
     }
 
     /**
      * Appends per-subtitle-track language, title, and disposition metadata.
-     * Subtitle tracks are ordered in the output as: index 0 = subLangs.get(0), etc.
+     * Uses language-tag stream specifiers for the same reason as audio.
      */
     private void applySubtitleTrackMetadata(List<String> cmd, TrackFilter filter) {
         if (filter == null || filter.getKeepSubtitleLanguages() == null
                 || filter.getKeepSubtitleLanguages().isEmpty()) {
+            // null = keep all subtitle tracks (no specific metadata to apply);
+            // empty = remove all (no output subtitle streams exist to annotate)
             return;
         }
         List<String> subLangs = filter.getKeepSubtitleLanguages();
 
-        for (int i = 0; i < subLangs.size(); i++) {
-            String lang = subLangs.get(i);
+        for (String lang : subLangs) {
             String name = langName(lang);
+            String spec = "s:m:language:" + lang;
 
-            cmd.addAll(List.of("-metadata:s:s:" + i, "language=" + lang));
+            cmd.addAll(List.of("-metadata:s:" + spec, "language=" + lang));
             if (name != null) {
-                cmd.addAll(List.of("-metadata:s:s:" + i, "title=" + name));
+                cmd.addAll(List.of("-metadata:s:" + spec, "title=" + name));
             }
-
-            // No subtitle set as default
             if (filter.isNoDefaultSubtitle()) {
-                cmd.addAll(List.of("-disposition:s:" + i, "0"));
+                cmd.addAll(List.of("-disposition:" + spec, "0"));
             }
         }
     }
@@ -304,7 +312,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private void runFfmpegOnePass(Path input, Path poster, Path output,
                                   String metadataTitle, String overview, TrackFilter filter,
                                   String jobId) throws ProcessExecutionException {
-        String inputName     = input.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        String inputName     = input.getFileName().toString().toLowerCase(Locale.ROOT);
         boolean isMkv        = inputName.endsWith(".mkv");
         boolean hasPoster    = poster != null && Files.exists(poster);
         boolean posterAsInput  = hasPoster && !isMkv;

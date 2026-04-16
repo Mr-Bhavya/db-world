@@ -76,7 +76,6 @@ public class TrackFilter {
     public boolean hasAnyFilter() {
         return removeAllSubtitles
                 || keepFirstVideoOnly
-                || noDefaultSubtitle
                 || defaultAudioLanguage != null
                 || (keepAudioLanguages != null && !keepAudioLanguages.isEmpty())
                 || keepSubtitleLanguages != null;
