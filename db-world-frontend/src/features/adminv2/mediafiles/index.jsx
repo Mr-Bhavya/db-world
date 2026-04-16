@@ -539,7 +539,7 @@ export default function MediaFilesPage() {
         `Migration complete — scanned: ${data.scanned}, created: ${data.created}, failed: ${data.failed}`,
         { variant: data.failed > 0 ? 'warning' : 'success', autoHideDuration: 8000 }
       );
-      qc.invalidateQueries({ queryKey: ['allMediaFiles'] });
+      qc.invalidateQueries(['allMediaFiles']);
     },
     onError: (err) => enqueueSnackbar('Migration failed: ' + err.message, { variant: 'error' }),
   });
