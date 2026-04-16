@@ -58,6 +58,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
             processExecutor.executeExtraction(
                     archivePath.toAbsolutePath().toString(),
                     extractDir.toAbsolutePath().toString(),
+                    ctx.getRequest().getExtractPassword(),   // NEW third arg
                     buildStreamProcessor(ctx),
                     ctx.getCancellationFlag(),
                     Duration.ofHours(2)
