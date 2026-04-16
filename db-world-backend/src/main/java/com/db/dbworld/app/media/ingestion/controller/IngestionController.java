@@ -10,6 +10,7 @@ import com.db.dbworld.app.media.ingestion.service.FileBrowserService;
 import com.db.dbworld.app.media.ingestion.service.YtFormatService;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
+import com.db.dbworld.app.media.ingestion.migration.StreamMigrationService;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.extern.log4j.Log4j2;
@@ -60,6 +61,7 @@ public class IngestionController {
     private final YtFormatService        ytFormatService;
     private final FileBrowserService     fileBrowserService;
     private final RecordRepository       recordRepository;
+    private final StreamMigrationService streamMigrationService;
 
     public IngestionController(
             IngestionPipeline      pipeline,
@@ -69,16 +71,18 @@ public class IngestionController {
             IngestionJobRepository jobRepository,
             YtFormatService        ytFormatService,
             FileBrowserService     fileBrowserService,
-            RecordRepository       recordRepository
+            RecordRepository       recordRepository,
+            StreamMigrationService streamMigrationService
     ) {
-        this.pipeline           = pipeline;
-        this.trackingService    = trackingService;
-        this.jobStore           = jobStore;
-        this.aria2RpcService    = aria2RpcService;
-        this.jobRepository      = jobRepository;
-        this.ytFormatService    = ytFormatService;
-        this.fileBrowserService = fileBrowserService;
-        this.recordRepository   = recordRepository;
+        this.pipeline                = pipeline;
+        this.trackingService         = trackingService;
+        this.jobStore                = jobStore;
+        this.aria2RpcService         = aria2RpcService;
+        this.jobRepository           = jobRepository;
+        this.ytFormatService         = ytFormatService;
+        this.fileBrowserService      = fileBrowserService;
+        this.recordRepository        = recordRepository;
+        this.streamMigrationService  = streamMigrationService;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -352,6 +356,28 @@ public class IngestionController {
         } catch (Exception e) {
             log.error("Link-existing failed path={}", request.getLocalFilePath(), e);
             return ApiResponse.error(500, e.getMessage(), (String) null);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MIGRATION  (one-time scan)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * One-time migration: scans the stream directory for media files with no DB
+     * entry and creates MediaInfo records for each.
+     *
+     * Returns: { scanned, alreadyPresent, created, failed, failedFiles }
+     */
+    @PostMapping("/migrate/scan-stream")
+    public ResponseEntity<?> migrateStreamFiles() {
+        try {
+            StreamMigrationService.MigrationReport report = streamMigrationService.scanAndLink();
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            log.error("Stream migration failed: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 
