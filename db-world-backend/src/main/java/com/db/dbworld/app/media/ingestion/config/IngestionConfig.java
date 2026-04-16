@@ -1,5 +1,6 @@
 package com.db.dbworld.app.media.ingestion.config;
 
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.media.ingestion.persistence.IngestionRepository;
 import com.db.dbworld.app.media.ingestion.pipeline.DefaultIngestionPipeline;
 import com.db.dbworld.app.media.ingestion.pipeline.IngestionPipeline;
@@ -46,7 +47,8 @@ public class IngestionConfig {
             IngestionRepository      ingestionRepository,
             ExecutorService          ingestionJobExecutor,
             IngestionJobStore        jobStore,
-            IngestionDownloadQueue   downloadQueue
+            IngestionDownloadQueue   downloadQueue,
+            RecordRepository         recordRepository
     ) {
         log.info("Configuring IngestionPipeline: {} sources, {} downloaders, {} processors",
                 sourceHandlers.size(), downloadStrategies.size(), processingStrategies.size());
@@ -59,7 +61,8 @@ public class IngestionConfig {
                 ingestionRepository,
                 ingestionJobExecutor,
                 jobStore,
-                downloadQueue
+                downloadQueue,
+                recordRepository
         );
     }
 }
