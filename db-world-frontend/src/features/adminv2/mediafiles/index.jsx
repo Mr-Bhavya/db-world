@@ -532,6 +532,18 @@ export default function MediaFilesPage() {
     onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Rescan failed', { variant: 'error' }),
   });
 
+  const scanMigration = useMutation({
+    mutationFn: () => fetch('/api/ingestion/migrate/scan-stream', { method: 'POST' }).then(r => r.json()),
+    onSuccess: (data) => {
+      enqueueSnackbar(
+        `Migration complete — scanned: ${data.scanned}, created: ${data.created}, failed: ${data.failed}`,
+        { variant: data.failed > 0 ? 'warning' : 'success', autoHideDuration: 8000 }
+      );
+      qc.invalidateQueries({ queryKey: ['allMediaFiles'] });
+    },
+    onError: (err) => enqueueSnackbar('Migration failed: ' + err.message, { variant: 'error' }),
+  });
+
   /* ── Action dispatcher ───────────────────────────────────────────────── */
 
   const handleAction = useCallback((action, file) => {
@@ -673,6 +685,18 @@ export default function MediaFilesPage() {
               onClick={() => setConfirmCleanup(true)}
               sx={{ borderColor: T.border, color: T.textMuted, '&:hover': { borderColor: '#f87171', color: '#f87171' } }}>
               Cleanup
+            </Button>
+          </Tooltip>
+          <Tooltip title="Scan stream directory for files not yet in DB and create DB entries (one-time migration)">
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={scanMigration.isPending ? <CircularProgress size={14} /> : <FolderOpen />}
+              onClick={() => scanMigration.mutate()}
+              disabled={scanMigration.isPending}
+              sx={{ borderColor: T.border, color: T.textMuted, '&:hover': { borderColor: T.teal, color: T.teal } }}
+            >
+              Scan & Link
             </Button>
           </Tooltip>
           <Tooltip title="Refresh list">
