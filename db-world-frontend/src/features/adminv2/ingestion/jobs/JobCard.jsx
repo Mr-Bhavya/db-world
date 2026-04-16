@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
-  Box, Card, CardContent, Chip, LinearProgress, Stack, Typography,
-  Tooltip, alpha,
+  Box, Card, CardContent, Chip, Collapse, CircularProgress, IconButton,
+  LinearProgress, Stack, Typography, Tooltip, alpha,
 } from '@mui/material';
 import { useT } from '@shared/theme';
 import {
   Download, Archive, Merge, VideoSettings, CheckCircle,
   Error as ErrorIcon, Pause, HourglassEmpty, Queue,
-  YouTube, Http, Link as Magnet, Folder
+  YouTube, Http, Link as Magnet, Folder,
+  ExpandMore, ExpandLess,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import JobActions from './JobActions';
@@ -136,6 +137,29 @@ export default function JobCard({ job }) {
   const T = useT();
   const [logOpen, setLogOpen] = useState(false);
 
+  const [logInlineOpen, setLogInlineOpen] = useState(false);
+  const [inlineHtml, setInlineHtml]       = useState(null);
+  const [inlineLoading, setInlineLoading] = useState(false);
+
+  const fetchInlineLogs = async () => {
+    if (inlineHtml) return;
+    setInlineLoading(true);
+    try {
+      const { getJobReport } = await import('../services/ingestionApi');
+      const html = await getJobReport(jobId);
+      setInlineHtml(html);
+    } catch {
+      setInlineHtml('<p style="color:red">Failed to load logs.</p>');
+    } finally {
+      setInlineLoading(false);
+    }
+  };
+
+  const toggleInlineLogs = () => {
+    if (!logInlineOpen) fetchInlineLogs();
+    setLogInlineOpen(prev => !prev);
+  };
+
   const {
     jobId, status = 'QUEUED', step, sourceType,
     fileName, uri, progress, failReason,
@@ -229,6 +253,11 @@ export default function JobCard({ job }) {
                   size="small"
                   sx={{ fontSize: '0.7rem', height: 22 }}
                 />
+                <Tooltip title={logInlineOpen ? 'Collapse logs' : 'Expand logs inline'}>
+                  <IconButton size="small" onClick={toggleInlineLogs} sx={{ p: 0.5 }}>
+                    {logInlineOpen ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+                  </IconButton>
+                </Tooltip>
                 <JobActions job={job} onLogView={() => setLogOpen(true)} />
               </Stack>
             </Stack>
@@ -277,6 +306,32 @@ export default function JobCard({ job }) {
                 {failReason}
               </Typography>
             )}
+
+            {/* ── Inline log panel ─────────────────────────────────── */}
+            <Collapse in={logInlineOpen} unmountOnExit>
+              <Box
+                sx={{
+                  mt: 1,
+                  border: `1px solid ${alpha(T.text, 0.1)}`,
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  maxHeight: 300,
+                }}
+              >
+                {inlineLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <CircularProgress size={20} />
+                  </Box>
+                ) : (
+                  <iframe
+                    srcDoc={inlineHtml ?? ''}
+                    title="Job logs"
+                    style={{ width: '100%', height: 280, border: 'none' }}
+                    sandbox="allow-same-origin"
+                  />
+                )}
+              </Box>
+            </Collapse>
 
             {/* ── Job ID ──────────────────────────────────────────────── */}
             <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
