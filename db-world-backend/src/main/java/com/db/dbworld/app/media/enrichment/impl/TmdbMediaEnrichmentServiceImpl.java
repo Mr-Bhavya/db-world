@@ -59,6 +59,33 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private static final String TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
 
+    private static final java.util.Map<String, String> LANG_CODE_TO_NAME = java.util.Map.ofEntries(
+        java.util.Map.entry("hin", "Hindi"),
+        java.util.Map.entry("eng", "English"),
+        java.util.Map.entry("guj", "Gujarati"),
+        java.util.Map.entry("tam", "Tamil"),
+        java.util.Map.entry("tel", "Telugu"),
+        java.util.Map.entry("jpn", "Japanese"),
+        java.util.Map.entry("kor", "Korean"),
+        java.util.Map.entry("chi", "Chinese"),
+        java.util.Map.entry("fra", "French"),
+        java.util.Map.entry("spa", "Spanish"),
+        java.util.Map.entry("ara", "Arabic"),
+        java.util.Map.entry("por", "Portuguese"),
+        java.util.Map.entry("ger", "German"),
+        java.util.Map.entry("ita", "Italian"),
+        java.util.Map.entry("rus", "Russian"),
+        java.util.Map.entry("tha", "Thai"),
+        java.util.Map.entry("vie", "Vietnamese"),
+        java.util.Map.entry("msa", "Malay"),
+        java.util.Map.entry("und", "Unknown")
+    );
+
+    private String langName(String code) {
+        if (code == null || code.isBlank()) return null;
+        return LANG_CODE_TO_NAME.getOrDefault(code.toLowerCase().trim(), code);
+    }
+
     private final RecordRepository recordRepository;
     private final ProcessExecutor  processExecutor;
     private final TrackingService  trackingService;
@@ -173,6 +200,74 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Per-track metadata helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Appends per-audio-track language, title, and disposition metadata to the FFmpeg command.
+     * Assumes audio tracks in the output are ordered as: index 0 = langs.get(0), etc.
+     * (This holds because we use -map 0:a:m:language:X? in priority order.)
+     */
+    private void applyAudioTrackMetadata(List<String> cmd, TrackFilter filter) {
+        if (filter == null || filter.getKeepAudioLanguages() == null
+                || filter.getKeepAudioLanguages().isEmpty()) {
+            return;
+        }
+        List<String> langs = filter.getKeepAudioLanguages();
+
+        // Determine which index gets the default disposition
+        String defaultLang = filter.getDefaultAudioLanguage();
+        int defaultIdx = 0;
+        if (defaultLang != null) {
+            int found = langs.indexOf(defaultLang);
+            if (found >= 0) defaultIdx = found;
+        }
+
+        for (int i = 0; i < langs.size(); i++) {
+            String lang = langs.get(i);
+            String name = langName(lang);
+
+            // Language tag (ISO 639-2/B)
+            cmd.addAll(List.of("-metadata:s:a:" + i, "language=" + lang));
+
+            // Human-readable title
+            if (name != null) {
+                cmd.addAll(List.of("-metadata:s:a:" + i, "title=" + name));
+            }
+
+            // Default disposition: exactly one track is default, rest are 0
+            cmd.addAll(List.of("-disposition:a:" + i, i == defaultIdx ? "default" : "0"));
+        }
+    }
+
+    /**
+     * Appends per-subtitle-track language, title, and disposition metadata.
+     * Subtitle tracks are ordered in the output as: index 0 = subLangs.get(0), etc.
+     */
+    private void applySubtitleTrackMetadata(List<String> cmd, TrackFilter filter) {
+        if (filter == null || filter.getKeepSubtitleLanguages() == null
+                || filter.getKeepSubtitleLanguages().isEmpty()) {
+            return;
+        }
+        List<String> subLangs = filter.getKeepSubtitleLanguages();
+
+        for (int i = 0; i < subLangs.size(); i++) {
+            String lang = subLangs.get(i);
+            String name = langName(lang);
+
+            cmd.addAll(List.of("-metadata:s:s:" + i, "language=" + lang));
+            if (name != null) {
+                cmd.addAll(List.of("-metadata:s:s:" + i, "title=" + name));
+            }
+
+            // No subtitle set as default
+            if (filter.isNoDefaultSubtitle()) {
+                cmd.addAll(List.of("-disposition:s:" + i, "0"));
+            }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // One-pass FFmpeg command
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -209,17 +304,11 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private void runFfmpegOnePass(Path input, Path poster, Path output,
                                   String metadataTitle, String overview, TrackFilter filter,
                                   String jobId) throws ProcessExecutionException {
-        // For MKV containers the cover art is embedded as a Matroska attachment
-        // (via -attach) rather than a mapped video stream.  This means MediaInfo
-        // reports it under "General" / as an attachment — never as a "Video" track —
-        // so the primary-video-track selector always finds the real video stream.
-        // For MP4 and other containers the classic -map 1 / attached_pic approach is used.
-        String inputName = input.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
-        boolean isMkv    = inputName.endsWith(".mkv");
-
-        boolean hasPoster       = poster != null && Files.exists(poster);
-        boolean posterAsInput   = hasPoster && !isMkv;  // mapped as video stream (non-MKV)
-        boolean posterAsAttach  = hasPoster && isMkv;   // attached as Matroska attachment (MKV)
+        String inputName     = input.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        boolean isMkv        = inputName.endsWith(".mkv");
+        boolean hasPoster    = poster != null && Files.exists(poster);
+        boolean posterAsInput  = hasPoster && !isMkv;
+        boolean posterAsAttach = hasPoster && isMkv;
 
         List<String> cmd = new ArrayList<>();
         cmd.add("-y");
@@ -237,68 +326,69 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
 
         boolean hasFilter = filter != null && filter.hasAnyFilter();
 
+        // ── Stream mapping ────────────────────────────────────────────────────
         if (!hasFilter) {
-            // ── Case A / B: simple copy ────────────────────────────────────
+            // Case A / B: simple copy
             cmd.addAll(List.of("-map", "0"));
-            if (posterAsInput) {
-                cmd.addAll(List.of("-map", "1"));
-            }
+            if (posterAsInput) cmd.addAll(List.of("-map", "1"));
         } else {
-            // ── Case C: selective stream mapping ──────────────────────────
-            // Start with all streams from input, then subtract unwanted ones
+            // Case C: selective mapping — start with all, subtract unwanted
             cmd.addAll(List.of("-map", "0"));
 
             if (filter.isKeepFirstVideoOnly()) {
-                // Remove all video streams beyond the first.
-                // -map -0:v:1 removes v:1, -0:v:2 removes v:2 … but we
-                // don't know how many there are.  Use -vn then re-map v:0.
-                cmd.addAll(List.of("-map", "-0:v"));      // remove ALL video
-                cmd.addAll(List.of("-map", "0:v:0"));     // then re-add only first
+                cmd.addAll(List.of("-map", "-0:v"));
+                cmd.addAll(List.of("-map", "0:v:0"));
             }
 
-            if (filter.isRemoveAllSubtitles()) {
-                cmd.addAll(List.of("-map", "-0:s"));
-            }
-
+            // Audio filtering
             if (filter.getKeepAudioLanguages() != null && !filter.getKeepAudioLanguages().isEmpty()) {
-                // Remove audio streams that do NOT match any of the desired languages.
-                // Approach: remove all audio, then re-add only matching languages.
                 cmd.addAll(List.of("-map", "-0:a"));
                 for (String lang : filter.getKeepAudioLanguages()) {
                     cmd.addAll(List.of("-map", "0:a:m:language:" + lang + "?"));
                 }
             }
 
-            if (posterAsInput) {
-                cmd.addAll(List.of("-map", "1"));
+            // Subtitle filtering — keepSubtitleLanguages takes precedence over removeAllSubtitles
+            if (filter.getKeepSubtitleLanguages() != null) {
+                cmd.addAll(List.of("-map", "-0:s")); // remove all first
+                for (String lang : filter.getKeepSubtitleLanguages()) {
+                    // empty list means remove all — no re-add loop runs
+                    cmd.addAll(List.of("-map", "0:s:m:language:" + lang + "?"));
+                }
+            } else if (filter.isRemoveAllSubtitles()) {
+                cmd.addAll(List.of("-map", "-0:s"));
             }
+
+            if (posterAsInput) cmd.addAll(List.of("-map", "1"));
         }
 
         cmd.addAll(List.of("-c", "copy"));
 
         if (posterAsInput) {
-            // Non-MKV: poster is the last mapped video stream (v:1 for standard single-video files).
             cmd.addAll(List.of("-disposition:v:1", "attached_pic"));
-            cmd.addAll(List.of("-metadata:s:v:1",  "mimetype=image/jpeg"));
+            cmd.addAll(List.of("-metadata:s:v:1", "mimetype=image/jpeg"));
         }
 
-        // Global metadata: title, overview/description
+        // ── Per-track metadata ────────────────────────────────────────────────
+        applyAudioTrackMetadata(cmd, filter);
+        applySubtitleTrackMetadata(cmd, filter);
+
+        // ── Global metadata ───────────────────────────────────────────────────
         if (metadataTitle != null && !metadataTitle.isBlank()) {
             cmd.addAll(List.of("-metadata", "title=" + metadataTitle));
-            // Set video track title to match
-            cmd.addAll(List.of("-metadata:s:v:0", "title=" + metadataTitle));
+            // NOTE: do NOT set -metadata:s:v:0 title here — the stream's own codec
+            // title should reflect the video stream's actual properties, not the movie name
         }
         if (overview != null && !overview.isBlank()) {
-            // "description" works for MKV; "comment" is a common fallback for other containers
             cmd.addAll(List.of("-metadata", "description=" + overview));
             cmd.addAll(List.of("-metadata", "comment=" + overview));
         }
 
-        // MKV: embed poster as a proper Matroska attachment (not a video stream)
+        // ── MKV cover art as attachment ───────────────────────────────────────
         if (posterAsAttach) {
             String posterName = poster.getFileName().toString();
-            String mime = posterName.endsWith(".png") ? "image/png" : "image/jpeg";
-            String coverName = posterName.endsWith(".png") ? "cover.png" : "cover.jpg";
+            String mime       = posterName.endsWith(".png") ? "image/png" : "image/jpeg";
+            String coverName  = posterName.endsWith(".png") ? "cover.png" : "cover.jpg";
             cmd.addAll(List.of("-attach", poster.toAbsolutePath().toString()));
             cmd.addAll(List.of("-metadata:s:t:0", "mimetype=" + mime));
             cmd.addAll(List.of("-metadata:s:t:0", "filename=" + coverName));
@@ -307,8 +397,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         cmd.add(output.toAbsolutePath().toString());
 
         log.info("[{}] FFmpeg one-pass: {} → {} | filter={} poster={}",
-                jobId, input.getFileName(), output.getFileName(),
-                hasFilter, hasPoster);
+                jobId, input.getFileName(), output.getFileName(), hasFilter, hasPoster);
 
         processExecutor.executeFfmpegCommand(cmd, new FfmpegProgressProcessor(jobId), null);
     }
