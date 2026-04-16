@@ -14,10 +14,12 @@ import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * REST API for the ingestion pipeline.
@@ -249,13 +251,26 @@ public class IngestionController {
     // ══════════════════════════════════════════════════════════════════════════
 
     @GetMapping("/history")
-    public ApiResponse<List<Map<String, Object>>> getHistory() {
-        List<Map<String, Object>> history = jobRepository.findAll(
-                        Sort.by(Sort.Direction.DESC, "startedAt"))
+    public ResponseEntity<?> getHistory() {
+        List<IngestionJobEntity> entities = jobRepository.findAll(
+                Sort.by(Sort.Direction.DESC, "startedAt"));
+
+        // Batch-load all referenced record names in a single query
+        Set<Long> recordIds = entities.stream()
+                .map(IngestionJobEntity::getRecordId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<Long, String> recordNames = recordRepository.findAllById(recordIds)
                 .stream()
-                .map(this::toHistoryDto)
+                .collect(java.util.stream.Collectors.toMap(
+                        r -> r.getId(),
+                        r -> r.getName()
+                ));
+
+        List<Map<String, Object>> history = entities.stream()
+                .map(e -> toHistoryDto(e, recordNames))
                 .collect(java.util.stream.Collectors.toList());
-        return ApiResponse.success(history);
+        return ResponseEntity.ok(history);
     }
 
     @GetMapping("/history/{jobId}")
@@ -344,7 +359,7 @@ public class IngestionController {
     // HELPERS
     // ══════════════════════════════════════════════════════════════════════════
 
-    private Map<String, Object> toHistoryDto(IngestionJobEntity e) {
+    private Map<String, Object> toHistoryDto(IngestionJobEntity e, Map<Long, String> recordNames) {
         Map<String, Object> m = new java.util.LinkedHashMap<>();
         m.put("jobId",       e.getJobId());
         m.put("status",      e.getStatus());
@@ -357,10 +372,9 @@ public class IngestionController {
         m.put("completedAt", e.getCompletedAt());
         m.put("failReason",  e.getFailReason());
         m.put("recordId",    e.getRecordId());
+        m.put("htmlReport",  null); // omit from list — use /report endpoint instead
         if (e.getRecordId() != null) {
-            String rName = recordRepository.findById(e.getRecordId())
-                    .map(r -> r.getName()).orElse(null);
-            m.put("recordName", rName);
+            m.put("recordName", recordNames.get(e.getRecordId()));
         }
         return m;
     }
