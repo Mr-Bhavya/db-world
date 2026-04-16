@@ -140,16 +140,18 @@ export default function JobCard({ job }) {
   const [logInlineOpen, setLogInlineOpen] = useState(false);
   const [inlineHtml, setInlineHtml]       = useState(null);
   const [inlineLoading, setInlineLoading] = useState(false);
+  const [inlineError, setInlineError]     = useState(false);
 
   const fetchInlineLogs = async () => {
-    if (inlineHtml) return;
+    if (inlineHtml) return; // already loaded successfully — serve from cache
+    setInlineError(false);
     setInlineLoading(true);
     try {
       const { getJobReport } = await import('../services/ingestionApi');
       const html = await getJobReport(jobId);
       setInlineHtml(html);
     } catch {
-      setInlineHtml('<p style="color:red">Failed to load logs.</p>');
+      setInlineError(true);
     } finally {
       setInlineLoading(false);
     }
@@ -322,12 +324,24 @@ export default function JobCard({ job }) {
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                     <CircularProgress size={20} />
                   </Box>
+                ) : inlineError ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 2, gap: 1 }}>
+                    <Typography variant="caption" color="error">Failed to load logs.</Typography>
+                    <Typography
+                      variant="caption"
+                      color="primary"
+                      sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={fetchInlineLogs}
+                    >
+                      Retry
+                    </Typography>
+                  </Box>
                 ) : (
                   <iframe
                     srcDoc={inlineHtml ?? ''}
                     title="Job logs"
                     style={{ width: '100%', height: 280, border: 'none' }}
-                    sandbox="allow-same-origin"
+                    sandbox=""
                   />
                 )}
               </Box>
