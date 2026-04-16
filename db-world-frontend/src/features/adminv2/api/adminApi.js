@@ -117,6 +117,9 @@ export const repairSymlink = (fileId) =>
 export const rebuildAllSymlinks = () =>
   axiosInstance.post('/api/admin/media/symlinks/rebuild').then(r => r.data);
 
+export const scanStreamMigration = () =>
+  axiosInstance.post('/api/ingestion/migrate/scan-stream').then(r => r.data);
+
 export const linkMediaFileToRecord = (mediaFileId, recordId) =>
   axiosInstance.patch(`/api/media/info/${mediaFileId}/link-record`, null, { params: { recordId } }).then(r => r.data);
 

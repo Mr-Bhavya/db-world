@@ -30,8 +30,10 @@ public class StreamMigrationService {
     private final DbWorldRuntimeProperties runtimeProperties;
 
     public MigrationReport scanAndLink() throws IOException {
-        // getStreamPath() returns a Path directly — no Path.of() wrapping needed
         Path streamRoot = runtimeProperties.getStreamPath();
+        if (streamRoot == null) {
+            throw new IllegalStateException("Stream path is not configured (db-world.stream-path is missing)");
+        }
         if (!Files.isDirectory(streamRoot)) {
             throw new IllegalStateException("Stream path is not a directory: " + streamRoot);
         }

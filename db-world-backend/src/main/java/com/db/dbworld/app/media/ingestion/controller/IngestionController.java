@@ -19,8 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * REST API for the ingestion pipeline.

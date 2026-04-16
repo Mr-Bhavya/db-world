@@ -13,7 +13,7 @@ import {
   VideoFile, GridView, ViewList, ExpandMore, ExpandLess,
   ContentCopy, CheckCircle, Warning, Error as ErrorIcon,
   CleaningServices, SwapHoriz, Storage, Movie, PlayArrow,
-  Audiotrack, Subtitles, FolderOpen, Info,
+  Audiotrack, Subtitles, FolderOpen,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -23,6 +23,7 @@ import {
   getAllMediaFiles, deleteMediaFileById, bulkDeleteMediaFiles,
   cleanupOrphanedFiles, repairAllSymlinks, repairSymlink,
   rebuildAllSymlinks, rescanMediaFile, linkMediaFileToRecord,
+  scanStreamMigration,
 } from '../api/adminApi';
 import { adminSearchRecord } from '@shared/services/ApiServices';
 
@@ -533,7 +534,7 @@ export default function MediaFilesPage() {
   });
 
   const scanMigration = useMutation({
-    mutationFn: () => fetch('/api/ingestion/migrate/scan-stream', { method: 'POST' }).then(r => r.json()),
+    mutationFn: scanStreamMigration,
     onSuccess: (data) => {
       enqueueSnackbar(
         `Migration complete — scanned: ${data.scanned}, created: ${data.created}, failed: ${data.failed}`,
