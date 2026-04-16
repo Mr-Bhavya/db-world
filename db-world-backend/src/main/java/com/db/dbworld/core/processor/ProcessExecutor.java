@@ -50,7 +50,10 @@ public class ProcessExecutor implements AutoCloseable {
 
         try {
             ProcessBuilder pb = createProcessBuilder(config);
-            log.debug("Starting process: {}", String.join(" ", config.command()));
+            String logCmd = config.safeLogCommand() != null
+                    ? config.safeLogCommand()
+                    : String.join(" ", config.command());
+            log.debug("Starting process: {}", logCmd);
 
             process = pb.start();
             ProcessHandle handle = process.toHandle();
@@ -197,11 +200,10 @@ public class ProcessExecutor implements AutoCloseable {
                 .map(s -> s.startsWith("-p") && s.length() > 2 ? "-p[REDACTED]" : s)
                 .collect(java.util.stream.Collectors.joining(" "));
 
-        log.debug("Starting extraction: {}", safeCommandStr);
-
         ProcessResult result = execute(
                 ProcessConfiguration.builder()
                         .command(command)
+                        .safeLogCommand(safeCommandStr)
                         .outputProcessor(streamProcessor.stdoutConsumer())
                         .errorProcessor(streamProcessor.stderrConsumer())
                         .cancellationFlag(cancellationFlag)
@@ -456,6 +458,8 @@ public class ProcessExecutor implements AutoCloseable {
 
     public record ProcessConfiguration(
             String[] command,
+            /** When non-null, logged instead of the raw command array (use for commands with secrets). */
+            String safeLogCommand,
             Consumer<String> outputProcessor,
             Consumer<String> errorProcessor,
             AtomicBoolean cancellationFlag,
@@ -469,6 +473,7 @@ public class ProcessExecutor implements AutoCloseable {
 
         public static class Builder {
             private String[] command;
+            private String safeLogCommand;
             private Consumer<String> outputProcessor;
             private Consumer<String> errorProcessor;
             private AtomicBoolean cancellationFlag;
@@ -479,6 +484,7 @@ public class ProcessExecutor implements AutoCloseable {
             private ProcessTimeoutAction onTimeout = ProcessTimeoutAction.TERMINATE;
 
             public Builder command(String... cmd) { this.command = cmd; return this; }
+            public Builder safeLogCommand(String s) { this.safeLogCommand = s; return this; }
             public Builder outputProcessor(Consumer<String> c) { this.outputProcessor = c; return this; }
             public Builder errorProcessor(Consumer<String> c) { this.errorProcessor = c; return this; }
             public Builder cancellationFlag(AtomicBoolean f) { this.cancellationFlag = f; return this; }
@@ -490,7 +496,7 @@ public class ProcessExecutor implements AutoCloseable {
 
             public ProcessConfiguration build() {
                 return new ProcessConfiguration(
-                        command, outputProcessor, errorProcessor,
+                        command, safeLogCommand, outputProcessor, errorProcessor,
                         cancellationFlag, timeout,
                         workingDirectory, environment,
                         successPredicate, onTimeout
