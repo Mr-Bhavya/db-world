@@ -51,9 +51,11 @@ export default function JobHistory() {
 
   const { data, isLoading, error, refetch } = useJobHistory();
   const rows = (data ?? []).filter((r) =>
-    !search || r.uri?.toLowerCase().includes(search.toLowerCase()) ||
+    !search ||
+    r.uri?.toLowerCase().includes(search.toLowerCase()) ||
     r.fileName?.toLowerCase().includes(search.toLowerCase()) ||
-    r.jobId?.toLowerCase().includes(search.toLowerCase())
+    r.jobId?.toLowerCase().includes(search.toLowerCase()) ||
+    r.recordName?.toLowerCase().includes(search.toLowerCase())
   );
 
   const act = useCallback(async (id, name, fn) => {
@@ -91,6 +93,19 @@ export default function JobHistory() {
       ),
     },
     {
+      field: 'recordName',
+      headerName: 'Record',
+      width: 180,
+      renderCell: ({ row }) =>
+        row.recordName ? (
+          <Tooltip title={`ID: ${row.recordId}`}>
+            <Typography variant="caption" noWrap>{row.recordName}</Typography>
+          </Tooltip>
+        ) : (
+          <Typography variant="caption" color="text.disabled">—</Typography>
+        ),
+    },
+    {
       field: 'status',
       headerName: 'Status',
       width: 120,
@@ -126,6 +141,19 @@ export default function JobHistory() {
             {new Date(value).toLocaleString()}
           </Typography>
         ) : '—',
+    },
+    {
+      field: 'duration',
+      headerName: 'Duration',
+      width: 100,
+      sortable: false,
+      renderCell: ({ row }) => {
+        if (!row.startedAt || !row.completedAt) {
+          return <Typography variant="caption" color="text.disabled">—</Typography>;
+        }
+        const ms = new Date(row.completedAt) - new Date(row.startedAt);
+        return <Typography variant="caption">{fmtDuration(ms)}</Typography>;
+      },
     },
     {
       field: 'actions',
