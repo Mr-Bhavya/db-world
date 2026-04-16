@@ -178,17 +178,19 @@ public class ProcessExecutor implements AutoCloseable {
     public void executeExtraction(
             String archivePath,
             String outputPath,
+            String password,            // NEW — null means no password
             StreamProcessor streamProcessor,
             AtomicBoolean cancellationFlag,
             Duration timeout
     ) throws ProcessExecutionException {
 
-        String[] command = {
-                runtimeProperties.getSevenZip(), "x", "-bsp1", "-bb1",
-                archivePath,
-                "-o" + outputPath,
-                "-aoa"
-        };
+        List<String> cmdList = new ArrayList<>();
+        cmdList.add(runtimeProperties.getSevenZip());
+        cmdList.addAll(List.of("x", "-bsp1", "-bb1", archivePath, "-o" + outputPath, "-aoa"));
+        if (password != null && !password.isBlank()) {
+            cmdList.add("-p" + password);   // password must immediately follow -p, no space
+        }
+        String[] command = cmdList.toArray(new String[0]);
 
         ProcessResult result = execute(
                 ProcessConfiguration.builder()
@@ -197,7 +199,7 @@ public class ProcessExecutor implements AutoCloseable {
                         .errorProcessor(streamProcessor.stderrConsumer())
                         .cancellationFlag(cancellationFlag)
                         .timeout(timeout)
-                        .successPredicate(code -> code == 0)
+                        .successPredicate(code -> code == 0 || code == 1)  // 1 = warnings, not errors
                         .build()
         );
 
