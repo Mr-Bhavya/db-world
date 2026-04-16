@@ -189,34 +189,36 @@ export default function JobCard({ job }) {
             {/* ── Header row ─────────────────────────────────────────── */}
             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
 
-              <Stack direction="row" spacing={1} alignItems="center" flex={1} minWidth={0}>
+              <Stack direction="row" spacing={1} alignItems="flex-start" flex={1} minWidth={0}>
                 <SourceIcon
                   sx={{
                     fontSize: 18,
                     color: sourceType === 'YOUTUBE' ? 'error.main' : 'text.secondary',
                     flexShrink: 0,
+                    mt: '2px',
                   }}
                 />
-                <Tooltip title={uri ?? displayName}>
-                  <Typography
-                    variant="body2"
-                    fontWeight={500}
-                    noWrap
-                    sx={{ flex: 1, minWidth: 0 }}
-                  >
-                    {displayName}
-                  </Typography>
-                </Tooltip>
-                {recordName && (
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    noWrap
-                    sx={{ display: 'block', ml: '26px', mt: '-2px', fontSize: '0.68rem' }}
-                  >
-                    #{recordId} · {recordName}
-                  </Typography>
-                )}
+                <Stack direction="column" spacing={0} flex={1} minWidth={0}>
+                  <Tooltip title={uri ?? displayName}>
+                    <Typography
+                      variant="body2"
+                      fontWeight={500}
+                      noWrap
+                    >
+                      {displayName}
+                    </Typography>
+                  </Tooltip>
+                  {recordName && (
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      noWrap
+                      sx={{ fontSize: '0.68rem' }}
+                    >
+                      #{recordId} · {recordName}
+                    </Typography>
+                  )}
+                </Stack>
               </Stack>
 
               <Stack direction="row" spacing={0.75} alignItems="center" flexShrink={0}>
