@@ -14,11 +14,13 @@ import java.util.List;
  * cover-art embedding, title metadata, and file renaming.
  * Null / default values mean "keep as-is".
  *
- * Example — keep English audio, remove subtitles:
+ * Example — keep Hindi + English audio, Hindi subtitle only, Hindi as default:
  * <pre>
  *   TrackFilter.builder()
- *       .keepAudioLanguages(List.of("eng"))
- *       .removeAllSubtitles(true)
+ *       .keepAudioLanguages(List.of("hin", "eng"))
+ *       .keepSubtitleLanguages(List.of("hin"))
+ *       .defaultAudioLanguage("hin")
+ *       .noDefaultSubtitle(true)
  *       .build()
  * </pre>
  */
@@ -29,33 +31,54 @@ import java.util.List;
 public class TrackFilter {
 
     /**
-     * ISO 639-2/B language codes to retain (e.g. "eng", "hin", "jpn").
-     * Audio tracks whose {@code language} metadata tag is NOT in this list are dropped.
+     * ISO 639-2/B language codes for audio tracks to retain (e.g. "hin", "eng", "guj").
+     * Audio tracks whose {@code language} tag is NOT in this list are dropped.
      * {@code null} = keep all audio tracks.
      */
     private List<String> keepAudioLanguages;
 
     /**
-     * Drop all subtitle/text streams.
-     * Default: {@code false} (subtitles are kept).
+     * ISO 639-2/B language codes for subtitle/text tracks to retain.
+     * {@code null}       = keep all subtitle tracks.
+     * Empty {@code List} = remove ALL subtitle tracks.
+     */
+    private List<String> keepSubtitleLanguages;
+
+    /**
+     * Language code of the audio track that should be marked as default
+     * (e.g. "hin"). Must be present in {@code keepAudioLanguages} if that
+     * list is non-null. {@code null} = use the first kept track as default.
+     */
+    private String defaultAudioLanguage;
+
+    /**
+     * When {@code true}, no subtitle track is set as default (disposition = 0).
+     * Recommended default: {@code true}.
+     */
+    @Builder.Default
+    private boolean noDefaultSubtitle = true;
+
+    /**
+     * Drop ALL subtitle/text streams (legacy flag; prefer empty keepSubtitleLanguages).
+     * Default: {@code false}.
      */
     @Builder.Default
     private boolean removeAllSubtitles = false;
 
     /**
      * Keep only the first real video stream (stream index 0).
-     * This strips any secondary video streams (e.g. angle tracks).
-     * Existing embedded cover-art streams are always removed when a new
-     * TMDB poster is embedded, regardless of this flag.
      * Default: {@code false}.
      */
     @Builder.Default
     private boolean keepFirstVideoOnly = false;
 
-    /** Returns {@code true} if any filtering is actually requested. */
+    /** Returns {@code true} if any filtering or metadata directive is requested. */
     public boolean hasAnyFilter() {
         return removeAllSubtitles
                 || keepFirstVideoOnly
-                || (keepAudioLanguages != null && !keepAudioLanguages.isEmpty());
+                || noDefaultSubtitle
+                || defaultAudioLanguage != null
+                || (keepAudioLanguages != null && !keepAudioLanguages.isEmpty())
+                || keepSubtitleLanguages != null;
     }
 }
