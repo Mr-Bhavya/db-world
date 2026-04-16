@@ -1,6 +1,8 @@
 package com.db.dbworld.app.media.ingestion.processing.strategy;
 
+import com.db.dbworld.app.media.enrichment.SmartTrackFilterService;
 import com.db.dbworld.app.media.enrichment.TmdbMediaEnrichmentService;
+import com.db.dbworld.app.media.enrichment.TrackFilter;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.dto.TrackDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
@@ -51,6 +53,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final FileStorageService         fileStorageService;
     private final MediaInfoService           mediaInfoService;
     private final TmdbMediaEnrichmentService enrichmentService;
+    private final SmartTrackFilterService    smartTrackFilterService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -210,22 +213,22 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         try {
             EpisodeRef episodeRef = resolveEpisodeRef(ctx, movedFile);
 
-            // If season/episode were inferred from the filename (not supplied by the caller),
-            // persist them back on the request so that downstream steps — specifically
-            // resolveFinalDir() (which creates the S0x season sub-folder) and
-            // buildCanonicalFileName() (which looks up the episode name from TMDB) — can
-            // use the detected values without repeating the filename-parsing logic.
             if (episodeRef != null && ctx.getRequest().getSeason() == null) {
                 ctx.getRequest().setSeason(episodeRef.season());
                 ctx.getRequest().setEpisode(episodeRef.episode());
             }
+
+            // ── Resolve effective track filter ────────────────────────────────
+            TrackFilter effectiveFilter = smartTrackFilterService.resolve(
+                    movedFile, ctx.getRequest().getTrackFilter());
+            // ─────────────────────────────────────────────────────────────────
 
             Path enriched = enrichmentService.enrich(
                     movedFile,
                     ctx.getRecordId(),
                     episodeRef != null ? episodeRef.season() : null,
                     episodeRef != null ? episodeRef.episode() : null,
-                    ctx.getRequest().getTrackFilter(),
+                    effectiveFilter,
                     ctx.getJobId()
             );
             if (!enriched.equals(movedFile)) {
@@ -236,7 +239,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return enriched;
         } catch (Exception e) {
             ctx.logError("FFMPEG", "Enrichment failed (non-fatal): " + e.getMessage());
-            return movedFile; // continue with un-enriched file
+            return movedFile;
         }
     }
 
