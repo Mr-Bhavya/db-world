@@ -1,5 +1,6 @@
 package com.db.dbworld.app.media.ingestion.controller;
 
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.ingestion.entity.IngestionJobEntity;
 import com.db.dbworld.app.media.ingestion.model.*;
@@ -12,9 +13,11 @@ import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.payloads.ApiResponse;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.Map;
 
 /**
  * REST API for the ingestion pipeline.
@@ -54,6 +57,7 @@ public class IngestionController {
     private final IngestionJobRepository jobRepository;
     private final YtFormatService        ytFormatService;
     private final FileBrowserService     fileBrowserService;
+    private final RecordRepository       recordRepository;
 
     public IngestionController(
             IngestionPipeline      pipeline,
@@ -62,7 +66,8 @@ public class IngestionController {
             Aria2RpcService        aria2RpcService,
             IngestionJobRepository jobRepository,
             YtFormatService        ytFormatService,
-            FileBrowserService     fileBrowserService
+            FileBrowserService     fileBrowserService,
+            RecordRepository       recordRepository
     ) {
         this.pipeline           = pipeline;
         this.trackingService    = trackingService;
@@ -71,6 +76,7 @@ public class IngestionController {
         this.jobRepository      = jobRepository;
         this.ytFormatService    = ytFormatService;
         this.fileBrowserService = fileBrowserService;
+        this.recordRepository   = recordRepository;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -243,8 +249,13 @@ public class IngestionController {
     // ══════════════════════════════════════════════════════════════════════════
 
     @GetMapping("/history")
-    public ApiResponse<List<IngestionJobEntity>> getHistory() {
-        return ApiResponse.success(jobRepository.findAll());
+    public ApiResponse<List<Map<String, Object>>> getHistory() {
+        List<Map<String, Object>> history = jobRepository.findAll(
+                        Sort.by(Sort.Direction.DESC, "startedAt"))
+                .stream()
+                .map(this::toHistoryDto)
+                .collect(java.util.stream.Collectors.toList());
+        return ApiResponse.success(history);
     }
 
     @GetMapping("/history/{jobId}")
@@ -332,6 +343,27 @@ public class IngestionController {
     // ══════════════════════════════════════════════════════════════════════════
     // HELPERS
     // ══════════════════════════════════════════════════════════════════════════
+
+    private Map<String, Object> toHistoryDto(IngestionJobEntity e) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("jobId",       e.getJobId());
+        m.put("status",      e.getStatus());
+        m.put("step",        e.getStep());
+        m.put("sourceType",  e.getSourceType());
+        m.put("uri",         e.getUri());
+        m.put("fileName",    e.getFileName());
+        m.put("totalBytes",  e.getTotalBytes());
+        m.put("startedAt",   e.getStartedAt());
+        m.put("completedAt", e.getCompletedAt());
+        m.put("failReason",  e.getFailReason());
+        m.put("recordId",    e.getRecordId());
+        if (e.getRecordId() != null) {
+            String rName = recordRepository.findById(e.getRecordId())
+                    .map(r -> r.getName()).orElse(null);
+            m.put("recordName", rName);
+        }
+        return m;
+    }
 
     private IngestionRequest cloneRequest(IngestionRequest base, String uri) {
         IngestionRequest r = new IngestionRequest();
