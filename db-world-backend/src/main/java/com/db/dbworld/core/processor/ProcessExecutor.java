@@ -192,6 +192,13 @@ public class ProcessExecutor implements AutoCloseable {
         }
         String[] command = cmdList.toArray(new String[0]);
 
+        // Build a safe (redacted) representation for logging and error messages
+        String safeCommandStr = cmdList.stream()
+                .map(s -> s.startsWith("-p") && s.length() > 2 ? "-p[REDACTED]" : s)
+                .collect(java.util.stream.Collectors.joining(" "));
+
+        log.debug("Starting extraction: {}", safeCommandStr);
+
         ProcessResult result = execute(
                 ProcessConfiguration.builder()
                         .command(command)
@@ -206,7 +213,7 @@ public class ProcessExecutor implements AutoCloseable {
         if (!result.success()) {
             throw ProcessExecutionException.forExitCode(
                     result.exitCode(),
-                    String.join(" ", command)
+                    safeCommandStr          // safe — password redacted
             );
         }
     }
