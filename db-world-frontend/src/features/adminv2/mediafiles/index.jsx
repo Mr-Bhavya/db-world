@@ -641,7 +641,7 @@ export default function MediaFilesPage() {
   /* ── Render ──────────────────────────────────────────────────────────── */
 
   return (
-    <Box sx={{ p: 3, bgcolor: T.adminBg, minHeight: '100%' }}>
+    <Box sx={{ p: 3, bgcolor: T.adminBg, minHeight: '100%', width: '100%', overflowX: 'hidden' }}>
 
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
@@ -694,7 +694,7 @@ export default function MediaFilesPage() {
 
       {/* Filter bar */}
       <Paper sx={{ p: 2, mb: 2, bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2 }}>
-        <Grid container spacing={1.5} alignItems="center">
+        <Grid container spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
           <Grid item xs={12} sm={4}>
             <TextField size="small" fullWidth placeholder="Search files, records…"
               value={search} onChange={e => setSearch(e.target.value)}
@@ -790,8 +790,8 @@ export default function MediaFilesPage() {
       {/* Table view */}
       {viewMode === 'table' && !isLoading && (
         <Paper sx={{ border: `1px solid ${T.border}`, borderRadius: 2, overflow: 'hidden', bgcolor: T.glass }}>
-          <TableContainer>
-            <Table size="small">
+          <TableContainer sx={{ overflowX: 'auto', maxWidth: '100%' }}>
+            <Table size="small" sx={{ minWidth: 650 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: T.glassHover }}>
                   <TableCell padding="checkbox">
