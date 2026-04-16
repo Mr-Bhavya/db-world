@@ -305,7 +305,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         String videoCodec = normalizeVideoCodec(video != null ? video.getFormat() : null);
         String hdr = sanitizeHdr(video);
         String bitDepth = normalizeBitDepth(video);
-        String language = normalizeLanguage(audio != null ? audio.getLanguage() : null);
+        String language = buildAudioLanguageSegment(mediaInfo);
         String audioCodec = normalizeAudioCodec(audio != null ? audio.getFormat() : null);
         String channels = normalizeChannels(audio != null ? audio.getChannels() : null);
 
@@ -475,6 +475,31 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private String normalizeBitDepth(TrackDto video) {
         if (video == null || video.getBitDepth() == null) return null;
         return MediaTagResolver.BIT_DEPTH_MAP.getOrDefault(video.getBitDepth(), video.getBitDepth() + "Bit");
+    }
+
+    /**
+     * Builds the audio language filename segment.
+     * Single track: "{Language}" (e.g., "Hindi")
+     * Two tracks:   "Dual.{PrimaryLang}" (e.g., "Dual.Hindi")
+     * Three+:       "Multi.{PrimaryLang}" (e.g., "Multi.Hindi")
+     */
+    private String buildAudioLanguageSegment(MediaFileDto mediaInfo) {
+        if (mediaInfo.getTracks() == null) return null;
+
+        List<TrackDto> audioTracks = mediaInfo.getTracks().stream()
+                .filter(t -> "Audio".equals(t.getType()))
+                .collect(Collectors.toList());
+
+        TrackDto primary = mediaInfo.getPrimaryAudioTrack();
+        String primaryLang = normalizeLanguage(primary != null ? primary.getLanguage() : null);
+
+        if (audioTracks.size() >= 3) {
+            return primaryLang != null ? "Multi." + primaryLang : "Multi";
+        } else if (audioTracks.size() == 2) {
+            return primaryLang != null ? "Dual." + primaryLang : "Dual";
+        } else {
+            return primaryLang; // single track, no prefix
+        }
     }
 
     private String normalizeLanguage(String language) {
