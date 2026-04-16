@@ -139,7 +139,7 @@ export default function JobCard({ job }) {
   const {
     jobId, status = 'QUEUED', step, sourceType,
     fileName, uri, progress, failReason,
-    startTime, elapsedMs,
+    startTime, elapsedMs, recordId, recordName,
   } = job;
 
   const cfg     = STATUS_CFG[status] ?? STATUS_CFG.STARTED;
@@ -207,6 +207,16 @@ export default function JobCard({ job }) {
                     {displayName}
                   </Typography>
                 </Tooltip>
+                {recordName && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    noWrap
+                    sx={{ display: 'block', ml: '26px', mt: '-2px', fontSize: '0.68rem' }}
+                  >
+                    #{recordId} · {recordName}
+                  </Typography>
+                )}
               </Stack>
 
               <Stack direction="row" spacing={0.75} alignItems="center" flexShrink={0}>
@@ -269,7 +279,8 @@ export default function JobCard({ job }) {
             {/* ── Job ID ──────────────────────────────────────────────── */}
             <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
               {jobId.slice(0, 8)}…
-              {elapsedMs && ` · ${Math.round(elapsedMs / 1000)}s`}
+              {elapsedMs != null && ` · ${fmtDurationMs(elapsedMs)}`}
+              {['SUCCESS', 'FAILED', 'CANCELLED'].includes(status) && elapsedMs > 0 && ' total'}
             </Typography>
           </CardContent>
         </Card>
