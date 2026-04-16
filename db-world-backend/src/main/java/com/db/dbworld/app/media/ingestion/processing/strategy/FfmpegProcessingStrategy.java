@@ -364,16 +364,42 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         Path finalDir = fileStorageService.resolveFinalDir(ctx);
         Files.createDirectories(finalDir);
 
-        Path normalizedFile = file.toAbsolutePath().normalize();
+        Path normalizedFile     = file.toAbsolutePath().normalize();
         Path normalizedFinalDir = finalDir.toAbsolutePath().normalize();
-        if (normalizedFile.getParent() != null && normalizedFile.getParent().equals(normalizedFinalDir)) {
-            return file;
+        if (normalizedFile.getParent() != null
+                && normalizedFile.getParent().equals(normalizedFinalDir)) {
+            return file; // already in final dir
         }
 
-        Path finalPath = finalDir.resolve(file.getFileName().toString());
+        Path finalPath = resolveNonConflicting(finalDir, file.getFileName().toString());
+        if (!finalPath.getFileName().equals(file.getFileName())) {
+            ctx.log("FFMPEG", "Duplicate detected — renaming to: " + finalPath.getFileName());
+        }
         ctx.log("FFMPEG", "Promoting to final: " + file.getFileName() + " → " + finalDir);
-        Files.move(file, finalPath, StandardCopyOption.REPLACE_EXISTING);
+        Files.move(file, finalPath); // no REPLACE_EXISTING — path is guaranteed free
         return finalPath;
+    }
+
+    /**
+     * Returns a path in {@code targetDir} for the given {@code fileName} that does
+     * not currently exist on disk.
+     *
+     * If {@code fileName} is free → returns it as-is.
+     * Otherwise appends ".1", ".2", … until a free slot is found (up to 99).
+     * Falls back to a timestamp suffix to guarantee uniqueness.
+     */
+    private Path resolveNonConflicting(Path targetDir, String fileName) {
+        Path candidate = targetDir.resolve(fileName);
+        if (!Files.exists(candidate)) return candidate;
+
+        String base = stripExt(fileName);
+        String ext  = extension(fileName);
+        for (int suffix = 1; suffix < 100; suffix++) {
+            candidate = targetDir.resolve(base + "." + suffix + "." + ext);
+            if (!Files.exists(candidate)) return candidate;
+        }
+        // Fallback: timestamp suffix to guarantee uniqueness
+        return targetDir.resolve(base + "." + System.currentTimeMillis() + "." + ext);
     }
 
     private void appendSegment(StringBuilder builder, String value) {
