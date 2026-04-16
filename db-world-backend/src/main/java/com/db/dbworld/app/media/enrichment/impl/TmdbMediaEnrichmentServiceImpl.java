@@ -182,7 +182,8 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             Path outputFile = resolveOutputPath(inputFile, namingInfo.title(), namingInfo.seriesTitle(), season, episode, namingInfo.episodeName());
 
             // ── ONE FFmpeg pass ───────────────────────────────────────────
-            runFfmpegOnePass(inputFile, posterFile, outputFile, namingInfo.title(), namingInfo.overview(), filter, jobId);
+            String globalTitle = buildGlobalTitle(namingInfo, season, episode);
+            runFfmpegOnePass(inputFile, posterFile, outputFile, globalTitle, namingInfo.overview(), filter, jobId);
             // ─────────────────────────────────────────────────────────────
 
             if (!outputFile.equals(inputFile)) {
@@ -490,6 +491,27 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     // ──────────────────────────────────────────────────────────────────────────
     // Helpers
     // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Builds the global {@code title} metadata tag value.
+     *
+     * For movies:    "{Title}"
+     * For TV series: "{SeriesName} - Season X Episode Y \u2013 {EpisodeName}"
+     *                (en-dash before episode name; episode name is optional)
+     */
+    private String buildGlobalTitle(MediaNamingInfo info, Integer season, Integer episode) {
+        if (info.seriesTitle() != null && !info.seriesTitle().isBlank()
+                && season != null && episode != null) {
+            StringBuilder sb = new StringBuilder(info.seriesTitle())
+                    .append(" - Season ").append(season)
+                    .append(" Episode ").append(episode);
+            if (info.episodeName() != null && !info.episodeName().isBlank()) {
+                sb.append(" \u2013 ").append(info.episodeName()); // en-dash (–)
+            }
+            return sb.toString();
+        }
+        return info.title();
+    }
 
     private String extension(String name) {
         int dot = name.lastIndexOf('.');
