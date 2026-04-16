@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import { useT } from '@shared/theme';
 import {
-  Add, Delete, Link as LinkIcon, MusicNote, Lock, Archive,
+  Add, Delete, Link as LinkIcon, MusicNote, Lock, LockOutlined, Archive,
   Send, Clear, VideoSettings, Info, CloudDownload, FolderOpen,
   UploadFile, Close,
 } from '@mui/icons-material';
@@ -42,7 +42,6 @@ const schema = z.object({
   // zip
   extract:   z.boolean().default(false),
   zipPwd:    z.string().optional(),
-  useZipPwd: z.boolean().default(false),
   // audio
   audioOnly: z.boolean().default(false),
   // yt-dlp
@@ -206,7 +205,6 @@ export default function IngestionForm({ onSubmitted }) {
         useAuth:   false,
         extract:   false,
         zipPwd:    '',
-        useZipPwd: false,
         audioOnly: false,
         videoITag: null,
         audioITag: null,
@@ -219,7 +217,6 @@ export default function IngestionForm({ onSubmitted }) {
   const urls      = watch('urls');
   const useAuth   = watch('useAuth');
   const extract   = watch('extract');
-  const useZipPwd = watch('useZipPwd');
   const audioOnly = watch('audioOnly');
   const videoITag = watch('videoITag');
   const audioITag = watch('audioITag');
@@ -284,7 +281,7 @@ export default function IngestionForm({ onSubmitted }) {
       username: data.useAuth ? data.username : undefined,
       password: data.useAuth ? data.password : undefined,
       // zip password
-      extractPassword: data.useZipPwd ? data.zipPwd : undefined,
+      extractPassword: data.extract && data.zipPwd ? data.zipPwd : undefined,
       // yt-dlp formats
       videoITag: isYtMode && !data.audioOnly ? data.videoITag : undefined,
       audioITag: isYtMode ? data.audioITag : undefined,
@@ -567,45 +564,43 @@ export default function IngestionForm({ onSubmitted }) {
 
             {/* ZIP Extraction */}
             <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-              <Stack direction="row" spacing={2}>
-                <Controller
-                  name="extract"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControlLabel
-                      control={<Switch {...field} checked={field.value} size="small" />}
-                      label={
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <Archive sx={{ fontSize: 15 }} />
-                          <Typography variant="body2">Extract ZIP/RAR/7z</Typography>
-                        </Stack>
-                      }
-                    />
-                  )}
-                />
-                <Controller
-                  name="useZipPwd"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControlLabel
-                      control={<Switch {...field} checked={field.value} size="small" />}
-                      label={<Typography variant="body2">ZIP password</Typography>}
-                    />
-                  )}
-                />
-              </Stack>
-              <Collapse in={extract && useZipPwd}>
+              <Controller
+                name="extract"
+                control={control}
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={<Switch {...field} checked={field.value} size="small" />}
+                    label={
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Archive sx={{ fontSize: 15 }} />
+                        <Typography variant="body2">Extract ZIP / RAR / 7z after download</Typography>
+                      </Stack>
+                    }
+                  />
+                )}
+              />
+
+              <Collapse in={extract}>
                 <Controller
                   name="zipPwd"
                   control={control}
-                  render={({ field }) => (
+                  render={({ field, fieldState }) => (
                     <TextField
                       {...field}
-                      size="small"
-                      label="Archive password"
+                      label="Archive password (optional)"
                       type="password"
+                      size="small"
                       fullWidth
                       sx={{ mt: 1 }}
+                      error={!!fieldState.error}
+                      helperText={fieldState.error?.message ?? 'Leave blank if the archive has no password'}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockOutlined sx={{ fontSize: 16, color: 'text.disabled' }} />
+                          </InputAdornment>
+                        ),
+                      }}
                     />
                   )}
                 />
