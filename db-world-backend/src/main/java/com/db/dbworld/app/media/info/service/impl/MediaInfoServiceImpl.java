@@ -7,6 +7,7 @@ import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.entity.track.*;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
+import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -209,7 +210,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 t.setFormat(text(node, "Format"));
                 t.setFormatCommercial(text(node, "Format_Commercial_IfAny"));
                 t.setCodecId(text(node, "CodecID"));
-                t.setLanguage(text(node, "Language"));
+                t.setLanguage(resolveLanguage(text(node, "Language")));
                 t.setTitle(text(node, "Title"));
                 t.setChannels(intVal(node, "Channels"));
                 t.setChannelLayout(text(node, "ChannelLayout"));
@@ -229,7 +230,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 t.setExtraJson(extraJson);
                 t.setFormat(text(node, "Format"));
                 t.setCodecId(text(node, "CodecID"));
-                t.setLanguage(text(node, "Language"));
+                t.setLanguage(resolveLanguage(text(node, "Language")));
                 t.setTitle(text(node, "Title"));
                 t.setDefaultTrack(text(node, "Default"));
                 t.setForced(text(node, "Forced"));
@@ -383,6 +384,12 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         JsonNode n = node.get(field);
         if (n == null || n.isNull()) return null;
         try { return n.asInt(); } catch (Exception e) { return null; }
+    }
+
+    private String resolveLanguage(String raw) {
+        if (raw == null) return null;
+        String resolved = MediaTagResolver.resolveLanguage(raw);
+        return "Unknown".equalsIgnoreCase(resolved) ? raw : resolved;
     }
 
     /**
