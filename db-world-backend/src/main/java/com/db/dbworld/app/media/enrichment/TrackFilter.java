@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Optional track-selection directives applied during TMDB enrichment.
@@ -71,6 +72,19 @@ public class TrackFilter {
      */
     @Builder.Default
     private boolean keepFirstVideoOnly = false;
+
+    /**
+     * Number of audio streams per original language code (e.g. "hin" → 2 for dual-channel).
+     * Used to emit correct index-based {@code -metadata:s:a:N} specifiers.
+     * {@code null} means assume 1 stream per language.
+     */
+    private Map<String, Integer> audioStreamCounts;
+
+    /**
+     * Number of subtitle streams per original language code.
+     * {@code null} means assume 1 stream per language.
+     */
+    private Map<String, Integer> subStreamCounts;
 
     /** Returns {@code true} if any filtering or metadata directive is requested. */
     public boolean hasAnyFilter() {

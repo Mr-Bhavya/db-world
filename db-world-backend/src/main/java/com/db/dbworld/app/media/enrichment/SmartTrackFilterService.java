@@ -69,6 +69,8 @@ public class SmartTrackFilterService {
                 .keepSubtitleLanguages(keepSubs.isEmpty() ? null : keepSubs)
                 .defaultAudioLanguage(keepAudio.isEmpty() ? null : keepAudio.getFirst())
                 .noDefaultSubtitle(true)
+                .audioStreamCounts(keepAudio.isEmpty() ? null : buildCountMap(keepAudio, langs.audioCounts()))
+                .subStreamCounts(keepSubs.isEmpty() ? null : buildCountMap(keepSubs, langs.subCounts()))
                 .build();
     }
 
@@ -86,6 +88,18 @@ public class SmartTrackFilterService {
     }
 
     /**
+     * Builds a language-code → stream-count map for the kept codes only.
+     * Falls back to 1 if a code has no count entry (shouldn't happen in practice).
+     */
+    private Map<String, Integer> buildCountMap(List<String> keepCodes, Map<String, Integer> rawCounts) {
+        Map<String, Integer> result = new LinkedHashMap<>();
+        for (String code : keepCodes) {
+            result.put(code, rawCounts.getOrDefault(code, 1));
+        }
+        return result;
+    }
+
+    /**
      * Probes the file via ffprobe and collects track language codes.
      *
      * ffprobe is used (not MediaInfo) because it returns the EXACT language tags
@@ -100,8 +114,10 @@ public class SmartTrackFilterService {
      * track type. First occurrence of each resolved language wins.
      */
     private TrackLanguages probeLanguages(Path file) {
-        Map<String, String> audioLangs = new LinkedHashMap<>();
-        Map<String, String> subLangs   = new LinkedHashMap<>();
+        Map<String, String>  audioLangs   = new LinkedHashMap<>(); // resolvedName → originalCode (first seen)
+        Map<String, String>  subLangs     = new LinkedHashMap<>();
+        Map<String, Integer> audioCounts  = new LinkedHashMap<>(); // originalCode → stream count
+        Map<String, Integer> subCounts    = new LinkedHashMap<>();
         try {
             String json = processExecutor.runFfprobeStreamsJson(file);
             JsonNode root    = objectMapper.readTree(json);
@@ -112,14 +128,24 @@ public class SmartTrackFilterService {
                 if (lang.isBlank()) continue;
                 String resolved = MediaTagResolver.resolveLanguage(lang.toLowerCase());
                 if ("Unknown".equalsIgnoreCase(resolved)) continue;
-                if ("audio".equalsIgnoreCase(codecType))    audioLangs.putIfAbsent(resolved, lang);
-                else if ("subtitle".equalsIgnoreCase(codecType)) subLangs.putIfAbsent(resolved, lang);
+                if ("audio".equalsIgnoreCase(codecType)) {
+                    audioLangs.putIfAbsent(resolved, lang);
+                    audioCounts.merge(lang, 1, Integer::sum);
+                } else if ("subtitle".equalsIgnoreCase(codecType)) {
+                    subLangs.putIfAbsent(resolved, lang);
+                    subCounts.merge(lang, 1, Integer::sum);
+                }
             }
         } catch (Exception e) {
             log.warn("Failed to probe track languages for {}: {}", file.getFileName(), e.getMessage());
         }
-        return new TrackLanguages(audioLangs, subLangs);
+        return new TrackLanguages(audioLangs, subLangs, audioCounts, subCounts);
     }
 
-    private record TrackLanguages(Map<String, String> audio, Map<String, String> subtitles) {}
+    private record TrackLanguages(
+            Map<String, String>  audio,
+            Map<String, String>  subtitles,
+            Map<String, Integer> audioCounts,
+            Map<String, Integer> subCounts
+    ) {}
 }
