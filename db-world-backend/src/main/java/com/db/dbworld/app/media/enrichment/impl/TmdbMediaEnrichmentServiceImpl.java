@@ -7,6 +7,7 @@ import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import com.db.dbworld.app.media.enrichment.TmdbMediaEnrichmentService;
 import com.db.dbworld.app.media.enrichment.TrackFilter;
+import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.core.exception.ProcessExecutionException;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.db.dbworld.core.processor.StreamProcessor;
@@ -29,7 +30,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -61,31 +61,10 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private static final String TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
 
-    private static final Map<String, String> LANG_CODE_TO_NAME = Map.ofEntries(
-        Map.entry("hin", "Hindi"),
-        Map.entry("eng", "English"),
-        Map.entry("guj", "Gujarati"),
-        Map.entry("tam", "Tamil"),
-        Map.entry("tel", "Telugu"),
-        Map.entry("jpn", "Japanese"),
-        Map.entry("kor", "Korean"),
-        Map.entry("chi", "Chinese"),
-        Map.entry("fra", "French"),
-        Map.entry("spa", "Spanish"),
-        Map.entry("ara", "Arabic"),
-        Map.entry("por", "Portuguese"),
-        Map.entry("ger", "German"),
-        Map.entry("ita", "Italian"),
-        Map.entry("rus", "Russian"),
-        Map.entry("tha", "Thai"),
-        Map.entry("vie", "Vietnamese"),
-        Map.entry("msa", "Malay"),
-        Map.entry("und", "Unknown")
-    );
-
     private String langName(String code) {
         if (code == null || code.isBlank()) return null;
-        return LANG_CODE_TO_NAME.getOrDefault(code.toLowerCase().trim(), code);
+        String resolved = MediaTagResolver.resolveLanguage(code.toLowerCase().trim());
+        return "Unknown".equalsIgnoreCase(resolved) ? null : resolved;
     }
 
     private final RecordRepository recordRepository;
