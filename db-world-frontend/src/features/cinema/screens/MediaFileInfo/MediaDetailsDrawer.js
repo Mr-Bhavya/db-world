@@ -20,7 +20,7 @@ import { motion } from 'framer-motion';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
-import { loadStreamFileInfoByFiledId } from '@shared/services/ApiServices';
+import { loadStreamFileInfoByFiledId, resolveMediaUrl } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
@@ -92,16 +92,25 @@ const Badge = ({ color, label, border = false }) => (
 
 // ─── CopyButton — shows check on success ─────────────────────────────────────
 
-const CopyButton = ({ url, label, size = 'small' }) => {
+const CopyButton = ({ getUrl, label, size = 'small' }) => {
   const [done, setDone] = useState(false);
+  const [working, setWorking] = useState(false);
   const handle = async () => {
-    const r = await CommonServices.handleCopy(url);
-    if (r.success) { setDone(true); setTimeout(() => setDone(false), 2000); }
-    else toast.error('Copy failed');
+    setWorking(true);
+    try {
+      const url = await getUrl();
+      if (url) {
+        const r = await CommonServices.handleCopy(url);
+        if (r.success) { setDone(true); setTimeout(() => setDone(false), 2000); }
+        else toast.error('Copy failed');
+      }
+    } finally {
+      setWorking(false);
+    }
   };
   return (
     <Tooltip title={done ? 'Copied!' : label}>
-      <IconButton size={size} onClick={handle} disabled={!url}
+      <IconButton size={size} onClick={handle} disabled={working}
         sx={{ border: '1px solid', borderColor: done ? 'success.main' : 'divider', borderRadius: 1.5, p: 0.7, color: done ? 'success.main' : 'text.secondary' }}>
         {done ? <Check sx={{ fontSize: 16 }} /> : <ContentCopy sx={{ fontSize: 16 }} />}
       </IconButton>
@@ -115,6 +124,8 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const theme = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [enrichedFiles, setEnrichedFiles] = useState(null);
 
   const { general, video, audio, subtitle } = mediaInfo;
   const quality  = getQuality(video, general?.fileName);
@@ -123,34 +134,60 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const bitDepth = video?.bitDepth;
   const qMeta    = QUALITY_META[quality] || QUALITY_META['Unknown'];
 
-  const handlePlay = () => {
-    if (Capacitor.getPlatform() === 'android') {
-      AndroidPlugins.launchNativePlayer({
-        url:            mediaInfo.streamUrl,
-        title:          record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName,
-        fileName:       general?.fileName || '',
-        fileId:         String(mediaInfo.id || ''),
-        preferredAudio: 'Hindi',
-        preferredSub:   null,
-      });
-    } else {
-      setPlayerOpen(true);
+  const resolveAll = async (type) => {
+    const files = (allFiles?.length > 0 ? allFiles : [mediaInfo]);
+    return Promise.all(files.map(async (f) => {
+      if (!f?.mediaFileId) return f;
+      try {
+        const res = await resolveMediaUrl(f.mediaFileId, type);
+        const cdnUrl = res?.data?.cdnUrl;
+        return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
+      } catch { return f; }
+    }));
+  };
+
+  const handlePlay = async () => {
+    setResolving(true);
+    try {
+      const enriched = await resolveAll('ONLINE');
+      setEnrichedFiles(enriched);
+      const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
+      if (Capacitor.getPlatform() === 'android') {
+        AndroidPlugins.launchNativePlayer({
+          url:            current?.streamUrl,
+          title:          record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName,
+          fileName:       general?.fileName || '',
+          fileId:         String(mediaInfo.id || ''),
+          preferredAudio: 'Hindi',
+          preferredSub:   null,
+        });
+      } else {
+        setPlayerOpen(true);
+      }
+    } catch (e) {
+      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
   };
 
   const handleDownload = async () => {
-    if (Capacitor.getPlatform() === 'android') {
-      try {
-        await DbWorldDownload.startDownload({ url: mediaInfo.downloadUrl, fileName: general?.fileName || 'download' });
-        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
-          variant: 'success', autoHideDuration: 3000,
-        });
-      } catch (e) {
-        console.error('Download failed', e);
-        enqueueSnackbar('Failed to start download', { variant: 'error' });
+    setResolving(true);
+    try {
+      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
+      const cdnUrl = res?.data?.cdnUrl;
+      if (!cdnUrl) throw new Error('No CDN URL');
+      if (Capacitor.getPlatform() === 'android') {
+        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName || 'download' });
+        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+      } else {
+        CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
       }
-    } else {
-      CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
+    } catch (e) {
+      console.error('Download failed', e);
+      enqueueSnackbar('Failed to start download', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -231,28 +268,43 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
         flexShrink: 0,
       }}>
         <Button
-          size="small" variant="contained" startIcon={<PlayArrow />}
+          size="small" variant="contained"
+          startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <PlayArrow />}
           onClick={handlePlay}
+          disabled={resolving}
           sx={{ bgcolor: '#fff', color: '#000', fontWeight: 700, fontSize: '0.8rem', textTransform: 'none', px: 2, py: 0.8, borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }}
         >
           Play
         </Button>
-        <CopyButton url={mediaInfo.streamUrl} label="Copy stream URL" />
+        <CopyButton
+          getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'ONLINE').then(r => r?.data?.cdnUrl)}
+          label="Copy stream URL"
+        />
 
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
         <Button
-          size="small" variant="outlined" startIcon={<Download />}
+          size="small" variant="outlined"
+          startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <Download />}
           onClick={handleDownload}
+          disabled={resolving}
           sx={{ fontSize: '0.8rem', textTransform: 'none', px: 2, py: 0.8, borderRadius: 1.5 }}
         >
           Download
         </Button>
-        <CopyButton url={mediaInfo.downloadUrl} label="Copy download URL" />
+        <CopyButton
+          getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD').then(r => r?.data?.cdnUrl)}
+          label="Copy download URL"
+        />
       </Box>
 
-      <CinemaPlayer open={playerOpen} onClose={() => setPlayerOpen(false)}
-        mediaInfo={mediaInfo} allFiles={allFiles ?? [mediaInfo]} record={record} />
+      <CinemaPlayer
+        open={playerOpen}
+        onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
+        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? mediaInfo) : mediaInfo}
+        allFiles={enrichedFiles ?? (allFiles ?? [mediaInfo])}
+        record={record}
+      />
     </Box>
   );
 };

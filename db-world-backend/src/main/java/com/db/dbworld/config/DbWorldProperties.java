@@ -19,7 +19,8 @@ public record DbWorldProperties(
         @Valid Paths paths,
         @Valid Tools tools,
         @Valid ApiKeys apiKeys,
-        @Valid Tokens tokens
+        @Valid Tokens tokens,
+        @Valid Cdn cdn
 ) {
 
     public record Paths(
@@ -46,4 +47,6 @@ public record DbWorldProperties(
     public record ApiKeys(String tmdb) {}
 
     public record Tokens(String tmdb) {}
+
+    public record Cdn(String baseUrl) {}
 }

@@ -1,28 +1,23 @@
 package com.db.dbworld.app.stream.service.impl;
 
 import com.db.dbworld.app.media.info.service.MediaInfoService;
+import com.db.dbworld.app.stream.dto.CdnResolveDto;
 import com.db.dbworld.app.stream.enums.StreamType;
+import com.db.dbworld.app.stream.service.CdnUrlBuilder;
 import com.db.dbworld.app.stream.service.StreamService;
 import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
-import com.db.dbworld.core.processor.ProcessExecutor;
-import com.db.dbworld.utils.DbWorldConstants;
 import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import com.db.dbworld.utils.DbWorldUtils;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,194 +27,129 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * Media file streaming service.
- * Migrated from com.db.dbworld.services.media.impl.StreamServiceImpl.
- *
- * Changes from original:
- * - Uses {@link MediaInfoService#getById(String)} instead of deprecated MediaFileInfoService
- *   to resolve real file path in streamById()
- * - Removed getMediaInfoByFileId() and parseMediaInfo() — those belong to MediaInfoService
- */
 @Log4j2
 @Service
 @Transactional
 @RequiredArgsConstructor
 public class StreamServiceImpl implements StreamService {
 
-    private final DbWorldRuntimeProperties      runtime;
-    private final DbWorldUtils                  dbWorldUtils;
-    private final ProcessExecutor               processExecutor;
-    private final UserCinemaActivityService     activityService;
-    private final MediaInfoService              mediaInfoService;
+    private final DbWorldRuntimeProperties  runtime;
+    private final DbWorldUtils              dbWorldUtils;
+    private final UserCinemaActivityService activityService;
+    private final MediaInfoService          mediaInfoService;
+    private final CdnUrlBuilder             cdnUrlBuilder;
 
     private final Map<String, String> normalizedCache = new ConcurrentHashMap<>();
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Streaming
+    // Resolve — returns CDN URL as JSON for direct player / download use
     // ──────────────────────────────────────────────────────────────────────────
 
     @Override
-    public ResponseEntity<Void> streamByPath(String user, Path path, String rangeHeader, boolean inline) {
-        log.info("streamByPath: user={}, path={}, inline={}", user, path, inline);
-        Objects.requireNonNull(user, "user must not be null");
-        Objects.requireNonNull(path, "path must not be null");
+    public CdnResolveDto resolveById(String user, String mediaFileId, boolean inline,
+                                      String userAgent, String remoteAddr) {
+        log.info("resolveById: user={}, mediaFileId={}, inline={}", user, mediaFileId, inline);
 
-        try {
-            Path resolvedPath = runtime.getStreamPath().resolve(path);
-            log.debug("Resolved streamPath={}", resolvedPath);
-            return streamInternal(user, resolvedPath, resolvedPath, rangeHeader, inline);
-        } catch (Exception e) {
-            log.error("Error in streamByPath for user={}, path={}", user, path, e);
-            throw new DbWorldException("Failed to stream by path", e);
+        var mediaFile = mediaInfoService.getById(mediaFileId)
+                .orElseThrow(() -> new DbWorldException("MediaFile not found: " + mediaFileId));
+
+        Path realFile = Path.of(mediaFile.getFilePath());
+        if (!Files.exists(realFile)) {
+            throw new DbWorldException("File does not exist on disk: " + mediaFile.getFilePath());
         }
+
+        StreamType type       = inline ? StreamType.ONLINE : StreamType.DOWNLOAD;
+        String     downloadId = cdnUrlBuilder.generateDownloadId(user, mediaFileId);
+        String     requestId  = cdnUrlBuilder.generateRequestId();
+        String     fileName   = mediaFile.getFileName();
+        long       fileSize   = resolveFileSize(mediaFile.getFileSize(), realFile);
+
+        String cdnUrl = cdnUrlBuilder.buildByMediaFileId(mediaFileId, user, type, fileName, downloadId, requestId);
+
+        trackResolveActivity(user, realFile, fileSize, inline, remoteAddr, userAgent, downloadId, cdnUrl);
+
+        return CdnResolveDto.builder()
+                .cdnUrl(cdnUrl)
+                .downloadId(downloadId)
+                .requestId(requestId)
+                .fileName(fileName)
+                .fileSize(fileSize)
+                .mimeType(mediaFile.getMimeType())
+                .type(type.name())
+                .mediaFileId(mediaFileId)
+                .recordId(mediaFile.getRecordId())
+                .mediaFile(mediaFile)
+                .build();
     }
 
     @Override
-    public ResponseEntity<Void> streamById(String user, String mediaFileId, String rangeHeader, boolean inline) {
-        log.info("streamById: user={}, mediaFileId={}, inline={}", user, mediaFileId, inline);
-        try {
-            Path symlinkPath = runtime.getSymlinkPath().resolve(mediaFileId);
-            String filePath = mediaInfoService.getById(mediaFileId)
-                    .map(dto -> dto.getFilePath())
-                    .orElseThrow(() -> new DbWorldException("File not found for mediaFileId: " + mediaFileId));
-            Path realFilePath = Path.of(filePath);
-            log.debug("Resolved symlinkPath={}, realFilePath={}", symlinkPath, realFilePath);
-            if (!Files.exists(realFilePath)) {
-                log.error("File does not exist: {}", realFilePath);
-                throw new DbWorldException("File not found: " + realFilePath);
-            }
-            return streamInternal(user, symlinkPath, realFilePath, rangeHeader, inline);
-        } catch (Exception e) {
-            log.error("Error in streamById for user={}, mediaFileId={}", user, mediaFileId, e);
-            throw e instanceof DbWorldException ? (DbWorldException) e : new DbWorldException("Failed to stream by ID", e);
+    public CdnResolveDto resolveByPath(String user, String relativePath, boolean inline,
+                                        String userAgent, String remoteAddr) {
+        log.info("resolveByPath: user={}, path={}, inline={}", user, relativePath, inline);
+
+        Path realFile = resolveRealPath(relativePath);
+        if (!Files.exists(realFile)) {
+            throw new DbWorldException("File not found at path: " + relativePath);
         }
-    }
 
-    private ResponseEntity<Void> streamInternal(String user, Path accelPath, Path realFile, String rangeHeader, boolean inline) {
-        log.info("streamInternal: user={}, accelPath={}, realFile={}, inline={}", user, accelPath, realFile, inline);
-        try {
-            if (!Files.exists(realFile)) {
-                log.error("Real file does not exist: {}", realFile);
-                throw new DbWorldException("File not found: " + realFile);
-            }
-            if (!Files.isReadable(realFile)) {
-                log.error("Real file is not readable: {}", realFile);
-                throw new DbWorldException("File not readable: " + realFile);
-            }
+        StreamType type       = inline ? StreamType.ONLINE : StreamType.DOWNLOAD;
+        String     downloadId = cdnUrlBuilder.generateDownloadId(user, relativePath);
+        String     requestId  = cdnUrlBuilder.generateRequestId();
+        String     fileName   = realFile.getFileName().toString();
+        long       fileSize   = resolveFileSize(null, realFile);
 
-            DbWorldRecords.FileSizeInfo sizeInfo = dbWorldUtils.getFileSizeInfo(realFile);
-            DbWorldRecords.RangeInfo rangeInfo = parseRangeHeader(rangeHeader, sizeInfo.fileSize());
-            HttpHeaders headers = buildHeaders(user, accelPath, realFile, rangeInfo, inline);
+        String cdnUrl = cdnUrlBuilder.buildByRelativePath(
+                relativePath, user, type, fileName, downloadId, requestId);
 
-            trackActivity(user, realFile, sizeInfo.fileSize(), rangeHeader, inline);
+        trackResolveActivity(user, realFile, fileSize, inline, remoteAddr, userAgent, downloadId, cdnUrl);
 
-            log.info("Streaming: user={}, file={}, size={}, partial={}",
-                    user, realFile.getFileName(), sizeInfo.fileSize(), rangeInfo.isPartial());
-            return ResponseEntity.ok().headers(headers).build();
-        } catch (DbWorldException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error in streamInternal for user={}, file={}", user, realFile, e);
-            throw new DbWorldException("Streaming failed", e);
-        }
-    }
+        CdnResolveDto.CdnResolveDtoBuilder builder = CdnResolveDto.builder()
+                .cdnUrl(cdnUrl)
+                .downloadId(downloadId)
+                .requestId(requestId)
+                .fileName(fileName)
+                .fileSize(fileSize)
+                .mimeType(dbWorldUtils.determineContentType(realFile).toString())
+                .type(type.name());
 
-    private DbWorldRecords.RangeInfo parseRangeHeader(String header, long fileSize) {
-        if (header == null || !header.startsWith("bytes=")) {
-            return new DbWorldRecords.RangeInfo(0, false);
-        }
-        try {
-            long start = Long.parseLong(header.substring(6).split("-")[0]);
-            return new DbWorldRecords.RangeInfo(start, true);
-        } catch (Exception e) {
-            log.error("Invalid range header: {}", header, e);
-            throw new DbWorldException("Invalid Range header", e);
-        }
-    }
+        // Enrich from DB if a MediaFileEntity exists for this path
+        mediaInfoService.getByFilePath(realFile.toAbsolutePath().toString()).ifPresent(mf ->
+                builder.mediaFileId(mf.getId())
+                       .recordId(mf.getRecordId())
+                       .mediaFile(mf));
 
-    private HttpHeaders buildHeaders(String user, Path accelPath, Path realFile,
-                                     DbWorldRecords.RangeInfo rangeInfo, boolean inline) {
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.add(HttpHeaders.ACCEPT_RANGES, "bytes");
-            String accelRedirect = buildAccelRedirectUrl(accelPath, user, rangeInfo.rangeStart(), inline);
-            headers.add("X-Accel-Redirect", accelRedirect);
-            headers.setContentType(dbWorldUtils.determineContentType(realFile));
-            headers.setContentDisposition(dbWorldUtils.createContentDisposition(realFile, inline));
-            log.debug("Headers built: X-Accel-Redirect={}", accelRedirect);
-            return headers;
-        } catch (Exception e) {
-            log.error("Error building headers for user={}, file={}", user, realFile, e);
-            throw new DbWorldException("Failed to build headers", e);
-        }
-    }
-
-    private String buildAccelRedirectUrl(Path path, String user, long rangeStart, boolean inline) {
-        try {
-            Path normalized    = path.toAbsolutePath().normalize();
-            Path symlinkRoot   = runtime.getSymlinkPath().toAbsolutePath().normalize();
-            Path streamRoot    = runtime.getStreamPath().toAbsolutePath().normalize();
-            Path externalRoot  = runtime.getExternalVideosPath().toAbsolutePath().normalize();
-
-            final String baseLocation;
-            final Path relativePath;
-
-            if (normalized.startsWith(symlinkRoot)) {
-                baseLocation = DbWorldConstants.CDN_STREAM_ID;
-                relativePath = symlinkRoot.relativize(normalized);
-            } else if (normalized.startsWith(streamRoot)) {
-                baseLocation = DbWorldConstants.CDN_STREAM_PATH;
-                relativePath = streamRoot.relativize(normalized);
-            } else if (normalized.startsWith(externalRoot)) {
-                baseLocation = DbWorldConstants.CDN_STREAM_PATH;
-                relativePath = externalRoot.relativize(normalized);
-            } else {
-                log.error("Path outside allowed media roots: {}", normalized);
-                throw new IllegalArgumentException("Path outside allowed media roots: " + normalized);
-            }
-
-            String cleanPath    = StringUtils.cleanPath(relativePath.toString());
-            String encodedUser  = URLEncoder.encode(user, StandardCharsets.UTF_8);
-            String requestId    = UUID.randomUUID().toString();
-            String type         = inline ? StreamType.ONLINE.name() : StreamType.DOWNLOAD.name();
-
-            return baseLocation + cleanPath
-                    + "?userId="       + encodedUser
-                    + "&rangeStart="   + rangeStart
-                    + "&downloadId="   + requestId
-                    + "&requestId="    + requestId
-                    + "&type="         + type
-                    + "&originalFile=" + URLEncoder.encode(normalized.toString(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            log.error("Error building redirect URL for path={}, user={}", path, user, e);
-            throw new DbWorldException("Failed to build redirect URL", e);
-        }
+        return builder.build();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Activity tracking
     // ──────────────────────────────────────────────────────────────────────────
 
-    private void trackActivity(String user, Path file, long size, String range, boolean inline) {
+    private void trackResolveActivity(String user, Path file, long size, boolean inline,
+                                       String ip, String ua, String downloadId, String cdnUrl) {
         try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs == null) {
-                log.warn("No request attributes for activity tracking");
-                return;
-            }
-            HttpServletRequest req = attrs.getRequest();
-            String ip = dbWorldUtils.getClientIpAddress(req);
-            String ua = req.getHeader("User-Agent");
-
-            if (inline) {
-                activityService.trackStreamActivity(user, file.toString(), file.getFileName().toString(), size, range, ip, ua);
-            } else {
-                activityService.trackDownloadActivity(user, file.toString(), file.getFileName().toString(), size, range, ip, ua);
-            }
+            activityService.trackResolveActivity(
+                    user, file.toString(), file.getFileName().toString(),
+                    size, ip, ua, inline, downloadId, cdnUrl);
         } catch (Exception e) {
-            log.warn("Activity tracking failed for user={}", user, e);
+            log.warn("Resolve activity tracking failed for user={}", user, e);
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Internal helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private Path resolveRealPath(String relativePath) {
+        String clean = StringUtils.cleanPath(relativePath);
+        Path candidate = runtime.getStreamPath().resolve(clean).normalize();
+        if (Files.exists(candidate)) return candidate;
+        return runtime.getExternalVideosPath().resolve(clean).normalize();
+    }
+
+    private long resolveFileSize(Long known, Path file) {
+        if (known != null) return known;
+        try { return Files.size(file); } catch (IOException e) { return 0L; }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -262,7 +192,7 @@ public class StreamServiceImpl implements StreamService {
         String normalizedFile  = normalize(fileName);
         String normalizedQuery = normalize(query);
 
-        if (normalizedFile.contains(normalizedQuery))           return true;
+        if (normalizedFile.contains(normalizedQuery))              return true;
         if (isOrderedSubsequence(normalizedQuery, normalizedFile)) return true;
 
         String[] queryTokens = normalizedQuery.split("\\s+");
@@ -275,6 +205,46 @@ public class StreamServiceImpl implements StreamService {
                 .allMatch(token ->
                         normalizedFile.contains(token) ||
                         (token.length() >= 3 && containsNearMatchOptimized(normalizedFile, token)));
+    }
+
+    @Override
+    public DbWorldRecords.StreamableFileInfo buildDetails(Path path) {
+        try {
+            long size = Files.size(path);
+            String id = DigestUtils.md5DigestAsHex(
+                    path.toAbsolutePath().toString().getBytes(StandardCharsets.UTF_8));
+            return new DbWorldRecords.StreamableFileInfo(
+                    path.getFileName().toString(),
+                    toRelativePath(path),
+                    false,
+                    true,
+                    size,
+                    id
+            );
+        } catch (IOException e) {
+            log.error("Failed to read file details: {}", path, e);
+            throw new DbWorldException("Failed to read file details for " + path, e);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Fuzzy matching helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private String toRelativePath(Path fullPath) {
+        String normalized   = StringUtils.cleanPath(fullPath.toString());
+        String streamRoot   = StringUtils.cleanPath(runtime.getStreamPath().toString());
+        String externalRoot = StringUtils.cleanPath(runtime.getExternalVideosPath().toString());
+
+        String result;
+        if (normalized.startsWith(streamRoot)) {
+            result = normalized.substring(streamRoot.length());
+        } else if (normalized.startsWith(externalRoot)) {
+            result = normalized.substring(externalRoot.length());
+        } else {
+            result = fullPath.getFileName().toString();
+        }
+        return result.startsWith("/") ? result : "/" + result;
     }
 
     private String normalize(String input) {
@@ -327,50 +297,5 @@ public class StreamServiceImpl implements StreamService {
             if (a.charAt(i) != b.charAt(i) && ++mismatches > 1) return false;
         }
         return mismatches == 1;
-    }
-
-    @Override
-    public Optional<Path> resolvePathByFileId(String fileId) {
-        return listAllStreamable().stream()
-                .filter(f -> f.fileId().equalsIgnoreCase(fileId))
-                .map(info -> Path.of(runtime.getStreamPath().toString(), StringUtils.cleanPath(info.filePath())))
-                .findFirst();
-    }
-
-    @Override
-    public DbWorldRecords.StreamableFileInfo buildDetails(Path path) {
-        try {
-            long size = Files.size(path);
-            String id = DigestUtils.md5DigestAsHex(
-                    path.toAbsolutePath().toString().getBytes(StandardCharsets.UTF_8));
-            return new DbWorldRecords.StreamableFileInfo(
-                    path.getFileName().toString(),
-                    toRelativePath(path),
-                    false,
-                    true,
-                    size,
-                    id
-            );
-        } catch (IOException e) {
-            log.error("Failed to read file details: {}", path, e);
-            throw new DbWorldException("Failed to read file details for " + path, e);
-        }
-    }
-
-    private String toRelativePath(Path fullPath) {
-        String normalized  = StringUtils.cleanPath(fullPath.toString());
-        String streamRoot  = StringUtils.cleanPath(runtime.getStreamPath().toString());
-        String externalRoot = StringUtils.cleanPath(runtime.getExternalVideosPath().toString());
-
-        String result;
-        if (normalized.startsWith(streamRoot)) {
-            result = normalized.substring(streamRoot.length());
-        } else if (normalized.startsWith(externalRoot)) {
-            result = normalized.substring(externalRoot.length());
-        } else {
-            result = fullPath.getFileName().toString();
-        }
-
-        return result.startsWith("/") ? result : "/" + result;
     }
 }

@@ -3,11 +3,13 @@ package com.db.dbworld.app.stream.controller;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
+import com.db.dbworld.app.stream.dto.CdnResolveDto;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.security.auth.JwtService;
 import com.db.dbworld.app.stream.service.StreamService;
 import com.db.dbworld.utils.DbWorldConstants;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
@@ -15,19 +17,9 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * REST endpoints for media file streaming and media-info lookup.
- * Migrated from com.db.dbworld.controllers.StreamController.
- *
- * Streaming: delegates to {@link StreamService} (still in use until a new streaming
- *   implementation is ready in app.media.stream.service).
- * Media-info: delegates to {@link MediaInfoService} (new app.media.info pipeline).
- */
 @Log4j2
 @RestController
 @RequestMapping("/api/stream")
@@ -39,61 +31,47 @@ public class StreamController {
     private final MediaInfoService mediaInfoService;
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Streaming endpoints
+    // CDN URL resolve — returns JSON with CDN URL + metadata
+    // Client embeds cdnUrl directly in <video src> or <a href>.
+    // type: ONLINE (inline/stream) | DOWNLOAD (attachment)
     // ──────────────────────────────────────────────────────────────────────────
 
-    @GetMapping("/watch/uuid/{fileId}")
-    public Object watch(
-            @RequestHeader(value = "Range", required = false) String range,
-            @PathVariable String fileId,
-            @RequestParam("t") String token) {
-
-        String user = jwtService.parse(token).email();
-        log.debug("stream watch uuid={} user={}", fileId, user);
-        return streamService.streamById(user, fileId, range, true);
-    }
-
-    @GetMapping("/watch/{fileId}")
-    public Object watchBySearch(
-            @RequestHeader(value = "Range", required = false) String range,
-            @PathVariable String fileId,
-            @RequestParam("t") String token) {
-
-        String user = jwtService.parse(token).email();
-        Path path = streamService.resolvePathByFileId(fileId)
-                .orElseThrow(() -> new DbWorldException("File not found for fileId: " + fileId));
-        log.debug("stream watch by search fileId={} user={}", fileId, user);
-        return streamService.streamByPath(user, path, range, true);
-    }
-
-    @GetMapping("/download/uuid/{fileId}")
-    public Object download(
-            @RequestHeader(value = "Range", required = false) String range,
-            @PathVariable String fileId,
+    @GetMapping("/resolve/{mediaFileId}")
+    public ApiResponse<CdnResolveDto> resolveById(
+            @PathVariable String mediaFileId,
             @RequestParam("t") String token,
-            @RequestParam(value = "inline", defaultValue = "false") boolean inline) {
+            @RequestParam(value = "type", defaultValue = "ONLINE") String type,
+            HttpServletRequest request) {
 
         String user = jwtService.parse(token).email();
-        log.debug("stream download uuid={} user={}", fileId, user);
-        return streamService.streamById(user, fileId, range, inline);
+        boolean inline = !"DOWNLOAD".equalsIgnoreCase(type);
+        log.info("resolve id={} user={} type={}", mediaFileId, user, type);
+        CdnResolveDto dto = streamService.resolveById(
+                user, mediaFileId, inline,
+                request.getHeader("User-Agent"),
+                getClientIp(request));
+        return ApiResponse.success(dto);
     }
 
-    @GetMapping("/download/{fileId}")
-    public Object downloadBySearch(
-            @RequestHeader(value = "Range", required = false) String range,
-            @PathVariable String fileId,
+    @GetMapping("/resolve")
+    public ApiResponse<CdnResolveDto> resolveByPath(
+            @RequestParam("path") String path,
             @RequestParam("t") String token,
-            @RequestParam(value = "inline", defaultValue = "false") boolean inline) throws IOException {
+            @RequestParam(value = "type", defaultValue = "ONLINE") String type,
+            HttpServletRequest request) {
 
         String user = jwtService.parse(token).email();
-        Path path = streamService.resolvePathByFileId(fileId)
-                .orElseThrow(() -> new DbWorldException("File not found for fileId: " + fileId));
-        log.debug("stream download by search fileId={} user={}", fileId, user);
-        return streamService.streamByPath(user, path, range, inline);
+        boolean inline = !"DOWNLOAD".equalsIgnoreCase(type);
+        log.info("resolve path={} user={} type={}", path, user, type);
+        CdnResolveDto dto = streamService.resolveByPath(
+                user, path, inline,
+                request.getHeader("User-Agent"),
+                getClientIp(request));
+        return ApiResponse.success(dto);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Media-info endpoints — now backed by the new MediaInfoService
+    // Media-info
     // ──────────────────────────────────────────────────────────────────────────
 
     @GetMapping("/media-info/{recordId}")
@@ -126,5 +104,14 @@ public class StreamController {
                 .filter(f -> streamService.matchesQuery(f.fileName(), query))
                 .collect(Collectors.toList());
         return ApiResponse.success(results);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private String getClientIp(HttpServletRequest req) {
+        String xff = req.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) return xff.split(",")[0].trim();
+        String xri = req.getHeader("X-Real-IP");
+        return (xri != null && !xri.isBlank()) ? xri : req.getRemoteAddr();
     }
 }

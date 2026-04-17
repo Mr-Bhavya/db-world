@@ -16,7 +16,7 @@ import {
 import { motion } from 'framer-motion';
 import { Close, Download, PlayArrow, ContentCopy, CheckCircle } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { loadStreamFileInfoByFiledId } from '@shared/services/ApiServices';
+import { loadStreamFileInfoByFiledId, resolveMediaUrl } from '@shared/services/ApiServices';
 import Constants from '@shared/constants';
 import CommonServices from '@shared/services/CommonServices';
 import LoadingSpinner from '@shared/components/ui/LoadingSpinner';
@@ -74,11 +74,15 @@ const FileDetailsModal = ({ open, onClose, fileId }) => {
 
   // Download handler
   const handleDownload = async () => {
-    if (mediaInfo?.downloadUrl) {
-      await CommonServices.handleDownload(mediaInfo.downloadUrl, false);
+    if (!mediaInfo?.mediaFileId) { toast.error('Download URL not available'); return; }
+    try {
+      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
+      const cdnUrl = res?.data?.cdnUrl;
+      if (!cdnUrl) throw new Error('No CDN URL');
+      await CommonServices.handleDownload(cdnUrl, false);
       toast.success('Download started');
-    } else {
-      toast.error('Download URL not available');
+    } catch {
+      toast.error('Failed to start download');
     }
   };
 
@@ -300,8 +304,8 @@ const FileDetailsModal = ({ open, onClose, fileId }) => {
                       <ContentCopy />
                     )
                   }
-                  onClick={() => handleCopyUrlAlt(mediaInfo?.downloadUrl)}
-                  disabled={!mediaInfo?.downloadUrl}
+                  onClick={() => resolveMediaUrl(mediaInfo?.mediaFileId, 'DOWNLOAD').then(r => handleCopyUrlAlt(r?.data?.cdnUrl)).catch(() => {})}
+                  disabled={!mediaInfo?.mediaFileId}
                   size="small"
                   sx={{
                     flex: { xs: 1, sm: 'none' },
@@ -338,7 +342,7 @@ const FileDetailsModal = ({ open, onClose, fileId }) => {
                   color="success"
                   startIcon={<Download />}
                   onClick={handleDownload}
-                  disabled={!mediaInfo?.downloadUrl}
+                  disabled={!mediaInfo?.mediaFileId}
                   size="small"
                   sx={{
                     flex: { xs: 1, sm: 'none' },

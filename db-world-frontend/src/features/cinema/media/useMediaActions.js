@@ -3,6 +3,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { useSnackbar } from 'notistack';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import CommonServices from '@shared/services/CommonServices';
+import { resolveMediaUrl } from '@shared/services/ApiServices';
 
 const DbWorldDownload = registerPlugin('DbWorldDownload');
 
@@ -11,52 +12,73 @@ const DbWorldDownload = registerPlugin('DbWorldDownload');
  *
  * @param {object} mediaInfo  - Media info object from convertMediaInfoToCustomFormat
  * @param {object} [record]   - Optional record with tmdb title
- * @returns {{ handlePlay, handleDownload, playerOpen, setPlayerOpen }}
+ * @param {Array}  [allFiles] - All quality variants (for player quality switching)
+ * @returns {{ handlePlay, handleDownload, resolving, playerOpen, setPlayerOpen, enrichedFiles }}
  */
-export function useMediaActions(mediaInfo, record = null) {
+export function useMediaActions(mediaInfo, record = null, allFiles = []) {
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [enrichedFiles, setEnrichedFiles] = useState(null);
   const { enqueueSnackbar } = useSnackbar();
 
-  const handlePlay = useCallback(() => {
+  const resolveAll = useCallback(async (type) => {
+    const files = allFiles.length > 0 ? allFiles : (mediaInfo ? [mediaInfo] : []);
+    return Promise.all(files.map(async (f) => {
+      if (!f?.mediaFileId) return f;
+      try {
+        const res = await resolveMediaUrl(f.mediaFileId, type);
+        const cdnUrl = res?.data?.cdnUrl;
+        return cdnUrl ? { ...f, streamUrl: type === 'ONLINE' ? cdnUrl : f.streamUrl, downloadUrl: type === 'DOWNLOAD' ? cdnUrl : f.downloadUrl } : f;
+      } catch { return f; }
+    }));
+  }, [mediaInfo, allFiles]);
+
+  const handlePlay = useCallback(async () => {
     if (!mediaInfo) return;
-    const { general } = mediaInfo;
-    if (Capacitor.getPlatform() === 'android') {
-      AndroidPlugins.launchNativePlayer({
-        url: mediaInfo.streamUrl,
-        title: record?.tmdb?.title || record?.title || general?.fileName || '',
-        fileName: general?.fileName || '',
-        fileId: String(mediaInfo.id || ''),
-        preferredAudio: 'Hindi',
-        preferredSub: null,
-      });
-    } else {
-      setPlayerOpen(true);
+    setResolving(true);
+    try {
+      const enriched = await resolveAll('ONLINE');
+      setEnrichedFiles(enriched);
+      const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
+      if (Capacitor.getPlatform() === 'android') {
+        AndroidPlugins.launchNativePlayer({
+          url: current?.streamUrl,
+          title: record?.tmdb?.title || record?.title || mediaInfo.general?.fileName || '',
+          fileName: mediaInfo.general?.fileName || '',
+          fileId: String(mediaInfo.id || ''),
+          preferredAudio: 'Hindi',
+          preferredSub: null,
+        });
+      } else {
+        setPlayerOpen(true);
+      }
+    } catch (e) {
+      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
-  }, [mediaInfo, record]);
+  }, [mediaInfo, record, resolveAll, enqueueSnackbar]);
 
   const handleDownload = useCallback(async () => {
     if (!mediaInfo) return;
-    const { general } = mediaInfo;
-    if (Capacitor.getPlatform() === 'android') {
-      try {
-        await DbWorldDownload.startDownload({
-          url: mediaInfo.downloadUrl,
-          fileName: general?.fileName || 'download',
-        });
-        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
-          variant: 'success', autoHideDuration: 3000,
-        });
-      } catch (e) {
-        console.error('Download failed', e);
-        enqueueSnackbar('Failed to start download', { variant: 'error' });
+    setResolving(true);
+    try {
+      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
+      const cdnUrl = res?.data?.cdnUrl;
+      if (!cdnUrl) throw new Error('No CDN URL');
+      if (Capacitor.getPlatform() === 'android') {
+        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: mediaInfo.general?.fileName || 'download' });
+        enqueueSnackbar(`Added to downloads: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+      } else {
+        CommonServices.handleDownload(cdnUrl, { fileName: mediaInfo.general?.fileName, openInNewTab: true });
       }
-    } else {
-      CommonServices.handleDownload(mediaInfo.downloadUrl, {
-        fileName: general?.fileName,
-        openInNewTab: true,
-      });
+    } catch (e) {
+      console.error('Download failed', e);
+      enqueueSnackbar('Failed to start download', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
   }, [mediaInfo, enqueueSnackbar]);
 
-  return { handlePlay, handleDownload, playerOpen, setPlayerOpen };
+  return { handlePlay, handleDownload, resolving, playerOpen, setPlayerOpen, enrichedFiles };
 }

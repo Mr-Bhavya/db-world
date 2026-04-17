@@ -30,8 +30,14 @@ public class DbWorldConstants {
     public static final String ACCEPT_RANGES_HEADER = "Accept-Ranges";
     public static final String BYTES = "bytes";
     public static final String CONTENT_DISPOSITION_HEADER = "Content-Disposition";
-    public static final String CDN_STREAM_ID = "/cdn/stream/id/";
+
+    // X-Accel-Redirect paths (nginx internal — legacy, kept for backward compat)
+    public static final String CDN_STREAM_ID   = "/cdn/stream/id/";
     public static final String CDN_STREAM_PATH = "/cdn/stream/path/";
+
+    // CDN subdomain path prefixes (used to build external CDN URLs)
+    public static final String CDN_URL_ID_PATH   = "/id/";
+    public static final String CDN_URL_PATH_PATH = "/path/";
 
     // Encryption
     public static final String KEY_FACTORY_ALGORITHM = "PBEWITHHMACSHA512ANDAES_256";
@@ -60,8 +66,7 @@ public class DbWorldConstants {
             "/ws/status",
             "/ws/application-logs",
             "/ws/user-cinema-activity",
-            "/api/stream/watch/**",
-            "/api/stream/download/**",
+            "/api/stream/resolve/**",
             "/*", "/db-world/**", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**"
     };

@@ -86,28 +86,34 @@ public class SmartTrackFilterService {
     }
 
     /**
-     * Probes the file via MediaInfo and collects track language codes.
+     * Probes the file via ffprobe and collects track language codes.
+     *
+     * ffprobe is used (not MediaInfo) because it returns the EXACT language tags
+     * as stored in the container — the same values FFmpeg's stream specifiers
+     * (e.g. {@code -map 0:a:m:language:hin?}) will match at mux time.
+     *
+     * MediaInfo normalises codes (e.g. reports "hi" for MKV tracks tagged "hin"),
+     * which caused a mismatch: the generated map command contained "hi" but the
+     * container held "hin", so no audio stream was ever included.
      *
      * Returns a map of resolved-full-name → original-code-from-file for each
-     * track type. First occurrence of each resolved language wins (so if a file
-     * has both "hi" and "hin" both resolving to "Hindi", the first one is used).
+     * track type. First occurrence of each resolved language wins.
      */
     private TrackLanguages probeLanguages(Path file) {
-        // LinkedHashMap preserves insertion order (first occurrence wins)
         Map<String, String> audioLangs = new LinkedHashMap<>();
         Map<String, String> subLangs   = new LinkedHashMap<>();
         try {
-            String json = processExecutor.runMediaInfoCommand(file);
-            JsonNode root   = objectMapper.readTree(json);
-            JsonNode tracks = root.path("media").path("track");
-            for (JsonNode track : tracks) {
-                String type = track.path("@type").asText("");
-                String lang = track.path("Language").asText("").trim();
+            String json = processExecutor.runFfprobeStreamsJson(file);
+            JsonNode root    = objectMapper.readTree(json);
+            JsonNode streams = root.path("streams");
+            for (JsonNode stream : streams) {
+                String codecType = stream.path("codec_type").asText("").trim();
+                String lang      = stream.path("tags").path("language").asText("").trim();
                 if (lang.isBlank()) continue;
                 String resolved = MediaTagResolver.resolveLanguage(lang.toLowerCase());
                 if ("Unknown".equalsIgnoreCase(resolved)) continue;
-                if ("Audio".equals(type))     audioLangs.putIfAbsent(resolved, lang);
-                else if ("Text".equals(type)) subLangs.putIfAbsent(resolved, lang);
+                if ("audio".equalsIgnoreCase(codecType))    audioLangs.putIfAbsent(resolved, lang);
+                else if ("subtitle".equalsIgnoreCase(codecType)) subLangs.putIfAbsent(resolved, lang);
             }
         } catch (Exception e) {
             log.warn("Failed to probe track languages for {}: {}", file.getFileName(), e.getMessage());

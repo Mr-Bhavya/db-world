@@ -63,6 +63,50 @@ public class UserCinemaActivityService {
     private static final Duration DEDUP_WINDOW = Duration.ofSeconds(2);
 
     /**
+     * Track a CDN resolve event (one-time per play/download intent).
+     *
+     * Unlike the range-request tracking methods, this creates a single DB entry that
+     * records the user's intent and stores the {@code downloadId} / {@code cdnUrl} so
+     * that the nginx CDN access logs can be correlated with DB records by matching the
+     * {@code download_id} query-param in the CDN log against the {@code downloadId} here.
+     */
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void trackResolveActivity(String userEmail, String filePath, String fileName,
+                                     Long fileSize, String remoteAddr, String userAgent,
+                                     boolean isStream, String downloadId, String cdnUrl) {
+        try {
+            if (userEmail == null || filePath == null) return;
+
+            UserEntity userEntity = userService.getUserEntityByEmail(userEmail);
+            if (userEntity == null) { log.warn("trackResolveActivity: user not found: {}", userEmail); return; }
+
+            UserCinemaActivityEntity.ActivityType type = isStream
+                    ? UserCinemaActivityEntity.ActivityType.STREAM
+                    : UserCinemaActivityEntity.ActivityType.DOWNLOAD;
+
+            UserCinemaActivityEntity entity = new UserCinemaActivityEntity();
+            entity.setUser(userEntity);
+            entity.setActivityType(type);
+            entity.setActivityValue(filePath);
+            entity.setSessionId(downloadId != null ? downloadId : generateUniqueSessionId(userEmail, filePath, type.name()));
+            entity.setBytesTransferred(fileSize);
+            entity.setFilePath(filePath);
+            entity.setFileSize(fileSize);
+            entity.setRemoteAddr(remoteAddr);
+            entity.setUserAgent(userAgent);
+            entity.setUpdateCount(1);
+            entity.setDownloadId(downloadId);
+            entity.setCdnUrl(cdnUrl);
+
+            userCinemaActivityRepository.save(entity);
+            log.info("Tracked resolve: user={}, file={}, type={}, downloadId={}", userEmail, fileName, type, downloadId);
+        } catch (Exception e) {
+            log.warn("trackResolveActivity failed for user={}: {}", userEmail, e.getMessage());
+        }
+    }
+
+    /**
      * Track download activity with synchronization to prevent duplicates
      */
     @Async

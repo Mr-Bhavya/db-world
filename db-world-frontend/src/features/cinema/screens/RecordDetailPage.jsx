@@ -76,7 +76,7 @@ import {
   upsertReview,
   deleteReview,
 } from '../api/cinemaApi';
-import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import { loadStreamFileInfoByRecordId, resolveMediaUrl } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import CinemaPlayer from '../player/CinemaPlayer';
 import Constants from '@shared/constants';
@@ -1543,14 +1543,19 @@ function ReviewsTab({ record, recordId }) {
 
 // ─── Tab: Watch (Media Files) ─────────────────────────────────────────────────
 
-function CopyBtn({ url }) {
+function CopyBtn({ getUrl }) {
   const [copied, setCopied] = useState(false);
+  const [working, setWorking] = useState(false);
   const handle = async () => {
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
+    setWorking(true);
+    try {
+      const url = await getUrl();
+      if (url) { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    } catch {} finally { setWorking(false); }
   };
   return (
     <Tooltip title={copied ? 'Copied!' : 'Copy URL'}>
-      <IconButton size="small" onClick={handle} disabled={!url} sx={{ border: `1px solid ${alpha('#fff', copied ? 0.4 : 0.15)}`, borderRadius: 1.5, p: 0.6, color: copied ? '#4caf50' : 'inherit' }}>
+      <IconButton size="small" onClick={handle} disabled={working} sx={{ border: `1px solid ${alpha('#fff', copied ? 0.4 : 0.15)}`, borderRadius: 1.5, p: 0.6, color: copied ? '#4caf50' : 'inherit' }}>
         {copied ? <CheckIcon sx={{ fontSize: 15 }} /> : <ContentCopyIcon sx={{ fontSize: 15 }} />}
       </IconButton>
     </Tooltip>
@@ -1561,43 +1566,68 @@ function FileCard({ mediaInfo, allFiles, record }) {
   const T = useT();
   const { enqueueSnackbar } = useSnackbar();
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [enrichedFiles, setEnrichedFiles] = useState(null);
   const { general, video, audio, subtitle } = mediaInfo;
   const quality = getQuality(video, general?.fileName);
   const codec   = getCodec(video?.format);
   const qMeta   = QUALITY_META[quality] ?? QUALITY_META['Unknown'];
   const cMeta   = codec && CODEC_META[codec];
 
-  const handlePlay = () => {
-    if (Capacitor.getPlatform() === 'android') {
-      AndroidPlugins.launchNativePlayer({
-        url: mediaInfo.streamUrl,
-        title: record?.tmdb?.title || record?.title || general?.fileName || '',
-        fileName: general?.fileName || '',
-        fileId: String(mediaInfo.id || ''),
-        preferredAudio: 'Hindi',
-        preferredSub: null,
-      });
-    } else {
-      setPlayerOpen(true);
+  const resolveAll = async (type) => {
+    const files = (allFiles?.length > 0 ? allFiles : [mediaInfo]);
+    return Promise.all(files.map(async (f) => {
+      if (!f?.mediaFileId) return f;
+      try {
+        const res = await resolveMediaUrl(f.mediaFileId, type);
+        const cdnUrl = res?.data?.cdnUrl;
+        return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
+      } catch { return f; }
+    }));
+  };
+
+  const handlePlay = async () => {
+    setResolving(true);
+    try {
+      const enriched = await resolveAll('ONLINE');
+      setEnrichedFiles(enriched);
+      const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
+      if (Capacitor.getPlatform() === 'android') {
+        AndroidPlugins.launchNativePlayer({
+          url: current?.streamUrl,
+          title: record?.tmdb?.title || record?.title || general?.fileName || '',
+          fileName: general?.fileName || '',
+          fileId: String(mediaInfo.id || ''),
+          preferredAudio: 'Hindi',
+          preferredSub: null,
+        });
+      } else {
+        setPlayerOpen(true);
+      }
+    } catch (e) {
+      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
   };
 
   const handleDownload = async () => {
-    if (Capacitor.getPlatform() === 'android') {
-      try {
-        await DbWorldDownload.startDownload({
-          url: mediaInfo.downloadUrl,
-          fileName: general?.fileName || 'download',
-        });
-        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
-          variant: 'success', autoHideDuration: 3000,
-        });
-      } catch (e) {
-        console.error('Download failed', e);
-        enqueueSnackbar('Failed to start download', { variant: 'error' });
+    setResolving(true);
+    try {
+      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
+      const cdnUrl = res?.data?.cdnUrl;
+      if (!cdnUrl) throw new Error('No CDN URL');
+      if (Capacitor.getPlatform() === 'android') {
+        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName || 'download' });
+        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+      } else {
+        CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
       }
-    } else {
-      CommonServices.handleDownload(mediaInfo.downloadUrl, { fileName: general?.fileName, openInNewTab: true });
+    } catch (e) {
+      console.error('Download failed', e);
+      enqueueSnackbar('Failed to start download', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -1679,33 +1709,37 @@ function FileCard({ mediaInfo, allFiles, record }) {
           {/* Actions */}
           <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <Button
-              size="small" variant="contained" startIcon={<PlayArrowIcon />}
+              size="small" variant="contained"
+              startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <PlayArrowIcon />}
               onClick={handlePlay}
+              disabled={resolving}
               sx={{ bgcolor: '#fff', color: '#000', fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5, '&:hover': { bgcolor: '#e0e0e0' } }}
             >
               Play
             </Button>
-            <CopyBtn url={mediaInfo.streamUrl} />
+            <CopyBtn getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'ONLINE').then(r => r?.data?.cdnUrl)} />
 
             <Box sx={{ width: 1, height: 20, bgcolor: alpha(T.text, 0.15), mx: 0.25 }} />
 
             <Button
-              size="small" variant="outlined" startIcon={<DownloadIcon />}
+              size="small" variant="outlined"
+              startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
               onClick={handleDownload}
+              disabled={resolving}
               sx={{ fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5 }}
             >
               Download
             </Button>
-            <CopyBtn url={mediaInfo.downloadUrl} />
+            <CopyBtn getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD').then(r => r?.data?.cdnUrl)} />
           </Box>
         </Box>
       </Paper>
 
       <CinemaPlayer
         open={playerOpen}
-        onClose={() => setPlayerOpen(false)}
-        mediaInfo={mediaInfo}
-        allFiles={allFiles}
+        onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
+        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? mediaInfo) : mediaInfo}
+        allFiles={enrichedFiles ?? (allFiles ?? [])}
         record={record}
       />
     </>

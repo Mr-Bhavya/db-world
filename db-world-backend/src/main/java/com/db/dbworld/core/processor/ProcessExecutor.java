@@ -255,6 +255,49 @@ public class ProcessExecutor implements AutoCloseable {
     }
 
     /* --------------------------------------------------- */
+    /* FFprobe                                            */
+    /* --------------------------------------------------- */
+
+    /**
+     * Runs ffprobe on the given file and returns the streams JSON.
+     * ffprobe is expected to be co-located with ffmpeg (same directory).
+     * Returns raw ffprobe JSON output (streams array) or an empty JSON object on failure.
+     */
+    public String runFfprobeStreamsJson(Path mediaPath) {
+        String ffmpegPath = runtimeProperties.getFfmpeg();
+        // Derive ffprobe path from ffmpeg path (same directory, just different binary name)
+        String ffprobePath = ffmpegPath
+                .replaceAll("(?i)ffmpeg(\\.exe)?$", "ffprobe$1");
+        StringBuilder output = new StringBuilder();
+        try {
+            String[] command = {
+                    ffprobePath,
+                    "-v", "quiet",
+                    "-print_format", "json",
+                    "-show_streams",
+                    mediaPath.toAbsolutePath().toString()
+            };
+            ProcessResult result = execute(
+                    ProcessConfiguration.builder()
+                            .command(command)
+                            .outputProcessor(output::append)
+                            .errorProcessor(line -> log.debug("ffprobe stderr: {}", line))
+                            .timeout(Duration.ofMinutes(1))
+                            .successPredicate(code -> code == 0)
+                            .build()
+            );
+            if (!result.success()) {
+                log.warn("ffprobe exited with code {} for {}", result.exitCode(), mediaPath.getFileName());
+                return "{}";
+            }
+        } catch (Exception e) {
+            log.warn("ffprobe failed for {}: {}", mediaPath.getFileName(), e.getMessage());
+            return "{}";
+        }
+        return output.toString();
+    }
+
+    /* --------------------------------------------------- */
     /* YT-DLP                                           */
     /* --------------------------------------------------- */
 

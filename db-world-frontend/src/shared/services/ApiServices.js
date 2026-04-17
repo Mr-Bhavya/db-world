@@ -348,6 +348,22 @@ export const loadStreamFileInfoByFiledId = async (fileId) => {
   }
 };
 
+export const resolveMediaUrl = async (mediaFileId, type = 'ONLINE') => {
+  const token = localStorage.getItem('token');
+  const response = await axiosInstance.get(`/api/stream/resolve/${mediaFileId}`, {
+    params: { t: token, type },
+  });
+  return response.data;
+};
+
+export const resolveMediaUrlByPath = async (path, type = 'ONLINE') => {
+  const token = localStorage.getItem('token');
+  const response = await axiosInstance.get('/api/stream/resolve', {
+    params: { path, t: token, type },
+  });
+  return response.data;
+};
+
 // Interaction APIs
 export const likeRecord = async (recordId, userId) => {
   try {
