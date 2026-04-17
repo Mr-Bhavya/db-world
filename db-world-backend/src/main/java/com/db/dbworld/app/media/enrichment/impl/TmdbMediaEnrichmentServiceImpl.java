@@ -30,6 +30,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -186,10 +187,16 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Appends per-audio-track language, title, and disposition metadata to the FFmpeg command.
-     * Uses language-tag stream specifiers (e.g. {@code a:m:language:hin}) instead of index-based
-     * specifiers so that metadata is correctly applied even when the source has multiple tracks
-     * of the same language (e.g. Hindi 7.1 + Hindi 2.0).
+     * Appends per-audio-track language, title, and disposition metadata using
+     * index-based output stream specifiers (e.g. {@code -metadata:s:a:0}).
+     *
+     * Index-based specifiers are the only form reliably supported by FFmpeg for
+     * -metadata:s: on OUTPUT streams; the m:language:X form is an INPUT-side
+     * selector and does not work on the output side in most FFmpeg builds.
+     *
+     * The output audio stream order mirrors the -map order:
+     * for each language in keepAudioLanguages, audioStreamCounts[lang] streams
+     * are included consecutively (e.g. 2 Hindi tracks, then 1 English track).
      */
     private void applyAudioTrackMetadata(List<String> cmd, TrackFilter filter) {
         if (filter == null || filter.getKeepAudioLanguages() == null
@@ -197,40 +204,39 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             return;
         }
         List<String> langs = filter.getKeepAudioLanguages();
+        Map<String, Integer> counts = filter.getAudioStreamCounts();
 
-        // Determine the default language
         String defaultLang = filter.getDefaultAudioLanguage();
-        if (defaultLang == null) {
-            defaultLang = langs.get(0);
-        } else if (!langs.contains(defaultLang)) {
-            log.warn("defaultAudioLanguage '{}' not found in keepAudioLanguages {}; using first as default",
-                    defaultLang, langs);
-            defaultLang = langs.get(0);
-        }
-
-        for (String lang : langs) {
-            String name = langName(lang);
-            String spec = "a:m:language:" + lang;
-
-            cmd.addAll(List.of("-metadata:s:" + spec, "language=" + lang));
-            if (name != null) {
-                cmd.addAll(List.of("-metadata:s:" + spec, "title=" + name));
+        if (defaultLang == null || !langs.contains(defaultLang)) {
+            if (defaultLang != null) {
+                log.warn("defaultAudioLanguage '{}' not found in keepAudioLanguages {}; using first as default",
+                        defaultLang, langs);
             }
+            defaultLang = langs.get(0);
         }
 
-        // Disposition: use language specifier so all tracks of the default language are
-        // marked default; all other kept languages are explicitly set to non-default.
-        cmd.addAll(List.of("-disposition:a:m:language:" + defaultLang, "default"));
+        int idx = 0;
+        boolean defaultMarked = false;
         for (String lang : langs) {
-            if (!lang.equals(defaultLang)) {
-                cmd.addAll(List.of("-disposition:a:m:language:" + lang, "0"));
+            String name  = langName(lang);
+            int    count = counts != null ? counts.getOrDefault(lang, 1) : 1;
+            boolean isDefaultLang = lang.equals(defaultLang);
+            for (int i = 0; i < count; i++) {
+                cmd.addAll(List.of("-metadata:s:a:" + idx, "language=" + lang));
+                if (name != null) {
+                    cmd.addAll(List.of("-metadata:s:a:" + idx, "title=" + name));
+                }
+                boolean makeDefault = isDefaultLang && !defaultMarked;
+                cmd.addAll(List.of("-disposition:a:" + idx, makeDefault ? "default" : "0"));
+                if (makeDefault) defaultMarked = true;
+                idx++;
             }
         }
     }
 
     /**
-     * Appends per-subtitle-track language, title, and disposition metadata.
-     * Uses language-tag stream specifiers for the same reason as audio.
+     * Appends per-subtitle-track language, title, and disposition metadata
+     * using index-based output stream specifiers (e.g. {@code -metadata:s:s:0}).
      */
     private void applySubtitleTrackMetadata(List<String> cmd, TrackFilter filter) {
         if (filter == null || filter.getKeepSubtitleLanguages() == null
@@ -240,17 +246,21 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             return;
         }
         List<String> subLangs = filter.getKeepSubtitleLanguages();
+        Map<String, Integer> counts = filter.getSubStreamCounts();
 
+        int idx = 0;
         for (String lang : subLangs) {
-            String name = langName(lang);
-            String spec = "s:m:language:" + lang;
-
-            cmd.addAll(List.of("-metadata:s:" + spec, "language=" + lang));
-            if (name != null) {
-                cmd.addAll(List.of("-metadata:s:" + spec, "title=" + name));
-            }
-            if (filter.isNoDefaultSubtitle()) {
-                cmd.addAll(List.of("-disposition:" + spec, "0"));
+            String name  = langName(lang);
+            int    count = counts != null ? counts.getOrDefault(lang, 1) : 1;
+            for (int i = 0; i < count; i++) {
+                cmd.addAll(List.of("-metadata:s:s:" + idx, "language=" + lang));
+                if (name != null) {
+                    cmd.addAll(List.of("-metadata:s:s:" + idx, "title=" + name));
+                }
+                if (filter.isNoDefaultSubtitle()) {
+                    cmd.addAll(List.of("-disposition:s:" + idx, "0"));
+                }
+                idx++;
             }
         }
     }
