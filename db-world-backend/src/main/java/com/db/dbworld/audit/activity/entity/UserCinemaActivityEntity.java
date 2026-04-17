@@ -71,6 +71,15 @@ public class UserCinemaActivityEntity {
     @Column
     private Integer updateCount;
 
+    /** CDN download-session ID returned by the resolve endpoint — links this DB record to nginx CDN logs. */
+    @Column(length = 255)
+    private String downloadId;
+
+    /** CDN URL that was generated for this activity (stored for audit trail). */
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String cdnUrl;
+
     @PrePersist
     @PreUpdate
     private void updateTimestamps() {

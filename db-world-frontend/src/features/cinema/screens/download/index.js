@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Container, Typography, Chip, IconButton, Button, Collapse,
-  Divider, CircularProgress, useTheme, useMediaQuery, alpha, Tooltip,
-  Stack,
+  Divider, CircularProgress, useTheme, useMediaQuery, alpha, Tooltip, Stack,
 } from '@mui/material';
 import {
   ArrowBack, ExpandMore, ExpandLess, PlayArrow, Download, ContentCopy,
@@ -13,7 +12,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useSnackbar } from 'notistack';
 import { Capacitor } from '@capacitor/core';
-import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import { loadStreamFileInfoByRecordId, resolveMediaUrl } from '@shared/services/ApiServices';
 import CinemaPlayer from '../../player/CinemaPlayer';
 import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
 import CommonServices from '@shared/services/CommonServices';
@@ -149,20 +148,30 @@ const CodecBadge = ({ codec }) => {
 };
 
 // ─── CopyIconButton ────────────────────────────────────────────────────────────
+// getUrl: () => Promise<string>  — called on click to lazily resolve the CDN URL
 
-const CopyIconButton = ({ url, label }) => {
+const CopyIconButton = ({ getUrl, label }) => {
   const theme = useTheme();
   const [copied, setCopied] = useState(false);
+  const [working, setWorking] = useState(false);
   const handle = async () => {
-    const res = await CommonServices.handleCopy(url);
-    if (res.success) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    setWorking(true);
+    try {
+      const url = await getUrl();
+      if (url) {
+        const res = await CommonServices.handleCopy(url);
+        if (res.success) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+      }
+    } finally {
+      setWorking(false);
+    }
   };
   return (
     <Tooltip title={copied ? 'Copied!' : label}>
       <IconButton
         size="small"
         onClick={handle}
-        disabled={!url}
+        disabled={working}
         sx={{
           border: `1px solid ${copied ? theme.palette.success.main : alpha(theme.palette.divider, 0.5)}`,
           borderRadius: 1.5, p: 0.7,
@@ -198,6 +207,8 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
   const { enqueueSnackbar } = useSnackbar();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [enrichedFiles, setEnrichedFiles] = useState(null);
 
   const { general, video, audio, subtitle } = mediaInfo;
   const quality  = getQuality(video, general?.fileName);
@@ -205,40 +216,60 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
   const hdrTags  = getHdrTags(video?.hdrDetails, general?.fileName);
   const bitDepth = video?.bitDepth;
 
-  const handlePlay = () => {
-    if (Capacitor.getPlatform() === 'android') {
-      AndroidPlugins.launchNativePlayer({
-        url: "https://db-world.in/api/stream/watch/uuid/1ffbd207-ef51-4227-a9b8-44a7340f14a5?t=eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJkYi13b3JsZCIsInN1YiI6ImR1ZGhpYWJoYXZ5YUBnbWFpbC5jb20iLCJleHAiOjE3NzYxNTI1NjcsImlhdCI6MTc3NjA2NjE2NywidXNlcklkIjoxMDAxLCJyb2xlcyI6WyJPV05FUiJdfQ.Pcr3v3yZBM7TDb6wgSrR3NYwTcelrxUO7bXpmmkv9yqEs23FuynQGwMJ17gsBEh2D2dcAh9B1TuL6ul9W1JHazSJFCz7ybY-OyyEtkHCo56ZEC2a5HJf5LZiudkyD5R2SC8uSLu_GY-eqWMyE5ovzYj8KPXoB1cMatilQT1SlyCiyze6VqA0yh2PRsrbZF1vdas0kNCwiQgjnI3sx5GTuMrpsqOL2m_dHU3b5J9HufcGiZLx7okEy7PG3mahw8-vT6iNn1UImeCFRxArtOG6pfvdVAnMWtUhieP_GkXcRwKaWiSZ2FYwKA2HcIAiajIiWiv7GRvBHsSKn3NegS3ZhA",
-        title: record?.tmdb?.title || general?.fileName || '',
-        fileName: general?.fileName || '',
-        fileId: String(mediaInfo.id || ''),
-        preferredAudio: 'Hindi',
-        preferredSub: null,
-      });
-    } else {
-      setPlayerOpen(true);
+  const resolveAll = async (type) => {
+    const files = allFiles.length > 0 ? allFiles : [mediaInfo];
+    return Promise.all(files.map(async (f) => {
+      if (!f?.mediaFileId) return f;
+      try {
+        const res = await resolveMediaUrl(f.mediaFileId, type);
+        const cdnUrl = res?.data?.cdnUrl;
+        return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
+      } catch { return f; }
+    }));
+  };
+
+  const handlePlay = async () => {
+    setResolving(true);
+    try {
+      const enriched = await resolveAll('ONLINE');
+      setEnrichedFiles(enriched);
+      const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
+      if (Capacitor.getPlatform() === 'android') {
+        AndroidPlugins.launchNativePlayer({
+          url: current?.streamUrl,
+          title: record?.tmdb?.title || general?.fileName || '',
+          fileName: general?.fileName || '',
+          fileId: String(mediaInfo.id || ''),
+          preferredAudio: 'Hindi',
+          preferredSub: null,
+        });
+      } else {
+        setPlayerOpen(true);
+      }
+    } catch (e) {
+      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
   };
 
   const handleDownload = async () => {
-    if (Capacitor.getPlatform() === 'android') {
-      try {
-        await DbWorldDownload.startDownload({
-          url: "https://db-world.in/api/stream/download/uuid/1ffbd207-ef51-4227-a9b8-44a7340f14a5?t=eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJkYi13b3JsZCIsInN1YiI6ImR1ZGhpYWJoYXZ5YUBnbWFpbC5jb20iLCJleHAiOjE3NzYxNTI1NjcsImlhdCI6MTc3NjA2NjE2NywidXNlcklkIjoxMDAxLCJyb2xlcyI6WyJPV05FUiJdfQ.Pcr3v3yZBM7TDb6wgSrR3NYwTcelrxUO7bXpmmkv9yqEs23FuynQGwMJ17gsBEh2D2dcAh9B1TuL6ul9W1JHazSJFCz7ybY-OyyEtkHCo56ZEC2a5HJf5LZiudkyD5R2SC8uSLu_GY-eqWMyE5ovzYj8KPXoB1cMatilQT1SlyCiyze6VqA0yh2PRsrbZF1vdas0kNCwiQgjnI3sx5GTuMrpsqOL2m_dHU3b5J9HufcGiZLx7okEy7PG3mahw8-vT6iNn1UImeCFRxArtOG6pfvdVAnMWtUhieP_GkXcRwKaWiSZ2FYwKA2HcIAiajIiWiv7GRvBHsSKn3NegS3ZhA",
-          fileName: general?.fileName || 'download',
-        });
-        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, {
-          variant: 'success', autoHideDuration: 3000,
-        });
-      } catch (e) {
-        console.error('Download failed', e);
-        enqueueSnackbar('Failed to start download', { variant: 'error' });
+    setResolving(true);
+    try {
+      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
+      const cdnUrl = res?.data?.cdnUrl;
+      if (!cdnUrl) throw new Error('No CDN URL');
+      if (Capacitor.getPlatform() === 'android') {
+        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName || 'download' });
+        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+      } else {
+        CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
       }
-    } else {
-      CommonServices.handleDownload(mediaInfo.downloadUrl, {
-        fileName: general?.fileName,
-        openInNewTab: true,
-      });
+    } catch (e) {
+      console.error('Download failed', e);
+      enqueueSnackbar('Failed to start download', { variant: 'error' });
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -331,25 +362,33 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
           <Box sx={{ display: 'flex', gap: 1, mt: 1.8, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* Play group */}
             <Button
-              size="small" variant="contained" startIcon={<PlayArrow />}
+              size="small" variant="contained" startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <PlayArrow />}
               onClick={handlePlay}
+              disabled={resolving}
               sx={{ bgcolor: '#fff', color: '#000', fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }}
             >
               Play
             </Button>
-            <CopyIconButton url={mediaInfo.streamUrl} label="Copy stream URL" />
+            <CopyIconButton
+              getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'ONLINE').then(r => r?.data?.cdnUrl)}
+              label="Copy stream URL"
+            />
 
             <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
 
             {/* Download group */}
             <Button
-              size="small" variant="outlined" startIcon={<Download />}
+              size="small" variant="outlined" startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <Download />}
               onClick={handleDownload}
+              disabled={resolving}
               sx={{ fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5 }}
             >
               Download
             </Button>
-            <CopyIconButton url={mediaInfo.downloadUrl} label="Copy download URL" />
+            <CopyIconButton
+              getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD').then(r => r?.data?.cdnUrl)}
+              label="Copy download URL"
+            />
 
             <Box sx={{ flex: 1 }} />
 
@@ -368,9 +407,9 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
 
       <CinemaPlayer
         open={playerOpen}
-        onClose={() => setPlayerOpen(false)}
-        mediaInfo={mediaInfo}
-        allFiles={allFiles}
+        onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
+        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? mediaInfo) : mediaInfo}
+        allFiles={enrichedFiles ?? allFiles}
         record={record}
       />
       <MediaDetailsDrawer

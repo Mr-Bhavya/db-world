@@ -53,6 +53,9 @@ public class DbWorldRuntimeProperties {
     private final String tmdbApiKey;
     private final String tmdbAccessToken;
 
+    /* CDN */
+    private final String cdnBaseUrl;
+
     public DbWorldRuntimeProperties(
             DbWorldProperties props,
             Environment environment
@@ -94,6 +97,11 @@ public class DbWorldRuntimeProperties {
 
         this.tmdbApiKey = props.apiKeys() != null ? props.apiKeys().tmdb() : null;
         this.tmdbAccessToken = props.tokens() != null ? props.tokens().tmdb() : null;
+
+        String rawCdn = (props.cdn() != null && StringUtils.hasText(props.cdn().baseUrl()))
+                ? props.cdn().baseUrl()
+                : "http://cdn.db-world.in";
+        this.cdnBaseUrl = rawCdn.endsWith("/") ? rawCdn.substring(0, rawCdn.length() - 1) : rawCdn;
     }
 
     /* ---------------- Path Creation ---------------- */

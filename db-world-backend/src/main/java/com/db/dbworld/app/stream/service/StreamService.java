@@ -1,11 +1,9 @@
 package com.db.dbworld.app.stream.service;
 
+import com.db.dbworld.app.stream.dto.CdnResolveDto;
 import com.db.dbworld.helpers.DbWorldRecords;
-import org.springframework.http.ResponseEntity;
-
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Service for media file streaming and discovery.
@@ -16,45 +14,41 @@ import java.util.Optional;
  */
 public interface StreamService {
 
-    /* ========================= STREAMING ========================= */
+    /* ========================= RESOLVE (CDN URL as JSON) ========================= */
 
     /**
-     * Stream a media file via CDN using a resolved filesystem or symlink path.
-     * Intended for internal usage where the path is already trusted.
+     * Resolve a record-linked media file by UUID and return its CDN URL + metadata.
+     * The returned URL can be embedded directly in a video player or download link.
+     *
+     * @param user        authenticated user email
+     * @param mediaFileId UUID of the MediaFileEntity (= symlink filename)
+     * @param inline      {@code true} → ONLINE (stream); {@code false} → DOWNLOAD
+     * @param userAgent   caller's User-Agent (for activity tracking)
+     * @param remoteAddr  caller's IP (for activity tracking)
      */
-    ResponseEntity<Void> streamByPath(String user, Path path, String rangeHeader, boolean inline);
+    CdnResolveDto resolveById(String user, String mediaFileId, boolean inline,
+                               String userAgent, String remoteAddr);
 
     /**
-     * Stream a media file via CDN using a media file ID.
-     * This is the primary method for controllers and public APIs.
+     * Resolve an unassigned media file by its path relative to the stream root
+     * and return its CDN URL + metadata (enriched from DB if a MediaFileEntity exists).
+     *
+     * @param user         authenticated user email
+     * @param relativePath path relative to the stream root (as returned in search results)
+     * @param inline       {@code true} → ONLINE (stream); {@code false} → DOWNLOAD
+     * @param userAgent    caller's User-Agent (for activity tracking)
+     * @param remoteAddr   caller's IP (for activity tracking)
      */
-    ResponseEntity<Void> streamById(String user, String mediaFileId, String rangeHeader, boolean inline);
+    CdnResolveDto resolveByPath(String user, String relativePath, boolean inline,
+                                 String userAgent, String remoteAddr);
 
     /* ========================= DISCOVERY ========================= */
 
-    /**
-     * Recursively list streamable files under a directory.
-     */
     List<DbWorldRecords.StreamableFileInfo> listRecursive(Path dir);
 
-    /**
-     * List all streamable files from all configured media roots.
-     */
     List<DbWorldRecords.StreamableFileInfo> listAllStreamable();
 
-    /**
-     * Check whether a file name matches a user query.
-     */
     boolean matchesQuery(String fileName, String query);
 
-    /**
-     * Resolve a file path by its generated file ID.
-     * Used mainly for backward compatibility and diagnostics.
-     */
-    Optional<Path> resolvePathByFileId(String fileId);
-
-    /**
-     * Build streamable metadata for a single file.
-     */
     DbWorldRecords.StreamableFileInfo buildDetails(Path path);
 }

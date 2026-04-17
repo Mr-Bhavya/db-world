@@ -27,6 +27,9 @@ app:
     archived-logs: ${app.paths.logs}/archived
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 
+  cdn:
+    base-url: http://localhost:9090
+
   tools:
     yt-dlp: yt-dlp
     ffmpeg: ffmpeg

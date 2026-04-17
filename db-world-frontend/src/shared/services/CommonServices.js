@@ -416,22 +416,20 @@ class CommonServices {
   static convertMediaInfoToCustomFormat = (id, data, isSearchedFile) => {
     if (!data) return [];
 
-    const baseUrl = window.location.origin;
-    const basePath = isSearchedFile ? "/api/stream/watch/" : "/api/stream/watch/uuid/";
-    const token = localStorage.getItem("token");
+    const dataArray = Array.isArray(data) ? data : [data];
 
-    return data.map(mediaFile => {
+    return dataArray.map(mediaFile => {
       const mediaId = id ?? mediaFile.id;
-      const urlBase = `${baseUrl}${basePath}${mediaId}?t=${token}`;
-      
+
       const mediaDetails = {
         id: mediaId,
+        mediaFileId: mediaFile.id ?? null,
         general: {},
         video: {},
         audio: [],
         subtitle: [],
-        downloadUrl: urlBase.replace("/watch", "/download"),
-        streamUrl: urlBase
+        streamUrl: null,
+        downloadUrl: null,
       };
 
       (mediaFile?.tracks ?? mediaFile?.trackInfos)?.forEach(track => {
