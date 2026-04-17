@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { IconButton, Tooltip, CircularProgress, Stack } from '@mui/material';
 import {
-  Pause, PlayArrow, Cancel, Replay, Delete, Article,
+  Pause, PlayArrow, Cancel, Replay, Delete,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,11 +11,7 @@ import {
 
 const TERMINAL = ['SUCCESS', 'FAILED', 'CANCELLED'];
 
-/**
- * Action buttons for a single job card.
- * Props: job (WS snapshot), onLogView() => void
- */
-export default function JobActions({ job, onLogView }) {
+export default function JobActions({ job }) {
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(null); // which action is loading
@@ -109,13 +105,6 @@ export default function JobActions({ job, onLogView }) {
           </span>
         </Tooltip>
       )}
-
-      {/* Logs */}
-      <Tooltip title="View Logs">
-        <IconButton size="small" onClick={onLogView}>
-          <Article fontSize="small" />
-        </IconButton>
-      </Tooltip>
 
       {/* Delete */}
       <Tooltip title="Delete">
