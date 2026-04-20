@@ -17,6 +17,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -81,14 +82,6 @@ public class StreamController {
         return ApiResponse.success(mediaInfoService.getByRecordId(recordId));
     }
 
-    @GetMapping("/media-info/file/{fileId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
-    public ApiResponse<MediaFileDto> getMediaInfoByFile(@PathVariable String fileId) {
-        return ApiResponse.success(
-                mediaInfoService.getById(fileId)
-                        .orElseThrow(() -> new DbWorldException("MediaFile not found: " + fileId)));
-    }
-
     // ──────────────────────────────────────────────────────────────────────────
     // Search
     // ──────────────────────────────────────────────────────────────────────────
@@ -104,6 +97,27 @@ public class StreamController {
                 .filter(f -> streamService.matchesQuery(f.fileName(), query))
                 .collect(Collectors.toList());
         return ApiResponse.success(results);
+    }
+
+    @GetMapping("/search/media-info/file/{fileId}")
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    public ApiResponse<MediaFileDto> getMediaInfoByFile(@PathVariable String fileId) {
+        MediaFileDto mediaFileDto = streamService.listAllStreamable()
+                .stream()
+                .filter(f -> f.fileId().equals(fileId))
+                .map(f -> mediaInfoService.collectMediaInfo(streamService.resolveRealPath(f.filePath())))
+                .findFirst().orElseThrow(() -> new DbWorldException("MediaFile not found: " + fileId));
+        return ApiResponse.success(mediaFileDto);
+    }
+
+    @GetMapping("/search/media-info")
+    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    public ApiResponse<MediaFileDto> getMediaInfoByPath(@RequestParam("path") String path) {
+        Path realPath = streamService.resolveRealPath(path);
+        if (!java.nio.file.Files.exists(realPath)) {
+            throw new DbWorldException("MediaFile not found: " + path);
+        }
+        return ApiResponse.success(mediaInfoService.collectMediaInfo(realPath));
     }
 
     // ──────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.review.mapper;
 
-import com.db.dbworld.app.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.tmdb.client.dto.ReviewTmdbResponse;
 import com.db.dbworld.app.cinema.tmdb.review.dto.ReviewDto;
 import com.db.dbworld.app.cinema.tmdb.review.entity.ReviewEntity;
 import com.db.dbworld.app.cinema.tmdb.mapper.BaseMapperConfig;
@@ -9,7 +9,6 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 @Mapper(
@@ -32,7 +31,7 @@ public interface ReviewMapper {
     ReviewDto toDto(ReviewEntity entity);
 
     /* =====================================
-       TMDB → ENTITY
+       TMDB → ENTITY (SINGLE)
      ===================================== */
 
     @Mapping(source = "author_details", target = "authorDetails")
@@ -42,50 +41,19 @@ public interface ReviewMapper {
     ReviewEntity fromTmdb(ReviewTmdbResponse response);
 
     /* =====================================
-       PAGE → ENTITY LIST
+       TMDB → ENTITY (BATCH) ✅ NEW
      ===================================== */
 
-    default List<ReviewEntity> fromTmdb(ReviewPageTmdbResponse page) {
-
-        if (page == null || page.getResults() == null) {
-            return List.of();
-        }
-
-        List<ReviewEntity> reviews = new ArrayList<>();
-
-        page.getResults()
-                .forEach(r -> reviews.add(fromTmdb(r)));
-
-        return reviews;
-    }
-
-    /* =====================================
-       MULTI PAGE → ENTITY LIST
-     ===================================== */
-
-    default List<ReviewEntity> fromPages(List<ReviewPageTmdbResponse> pages) {
-
-        if (pages == null) return List.of();
-
-        List<ReviewEntity> reviews = new ArrayList<>();
-
-        for (ReviewPageTmdbResponse page : pages) {
-            reviews.addAll(fromTmdb(page));
-        }
-
-        return reviews;
-    }
+    List<ReviewEntity> fromTmdbList(List<ReviewTmdbResponse> responses);
 
     /* =====================================
        STRING → INSTANT
      ===================================== */
 
     default Instant map(String date) {
-
         if (date == null || date.isBlank()) {
             return null;
         }
-
         return Instant.parse(date);
     }
 }

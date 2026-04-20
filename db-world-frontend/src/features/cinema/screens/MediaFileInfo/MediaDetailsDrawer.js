@@ -2,7 +2,7 @@
  * MediaDetailsDrawer — shared media-file detail sheet.
  *
  * Usage (search — load by fileId):
- *   <MediaDetailsDrawer open={open} onClose={onClose} fileId={file.fileId} />
+ *   <MediaDetailsDrawer open={open} onClose={onClose} fileId={file.fileId} filePath={file.filePath} />
  *
  * Usage (download page — data already loaded):
  *   <MediaDetailsDrawer open={open} onClose={onClose} mediaInfo={mediaInfo} />
@@ -17,17 +17,16 @@ import {
   Audiotrack, Subtitles, FourK, Hd,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
-import { loadStreamFileInfoByFiledId, resolveMediaUrl } from '@shared/services/ApiServices';
+import { loadStreamFileInfoByFiledId, loadStreamFileInfoByPath, resolveMediaUrl, resolveMediaUrlByPath } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
 import CinemaPlayer from '../../player/CinemaPlayer';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
-
-const DbWorldDownload = registerPlugin('DbWorldDownload');
+import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 // ─── Re-use the same badge helpers from download page ─────────────────────────
 
@@ -93,6 +92,7 @@ const Badge = ({ color, label, border = false }) => (
 // ─── CopyButton — shows check on success ─────────────────────────────────────
 
 const CopyButton = ({ getUrl, label, size = 'small' }) => {
+  const { enqueueSnackbar } = useSnackbar();
   const [done, setDone] = useState(false);
   const [working, setWorking] = useState(false);
   const handle = async () => {
@@ -102,7 +102,7 @@ const CopyButton = ({ getUrl, label, size = 'small' }) => {
       if (url) {
         const r = await CommonServices.handleCopy(url);
         if (r.success) { setDone(true); setTimeout(() => setDone(false), 2000); }
-        else toast.error('Copy failed');
+        else enqueueSnackbar('Copy failed', { variant: 'error' });
       }
     } finally {
       setWorking(false);
@@ -134,12 +134,31 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const bitDepth = video?.bitDepth;
   const qMeta    = QUALITY_META[quality] || QUALITY_META['Unknown'];
 
+  const matchesCurrentFile = (item, target) => {
+    if (target?.mediaFileId && item?.mediaFileId) {
+      return item.mediaFileId === target.mediaFileId;
+    }
+    return (item?.filePath || item?.general?.filePath) === (target?.filePath || target?.general?.filePath);
+  };
+
+  const resolveOne = async (item, type) => {
+    if (item?.mediaFileId) {
+      return resolveMediaUrl(item.mediaFileId, type);
+    }
+
+    const targetPath = item?.filePath || item?.general?.filePath;
+    if (targetPath) {
+      return resolveMediaUrlByPath(targetPath, type);
+    }
+
+    throw new Error('No media identifier or file path available');
+  };
+
   const resolveAll = async (type) => {
     const files = (allFiles?.length > 0 ? allFiles : [mediaInfo]);
     return Promise.all(files.map(async (f) => {
-      if (!f?.mediaFileId) return f;
       try {
-        const res = await resolveMediaUrl(f.mediaFileId, type);
+        const res = await resolveOne(f, type);
         const cdnUrl = res?.data?.cdnUrl;
         return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
       } catch { return f; }
@@ -148,10 +167,11 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
 
   const handlePlay = async () => {
     setResolving(true);
+    onClose();
     try {
       const enriched = await resolveAll('ONLINE');
       setEnrichedFiles(enriched);
-      const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
+      const current = enriched.find(f => matchesCurrentFile(f, mediaInfo)) ?? enriched[0];
       if (Capacitor.getPlatform() === 'android') {
         AndroidPlugins.launchNativePlayer({
           url:            current?.streamUrl,
@@ -174,15 +194,20 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const handleDownload = async () => {
     setResolving(true);
     try {
-      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
-      const cdnUrl = res?.data?.cdnUrl;
-      if (!cdnUrl) throw new Error('No CDN URL');
-      if (Capacitor.getPlatform() === 'android') {
-        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName || 'download' });
-        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
-      } else {
-        CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
-      }
+        const res = await resolveOne(mediaInfo, 'DOWNLOAD');
+        const cdnUrl = res?.data?.cdnUrl;
+        if (!cdnUrl) throw new Error('No CDN URL');
+        if (Capacitor.getPlatform() === 'android') {
+          await DbWorldDownload.ensurePermissions();
+          await DbWorldDownload.startDownload({
+            url: cdnUrl,
+            fileName: general?.fileName || 'download',
+            title: record?.tmdb?.title || general?.fileName || 'Download',
+          });
+          enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+        } else {
+          CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
+        }
     } catch (e) {
       console.error('Download failed', e);
       enqueueSnackbar('Failed to start download', { variant: 'error' });
@@ -277,7 +302,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
           Play
         </Button>
         <CopyButton
-          getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'ONLINE').then(r => r?.data?.cdnUrl)}
+          getUrl={() => resolveOne(mediaInfo, 'ONLINE').then(r => r?.data?.cdnUrl)}
           label="Copy stream URL"
         />
 
@@ -293,7 +318,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
           Download
         </Button>
         <CopyButton
-          getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD').then(r => r?.data?.cdnUrl)}
+          getUrl={() => resolveOne(mediaInfo, 'DOWNLOAD').then(r => r?.data?.cdnUrl)}
           label="Copy download URL"
         />
       </Box>
@@ -301,7 +326,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
       <CinemaPlayer
         open={playerOpen}
         onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
-        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? mediaInfo) : mediaInfo}
+        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => matchesCurrentFile(f, mediaInfo)) ?? mediaInfo) : mediaInfo}
         allFiles={enrichedFiles ?? (allFiles ?? [mediaInfo])}
         record={record}
       />
@@ -325,12 +350,13 @@ const QuickStat = ({ label, value }) => {
 
 // ─── Main exported component ──────────────────────────────────────────────────
 
-const MediaDetailsDrawer = ({ open, onClose, fileId, mediaInfo: propMediaInfo, allFiles: allFilesProp, record: recordProp }) => {
+const MediaDetailsDrawer = ({ open, onClose, fileId, filePath, mediaInfo: propMediaInfo, allFiles: allFilesProp, record: recordProp }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
+  const { enqueueSnackbar } = useSnackbar();
 
   const [loading, setLoading] = useState(false);
   const [mediaInfo, setMediaInfo] = useState(propMediaInfo ?? null);
@@ -343,24 +369,47 @@ const MediaDetailsDrawer = ({ open, onClose, fileId, mediaInfo: propMediaInfo, a
   // Fetch if only fileId given
   useEffect(() => {
     if (!open || propMediaInfo) return;
-    if (!fileId) return;
+    if (!fileId && !filePath) return;
     setLoading(true);
     setMediaInfo(null);
-    loadStreamFileInfoByFiledId(fileId)
-      .then(res => {
+    const load = async () => {
+      const handleResponse = (res, syntheticId) => {
         if (res.httpStatusCode === 200) {
-          const converted = CommonServices.convertMediaInfoToCustomFormat(fileId, res.data, true);
+          const converted = CommonServices.convertMediaInfoToCustomFormat(syntheticId, res.data, true);
           setMediaInfo(converted[0] ?? null);
-        } else if (res.httpStatusCode === 401 || res.httpStatusCode === 403) {
-          toast.error('Authentication required');
-          navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-        } else {
-          toast.error(res.message || 'Failed to load media info');
+          return true;
         }
-      })
-      .catch(() => toast.error('Failed to load media information'))
-      .finally(() => setLoading(false));
-  }, [open, fileId]); // eslint-disable-line react-hooks/exhaustive-deps
+        if (res.httpStatusCode === 401 || res.httpStatusCode === 403) {
+          enqueueSnackbar('Authentication required', { variant: 'error' });
+          navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
+          return true;
+        }
+        return false;
+      };
+
+      try {
+        if (fileId) {
+          try {
+            const res = await loadStreamFileInfoByFiledId(fileId);
+            if (handleResponse(res, fileId)) return;
+          } catch (error) {
+            if (!filePath) throw error;
+          }
+        }
+
+        if (filePath) {
+          const res = await loadStreamFileInfoByPath(filePath);
+          if (handleResponse(res, fileId ?? filePath)) return;
+        }
+
+        enqueueSnackbar('Failed to load media info', { variant: 'error' });
+      } catch {
+        enqueueSnackbar('Failed to load media information', { variant: 'error' });
+      }
+    };
+
+    load().finally(() => setLoading(false));
+  }, [open, fileId, filePath, propMediaInfo, navigate, location, enqueueSnackbar]);
 
   const handleClose = () => {
     onClose();

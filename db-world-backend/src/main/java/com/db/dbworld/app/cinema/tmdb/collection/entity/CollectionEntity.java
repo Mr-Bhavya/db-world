@@ -8,7 +8,7 @@ import lombok.*;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "tmdb_collections", schema = "db_world")
+@Table(name = "tmdb_collections", schema = "new_db_world")
 public class CollectionEntity {
 
     @Id

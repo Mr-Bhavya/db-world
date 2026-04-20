@@ -9,7 +9,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "rails", schema = "db_world")
+@Table(name = "rails", schema = "new_db_world")
 @Getter
 @Setter
 @Builder

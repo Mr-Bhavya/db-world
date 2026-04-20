@@ -27,11 +27,13 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { Box, createTheme, ThemeProvider, Typography } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
 import FlmngrStandalone from '@features/admin/FileExplorer/FlmngrStandalone.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { SnackbarProvider } from 'notistack';
+import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,7 +54,6 @@ const LazyAdminDashboard      = lazy(() => import('@features/admin/dashboard/Adm
 const LazyActivityLogs        = lazy(() => import('@features/admin/ActivityLogs/ActivityLogs.js'));
 const LazyMediaFilesManagement = lazy(() => import('../features/adminv2/mediafiles'));
 const LazyTmdbSyncManager     = lazy(() => import('../features/adminv2/tmdb-sync'));
-const LazyDownloadManager     = lazy(() => import('@features/admin/DownloadManager/index.js'));
 const LazyIngestionPage       = lazy(() => import('../features/adminv2/ingestion'));
 const LazyServerInfo          = lazy(() => import('../features/adminv2/system-info'));
 const LazyRedisManager        = lazy(() => import('../features/adminv2/redis'));
@@ -241,18 +242,40 @@ const ThemedApp = () => {
     ));
 
   useEffect(() => {
+    let timeoutId;
+    let resumeListener;
+    let stateListener;
+
+    const hideNativeStatusBar = async () => {
+      if (!Capacitor.isNativePlatform()) return;
+      try { await StatusBar.hide(); } catch {}
+    };
+
     const init = async () => {
       try {
-        if (Capacitor.isNativePlatform()) {
-          try { await StatusBar.hide(); } catch {}
+        if (Capacitor.getPlatform() === 'android') {
+          await hideNativeStatusBar();
+          try { await DbWorldDownload.ensurePermissions(); } catch {}
+          try { resumeListener = await CapacitorApp.addListener('resume', hideNativeStatusBar); } catch {}
+          try {
+            stateListener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+              if (isActive) hideNativeStatusBar();
+            });
+          } catch {}
         }
-        const t = setTimeout(() => setLoading(false), 1000);
-        return () => clearTimeout(t);
+        timeoutId = setTimeout(() => setLoading(false), 1000);
       } catch {
         setLoading(false);
       }
     };
+
     init();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      resumeListener?.remove?.();
+      stateListener?.remove?.();
+    };
   }, []);
 
   if (loading) {
@@ -291,7 +314,6 @@ const ThemedApp = () => {
                     <Route path="media-files"   element={<LazyMediaFilesManagement />} />
                     <Route path="tag-management" element={<LazyTagManagement />} />
                     <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
-                    <Route path="downloads"     element={<LazyDownloadManager />} />
                     <Route path="ingestion"     element={<LazyIngestionPage />} />
                     <Route path="user-activity" element={<LazyCinemaActivity />} />
                     <Route path="system-info"   element={<LazyServerInfo />} />

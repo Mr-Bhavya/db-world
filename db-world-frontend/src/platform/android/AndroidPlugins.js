@@ -5,7 +5,7 @@ import MyDownloadManagerWeb from './MyDownloadManagerWeb';
 const DbWorldPlayer = registerPlugin('DbWorldPlayer');
 
 /** File download manager */
-const MyDownloadManager = registerPlugin('MyDownloadManager', {
+const DbWorldDownload = registerPlugin('DbWorldDownload', {
   web: () => new MyDownloadManagerWeb(),
 });
 
@@ -33,7 +33,7 @@ async function launchNativePlayer(opts = {}) {
 
 export default {
   DbWorldPlayer,
-  MyDownloadManager,
+  DbWorldDownload,
   launchNativePlayer,
 
   // Backward compatibility — old calls used MyMedia3Player(url, fileName)

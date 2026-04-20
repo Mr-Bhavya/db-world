@@ -21,7 +21,7 @@ import lombok.Setter;
  * Replaces old TrackInfoEntity (entities.dbcinema.stream).
  */
 @Entity
-@Table(name = "media_tracks", schema = "db_world")
+@Table(name = "media_tracks", schema = "new_db_world")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "track_type", discriminatorType = DiscriminatorType.STRING)
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "@type", visible = true)

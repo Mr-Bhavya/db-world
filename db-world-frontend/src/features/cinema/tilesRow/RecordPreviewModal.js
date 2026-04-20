@@ -30,6 +30,7 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const playerRef = useRef(null);
 
   const providers = record?.tmdb?.providers || record?.movieTmdb?.providers || record?.seriesTmdb?.providers || {};
   const hasProviders = (
@@ -73,64 +74,62 @@ const RecordPreviewModal = ({ title, record, onClose, onUpdateRecord, compact = 
     vid?.type === 'Trailer' && vid?.official
   )?.key || tmdb?.videos?.[0]?.key;
 
-  const toggleMute = () => {
-    if (player) {
-      isMuted ? player.unMute() : player.mute();
-      setIsMuted(!isMuted);
-    }
-  };
+    const toggleMute = () => {
+        if (!playerRef.current) return;
 
-  const onPlayerReady = (event) => {
-    setPlayer(event.target);
-    event.target.mute();
-  };
+        if (isMuted) {
+            playerRef.current.unMute();
+        } else {
+            playerRef.current.mute();
+        }
 
-  const renderTrailerOrBackdrop = () => {
-    if (trailerKey) {
-      return (
-        <>
-          <YouTube
+        setIsMuted(prev => !prev);
+    };
+
+    const onPlayerReady = (event) => {
+        console.log("Player Ready", event);
+        playerRef.current = event.target;
+        event.target.mute();
+        event.target.playVideo();
+    };
+
+    const youtubePlayer = useMemo(() => (
+        <YouTube
             videoId={trailerKey}
             opts={{
-              width: '100%',
-              height: compact ? '100' : '200',
-              playerVars: {
-                autoplay: 1,
-                mute: 1,
-                controls: 0,
-                rel: 0,
-                modestbranding: 1
-              }
+                width: '100%',
+                height: '100%',
+                playerVars: {
+                    autoplay: 1,
+                    mute: 1,
+                    controls: 0,
+                    rel: 0,
+                    modestbranding: 1,
+                    fs: 0,
+                    iv_load_policy: 3,
+                    disablekb: 1,
+                    playsinline: 1,
+                    loop: 1,
+                    playlist: trailerKey
+                }
             }}
             onReady={onPlayerReady}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%'
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: '120%',
+                height: '120%',
+                transform: 'translate(-50%, -50%) scale(1.15)',
+                pointerEvents: 'none'
             }}
-          />
-          <IconButton
-            onClick={toggleMute}
-            aria-label={isMuted ? "unmute" : "mute"}
-            sx={{
-              position: 'absolute',
-              right: 8,
-              bottom: 8,
-              color: 'common.white',
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              zIndex: 10,
-              '&:hover': {
-                backgroundColor: 'rgba(0,0,0,0.8)'
-              }
-            }}
-          >
-            {isMuted ? <VolumeOff /> : <VolumeUp />}
-          </IconButton>
-        </>
-      );
-    }
+        />
+    ), [trailerKey]);
+
+  const renderTrailerOrBackdrop = () => {
+      if (trailerKey) {
+          youtubePlayer
+      }
 
     const backdropUrl = CommonServices.getImageUrlFromTmdb(tmdb, Constants.IMAGE_TYPE_BACKDROP, "w500");
     if (backdropUrl) {

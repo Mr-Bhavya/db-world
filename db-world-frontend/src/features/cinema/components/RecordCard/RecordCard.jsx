@@ -72,10 +72,11 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [muted, setMuted] = useState(true);
   const isMovie = record.type === 'MOVIE';
+    const iframeRef = useRef(null);
 
-  const videoSrc = record.previewVideoUrl
-    ? (muted ? record.previewVideoUrl : record.previewVideoUrl.replace('&mute=1', ''))
-    : null;
+    const videoSrc = record.previewVideoUrl
+        ? `${record.previewVideoUrl}&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&vq=hd1080`
+        : null;
 
   const POPUP_VIDEO_H = Math.round(POPUP_W * 9 / 16);
   const popupH = POPUP_VIDEO_H + 190;
@@ -87,6 +88,25 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
     anchorRect.top + anchorRect.height / 2 - popupH / 2,
     window.innerHeight - popupH - 8
   ));
+
+    const toggleMute = (e) => {
+        e.stopPropagation();
+
+        if (!iframeRef.current) return;
+
+        const command = muted ? 'unMute' : 'mute';
+
+        iframeRef.current.contentWindow.postMessage(
+            JSON.stringify({
+                event: 'command',
+                func: command,
+                args: []
+            }),
+            '*'
+        );
+
+        setMuted(prev => !prev);
+    };
 
   const goDetail = (e) => {
     e?.stopPropagation();
@@ -138,31 +158,56 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
           transition: 'opacity 0.4s',
         }} />
         {videoSrc && (
-          <Box
-            component="iframe"
-            src={videoSrc}
-            allow="autoplay; encrypted-media; picture-in-picture"
-            onLoad={() => setVideoLoaded(true)}
-            sx={{
-              position: 'absolute', inset: 0, width: '100%', height: '100%',
-              border: 'none', opacity: videoLoaded ? 1 : 0, transition: 'opacity 0.4s',
-            }}
-          />
+            <Box
+                component="iframe"
+                ref={iframeRef}
+                src={videoSrc}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                onLoad={() => setVideoLoaded(true)}
+                sx={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    width: '120%',
+                    height: '120%',
+                    transform: 'translate(-50%, -50%) scale(1.2)', // 🔥 crop UI
+                    border: 'none',
+                    opacity: videoLoaded ? 1 : 0,
+                    transition: 'opacity 0.4s',
+                    pointerEvents: 'none' // 🔥 disable UI interaction
+                }}
+            />
         )}
+          <Box
+              sx={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '14%', // bottom mask
+                  background: 'linear-gradient(to top, black, transparent)',
+                  zIndex: 2
+              }}
+          />
         {/* Mute toggle */}
         {videoSrc && (
-          <IconButton
-            size="small"
-            onClick={(e) => { e.stopPropagation(); setMuted(!muted); }}
-            sx={{
-              position: 'absolute', bottom: 8, right: 8,
-              bgcolor: 'rgba(0,0,0,0.55)', color: '#fff',
-              border: '1.5px solid rgba(255,255,255,0.45)',
-              p: 0.5, '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
-            }}
-          >
-            {muted ? <VolumeOff sx={{ fontSize: 14 }} /> : <VolumeUp sx={{ fontSize: 14 }} />}
-          </IconButton>
+            <IconButton
+                size="small"
+                onClick={toggleMute}
+                sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    zIndex: 5,
+                    bgcolor: 'rgba(0,0,0,0.55)',
+                    color: '#fff',
+                    border: '1.5px solid rgba(255,255,255,0.45)',
+                    p: 0.5,
+                    '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+                }}
+            >
+                {muted ? <VolumeOff sx={{ fontSize: 14 }} /> : <VolumeUp sx={{ fontSize: 14 }} />}
+            </IconButton>
         )}
       </Box>
 
@@ -210,7 +255,7 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
           {/* Love / Favourite */}
           <ActionBtn
             icon={<FavoriteBorder sx={{ fontSize: 17 }} />}
-            activeIcon={<Favorite sx={{ fontSize: 17, color: '#e50914' }} />}
+            activeIcon={<Favorite sx={{ fontSize: 17, color: '#fff' }} />}
             active={interaction.loved}
             tooltip={interaction.loved ? 'Remove from Favourites' : 'Love it'}
             onClick={() => onLove?.(record)}

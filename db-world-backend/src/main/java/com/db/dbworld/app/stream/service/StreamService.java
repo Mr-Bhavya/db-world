@@ -42,6 +42,11 @@ public interface StreamService {
     CdnResolveDto resolveByPath(String user, String relativePath, boolean inline,
                                  String userAgent, String remoteAddr);
 
+    /**
+     * Resolve a path returned by search/list endpoints to its real filesystem path.
+     */
+    Path resolveRealPath(String relativePath);
+
     /* ========================= DISCOVERY ========================= */
 
     List<DbWorldRecords.StreamableFileInfo> listRecursive(Path dir);

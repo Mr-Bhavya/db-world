@@ -340,10 +340,22 @@ export const loadStreamFileInfoByRecordId = async (recordId) => {
 
 export const loadStreamFileInfoByFiledId = async (fileId) => {
   try {
-    const response = await axiosInstance.get(`/api/stream/media-info/file/${fileId}`);
+    const response = await axiosInstance.get(`/api/stream/search/media-info/file/${fileId}`);
     return response.data;
   } catch (error) {
     console.error('Error loading stream info by file:', error);
+    throw error;
+  }
+};
+
+export const loadStreamFileInfoByPath = async (path) => {
+  try {
+    const response = await axiosInstance.get('/api/stream/search/media-info', {
+      params: { path }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error loading stream info by path:', error);
     throw error;
   }
 };

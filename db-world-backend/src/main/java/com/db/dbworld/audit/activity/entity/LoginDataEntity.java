@@ -13,12 +13,11 @@ import java.util.Date;
 @Setter
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "LOGIN_DATA", schema = "db_world")
-@SequenceGenerator(name="LOGIN_DATA_SEQ", initialValue=1, allocationSize=1)
+@Table(name = "LOGIN_DATA", schema = "new_db_world")
 public class LoginDataEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "LOGIN_DATA_SEQ")
-    private int id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user", referencedColumnName = "id",  nullable = false, updatable = false)

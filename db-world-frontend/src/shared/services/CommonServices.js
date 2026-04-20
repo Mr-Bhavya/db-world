@@ -1,7 +1,8 @@
 import Constants from '@shared/constants';
 import { addUser, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from '@app/redux/action/allActions';
 import { useDispatch } from "react-redux";
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import { Capacitor } from "@capacitor/core";
+import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 class CommonServices {
   // ========== TIME & DATE UTILITIES ==========
@@ -247,7 +248,7 @@ class CommonServices {
    */
   static _handleNativeDownload = async (url, fileName = null) => {
     try {
-      const DbWorldDownload = registerPlugin('DbWorldDownload');
+      await DbWorldDownload.ensurePermissions();
       const result = await DbWorldDownload.startDownload({
         url,
         fileName: fileName || url.split('/').pop().split('?')[0] || 'download',
@@ -418,17 +419,18 @@ class CommonServices {
 
     const dataArray = Array.isArray(data) ? data : [data];
 
-    return dataArray.map(mediaFile => {
-      const mediaId = id ?? mediaFile.id;
+      return dataArray.map(mediaFile => {
+        const mediaId = id ?? mediaFile.id;
 
-      const mediaDetails = {
-        id: mediaId,
-        mediaFileId: mediaFile.id ?? null,
-        general: {},
-        video: {},
-        audio: [],
-        subtitle: [],
-        streamUrl: null,
+        const mediaDetails = {
+          id: mediaId,
+          mediaFileId: mediaFile.id ?? null,
+          filePath: mediaFile.filePath ?? null,
+          general: {},
+          video: {},
+          audio: [],
+          subtitle: [],
+          streamUrl: null,
         downloadUrl: null,
       };
 
@@ -441,12 +443,13 @@ class CommonServices {
           return `${result.value} ${result.suffix}`;
         };
 
-        if (type === "General") {
-          mediaDetails.general = {
-            fileName: mediaFile.fileName,
-            fileSize: bytesToReadable(track?.fileSize),
-            duration: track?.duration,
-            overallBitrate: `${bytesToReadable(track?.overallBitRate)}/s`,
+          if (type === "General") {
+            mediaDetails.general = {
+              fileName: mediaFile.fileName,
+              filePath: mediaFile.filePath,
+              fileSize: bytesToReadable(track?.fileSize),
+              duration: track?.duration,
+              overallBitrate: `${bytesToReadable(track?.overallBitRate)}/s`,
             format: track?.format,
             formatVersion: track?.formatVersion,
             videoCount: track?.videoCount,
@@ -487,23 +490,25 @@ class CommonServices {
             ].filter(Boolean).join(" | ") : null
           };
         } 
-        else if (type === "Audio") {
-          mediaDetails.audio.push({
-            language: this.getLanguageName(track?.language),
-            format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
-            bitRate: `${bytesToReadable(track?.bitRate)}/s`,
-            channels: track?.channels,
+          else if (type === "Audio") {
+            mediaDetails.audio.push({
+              language: this.getLanguageName(track?.language),
+              title: track?.title,
+              format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
+              bitRate: `${bytesToReadable(track?.bitRate)}/s`,
+              channels: track?.channels,
             channelLayout: track?.channelLayout,
             samplingRate: track?.samplingRate,
             duration: track?.duration,
             size: bytesToReadable(track?.streamSize)
           });
         } 
-        else if (type === "Text") {
-          mediaDetails.subtitle.push({
-            language: track?.language,
-            format: track?.formatCommercialIfAny || track?.format,
-            codecID: track?.codecID,
+          else if (type === "Text") {
+            mediaDetails.subtitle.push({
+              language: track?.language,
+              title: track?.title,
+              format: track?.formatCommercialIfAny || track?.format,
+              codecID: track?.codecID,
             bitRate: track?.bitRate > 0 
               ? `${bytesToReadable(track?.bitRate)}/s` 
               : "Unknown",

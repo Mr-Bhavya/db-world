@@ -235,19 +235,6 @@ const CinemaPage = ({ pageType = 'home' }) => {
         onColorExtracted={setHeroColor}
       />
 
-      {/* ── Genre filter (desktop only) ── */}
-      <AnimatePresence>
-        {genres.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <GenreBar genres={genres} selected={category} onSelect={handleGenreSelect} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── Rails ── */}
       <Box sx={{ mt: { xs: 1, md: 2 } }}>
         {loadingMeta && rails.length === 0 ? (

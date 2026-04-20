@@ -8,6 +8,7 @@ import com.db.dbworld.app.media.info.entity.track.*;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
+import com.db.dbworld.config.DbWorldProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +33,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final MediaFileRepository mediaFileRepository;
     private final RecordRepository recordRepository;
     private final ObjectMapper objectMapper;
+    private final DbWorldProperties properties;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Public API
@@ -115,6 +118,60 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             log.error("MediaInfo command failed for path={}: {}", filePath, e.getMessage());
             throw new RuntimeException("MediaInfo failed: " + e.getMessage(), e);
         }
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public MediaFileDto collectMediaInfo(Path filePath) {
+        String json = getRawJson(filePath);
+
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode tracks = root.path("media").path("track");
+
+            List<TrackDto> trackDtos = new ArrayList<>();
+
+            if (tracks.isArray()) {
+                int order = 0;
+
+                for (JsonNode node : tracks) {
+                    String type = node.path("@type").asText("");
+
+                    TrackDto dto = mapTrackToDto(type, node, order++);
+                    if (dto != null) trackDtos.add(dto);
+                }
+            }
+
+            return MediaFileDto.builder()
+                    .fileName(filePath.getFileName().toString())
+                    .filePath(toRelativePath(filePath))
+                    .fileSize(Files.exists(filePath) ? Files.size(filePath) : null)
+                    .tracks(trackDtos)
+                    .build();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse MediaInfo JSON", e);
+        }
+    }
+
+    private String toRelativePath(Path filePath) {
+
+        Path absolute = filePath.toAbsolutePath().normalize();
+
+        Path streamRoot = Path.of(properties.streamPath()).toAbsolutePath().normalize();
+        Path externalRoot = Path.of(properties.paths().externalVideos()).toAbsolutePath().normalize();
+
+        Path relative;
+
+        if (absolute.startsWith(streamRoot)) {
+            relative = streamRoot.relativize(absolute);
+        } else if (absolute.startsWith(externalRoot)) {
+            relative = externalRoot.relativize(absolute);
+        } else {
+            throw new RuntimeException("File outside allowed directories: " + absolute);
+        }
+
+        return "/" + relative.toString().replace("\\", "/");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -360,6 +417,76 @@ public class MediaInfoServiceImpl implements MediaInfoService {
              .mimeType(img.getMimeType())
              .source(img.getSource())
              .tmdbPosterPath(img.getTmdbPosterPath());
+        }
+
+        return b.build();
+    }
+
+    private TrackDto mapTrackToDto(String type, JsonNode node, int order) {
+        Map extra = objectMapper.convertValue(node, Map.class);
+
+        TrackDto.TrackDtoBuilder b = TrackDto.builder()
+                .type(type)
+                .streamOrder(order)
+                .rawMediaInfo(extra);
+
+        switch (type) {
+
+            case "General" -> {
+                b.format(text(node, "Format"))
+                        .fileSize(longVal(node, "FileSize"))
+                        .duration(parseDurationMs(node, "Duration"))
+                        .overallBitRate(longVal(node, "OverallBitRate"))
+                        .videoCount(intVal(node, "VideoCount"))
+                        .audioCount(intVal(node, "AudioCount"))
+                        .textCount(intVal(node, "TextCount"));
+            }
+
+            case "Video" -> {
+                b.format(text(node, "Format"))
+                        .width(intVal(node, "Width"))
+                        .height(intVal(node, "Height"))
+                        .frameRate(text(node, "FrameRate"))
+                        .bitRate(longVal(node, "BitRate"))
+                        .bitDepth(intVal(node, "BitDepth"))
+                        .colorSpace(text(node, "ColorSpace"))
+                        .hdrFormat(text(node, "HDR_Format"))
+                        .hdrFormatCompatibility(text(node, "HDR_Format_Compatibility"))
+                        .duration(parseDurationMs(node, "Duration"))
+                        .defaultTrack(text(node, "Default"))
+                        .forced(text(node, "Forced"));
+            }
+
+            case "Audio" -> {
+                b.format(text(node, "Format"))
+                        .language(resolveLanguage(text(node, "Language")))
+                        .title(text(node, "Title"))
+                        .channels(intVal(node, "Channels"))
+                        .samplingRate(longVal(node, "SamplingRate"))
+                        .bitRate(longVal(node, "BitRate"))
+                        .duration(parseDurationMs(node, "Duration"))
+                        .defaultTrack(text(node, "Default"))
+                        .forced(text(node, "Forced"));
+            }
+
+            case "Text" -> {
+                b.format(text(node, "Format"))
+                        .language(resolveLanguage(text(node, "Language")))
+                        .title(text(node, "Title"))
+                        .defaultTrack(text(node, "Default"))
+                        .forced(text(node, "Forced"));
+            }
+
+            case "Image" -> {
+                b.format(text(node, "Format"))
+                        .width(intVal(node, "Width"))
+                        .height(intVal(node, "Height"))
+                        .title(text(node, "Title"));
+            }
+
+            default -> {
+                return null;
+            }
         }
 
         return b.build();

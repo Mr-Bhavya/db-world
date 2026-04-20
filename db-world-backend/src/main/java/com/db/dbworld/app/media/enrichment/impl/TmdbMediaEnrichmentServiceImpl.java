@@ -62,12 +62,6 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private static final String TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
 
-    private String langName(String code) {
-        if (code == null || code.isBlank()) return null;
-        String resolved = MediaTagResolver.resolveLanguage(code.toLowerCase().trim());
-        return "Unknown".equalsIgnoreCase(resolved) ? null : resolved;
-    }
-
     private final RecordRepository recordRepository;
     private final ProcessExecutor  processExecutor;
     private final TrackingService  trackingService;
@@ -187,7 +181,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Appends per-audio-track language, title, and disposition metadata using
+     * Appends per-audio-track language and disposition metadata using
      * index-based output stream specifiers (e.g. {@code -metadata:s:a:0}).
      *
      * Index-based specifiers are the only form reliably supported by FFmpeg for
@@ -218,14 +212,10 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         int idx = 0;
         boolean defaultMarked = false;
         for (String lang : langs) {
-            String name  = langName(lang);
             int    count = counts != null ? counts.getOrDefault(lang, 1) : 1;
             boolean isDefaultLang = lang.equals(defaultLang);
             for (int i = 0; i < count; i++) {
                 cmd.addAll(List.of("-metadata:s:a:" + idx, "language=" + lang));
-                if (name != null) {
-                    cmd.addAll(List.of("-metadata:s:a:" + idx, "title=" + name));
-                }
                 boolean makeDefault = isDefaultLang && !defaultMarked;
                 cmd.addAll(List.of("-disposition:a:" + idx, makeDefault ? "default" : "0"));
                 if (makeDefault) defaultMarked = true;
@@ -235,7 +225,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     }
 
     /**
-     * Appends per-subtitle-track language, title, and disposition metadata
+     * Appends per-subtitle-track language and disposition metadata
      * using index-based output stream specifiers (e.g. {@code -metadata:s:s:0}).
      */
     private void applySubtitleTrackMetadata(List<String> cmd, TrackFilter filter) {
@@ -250,13 +240,9 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
 
         int idx = 0;
         for (String lang : subLangs) {
-            String name  = langName(lang);
             int    count = counts != null ? counts.getOrDefault(lang, 1) : 1;
             for (int i = 0; i < count; i++) {
                 cmd.addAll(List.of("-metadata:s:s:" + idx, "language=" + lang));
-                if (name != null) {
-                    cmd.addAll(List.of("-metadata:s:s:" + idx, "title=" + name));
-                }
                 if (filter.isNoDefaultSubtitle()) {
                     cmd.addAll(List.of("-disposition:s:" + idx, "0"));
                 }
@@ -319,8 +305,9 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             cmd.addAll(List.of("-i", poster.toAbsolutePath().toString()));
         }
 
-        // Clear all global metadata from input so we start clean
-        cmd.addAll(List.of("-map_metadata", "-1"));
+        // Preserve source stream metadata so track titles survive filtering/remuxing.
+        // Global title/description are still overridden explicitly below.
+        cmd.addAll(List.of("-map_metadata", "0"));
 
         boolean hasFilter = filter != null && filter.hasAnyFilter();
 

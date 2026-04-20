@@ -725,6 +725,8 @@ public class TmdbIngestionServiceImpl implements TmdbIngestionService {
             String key = entity.getId() + "_" + managedProvider.getId() + "_" +
                     rel.getProviderType() + "_" + rel.getRegionCode();
 
+            System.out.println("Region Code : "+ rel.getRegionCode());
+
             if (seen.add(key)) {
                 rel.setTmdb(entity);
                 deduplicated.add(rel);

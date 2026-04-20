@@ -12,7 +12,7 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "tmdb_people", schema = "db_world")
+@Table(name = "tmdb_people", schema = "new_db_world")
 public class PersonEntity {
 
     @Id

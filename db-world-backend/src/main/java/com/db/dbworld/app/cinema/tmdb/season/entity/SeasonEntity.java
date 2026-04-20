@@ -10,7 +10,7 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "tmdb_seasons", schema = "db_world")
+@Table(name = "tmdb_seasons", schema = "new_db_world")
 public class SeasonEntity {
 
     @Id

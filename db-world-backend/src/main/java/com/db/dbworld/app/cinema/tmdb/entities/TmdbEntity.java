@@ -23,7 +23,7 @@ import static jakarta.persistence.CascadeType.MERGE;
 import static jakarta.persistence.CascadeType.PERSIST;
 
 @Entity
-@Table(name = "tmdb_data", schema = "db_world")
+@Table(name = "tmdb_data", schema = "new_db_world")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "record_type")
 @Getter
@@ -70,7 +70,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST, MERGE})
     @JoinTable(
             name = "tmdb_genres",
-            schema = "db_world",
+            schema = "new_db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "genre_id")
     )
@@ -80,7 +80,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST, MERGE})
     @JoinTable(
             name = "tmdb_production_companies",
-            schema = "db_world",
+            schema = "new_db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "company_id")
     )
@@ -90,7 +90,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST, MERGE})
     @JoinTable(
             name = "tmdb_production_countries",
-            schema = "db_world",
+            schema = "new_db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "country_code")
     )
@@ -100,7 +100,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST})
     @JoinTable(
             name = "tmdb_spoken_languages",
-            schema = "db_world",
+            schema = "new_db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "language_code")
     )

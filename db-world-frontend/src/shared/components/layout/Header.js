@@ -148,21 +148,24 @@ const Header = () => {
             {!isMobile && !isAuth && <Box sx={{ flexGrow: 1 }} />}
 
             {/* Theme toggle */}
-            <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-              <IconButton
-                onClick={toggleMode}
-                size="small"
-                sx={{
-                  color: T.textMuted, mr: 1,
-                  '&:hover': { color: T.teal, bgcolor: T.tealBg },
-                }}
-              >
-                {mode === 'dark'
-                  ? <LightModeIcon sx={{ fontSize: 20 }} />
-                  : <DarkModeIcon  sx={{ fontSize: 20 }} />
-                }
-              </IconButton>
-            </Tooltip>
+              {
+                  !isMobile && <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+                      <IconButton
+                          onClick={toggleMode}
+                          size="small"
+                          sx={{
+                              color: T.textMuted, mr: 1,
+                              '&:hover': { color: T.teal, bgcolor: T.tealBg },
+                          }}
+                      >
+                          {mode === 'dark'
+                              ? <LightModeIcon sx={{ fontSize: 20 }} />
+                              : <DarkModeIcon  sx={{ fontSize: 20 }} />
+                          }
+                      </IconButton>
+                  </Tooltip>
+              }
+
 
             {/* Desktop right — authenticated */}
             {!isMobile && isAuth && (

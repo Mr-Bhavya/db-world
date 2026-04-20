@@ -14,7 +14,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     Optional<UserEntity> findByEmail(String email);
 
-    @Query(value = "SELECT role FROM DB_WORLD.USERS WHERE id= :id", nativeQuery = true)
+    @Query(value = "SELECT role FROM new_db_world.USERS WHERE id= :id", nativeQuery = true)
     Integer getRoleByUserId(@Param(value="id") Integer id);
 
 //    @Query(value = """
@@ -23,7 +23,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 //            u.last_name as lastName,
 //            u.email
 //        FROM
-//            db_world.users u
+//            new_db_world.users u
 //        WHERE
 //            LOWER(u.first_name) LIKE LOWER(CONCAT('%', :query, '%')) OR
 //            LOWER(u.last_name) LIKE LOWER(CONCAT('%', :query, '%')) OR

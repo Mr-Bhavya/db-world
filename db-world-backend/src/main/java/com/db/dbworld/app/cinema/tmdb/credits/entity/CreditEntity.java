@@ -13,7 +13,7 @@ import lombok.*;
 @NoArgsConstructor
 @Table(
         name = "tmdb_credits",
-        schema = "db_world"
+        schema = "new_db_world"
 )public class CreditEntity {
 
     @Id
