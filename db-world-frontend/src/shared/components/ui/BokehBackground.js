@@ -2,7 +2,7 @@
 import React, { useId } from 'react';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { motion } from 'framer-motion';
-import { useT } from '@shared/theme';
+import { useThemeMode } from '@shared/theme';
 
 const ORB_DARK_OPACITY = 0.25;
 const ORB_LIGHT_OPACITY = 0.12;
@@ -19,12 +19,12 @@ const DOTS = [
 ];
 
 export default function BokehBackground({ children, vignette = false, height = '100vh' }) {
-  const T = useT();
+  const { T, mode } = useThemeMode();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
   const filterId = useId().replace(/:/g, '');
 
-  const isDark = T.bg === '#000000';
+  const isDark = mode === 'dark';
   const orbOpacity = isDark ? ORB_DARK_OPACITY : ORB_LIGHT_OPACITY;
   const grainOpacity = isDark ? GRAIN_DARK_OPACITY : GRAIN_LIGHT_OPACITY;
 
@@ -102,6 +102,7 @@ export default function BokehBackground({ children, vignette = false, height = '
       {dots.map((dot, i) => (
         <motion.div
           key={i}
+          initial={{ opacity: 0 }}
           animate={{ y: [0, -120, 0], opacity: [dot.delay ? 0.15 : 0.3, 0.4, 0.15] }}
           transition={{
             duration: dot.duration,
@@ -117,7 +118,6 @@ export default function BokehBackground({ children, vignette = false, height = '
             height: dot.size,
             borderRadius: '50%',
             background: '#0d9488',
-            opacity: 0.2,
             pointerEvents: 'none',
             zIndex: 2,
           }}
