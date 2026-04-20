@@ -12,7 +12,6 @@ import {
     Lock as PasswordIcon,
     AdminPanelSettings as AdminIcon,
     ArrowForward as ArrowIcon,
-    KeyboardArrowDown as ChevronDown,
     Bookmark as BookmarkFilledIcon,
     BookmarkBorder as BookmarkIcon,
     Info as AboutIcon,
@@ -497,7 +496,7 @@ const Home = () => {
                         justifyContent: 'center',
                         pt: { xs: '56px', md: '64px' },
                         px: { xs: 3, md: 8, lg: 12 },
-                        maxWidth: { md: 720 },
+                        maxWidth: { md: 600 },
                         position: 'relative',
                     }}
                 >
@@ -518,7 +517,7 @@ const Home = () => {
                                 textAlign: { xs: 'center', md: 'left' },
                             }}
                         >
-                            Your Personal Universe
+                            YOUR PERSONAL UNIVERSE
                         </Typography>
                     </motion.div>
 
@@ -628,12 +627,21 @@ const Home = () => {
                     >
                         <AnimatePresence>
                             {!scrolled && (
-                                <motion.div
-                                    animate={{ y: [0, 8, 0] }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                                >
-                                    <ChevronDown sx={{ fontSize: 28, color: T.textFaint }} />
+                                <motion.div exit={{ opacity: 0 }}>
+                                    {/* Thin animated line — extends downward with a repeating scale animation */}
+                                    <Box
+                                        sx={{
+                                            width: 2,
+                                            height: 40,
+                                            bgcolor: T.teal,
+                                            borderRadius: 1,
+                                            mx: 'auto',
+                                            mt: 0,
+                                        }}
+                                        component={motion.div}
+                                        animate={{ scaleY: [1, 0.5, 1], opacity: [0.6, 1, 0.6] }}
+                                        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                                    />
                                 </motion.div>
                             )}
                         </AnimatePresence>
