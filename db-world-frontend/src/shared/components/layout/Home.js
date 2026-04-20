@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Box, Typography, Button, Grid, Container,
-    useMediaQuery, useTheme, Paper, alpha,
+    Box, Typography, Grid, Container,
+    useMediaQuery, useTheme,
 } from '@mui/material';
 import {
     MovieFilter as CinemaIcon,
@@ -13,7 +13,6 @@ import {
     AdminPanelSettings as AdminIcon,
     Bookmark as BookmarkFilledIcon,
     BookmarkBorder as BookmarkIcon,
-    Info as AboutIcon,
 } from '@mui/icons-material';
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
@@ -21,6 +20,7 @@ import { useT } from '@shared/theme';
 import BokehBackground from '@shared/components/ui/BokehBackground';
 import SectionHeading from '@shared/components/ui/SectionHeading';
 import { StaggerContainer, StaggerItem } from '@shared/components/ui/Stagger';
+import Footer from '@shared/components/layout/Footer';
 
 // ── App catalogue ──────────────────────────────────────────────────────────────
 const APPS = [
@@ -308,88 +308,130 @@ const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }
 });
 
 // ── About Section ────────────────────────────────────────────────────────────
-const AboutSection = memo(({ onClose }) => {
+const AboutSection = React.memo(function AboutSection({ open, onClose }) {
     const T = useT();
 
+    if (!open) return null;
+
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-        >
-            <Paper
-                sx={{
-                    p: 4,
-                    bgcolor: T.glass,
-                    backdropFilter: 'blur(20px)',
-                    border: `1px solid ${T.glassBorder}`,
-                    borderRadius: 3,
-                    maxWidth: 600,
-                    mx: 'auto',
-                    position: 'relative',
-                }}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                    <Box
-                        sx={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 2,
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+        <AnimatePresence>
+            {open && (
+                <>
+                    {/* Backdrop */}
+                    <motion.div
+                        key="about-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        onClick={onClose}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(0,0,0,0.7)',
+                            backdropFilter: 'blur(8px)',
+                            zIndex: 1200,
+                        }}
+                    />
+                    {/* Content panel */}
+                    <motion.div
+                        key="about-panel"
+                        initial={{ opacity: 0, scale: 0.95, y: 24 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 24 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+                        style={{
+                            position: 'fixed',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            zIndex: 1201,
+                            width: '90%',
+                            maxWidth: 480,
                         }}
                     >
-                        <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.5rem' }}>
-                            D
-                        </Typography>
-                    </Box>
-                    <Box>
-                        <Typography variant="h5" sx={{ fontWeight: 700, color: T.textPrimary }}>
-                            DB World
-                        </Typography>
-                        <Typography sx={{ color: T.textMuted, fontSize: '0.9rem' }}>
-                            Version 2.0.0
-                        </Typography>
-                    </Box>
-                </Box>
-
-                <Typography sx={{ color: T.textPrimary, mb: 2 }}>
-                    Your personal media universe — everything in one place. DB World brings together
-                    entertainment, productivity, and management tools in a seamless, unified experience.
-                </Typography>
-
-                <Typography variant="h6" sx={{ fontWeight: 600, color: T.textPrimary, mb: 1, mt: 3 }}>
-                    Features
-                </Typography>
-                <Box component="ul" sx={{ color: T.textMuted, pl: 2, mb: 2 }}>
-                    <li>Stream movies and TV shows with DB Cinema</li>
-                    <li>Check real-time weather with DB Weather</li>
-                    <li>Play browser games with DB Games</li>
-                    <li>Secure password management</li>
-                    <li>Admin console for system management</li>
-                </Box>
-
-                <Typography sx={{ color: T.textFaint, fontSize: '0.8rem', mt: 3 }}>
-                    © 2024 DB World. All rights reserved.
-                </Typography>
-
-                <Button
-                    onClick={onClose}
-                    sx={{
-                        position: 'absolute',
-                        top: 16,
-                        right: 16,
-                        minWidth: 'auto',
-                        p: 1,
-                        color: T.textFaint,
-                    }}
-                >
-                    ✕
-                </Button>
-            </Paper>
-        </motion.div>
+                        <Box
+                            sx={{
+                                bgcolor: T.glass,
+                                backdropFilter: 'blur(16px)',
+                                border: `1px solid ${T.glassBorder}`,
+                                borderRadius: '24px',
+                                p: { xs: '32px 24px', md: '48px 40px' },
+                                position: 'relative',
+                            }}
+                        >
+                            {/* Close button */}
+                            <Box
+                                component="button"
+                                type="button"
+                                onClick={onClose}
+                                aria-label="Close about panel"
+                                sx={{
+                                    position: 'absolute',
+                                    top: 16,
+                                    right: 16,
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: T.textMuted,
+                                    fontSize: '1.25rem',
+                                    lineHeight: 1,
+                                    p: 0.5,
+                                    borderRadius: 1,
+                                    '&:hover': { color: T.textPrimary },
+                                }}
+                            >
+                                ✕
+                            </Box>
+                            {/* Logo + title row */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                                <Box
+                                    sx={{
+                                        width: 48,
+                                        height: 48,
+                                        borderRadius: 2,
+                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.5rem' }}>
+                                        D
+                                    </Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="h5" sx={{ fontWeight: 700, color: T.textPrimary }}>
+                                        DB World
+                                    </Typography>
+                                    <Typography sx={{ color: T.textMuted, fontSize: '0.9rem' }}>
+                                        Version 2.0.0
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <Typography sx={{ color: T.textPrimary, mb: 2 }}>
+                                Your personal media universe — everything in one place. DB World brings together
+                                entertainment, productivity, and management tools in a seamless, unified experience.
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 600, color: T.textPrimary, mb: 1, mt: 3 }}>
+                                Features
+                            </Typography>
+                            <Box component="ul" sx={{ color: T.textMuted, pl: 2, mb: 2 }}>
+                                <li>Stream movies and TV shows with DB Cinema</li>
+                                <li>Check real-time weather with DB Weather</li>
+                                <li>Play browser games with DB Games</li>
+                                <li>Secure password management</li>
+                                <li>Admin console for system management</li>
+                            </Box>
+                            <Typography sx={{ color: T.textFaint, fontSize: '0.8rem', mt: 3 }}>
+                                © 2024 DB World. All rights reserved.
+                            </Typography>
+                        </Box>
+                    </motion.div>
+                </>
+            )}
+        </AnimatePresence>
     );
 });
 
@@ -778,79 +820,33 @@ const Home = () => {
                 </Box>
             )}
 
-            {/* ── About Section Modal ──────────────────────────────────────────────── */}
-            <AnimatePresence>
-                {showAbout && (
-                    <Box
-                        sx={{
-                            position: 'fixed',
-                            inset: 0,
-                            zIndex: 9999,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            p: 2,
-                            bgcolor: alpha(T.bg, 0.8),
-                            backdropFilter: 'blur(10px)',
-                        }}
-                        onClick={() => setShowAbout(false)}
-                    >
-                        <Box onClick={(e) => e.stopPropagation()}>
-                            <AboutSection onClose={() => setShowAbout(false)} />
-                        </Box>
-                    </Box>
-                )}
-            </AnimatePresence>
-
-            {/* ── Footer ───────────────────────────────────────────────────────────── */}
-            <Box sx={{
-                bgcolor: alpha(T.glass, 0.2),
-                backdropFilter: 'blur(10px)',
-                borderTop: `1px solid ${alpha(T.border, 0.3)}`,
-                py: 3,
-                px: { xs: 2, md: 3 },
-            }}>
-                <Container maxWidth="lg">
-                    <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: 2,
-                    }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Typography
-                                sx={{
-                                    fontSize: '0.9rem',
-                                    fontWeight: 700,
-                                    color: T.textPrimary,
-                                    cursor: 'pointer',
-                                }}
-                                onClick={() => navigate(Constants.DB_WORLD_HOME_ROUTE)}
-                            >
-                                DB World
-                            </Typography>
-
-                            <Button
-                                startIcon={<AboutIcon />}
-                                onClick={() => setShowAbout(true)}
-                                sx={{
-                                    color: T.textMuted,
-                                    textTransform: 'none',
-                                    fontSize: '0.85rem',
-                                    '&:hover': { color: T.teal },
-                                }}
-                            >
-                                About
-                            </Button>
-                        </Box>
-
-                        <Typography sx={{ fontSize: '0.8rem', color: T.textFaint }}>
-                            v2.0.0
-                        </Typography>
-                    </Box>
-                </Container>
+            {/* About trigger + Footer */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <Box
+                    component="button"
+                    type="button"
+                    onClick={() => setShowAbout(true)}
+                    aria-label="About DB World"
+                    sx={{
+                        background: 'none',
+                        border: `1px solid ${T.glassBorder}`,
+                        borderRadius: 999,
+                        px: 3,
+                        py: 1,
+                        cursor: 'pointer',
+                        color: T.textMuted,
+                        fontSize: '0.8rem',
+                        transition: 'color 0.2s ease, border-color 0.2s ease',
+                        '&:hover': { color: T.textPrimary, borderColor: T.teal },
+                    }}
+                >
+                    About DB World
+                </Box>
             </Box>
+
+            <AboutSection open={showAbout} onClose={() => setShowAbout(false)} />
+
+            <Footer />
         </Box>
     );
 };
