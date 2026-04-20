@@ -684,36 +684,27 @@ const Home = () => {
             </Box>
 
             {/* ── All Apps Grid ────────────────────────────────────────────────────── */}
-            <Box id="apps" sx={{ py: { xs: 6, md: 10 }, px: { xs: 2, md: 3 } }}>
+            <Box sx={{ py: { xs: 6, md: 10 }, px: { xs: 2, md: 3 } }}>
                 <Container maxWidth="lg">
-                    <Box sx={{ mb: 5, textAlign: 'center' }}>
-                        <Typography sx={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: T.teal,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.12em',
-                            mb: 1,
-                        }}>
-                            Your Apps
-                        </Typography>
-                        <Typography variant="h5" sx={{ fontWeight: 700, color: T.textPrimary }}>
-                            Everything in one place
-                        </Typography>
-                    </Box>
-
-                    <Grid container spacing={2}>
-                        {visibleApps.map((app) => (
-                            <Grid key={app.id} item xs={12} sm={6} md={4} lg={3}>
-                                <AppCard
-                                    app={app}
-                                    onNavigate={handleNavigate}
-                                    isFavorite={favorites.includes(app.id)}
-                                    onToggleFavorite={handleToggleFavorite}
-                                />
+                    <Box component="section" id="apps" sx={{ mb: 6 }}>
+                        <SectionHeading label="All Apps" />
+                        <StaggerContainer>
+                            <Grid container spacing={2}>
+                                {visibleApps.map((app) => (
+                                    <Grid key={app.id} item xs={12} sm={6} md={4} lg={3}>
+                                        <StaggerItem style={{ height: '100%' }}>
+                                            <AppCard
+                                                app={app}
+                                                isFavorite={favorites.includes(app.id)}
+                                                onNavigate={handleNavigate}
+                                                onToggleFavorite={handleToggleFavorite}
+                                            />
+                                        </StaggerItem>
+                                    </Grid>
+                                ))}
                             </Grid>
-                        ))}
-                    </Grid>
+                        </StaggerContainer>
+                    </Box>
                 </Container>
             </Box>
 
