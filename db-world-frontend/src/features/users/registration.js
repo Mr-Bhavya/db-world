@@ -115,7 +115,7 @@ const Registration = () => {
       if (res.httpStatusCode === 200 || res.httpStatusCode === 201) {
         toast.success('Account created! Redirecting to sign in…', {
           autoClose: 1200,
-          onClose: () => navigate(Constants.LOGIN_ROUTE, { state: { from: location } }),
+          onClose: () => navigate(Constants.LOGIN_ROUTE),
         });
       } else {
         toast.error(res?.message || res?.error || 'Registration failed.');

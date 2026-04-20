@@ -297,7 +297,6 @@ const Header = () => {
             width: 280, bgcolor: drawerBg,
             backdropFilter: 'blur(20px)',
             borderLeft: `1px solid ${T.glassBorder}`,
-            position: 'relative',
             overflow: 'hidden',
           },
         }}
