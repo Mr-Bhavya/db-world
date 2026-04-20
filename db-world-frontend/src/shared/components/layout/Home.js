@@ -373,7 +373,6 @@ const Home = () => {
     const navigate = useNavigate();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    const isTablet = useMediaQuery(theme.breakpoints.down('md'));
     const { auth } = useAuth();
     const user = auth?.user;
     const role = auth?.role;
@@ -423,13 +422,6 @@ const Home = () => {
     const firstName = user?.firstName ?? user?.name?.split(' ')[0] ?? null;
     const lastRecent = recent[0] ? APPS.find(a => a.id === recent[0].appId) : null;
     const visibleApps = APPS.filter(a => !a.adminOnly || isAdmin);
-
-    // Determine grid columns based on screen size
-    const getGridSize = () => {
-        if (isMobile) return 12;
-        if (isTablet) return 6;
-        return 3;
-    };
 
     return (
         <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary }}>
@@ -692,7 +684,7 @@ const Home = () => {
                             <Grid container spacing={2}>
                                 {visibleApps.map((app) => (
                                     <Grid key={app.id} item xs={12} sm={6} md={4} lg={3}>
-                                        <StaggerItem style={{ height: '100%' }}>
+                                        <StaggerItem>
                                             <AppCard
                                                 app={app}
                                                 isFavorite={favorites.includes(app.id)}
