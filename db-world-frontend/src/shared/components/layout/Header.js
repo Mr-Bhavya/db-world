@@ -1,7 +1,7 @@
+// src/shared/components/layout/Header.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import db_world_icon from '@assets/images/db_world_teal.svg';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   AppBar, Toolbar, Box, IconButton, Avatar, Typography,
   Menu, MenuItem, Divider, Drawer, List, ListItemButton,
@@ -13,6 +13,7 @@ import {
   Logout as LogoutIcon, HowToReg as RegisterIcon, Lock as LockIcon,
   Cloud as WeatherIcon, Movie as CinemaIcon, SportsEsports as GamesIcon,
   VpnKey as PasswordIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon,
+  PlayCircle as PlayCircleIcon,
 } from '@mui/icons-material';
 import { useAuth } from '@features/auth/context/Authentication';
 import { useThemeMode } from '@shared/theme';
@@ -24,6 +25,55 @@ const NAV = [
   { id: 'games',    label: 'Games',             icon: <GamesIcon />,    route: Constants.DB_GAMES_ROUTE },
   { id: 'password', label: 'Password Manager',  icon: <PasswordIcon />, route: Constants.DB_PASSWORD_MANAGER_ROUTE },
 ];
+
+const NavLink = ({ item, location, handleNav, T }) => {
+  const active = location.pathname.startsWith(item.route);
+  return (
+    <Box
+      component="button"
+      onClick={() => handleNav(item.route)}
+      sx={{
+        background: active ? T.tealBg : 'none',
+        border: 'none',
+        cursor: 'pointer',
+        px: 1.75,
+        py: 0.75,
+        borderRadius: 1.5,
+        color: active ? T.teal : T.textMuted,
+        fontFamily: 'inherit',
+        fontSize: '0.875rem',
+        fontWeight: active ? 600 : 400,
+        transition: 'color 0.2s, background 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          color: T.teal,
+          background: T.tealBg,
+          boxShadow: `0 2px 0 0 ${T.teal}, 0 4px 8px ${T.tealGlow}`,
+        },
+        boxShadow: active ? `0 2px 0 0 ${T.teal}` : 'none',
+      }}
+    >
+      {item.label}
+    </Box>
+  );
+};
+
+const ThemeToggleIcon = ({ mode }) => (
+  <AnimatePresence mode="wait" initial={false}>
+    <motion.div
+      key={mode}
+      initial={{ rotate: -180, scale: 0, opacity: 0 }}
+      animate={{ rotate: 0,    scale: 1, opacity: 1 }}
+      exit={{    rotate: 180,  scale: 0, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+      style={{ display: 'flex', alignItems: 'center' }}
+    >
+      {mode === 'dark'
+        ? <LightModeIcon sx={{ fontSize: 20 }} />
+        : <DarkModeIcon  sx={{ fontSize: 20 }} />
+      }
+    </motion.div>
+  </AnimatePresence>
+);
 
 const Header = () => {
   const muiTheme = useTheme();
@@ -65,44 +115,8 @@ const Header = () => {
 
   const initial = (user?.firstName?.[0] ?? user?.name?.[0] ?? user?.email?.[0] ?? 'U').toUpperCase();
 
-  const scrolledBg = mode === 'dark'
-    ? 'rgba(10,10,15,0.88)'
-    : 'rgba(255,255,255,0.92)';
-  const drawerBg = mode === 'dark'
-    ? 'rgba(10,10,15,0.97)'
-    : 'rgba(255,255,255,0.97)';
-
-  // ── Nav link (desktop) ──────────────────────────────────────────────────────
-  const NavLink = ({ item }) => {
-    const active = location.pathname.startsWith(item.route);
-    return (
-      <Box
-        component="button"
-        onClick={() => handleNav(item.route)}
-        sx={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          px: 1.5, py: 0.75, borderRadius: 1,
-          color: active ? T.teal : T.textMuted,
-          fontFamily: 'inherit', fontSize: '0.875rem', fontWeight: active ? 600 : 400,
-          position: 'relative',
-          transition: 'color 0.2s',
-          '&:hover': { color: T.teal },
-          '&::after': {
-            content: '""',
-            position: 'absolute', bottom: 0, left: '50%',
-            transform: active ? 'translateX(-50%) scaleX(1)' : 'translateX(-50%) scaleX(0)',
-            transformOrigin: 'center',
-            width: '60%', height: 2,
-            bgcolor: T.teal, borderRadius: 1,
-            transition: 'transform 0.2s',
-          },
-          '&:hover::after': { transform: 'translateX(-50%) scaleX(1)' },
-        }}
-      >
-        {item.label}
-      </Box>
-    );
-  };
+  const scrolledBg = mode === 'dark' ? 'rgba(10,10,15,0.88)' : 'rgba(255,255,255,0.92)';
+  const drawerBg   = mode === 'dark' ? 'rgba(10,10,15,0.97)' : 'rgba(255,255,255,0.97)';
 
   return (
     <>
@@ -111,8 +125,8 @@ const Header = () => {
         elevation={0}
         sx={{
           background: scrolled ? scrolledBg : 'transparent',
-          backdropFilter: scrolled ? 'blur(16px)' : 'none',
-          borderBottom: scrolled ? `1px solid ${T.border}` : 'none',
+          backdropFilter: scrolled ? 'blur(12px)' : 'none',
+          borderBottom: scrolled ? `1px solid ${T.glassBorder}` : 'none',
           transition: 'background 0.3s, backdrop-filter 0.3s, border-color 0.3s',
           zIndex: 1200,
         }}
@@ -120,21 +134,30 @@ const Header = () => {
         <Container maxWidth="xl">
           <Toolbar sx={{ px: { xs: 0 }, minHeight: { xs: 56, md: 64 } }}>
 
-            {/* Logo */}
+            {/* Cinematic logo */}
             <Box
               onClick={() => handleNav(Constants.DB_WORLD_HOME_ROUTE)}
               sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', mr: 4 }}
             >
-              <Avatar
-                src={db_world_icon}
+              <motion.div
+                initial={{ opacity: 0.6 }}
+                animate={{ opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 0.8, times: [0, 0.5, 1], repeat: 0 }}
+                style={{ display: 'flex', alignItems: 'center' }}
+              >
+                <PlayCircleIcon sx={{ color: T.teal, fontSize: 28 }} />
+              </motion.div>
+              <Typography
                 sx={{
-                  width: 32, height: 32,
-                  bgcolor: T.tealBg,
-                  border: `1px solid ${T.teal}40`,
-                  boxShadow: `0 0 12px ${T.tealGlow}`,
+                  fontWeight: 800,
+                  fontSize: '1rem',
+                  letterSpacing: '-0.02em',
+                  background: 'linear-gradient(90deg, #0d9488, #14b8a6)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
                 }}
-              />
-              <Typography sx={{ fontWeight: 800, color: T.text, fontSize: '1rem', letterSpacing: '-0.02em' }}>
+              >
                 DB World
               </Typography>
             </Box>
@@ -142,32 +165,31 @@ const Header = () => {
             {/* Desktop nav */}
             {!isMobile && isAuth && (
               <Box sx={{ display: 'flex', gap: 0.5, flexGrow: 1 }}>
-                {NAV.map(item => <NavLink key={item.id} item={item} />)}
+                {NAV.map(item => (
+                  <NavLink key={item.id} item={item} location={location} handleNav={handleNav} T={T} />
+                ))}
               </Box>
             )}
             {!isMobile && !isAuth && <Box sx={{ flexGrow: 1 }} />}
 
-            {/* Theme toggle */}
-              {
-                  !isMobile && <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-                      <IconButton
-                          onClick={toggleMode}
-                          size="small"
-                          sx={{
-                              color: T.textMuted, mr: 1,
-                              '&:hover': { color: T.teal, bgcolor: T.tealBg },
-                          }}
-                      >
-                          {mode === 'dark'
-                              ? <LightModeIcon sx={{ fontSize: 20 }} />
-                              : <DarkModeIcon  sx={{ fontSize: 20 }} />
-                          }
-                      </IconButton>
-                  </Tooltip>
-              }
+            {/* Desktop theme toggle */}
+            {!isMobile && (
+              <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+                <IconButton
+                  onClick={toggleMode}
+                  size="small"
+                  sx={{
+                    color: T.textMuted, mr: 1,
+                    '&:hover': { color: T.teal, bgcolor: T.tealBg },
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  <ThemeToggleIcon mode={mode} />
+                </IconButton>
+              </Tooltip>
+            )}
 
-
-            {/* Desktop right — authenticated */}
+            {/* Desktop avatar (auth) */}
             {!isMobile && isAuth && (
               <Tooltip title={user?.firstName ?? user?.name ?? 'Account'}>
                 <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ p: 0.5 }}>
@@ -178,7 +200,7 @@ const Header = () => {
               </Tooltip>
             )}
 
-            {/* Desktop right — guest */}
+            {/* Desktop guest buttons */}
             {!isMobile && !isAuth && (
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Box
@@ -223,7 +245,7 @@ const Header = () => {
         </Container>
       </AppBar>
 
-      {/* ── Avatar dropdown ──────────────────────────────────────────────────── */}
+      {/* Avatar dropdown */}
       <Menu
         anchorEl={menuAnchor}
         open={Boolean(menuAnchor)}
@@ -265,7 +287,7 @@ const Header = () => {
         </MenuItem>
       </Menu>
 
-      {/* ── Mobile drawer ─────────────────────────────────────────────────────── */}
+      {/* Mobile drawer */}
       <Drawer
         anchor="right"
         open={drawerOpen}
@@ -275,19 +297,49 @@ const Header = () => {
             width: 280, bgcolor: drawerBg,
             backdropFilter: 'blur(20px)',
             borderLeft: `1px solid ${T.glassBorder}`,
+            position: 'relative',
+            overflow: 'hidden',
           },
         }}
       >
+        {/* Teal accent vertical line — scaleY 0→1 on drawer open */}
+        <motion.div
+          initial={{ scaleY: 0 }}
+          animate={{ scaleY: drawerOpen ? 1 : 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 2,
+            background: T.teal,
+            transformOrigin: 'top',
+            zIndex: 10,
+          }}
+        />
+
         {/* Drawer header */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Avatar src={db_world_icon} sx={{ width: 28, height: 28, bgcolor: T.tealBg }} />
-            <Typography sx={{ fontWeight: 700, color: T.text, fontSize: '0.95rem' }}>DB World</Typography>
+            <PlayCircleIcon sx={{ color: T.teal, fontSize: 24 }} />
+            <Typography
+              sx={{
+                fontWeight: 800,
+                fontSize: '0.95rem',
+                background: 'linear-gradient(90deg, #0d9488, #14b8a6)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              DB World
+            </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Tooltip title={mode === 'dark' ? 'Light mode' : 'Dark mode'}>
               <IconButton size="small" onClick={toggleMode} sx={{ color: T.textMuted, '&:hover': { color: T.teal } }}>
-                {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+                <ThemeToggleIcon mode={mode} />
               </IconButton>
             </Tooltip>
             <IconButton onClick={() => setDrawerOpen(false)} sx={{ color: T.textMuted }}>
@@ -323,7 +375,7 @@ const Header = () => {
                 key={item.id}
                 onClick={() => handleNav(item.route)}
                 sx={{
-                  borderRadius: 1.5, mb: 0.5,
+                  borderRadius: 1.5, mb: 0.5, minHeight: 48,
                   bgcolor: active ? T.tealBg : 'transparent',
                   borderLeft: active ? `3px solid ${T.teal}` : '3px solid transparent',
                   '&:hover': { bgcolor: T.tealBg },
@@ -352,7 +404,7 @@ const Header = () => {
             <>
               <ListItemButton
                 onClick={() => handleNav(Constants.USER_PROFILE_ROUTE)}
-                sx={{ borderRadius: 1.5, mb: 0.5, '&:hover': { bgcolor: T.tealBg } }}
+                sx={{ borderRadius: 1.5, mb: 0.5, minHeight: 48, '&:hover': { bgcolor: T.tealBg } }}
               >
                 <ListItemIcon sx={{ color: T.teal, minWidth: 36 }}><PersonIcon /></ListItemIcon>
                 <ListItemText primary="My Profile" primaryTypographyProps={{ fontSize: '0.875rem', color: T.text }} />
@@ -360,7 +412,7 @@ const Header = () => {
               {isAdmin && (
                 <ListItemButton
                   onClick={() => handleNav(`${Constants.DB_ADMIN_BASE_ROUTE}/dashboard`)}
-                  sx={{ borderRadius: 1.5, mb: 0.5, '&:hover': { bgcolor: T.tealBg } }}
+                  sx={{ borderRadius: 1.5, mb: 0.5, minHeight: 48, '&:hover': { bgcolor: T.tealBg } }}
                 >
                   <ListItemIcon sx={{ color: T.teal, minWidth: 36 }}><AdminIcon /></ListItemIcon>
                   <ListItemText primary="Admin Console" primaryTypographyProps={{ fontSize: '0.875rem', color: T.text }} />
@@ -368,7 +420,7 @@ const Header = () => {
               )}
               <ListItemButton
                 onClick={handleLogout}
-                sx={{ borderRadius: 1.5, '&:hover': { bgcolor: T.errorBg } }}
+                sx={{ borderRadius: 1.5, minHeight: 48, '&:hover': { bgcolor: T.errorBg } }}
               >
                 <ListItemIcon sx={{ color: T.error, minWidth: 36 }}><LogoutIcon /></ListItemIcon>
                 <ListItemText primary="Sign Out" primaryTypographyProps={{ fontSize: '0.875rem', color: T.error }} />
@@ -378,14 +430,14 @@ const Header = () => {
             <>
               <ListItemButton
                 onClick={() => handleNav(Constants.LOGIN_ROUTE)}
-                sx={{ borderRadius: 1.5, mb: 0.5, '&:hover': { bgcolor: T.tealBg } }}
+                sx={{ borderRadius: 1.5, mb: 0.5, minHeight: 48, '&:hover': { bgcolor: T.tealBg } }}
               >
                 <ListItemIcon sx={{ color: T.teal, minWidth: 36 }}><LockIcon /></ListItemIcon>
                 <ListItemText primary="Login" primaryTypographyProps={{ fontSize: '0.875rem', color: T.text }} />
               </ListItemButton>
               <ListItemButton
                 onClick={() => handleNav(Constants.REGISTRATION_ROUTE)}
-                sx={{ borderRadius: 1.5, '&:hover': { bgcolor: T.tealBg } }}
+                sx={{ borderRadius: 1.5, minHeight: 48, '&:hover': { bgcolor: T.tealBg } }}
               >
                 <ListItemIcon sx={{ color: T.teal, minWidth: 36 }}><RegisterIcon /></ListItemIcon>
                 <ListItemText primary="Register" primaryTypographyProps={{ fontSize: '0.875rem', color: T.text }} />
