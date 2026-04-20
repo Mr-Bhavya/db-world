@@ -13,8 +13,8 @@ import {
   Logout as LogoutIcon, HowToReg as RegisterIcon, Lock as LockIcon,
   Cloud as WeatherIcon, Movie as CinemaIcon, SportsEsports as GamesIcon,
   VpnKey as PasswordIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon,
-  PlayCircle as PlayCircleIcon,
 } from '@mui/icons-material';
+import DbWorldLogo from '@assets/images/db_world_teal.svg';
 import { useAuth } from '@features/auth/context/Authentication';
 import { useThemeMode } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -145,7 +145,7 @@ const Header = () => {
                 transition={{ duration: 0.8, times: [0, 0.5, 1], repeat: 0 }}
                 style={{ display: 'flex', alignItems: 'center' }}
               >
-                <PlayCircleIcon sx={{ color: T.teal, fontSize: 28 }} />
+                <img src={DbWorldLogo} alt="DB World" style={{ width: 28, height: 28 }} />
               </motion.div>
               <Typography
                 sx={{
@@ -289,7 +289,7 @@ const Header = () => {
 
       {/* Mobile drawer */}
       <Drawer
-        anchor="left"
+        anchor="right"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         PaperProps={{
@@ -322,7 +322,7 @@ const Header = () => {
         {/* Drawer header */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <PlayCircleIcon sx={{ color: T.teal, fontSize: 24 }} />
+            <img src={DbWorldLogo} alt="DB World" style={{ width: 24, height: 24 }} />
             <Typography
               sx={{
                 fontWeight: 800,
