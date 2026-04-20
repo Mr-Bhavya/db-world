@@ -11,8 +11,8 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "PASSWORD_MANAGER", schema = "db_world")
-public class PasswordManagerEntity implements Serializable {
+@Table(name = "PASSWORD_MANAGER", schema = "new_db_world")
+public class PasswordManagerEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;

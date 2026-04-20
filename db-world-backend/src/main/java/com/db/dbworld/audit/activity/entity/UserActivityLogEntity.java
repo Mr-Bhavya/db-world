@@ -35,6 +35,8 @@ public class UserActivityLogEntity {
     @Column(columnDefinition = "TEXT")
     private String requestBody;
     private String ip;
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String userAgent;
     private int status;
     private long duration;

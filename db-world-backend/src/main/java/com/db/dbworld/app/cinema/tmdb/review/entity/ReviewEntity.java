@@ -10,7 +10,7 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@Table(name = "tmdb_reviews", schema = "db_world")
+@Table(name = "tmdb_reviews", schema = "new_db_world")
 public class ReviewEntity {
 
     @Id

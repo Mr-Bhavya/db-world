@@ -9,7 +9,7 @@ spring:
 app:
   name: db-world
   version: 3.0.0
-  base-path: /app/db_world
+  base-path: /app/new_db_world
   data-path: /ext_hdisk/dbworld
   stream-path: /ext_hdisk/videos
   symlink-path: /ext_hdisk/video_symlink

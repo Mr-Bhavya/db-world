@@ -11,9 +11,9 @@ public interface TmdbService {
 
     Mono<TvSeriesTmdbResponse> fetchTvSeries(Long tmdbId);
 
-    Flux<ReviewPageTmdbResponse> fetchAllMovieReviews(Long movieId);
+    Flux<ReviewTmdbResponse> fetchAllMovieReviews(Long movieId);
 
-    Flux<ReviewPageTmdbResponse> fetchAllTvReviews(Long tvId);
+    Flux<ReviewTmdbResponse> fetchAllTvReviews(Long tvId);
 
     Mono<SeasonTmdbResponse> fetchSeason(Long tvId, int seasonNumber);
 

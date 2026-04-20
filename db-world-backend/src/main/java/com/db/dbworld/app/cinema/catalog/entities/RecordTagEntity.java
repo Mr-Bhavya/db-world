@@ -12,7 +12,7 @@ import lombok.*;
 @NoArgsConstructor
 @Table(
         name = "RECORD_TAGS",
-        schema = "db_world",
+        schema = "new_db_world",
         uniqueConstraints = { @UniqueConstraint(columnNames = {"record_id", "tag_type"}) }
 )
 public class RecordTagEntity {

@@ -57,7 +57,6 @@ import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
 import ShareIcon from '@mui/icons-material/Share';
 
 import { Capacitor } from '@capacitor/core';
-import { registerPlugin } from '@capacitor/core';
 
 import {
   fetchRecord,
@@ -82,10 +81,9 @@ import CinemaPlayer from '../player/CinemaPlayer';
 import Constants from '@shared/constants';
 
 import AndroidPlugins from '@platform/android/AndroidPlugins';
+import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useT } from '@shared/theme/ThemeContext';
 import MediaDownloadViewer from './download';
-
-const DbWorldDownload = registerPlugin('DbWorldDownload');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -232,8 +230,8 @@ function StatRow({ label, value, link }) {
 
 function VideoDialog({ video, onClose }) {
   if (!video) return null;
-  const isYouTube = video.site === 'YouTube';
-  const embedUrl = isYouTube ? `https://www.youtube.com/embed/${video.key}?autoplay=1` : null;
+  const isYouTube = video.site === 'YOUTUBE';
+  const embedUrl = isYouTube ? `https://www.youtube.com/embed/${video.key}?&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&playlist=${video.key}` : null;
 
   return (
     <Dialog
@@ -1614,15 +1612,20 @@ function FileCard({ mediaInfo, allFiles, record }) {
   const handleDownload = async () => {
     setResolving(true);
     try {
-      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
-      const cdnUrl = res?.data?.cdnUrl;
-      if (!cdnUrl) throw new Error('No CDN URL');
-      if (Capacitor.getPlatform() === 'android') {
-        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName || 'download' });
-        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
-      } else {
-        CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
-      }
+        const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
+        const cdnUrl = res?.data?.cdnUrl;
+        if (!cdnUrl) throw new Error('No CDN URL');
+        if (Capacitor.getPlatform() === 'android') {
+          await DbWorldDownload.ensurePermissions();
+          await DbWorldDownload.startDownload({
+            url: cdnUrl,
+            fileName: general?.fileName || 'download',
+            title: record?.tmdb?.title || general?.fileName || 'Download',
+          });
+          enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+        } else {
+          CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
+        }
     } catch (e) {
       console.error('Download failed', e);
       enqueueSnackbar('Failed to start download', { variant: 'error' });

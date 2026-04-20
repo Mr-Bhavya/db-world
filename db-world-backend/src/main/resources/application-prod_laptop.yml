@@ -15,7 +15,7 @@ spring:
 
   # Database Configuration
   datasource:
-    url: jdbc:mysql://localhost:3306/db_world?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://localhost:3306/new_db_world?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: dbworld_admin
     password: BD@pi
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -126,16 +126,16 @@ aria2:
 dbworld:
   paths:
     tempDownloadPath: /ext_hdisk/dbworld/download/
-    logFilePath: /app/db_world/logs/dbworld.json
-    log4j2LogPath: /app/db_world/logs
-    downloadLogPath: /app/db_world/logs/nginx/download_tracker.log
+    logFilePath: /app/new_db_world/logs/dbworld.json
+    log4j2LogPath: /app/new_db_world/logs
+    downloadLogPath: /app/new_db_world/logs/nginx/download_tracker.log
     integrationFolderPath: /ext_hdisk/dbworld/integration/
     streamHomePath: /ext_hdisk/videos
     externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
     torrentDownloadPath: /ext_hdisk/videos/Torrent Download
     yt-dlp: yt-dlp
     mediainfo: mediainfo
-    hsCookiesPath: /app/db_world/config/HS_COOKIES.txt
+    hsCookiesPath: /app/new_db_world/config/HS_COOKIES.txt
     extHDiskPath: /ext_hdisk
   api_keys:
     tmdb: 30061af77dba3722bbe14a2691055544

@@ -7,7 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "tmdb_episodes", schema = "db_world")
+@Table(name = "tmdb_episodes", schema = "new_db_world")
 public class EpisodeEntity {
 
     @Id

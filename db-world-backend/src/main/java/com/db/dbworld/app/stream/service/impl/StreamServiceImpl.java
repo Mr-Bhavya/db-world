@@ -140,11 +140,34 @@ public class StreamServiceImpl implements StreamService {
     // Internal helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private Path resolveRealPath(String relativePath) {
+    @Override
+    public Path resolveRealPath(String relativePath) {
+
         String clean = StringUtils.cleanPath(relativePath);
-        Path candidate = runtime.getStreamPath().resolve(clean).normalize();
+
+        Path inputPath = Path.of(clean);
+        if (inputPath.isAbsolute() || clean.matches("^[a-zA-Z]:.*")) {
+            log.error("Absolute path detected (SECURITY RISK): {}", clean);
+            throw new DbWorldException("Absolute paths are not allowed: " + clean);
+        }
+
+        String normalized = clean.startsWith("/") || clean.startsWith("\\")
+                ? clean.substring(1)
+                : clean;
+
+        Path candidate = runtime.getStreamPath()
+                .resolve(normalized)
+                .normalize();
+
         if (Files.exists(candidate)) return candidate;
-        return runtime.getExternalVideosPath().resolve(clean).normalize();
+
+        Path external = runtime.getExternalVideosPath()
+                .resolve(normalized)
+                .normalize();
+
+        if (Files.exists(external)) return external;
+
+        return candidate;
     }
 
     private long resolveFileSize(Long known, Path file) {
@@ -237,13 +260,16 @@ public class StreamServiceImpl implements StreamService {
         String externalRoot = StringUtils.cleanPath(runtime.getExternalVideosPath().toString());
 
         String result;
+
         if (normalized.startsWith(streamRoot)) {
             result = normalized.substring(streamRoot.length());
         } else if (normalized.startsWith(externalRoot)) {
             result = normalized.substring(externalRoot.length());
         } else {
-            result = fullPath.getFileName().toString();
+            // 🚨 DO NOT return absolute fallback
+            throw new DbWorldException("File is outside allowed directories: " + fullPath);
         }
+
         return result.startsWith("/") ? result : "/" + result;
     }
 

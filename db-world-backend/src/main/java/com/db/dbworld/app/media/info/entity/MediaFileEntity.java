@@ -20,12 +20,12 @@ import java.util.List;
  * Replaces the old MediaFileInfoEntity (entities.dbcinema.stream).
  * Uses RecordEntity (new cinema package) instead of DBCinemaRecordsEntity.
  *
- * Table: media_files (db_world schema)
+ * Table: media_files (new_db_world schema)
  */
 @Entity
 @Table(
         name = "media_files",
-        schema = "db_world",
+        schema = "new_db_world",
         uniqueConstraints = @UniqueConstraint(
                 name = "uq_media_file_record_path",
                 columnNames = {"record_id", "file_path"}

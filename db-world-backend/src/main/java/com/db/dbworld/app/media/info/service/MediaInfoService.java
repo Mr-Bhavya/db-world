@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.info.service;
 
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -62,6 +63,9 @@ public interface MediaInfoService {
      * Used by {@code SymlinkService.ensureAll()} for bulk symlink repair.
      */
     List<MediaFileDto> findAll();
+
+    @Transactional(readOnly = true)
+    MediaFileDto collectMediaInfo(Path filePath);
 
     /** Convert an entity to DTO (exposed for controller use). */
     MediaFileDto toDto(MediaFileEntity entity);

@@ -208,6 +208,14 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            setImmersiveMode();
+        }
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         if (!isInPiP && player != null) {

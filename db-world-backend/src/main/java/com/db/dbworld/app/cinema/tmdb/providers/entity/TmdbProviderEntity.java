@@ -14,7 +14,7 @@ import java.util.Objects;
 @NoArgsConstructor
 @Table(
         name = "tmdb_providers",
-        schema = "db_world",
+        schema = "new_db_world",
         uniqueConstraints = {
                 @UniqueConstraint(
                         columnNames = {
@@ -43,7 +43,7 @@ public class TmdbProviderEntity {
     @Enumerated(EnumType.STRING)
     private ProviderType providerType;
 
-    @Column(name = "region_code", length = 5)
+    @Column(name = "region_code", length = 10)
     private String regionCode;
 
     @Column(length = 1024)

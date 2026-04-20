@@ -4,8 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.io.Serializable;
 import java.util.List;
@@ -13,11 +12,17 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "HOST", schema = "db_world")
-public class HostEntity implements Serializable {
+@AllArgsConstructor
+@NoArgsConstructor
+@Table(name = "HOST", schema = "new_db_world")
+public class HostEntity {
     @Id
     private String name;
 
     @OneToMany(mappedBy = "host")
     private List<PasswordManagerEntity> passwordManagerEntities;
+
+    public HostEntity(String name) {
+        this.name = name;
+    }
 }

@@ -88,7 +88,7 @@ public class TmdbServiceImpl implements TmdbService {
      ===================================== */
 
     @Override
-    public Flux<ReviewPageTmdbResponse> fetchAllMovieReviews(Long movieId) {
+    public Flux<ReviewTmdbResponse> fetchAllMovieReviews(Long movieId) {
 
         return tmdbClient.getMovieReviews(movieId, 1)
                 .flatMapMany(firstPage -> {
@@ -96,14 +96,12 @@ public class TmdbServiceImpl implements TmdbService {
                     int totalPages = firstPage.getTotal_pages();
 
                     return Flux.concat(
-
                             Mono.just(firstPage),
-
                             Flux.range(2, Math.max(totalPages - 1, 0))
-                                    .flatMap(page ->
-                                            tmdbClient.getMovieReviews(movieId, page))
+                                    .flatMap(page -> tmdbClient.getMovieReviews(movieId, page), 3) // controlled parallel
                     );
-                });
+                })
+                .flatMap(page -> Flux.fromIterable(page.getResults()));
     }
 
     /* =====================================
@@ -111,7 +109,7 @@ public class TmdbServiceImpl implements TmdbService {
      ===================================== */
 
     @Override
-    public Flux<ReviewPageTmdbResponse> fetchAllTvReviews(Long tvId) {
+    public Flux<ReviewTmdbResponse> fetchAllTvReviews(Long tvId) {
 
         return tmdbClient.getTvReviews(tvId, 1)
                 .flatMapMany(firstPage -> {
@@ -119,14 +117,12 @@ public class TmdbServiceImpl implements TmdbService {
                     int totalPages = firstPage.getTotal_pages();
 
                     return Flux.concat(
-
                             Mono.just(firstPage),
-
                             Flux.range(2, Math.max(totalPages - 1, 0))
-                                    .flatMap(page ->
-                                            tmdbClient.getTvReviews(tvId, page))
+                                    .flatMap(page -> tmdbClient.getTvReviews(tvId, page), 3) // controlled parallel
                     );
-                });
+                })
+                .flatMap(page -> Flux.fromIterable(page.getResults()));
     }
 
     /* =====================================

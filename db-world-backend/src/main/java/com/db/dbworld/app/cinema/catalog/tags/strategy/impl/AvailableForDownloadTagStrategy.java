@@ -25,7 +25,7 @@ public class AvailableForDownloadTagStrategy implements TagStrategy {
     public String selectSql() {
         return """
                 SELECT DISTINCT mf.record_id AS id
-                FROM db_world.media_files mf
+                FROM new_db_world.media_files mf
                 WHERE mf.record_id IS NOT NULL
                 """;
     }

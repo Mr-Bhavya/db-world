@@ -188,8 +188,8 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
 
   // ── Mobile layout: large poster with info overlaid on image ─────────────────
   if (isMobile) {
-    const posterSrc   = tmdbImg(record.posterPath, 'w342');
-    const backdropSrc = tmdbImg(record.backdropPath, 'w780');
+    const posterSrc   = tmdbImg(record.posterPathClean, 'original');
+    const backdropSrc = tmdbImg(record.backdropPath, 'original');
     const displayYear = year(record.releaseDate);
 
     const handleTouchStart = (e) => {

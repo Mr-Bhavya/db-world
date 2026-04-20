@@ -1,11 +1,10 @@
 import { useCallback, useState } from 'react';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { useSnackbar } from 'notistack';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
+import DbWorldDownload from '@platform/android/DbWorldDownload';
 import CommonServices from '@shared/services/CommonServices';
 import { resolveMediaUrl } from '@shared/services/ApiServices';
-
-const DbWorldDownload = registerPlugin('DbWorldDownload');
 
 /**
  * Shared hook for play and download actions used across all media screens.
@@ -67,7 +66,12 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
       const cdnUrl = res?.data?.cdnUrl;
       if (!cdnUrl) throw new Error('No CDN URL');
       if (Capacitor.getPlatform() === 'android') {
-        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: mediaInfo.general?.fileName || 'download' });
+        await DbWorldDownload.ensurePermissions();
+        await DbWorldDownload.startDownload({
+          url: cdnUrl,
+          fileName: mediaInfo.general?.fileName || 'download',
+          title: record?.tmdb?.title || record?.title || mediaInfo.general?.fileName || 'Download',
+        });
         enqueueSnackbar(`Added to downloads: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: mediaInfo.general?.fileName, openInNewTab: true });

@@ -16,7 +16,7 @@ import java.time.Instant;
 /**
  * Persistent record for every ingestion job.
  *
- * Table: ingestion_jobs (db_world schema)
+ * Table: ingestion_jobs (new_db_world schema)
  * Primary key: job UUID — same UUID used in-memory during execution.
  *
  * ── Enum columns ─────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ import java.time.Instant;
  *  from in-memory store after a restart).
  */
 @Entity
-@Table(name = "ingestion_jobs", schema = "db_world")
+@Table(name = "ingestion_jobs", schema = "new_db_world")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter

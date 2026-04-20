@@ -9,10 +9,10 @@ spring:
 app:
   name: db-world
   version: @project.version@
-  base-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\db-world
-  data-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\db-world
-  stream-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\Videos
-  symlink-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\video-symlink
+  base-path: D:\db-world
+  data-path: D:\db-world
+  stream-path: D:\db-world\Videos
+  symlink-path: D:\db-world\video-symlink
 
 
   paths:
@@ -22,19 +22,19 @@ app:
     config: ${app.base-path}/config
     temp: ${app.data-path}/temp
     downloads: ${app.data-path}/downloads
-    integration: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\ProcessedVideos\
+    integration: ${app.data-path}\ProcessedVideos\
     torrents: ${app.videos-path}/Torrent Download
     archived-logs: ${app.paths.logs}/archived
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 
   cdn:
-    base-url: http://localhost:9090
+    base-url: http://cdn.db-world.in/
 
   tools:
-    yt-dlp: yt-dlp
-    ffmpeg: ffmpeg
-    seven-zip: C:\Program Files\7-Zip\7z.exe
-    mediainfo: D:\Bhavya\Downloads\Compressed\MediaInfo_CLI_24.12_Windows_x64\mediainfo
+    yt-dlp: C:\Tools\ytdlp\yt-dlp
+    ffmpeg: C:\Tools\ffmpeg\bin\ffmpeg
+    seven-zip: C:\Tools\7-Zip\7z
+    mediainfo: C:\Tools\mediainfo\mediainfo
     hs-cookies: ${app.paths.config}/HS_COOKIES.txt
 
 server:

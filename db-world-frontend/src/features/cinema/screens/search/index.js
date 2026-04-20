@@ -693,6 +693,7 @@ function SearchOverlay({ onClose }) {
         open={showFileModal}
         onClose={handleCloseModal}
         fileId={selectedFile?.fileId}
+        filePath={selectedFile?.filePath}
       />
     </>
   );

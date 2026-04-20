@@ -5,7 +5,7 @@ const BASE = '/api/cinema';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build a full TMDB image URL from a path. */
-export const tmdbImg = (path, quality = 'w500') =>
+export const tmdbImg = (path, quality = 'original') =>
   path ? `https://image.tmdb.org/t/p/${quality}${path}` : null;
 
 /** Unwrap ApiResponse<T> → T */

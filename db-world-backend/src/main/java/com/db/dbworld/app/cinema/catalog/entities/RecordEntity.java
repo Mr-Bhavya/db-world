@@ -22,18 +22,12 @@ import java.util.List;
 @EntityListeners(AuditingEntityListener.class)
 @Table(
         name = "records",
-        schema = "db_world"
-)
-@SequenceGenerator(
-        name = "records_seq",
-        sequenceName = "records_seq",
-        schema = "db_world",
-        allocationSize = 1
+        schema = "new_db_world"
 )
 public class RecordEntity implements Serializable {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "records_seq")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, length = 300)

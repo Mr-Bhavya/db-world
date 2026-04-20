@@ -18,8 +18,7 @@ import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
-import { registerPlugin } from '@capacitor/core';
-const DbWorldDownload = registerPlugin('DbWorldDownload');
+import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -236,8 +235,8 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
       const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
       if (Capacitor.getPlatform() === 'android') {
         AndroidPlugins.launchNativePlayer({
-          url: current?.streamUrl,
-          title: record?.tmdb?.title || general?.fileName || '',
+          url: "https://cdn.db-world.in/id/00aaf428-5643-489a-a8e5-11be7fdcf2de?userId=sam8%40gmail.com&type=DOWNLOAD&originalFile=Crooks.S02E01.Bussi.Bussi.1080p.WEB-DL.AV1.HDR10.10Bit.Dual.Hindi.AC3.5.1.mkv&downloadId=DL_782a3e61_51174&requestId=c8ffabee-edfe-4be9-ace0-c8c155b6d1a8" || current?.streamUrl,
+          title: general?.fileName || record?.tmdb?.title || '',
           fileName: general?.fileName || '',
           fileId: String(mediaInfo.id || ''),
           preferredAudio: 'Hindi',
@@ -257,10 +256,15 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
     setResolving(true);
     try {
       const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
-      const cdnUrl = res?.data?.cdnUrl;
+      const cdnUrl = "https://cdn.db-world.in/id/00aaf428-5643-489a-a8e5-11be7fdcf2de?userId=sam8%40gmail.com&type=DOWNLOAD&originalFile=Crooks.S02E01.Bussi.Bussi.1080p.WEB-DL.AV1.HDR10.10Bit.Dual.Hindi.AC3.5.1.mkv&downloadId=DL_782a3e61_51174&requestId=c8ffabee-edfe-4be9-ace0-c8c155b6d1a8" || res?.data?.cdnUrl;
       if (!cdnUrl) throw new Error('No CDN URL');
       if (Capacitor.getPlatform() === 'android') {
-        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName || 'download' });
+        await DbWorldDownload.ensurePermissions();
+        await DbWorldDownload.startDownload({
+          url: cdnUrl,
+          fileName: general?.fileName || 'download',
+          title: general?.fileName || record?.tmdb?.title || 'Download',
+        });
         enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });

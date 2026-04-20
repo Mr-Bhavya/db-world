@@ -49,6 +49,6 @@ public class TmdbResponse {
 
     private ProvidersTmdbResponse providers;
 
-    private List<ReviewPageTmdbResponse> reviews;
+    private List<ReviewTmdbResponse> reviews;
 
 }
