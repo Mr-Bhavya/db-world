@@ -208,76 +208,113 @@ const AppCard = React.memo(function AppCard({ app, isFavorite, onNavigate, onTog
 });
 
 // ── Optimized Recent Card ────────────────────────────────────────────────────
-const RecentCard = memo(({ entry, onNavigate }) => {
+function getTimeAgo(timestamp) {
+    if (!timestamp) return '';
+    const diff = Date.now() - new Date(timestamp).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
+const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }) {
     const T = useT();
-    const app = APPS.find(a => a.id === entry.appId);
-
+    const app = APPS.find((a) => a.id === item.appId);
     if (!app) return null;
-    const Icon = app.Icon;
 
-    return (
-        <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2 }}
-            whileHover={{ y: -2 }}
-        >
-            <Paper
-                elevation={1}
+    const timeAgoStr = getTimeAgo(item.ts ?? item.timestamp);
+
+    if (isMobile) {
+        // Horizontal chip for mobile
+        return (
+            <Box
+                role="button"
+                tabIndex={0}
                 onClick={() => onNavigate(app)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(app); } }}
+                aria-label={`Open ${app.label}`}
                 sx={{
-                    p: 1.5,
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 1.5,
-                    bgcolor: alpha(T.glass, 0.3),
-                    backdropFilter: 'blur(10px)',
-                    border: `1px solid ${alpha(T.glassBorder, 0.2)}`,
-                    borderRadius: 2,
+                    gap: 1,
+                    px: 1.5,
+                    py: 0.75,
+                    borderRadius: 999,
+                    border: `1px solid ${T.glassBorder}`,
+                    bgcolor: T.glass,
                     cursor: 'pointer',
-                    width: '100%',
-                    minWidth: { xs: '100%', sm: 200 },
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                        bgcolor: alpha(T.glassHover, 0.3),
-                        borderColor: alpha(T.teal, 0.3),
-                    },
+                    flexShrink: 0,
+                    transition: 'box-shadow 0.2s ease',
+                    '&:hover': { boxShadow: `0 0 10px ${app.accent}66` },
                 }}
             >
-                <Box
-                    sx={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 1.5,
-                        background: app.gradient,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                    }}
-                >
-                    <Icon sx={{ fontSize: 18, color: '#fff' }} />
-                </Box>
+                <app.Icon sx={{ fontSize: 16, color: app.accent }} />
+                <Typography sx={{ fontSize: '0.78rem', color: T.textPrimary, fontWeight: 500 }}>
+                    {app.label}
+                </Typography>
+                <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>
+                    {timeAgoStr}
+                </Typography>
+            </Box>
+        );
+    }
 
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        color: T.textPrimary,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}>
-                        {app.label}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>
-                        {timeAgo(entry.ts)}
-                    </Typography>
-                </Box>
-
-                <ArrowIcon sx={{ fontSize: 14, color: T.teal, opacity: 0.5, flexShrink: 0 }} />
-            </Paper>
-        </motion.div>
+    // Desktop timeline entry
+    return (
+        <Box
+            component={motion.div}
+            initial={{ opacity: 0, x: -16 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ type: 'spring', stiffness: 120, damping: 14 }}
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigate(app)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(app); } }}
+            aria-label={`Open ${app.label}`}
+            sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                pl: 4,
+                py: 1.5,
+                cursor: 'pointer',
+                borderRadius: 2,
+                transition: 'background-color 0.2s ease',
+                '&:hover': { bgcolor: T.glass },
+                position: 'relative',
+            }}
+        >
+            {/* Circular dot with app icon */}
+            <Box
+                sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    bgcolor: `${app.accent}22`,
+                    border: `2px solid ${app.accent}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    position: 'absolute',
+                    left: -20,
+                }}
+            >
+                <app.Icon sx={{ fontSize: 18, color: app.accent }} />
+            </Box>
+            <Box>
+                <Typography sx={{ fontSize: '0.9rem', fontWeight: 600, color: T.textPrimary }}>
+                    {app.label}
+                </Typography>
+                <Typography sx={{ fontSize: '0.75rem', color: T.textFaint }}>
+                    {timeAgoStr}
+                </Typography>
+            </Box>
+        </Box>
     );
 });
 
@@ -700,34 +737,56 @@ const Home = () => {
                 </Container>
             </Box>
 
-            {/* ── Recent Activity ──────────────────────────────────────────────────── */}
+            {/* Recent Activity Section */}
             {recent.length > 0 && (
-                <Box sx={{ pb: { xs: 6, md: 8 }, px: { xs: 2, md: 3 } }}>
-                    <Container maxWidth="lg">
-                        <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: T.textMuted }}>
-                                Recent Activity
-                            </Typography>
-                            <Button
-                                size="small"
-                                sx={{ color: T.teal, fontSize: '0.75rem' }}
-                                onClick={() => {
-                                    localStorage.removeItem(RECENT_KEY);
-                                    setRecent([]);
-                                }}
-                            >
-                                Clear
-                            </Button>
-                        </Box>
-
-                        <Grid container spacing={1.5}>
-                            {recent.slice(0, isMobile ? 2 : 4).map((entry) => (
-                                <Grid key={entry.appId} item xs={12} sm={6} md={3}>
-                                    <RecentCard entry={entry} onNavigate={handleNavigate} />
-                                </Grid>
+                <Box component="section" sx={{ mb: 6 }}>
+                    <SectionHeading label="Recent Activity" />
+                    {isMobile ? (
+                        // Mobile: horizontal chip row
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                gap: 1.5,
+                                overflowX: 'auto',
+                                WebkitOverflowScrolling: 'touch',
+                                pb: 1,
+                            }}
+                        >
+                            {recent.map((item) => (
+                                <RecentCard
+                                    key={`${item.appId}-${item.ts ?? item.timestamp}`}
+                                    item={item}
+                                    onNavigate={handleNavigate}
+                                    isMobile={true}
+                                />
                             ))}
-                        </Grid>
-                    </Container>
+                        </Box>
+                    ) : (
+                        // Desktop: timeline
+                        <Box sx={{ position: 'relative', pl: 3 }}>
+                            {/* Vertical teal line */}
+                            <Box
+                                sx={{
+                                    position: 'absolute',
+                                    left: 20,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: 2,
+                                    bgcolor: T.teal,
+                                    opacity: 0.3,
+                                    borderRadius: 1,
+                                }}
+                            />
+                            {recent.map((item) => (
+                                <RecentCard
+                                    key={`${item.appId}-${item.ts ?? item.timestamp}`}
+                                    item={item}
+                                    onNavigate={handleNavigate}
+                                    isMobile={false}
+                                />
+                            ))}
+                        </Box>
+                    )}
                 </Box>
             )}
 
