@@ -289,7 +289,7 @@ const Header = () => {
 
       {/* Mobile drawer */}
       <Drawer
-        anchor="right"
+        anchor="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         PaperProps={{

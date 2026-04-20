@@ -13,6 +13,7 @@ import {
     AdminPanelSettings as AdminIcon,
     Bookmark as BookmarkFilledIcon,
     BookmarkBorder as BookmarkIcon,
+    KeyboardArrowDown as KeyboardArrowDownIcon
 } from '@mui/icons-material';
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
@@ -122,6 +123,87 @@ const timeAgo = (ts) => {
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}h ago`;
     return `${Math.floor(h / 24)}d ago`;
+};
+
+const ScrollIndicator = ({ scrolled, T }) => {
+    const handleScrollDown = () => {
+        window.scrollTo({
+            top: window.innerHeight,
+            behavior: 'smooth',
+        });
+    };
+
+    return (
+        <Box
+            sx={{
+                position: 'absolute',
+                bottom: { xs: 24, md: 40 },
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                pointerEvents: 'none', // allow only inner click
+            }}
+        >
+            <AnimatePresence>
+                {!scrolled && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ delay: 1.2, duration: 0.4 }}
+                        style={{ pointerEvents: 'auto' }}
+                    >
+                        <Box
+                            onClick={handleScrollDown}
+                            sx={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                color: T.textMuted,
+                                userSelect: 'none',
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                    color: T.textPrimary,
+                                    transform: 'translateY(2px)',
+                                },
+                            }}
+                        >
+                            {/* Text */}
+                            <Typography
+                                sx={{
+                                    fontSize: '0.7rem',
+                                    letterSpacing: '0.12em',
+                                    textTransform: 'uppercase',
+                                    mb: 0.5,
+                                }}
+                            >
+                                Scroll Down
+                            </Typography>
+
+                            {/* Animated Arrow */}
+                            <motion.div
+                                animate={{ y: [0, 8, 0] }}
+                                transition={{
+                                    duration: 1.2,
+                                    repeat: Infinity,
+                                    ease: 'easeInOut',
+                                }}
+                            >
+                                <KeyboardArrowDownIcon
+                                    sx={{
+                                        fontSize: 30,
+                                        color: T.teal,
+                                        filter: 'drop-shadow(0 0 6px rgba(0,255,200,0.4))',
+                                    }}
+                                />
+                            </motion.div>
+                        </Box>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </Box>
+    );
 };
 
 // ── Optimized App Card ───────────────────────────────────────────────────────
@@ -307,130 +389,6 @@ const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }
     );
 });
 
-// ── About Section ────────────────────────────────────────────────────────────
-const AboutSection = React.memo(function AboutSection({ open, onClose }) {
-    const T = useT();
-
-    return (
-        <AnimatePresence>
-            {open && (
-                <motion.div
-                    key="about-backdrop"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    onClick={onClose}
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0,0,0,0.7)',
-                        backdropFilter: 'blur(8px)',
-                        zIndex: 1300,
-                    }}
-                />
-            )}
-            {open && (
-                <motion.div
-                    key="about-panel"
-                    initial={{ opacity: 0, scale: 0.95, y: 24 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 24 }}
-                    transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-                    style={{
-                        position: 'fixed',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        zIndex: 1301,
-                        width: '90%',
-                        maxWidth: 480,
-                    }}
-                >
-                        <Box
-                            sx={{
-                                bgcolor: T.glass,
-                                backdropFilter: 'blur(16px)',
-                                border: `1px solid ${T.glassBorder}`,
-                                borderRadius: '24px',
-                                p: { xs: '32px 24px', md: '48px 40px' },
-                                position: 'relative',
-                            }}
-                        >
-                            {/* Close button */}
-                            <Box
-                                component="button"
-                                type="button"
-                                onClick={onClose}
-                                aria-label="Close about panel"
-                                sx={{
-                                    position: 'absolute',
-                                    top: 16,
-                                    right: 16,
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: T.textMuted,
-                                    fontSize: '1.25rem',
-                                    lineHeight: 1,
-                                    p: 0.5,
-                                    borderRadius: 1,
-                                    '&:hover': { color: T.textPrimary },
-                                }}
-                            >
-                                ✕
-                            </Box>
-                            {/* Logo + title row */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                                <Box
-                                    sx={{
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: 2,
-                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexShrink: 0,
-                                    }}
-                                >
-                                    <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.5rem' }}>
-                                        D
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="h5" sx={{ fontWeight: 700, color: T.textPrimary }}>
-                                        DB World
-                                    </Typography>
-                                    <Typography sx={{ color: T.textMuted, fontSize: '0.9rem' }}>
-                                        Version 2.0.0
-                                    </Typography>
-                                </Box>
-                            </Box>
-                            <Typography sx={{ color: T.textPrimary, mb: 2 }}>
-                                Your personal media universe — everything in one place. DB World brings together
-                                entertainment, productivity, and management tools in a seamless, unified experience.
-                            </Typography>
-                            <Typography variant="h6" sx={{ fontWeight: 600, color: T.textPrimary, mb: 1, mt: 3 }}>
-                                Features
-                            </Typography>
-                            <Box component="ul" sx={{ color: T.textMuted, pl: 2, mb: 2 }}>
-                                <li>Stream movies and TV shows with DB Cinema</li>
-                                <li>Check real-time weather with DB Weather</li>
-                                <li>Play browser games with DB Games</li>
-                                <li>Secure password management</li>
-                                <li>Admin console for system management</li>
-                            </Box>
-                            <Typography sx={{ color: T.textFaint, fontSize: '0.8rem', mt: 3 }}>
-                                © 2024 DB World. All rights reserved.
-                            </Typography>
-                        </Box>
-                </motion.div>
-            )}
-        </AnimatePresence>
-    );
-});
-
 // ── Main Component ──────────────────────────────────────────────────────────
 const Home = () => {
     const T = useT();
@@ -496,11 +454,12 @@ const Home = () => {
                         height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
-                        alignItems: { xs: 'center', md: 'flex-start' },
+                        alignItems: 'center',        // ✅ always center
                         justifyContent: 'center',
-                        pt: { xs: '56px', md: '64px' },
-                        px: { xs: 3, md: 8, lg: 12 },
-                        maxWidth: { md: 600 },
+                        textAlign: 'center',         // ✅ important
+                        px: { xs: 3, md: 8 },
+                        maxWidth: 700,
+                        margin: '0 auto',            // ✅ center container
                         position: 'relative',
                     }}
                 >
@@ -625,37 +584,7 @@ const Home = () => {
                     </motion.div>
 
                     {/* Scroll indicator */}
-                    <motion.div
-                        aria-hidden="true"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 1.5 }}
-                        style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)' }}
-                    >
-                        <AnimatePresence>
-                            {!scrolled && (
-                                <motion.div
-                                    initial={{ opacity: 1 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.4 }}
-                                >
-                                    {/* Thin animated line — extends downward with a repeating scale animation */}
-                                    <motion.div
-                                        style={{
-                                            width: 2,
-                                            height: 40,
-                                            background: T.teal,
-                                            borderRadius: 4,
-                                            margin: '0 auto',
-                                        }}
-                                        animate={{ scaleY: [1, 0.5, 1], opacity: [0.6, 1, 0.6] }}
-                                        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-                                    />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </motion.div>
+                    <ScrollIndicator scrolled={scrolled} T={T} />
                 </Box>
             </BokehBackground>
 
@@ -818,32 +747,6 @@ const Home = () => {
 
                 </Container>
             </Box>
-
-            {/* About trigger + Footer */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                <Box
-                    component="button"
-                    type="button"
-                    onClick={() => setShowAbout(true)}
-                    aria-label="About DB World"
-                    sx={{
-                        background: 'none',
-                        border: `1px solid ${T.glassBorder}`,
-                        borderRadius: 999,
-                        px: 3,
-                        py: 1,
-                        cursor: 'pointer',
-                        color: T.textMuted,
-                        fontSize: '0.8rem',
-                        transition: 'color 0.2s ease, border-color 0.2s ease',
-                        '&:hover': { color: T.textPrimary, borderColor: T.teal },
-                    }}
-                >
-                    About DB World
-                </Box>
-            </Box>
-
-            <AboutSection open={showAbout} onClose={() => setShowAbout(false)} />
 
             <Footer />
         </Box>
