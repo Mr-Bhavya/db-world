@@ -10,7 +10,6 @@ import com.db.dbworld.app.pm.mapper.PasswordManagerMapper;
 import com.db.dbworld.app.pm.repository.CredentialsRepository;
 import com.db.dbworld.app.pm.repository.HostRepository;
 import com.db.dbworld.app.pm.repository.PasswordManagerRepository;
-import com.db.dbworld.app.pm.service.CryptoMigrationService;
 import com.db.dbworld.app.pm.service.PasswordManagerService;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
@@ -36,7 +35,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     private final UserService userService;
     private final UserContext userContext;
     private final PasswordManagerMapper mapper;
-    private final CryptoMigrationService migrationService;
 
     // ─────────────────────────────────────────────
     // ADD CREDENTIAL
@@ -57,6 +55,9 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
 
         CredentialEntity credential = mapper.toEntity(credentialDto);
         credential.setPasswordManager(pm);
+        if (credential.getCustomFields() != null) {
+            credential.getCustomFields().forEach(f -> f.setCredential(credential));
+        }
 
         if (pm.getCredentials() == null) {
             pm.setCredentials(new ArrayList<>());
@@ -97,13 +98,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         List<PasswordManagerEntity> entities =
                 passwordManagerRepository.findAllByUserEntityUserId(userContext.userId());
 
-        // migrate on read
-        entities.forEach(pm -> {
-            if (pm.getCredentials() != null) {
-                pm.getCredentials().forEach(migrationService::migrateIfNeeded);
-            }
-        });
-
         return mapper.toDtoList(entities);
     }
 
@@ -126,9 +120,6 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Credentials", "credentialId", credentialId
                 ));
-
-        // migrate here too
-        migrationService.migrateIfNeeded(entity);
 
         return mapper.toDto(entity);
     }
@@ -166,6 +157,16 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                 ));
 
         mapper.updateEntityFromDto(credentialDto, credential);
+
+        // Replace custom fields: clear and re-add so orphanRemoval triggers
+        credential.getCustomFields().clear();
+        if (credentialDto.getCustomFields() != null) {
+            credentialDto.getCustomFields().forEach(f -> {
+                var entity = mapper.toEntity(f);
+                entity.setCredential(credential);
+                credential.getCustomFields().add(entity);
+            });
+        }
 
         credentialsRepository.save(credential);
 

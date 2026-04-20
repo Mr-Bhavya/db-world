@@ -9,10 +9,10 @@ spring:
 app:
   name: db-world
   version: @project.version@
-  base-path: D:\db-world
-  data-path: D:\db-world
-  stream-path: D:\db-world\Videos
-  symlink-path: D:\db-world\video-symlink
+  base-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp
+  data-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp
+  stream-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\Videos
+  symlink-path: C:\Users\bhavya.dudhia\IdeaProjects\db-world\temp\video-symlink
 
 
   paths:

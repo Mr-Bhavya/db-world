@@ -63,6 +63,45 @@ const CopyBtn = ({ value, label, copied, onCopy, T }) => (
   </Tooltip>
 );
 
+// ─── Custom Field Row in Edit Dialog ────────────────────────────────────────
+const EditCustomFieldRow = ({ field, index, onChange, onRemove, T, FIELD }) => {
+  const [showVal, setShowVal] = useState(false);
+  return (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+      <TextField
+        size="small"
+        label="Label"
+        value={field.fieldKey}
+        onChange={(e) => onChange(index, 'fieldKey', e.target.value)}
+        sx={{ ...FIELD, flex: '0 0 38%' }}
+      />
+      <TextField
+        size="small"
+        label="Value"
+        type={showVal ? 'text' : 'password'}
+        value={field.fieldValue}
+        onChange={(e) => onChange(index, 'fieldValue', e.target.value)}
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton size="small" onClick={() => setShowVal((v) => !v)} sx={{ color: T.teal }}>
+                {showVal ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+              </IconButton>
+            </InputAdornment>
+          ),
+        }}
+        sx={{ ...FIELD, flex: 1 }}
+      />
+      <Tooltip title="Remove">
+        <IconButton size="small" onClick={() => onRemove(index)}
+          sx={{ color: T.textMuted, '&:hover': { color: '#f87171' }, mt: 0.5 }}>
+          <Delete fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
+};
+
 // ─── Edit Dialog ─────────────────────────────────────────────────────────────
 const EditDialog = ({ target, onClose }) => {
   const T = useT();
@@ -71,6 +110,9 @@ const EditDialog = ({ target, onClose }) => {
   const queryClient = useQueryClient();
   const [showPw, setShowPw] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [customFields, setCustomFields] = useState(
+    (target.cred.customFields ?? []).map((f) => ({ ...f }))
+  );
 
   const { control, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(editSchema),
@@ -83,7 +125,11 @@ const EditDialog = ({ target, onClose }) => {
   });
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (data) => updateCredential(target.pmId, { id: target.cred.id, ...data }),
+    mutationFn: (data) => updateCredential(target.pmId, {
+      id: target.cred.id,
+      ...data,
+      customFields: customFields.filter((f) => f.fieldKey?.trim()),
+    }),
     onSuccess: () => {
       enqueueSnackbar('Credential updated', { variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
@@ -93,6 +139,18 @@ const EditDialog = ({ target, onClose }) => {
       enqueueSnackbar(err?.response?.data?.message ?? 'Failed to update', { variant: 'error' });
     },
   });
+
+  const updateField = (index, key, value) => {
+    setCustomFields((prev) => prev.map((f, i) => i === index ? { ...f, [key]: value } : f));
+  };
+
+  const removeField = (index) => {
+    setCustomFields((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addField = () => {
+    setCustomFields((prev) => [...prev, { fieldKey: '', fieldValue: '' }]);
+  };
 
   return (
     <Dialog
@@ -139,6 +197,44 @@ const EditDialog = ({ target, onClose }) => {
         <Controller name="notes" control={control} render={({ field }) => (
           <TextField {...field} label="Notes (optional)" size="small" multiline rows={2} sx={FIELD} />
         )} />
+
+        {/* Custom Fields */}
+        {customFields.length > 0 && (
+          <>
+            <Divider sx={{ borderColor: T.glassBorder }} />
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Custom Fields
+            </Typography>
+            {customFields.map((f, i) => (
+              <EditCustomFieldRow
+                key={i}
+                field={f}
+                index={i}
+                onChange={updateField}
+                onRemove={removeField}
+                T={T}
+                FIELD={FIELD}
+              />
+            ))}
+          </>
+        )}
+
+        <Button
+          size="small"
+          startIcon={<Add />}
+          onClick={addField}
+          sx={{
+            alignSelf: 'flex-start',
+            color: T.teal,
+            border: `1px dashed ${T.teal}`,
+            borderRadius: 2,
+            px: 1.5,
+            fontSize: '0.78rem',
+            '&:hover': { bgcolor: T.tealBg },
+          }}
+        >
+          Add Custom Field
+        </Button>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
         <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
@@ -195,6 +291,7 @@ const ConfirmDialog = ({ title, body, loading, onConfirm, onClose }) => {
 const CredRow = ({ cred, pmId, host, T, enqueueSnackbar, onEdit, onDelete }) => {
   const [revealed, setRevealed] = useState(false);
   const [copiedKey, setCopiedKey] = useState('');
+  const [revealedCustom, setRevealedCustom] = useState({});
 
   const copy = async (text, key) => {
     const res = await CommonServices.handleCopy(text);
@@ -204,6 +301,10 @@ const CredRow = ({ cred, pmId, host, T, enqueueSnackbar, onEdit, onDelete }) => 
     } else {
       enqueueSnackbar('Copy failed', { variant: 'error' });
     }
+  };
+
+  const toggleCustomReveal = (id) => {
+    setRevealedCustom((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -260,6 +361,29 @@ const CredRow = ({ cred, pmId, host, T, enqueueSnackbar, onEdit, onDelete }) => 
             ••••
           </Typography>
           <CopyBtn value={cred.pin} label="PIN" copied={copiedKey === 'pin'} onCopy={(v) => copy(v, 'pin')} T={T} />
+        </Box>
+      )}
+
+      {/* Custom fields */}
+      {cred.customFields?.length > 0 && (
+        <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {cred.customFields.map((f) => (
+            <Box key={f.id ?? f.fieldKey} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography sx={{ fontSize: '0.72rem', color: T.textMuted, minWidth: 60, flexShrink: 0 }}>
+                {f.fieldKey}
+              </Typography>
+              <Typography sx={{ flex: 1, fontSize: '0.8rem', color: T.textMuted, fontFamily: 'monospace', letterSpacing: revealedCustom[f.id ?? f.fieldKey] ? 0 : 2 }}>
+                {revealedCustom[f.id ?? f.fieldKey] ? f.fieldValue : '••••'}
+              </Typography>
+              <Tooltip title={revealedCustom[f.id ?? f.fieldKey] ? 'Hide' : 'Show'}>
+                <IconButton size="small" onClick={() => toggleCustomReveal(f.id ?? f.fieldKey)}
+                  sx={{ color: T.textMuted, '&:hover': { color: T.teal } }}>
+                  {revealedCustom[f.id ?? f.fieldKey] ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+              <CopyBtn value={f.fieldValue} label={f.fieldKey} copied={copiedKey === `cf-${f.id ?? f.fieldKey}`} onCopy={(v) => copy(v, `cf-${f.id ?? f.fieldKey}`)} T={T} />
+            </Box>
+          ))}
         </Box>
       )}
 

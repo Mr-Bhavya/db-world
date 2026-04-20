@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Setter
 @Entity
@@ -37,4 +40,7 @@ public class CredentialEntity {
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String notes;
+
+    @OneToMany(mappedBy = "credential", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<CustomFieldEntity> customFields = new ArrayList<>();
 }
