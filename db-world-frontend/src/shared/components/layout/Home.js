@@ -628,12 +628,12 @@ const Home = () => {
                             return (
                                 <StaggerItem key={app.id} style={{ flexShrink: 0 }}>
                                     <Box
-                                        component="button"
-                                        type="button"
+                                        role="button"
+                                        tabIndex={0}
                                         onClick={() => handleNavigate(app.route)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigate(app.route); } }}
                                         aria-label={`Open ${app.label}`}
                                         sx={{
-                                            background: 'none',
                                             cursor: 'pointer',
                                             display: 'inline-flex',
                                             alignItems: 'center',
