@@ -615,11 +615,11 @@ const Home = () => {
                 <StaggerContainer
                     style={{
                         display: 'flex',
-                        flexWrap: 'nowrap',
+                        flexWrap: isMobile ? 'nowrap' : 'wrap',
                         gap: 12,
-                        overflowX: 'auto',
-                        paddingBottom: 8,
-                        WebkitOverflowScrolling: 'touch',
+                        overflowX: isMobile ? 'auto' : 'visible',
+                        paddingBottom: isMobile ? 8 : 0,
+                        WebkitOverflowScrolling: isMobile ? 'touch' : 'unset',
                     }}
                 >
                     {favorites.length === 0 ? (
@@ -655,6 +655,27 @@ const Home = () => {
                                         <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: app.accent }}>
                                             {app.label}
                                         </Typography>
+                                        <Box
+                                            component="button"
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleFavorite(app.id);
+                                            }}
+                                            sx={{
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: app.accent,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                p: 0,
+                                                ml: 0.5,
+                                            }}
+                                            aria-label={`Remove ${app.label} from favorites`}
+                                        >
+                                            <BookmarkFilledIcon sx={{ fontSize: 16 }} />
+                                        </Box>
                                     </Box>
                                 </StaggerItem>
                             );
