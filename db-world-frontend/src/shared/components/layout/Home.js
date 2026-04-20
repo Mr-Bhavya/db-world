@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Box, Typography, Button, Chip, Grid, Container,
+    Box, Typography, Button, Grid, Container,
     useMediaQuery, useTheme, Paper, alpha,
 } from '@mui/material';
 import {
@@ -11,7 +11,6 @@ import {
     SportsEsports as GamesIcon,
     Lock as PasswordIcon,
     AdminPanelSettings as AdminIcon,
-    ArrowForward as ArrowIcon,
     Bookmark as BookmarkFilledIcon,
     BookmarkBorder as BookmarkIcon,
     Info as AboutIcon,
@@ -208,24 +207,12 @@ const AppCard = React.memo(function AppCard({ app, isFavorite, onNavigate, onTog
 });
 
 // ── Optimized Recent Card ────────────────────────────────────────────────────
-function getTimeAgo(timestamp) {
-    if (!timestamp) return '';
-    const diff = Date.now() - new Date(timestamp).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-}
-
 const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }) {
     const T = useT();
     const app = APPS.find((a) => a.id === item.appId);
     if (!app) return null;
 
-    const timeAgoStr = getTimeAgo(item.ts ?? item.timestamp);
+    const timeAgoStr = timeAgo(item.ts ?? item.timestamp);
 
     if (isMobile) {
         // Horizontal chip for mobile
@@ -264,57 +251,59 @@ const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }
 
     // Desktop timeline entry
     return (
-        <Box
-            component={motion.div}
+        <motion.div
             initial={{ opacity: 0, x: -16 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ type: 'spring', stiffness: 120, damping: 14 }}
-            role="button"
-            tabIndex={0}
-            onClick={() => onNavigate(app)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(app); } }}
-            aria-label={`Open ${app.label}`}
-            sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                pl: 4,
-                py: 1.5,
-                cursor: 'pointer',
-                borderRadius: 2,
-                transition: 'background-color 0.2s ease',
-                '&:hover': { bgcolor: T.glass },
-                position: 'relative',
-            }}
         >
-            {/* Circular dot with app icon */}
             <Box
+                role="button"
+                tabIndex={0}
+                onClick={() => onNavigate(app)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(app); } }}
+                aria-label={`Open ${app.label}`}
                 sx={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    bgcolor: `${app.accent}22`,
-                    border: `2px solid ${app.accent}`,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    position: 'absolute',
-                    left: -20,
+                    gap: 2,
+                    pl: 4,
+                    py: 1.5,
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    transition: 'background-color 0.2s ease',
+                    '&:hover': { bgcolor: T.glass },
+                    position: 'relative',
                 }}
             >
-                <app.Icon sx={{ fontSize: 18, color: app.accent }} />
+                {/* Circular dot with app icon */}
+                <Box
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        bgcolor: `${app.accent}22`,
+                        border: `2px solid ${app.accent}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        position: 'absolute',
+                        left: -20,
+                    }}
+                >
+                    <app.Icon sx={{ fontSize: 18, color: app.accent }} />
+                </Box>
+                <Box>
+                    <Typography sx={{ fontSize: '0.9rem', fontWeight: 600, color: T.textPrimary }}>
+                        {app.label}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.75rem', color: T.textFaint }}>
+                        {timeAgoStr}
+                    </Typography>
+                </Box>
             </Box>
-            <Box>
-                <Typography sx={{ fontSize: '0.9rem', fontWeight: 600, color: T.textPrimary }}>
-                    {app.label}
-                </Typography>
-                <Typography sx={{ fontSize: '0.75rem', color: T.textFaint }}>
-                    {timeAgoStr}
-                </Typography>
-            </Box>
-        </Box>
+        </motion.div>
     );
 });
 
@@ -457,7 +446,6 @@ const Home = () => {
     }, []);
 
     const firstName = user?.firstName ?? user?.name?.split(' ')[0] ?? null;
-    const lastRecent = recent[0] ? APPS.find(a => a.id === recent[0].appId) : null;
     const visibleApps = APPS.filter(a => !a.adminOnly || isAdmin);
 
     return (
