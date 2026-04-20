@@ -15,7 +15,6 @@ import {
     Bookmark as BookmarkFilledIcon,
     BookmarkBorder as BookmarkIcon,
     Info as AboutIcon,
-    Close as CloseIcon,
 } from '@mui/icons-material';
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
@@ -421,10 +420,6 @@ const Home = () => {
         setFavorites(updated);
     }, []);
 
-    const scrollToApps = useCallback(() => {
-        document.getElementById('apps')?.scrollIntoView({ behavior: 'smooth' });
-    }, []);
-
     const firstName = user?.firstName ?? user?.name?.split(' ')[0] ?? null;
     const lastRecent = recent[0] ? APPS.find(a => a.id === recent[0].appId) : null;
     const visibleApps = APPS.filter(a => !a.adminOnly || isAdmin);
@@ -633,8 +628,13 @@ const Home = () => {
                             return (
                                 <StaggerItem key={app.id} style={{ flexShrink: 0 }}>
                                     <Box
+                                        component="button"
+                                        type="button"
                                         onClick={() => handleNavigate(app.route)}
+                                        aria-label={`Open ${app.label}`}
                                         sx={{
+                                            background: 'none',
+                                            cursor: 'pointer',
                                             display: 'inline-flex',
                                             alignItems: 'center',
                                             gap: 1,
@@ -643,7 +643,6 @@ const Home = () => {
                                             borderRadius: 999,
                                             border: `2px solid ${app.accent}`,
                                             bgcolor: `${app.accent}22`,
-                                            cursor: 'pointer',
                                             transition: 'box-shadow 0.2s ease, background-color 0.2s ease',
                                             '&:hover': {
                                                 boxShadow: `0 0 12px ${app.accent}88`,
