@@ -311,8 +311,6 @@ const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }
 const AboutSection = React.memo(function AboutSection({ open, onClose }) {
     const T = useT();
 
-    if (!open) return null;
-
     return (
         <AnimatePresence>
             {open && (
