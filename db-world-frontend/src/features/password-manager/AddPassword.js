@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import {
   ArrowBack, Save, Lock, Visibility, VisibilityOff,
-  VpnKey, ContentCopy,
+  VpnKey, ContentCopy, Add, Delete,
 } from '@mui/icons-material';
 import { useT, getGlowProps, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -39,6 +39,7 @@ const AddPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showPin, setShowPin]           = useState(false);
   const [genCopied, setGenCopied]       = useState(false);
+  const [customFields, setCustomFields] = useState([]);  // [{fieldKey, fieldValue, showValue}]
 
   const { control, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
@@ -61,6 +62,7 @@ const AddPassword = () => {
       queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
       queryClient.invalidateQueries({ queryKey: ['pm-hosts'] });
       reset();
+      setCustomFields([]);
     },
     onError: (err) => {
       const msg = err?.response?.data?.message ?? 'Failed to save credential';
@@ -91,6 +93,29 @@ const AddPassword = () => {
     const res = await CommonServices.handleCopy(pw);
     if (res.success) { setGenCopied(true); setTimeout(() => setGenCopied(false), 1500); }
     else enqueueSnackbar('Copy failed', { variant: 'error' });
+  };
+
+  const addCustomField = () => {
+    setCustomFields((prev) => [...prev, { fieldKey: '', fieldValue: '', showValue: false }]);
+  };
+
+  const removeCustomField = (index) => {
+    setCustomFields((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateCustomField = (index, key, value) => {
+    setCustomFields((prev) => prev.map((f, i) => i === index ? { ...f, [key]: value } : f));
+  };
+
+  const toggleCustomFieldVisibility = (index) => {
+    setCustomFields((prev) => prev.map((f, i) => i === index ? { ...f, showValue: !f.showValue } : f));
+  };
+
+  const onSubmit = (data) => {
+    const validCustomFields = customFields
+      .filter((f) => f.fieldKey.trim())
+      .map(({ fieldKey, fieldValue }) => ({ fieldKey: fieldKey.trim(), fieldValue }));
+    save({ ...data, customFields: validCustomFields });
   };
 
   const hostOptions = hosts.map((h) => `https://${h}`);
@@ -134,7 +159,7 @@ const AddPassword = () => {
 
             <Box
               component="form"
-              onSubmit={handleSubmit((d) => save(d))}
+              onSubmit={handleSubmit(onSubmit)}
               sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}
             >
               {/* URL with autocomplete from known hosts */}
@@ -250,6 +275,68 @@ const AddPassword = () => {
                   />
                 )}
               />
+
+              {/* Custom Fields */}
+              {customFields.length > 0 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Custom Fields
+                  </Typography>
+                  {customFields.map((field, index) => (
+                    <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                      <TextField
+                        size="small"
+                        label="Label"
+                        placeholder="e.g. mPIN, Security Answer"
+                        value={field.fieldKey}
+                        onChange={(e) => updateCustomField(index, 'fieldKey', e.target.value)}
+                        sx={{ ...FIELD, flex: '0 0 38%' }}
+                      />
+                      <TextField
+                        size="small"
+                        label="Value"
+                        type={field.showValue ? 'text' : 'password'}
+                        value={field.fieldValue}
+                        onChange={(e) => updateCustomField(index, 'fieldValue', e.target.value)}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton size="small" onClick={() => toggleCustomFieldVisibility(index)} sx={{ color: T.teal }}>
+                                {field.showValue ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{ ...FIELD, flex: 1 }}
+                      />
+                      <Tooltip title="Remove field">
+                        <IconButton size="small" onClick={() => removeCustomField(index)}
+                          sx={{ color: T.textMuted, '&:hover': { color: '#f87171' }, mt: 0.5 }}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* Add custom field button */}
+              <Button
+                size="small"
+                startIcon={<Add />}
+                onClick={addCustomField}
+                sx={{
+                  alignSelf: 'flex-start',
+                  color: T.teal,
+                  border: `1px dashed ${T.teal}`,
+                  borderRadius: 2,
+                  px: 1.5,
+                  fontSize: '0.8rem',
+                  '&:hover': { bgcolor: T.tealBg },
+                }}
+              >
+                Add Custom Field
+              </Button>
 
               <Button
                 type="submit"

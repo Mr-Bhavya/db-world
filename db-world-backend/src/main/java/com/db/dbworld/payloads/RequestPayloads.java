@@ -1,5 +1,6 @@
 package com.db.dbworld.payloads;
 
+import com.db.dbworld.app.pm.dto.CustomFieldDto;
 import com.db.dbworld.utils.DbWorldConstants;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -32,6 +33,7 @@ public class RequestPayloads {
         private String password;
         private String pin;
         private String notes;
+        private List<CustomFieldDto> customFields;
     }
 
     @Data
@@ -43,6 +45,7 @@ public class RequestPayloads {
         private String password;
         private String pin;
         private String notes;
+        private List<CustomFieldDto> customFields;
     }
 
     @Data
