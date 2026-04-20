@@ -136,12 +136,14 @@ const ScrollIndicator = ({ scrolled, T }) => {
     return (
         <Box
             sx={{
-                position: 'fixed',
-                bottom: { xs: 20, md: 36 },
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 10,
+                position: 'absolute',
+                bottom: { xs: 24, md: 40 },
+                left: 0,
+                right: 0,
+                display: 'flex',
+                justifyContent: 'center',
                 pointerEvents: 'none',
+                zIndex: 5,
             }}
         >
             <AnimatePresence>
@@ -222,6 +224,9 @@ const AppCard = React.memo(function AppCard({ app, isFavorite, onNavigate, onTog
                 overflow: 'hidden',
                 cursor: 'pointer',
                 bgcolor: T.bg,
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
                 transition: 'transform 0.25s ease, box-shadow 0.25s ease',
                 transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
                 boxShadow: hovered
@@ -248,7 +253,7 @@ const AppCard = React.memo(function AppCard({ app, isFavorite, onNavigate, onTog
             </Box>
 
             {/* Card body */}
-            <Box sx={{ p: 2 }}>
+            <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                     <Typography
                         sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.textPrimary }}
@@ -349,16 +354,14 @@ const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }
                     display: 'flex',
                     alignItems: 'center',
                     gap: 2,
-                    pl: 4,
                     py: 1.5,
                     cursor: 'pointer',
                     borderRadius: 2,
                     transition: 'background-color 0.2s ease',
                     '&:hover': { bgcolor: T.glass },
-                    position: 'relative',
                 }}
             >
-                {/* Circular dot with app icon */}
+                {/* Circular dot with app icon — flex item, aligned with timeline line */}
                 <Box
                     sx={{
                         width: 40,
@@ -370,8 +373,7 @@ const RecentCard = React.memo(function RecentCard({ item, onNavigate, isMobile }
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
-                        position: 'absolute',
-                        left: -20,
+                        zIndex: 1,
                     }}
                 >
                     <app.Icon sx={{ fontSize: 18, color: app.accent }} />
@@ -438,7 +440,7 @@ const Home = () => {
 
     const handleToggleFavorite = useCallback((appId) => {
         const updated = toggleFavorite(appId);
-        setFavorites(updated);
+        setFavorites([...updated]);
     }, []);
 
     const firstName = user?.firstName ?? user?.name?.split(' ')[0] ?? null;
@@ -583,9 +585,9 @@ const Home = () => {
                         </Box>
                     </motion.div>
 
-                    {/* Scroll indicator */}
-                    <ScrollIndicator scrolled={scrolled} T={T} />
                 </Box>
+                {/* Scroll indicator — sibling of content, absolute to BokehBackground */}
+                <ScrollIndicator scrolled={scrolled} T={T} />
             </BokehBackground>
 
             {/* ── All Apps Grid + Favorites + Recent Activity ───────────────────── */}
@@ -675,10 +677,10 @@ const Home = () => {
                     <Box component="section" id="apps" sx={{ mb: 6 }}>
                         <SectionHeading label="All Apps" />
                         <StaggerContainer>
-                            <Grid container spacing={2}>
+                            <Grid container spacing={2} alignItems="stretch">
                                 {visibleApps.map((app) => (
-                                    <Grid key={app.id} item xs={6} sm={6} md={4} lg={3}>
-                                        <StaggerItem>
+                                    <Grid key={app.id} item xs={6} sm={6} md={4} lg={3} sx={{ display: 'flex' }}>
+                                        <StaggerItem style={{ display: 'flex', width: '100%' }}>
                                             <AppCard
                                                 app={app}
                                                 isFavorite={favorites.includes(app.id)}
@@ -718,12 +720,12 @@ const Home = () => {
                                 </Box>
                             ) : (
                                 // Desktop: timeline
-                                <Box sx={{ position: 'relative', pl: 3 }}>
-                                    {/* Vertical teal line */}
+                                <Box sx={{ position: 'relative' }}>
+                                    {/* Vertical teal line — left:19 = center of 40px dot (40/2 - 1px for line width) */}
                                     <Box
                                         sx={{
                                             position: 'absolute',
-                                            left: 20,
+                                            left: 19,
                                             top: 0,
                                             bottom: 0,
                                             width: 2,
