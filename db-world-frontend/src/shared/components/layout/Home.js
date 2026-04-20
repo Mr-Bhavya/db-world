@@ -14,7 +14,6 @@ import {
     ArrowForward as ArrowIcon,
     Bookmark as BookmarkFilledIcon,
     BookmarkBorder as BookmarkIcon,
-    Star as StarIcon,
     Info as AboutIcon,
     Close as CloseIcon,
 } from '@mui/icons-material';
@@ -30,8 +29,8 @@ const APPS = [
     {
         id: 'cinema',
         label: 'DB Cinema',
-        description: 'Stream movies & TV shows in your personal library.',
-        icon: CinemaIcon,
+        description: 'Browse movies, series, and streams',
+        Icon: CinemaIcon,
         route: Constants.DB_CINEMA_BROWSE_ROUTE,
         adminOnly: false,
         accent: '#ef4444',
@@ -40,8 +39,8 @@ const APPS = [
     {
         id: 'weather',
         label: 'DB Weather',
-        description: 'Real-time forecasts and interactive weather maps.',
-        icon: WeatherIcon,
+        description: 'Live weather for any location',
+        Icon: WeatherIcon,
         route: Constants.DB_WEATHER_ROUTE,
         adminOnly: false,
         accent: '#38bdf8',
@@ -50,8 +49,8 @@ const APPS = [
     {
         id: 'games',
         label: 'DB Games',
-        description: 'Browser games with cloud save and leaderboards.',
-        icon: GamesIcon,
+        description: 'Mini-games and leaderboards',
+        Icon: GamesIcon,
         route: Constants.DB_GAMES_ROUTE,
         adminOnly: false,
         accent: '#a855f7',
@@ -60,8 +59,8 @@ const APPS = [
     {
         id: 'password',
         label: 'Password Manager',
-        description: 'Encrypted vault for all your credentials.',
-        icon: PasswordIcon,
+        description: 'Secure credential vault',
+        Icon: PasswordIcon,
         route: Constants.DB_PASSWORD_MANAGER_ROUTE,
         adminOnly: false,
         accent: '#0d9488',
@@ -70,8 +69,8 @@ const APPS = [
     {
         id: 'admin',
         label: 'Admin Console',
-        description: 'System management, analytics and content control.',
-        icon: AdminIcon,
+        description: 'Content and system administration',
+        Icon: AdminIcon,
         route: `${Constants.DB_ADMIN_BASE_ROUTE}/dashboard`,
         adminOnly: true,
         accent: '#f59e0b',
@@ -128,137 +127,84 @@ const timeAgo = (ts) => {
 };
 
 // ── Optimized App Card ───────────────────────────────────────────────────────
-const AppCard = memo(({ app, index, onNavigate, isFavorite, onToggleFavorite }) => {
+const AppCard = React.memo(function AppCard({ app, isFavorite, onNavigate, onToggleFavorite }) {
     const T = useT();
-    const Icon = app.icon;
-    const [isHovered, setIsHovered] = useState(false);
-
-    const handleFavoriteClick = useCallback((e) => {
-        e.stopPropagation();
-        onToggleFavorite(app.id);
-    }, [app.id, onToggleFavorite]);
+    const [hovered, setHovered] = useState(false);
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-            style={{ height: '100%' }}
+        <Box
+            onClick={() => onNavigate(app.route)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            sx={{
+                border: `1px solid ${T.glassBorder}`,
+                borderRadius: '16px',
+                overflow: 'hidden',
+                cursor: 'pointer',
+                bgcolor: T.bg,
+                transition: 'transform 0.25s ease, box-shadow 0.25s ease',
+                transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+                boxShadow: hovered
+                    ? `0 8px 32px ${app.accent}44`
+                    : `0 2px 8px rgba(0,0,0,0.12)`,
+                position: 'relative',
+            }}
         >
-            <Paper
-                elevation={isHovered ? 3 : 1}
-                onClick={() => onNavigate(app)}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
+            {/* Colored band */}
+            <Box
                 sx={{
-                    height: '100%',
-                    minHeight: 200,
-                    p: 2.5,
-                    bgcolor: T.glass,
-                    backdropFilter: 'blur(10px)',
-                    border: `1px solid ${alpha(T.glassBorder, isHovered ? 0.5 : 0.2)}`,
-                    borderRadius: 3,
-                    cursor: 'pointer',
+                    height: 80,
+                    bgcolor: app.accent,
                     display: 'flex',
-                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    filter: hovered ? 'brightness(1.15)' : 'brightness(1)',
+                    transition: 'filter 0.25s ease',
+                    boxShadow: hovered ? `inset 0 0 24px ${app.accent}88` : 'none',
                     position: 'relative',
-                    overflow: 'hidden',
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                        transform: 'translateY(-4px)',
-                        borderColor: alpha(T.teal, 0.4),
-                    },
-                    '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: '3px',
-                        background: app.gradient,
-                        transform: isHovered ? 'scaleX(1)' : 'scaleX(0)',
-                        transition: 'transform 0.3s ease',
-                    },
                 }}
             >
-                {/* Favorite button */}
-                <Box
-                    onClick={handleFavoriteClick}
-                    sx={{
-                        position: 'absolute',
-                        top: 12,
-                        right: 12,
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: alpha(T.bg, 0.5),
-                        backdropFilter: 'blur(5px)',
-                        opacity: isHovered || isFavorite ? 1 : 0,
-                        transition: 'all 0.2s',
-                        cursor: 'pointer',
-                        zIndex: 2,
-                        '&:hover': {
-                            bgcolor: alpha('#fbbf24', 0.2),
-                        },
-                    }}
-                >
-                    <StarIcon sx={{
-                        fontSize: 18,
-                        color: isFavorite ? '#fbbf24' : T.textFaint,
-                        transition: 'color 0.2s',
-                    }} />
-                </Box>
+                <app.Icon sx={{ fontSize: 36, color: '#fff', filter: hovered ? `drop-shadow(0 0 8px ${app.accent})` : 'none', transition: 'filter 0.25s ease' }} />
+            </Box>
 
-                {/* Icon */}
-                <Box
-                    sx={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 2,
-                        background: app.gradient,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        mb: 2,
-                    }}
-                >
-                    <Icon sx={{ fontSize: 24, color: '#fff' }} />
+            {/* Card body */}
+            <Box sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography
+                        sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.textPrimary }}
+                    >
+                        {app.label}
+                    </Typography>
+                    <Box
+                        component="button"
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(app.id); }}
+                        sx={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: isFavorite ? app.accent : T.textMuted,
+                            display: 'flex',
+                            alignItems: 'center',
+                            p: 0.5,
+                            borderRadius: 1,
+                            transition: 'color 0.2s ease',
+                            '&:hover': { color: app.accent },
+                        }}
+                        aria-label={isFavorite ? `Remove ${app.label} from favorites` : `Add ${app.label} to favorites`}
+                    >
+                        {isFavorite ? (
+                            <BookmarkFilledIcon sx={{ fontSize: 20 }} />
+                        ) : (
+                            <BookmarkIcon sx={{ fontSize: 20 }} />
+                        )}
+                    </Box>
                 </Box>
-
-                {/* Content */}
-                <Typography sx={{
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    color: T.textPrimary,
-                    mb: 0.5,
-                }}>
-                    {app.label}
-                </Typography>
-                <Typography sx={{
-                    fontSize: '0.8rem',
-                    color: T.textMuted,
-                    lineHeight: 1.5,
-                    mb: 2,
-                    flex: 1,
-                }}>
+                <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>
                     {app.description}
                 </Typography>
-
-                {/* Arrow */}
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <ArrowIcon sx={{
-                        fontSize: 16,
-                        color: T.teal,
-                        opacity: isHovered ? 1 : 0.5,
-                        transition: 'all 0.2s',
-                        transform: isHovered ? 'translateX(4px)' : 'none',
-                    }} />
-                </Box>
-            </Paper>
-        </motion.div>
+            </Box>
+        </Box>
     );
 });
 
@@ -268,7 +214,7 @@ const RecentCard = memo(({ entry, onNavigate }) => {
     const app = APPS.find(a => a.id === entry.appId);
 
     if (!app) return null;
-    const Icon = app.icon;
+    const Icon = app.Icon;
 
     return (
         <motion.div
@@ -453,10 +399,21 @@ const Home = () => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    const handleNavigate = useCallback((app) => {
-        saveRecent(app.id, app.route);
-        setRecent(getRecent());
-        navigate(app.route);
+    const handleNavigate = useCallback((appOrRoute) => {
+        if (typeof appOrRoute === 'string') {
+            // Called with just a route string (new AppCard / Favorites pill)
+            const app = APPS.find(a => a.route === appOrRoute);
+            if (app) {
+                saveRecent(app.id, app.route);
+                setRecent(getRecent());
+            }
+            navigate(appOrRoute);
+        } else {
+            // Called with a full app object (RecentCard)
+            saveRecent(appOrRoute.id, appOrRoute.route);
+            setRecent(getRecent());
+            navigate(appOrRoute.route);
+        }
     }, [navigate]);
 
     const handleToggleFavorite = useCallback((appId) => {
@@ -471,7 +428,6 @@ const Home = () => {
     const firstName = user?.firstName ?? user?.name?.split(' ')[0] ?? null;
     const lastRecent = recent[0] ? APPS.find(a => a.id === recent[0].appId) : null;
     const visibleApps = APPS.filter(a => !a.adminOnly || isAdmin);
-    const favoriteApps = visibleApps.filter(app => favorites.includes(app.id));
 
     // Determine grid columns based on screen size
     const getGridSize = () => {
@@ -653,48 +609,59 @@ const Home = () => {
                 </Box>
             </BokehBackground>
 
-            {/* ── Favorites Section ────────────────────────────────────────────────── */}
-            {favoriteApps.length > 0 && (
-                <Box sx={{ py: 6, px: { xs: 2, md: 3 } }}>
-                    <Container maxWidth="lg">
-                        <Box sx={{ mb: 4 }}>
-                            <Typography
-                                sx={{
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    color: '#fbbf24',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.15em',
-                                    mb: 1,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 1,
-                                }}
-                            >
-                                <StarIcon sx={{ fontSize: 14 }} />
-                                Favorites
-                            </Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 700, color: T.textPrimary }}>
-                                Your starred apps
-                            </Typography>
-                        </Box>
-
-                        <Grid container spacing={2}>
-                            {favoriteApps.map((app, i) => (
-                                <Grid key={app.id} item xs={12} sm={6} md={4} lg={3}>
-                                    <AppCard
-                                        app={app}
-                                        index={i}
-                                        onNavigate={handleNavigate}
-                                        isFavorite={true}
-                                        onToggleFavorite={handleToggleFavorite}
-                                    />
-                                </Grid>
-                            ))}
-                        </Grid>
-                    </Container>
-                </Box>
-            )}
+            {/* Favorites Section */}
+            <Box component="section" sx={{ mb: 6 }}>
+                <SectionHeading label="Favorites" />
+                <StaggerContainer
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'nowrap',
+                        gap: 12,
+                        overflowX: 'auto',
+                        paddingBottom: 8,
+                        WebkitOverflowScrolling: 'touch',
+                    }}
+                >
+                    {favorites.length === 0 ? (
+                        <Typography sx={{ color: T.textMuted, fontSize: '0.85rem', py: 2 }}>
+                            No favorites yet — bookmark an app below.
+                        </Typography>
+                    ) : (
+                        favorites.map((appId) => {
+                            const app = APPS.find((a) => a.id === appId);
+                            if (!app) return null;
+                            return (
+                                <StaggerItem key={app.id} style={{ flexShrink: 0 }}>
+                                    <Box
+                                        onClick={() => handleNavigate(app.route)}
+                                        sx={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            px: 2,
+                                            py: 1,
+                                            borderRadius: 999,
+                                            border: `2px solid ${app.accent}`,
+                                            bgcolor: `${app.accent}22`,
+                                            cursor: 'pointer',
+                                            transition: 'box-shadow 0.2s ease, background-color 0.2s ease',
+                                            '&:hover': {
+                                                boxShadow: `0 0 12px ${app.accent}88`,
+                                                bgcolor: `${app.accent}44`,
+                                            },
+                                        }}
+                                    >
+                                        <app.Icon sx={{ fontSize: 18, color: app.accent }} />
+                                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: app.accent }}>
+                                            {app.label}
+                                        </Typography>
+                                    </Box>
+                                </StaggerItem>
+                            );
+                        })
+                    )}
+                </StaggerContainer>
+            </Box>
 
             {/* ── All Apps Grid ────────────────────────────────────────────────────── */}
             <Box id="apps" sx={{ py: { xs: 6, md: 10 }, px: { xs: 2, md: 3 } }}>
@@ -716,11 +683,10 @@ const Home = () => {
                     </Box>
 
                     <Grid container spacing={2}>
-                        {visibleApps.map((app, i) => (
+                        {visibleApps.map((app) => (
                             <Grid key={app.id} item xs={12} sm={6} md={4} lg={3}>
                                 <AppCard
                                     app={app}
-                                    index={i}
                                     onNavigate={handleNavigate}
                                     isFavorite={favorites.includes(app.id)}
                                     onToggleFavorite={handleToggleFavorite}
