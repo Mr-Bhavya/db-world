@@ -136,12 +136,12 @@ const ScrollIndicator = ({ scrolled, T }) => {
     return (
         <Box
             sx={{
-                position: 'absolute',
-                bottom: { xs: 24, md: 40 },
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'center',
-                pointerEvents: 'none', // allow only inner click
+                position: 'fixed',
+                bottom: { xs: 20, md: 36 },
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 10,
+                pointerEvents: 'none',
             }}
         >
             <AnimatePresence>
@@ -677,7 +677,7 @@ const Home = () => {
                         <StaggerContainer>
                             <Grid container spacing={2}>
                                 {visibleApps.map((app) => (
-                                    <Grid key={app.id} item xs={12} sm={6} md={4} lg={3}>
+                                    <Grid key={app.id} item xs={6} sm={6} md={4} lg={3}>
                                         <StaggerItem>
                                             <AppCard
                                                 app={app}

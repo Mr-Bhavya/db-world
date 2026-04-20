@@ -3,6 +3,7 @@ import { Box, Container, Typography, IconButton, Tooltip } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { InfoOutlined } from '@mui/icons-material';
 import { useT } from '@shared/theme';
+import DbWorldLogo from '@assets/images/db_world_teal.svg';
 
 const APP_VERSION = '2.0.0';
 
@@ -78,22 +79,11 @@ const AboutDialog = React.memo(function AboutSection({ open, onClose }) {
                             </Box>
                             {/* Logo + title row */}
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                                <Box
-                                    sx={{
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: 2,
-                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexShrink: 0,
-                                    }}
-                                >
-                                    <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.5rem' }}>
-                                        D
-                                    </Typography>
-                                </Box>
+                                <img
+                                    src={DbWorldLogo}
+                                    alt="DB World"
+                                    style={{ width: 48, height: 48, borderRadius: 8, flexShrink: 0 }}
+                                />
                                 <Box>
                                     <Typography variant="h5" sx={{ fontWeight: 700, color: T.textPrimary }}>
                                         DB World
