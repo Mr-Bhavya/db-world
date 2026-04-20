@@ -40,7 +40,7 @@ export default function BokehBackground({ children, vignette = false, height = '
         bgcolor: T.bg,
       }}
     >
-      <svg width="0" height="0" style={{ position: 'absolute' }}>
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
         <defs>
           <filter id={`grain-${filterId}`}>
             <feTurbulence
@@ -64,7 +64,7 @@ export default function BokehBackground({ children, vignette = false, height = '
           width: '45%',
           height: '45%',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, #0d9488, transparent 70%)',
+          background: `radial-gradient(circle, ${T.teal}, transparent 70%)`,
           opacity: orbOpacity,
           pointerEvents: 'none',
           filter: 'blur(40px)',
@@ -92,6 +92,7 @@ export default function BokehBackground({ children, vignette = false, height = '
         sx={{
           position: 'absolute',
           inset: 0,
+          background: T.text,
           opacity: grainOpacity,
           pointerEvents: 'none',
           filter: `url(#grain-${filterId})`,
@@ -102,7 +103,6 @@ export default function BokehBackground({ children, vignette = false, height = '
       {dots.map((dot, i) => (
         <motion.div
           key={i}
-          initial={{ opacity: 0 }}
           animate={{ y: [0, -120, 0], opacity: [dot.delay ? 0.15 : 0.3, 0.4, 0.15] }}
           transition={{
             duration: dot.duration,
@@ -117,7 +117,7 @@ export default function BokehBackground({ children, vignette = false, height = '
             width: dot.size,
             height: dot.size,
             borderRadius: '50%',
-            background: '#0d9488',
+            background: T.teal,
             pointerEvents: 'none',
             zIndex: 2,
           }}
