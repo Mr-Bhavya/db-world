@@ -13,12 +13,17 @@ import {
     AdminPanelSettings as AdminIcon,
     ArrowForward as ArrowIcon,
     KeyboardArrowDown as ChevronDown,
-    Star as StarIcon,
+    Bookmark as BookmarkFilledIcon,
+    BookmarkBorder as BookmarkIcon,
     Info as AboutIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
 import { useT } from '@shared/theme';
+import BokehBackground from '@shared/components/ui/BokehBackground';
+import SectionHeading from '@shared/components/ui/SectionHeading';
+import { StaggerContainer, StaggerItem } from '@shared/components/ui/Stagger';
 
 // ── App catalogue ──────────────────────────────────────────────────────────────
 const APPS = [
@@ -29,7 +34,8 @@ const APPS = [
         icon: CinemaIcon,
         route: Constants.DB_CINEMA_BROWSE_ROUTE,
         adminOnly: false,
-        gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        accent: '#ef4444',
+        gradient: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
     },
     {
         id: 'weather',
@@ -38,7 +44,8 @@ const APPS = [
         icon: WeatherIcon,
         route: Constants.DB_WEATHER_ROUTE,
         adminOnly: false,
-        gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        accent: '#38bdf8',
+        gradient: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)',
     },
     {
         id: 'games',
@@ -47,7 +54,8 @@ const APPS = [
         icon: GamesIcon,
         route: Constants.DB_GAMES_ROUTE,
         adminOnly: false,
-        gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        accent: '#a855f7',
+        gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
     },
     {
         id: 'password',
@@ -56,7 +64,8 @@ const APPS = [
         icon: PasswordIcon,
         route: Constants.DB_PASSWORD_MANAGER_ROUTE,
         adminOnly: false,
-        gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        accent: '#0d9488',
+        gradient: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
     },
     {
         id: 'admin',
@@ -65,7 +74,8 @@ const APPS = [
         icon: AdminIcon,
         route: `${Constants.DB_ADMIN_BASE_ROUTE}/dashboard`,
         adminOnly: true,
-        gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+        accent: '#f59e0b',
+        gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
     },
 ];
 
@@ -476,170 +486,159 @@ const Home = () => {
     return (
         <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.textPrimary }}>
 
-            {/* ── Hero Section ────────────────────────────────────────────────────── */}
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    pt: { xs: '56px', md: '64px' },
-                    px: 3,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    textAlign: 'center',
-                }}
-            >
-                {/* Background gradient */}
+            {/* ── Hero Section ──────────────────────────────────────────────────────────── */}
+            <BokehBackground height={{ xs: '85vh', md: '100vh' }} vignette>
                 <Box
                     sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: `radial-gradient(circle at 50% 50%, ${alpha(T.teal, 0.08)} 0%, transparent 70%)`,
-                        pointerEvents: 'none',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: { xs: 'center', md: 'flex-start' },
+                        justifyContent: 'center',
+                        pt: { xs: '56px', md: '64px' },
+                        px: { xs: 3, md: 8, lg: 12 },
+                        maxWidth: { md: 720 },
+                        position: 'relative',
                     }}
-                />
-
-                <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 700, width: '100%' }}>
-
-                    {/* Greeting */}
+                >
+                    {/* Eyebrow */}
                     <motion.div
-                        initial={{ opacity: 0, y: 30 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0, duration: 0.6 }}
+                    >
+                        <Typography
+                            sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.2em',
+                                textTransform: 'uppercase',
+                                color: T.textMuted,
+                                mb: 1.5,
+                                textAlign: { xs: 'center', md: 'left' },
+                            }}
+                        >
+                            Your Personal Universe
+                        </Typography>
+                    </motion.div>
+
+                    {/* Headline */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 24 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5 }}
+                        transition={{ delay: 0.15, type: 'spring', stiffness: 100, damping: 14 }}
                     >
                         <Typography
                             sx={{
                                 fontWeight: 800,
-                                fontSize: { xs: '2rem', sm: '2.5rem', md: '3.5rem' },
+                                fontSize: { xs: '2.2rem', sm: '2.8rem', md: '3.6rem' },
                                 letterSpacing: '-0.03em',
-                                lineHeight: 1.2,
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                backgroundClip: 'text',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
+                                lineHeight: 1.15,
+                                color: T.textPrimary,
+                                mb: 2,
+                                textAlign: { xs: 'center', md: 'left' },
                             }}
                         >
-                            {firstName ? `Welcome back, ${firstName}` : 'Welcome to DB World'}
+                            {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
                         </Typography>
                     </motion.div>
 
-                    {/* Subtitle */}
+                    {/* Subline */}
                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={{ opacity: 0, y: 18 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.1 }}
+                        transition={{ delay: 0.25, type: 'spring', stiffness: 100, damping: 14 }}
                     >
-                        <Typography sx={{
-                            mt: 2,
-                            fontSize: { xs: '1rem', md: '1.15rem' },
-                            color: T.textMuted,
-                        }}>
-                            Your personal media universe — everything in one place.
+                        <Typography
+                            sx={{
+                                fontSize: { xs: '1rem', md: '1.1rem' },
+                                color: T.textMuted,
+                                mb: 3.5,
+                                textAlign: { xs: 'center', md: 'left' },
+                                maxWidth: 500,
+                            }}
+                        >
+                            Your personal media universe — stream, play, and manage everything in one place.
                         </Typography>
                     </motion.div>
-
-                    {/* Continue chip */}
-                    {lastRecent && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                            style={{ marginTop: 24 }}
-                        >
-                            <Chip
-                                icon={<lastRecent.icon sx={{ fontSize: '16px !important', color: `${T.teal} !important` }} />}
-                                label={`Continue: ${lastRecent.label}`}
-                                onClick={() => handleNavigate(lastRecent)}
-                                sx={{
-                                    bgcolor: alpha(T.teal, 0.1),
-                                    color: T.teal,
-                                    border: `1px solid ${alpha(T.teal, 0.3)}`,
-                                    fontWeight: 600,
-                                    fontSize: '0.85rem',
-                                    cursor: 'pointer',
-                                    '&:hover': { bgcolor: alpha(T.teal, 0.18) },
-                                }}
-                            />
-                        </motion.div>
-                    )}
 
                     {/* CTA buttons */}
                     <motion.div
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.4 }}
+                        transition={{ delay: 0.35, type: 'spring', stiffness: 100, damping: 14 }}
                     >
-                        <Box sx={{
-                            mt: 4,
-                            display: 'flex',
-                            gap: 2,
-                            justifyContent: 'center',
-                            flexWrap: 'wrap'
-                        }}>
-                            <Button
-                                variant="contained"
-                                size="large"
+                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: { xs: 'center', md: 'flex-start' } }}>
+                            <Box
+                                component="button"
                                 onClick={() => navigate(Constants.DB_CINEMA_BROWSE_ROUTE)}
                                 sx={{
                                     bgcolor: T.teal,
                                     color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 2,
+                                    px: 3.5,
+                                    py: 1.25,
+                                    fontSize: '0.95rem',
                                     fontWeight: 700,
-                                    px: 3.5,
-                                    py: 1.25,
-                                    borderRadius: 2,
-                                    textTransform: 'none',
-                                    fontSize: '0.95rem',
-                                    '&:hover': { bgcolor: T.tealHover },
-                                }}
-                            >
-                                Open Cinema
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                size="large"
-                                onClick={scrollToApps}
-                                sx={{
-                                    borderColor: alpha(T.teal, 0.4),
-                                    color: T.teal,
-                                    fontWeight: 600,
-                                    px: 3.5,
-                                    py: 1.25,
-                                    borderRadius: 2,
-                                    textTransform: 'none',
-                                    fontSize: '0.95rem',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                    transition: 'box-shadow 0.2s, background 0.2s',
                                     '&:hover': {
-                                        borderColor: T.teal,
-                                        bgcolor: alpha(T.teal, 0.06)
+                                        bgcolor: T.tealHover,
+                                        boxShadow: `0 0 16px ${T.tealGlow}`,
                                     },
                                 }}
                             >
-                                Explore Apps
-                            </Button>
+                                Browse Cinema
+                            </Box>
+
+                            <Box
+                                component="button"
+                                onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
+                                sx={{
+                                    bgcolor: 'transparent',
+                                    color: T.teal,
+                                    border: `1px solid ${T.glassBorder}`,
+                                    borderRadius: 2,
+                                    px: 3.5,
+                                    py: 1.25,
+                                    fontSize: '0.95rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                    transition: 'background 0.2s, border-color 0.2s',
+                                    '&:hover': {
+                                        bgcolor: T.tealBg,
+                                        borderColor: T.teal,
+                                    },
+                                }}
+                            >
+                                Open Vault
+                            </Box>
                         </Box>
                     </motion.div>
-                </Box>
 
-                {/* Scroll indicator */}
-                <AnimatePresence>
-                    {!scrolled && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            style={{ position: 'absolute', bottom: 32 }}
-                        >
-                            <motion.div
-                                animate={{ y: [0, 8, 0] }}
-                                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                            >
-                                <ChevronDown sx={{ fontSize: 28, color: T.textFaint }} />
-                            </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </Box>
+                    {/* Scroll indicator */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 1.5 }}
+                        style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)' }}
+                    >
+                        <AnimatePresence>
+                            {!scrolled && (
+                                <motion.div
+                                    animate={{ y: [0, 8, 0] }}
+                                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                                >
+                                    <ChevronDown sx={{ fontSize: 28, color: T.textFaint }} />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </motion.div>
+                </Box>
+            </BokehBackground>
 
             {/* ── Favorites Section ────────────────────────────────────────────────── */}
             {favoriteApps.length > 0 && (
