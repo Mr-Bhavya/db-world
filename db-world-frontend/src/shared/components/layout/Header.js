@@ -152,7 +152,7 @@ const Header = () => {
                   fontWeight: 800,
                   fontSize: '1rem',
                   letterSpacing: '-0.02em',
-                  background: 'linear-gradient(90deg, #0d9488, #14b8a6)',
+                  background: 'linear-gradient(90deg, #0d9488, #14b8a6)', // fixed brand gradient — same in both modes
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -327,7 +327,7 @@ const Header = () => {
               sx={{
                 fontWeight: 800,
                 fontSize: '0.95rem',
-                background: 'linear-gradient(90deg, #0d9488, #14b8a6)',
+                background: 'linear-gradient(90deg, #0d9488, #14b8a6)', // fixed brand gradient — same in both modes
                 backgroundClip: 'text',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
