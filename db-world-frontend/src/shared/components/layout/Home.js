@@ -505,7 +505,7 @@ const Home = () => {
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ delay: 0, duration: 0.6 }}
+                        transition={{ delay: 0, type: 'spring', stiffness: 100, damping: 14 }}
                     >
                         <Typography
                             sx={{
@@ -630,6 +630,7 @@ const Home = () => {
                             {!scrolled && (
                                 <motion.div
                                     animate={{ y: [0, 8, 0] }}
+                                    exit={{ opacity: 0 }}
                                     transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
                                 >
                                     <ChevronDown sx={{ fontSize: 28, color: T.textFaint }} />
