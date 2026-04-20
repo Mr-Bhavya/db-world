@@ -14,6 +14,7 @@ import {
     ArrowForward as ArrowIcon,
     Bookmark as BookmarkFilledIcon,
     BookmarkBorder as BookmarkIcon,
+    Star as StarIcon,
     Info as AboutIcon,
     Close as CloseIcon,
 } from '@mui/icons-material';
@@ -445,15 +446,12 @@ const Home = () => {
 
     useEffect(() => {
         const handleScroll = () => {
-            const isScrolled = window.scrollY > 40;
-            if (isScrolled !== scrolled) {
-                setScrolled(isScrolled);
-            }
+            setScrolled(window.scrollY > 40);
         };
 
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
-    }, [scrolled]);
+    }, []);
 
     const handleNavigate = useCallback((app) => {
         saveRecent(app.id, app.route);
@@ -570,6 +568,7 @@ const Home = () => {
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: { xs: 'center', md: 'flex-start' } }}>
                             <Box
                                 component="button"
+                                type="button"
                                 onClick={() => navigate(Constants.DB_CINEMA_BROWSE_ROUTE)}
                                 sx={{
                                     bgcolor: T.teal,
@@ -594,6 +593,7 @@ const Home = () => {
 
                             <Box
                                 component="button"
+                                type="button"
                                 onClick={() => navigate(Constants.DB_PASSWORD_MANAGER_ROUTE)}
                                 sx={{
                                     bgcolor: 'transparent',
@@ -620,6 +620,7 @@ const Home = () => {
 
                     {/* Scroll indicator */}
                     <motion.div
+                        aria-hidden="true"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 1.5 }}
@@ -627,18 +628,21 @@ const Home = () => {
                     >
                         <AnimatePresence>
                             {!scrolled && (
-                                <motion.div exit={{ opacity: 0 }}>
+                                <motion.div
+                                    initial={{ opacity: 1 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.4 }}
+                                >
                                     {/* Thin animated line — extends downward with a repeating scale animation */}
-                                    <Box
-                                        sx={{
+                                    <motion.div
+                                        style={{
                                             width: 2,
                                             height: 40,
-                                            bgcolor: T.teal,
-                                            borderRadius: 1,
-                                            mx: 'auto',
-                                            mt: 0,
+                                            background: T.teal,
+                                            borderRadius: 4,
+                                            margin: '0 auto',
                                         }}
-                                        component={motion.div}
                                         animate={{ scaleY: [1, 0.5, 1], opacity: [0.6, 1, 0.6] }}
                                         transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
                                     />
