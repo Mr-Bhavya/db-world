@@ -659,88 +659,90 @@ const Home = () => {
                 </Box>
             </BokehBackground>
 
-            {/* Favorites Section */}
-            <Box component="section" sx={{ mb: 6 }}>
-                <SectionHeading label="Favorites" />
-                <StaggerContainer
-                    style={{
-                        display: 'flex',
-                        flexWrap: isMobile ? 'nowrap' : 'wrap',
-                        gap: 12,
-                        overflowX: isMobile ? 'auto' : 'visible',
-                        paddingBottom: isMobile ? 8 : 0,
-                        WebkitOverflowScrolling: isMobile ? 'touch' : 'unset',
-                    }}
-                >
-                    {favorites.length === 0 ? (
-                        <Typography sx={{ color: T.textMuted, fontSize: '0.85rem', py: 2 }}>
-                            No favorites yet — bookmark an app below.
-                        </Typography>
-                    ) : (
-                        favorites.map((appId) => {
-                            const app = APPS.find((a) => a.id === appId);
-                            if (!app) return null;
-                            return (
-                                <StaggerItem key={app.id} style={{ flexShrink: 0 }}>
-                                    <Box
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => handleNavigate(app.route)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigate(app.route); } }}
-                                        aria-label={`Open ${app.label}`}
-                                        sx={{
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 1,
-                                            px: 2,
-                                            py: 1,
-                                            borderRadius: 999,
-                                            border: `2px solid ${app.accent}`,
-                                            bgcolor: `${app.accent}22`,
-                                            transition: 'box-shadow 0.2s ease, background-color 0.2s ease',
-                                            '&:hover': {
-                                                boxShadow: `0 0 12px ${app.accent}88`,
-                                                bgcolor: `${app.accent}44`,
-                                            },
-                                        }}
-                                    >
-                                        <app.Icon sx={{ fontSize: 18, color: app.accent }} />
-                                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: app.accent }}>
-                                            {app.label}
-                                        </Typography>
-                                        <Box
-                                            component="button"
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleToggleFavorite(app.id);
-                                            }}
-                                            sx={{
-                                                background: 'none',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                color: app.accent,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                p: 0,
-                                                ml: 0.5,
-                                            }}
-                                            aria-label={`Remove ${app.label} from favorites`}
-                                        >
-                                            <BookmarkFilledIcon sx={{ fontSize: 16 }} />
-                                        </Box>
-                                    </Box>
-                                </StaggerItem>
-                            );
-                        })
-                    )}
-                </StaggerContainer>
-            </Box>
-
-            {/* ── All Apps Grid ────────────────────────────────────────────────────── */}
+            {/* ── All Apps Grid + Favorites + Recent Activity ───────────────────── */}
             <Box sx={{ py: { xs: 6, md: 10 }, px: { xs: 2, md: 3 } }}>
                 <Container maxWidth="lg">
+
+                    {/* Favorites Section */}
+                    <Box component="section" sx={{ mb: 6 }}>
+                        <SectionHeading label="Favorites" />
+                        <StaggerContainer
+                            style={{
+                                display: 'flex',
+                                flexWrap: isMobile ? 'nowrap' : 'wrap',
+                                gap: 12,
+                                overflowX: isMobile ? 'auto' : 'visible',
+                                paddingBottom: isMobile ? 8 : 0,
+                                WebkitOverflowScrolling: isMobile ? 'touch' : 'unset',
+                            }}
+                        >
+                            {favorites.length === 0 ? (
+                                <Typography sx={{ color: T.textMuted, fontSize: '0.85rem', py: 2 }}>
+                                    No favorites yet — bookmark an app below.
+                                </Typography>
+                            ) : (
+                                favorites.map((appId) => {
+                                    const app = APPS.find((a) => a.id === appId);
+                                    if (!app) return null;
+                                    return (
+                                        <StaggerItem key={app.id} style={{ flexShrink: 0 }}>
+                                            <Box
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={() => handleNavigate(app.route)}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigate(app.route); } }}
+                                                aria-label={`Open ${app.label}`}
+                                                sx={{
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 1,
+                                                    px: 2,
+                                                    py: 1,
+                                                    borderRadius: 999,
+                                                    border: `2px solid ${app.accent}`,
+                                                    bgcolor: `${app.accent}22`,
+                                                    transition: 'box-shadow 0.2s ease, background-color 0.2s ease',
+                                                    '&:hover': {
+                                                        boxShadow: `0 0 12px ${app.accent}88`,
+                                                        bgcolor: `${app.accent}44`,
+                                                    },
+                                                }}
+                                            >
+                                                <app.Icon sx={{ fontSize: 18, color: app.accent }} />
+                                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: app.accent }}>
+                                                    {app.label}
+                                                </Typography>
+                                                <Box
+                                                    component="button"
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleFavorite(app.id);
+                                                    }}
+                                                    sx={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        color: app.accent,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        p: 0,
+                                                        ml: 0.5,
+                                                    }}
+                                                    aria-label={`Remove ${app.label} from favorites`}
+                                                >
+                                                    <BookmarkFilledIcon sx={{ fontSize: 16 }} />
+                                                </Box>
+                                            </Box>
+                                        </StaggerItem>
+                                    );
+                                })
+                            )}
+                        </StaggerContainer>
+                    </Box>
+
+                    {/* All Apps Section */}
                     <Box component="section" id="apps" sx={{ mb: 6 }}>
                         <SectionHeading label="All Apps" />
                         <StaggerContainer>
@@ -760,61 +762,62 @@ const Home = () => {
                             </Grid>
                         </StaggerContainer>
                     </Box>
-                </Container>
-            </Box>
 
-            {/* Recent Activity Section */}
-            {recent.length > 0 && (
-                <Box component="section" sx={{ mb: 6 }}>
-                    <SectionHeading label="Recent Activity" />
-                    {isMobile ? (
-                        // Mobile: horizontal chip row
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                gap: 1.5,
-                                overflowX: 'auto',
-                                WebkitOverflowScrolling: 'touch',
-                                pb: 1,
-                            }}
-                        >
-                            {recent.map((item) => (
-                                <RecentCard
-                                    key={`${item.appId}-${item.ts ?? item.timestamp}`}
-                                    item={item}
-                                    onNavigate={handleNavigate}
-                                    isMobile={true}
-                                />
-                            ))}
-                        </Box>
-                    ) : (
-                        // Desktop: timeline
-                        <Box sx={{ position: 'relative', pl: 3 }}>
-                            {/* Vertical teal line */}
-                            <Box
-                                sx={{
-                                    position: 'absolute',
-                                    left: 20,
-                                    top: 0,
-                                    bottom: 0,
-                                    width: 2,
-                                    bgcolor: T.teal,
-                                    opacity: 0.3,
-                                    borderRadius: 1,
-                                }}
-                            />
-                            {recent.map((item) => (
-                                <RecentCard
-                                    key={`${item.appId}-${item.ts ?? item.timestamp}`}
-                                    item={item}
-                                    onNavigate={handleNavigate}
-                                    isMobile={false}
-                                />
-                            ))}
+                    {/* Recent Activity Section */}
+                    {recent.length > 0 && (
+                        <Box component="section" sx={{ mb: 6 }}>
+                            <SectionHeading label="Recent Activity" />
+                            {isMobile ? (
+                                // Mobile: horizontal chip row
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        gap: 1.5,
+                                        overflowX: 'auto',
+                                        WebkitOverflowScrolling: 'touch',
+                                        pb: 1,
+                                    }}
+                                >
+                                    {recent.map((item) => (
+                                        <RecentCard
+                                            key={`${item.appId}-${item.ts ?? item.timestamp}`}
+                                            item={item}
+                                            onNavigate={handleNavigate}
+                                            isMobile={true}
+                                        />
+                                    ))}
+                                </Box>
+                            ) : (
+                                // Desktop: timeline
+                                <Box sx={{ position: 'relative', pl: 3 }}>
+                                    {/* Vertical teal line */}
+                                    <Box
+                                        sx={{
+                                            position: 'absolute',
+                                            left: 20,
+                                            top: 0,
+                                            bottom: 0,
+                                            width: 2,
+                                            bgcolor: T.teal,
+                                            opacity: 0.3,
+                                            borderRadius: 1,
+                                        }}
+                                    />
+                                    {recent.map((item) => (
+                                        <RecentCard
+                                            key={`${item.appId}-${item.ts ?? item.timestamp}`}
+                                            item={item}
+                                            onNavigate={handleNavigate}
+                                            isMobile={false}
+                                        />
+                                    ))}
+                                </Box>
+                            )}
                         </Box>
                     )}
-                </Box>
-            )}
+
+                </Container>
+            </Box>
 
             {/* About trigger + Footer */}
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
