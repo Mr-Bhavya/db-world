@@ -314,40 +314,39 @@ const AboutSection = React.memo(function AboutSection({ open, onClose }) {
     return (
         <AnimatePresence>
             {open && (
-                <>
-                    {/* Backdrop */}
-                    <motion.div
-                        key="about-backdrop"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.25 }}
-                        onClick={onClose}
-                        style={{
-                            position: 'fixed',
-                            inset: 0,
-                            background: 'rgba(0,0,0,0.7)',
-                            backdropFilter: 'blur(8px)',
-                            zIndex: 1200,
-                        }}
-                    />
-                    {/* Content panel */}
-                    <motion.div
-                        key="about-panel"
-                        initial={{ opacity: 0, scale: 0.95, y: 24 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 24 }}
-                        transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-                        style={{
-                            position: 'fixed',
-                            top: '50%',
-                            left: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            zIndex: 1201,
-                            width: '90%',
-                            maxWidth: 480,
-                        }}
-                    >
+                <motion.div
+                    key="about-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    onClick={onClose}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.7)',
+                        backdropFilter: 'blur(8px)',
+                        zIndex: 1300,
+                    }}
+                />
+            )}
+            {open && (
+                <motion.div
+                    key="about-panel"
+                    initial={{ opacity: 0, scale: 0.95, y: 24 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 24 }}
+                    transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+                    style={{
+                        position: 'fixed',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 1301,
+                        width: '90%',
+                        maxWidth: 480,
+                    }}
+                >
                         <Box
                             sx={{
                                 bgcolor: T.glass,
@@ -426,8 +425,7 @@ const AboutSection = React.memo(function AboutSection({ open, onClose }) {
                                 © 2024 DB World. All rights reserved.
                             </Typography>
                         </Box>
-                    </motion.div>
-                </>
+                </motion.div>
             )}
         </AnimatePresence>
     );
