@@ -4,7 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
 import { fetchPageCategories } from '../api/cinemaApi';
-import DB_WORLD_TEAL_SVG from '@assets/images/db_world_teal.svg';
+import DB_WORLD_TEAL_SVG from '@assets/images/db-world-circle.png';
 
 import {
   AppBar,

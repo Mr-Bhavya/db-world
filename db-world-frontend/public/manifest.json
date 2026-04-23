@@ -1,25 +1,121 @@
 {
+  "id": "/db-world/",
+  "name": "DB World – Stream, Download & Manage Media",
   "short_name": "DB World",
-  "name": "DB World",
+  "description": "DB World is a modern media platform to stream, download, and manage movies and TV shows.",
+  "start_url": "/db-world/?source=pwa",
+  "scope": "/db-world/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0f172a",
+  "background_color": "#020617",
   "icons": [
     {
-      "src": "https://cdn.jsdelivr.net/gh/Mr-Bhavya/db-world-static@master/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "../icons/icon-48.webp",
+      "type": "image/png",
+      "sizes": "48x48",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://cdn.jsdelivr.net/gh/Mr-Bhavya/db-world-static@master/logo192.png",
+      "src": "../icons/icon-72.webp",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "72x72",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://cdn.jsdelivr.net/gh/Mr-Bhavya/db-world-static@master/logo512.png",
+      "src": "../icons/icon-96.webp",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "96x96",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-128.webp",
+      "type": "image/png",
+      "sizes": "128x128",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-192.webp",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-256.webp",
+      "type": "image/png",
+      "sizes": "256x256",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-512.webp",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "screenshots": [
+    {
+      "src": "/screenshots/db-world-home.png",
+      "sizes": "1885x835",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "DB-World Home"
+    },
+    {
+      "src": "/screenshots/db-cinema-browse.png",
+      "sizes": "1888x841",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Browse movies and series"
+    },
+    {
+      "src": "/screenshots/db-cinema-mobile.png",
+      "sizes": "691x848",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile experience"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse Cinema",
+      "url": "/db-world/db-cinema",
+      "icons": [
+        {
+          "src": "/shortcuts/db-cinema.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Add Credential",
+      "url": "/db-world/db-password-manager/add-password",
+      "icons": [
+        {
+          "src": "/shortcuts/add-credential.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "View Credentials",
+      "url": "/db-world/db-password-manager/view-password",
+      "icons": [
+        {
+          "src": "/shortcuts/view-credentials.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Downloads",
+      "url": "/db-world/db-cinema/downloads",
+      "icons": [
+        {
+          "src": "/shortcuts/download.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
 }

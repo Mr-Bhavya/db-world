@@ -20,7 +20,7 @@ import { motion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { register } from '@shared/services/ApiServices';
 import { toast } from '@shared/components/ui/Toast';
-import db_world_icon from '@assets/images/db_world_teal.svg';
+import db_world_icon from '@assets/images/db-world-circle.png';
 import { useT, getFieldSx, getSelectMenuProps, getGlowProps } from '@shared/theme';
 
 // ─── Section label ────────────────────────────────────────────────────────────

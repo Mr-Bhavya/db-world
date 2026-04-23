@@ -1,3 +1,63 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+
+# =========================
+# ✅ ALLOW PUBLIC CONTENT (SEO TARGET)
+# =========================
+Allow: /db-world/db-cinema
+Allow: /db-world/db-cinema/browse
+Allow: /db-world/db-cinema/movie
+Allow: /db-world/db-cinema/tv-shows
+Allow: /db-world/db-cinema/movie/
+Allow: /db-world/db-cinema/series/
+
+# =========================
+# ❌ BLOCK DYNAMIC / NON-SEO ROUTES
+# =========================
+
+# Download & tracking (very important)
+Disallow: /db-world/db-cinema/download-progress
+Disallow: /db-world/db-cinema/downloads
+Disallow: /db-world/db-cinema/record/
+
+# Prevent indexing dynamic params like :title / :recordId duplicates
+Disallow: /*?*
+
+# =========================
+# ❌ BLOCK AUTH & USER DATA
+# =========================
+Disallow: /db-world/login
+Disallow: /db-world/logout
+Disallow: /db-world/registration
+Disallow: /db-world/user-profile
+Disallow: /db-world/user-profile-edit
+
+# =========================
+# ❌ BLOCK ADMIN (CRITICAL)
+# =========================
+Disallow: /db-world/admin
+Disallow: /db-world/admin-tools
+Disallow: /db-world/admin/records
+Disallow: /db-world/db-cinema/edit-record/
+
+# =========================
+# ❌ BLOCK NON-SEO APPS (OPTIONAL BUT RECOMMENDED)
+# =========================
+Disallow: /db-world/db-games
+Disallow: /db-world/db-weather
+Disallow: /db-world/db-password-manager
+Disallow: /db-world/db-file-manager
+
+# =========================
+# ❌ BACKEND / INFRA (from your system)
+# =========================
+Disallow: /api/
+Disallow: /ws/
+Disallow: /actuator/
+Disallow: /cdn/
+Disallow: /stream/
+Disallow: /logs/
+
+# =========================
+# ✅ SITEMAP
+# =========================
+Sitemap: https://db-world.in/sitemap.xml

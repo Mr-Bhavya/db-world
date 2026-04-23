@@ -14,7 +14,7 @@ import {
   Cloud as WeatherIcon, Movie as CinemaIcon, SportsEsports as GamesIcon,
   VpnKey as PasswordIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon,
 } from '@mui/icons-material';
-import DbWorldLogo from '@assets/images/db_world_teal.svg';
+import DbWorldLogo from '@assets/images/db-world-circle.png';
 import { useAuth } from '@features/auth/context/Authentication';
 import { useThemeMode } from '@shared/theme';
 import Constants from '@shared/constants';

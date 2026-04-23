@@ -6,11 +6,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriUtils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Builds CDN URLs for the {@code cdn.db-world.in} subdomain.
@@ -126,13 +129,10 @@ public class CdnUrlBuilder {
 
     private String encodePathSegments(String path) {
         if (path == null || path.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder();
-        String[] segments = path.split("/");
-        for (int i = 0; i < segments.length; i++) {
-            if (i > 0) sb.append('/');
-            sb.append(URLEncoder.encode(segments[i], StandardCharsets.UTF_8));
-        }
-        return sb.toString();
+
+        return Arrays.stream(path.split("/"))
+                .map(segment -> UriUtils.encodePathSegment(segment, StandardCharsets.UTF_8))
+                .collect(Collectors.joining("/"));
     }
 
     private String encode(String value) {

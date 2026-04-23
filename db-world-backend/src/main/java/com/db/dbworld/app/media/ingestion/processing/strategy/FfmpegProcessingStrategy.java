@@ -10,6 +10,7 @@ import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
+import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.app.stream.tag.MediaSource;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.utils.PathSanitizer;
@@ -30,6 +31,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Moves the downloaded file from temp to the final directory, then:
@@ -53,6 +55,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final FileStorageService         fileStorageService;
     private final MediaInfoService           mediaInfoService;
     private final TmdbMediaEnrichmentService enrichmentService;
+    private final SymlinkService             symlinkService;
     private final SmartTrackFilterService    smartTrackFilterService;
 
     @Override
@@ -190,6 +193,8 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 ? canonicalDto
                 : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
 
+        symlinkService.create(finalDto.getId(), finalDto.getFilePath());
+
         result.setFinalFile(finalFile);
         result.setSuccess(true);
         result.setMediaInfo(toMediaInfoMap(finalDto));
@@ -317,12 +322,8 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             name.append(sanitizeToken(seriesTitle))
                     .append(".S").append(String.format("%02d", episodeRef.season()))
                     .append("E").append(String.format("%02d", episodeRef.episode()));
-            String episodeName = namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::episodeName)
-                    .filter(t -> !t.isBlank())
-                    .orElse(null);
-            if (episodeName != null) {
-                name.append(".").append(sanitizeToken(episodeName));
-            }
+            namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::episodeName)
+                    .filter(t -> !t.isBlank()).ifPresent(episodeName -> name.append(".").append(sanitizeToken(episodeName)));
         } else {
             String title = namingInfo.map(TmdbMediaEnrichmentService.MediaNamingInfo::title)
                     .filter(t -> !t.isBlank())
@@ -356,7 +357,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
         Path staged = tempDir.resolve(sourceFile.getFileName().toString());
         ctx.log("FFMPEG", "Staging in temp: " + sourceFile.getFileName() + " → " + tempDir);
-        Files.copy(sourceFile, staged, StandardCopyOption.REPLACE_EXISTING);
+        Files.move(sourceFile, staged, StandardCopyOption.REPLACE_EXISTING);
         return staged;
     }
 
@@ -514,7 +515,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
         List<TrackDto> audioTracks = mediaInfo.getTracks().stream()
                 .filter(t -> "Audio".equals(t.getType()))
-                .collect(Collectors.toList());
+                .toList();
 
         TrackDto primary = mediaInfo.getPrimaryAudioTrack();
         String primaryLang = normalizeLanguage(primary != null ? primary.getLanguage() : null);
@@ -577,6 +578,22 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 .filter(t -> !t.isBlank())
                 .orElseGet(() -> stripExt(file.getFileName().toString()));
         return candidate.replaceAll("(?i)[. _-]S\\d{2}E\\d{2}.*$", "").replace('.', ' ').trim();
+    }
+
+    private String buildAudioTrackTitle(TrackDto t) {
+        String lang = normalizeLanguage(t.getLanguage());
+        String codec = normalizeAudioCodec(t.getFormat());
+        String channels = normalizeChannels(t.getChannels());
+        String bitrate = formatBitrate(t.getBitRate());
+
+        return Stream.of(lang, channels, codec, bitrate)
+                .filter(v -> v != null && !v.isBlank())
+                .collect(Collectors.joining(" "));
+    }
+
+    private String formatBitrate(Long bitrate) {
+        if (bitrate == null || bitrate <= 0) return null;
+        return (bitrate / 1000) + "kbps";
     }
 
     private EpisodeRef resolveEpisodeRef(IngestionContext ctx, Path file) {
