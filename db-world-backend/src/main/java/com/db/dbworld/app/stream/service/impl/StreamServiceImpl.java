@@ -146,10 +146,10 @@ public class StreamServiceImpl implements StreamService {
         String clean = StringUtils.cleanPath(relativePath);
 
         Path inputPath = Path.of(clean);
-        if (inputPath.isAbsolute() || clean.matches("^[a-zA-Z]:.*")) {
-            log.error("Absolute path detected (SECURITY RISK): {}", clean);
-            throw new DbWorldException("Absolute paths are not allowed: " + clean);
-        }
+//        if (inputPath.isAbsolute() || clean.matches("^[a-zA-Z]:.*")) {
+//            log.error("Absolute path detected (SECURITY RISK): {}", clean);
+//            throw new DbWorldException("Absolute paths are not allowed: " + clean);
+//        }
 
         String normalized = clean.startsWith("/") || clean.startsWith("\\")
                 ? clean.substring(1)

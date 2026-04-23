@@ -235,7 +235,7 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
       const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
       if (Capacitor.getPlatform() === 'android') {
         AndroidPlugins.launchNativePlayer({
-          url: "https://cdn.db-world.in/id/00aaf428-5643-489a-a8e5-11be7fdcf2de?userId=sam8%40gmail.com&type=DOWNLOAD&originalFile=Crooks.S02E01.Bussi.Bussi.1080p.WEB-DL.AV1.HDR10.10Bit.Dual.Hindi.AC3.5.1.mkv&downloadId=DL_782a3e61_51174&requestId=c8ffabee-edfe-4be9-ace0-c8c155b6d1a8" || current?.streamUrl,
+          url: current?.streamUrl,
           title: general?.fileName || record?.tmdb?.title || '',
           fileName: general?.fileName || '',
           fileId: String(mediaInfo.id || ''),
@@ -256,7 +256,7 @@ const FileCard = ({ mediaInfo, allFiles = [], record }) => {
     setResolving(true);
     try {
       const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
-      const cdnUrl = "https://cdn.db-world.in/id/00aaf428-5643-489a-a8e5-11be7fdcf2de?userId=sam8%40gmail.com&type=DOWNLOAD&originalFile=Crooks.S02E01.Bussi.Bussi.1080p.WEB-DL.AV1.HDR10.10Bit.Dual.Hindi.AC3.5.1.mkv&downloadId=DL_782a3e61_51174&requestId=c8ffabee-edfe-4be9-ace0-c8c155b6d1a8" || res?.data?.cdnUrl;
+      const cdnUrl = res?.data?.cdnUrl;
       if (!cdnUrl) throw new Error('No CDN URL');
       if (Capacitor.getPlatform() === 'android') {
         await DbWorldDownload.ensurePermissions();

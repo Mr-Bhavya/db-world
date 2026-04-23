@@ -36,7 +36,7 @@ export const DELETE_ICON_URL =
 export const VIEW_USER_ICON_URL =
   "https://img.icons8.com/material-sharp/24/null/contract-job.png";
 
-export const DB_WORLD_TEAL_SVG_ICON = "../../public/svgs/db_world_teal.svg";
+export const DB_WORLD_TEAL_SVG_ICON = "@assets/images/db-world-circle.png";
 
 /* =========================
  * ROUTES

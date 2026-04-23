@@ -1,6 +1,7 @@
 package com.db.dbworld.app.media.watch;
 
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
+import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
@@ -70,6 +71,7 @@ public class FileWatcherService {
     private final WatchService watchService;
     private final Map<WatchKey, Path> watchKeys      = new ConcurrentHashMap<>();
     private final Set<Path>           registeredDirs = ConcurrentHashMap.newKeySet();
+    private final Set<String> processingFiles        = ConcurrentHashMap.newKeySet();
 
     private final ExecutorService watcherExecutor =
             Executors.newSingleThreadExecutor(r -> {
@@ -102,10 +104,11 @@ public class FileWatcherService {
         this.runtimeProperties   = runtimeProperties;
 
         int threads = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
-        this.fileProcessingExecutor = Executors.newFixedThreadPool(
-                threads,
-                r -> { Thread t = new Thread(r, "file-processor"); t.setDaemon(true); return t; }
-        );
+        this.fileProcessingExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "file-processor");
+            t.setDaemon(true);
+            return t;
+        });
 
         this.watchService = FileSystems.getDefault().newWatchService();
         log.info("{} Initialized with {} processing threads", TAG, threads);
@@ -163,7 +166,7 @@ public class FileWatcherService {
     private void registerDir(Path dir) throws IOException {
         if (!registeredDirs.add(dir.toAbsolutePath())) return;
         try {
-            WatchKey key = dir.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
+            WatchKey key = dir.register(watchService, ENTRY_CREATE, ENTRY_DELETE);
             watchKeys.put(key, dir);
         } catch (IOException e) {
             registeredDirs.remove(dir.toAbsolutePath());
@@ -198,7 +201,7 @@ public class FileWatcherService {
                     }
                     Path full = dir.resolve((Path) event.context()).toAbsolutePath();
                     try {
-                        if (kind == ENTRY_CREATE || kind == ENTRY_MODIFY) {
+                        if (kind == ENTRY_CREATE) {
                             handleCreateOrModifyEvent(full);
                         } else if (kind == ENTRY_DELETE) {
                             handleDeleteEvent(full);
@@ -245,43 +248,62 @@ public class FileWatcherService {
     private void processFileEvent(Path file) throws IOException {
         String filePath = file.toString();
 
-        // Wait for the file to stabilise (no size change)
-        if (!FileIdentityUtils.isStable(file, (int) FILE_STABILITY_SEC)) {
-            log.debug("{} File not stable yet: {}", TAG, filePath);
+        // In-memory deduplication (prevents race)
+        if (!processingFiles.add(filePath)) {
+            log.debug("{} Already processing: {}", TAG, filePath);
             return;
         }
 
-        // Resolve the owning cinema record from the path hierarchy
-        var recordOpt = RecordPathResolver.resolveRecord(
-                file, recordsService::getRecordEntityOptById);
+        try {
 
-        if (recordOpt.isEmpty()) {
-            log.debug("{} No record found for: {}", TAG, filePath);
-            return;
-        }
+            // Wait for the file to stabilise (no size change)
+            if (!FileIdentityUtils.isStable(file, (int) FILE_STABILITY_SEC)) {
+                log.debug("{} File not stable yet: {}", TAG, filePath);
+                return;
+            }
 
-        Long recordId = recordOpt.get().getId();
+            // Resolve the owning cinema record from the path hierarchy
+            var recordOpt = RecordPathResolver.resolveRecord(
+                    file, recordsService::getRecordEntityOptById);
 
-        // Move / rename detection — compare size + partial hash against DB entries
-        List<MediaFileEntity> existing = mediaFileRepository.findAllByRecordId(recordId);
+            if (recordOpt.isEmpty()) {
+                log.debug("{} No record found for: {}", TAG, filePath);
+                return;
+            }
 
-        if (handleMoveOrRename(file, filePath, existing)) {
+            Long recordId = recordOpt.get().getId();
+
+            Optional<MediaFileEntity> existingByPath =
+                    mediaFileRepository.findByFilePath(filePath);
+
+            if (existingByPath.isPresent()) {
+                log.debug("{} Already exists in DB: {}", TAG, filePath);
+                return;
+            }
+
+            // Move / rename detection — compare size + partial hash against DB entries
+            List<MediaFileEntity> existing = mediaFileRepository.findAllByRecordId(recordId);
+
+            if (handleMoveOrRename(file, filePath, existing)) {
+                processedCount.incrementAndGet();
+                return;
+            }
+
+            // Skip files already tracked exactly
+            boolean alreadyTracked = existing.stream()
+                    .anyMatch(e -> filePath.equals(e.getFilePath()));
+            if (alreadyTracked) {
+                log.debug("{} Already tracked: {}", TAG, filePath);
+                return;
+            }
+
+            // New file — collect metadata, persist, and create symlink
+            log.info("{} New file for record {}: {}", TAG, recordId, filePath);
+            processNewFile(file, recordId);
             processedCount.incrementAndGet();
-            return;
+        } finally {
+            processingFiles.remove(filePath);
         }
-
-        // Skip files already tracked exactly
-        boolean alreadyTracked = existing.stream()
-                .anyMatch(e -> filePath.equals(e.getFilePath()));
-        if (alreadyTracked) {
-            log.debug("{} Already tracked: {}", TAG, filePath);
-            return;
-        }
-
-        // New file — collect metadata, persist, and create symlink
-        log.info("{} New file for record {}: {}", TAG, recordId, filePath);
-        processNewFile(file, recordId);
-        processedCount.incrementAndGet();
     }
 
     private boolean handleMoveOrRename(Path file, String newPath,
@@ -317,8 +339,7 @@ public class FileWatcherService {
         String filePath = file.toString();
         try {
             executeWithRetry(() -> {
-                com.db.dbworld.app.media.info.dto.MediaFileDto dto =
-                        mediaInfoService.collectAndPersist(file, recordId, null);
+                MediaFileDto dto = mediaInfoService.collectAndPersist(file, recordId, null);
                 if (!dryRun) {
                     ensureSystemLink(dto.getId(), dto.getFilePath());
                     log.info("{} Saved id={} for: {}", TAG, dto.getId(), filePath);
