@@ -42,7 +42,6 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(DbWorldConstants.PUBLIC_APIS).permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
@@ -77,7 +76,9 @@ public class SecurityConfig {
                 "http://192.168.*",       // local network (home/office)
                 "http://10.*",            // local network (corporate)
                 "http://172.16.*",        // local network (docker/office)
-                "https://db-world.in"
+                "https://db-world.in",
+                "https://api.db-world.in",
+                "https://cdn.db-world.in"
         ));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowedMethods(List.of("*"));

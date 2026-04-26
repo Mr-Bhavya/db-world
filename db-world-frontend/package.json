@@ -112,7 +112,9 @@
     ]
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^7.0.0",
+    "@capacitor/splash-screen": "^8.0.1",
     "@vitejs/plugin-react": "^4.3.1",
     "eslint": "^8.57.0",
     "eslint-plugin-react": "^7.37.0",
