@@ -1,16 +1,18 @@
 {
 	"appId": "com.db.dbworld",
-	"appName": "DB-World",
-	"bundledWebRuntime": false,
-	"npmClient": "npm",
+	"appName": "DB World",
 	"webDir": "build",
-	"cordova": {},
+	"bundledWebRuntime": false,
 	"server": {
-		"cleartext": true,
-		"url": "http://192.168.1.14:3000",
-		"originalUrl": "http://192.168.1.14:3000"
+		"url": "https://db-world.in",
+		"cleartext": false,
+		"allowNavigation": [
+			"db-world.in",
+			"*.db-world.in",
+			"cdn.db-world.in"
+		]
 	},
-	"appendUserAgent": "===> Db-world APK <===",
+	"appendUserAgent": "DBWorldApp/2.0 (Android)",
 	"plugins": {
 		"CapacitorHttp": {
 			"enabled": true
