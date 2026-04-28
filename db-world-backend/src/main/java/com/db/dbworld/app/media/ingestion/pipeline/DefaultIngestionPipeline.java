@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 @Log4j2
@@ -26,6 +27,9 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     private final List<ProcessingStrategy> processors;
 
     private final TrackingService    trackingService;
+
+    /** Guards against two jobs running concurrently for the same record. recordId → active jobId. */
+    private final ConcurrentHashMap<Long, String> activeRecordJobs = new ConcurrentHashMap<>();
     private final IngestionRepository repository;
     private final ExecutorService    jobExecutor;
     private final IngestionJobStore  jobStore;
@@ -44,6 +48,16 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         ctx.setStatus(MirrorStatus.QUEUED);
         ctx.setLogCollector(new LogCollector());
         ctx.setRecordId(request.getRecordId());
+
+        Long recordId = request.getRecordId();
+        if (recordId != null) {
+            String existingJob = activeRecordJobs.putIfAbsent(recordId, jobId);
+            if (existingJob != null) {
+                throw new IllegalStateException(
+                        "Record #" + recordId + " is already being processed by job " + existingJob
+                        + ". Wait for it to finish before starting a new ingestion.");
+            }
+        }
 
         jobStore.register(jobId, request);
         trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
@@ -168,6 +182,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 downloadQueue.signalComplete(jobId);
             }
             jobStore.remove(jobId);
+            Long recordId = ctx.getRecordId();
+            if (recordId != null) {
+                activeRecordJobs.remove(recordId, jobId); // bivalue remove: only clears our own entry
+            }
         }
     }
 

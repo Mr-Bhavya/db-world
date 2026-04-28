@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -505,10 +506,11 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     }
 
     /**
-     * Builds the audio language filename segment.
-     * Single track: "{Language}" (e.g., "Hindi")
-     * Two tracks:   "Dual.{PrimaryLang}" (e.g., "Dual.Hindi")
-     * Three+:       "Multi.{PrimaryLang}" (e.g., "Multi.Hindi")
+     * Builds the audio language filename segment including all unique language names.
+     * Single track:    "{Lang}"                      e.g. "Hindi"
+     * Two tracks:      "Dual.{Lang1}.{Lang2}"        e.g. "Dual.Hindi.English"
+     * Two same lang:   "Dual.{Lang}"                 e.g. "Dual.Hindi"
+     * Three+ tracks:   "Multi.{Lang1}.{Lang2}..."    e.g. "Multi.Hindi.English.Tamil"
      */
     private String buildAudioLanguageSegment(MediaFileDto mediaInfo) {
         if (mediaInfo.getTracks() == null) return null;
@@ -517,16 +519,23 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 .filter(t -> "Audio".equals(t.getType()))
                 .toList();
 
+        if (audioTracks.isEmpty()) return null;
+
         TrackDto primary = mediaInfo.getPrimaryAudioTrack();
         String primaryLang = normalizeLanguage(primary != null ? primary.getLanguage() : null);
 
-        if (audioTracks.size() >= 3) {
-            return primaryLang != null ? "Multi." + primaryLang : "Multi";
-        } else if (audioTracks.size() == 2) {
-            return primaryLang != null ? "Dual." + primaryLang : "Dual";
-        } else {
-            return primaryLang; // single track, no prefix
+        // Collect unique language names in order: primary first, then remaining in track order
+        List<String> langs = new ArrayList<>();
+        if (primaryLang != null) langs.add(primaryLang);
+        for (TrackDto t : audioTracks) {
+            String lang = normalizeLanguage(t.getLanguage());
+            if (lang != null && !langs.contains(lang)) langs.add(lang);
         }
+        String langsJoined = String.join(".", langs);
+
+        if (audioTracks.size() >= 3) return langsJoined.isBlank() ? "Multi" : "Multi." + langsJoined;
+        if (audioTracks.size() == 2) return langsJoined.isBlank() ? "Dual"  : "Dual."  + langsJoined;
+        return primaryLang;
     }
 
     private String normalizeLanguage(String language) {

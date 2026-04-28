@@ -1,6 +1,7 @@
 package com.db.dbworld.app.stream.tag;
 
 import java.util.*;
+import java.util.Comparator;
 
 /**
  * Canonical lookup tables and resolver methods for media file metadata tags.
@@ -315,10 +316,13 @@ public final class MediaTagResolver {
     private static String resolve(String raw, Map<String, String> reverse) {
         if (raw == null || raw.isBlank()) return null;
         String normalized = raw.toLowerCase();
-        for (String token : reverse.keySet()) {
-            if (normalized.contains(token)) return reverse.get(token);
-        }
-        return null;
+        // Sort longest tokens first so "e-ac-3" matches before "ac-3" avoids false substring hits
+        return reverse.keySet().stream()
+                .sorted(Comparator.comparingInt(String::length).reversed())
+                .filter(normalized::contains)
+                .map(reverse::get)
+                .findFirst()
+                .orElse(null);
     }
 
     private static boolean matchesToken(String text, String token) {

@@ -35,26 +35,34 @@ public class MediaFileDto {
         return tracks.stream()
                 .filter(t -> "Video".equals(t.getType()))
                 .max((left, right) -> {
-                    // Duration is the primary key: real video has a long duration;
-                    // an embedded poster/attached_pic image has null or 0 duration.
-                    // This prevents the poster from beating the actual video when the
-                    // poster's portrait height (e.g. 1500 px) exceeds the video height.
+                    // 1. Frame-rate presence: real video always has a frame rate;
+                    //    cover art / attached_pic images never do.
+                    //    This is the strongest signal and must be checked first.
+                    boolean leftHasFps  = left.getFrameRate()  != null && !left.getFrameRate().isBlank();
+                    boolean rightHasFps = right.getFrameRate() != null && !right.getFrameRate().isBlank();
+                    if (leftHasFps != rightHasFps) {
+                        return Boolean.compare(leftHasFps, rightHasFps);
+                    }
+
+                    // 2. Duration: real video has a long duration; cover art has null or 0.
+                    //    Falls through when BOTH have null duration (e.g. remux missing header data).
                     long leftDuration  = left.getDuration()  != null ? left.getDuration()  : -1L;
                     long rightDuration = right.getDuration() != null ? right.getDuration() : -1L;
                     if (leftDuration != rightDuration) {
                         return Long.compare(leftDuration, rightDuration);
                     }
 
-                    // Among tracks with the same duration, prefer the tallest/widest.
-                    int leftHeight  = left.getHeight()  != null ? left.getHeight()  : -1;
-                    int rightHeight = right.getHeight() != null ? right.getHeight() : -1;
-                    if (leftHeight != rightHeight) {
-                        return Integer.compare(leftHeight, rightHeight);
-                    }
-
+                    // 3. Bitrate: real video stream has a meaningful bitrate; cover art does not.
                     long leftBitRate  = left.getBitRate()  != null ? left.getBitRate()  : -1L;
                     long rightBitRate = right.getBitRate() != null ? right.getBitRate() : -1L;
-                    return Long.compare(leftBitRate, rightBitRate);
+                    if (leftBitRate != rightBitRate) {
+                        return Long.compare(leftBitRate, rightBitRate);
+                    }
+
+                    // 4. Last resort: largest dimensions (original tie-breaker, now last).
+                    int leftHeight  = left.getHeight()  != null ? left.getHeight()  : -1;
+                    int rightHeight = right.getHeight() != null ? right.getHeight() : -1;
+                    return Integer.compare(leftHeight, rightHeight);
                 })
                 .orElse(null);
     }
