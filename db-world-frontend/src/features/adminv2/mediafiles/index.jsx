@@ -16,6 +16,7 @@ import {
   LibraryAddCheck, CheckCircle, Cancel, Warning, Info, MoreVert,
   ContentCopy, Sync, CleaningServices, RestorePage, Dangerous,
   InsertDriveFile, TableRows, KeyboardArrowDown, Close, OpenInNew,
+  Tv, Save,
 } from '@mui/icons-material';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -27,6 +28,7 @@ import {
   deleteMediaFileById, bulkDeleteMediaFiles,
   repairSymlink, repairAllSymlinks, rebuildAllSymlinks,
   cleanupOrphanedFiles, rescanMediaFile, linkMediaFileToRecord,
+  updateMediaFileEpisode,
 } from '../api/adminApi';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -127,6 +129,11 @@ function RawFieldGrid({ data }) {
 function TrackDetailModal({ fileId, onClose, onRescan, onRepair, onLink, onCopyPath, onDelete }) {
   const T = useT();
   const [tab, setTab] = useState(0);
+  const [episodeSeason, setEpisodeSeason] = useState('');
+  const [episodeNum, setEpisodeNum] = useState('');
+  const [episodeEditing, setEpisodeEditing] = useState(false);
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
 
   const { data: file, isLoading } = useQuery({
     queryKey: ['mediaFileDetail', fileId],
@@ -136,6 +143,27 @@ function TrackDetailModal({ fileId, onClose, onRescan, onRepair, onLink, onCopyP
   });
 
   useEffect(() => { setTab(0); }, [fileId]);
+
+  // Sync episode fields when file loads or fileId changes
+  useEffect(() => {
+    setEpisodeSeason(file?.tmdbSeasonNumber != null ? String(file.tmdbSeasonNumber) : '');
+    setEpisodeNum(file?.tmdbEpisodeNumber != null ? String(file.tmdbEpisodeNumber) : '');
+    setEpisodeEditing(false);
+  }, [file?.tmdbSeasonNumber, file?.tmdbEpisodeNumber, fileId]);
+
+  const saveEpisode = useCallback(async () => {
+    const s = episodeSeason !== '' ? parseInt(episodeSeason, 10) : null;
+    const e = episodeNum !== '' ? parseInt(episodeNum, 10) : null;
+    try {
+      await updateMediaFileEpisode(fileId, s, e);
+      queryClient.invalidateQueries({ queryKey: ['mediaFileDetail', fileId] });
+      queryClient.invalidateQueries({ queryKey: ['mediaFiles'] });
+      enqueueSnackbar('Episode numbers saved', { variant: 'success', autoHideDuration: 2000 });
+      setEpisodeEditing(false);
+    } catch {
+      enqueueSnackbar('Failed to save episode numbers', { variant: 'error' });
+    }
+  }, [fileId, episodeSeason, episodeNum, queryClient, enqueueSnackbar]);
 
   const tabDefs = useMemo(() => {
     if (!file?.tracks) return [];
@@ -192,17 +220,73 @@ function TrackDetailModal({ fileId, onClose, onRescan, onRepair, onLink, onCopyP
 
         {/* File summary row */}
         {file && !isLoading && (
-          <Stack direction="row" spacing={1} mt={0.75} flexWrap="wrap">
-            <Chip label={getExt(file.fileName)} size="small" sx={{ height: 18, fontSize: '0.62rem' }} />
-            <Chip label={fmtBytes(file.fileSize)} size="small" sx={{ height: 18, fontSize: '0.62rem' }} />
-            {file.recordId
-              ? <Chip icon={<CheckCircle sx={{ fontSize: '10px !important' }} />} label="Linked" size="small" color="success" variant="outlined" sx={{ height: 18, fontSize: '0.62rem' }} />
-              : <Chip icon={<LinkOff sx={{ fontSize: '10px !important' }} />} label="Unlinked" size="small" variant="outlined" sx={{ height: 18, fontSize: '0.62rem' }}
-                  onClick={() => onLink(fileId)} />
-            }
-            <Chip label={new Date(file.createdAt).toLocaleDateString()} size="small" variant="outlined"
-              sx={{ height: 18, fontSize: '0.62rem' }} />
-          </Stack>
+          <>
+            <Stack direction="row" spacing={1} mt={0.75} flexWrap="wrap">
+              <Chip label={getExt(file.fileName)} size="small" sx={{ height: 18, fontSize: '0.62rem' }} />
+              <Chip label={fmtBytes(file.fileSize)} size="small" sx={{ height: 18, fontSize: '0.62rem' }} />
+              {file.recordId
+                ? <Chip icon={<CheckCircle sx={{ fontSize: '10px !important' }} />} label="Linked" size="small" color="success" variant="outlined" sx={{ height: 18, fontSize: '0.62rem' }} />
+                : <Chip icon={<LinkOff sx={{ fontSize: '10px !important' }} />} label="Unlinked" size="small" variant="outlined" sx={{ height: 18, fontSize: '0.62rem' }}
+                    onClick={() => onLink(fileId)} />
+              }
+              <Chip label={new Date(file.createdAt).toLocaleDateString()} size="small" variant="outlined"
+                sx={{ height: 18, fontSize: '0.62rem' }} />
+              {(file.tmdbSeasonNumber != null || file.tmdbEpisodeNumber != null) && (
+                <Chip icon={<Tv sx={{ fontSize: '10px !important' }} />}
+                  label={`S${String(file.tmdbSeasonNumber ?? '?').padStart(2,'0')} E${String(file.tmdbEpisodeNumber ?? '?').padStart(2,'0')}`}
+                  size="small" color="info" variant="outlined" sx={{ height: 18, fontSize: '0.62rem' }} />
+              )}
+            </Stack>
+            {/* Episode linking row */}
+            <Stack direction="row" spacing={1} alignItems="center" mt={1}>
+              <Tv sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 52 }}>Episode:</Typography>
+              {episodeEditing ? (
+                <>
+                  <TextField size="small" label="Season" type="number" value={episodeSeason}
+                    onChange={e => setEpisodeSeason(e.target.value)}
+                    inputProps={{ min: 1, style: { fontSize: '0.75rem', padding: '2px 6px' } }}
+                    sx={{ width: 70, '& .MuiInputLabel-root': { fontSize: '0.7rem' } }} />
+                  <TextField size="small" label="Episode" type="number" value={episodeNum}
+                    onChange={e => setEpisodeNum(e.target.value)}
+                    inputProps={{ min: 1, style: { fontSize: '0.75rem', padding: '2px 6px' } }}
+                    sx={{ width: 70, '& .MuiInputLabel-root': { fontSize: '0.7rem' } }} />
+                  <Button size="small" variant="contained" startIcon={<Save sx={{ fontSize: 13 }} />}
+                    onClick={saveEpisode} sx={{ fontSize: '0.7rem', py: 0.3, px: 1, textTransform: 'none', minWidth: 0 }}>
+                    Save
+                  </Button>
+                  <Button size="small" onClick={() => setEpisodeEditing(false)}
+                    sx={{ fontSize: '0.7rem', py: 0.3, px: 0.75, textTransform: 'none', minWidth: 0 }}>
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Typography variant="caption" fontWeight={600}>
+                    {file.tmdbSeasonNumber != null
+                      ? `S${String(file.tmdbSeasonNumber).padStart(2,'0')} E${String(file.tmdbEpisodeNumber ?? '?').padStart(2,'0')}`
+                      : 'Not set'}
+                  </Typography>
+                  <Button size="small" onClick={() => setEpisodeEditing(true)}
+                    sx={{ fontSize: '0.68rem', py: 0.2, px: 0.75, textTransform: 'none', minWidth: 0 }}>
+                    {file.tmdbSeasonNumber != null ? 'Edit' : 'Set'}
+                  </Button>
+                  {file.tmdbSeasonNumber != null && (
+                    <Button size="small" color="error" onClick={async () => {
+                      try {
+                        await updateMediaFileEpisode(fileId, null, null);
+                        queryClient.invalidateQueries({ queryKey: ['mediaFileDetail', fileId] });
+                        queryClient.invalidateQueries({ queryKey: ['mediaFiles'] });
+                        enqueueSnackbar('Episode numbers cleared', { variant: 'info', autoHideDuration: 2000 });
+                      } catch { enqueueSnackbar('Failed to clear', { variant: 'error' }); }
+                    }} sx={{ fontSize: '0.68rem', py: 0.2, px: 0.75, textTransform: 'none', minWidth: 0 }}>
+                      Clear
+                    </Button>
+                  )}
+                </>
+              )}
+            </Stack>
+          </>
         )}
       </DialogTitle>
 

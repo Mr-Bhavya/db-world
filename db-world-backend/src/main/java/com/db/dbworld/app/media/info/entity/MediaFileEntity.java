@@ -77,6 +77,12 @@ public class MediaFileEntity {
     @Column(name = "raw_media_info_json", columnDefinition = "JSON")
     private String rawMediaInfoJson;
 
+    @Column(name = "tmdb_season_number")
+    private Integer tmdbSeasonNumber;
+
+    @Column(name = "tmdb_episode_number")
+    private Integer tmdbEpisodeNumber;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

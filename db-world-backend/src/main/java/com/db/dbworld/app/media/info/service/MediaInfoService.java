@@ -78,4 +78,7 @@ public interface MediaInfoService {
 
     /** Convert an entity to DTO (exposed for controller use). */
     MediaFileDto toDto(MediaFileEntity entity);
+
+    /** Set (or clear) the TMDB season/episode numbers for a media file. */
+    MediaFileDto updateEpisodeNumbers(String id, Integer season, Integer episode);
 }

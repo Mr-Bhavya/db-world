@@ -85,6 +85,14 @@ public class MediaAdminController {
                 ids.size() + (purge ? " files permanently deleted" : " files removed from library")));
     }
 
+    @PatchMapping("/files/{id}/episode")
+    public ResponseEntity<ApiResponse<MediaFileDto>> setEpisodeNumbers(
+            @PathVariable String id,
+            @RequestParam(required = false) Integer season,
+            @RequestParam(required = false) Integer episode) {
+        return ResponseEntity.ok(ApiResponse.success(mediaInfoService.updateEpisodeNumbers(id, season, episode)));
+    }
+
     @PostMapping("/files/cleanup")
     public ResponseEntity<ApiResponse<Map<String, Object>>> cleanupMediaFiles() {
         List<MediaFileDto> all = mediaInfoService.findAll();

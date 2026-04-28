@@ -180,6 +180,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .fileSize(entity.getFileSize())
                 .mimeType(entity.getMimeType())
                 .ingestionJobId(entity.getIngestionJobId())
+                .tmdbSeasonNumber(entity.getTmdbSeasonNumber())
+                .tmdbEpisodeNumber(entity.getTmdbEpisodeNumber())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt());
 
@@ -240,6 +242,16 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         }
 
         return b.build();
+    }
+
+    @Override
+    @Transactional
+    public MediaFileDto updateEpisodeNumbers(String id, Integer season, Integer episode) {
+        MediaFileEntity entity = mediaFileRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + id));
+        entity.setTmdbSeasonNumber(season);
+        entity.setTmdbEpisodeNumber(episode);
+        return toDto(mediaFileRepository.save(entity));
     }
 
     @Override
@@ -470,6 +482,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .fileSize(entity.getFileSize())
                 .mimeType(entity.getMimeType())
                 .ingestionJobId(entity.getIngestionJobId())
+                .tmdbSeasonNumber(entity.getTmdbSeasonNumber())
+                .tmdbEpisodeNumber(entity.getTmdbEpisodeNumber())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .tracks(trackDtos)

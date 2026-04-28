@@ -131,6 +131,9 @@ export const scanStreamMigration = () =>
 export const linkMediaFileToRecord = (mediaFileId, recordId) =>
   axiosInstance.patch(`/api/media/info/${mediaFileId}/link-record`, null, { params: { recordId } }).then(r => r.data);
 
+export const updateMediaFileEpisode = (id, season, episode) =>
+  axiosInstance.patch(`/api/admin/media/files/${id}/episode`, null, { params: { season, episode } }).then(r => r.data);
+
 /* ─── TAG ADMIN ─────────────────────────────────────────────────── */
 
 export const getTagSummary = () =>

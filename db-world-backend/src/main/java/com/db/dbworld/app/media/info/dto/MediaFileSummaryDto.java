@@ -18,6 +18,8 @@ public class MediaFileSummaryDto {
     private Long    fileSize;
     private String  mimeType;
     private String  ingestionJobId;
+    private Integer tmdbSeasonNumber;
+    private Integer tmdbEpisodeNumber;
     private Instant createdAt;
     private Instant updatedAt;
 

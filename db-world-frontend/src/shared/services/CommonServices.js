@@ -426,6 +426,8 @@ class CommonServices {
           id: mediaId,
           mediaFileId: mediaFile.id ?? null,
           filePath: mediaFile.filePath ?? null,
+          tmdbSeasonNumber: mediaFile.tmdbSeasonNumber ?? null,
+          tmdbEpisodeNumber: mediaFile.tmdbEpisodeNumber ?? null,
           general: {},
           video: {},
           audio: [],
