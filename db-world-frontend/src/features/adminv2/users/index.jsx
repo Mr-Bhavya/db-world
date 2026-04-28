@@ -1,153 +1,139 @@
-import { useMemo, useCallback } from 'react';
-import { Box, Typography, Fab, useMediaQuery, useTheme, Button } from '@mui/material';
+import { useState, useCallback, useMemo } from 'react';
+import { Box, Typography, Button, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import GroupIcon from '@mui/icons-material/Group';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonIcon from '@mui/icons-material/Person';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { getAllUsers, deleteUser } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
-import UserFilters from './UserFilters';
 import UserTable from './UserTable';
-import UserGrid from './UserGrid';
-import UserMobileList from './UserMobileList';
+import UserFilters from './UserFilters';
 import UserDetailDrawer from './UserDetailDrawer';
 import UserCreateModal from './UserCreateModal';
 import UserEditModal from './UserEditModal';
 import UserBulkModal from './UserBulkModal';
 
 export default function UserManagementV2() {
-  const T       = useT();
-  const theme   = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { enqueueSnackbar } = useSnackbar();
+  const T  = useT();
   const qc = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const { modalState, editUserId, openModal, closeModal } = useUserStore();
 
-  const { viewMode, searchTerm, roleFilter, sortModel, selectedRows, clearSelection, modalState, editUserId, openModal, closeModal } = useUserStore();
-
-  const { data: allUsers = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['users'],
-    queryFn: getAllUsers,
+  // ── Server-side state ─────────────────────────────────────────────────────
+  const [params, setParams] = useState({
+    page: 0, size: 25, search: '', role: 'ALL', sortBy: 'userId', sortDir: 'desc',
   });
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['users', params],
+    queryFn:  () => getAllUsers(params),
+    keepPreviousData: true,
+    staleTime: 30_000,
+  });
+
+  const users         = data?.content       ?? [];
+  const totalElements = data?.totalElements ?? 0;
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleSearch     = useCallback((v)  => setParams(p => ({ ...p, page: 0, search: v })), []);
+  const handleRole       = useCallback((v)  => setParams(p => ({ ...p, page: 0, role: v })), []);
+  const handleSort       = useCallback((by, dir) => setParams(p => ({ ...p, page: 0, sortBy: by, sortDir: dir })), []);
+  const handlePage       = useCallback((pg) => setParams(p => ({ ...p, page: pg })), []);
+  const handlePageSize   = useCallback((sz) => setParams(p => ({ ...p, page: 0, size: sz })), []);
 
   const { mutate: doDelete } = useMutation({
     mutationFn: deleteUser,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); enqueueSnackbar('User deleted', { variant: 'success' }); },
-    onError:   () => enqueueSnackbar('Delete failed', { variant: 'error' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      enqueueSnackbar('User deleted', { variant: 'success' });
+    },
+    onError: () => enqueueSnackbar('Delete failed', { variant: 'error' }),
   });
-
-  const filtered = useMemo(() => {
-    let list = allUsers;
-    if (roleFilter !== 'ALL') list = list.filter(u => u.userRole?.roleName === roleFilter);
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      list = list.filter(u => [u.firstName, u.lastName, u.email].some(f => f?.toLowerCase().includes(q)));
-    }
-    if (sortModel.length > 0) {
-      const { field, sort } = sortModel[0];
-      list = [...list].sort((a, b) => {
-        const av = field === 'fullName' ? `${a.firstName} ${a.lastName}` : a[field];
-        const bv = field === 'fullName' ? `${b.firstName} ${b.lastName}` : b[field];
-        if (av == null) return 1; if (bv == null) return -1;
-        return sort === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
-      });
-    }
-    return list;
-  }, [allUsers, roleFilter, searchTerm, sortModel]);
 
   const handleDelete = useCallback((userId) => {
     if (window.confirm('Delete this user?')) doDelete(userId);
   }, [doDelete]);
 
+  // ── Stats from current page + params ─────────────────────────────────────
   const stats = useMemo(() => ({
-    total:   allUsers.length,
-    admins:  allUsers.filter(u => ['ADMIN', 'OWNER'].includes(u.userRole?.roleName)).length,
-    viewers: allUsers.filter(u => u.userRole?.roleName === 'VIEWER').length,
-  }), [allUsers]);
+    total:   totalElements,
+    admins:  users.filter(u => ['ADMIN', 'OWNER'].includes(u.userRole?.roleName)).length,
+    viewers: users.filter(u => u.userRole?.roleName === 'VIEWER').length,
+  }), [users, totalElements]);
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: T.adminBg, color: T.textPrimary, minHeight: 0 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: T.bg, color: T.text, minHeight: 0 }}>
 
-      {/* Page header */}
-      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 }, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header */}
+      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 }, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
         <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: { xs: 18, md: 22 }, color: T.textPrimary }}>User Management</Typography>
-          <Typography sx={{ fontSize: 12, color: T.textMuted, mt: 0.25 }}>Manage all platform users</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: 18, md: 22 }, color: T.text, lineHeight: 1.2 }}>
+            User Management
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: T.textFaint, mt: 0.2 }}>
+            Manage all platform users
+          </Typography>
         </Box>
-        {!isMobile && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
-            sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600 }}>
-            Add User
-          </Button>
-        )}
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
+          sx={{ bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' }, fontWeight: 600 }}>
+          Add User
+        </Button>
       </Box>
 
       {/* Stats bar */}
-      <Box sx={{ display: 'flex', gap: 2, px: { xs: 2, md: 3 }, py: 1, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 2.5, px: { xs: 2, md: 3 }, py: 0.75, flexWrap: 'wrap' }}>
         {[
-          { label: 'Total',         value: stats.total,   icon: <GroupIcon sx={{ fontSize: 14, color: T.teal }} />,                   color: T.teal },
-          { label: 'Admins/Owners', value: stats.admins,  icon: <AdminPanelSettingsIcon sx={{ fontSize: 14, color: '#f59e0b' }} />,    color: '#f59e0b' },
-          { label: 'Viewers',       value: stats.viewers, icon: <PersonIcon sx={{ fontSize: 14, color: '#10b981' }} />,                color: '#10b981' },
-          ...(filtered.length !== allUsers.length ? [{ label: 'Filtered', value: filtered.length, icon: <GroupIcon sx={{ fontSize: 14, color: T.textFaint }} />, color: T.textMuted }] : []),
+          { label: 'Total',   value: stats.total,   icon: <GroupIcon sx={{ fontSize: 14, color: '#0d9488' }} />,   color: '#0d9488' },
+          { label: 'Admins',  value: stats.admins,  icon: <AdminPanelSettingsIcon sx={{ fontSize: 14, color: '#f59e0b' }} />, color: '#f59e0b' },
+          { label: 'Viewers', value: stats.viewers, icon: <PersonIcon sx={{ fontSize: 14, color: '#10b981' }} />,   color: '#10b981' },
         ].map(s => (
           <Box key={s.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             {s.icon}
-            <Typography sx={{ fontSize: 13, color: T.textMuted }}>{s.label}:</Typography>
+            <Typography sx={{ fontSize: 12, color: T.textMuted }}>{s.label}:</Typography>
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.value}</Typography>
           </Box>
         ))}
       </Box>
 
-      {/* Bulk actions bar */}
-      <AnimatePresence>
-        {selectedRows.length > 0 && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: { xs: 2, md: 3 }, py: 1, bgcolor: T.tealBg, borderTop: `1px solid ${T.glassBorderHover}` }}>
-              <Typography sx={{ fontSize: 13, color: T.teal, fontWeight: 600 }}>{selectedRows.length} selected</Typography>
-              <Button size="small" startIcon={<DeleteSweepIcon />} onClick={() => openModal('bulk')}
-                sx={{ color: T.error, borderColor: `${T.error}44`, border: '1px solid' }}>Bulk Actions</Button>
-              <Button size="small" onClick={clearSelection} sx={{ color: T.textMuted, ml: 'auto' }}>Clear</Button>
-            </Box>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Filters */}
-      <UserFilters onAddUser={() => openModal('create')} />
+      <UserFilters
+        search={params.search}
+        role={params.role}
+        onSearch={handleSearch}
+        onRole={handleRole}
+        onAddUser={() => openModal('create')}
+      />
 
       {/* Error */}
       {error && (
-        <Box sx={{ p: 2 }}>
-          <Box sx={{ bgcolor: T.errorBg, border: `1px solid ${T.error}44`, borderRadius: 2, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography sx={{ color: T.error, fontSize: 13 }}>Failed to load users</Typography>
-            <Button size="small" onClick={refetch} sx={{ color: T.error }}>Retry</Button>
-          </Box>
+        <Box sx={{ px: 2, py: 1 }}>
+          <Alert severity="error" action={<Button size="small" onClick={refetch}>Retry</Button>}>
+            Failed to load users
+          </Alert>
         </Box>
       )}
 
-      {/* Data view */}
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        {viewMode === 'table' ? (
-          <UserTable users={filtered} loading={isLoading} onDelete={handleDelete} />
-        ) : isMobile ? (
-          <UserMobileList users={filtered} loading={isLoading} onDelete={handleDelete} />
-        ) : (
-          <UserGrid users={filtered} loading={isLoading} onDelete={handleDelete} />
-        )}
+      {/* Table */}
+      <Box sx={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <UserTable
+          users={users}
+          loading={isLoading}
+          total={totalElements}
+          page={params.page}
+          size={params.size}
+          sortBy={params.sortBy}
+          sortDir={params.sortDir}
+          onSort={handleSort}
+          onPageChange={handlePage}
+          onPageSizeChange={handlePageSize}
+          onDelete={handleDelete}
+        />
       </Box>
 
-      {/* Mobile FAB */}
-      {isMobile && (
-        <Fab onClick={() => openModal('create')} sx={{ position: 'fixed', bottom: 24, right: 24, bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>
-          <AddIcon />
-        </Fab>
-      )}
-
-      {/* Drawers & Modals */}
+      {/* Modals */}
       <UserDetailDrawer />
       <UserCreateModal open={modalState === 'create'} onClose={closeModal} />
       <UserEditModal   open={modalState === 'edit'}   userId={editUserId} onClose={closeModal} />

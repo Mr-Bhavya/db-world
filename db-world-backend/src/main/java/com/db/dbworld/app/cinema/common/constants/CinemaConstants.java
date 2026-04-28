@@ -27,8 +27,9 @@ public final class CinemaConstants {
         private Scheduler() {}
 
         // Cron expressions
-        public static final String DAILY_2AM = "0 0 2 * * *";
+        public static final String DAILY_2AM    = "0 0 2 * * *";
         public static final String DAILY_2_10AM = "0 10 2 * * *";
+        public static final String DAILY_3AM    = "0 0 3 * * *";
 
         // Safety
         public static final long INITIAL_DELAY_MS = 2 * 60 * 1000; // 2 min

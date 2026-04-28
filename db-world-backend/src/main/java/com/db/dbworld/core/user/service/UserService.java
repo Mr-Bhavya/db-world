@@ -25,6 +25,8 @@ public interface UserService {
 
     List<UserDto> getAllUsers(Pageable pageable);
 
+    java.util.Map<String, Object> getPagedUsers(String search, String role, int page, int size, String sortBy, String sortDir);
+
     List<UserSearchResponse> searchUsers(String query, int limit);
 
     UserDto getUserProfile();

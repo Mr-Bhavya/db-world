@@ -35,4 +35,6 @@ public class PersonTmdbResponse {
 
     private String place_of_birth;
 
+    private java.util.List<String> also_known_as;
+
 }

@@ -9,6 +9,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Mapper(config = BaseMapperConfig.class)
 public interface PersonMapper {
@@ -38,10 +39,16 @@ public interface PersonMapper {
     @Mapping(source = "place_of_birth", target = "placeOfBirth")
     @Mapping(source = "birthday", target = "birthday")
     @Mapping(source = "deathday", target = "deathday")
+    @Mapping(source = "also_known_as", target = "alsoKnownAs")
     @Mapping(target = "credits", ignore = true)
     @Mapping(target = "createdTvSeries", ignore = true)
     @Mapping(target = "personSynced", constant = "false")
     PersonEntity fromTmdb(PersonTmdbResponse response);
+
+    default String map(List<String> list) {
+        if (list == null || list.isEmpty()) return null;
+        return String.join("|", list);
+    }
 
     /* =====================================
        STRING → LOCALDATE CONVERSION

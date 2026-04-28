@@ -2,8 +2,14 @@ import axiosInstance from '../../../shared/components/ui/utils/AxiosInstants';
 
 /* ─── USER APIS ─────────────────────────────────────────────────── */
 
-export const getAllUsers = () =>
-  axiosInstance.get('/api/user/all').then(r => r.data.data);
+export const getAllUsers = ({ page = 0, size = 25, search = '', role = '', sortBy = 'userId', sortDir = 'desc' } = {}) =>
+  axiosInstance.get('/api/user/all', {
+    params: {
+      page, size, sortBy, sortDir,
+      ...(search && { search }),
+      ...(role && role !== 'ALL' && { role }),
+    },
+  }).then(r => r.data.data);
 
 export const getUserById = (userId) =>
   axiosInstance.get(`/api/user/${userId}`).then(r => r.data.data);

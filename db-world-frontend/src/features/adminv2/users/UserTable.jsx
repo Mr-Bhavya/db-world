@@ -1,140 +1,212 @@
-import { useMemo } from 'react';
-import { Box, Chip, IconButton, Tooltip } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import {
+  Box, Table, TableBody, TableCell, TableContainer, TableHead,
+  TableRow, TableSortLabel, TablePagination, Chip, IconButton,
+  Tooltip, Skeleton, Avatar, Typography,
+} from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { useUserStore } from '../stores/useUserStore';
-import { useT } from '@shared/theme';
+import EditIcon        from '@mui/icons-material/Edit';
+import DeleteIcon      from '@mui/icons-material/Delete';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { formatDistanceToNow } from 'date-fns';
-import { ROLE_COLORS } from './constants';
+import { useT }        from '@shared/theme';
+import { useUserStore } from '../stores/useUserStore';
+import { ROLE_COLORS }  from './constants';
 
-export default function UserTable({ users, loading, onDelete }) {
+const ROLE_COLOR = { OWNER: '#f59e0b', ADMIN: '#3b82f6', VIEWER: '#10b981' };
+const COLUMNS = [
+  { id: 'fullName',    label: 'User',       sortKey: 'firstName', minWidth: 200 },
+  { id: 'userRole',    label: 'Role',       sortable: false,      minWidth: 100 },
+  { id: 'mobileNo',   label: 'Mobile',     sortable: false,      minWidth: 120 },
+  { id: 'noOfLogin',  label: 'Logins',     sortKey: 'noOfLogin', minWidth: 70,  align: 'center' },
+  { id: 'lastLogin',  label: 'Last Login', sortKey: 'lastLogin', minWidth: 130 },
+  { id: 'status',     label: 'Status',     sortable: false,      minWidth: 85  },
+  { id: 'actions',    label: '',           sortable: false,      minWidth: 110 },
+];
+
+function AvatarCell({ user }) {
   const T = useT();
-  const { setSelectedRows, sortModel, setSortModel, openDrawer, openModal } = useUserStore();
+  const initials = `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || '?';
+  const role  = user.userRole?.roleName ?? 'VIEWER';
+  const color = ROLE_COLOR[role] ?? '#0d9488';
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5 }}>
+      <Avatar sx={{ width: 36, height: 36, bgcolor: color, fontSize: 13, fontWeight: 700, flexShrink: 0, color: '#fff' }}>
+        {initials}
+      </Avatar>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>
+          {user.firstName} {user.lastName}
+        </Typography>
+        <Typography sx={{ fontSize: 11, color: T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>
+          {user.email}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
 
-  const gridSx = useMemo(() => ({
-    '--DataGrid-containerBackground': T.tealBg,
-    '--DataGrid-pinnedBackground':    T.sidebar,
-    border: 'none',
-    color: T.textPrimary,
-    bgcolor: T.adminBg,
+function StatusBadge({ user }) {
+  const active = user.enabled !== false && user.accountNonLocked !== false;
+  const color  = active ? '#10b981' : '#ef4444';
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <FiberManualRecordIcon sx={{ fontSize: 8, color }} />
+      <Typography sx={{ fontSize: 12, color, fontWeight: 600 }}>
+        {active ? 'Active' : 'Inactive'}
+      </Typography>
+    </Box>
+  );
+}
 
-    '& .MuiDataGrid-columnHeaders': {
-      backgroundColor: `${T.tealBg} !important`,
-      borderBottom: `1px solid ${T.border}`,
-    },
-    '& .MuiDataGrid-columnHeader': {
-      backgroundColor: `${T.tealBg} !important`,
-      color: `${T.textMuted} !important`,
-      '&:focus, &:focus-within': { outline: 'none' },
-    },
-    '& .MuiDataGrid-columnHeaderTitle': {
-      fontWeight: 700, color: `${T.textMuted} !important`,
-      fontSize: 11, textTransform: 'uppercase', letterSpacing: .5,
-    },
-    '& .MuiDataGrid-columnHeaderTitleContainer': { color: T.textMuted },
-    '& .MuiDataGrid-iconSeparator':  { color: T.border },
-    '& .MuiDataGrid-sortIcon':       { color: T.teal },
-    '& .MuiDataGrid-menuIconButton': { color: T.textMuted },
+function SortTH({ col, sortBy, sortDir, onSort, T }) {
+  if (col.sortable === false || !col.sortKey) {
+    return (
+      <TableCell sx={{ minWidth: col.minWidth, fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: T.textFaint, bgcolor: T.glass, borderColor: T.border, whiteSpace: 'nowrap', align: col.align }}>
+        {col.label}
+      </TableCell>
+    );
+  }
+  const active = sortBy === col.sortKey;
+  return (
+    <TableCell sx={{ minWidth: col.minWidth, fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: T.textFaint, bgcolor: T.glass, borderColor: T.border, whiteSpace: 'nowrap', userSelect: 'none', align: col.align }}>
+      <TableSortLabel
+        active={active}
+        direction={active ? sortDir : 'desc'}
+        onClick={() => onSort(col.sortKey, active && sortDir === 'desc' ? 'asc' : 'desc')}
+        sx={{ color: `${T.textFaint} !important`, '& .MuiTableSortLabel-icon': { color: `${active ? '#0d9488' : T.textFaint} !important` }, '&.Mui-active': { color: '#0d9488 !important' } }}>
+        {col.label}
+      </TableSortLabel>
+    </TableCell>
+  );
+}
 
-    '& .MuiDataGrid-row': {
-      borderBottom: `1px solid ${T.border}`,
-      backgroundColor: T.adminBg,
-      '&:hover': { backgroundColor: `${T.hoverBg} !important` },
-    },
-    '& .MuiDataGrid-cell': {
-      borderBottom: 'none', color: T.textPrimary, fontSize: 13,
-      '&:focus, &:focus-within': { outline: 'none' },
-    },
-    '& .MuiDataGrid-virtualScroller':        { minHeight: 200, backgroundColor: T.adminBg },
-    '& .MuiDataGrid-virtualScrollerContent': { backgroundColor: T.adminBg },
-    '& .MuiDataGrid-overlay':                { backgroundColor: T.adminBg },
-    '& .MuiDataGrid-footerContainer': {
-      borderTop: `1px solid ${T.border}`,
-      backgroundColor: `${T.tealBg} !important`,
-      color: T.textMuted,
-    },
-    '& .MuiDataGrid-selectedRowCount': { color: T.teal },
-    '& .MuiTablePagination-root':        { color: T.textMuted },
-    '& .MuiTablePagination-select':      { color: T.textPrimary },
-    '& .MuiTablePagination-selectIcon':  { color: T.textMuted },
-    '& .MuiTablePagination-displayedRows': { color: T.textMuted },
-    '& .MuiCheckbox-root': { color: T.textMuted },
-    '& .MuiSvgIcon-root':  { color: T.textMuted },
-  }), [T]);
+export default function UserTable({ users, loading, total, page, size, sortBy, sortDir, onSort, onPageChange, onPageSizeChange, onDelete }) {
+  const T = useT();
+  const { openDrawer, openModal } = useUserStore();
 
-  const columns = useMemo(() => [
-    {
-      field: 'fullName', headerName: 'User', flex: 1.8, minWidth: 200,
-      valueGetter: (_, row) => `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim(),
-      renderCell: ({ value, row }) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: T.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0, color: '#fff' }}>
-            {(row.firstName?.[0] ?? '?').toUpperCase()}
-          </Box>
-          <Box sx={{ overflow: 'hidden' }}>
-            <Box sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: T.textPrimary }}>{value}</Box>
-            <Box sx={{ fontSize: 11, color: T.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.email}</Box>
-          </Box>
-        </Box>
-      ),
-    },
-    { field: 'mobileNo', headerName: 'Mobile', flex: 1, minWidth: 130, valueFormatter: v => v ?? '—' },
-    {
-      field: 'userRole', headerName: 'Role', width: 110,
-      renderCell: ({ row }) => {
-        const role = row.userRole?.roleName ?? 'VIEWER';
-        return <Chip label={role} size="small" sx={{ bgcolor: `${ROLE_COLORS[role]}22`, color: ROLE_COLORS[role], border: `1px solid ${ROLE_COLORS[role]}44`, fontWeight: 600, fontSize: 11 }} />;
-      },
-    },
-    { field: 'noOfLogin', headerName: 'Logins', width: 80, type: 'number', align: 'center', headerAlign: 'center' },
-    {
-      field: 'lastLogin', headerName: 'Last Login', width: 150,
-      valueGetter: (_, row) => row.loginData?.[0]?.lastLoginDate ?? null,
-      renderCell: ({ value }) => value
-        ? <Box sx={{ fontSize: 12, color: T.textMuted }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box>
-        : <Box sx={{ fontSize: 12, color: T.textFaint }}>—</Box>,
-    },
-    {
-      field: 'actions', headerName: '', width: 120, sortable: false,
-      renderCell: ({ row }) => (
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="View details">
-            <IconButton size="small" onClick={() => openDrawer(row.userId)} sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
-              <VisibilityIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Edit">
-            <IconButton size="small" onClick={() => openModal('edit', row.userId)} sx={{ color: T.textMuted, '&:hover': { color: '#10b981', bgcolor: 'rgba(16,185,129,0.1)' } }}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete">
-            <IconButton size="small" onClick={() => onDelete(row.userId)} sx={{ color: T.textMuted, '&:hover': { color: T.error, bgcolor: T.errorBg } }}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      ),
-    },
-  ], [T, openDrawer, openModal, onDelete]);
+  const cellSx = { borderColor: T.border, color: T.text, fontSize: 13, py: 1.25, px: 1.5 };
 
   return (
-    <DataGrid
-      rows={users}
-      columns={columns}
-      getRowId={r => r.userId}
-      loading={loading}
-      checkboxSelection
-      disableRowSelectionOnClick
-      sortModel={sortModel}
-      onSortModelChange={setSortModel}
-      onRowSelectionModelChange={ids => setSelectedRows(Array.from(ids))}
-      pageSizeOptions={[25, 50, 100]}
-      initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-      sx={gridSx}
-      slotProps={{ loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' } }}
-    />
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <TableContainer sx={{ flex: 1, overflowX: 'auto', overflowY: 'auto' }}>
+        <Table size="small" stickyHeader sx={{ minWidth: 700 }}>
+          <TableHead>
+            <TableRow>
+              {COLUMNS.map(col => (
+                <SortTH key={col.id} col={col} sortBy={sortBy} sortDir={sortDir} onSort={onSort} T={T} />
+              ))}
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {loading && Array.from({ length: size > 10 ? 10 : size }).map((_, i) => (
+              <TableRow key={i}>
+                {COLUMNS.map(c => (
+                  <TableCell key={c.id} sx={cellSx}>
+                    <Skeleton variant={c.id === 'fullName' ? 'rectangular' : 'text'} height={c.id === 'fullName' ? 36 : 18} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+
+            {!loading && users.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={COLUMNS.length} align="center" sx={{ py: 8, color: T.textFaint, fontSize: 13, borderColor: T.border }}>
+                  No users found
+                </TableCell>
+              </TableRow>
+            )}
+
+            {!loading && users.map(user => {
+              const role      = user.userRole?.roleName ?? 'VIEWER';
+              const roleColor = ROLE_COLOR[role] ?? '#0d9488';
+              const lastLogin = user.loginData?.[0]?.lastLoginDate;
+              return (
+                <TableRow key={user.userId} hover sx={{ '& td': { borderColor: T.border }, '&:hover': { bgcolor: `${T.border}40` } }}>
+
+                  {/* User avatar + name + email */}
+                  <TableCell sx={{ ...cellSx, minWidth: 200 }}>
+                    <AvatarCell user={user} />
+                  </TableCell>
+
+                  {/* Role chip */}
+                  <TableCell sx={{ ...cellSx, minWidth: 100 }}>
+                    <Chip
+                      label={role}
+                      size="small"
+                      sx={{ bgcolor: `${roleColor}18`, color: roleColor, border: `1px solid ${roleColor}33`, fontWeight: 700, fontSize: 10, height: 20 }}
+                    />
+                  </TableCell>
+
+                  {/* Mobile */}
+                  <TableCell sx={{ ...cellSx, minWidth: 120, color: T.textMuted }}>
+                    {user.mobileNo ?? '—'}
+                  </TableCell>
+
+                  {/* Login count */}
+                  <TableCell sx={{ ...cellSx, minWidth: 70, textAlign: 'center', fontWeight: 600 }}>
+                    {user.noOfLogin ?? 0}
+                  </TableCell>
+
+                  {/* Last login */}
+                  <TableCell sx={{ ...cellSx, minWidth: 130, color: T.textFaint, fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {lastLogin
+                      ? formatDistanceToNow(new Date(lastLogin), { addSuffix: true })
+                      : '—'}
+                  </TableCell>
+
+                  {/* Status */}
+                  <TableCell sx={{ ...cellSx, minWidth: 85 }}>
+                    <StatusBadge user={user} />
+                  </TableCell>
+
+                  {/* Actions */}
+                  <TableCell sx={{ ...cellSx, minWidth: 110, whiteSpace: 'nowrap' }}>
+                    <Tooltip title="View details">
+                      <IconButton size="small" onClick={() => openDrawer(user.userId)}
+                        sx={{ color: T.textFaint, '&:hover': { color: '#0d9488', bgcolor: '#0d948818' } }}>
+                        <VisibilityIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Edit">
+                      <IconButton size="small" onClick={() => openModal('edit', user.userId)}
+                        sx={{ color: T.textFaint, '&:hover': { color: '#10b981', bgcolor: '#10b98118' } }}>
+                        <EditIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <IconButton size="small" onClick={() => onDelete(user.userId)}
+                        sx={{ color: T.textFaint, '&:hover': { color: '#ef4444', bgcolor: '#ef444418' } }}>
+                        <DeleteIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Pagination */}
+      <TablePagination
+        component="div"
+        count={total}
+        page={page}
+        rowsPerPage={size}
+        rowsPerPageOptions={[10, 25, 50, 100]}
+        onPageChange={(_, pg) => onPageChange(pg)}
+        onRowsPerPageChange={e => onPageSizeChange(Number(e.target.value))}
+        sx={{
+          borderTop: `1px solid ${T.border}`,
+          color: T.textMuted,
+          flexShrink: 0,
+          bgcolor: T.glass,
+          '& .MuiIconButton-root': { color: T.textMuted },
+          '& .MuiSelect-icon':     { color: T.textMuted },
+          '& .MuiTablePagination-select': { color: T.text },
+        }}
+      />
+    </Box>
   );
 }

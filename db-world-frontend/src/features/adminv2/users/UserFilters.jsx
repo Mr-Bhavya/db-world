@@ -1,124 +1,82 @@
 import { useRef } from 'react';
-import { Box, TextField, ToggleButton, ToggleButtonGroup, InputAdornment, IconButton, Tooltip, Select, MenuItem } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import ClearIcon from '@mui/icons-material/Clear';
-import TableRowsIcon from '@mui/icons-material/TableRows';
-import GridViewIcon from '@mui/icons-material/GridView';
+import { Box, TextField, InputAdornment, IconButton, Tooltip } from '@mui/material';
+import SearchIcon   from '@mui/icons-material/Search';
+import ClearIcon    from '@mui/icons-material/Clear';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import SortIcon from '@mui/icons-material/Sort';
-import { useUserStore } from '../stores/useUserStore';
-import { useT } from '@shared/theme';
-
-const SORT_OPTIONS = [
-  { value: 'userId,desc',    label: 'Latest' },
-  { value: 'userId,asc',     label: 'Oldest' },
-  { value: 'fullName,asc',   label: 'Name A–Z' },
-  { value: 'fullName,desc',  label: 'Name Z–A' },
-  { value: 'email,asc',      label: 'Email A–Z' },
-];
+import { useT }     from '@shared/theme';
 
 const ROLE_OPTIONS = ['ALL', 'OWNER', 'ADMIN', 'VIEWER'];
 
-export default function UserFilters({ onAddUser }) {
-  const T = useT();
-  const { searchTerm, setSearchTerm, roleFilter, setRoleFilter, viewMode, setViewMode, sortModel, setSortModel } = useUserStore();
-  const sortKey = sortModel.length > 0 ? `${sortModel[0].field},${sortModel[0].sort}` : 'userId,desc';
-  const handleSortChange = (e) => {
-    const [field, sort] = e.target.value.split(',');
-    setSortModel([{ field, sort }]);
-  };
+export default function UserFilters({ search, role, onSearch, onRole, onAddUser }) {
+  const T        = useT();
   const timerRef = useRef(null);
 
   const handleSearch = (e) => {
     const v = e.target.value;
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setSearchTerm(v), 250);
+    timerRef.current = setTimeout(() => onSearch(v), 300);
   };
 
   return (
     <Box sx={{
       display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center',
-      p: { xs: '8px 12px', md: '10px 16px' },
+      px: { xs: 1.5, md: 2.5 }, py: 1.25,
       borderBottom: `1px solid ${T.border}`,
-      bgcolor: T.sidebar,
+      bgcolor: T.glass,
     }}>
+      {/* Search */}
       <TextField
         size="small"
-        placeholder="Search name, email…"
-        defaultValue={searchTerm}
+        placeholder="Search name or email…"
+        defaultValue={search}
         onChange={handleSearch}
         sx={{
           flex: '1 1 200px', minWidth: 0,
           '& .MuiOutlinedInput-root': {
-            bgcolor: T.glass, borderRadius: 2, color: T.textPrimary,
-            '& fieldset':             { borderColor: T.glassBorder },
-            '&:hover fieldset':       { borderColor: T.teal },
-            '&.Mui-focused fieldset': { borderColor: T.teal },
+            bgcolor: T.bg, borderRadius: 2, color: T.text,
+            '& fieldset':             { borderColor: T.border },
+            '&:hover fieldset':       { borderColor: '#0d9488' },
+            '&.Mui-focused fieldset': { borderColor: '#0d9488' },
           },
-          '& input': { color: T.textPrimary },
-          '& .MuiInputLabel-root': { color: T.textMuted },
+          '& input': { color: T.text, fontSize: 13 },
         }}
         InputProps={{
-          startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: T.textMuted, fontSize: 18 }} /></InputAdornment>,
-          endAdornment: searchTerm && (
-            <InputAdornment position="end">
-              <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ color: T.textMuted }}>
-                <ClearIcon fontSize="small" />
-              </IconButton>
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon sx={{ color: T.textFaint, fontSize: 17 }} />
             </InputAdornment>
           ),
+          endAdornment: search ? (
+            <InputAdornment position="end">
+              <IconButton size="small" onClick={() => onSearch('')} sx={{ color: T.textFaint }}>
+                <ClearIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+            </InputAdornment>
+          ) : null,
         }}
       />
 
-      <Box sx={{ display: 'flex', gap: 0.75, flexShrink: 0, flexWrap: 'wrap' }}>
+      {/* Role pills */}
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         {ROLE_OPTIONS.map(r => (
-          <Box
-            key={r}
-            onClick={() => setRoleFilter(r)}
-            sx={{
-              px: 1.5, py: 0.5, borderRadius: 99, border: '1px solid',
-              borderColor: roleFilter === r ? T.teal : T.glassBorder,
-              color:        roleFilter === r ? T.teal : T.textMuted,
-              bgcolor:      roleFilter === r ? T.tealBg : 'transparent',
-              cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              userSelect: 'none', transition: 'all .15s',
-              '&:hover': { borderColor: T.teal, color: T.teal },
-            }}
-          >
+          <Box key={r} onClick={() => onRole(r)} sx={{
+            px: 1.5, py: 0.4, borderRadius: 99, border: '1px solid',
+            borderColor: role === r ? '#0d9488' : T.border,
+            color:       role === r ? '#0d9488' : T.textMuted,
+            bgcolor:     role === r ? '#0d948818' : 'transparent',
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            userSelect: 'none', transition: 'all .15s',
+            '&:hover': { borderColor: '#0d9488', color: '#0d9488' },
+          }}>
             {r}
           </Box>
         ))}
       </Box>
 
-      <Select
-        size="small"
-        value={sortKey}
-        onChange={handleSortChange}
-        startAdornment={<SortIcon sx={{ fontSize: 14, color: T.textMuted, mr: 0.5 }} />}
-        sx={{
-          color: T.textPrimary, fontSize: 12, height: 32,
-          bgcolor: T.glass,
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: T.glassBorder },
-          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },
-          '& .MuiSelect-icon': { color: T.textMuted },
-        }}
-      >
-        {SORT_OPTIONS.map(o => (
-          <MenuItem key={o.value} value={o.value} sx={{ fontSize: 12 }}>{o.label}</MenuItem>
-        ))}
-      </Select>
-
-      <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, v) => v && setViewMode(v)}>
-        <ToggleButton value="table" sx={{ bgcolor: T.glass, border: `1px solid ${T.glassBorder} !important`, borderRadius: '8px !important', color: T.textMuted, '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal } }}>
-          <Tooltip title="Table"><TableRowsIcon fontSize="small" /></Tooltip>
-        </ToggleButton>
-        <ToggleButton value="grid"  sx={{ bgcolor: T.glass, border: `1px solid ${T.glassBorder} !important`, borderRadius: '8px !important', color: T.textMuted, '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal } }}>
-          <Tooltip title="Grid"><GridViewIcon fontSize="small" /></Tooltip>
-        </ToggleButton>
-      </ToggleButtonGroup>
-
+      {/* Add user */}
       <Tooltip title="Add User">
-        <IconButton onClick={onAddUser} sx={{ bgcolor: T.teal, color: '#fff', borderRadius: 2, '&:hover': { bgcolor: T.tealHover } }}>
+        <IconButton onClick={onAddUser}
+          sx={{ bgcolor: '#0d9488', color: '#fff', borderRadius: 2, ml: 'auto', '&:hover': { bgcolor: '#0f766e' } }}>
           <GroupAddIcon fontSize="small" />
         </IconButton>
       </Tooltip>

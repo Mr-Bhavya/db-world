@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, Box, Button, Grid, TextField, MenuItem, IconButton, CircularProgress, Tabs, Tab } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
+import { Dialog, DialogTitle, DialogContent, Box, Button, Grid, TextField, MenuItem, IconButton, CircularProgress, Tabs, Tab, InputAdornment } from '@mui/material';
+import CloseIcon        from '@mui/icons-material/Close';
+import VisibilityIcon   from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -87,6 +89,7 @@ function PasswordTab({ userId, onClose }) {
   const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { control, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(adminPasswordSchema) });
+  const [show, setShow] = useState(false);
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d) => updateUser(userId, { password: d.newPassword }),
@@ -99,9 +102,21 @@ function PasswordTab({ userId, onClose }) {
     onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed', { variant: 'error' }),
   });
 
+  const eyeBtn = (
+    <InputAdornment position="end">
+      <IconButton size="small" onClick={() => setShow(s => !s)} edge="end" sx={{ color: T.textMuted }}>
+        {show ? <VisibilityOffIcon sx={{ fontSize: 18 }} /> : <VisibilityIcon sx={{ fontSize: 18 }} />}
+      </IconButton>
+    </InputAdornment>
+  );
+
   const F = ({ name, label }) => (
     <Controller name={name} control={control} render={({ field }) => (
-      <TextField {...field} label={label} type="password" size="small" fullWidth sx={{ ...getInputSx(T), mb: 2 }} error={!!errors[name]} helperText={errors[name]?.message} />
+      <TextField
+        {...field} label={label} type={show ? 'text' : 'password'} size="small" fullWidth
+        sx={{ ...getInputSx(T), mb: 2 }} error={!!errors[name]} helperText={errors[name]?.message}
+        InputProps={{ endAdornment: eyeBtn }}
+      />
     )} />
   );
 

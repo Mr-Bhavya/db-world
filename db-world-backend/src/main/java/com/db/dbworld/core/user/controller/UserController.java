@@ -17,7 +17,6 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,12 +56,18 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ GET ALL USERS (ADMIN ONLY)
+    // ✅ GET ALL USERS (ADMIN ONLY) — paginated + filtered
     // ==============================
     @AdminAccess
     @GetMapping("/all")
-    public ApiResponse<List<UserDto>> getAllUsers(Pageable pageable) {
-        return ApiResponse.success(userService.getAllUsers(pageable));
+    public ApiResponse<Map<String, Object>> getAllUsers(
+            @RequestParam(defaultValue = "0")        int    page,
+            @RequestParam(defaultValue = "25")       int    size,
+            @RequestParam(required = false)          String search,
+            @RequestParam(required = false)          String role,
+            @RequestParam(defaultValue = "userId")   String sortBy,
+            @RequestParam(defaultValue = "desc")     String sortDir) {
+        return ApiResponse.success(userService.getPagedUsers(search, role, page, size, sortBy, sortDir));
     }
 
     // ==============================

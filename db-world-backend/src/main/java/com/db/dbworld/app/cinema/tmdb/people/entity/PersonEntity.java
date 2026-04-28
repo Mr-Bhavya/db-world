@@ -45,6 +45,9 @@ public class PersonEntity {
 
     private String placeOfBirth;
 
+    @Column(length = 2000)
+    private String alsoKnownAs;
+
     @Column(nullable = false)
     private boolean personSynced = false;
 

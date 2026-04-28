@@ -15,17 +15,20 @@ import com.db.dbworld.core.user.repository.UserRepository;
 import com.db.dbworld.core.user.service.UserService;
 
 import com.db.dbworld.utils.DbWorldConstants;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
+import java.util.*;
+import java.util.Set;
 
 @Log4j2
 @Service
@@ -112,6 +115,60 @@ public class UserServiceImpl implements UserService {
                     return dto;
                 })
                 .toList();
+    }
+
+    @Override
+    public Map<String, Object> getPagedUsers(String search, String role, int page, int size, String sortBy, String sortDir) {
+        Set<String> VALID_SORT = Set.of("userId", "firstName", "lastName", "email", "creationDate");
+        String safeSort = VALID_SORT.contains(sortBy) ? sortBy : "userId";
+        Sort.Direction dir = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100), Sort.by(dir, safeSort));
+
+        Page<UserEntity> entityPage = userRepository.findAll((root, query1, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            if (search != null && !search.isBlank()) {
+                String like = "%" + search.toLowerCase() + "%";
+                preds.add(cb.or(
+                    cb.like(cb.lower(root.get("firstName")), like),
+                    cb.like(cb.lower(root.get("lastName")), like),
+                    cb.like(cb.lower(root.get("email")), like)
+                ));
+            }
+            if (role != null && !role.isBlank() && !role.equalsIgnoreCase("ALL")) {
+                try {
+                    Role r = Role.valueOf(role.toUpperCase());
+                    preds.add(cb.equal(root.get("role").get("name"), r));
+                } catch (IllegalArgumentException ignored) {}
+            }
+            return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
+        }, pageable);
+
+        List<UserDto> content = entityPage.getContent().stream()
+            .map(entity -> {
+                UserDto dto = userMapper.toDto(entity);
+                Long uid = entity.getUserId();
+                dto.setNoOfLogin(loginDataRepository.totalNumberOfLogin(uid));
+                dto.setLoginData(loginDataRepository.getLoginDataFromUserId(uid)
+                    .stream()
+                    .map(ld -> {
+                        UserDto.LoginData entry = new UserDto.LoginData();
+                        entry.setLastLoginDate(ld.getLastLoginDate());
+                        entry.setLoginAgent(ld.getLoginAgent());
+                        return entry;
+                    })
+                    .toList());
+                return dto;
+            })
+            .toList();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("content",       content);
+        result.put("totalElements", entityPage.getTotalElements());
+        result.put("totalPages",    entityPage.getTotalPages());
+        result.put("page",          entityPage.getNumber());
+        result.put("size",          entityPage.getSize());
+        result.put("last",          entityPage.isLast());
+        return result;
     }
 
     @Override
