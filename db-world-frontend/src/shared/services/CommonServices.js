@@ -419,105 +419,117 @@ class CommonServices {
 
     const dataArray = Array.isArray(data) ? data : [data];
 
-      return dataArray.map(mediaFile => {
-        const mediaId = id ?? mediaFile.id;
+    return dataArray.map(mediaFile => {
+      const mediaId = id ?? mediaFile.id;
 
-        const mediaDetails = {
-          id: mediaId,
-          mediaFileId: mediaFile.id ?? null,
-          filePath: mediaFile.filePath ?? null,
-          tmdbSeasonNumber: mediaFile.tmdbSeasonNumber ?? null,
-          tmdbEpisodeNumber: mediaFile.tmdbEpisodeNumber ?? null,
-          general: {},
-          video: {},
-          audio: [],
-          subtitle: [],
-          streamUrl: null,
+      // New API uses `tracks` with durations in ms and rawMediaInfo per track.
+      // Old API used `trackInfos` with durations in seconds and no rawMediaInfo.
+      const isNewFormat = !!mediaFile?.tracks;
+
+      const mediaDetails = {
+        id: mediaId,
+        mediaFileId: mediaFile.id ?? null,
+        filePath: mediaFile.filePath ?? null,
+        tmdbSeasonNumber: mediaFile.tmdbSeasonNumber ?? null,
+        tmdbEpisodeNumber: mediaFile.tmdbEpisodeNumber ?? null,
+        general: {},
+        video: {},
+        audio: [],
+        subtitle: [],
+        streamUrl: null,
         downloadUrl: null,
+      };
+
+      const bytesToReadable = (value) => {
+        if (!value) return null;
+        const result = this.bytesToReadbleFormat(value);
+        return `${result.value} ${result.suffix}`;
+      };
+
+      // Convert duration to seconds for formatDuration().
+      // New format stores ms; old format already in seconds.
+      const toSecs = (d) => (d != null && isNewFormat) ? Math.round(d / 1000) : d;
+
+      // Build a format string safely — omits the codec part if not available
+      const fmtStr = (track, raw) => {
+        const commercial = track?.formatCommercialIfAny ?? raw?.Format_Commercial_IfAny;
+        const codec = track?.codecID ?? raw?.CodecID;
+        const base = commercial || track?.format;
+        return codec ? `${base} (${codec})` : base ?? track?.format ?? null;
       };
 
       (mediaFile?.tracks ?? mediaFile?.trackInfos)?.forEach(track => {
         if (!track?.type) return;
-
         const type = track.type;
-        const bytesToReadable = (value) => {
-          const result = this.bytesToReadbleFormat(value);
-          return `${result.value} ${result.suffix}`;
-        };
+        const raw = (isNewFormat ? track?.rawMediaInfo : null) ?? {};
 
-          if (type === "General") {
-            mediaDetails.general = {
-              fileName: mediaFile.fileName,
-              filePath: mediaFile.filePath,
-              fileSize: bytesToReadable(track?.fileSize),
-              duration: track?.duration,
-              overallBitrate: `${bytesToReadable(track?.overallBitRate)}/s`,
+        if (type === 'General') {
+          mediaDetails.general = {
+            fileName: mediaFile.fileName,
+            filePath: mediaFile.filePath,
+            fileSize: bytesToReadable(track?.fileSize) ?? bytesToReadable(mediaFile?.fileSize),
+            duration: toSecs(track?.duration),
+            overallBitrate: track?.overallBitRate ? `${bytesToReadable(track.overallBitRate)}/s` : null,
             format: track?.format,
-            formatVersion: track?.formatVersion,
+            formatVersion: track?.formatVersion ?? raw?.Format_Version,
             videoCount: track?.videoCount,
             audioCount: track?.audioCount,
             textCount: track?.textCount,
             frameRate: track?.frameRate,
-            fileCreatedDateLocal: track?.fileCreatedDateLocal,
-            fileModifiedDateLocal: track?.fileModifiedDateLocal,
-            encodedApplication: track?.encodedApplication,
-            encodedLibrary: track?.encodedLibrary,
-            isStreamable: track?.isStreamable === "Yes"
+            encodedApplication: track?.encodedApplication ?? raw?.Encoded_Application,
+            encodedLibrary: track?.encodedLibrary ?? raw?.Encoded_Library,
+            isStreamable: track?.isStreamable === 'Yes' || raw?.IsStreamable === 'Yes',
           };
-        } 
-        else if (type === "Video") {
+        } else if (type === 'Video') {
+          const durSecs = toSecs(track?.duration);
           mediaDetails.video = {
-            resolution: `${track?.width}x${track?.height}`,
-            aspectRatio: track?.displayAspectRatio?.toFixed(3) || "N/A",
-            format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
-            formatProfile: track?.formatProfile,
-            formatLevel: track?.formatLevel,
-            formatTier: track?.formatTier,
+            resolution: (track?.width && track?.height) ? `${track.width}x${track.height}` : null,
+            aspectRatio: track?.displayAspectRatio ?? raw?.DisplayAspectRatio_String ?? 'N/A',
+            format: fmtStr(track, raw),
+            formatProfile: track?.formatProfile ?? raw?.Format_Profile,
+            formatLevel: track?.formatLevel ?? raw?.Format_Level,
+            formatTier: track?.formatTier ?? raw?.Format_Tier,
             bitRate: track?.bitRate,
             frameRate: track?.frameRate,
-            frameRateMode: track?.frameRateMode,
-            frameCount: track?.frameCount,
+            frameRateMode: track?.frameRateMode ?? raw?.FrameRate_Mode,
+            frameCount: track?.frameCount ?? (raw?.FrameCount != null ? Number(raw.FrameCount) : null),
             colorSpace: track?.colorSpace,
-            chromaSubsampling: track?.chromaSubsampling,
+            chromaSubsampling: track?.chromaSubsampling ?? raw?.ChromaSubsampling,
             bitDepth: track?.bitDepth,
-            colourPrimaries: track?.colourPrimaries,
-            transferCharacteristics: track?.transferCharacteristics,
-            matrixCoefficients: track?.matrixCoefficients,
+            colourPrimaries: track?.colourPrimaries ?? raw?.colour_primaries,
+            transferCharacteristics: track?.transferCharacteristics ?? raw?.transfer_characteristics,
+            matrixCoefficients: track?.matrixCoefficients ?? raw?.matrix_coefficients,
             size: bytesToReadable(track?.streamSize),
-            duration: this.formatDuration(track?.duration),
+            duration: durSecs ? this.formatDuration(durSecs) : null,
             hdrDetails: track?.hdrFormat ? [
               track.hdrFormat,
-              track.hdrFormatVersion,
-              track.hdrFormatCompatibility
-            ].filter(Boolean).join(" | ") : null
+              track?.hdrFormatVersion ?? raw?.HDR_Format_Version,
+              track?.hdrFormatCompatibility,
+            ].filter(Boolean).join(' | ') : null,
           };
-        } 
-          else if (type === "Audio") {
-            mediaDetails.audio.push({
-              language: this.getLanguageName(track?.language),
-              title: track?.title,
-              format: `${track?.formatCommercialIfAny || track?.format} (${track?.codecID})`,
-              bitRate: `${bytesToReadable(track?.bitRate)}/s`,
-              channels: track?.channels,
-            channelLayout: track?.channelLayout,
+        } else if (type === 'Audio') {
+          mediaDetails.audio.push({
+            language: this.getLanguageName(track?.language),
+            title: track?.title,
+            format: fmtStr(track, raw),
+            bitRate: track?.bitRate ? `${bytesToReadable(track.bitRate)}/s` : null,
+            channels: track?.channels,
+            channelLayout: track?.channelLayout ?? raw?.ChannelLayout,
             samplingRate: track?.samplingRate,
-            duration: track?.duration,
-            size: bytesToReadable(track?.streamSize)
+            duration: toSecs(track?.duration),
+            size: track?.streamSize ? bytesToReadable(track.streamSize) : null,
           });
-        } 
-          else if (type === "Text") {
-            mediaDetails.subtitle.push({
-              language: track?.language,
-              title: track?.title,
-              format: track?.formatCommercialIfAny || track?.format,
-              codecID: track?.codecID,
-            bitRate: track?.bitRate > 0 
-              ? `${bytesToReadable(track?.bitRate)}/s` 
-              : "Unknown",
-            frameCount: track?.frameCount,
-            duration: track?.duration,
+        } else if (type === 'Text') {
+          mediaDetails.subtitle.push({
+            language: track?.language,
+            title: track?.title,
+            format: fmtStr(track, raw),
+            codecID: track?.codecID ?? raw?.CodecID,
+            bitRate: (track?.bitRate > 0) ? `${bytesToReadable(track.bitRate)}/s` : 'Unknown',
+            frameCount: track?.frameCount ?? (raw?.FrameCount != null ? Number(raw.FrameCount) : null),
+            duration: toSecs(track?.duration),
             forced: track?.forced,
-            defaultFlag: track?.defaultFlag
+            defaultFlag: track?.defaultTrack ?? track?.defaultFlag,
           });
         }
       });

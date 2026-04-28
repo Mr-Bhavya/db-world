@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   ArrowBack, ExpandMore, ExpandLess, PlayArrow, Download, ContentCopy,
-  Check, Subtitles, Audiotrack, FourK, Hd, Tv, Movie,
+  Check, Subtitles, Audiotrack, Tv, Movie,
   VideoSettings, ChevronRight, LiveTv,
 } from '@mui/icons-material';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -20,148 +20,11 @@ import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
+import { QUALITY_ORDER, QUALITY_META, HDR_META, CODEC_META } from '../../media/constants';
+import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
+import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const QUALITY_ORDER = ['8K', '4K', '2160p', '2K', '1440p', '1080p', '720p', '480p', '360p', 'SD', 'Unknown'];
-
-const QUALITY_META = {
-  '8K':    { color: '#ff3d00', label: '8K'    },
-  '4K':    { color: '#ff6b35', label: '4K'    },
-  '2160p': { color: '#ff6b35', label: '4K'    },
-  '2K':    { color: '#f59e0b', label: '2K'    },
-  '1440p': { color: '#f59e0b', label: '1440p' },
-  '1080p': { color: '#10b981', label: '1080p' },
-  '720p':  { color: '#3b82f6', label: '720p'  },
-  '480p':  { color: '#8b5cf6', label: '480p'  },
-  '360p':  { color: '#6b7280', label: '360p'  },
-  'SD':    { color: '#6b7280', label: 'SD'    },
-  'Unknown':{ color: '#4b5563', label: '?'   },
-};
-
-const HDR_META = {
-  'DV':     { color: '#7c3aed', label: 'Dolby Vision' },
-  'HDR10+': { color: '#d97706', label: 'HDR10+' },
-  'HDR10':  { color: '#b45309', label: 'HDR10' },
-  'HDR':    { color: '#92400e', label: 'HDR' },
-};
-
-const CODEC_META = {
-  'AV1':   { color: '#0891b2' },
-  'H.265': { color: '#059669' },
-  'H.264': { color: '#2563eb' },
-  'VP9':   { color: '#7c3aed' },
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getQuality(video, fileName) {
-  if (video?.resolution) {
-    const [w, h] = video.resolution.split('x').map(Number);
-    if (h >= 4320 || w >= 7680) return '8K';
-    if (h >= 2160 || w >= 3840) return '4K';
-    if (h >= 1440 || w >= 2560) return '1440p';
-    if (h >= 1080 || w >= 1920) return '1080p';
-    if (h >= 720  || w >= 1280) return '720p';
-    if (h >= 480  || w >= 854)  return '480p';
-    if (h > 0) return 'SD';
-  }
-  if (fileName) {
-    const m = fileName.match(/(\d{3,4}p|4K|8K)/i);
-    if (m) return m[1].toLowerCase() === '4k' ? '4K' : m[1].toLowerCase() === '8k' ? '8K' : m[1];
-  }
-  return 'Unknown';
-}
-
-function getCodec(videoFormat) {
-  if (!videoFormat) return null;
-  const f = videoFormat.toUpperCase();
-  if (f.includes('AV1'))  return 'AV1';
-  if (f.includes('HEVC') || f.includes('H.265') || f.includes('H265')) return 'H.265';
-  if (f.includes('AVC')  || f.includes('H.264') || f.includes('H264')) return 'H.264';
-  if (f.includes('VP9'))  return 'VP9';
-  return videoFormat.split('(')[0].trim().split(' ')[0];
-}
-
-function getHdrTags(hdrDetails, fileName) {
-  const src = `${hdrDetails || ''} ${fileName || ''}`.toUpperCase();
-  const tags = [];
-  if (src.includes('DOLBY VISION') || src.includes(' DV ') || src.includes('.DV.')) tags.push('DV');
-  if (src.includes('HDR10+') || src.includes('HDR10 PLUS') || src.includes('HDR10PLUS')) tags.push('HDR10+');
-  else if (src.includes('HDR10')) tags.push('HDR10');
-  else if (src.includes('HDR')) tags.push('HDR');
-  return tags;
-}
-
-function getSeason(fileName) {
-  if (!fileName) return null;
-  const m = fileName.match(/[Ss](\d{1,2})[Ee]\d{1,2}/);
-  return m ? String(parseInt(m[1], 10)).padStart(2, '0') : null;
-}
-
-function getEpisodeNumber(fileName) {
-  if (!fileName) return null;
-  const m = fileName.match(/[Ss]\d{1,2}[Ee](\d{1,3})/);
-  if (m) return parseInt(m[1], 10);
-  // Fallback: standalone Exx at word boundary
-  const ep = fileName.match(/(?:^|[\s._-])E(\d{1,3})(?:[\s._-]|$)/i);
-  return ep ? parseInt(ep[1], 10) : null;
-}
-
-function qualityRank(q) {
-  const idx = QUALITY_ORDER.indexOf(q);
-  return idx === -1 ? 999 : idx;
-}
-
-// ─── Badge components ─────────────────────────────────────────────────────────
-
-const QBadge = ({ quality }) => {
-  const meta = QUALITY_META[quality] || QUALITY_META['Unknown'];
-  return (
-    <Box sx={{
-      display: 'inline-flex', alignItems: 'center',
-      px: 0.8, py: 0.15, borderRadius: 0.8,
-      bgcolor: meta.color, color: '#fff',
-      fontSize: '0.66rem', fontWeight: 800, lineHeight: 1.6, letterSpacing: '0.03em',
-      flexShrink: 0,
-    }}>
-      {meta.label}
-    </Box>
-  );
-};
-
-const HdrBadge = ({ tag }) => {
-  const meta = HDR_META[tag];
-  if (!meta) return null;
-  return (
-    <Box sx={{
-      display: 'inline-flex', alignItems: 'center',
-      px: 0.8, py: 0.15, borderRadius: 0.8,
-      bgcolor: alpha(meta.color, 0.18), color: meta.color,
-      border: `1px solid ${alpha(meta.color, 0.4)}`,
-      fontSize: '0.62rem', fontWeight: 700, lineHeight: 1.6, flexShrink: 0,
-    }}>
-      {meta.label}
-    </Box>
-  );
-};
-
-const CodecBadge = ({ codec }) => {
-  const meta = CODEC_META[codec] || { color: '#6b7280' };
-  return (
-    <Box sx={{
-      display: 'inline-flex', alignItems: 'center',
-      px: 0.8, py: 0.15, borderRadius: 0.8,
-      bgcolor: alpha(meta.color, 0.15), color: meta.color,
-      border: `1px solid ${alpha(meta.color, 0.35)}`,
-      fontSize: '0.62rem', fontWeight: 700, lineHeight: 1.6, flexShrink: 0,
-    }}>
-      {codec}
-    </Box>
-  );
-};
-
-// ─── CopyIconButton ───────────────────────────────────────────────────────────
+// ─── CopyIconButton — async URL resolver variant ──────────────────────────────
 
 const CopyIconButton = ({ getUrl, label }) => {
   const theme = useTheme();
@@ -918,7 +781,9 @@ const MediaDownloadViewer = (props) => {
       .finally(() => setLoading(false));
   }, [resolvedRecordId, navigate]);
 
-  const isSeries = record?.type?.toLowerCase() === 'series';
+  // Backend returns 'TV_SERIES' for series and 'MOVIE' for movies
+  const recType = record?.type?.toUpperCase() ?? '';
+  const isSeries = recType === 'TV_SERIES' || recType === 'SERIES' || recType === 'TV';
   const posterPath = record?.tmdb?.posterPath || record?.tmdb?.poster_path || record?.tmdb?.backdropPath || record?.tmdb?.backdrop_path;
   const title      = record?.tmdb?.title || record?.tmdb?.name || record?.title || '';
   const overview   = record?.tmdb?.overview || '';

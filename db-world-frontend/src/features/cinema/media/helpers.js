@@ -1,4 +1,5 @@
 // ─── Media helper functions shared across all media components ─────────────────
+import { QUALITY_ORDER } from './constants';
 
 export function getQuality(video, fileName) {
   if (video?.resolution) {
@@ -45,4 +46,17 @@ export function getSeason(fileName) {
   if (!fileName) return null;
   const m = fileName.match(/[Ss](\d{1,2})[Ee]\d{1,2}/);
   return m ? String(parseInt(m[1], 10)).padStart(2, '0') : null;
+}
+
+export function getEpisodeNumber(fileName) {
+  if (!fileName) return null;
+  const m = fileName.match(/[Ss]\d{1,2}[Ee](\d{1,3})/);
+  if (m) return parseInt(m[1], 10);
+  const ep = fileName.match(/(?:^|[\s._-])E(\d{1,3})(?:[\s._-]|$)/i);
+  return ep ? parseInt(ep[1], 10) : null;
+}
+
+export function qualityRank(q) {
+  const idx = QUALITY_ORDER.indexOf(q);
+  return idx === -1 ? 999 : idx;
 }
