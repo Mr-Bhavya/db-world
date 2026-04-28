@@ -1,5 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.sync.service;
 
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
@@ -17,6 +18,7 @@ import java.time.Instant;
 public class TmdbRecordSyncService {
 
     private final TmdbRecordSyncRepository repository;
+    private final RecordRepository recordRepository;
 
     private static final Duration RECHECK_INTERVAL = Duration.ofHours(TmdbSync.RECHECK_INTERVAL_DAYS);
 
@@ -107,11 +109,17 @@ public class TmdbRecordSyncService {
     private TmdbRecordSyncEntity getOrCreate(Long tmdbId, RecordType type) {
 
         return repository.findByTmdbIdAndRecordType(tmdbId, type)
-                .orElseGet(() -> TmdbRecordSyncEntity.builder()
-                        .tmdbId(tmdbId)
-                        .recordType(type)
-                        .status(SyncStatus.SKIPPED)
-                        .build());
+                .orElseGet(() -> {
+                    Long recordId = recordRepository.findByTmdb_Id(tmdbId)
+                            .map(r -> r.getId())
+                            .orElse(null);
+                    return TmdbRecordSyncEntity.builder()
+                            .tmdbId(tmdbId)
+                            .recordType(type)
+                            .recordId(recordId)
+                            .status(SyncStatus.SKIPPED)
+                            .build();
+                });
     }
 
     public Instant getLastGlobalSync(RecordType type) {

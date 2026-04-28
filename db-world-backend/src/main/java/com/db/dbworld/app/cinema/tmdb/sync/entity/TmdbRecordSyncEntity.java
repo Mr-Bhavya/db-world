@@ -46,6 +46,10 @@ public class TmdbRecordSyncEntity {
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
+    /** Catalog record ID — FK to records.id. Populated on first sync; null for legacy rows. */
+    @Column(name = "record_id")
+    private Long recordId;
+
     /** Read-only join to TmdbEntity to resolve the title without a separate query. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tmdb_id", insertable = false, updatable = false)

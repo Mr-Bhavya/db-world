@@ -5,6 +5,7 @@ import java.time.Instant;
 public record SyncRecordDto(
         Long id,
         Long tmdbId,
+        Long recordId,
         String recordType,
         String status,
         Instant lastCheckedAt,

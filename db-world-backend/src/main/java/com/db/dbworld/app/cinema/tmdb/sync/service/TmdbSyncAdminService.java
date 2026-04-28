@@ -167,6 +167,7 @@ public class TmdbSyncAdminService {
         return new SyncRecordDto(
                 e.getId(),
                 e.getTmdbId(),
+                e.getRecordId(),
                 e.getRecordType() != null ? e.getRecordType().name() : null,
                 e.getStatus() != null ? e.getStatus().name() : null,
                 e.getLastCheckedAt(),

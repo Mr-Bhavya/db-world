@@ -35,6 +35,7 @@ const RECORD_TYPES = ['MOVIE', 'TV_SERIES'];
 
 const COLUMNS = [
   { id: 'tmdbId',      label: 'TMDB ID',     sortKey: 'tmdbId',        minWidth: 90  },
+  { id: 'recordId',    label: 'Record ID',    sortKey: 'recordId',      minWidth: 90  },
   { id: 'title',       label: 'Name',         sortable: false,          minWidth: 180 },
   { id: 'recordType',  label: 'Type',         sortable: false,          minWidth: 80  },
   { id: 'status',      label: 'Status',       sortKey: 'status',        minWidth: 100 },
@@ -352,6 +353,14 @@ export default function TmdbSyncPage() {
                     <Typography component="span"
                       sx={{ fontFamily: 'monospace', color: T.teal, fontWeight: 700, fontSize: 12 }}>
                       {row.tmdbId}
+                    </Typography>
+                  </TableCell>
+
+                  {/* Record ID */}
+                  <TableCell sx={cellSx}>
+                    <Typography component="span"
+                      sx={{ fontFamily: 'monospace', color: T.textMuted, fontWeight: 600, fontSize: 12 }}>
+                      {row.recordId ?? '—'}
                     </Typography>
                   </TableCell>
 
