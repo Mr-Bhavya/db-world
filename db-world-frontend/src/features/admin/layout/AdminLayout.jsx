@@ -7,11 +7,11 @@ import {
 } from '@mui/material';
 import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
-  Dashboard, Assignment, Movie, VideoLibrary,
-  LocalOffer, Sync, Download, TrackChanges, Computer, Analytics,
+  Dashboard, Movie, VideoLibrary,
+  LocalOffer, Sync, Download, Computer, Analytics,
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
-  Circle, ManageAccounts, Home,
+  Circle, ManageAccounts, Home, TableChart,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
@@ -33,8 +33,7 @@ const NAV = [
     id: 'users',
     label: 'Users',
     items: [
-      { id: 'users',         label: 'User Management', icon: <ManageAccounts />, path: 'users' },
-      { id: 'activity-logs', label: 'Activity Logs',   icon: <Assignment />,     path: 'activity-logs', badge: 'Live' },
+      { id: 'users', label: 'User Management', icon: <ManageAccounts />, path: 'users' },
     ],
   },
   {
@@ -51,9 +50,9 @@ const NAV = [
     id: 'activity',
     label: 'Activity',
     items: [
-      { id: 'downloads',     label: 'Download Manager', icon: <Download />,     path: 'downloads' },
-      { id: 'ingestion',     label: 'Media Ingestion',  icon: <Download />,     path: 'ingestion' },
-      { id: 'user-activity', label: 'Cinema Activity',  icon: <TrackChanges />, path: 'user-activity' },
+      { id: 'downloads',        label: 'Download Manager', icon: <Download />,    path: 'downloads' },
+      { id: 'ingestion',        label: 'Media Ingestion',  icon: <Folder />,      path: 'ingestion' },
+      { id: 'activity-center',  label: 'Activity Center',  icon: <TableChart />,  path: 'activity-center', badge: 'Live' },
     ],
   },
   {
