@@ -67,7 +67,7 @@ const LazyCinemaActivity      = lazy(() => import('../features/adminv2/activity'
 const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
-const LazyDownloadsPage       = lazy(() => import('@features/cinema/screens/DownloadsPage.jsx'));
+const LazyDownloadsPage       = lazy(() => import('@features/cinema/downloads/index.jsx'));
 
 // Loading Component
 const LoadingFallback = () => (

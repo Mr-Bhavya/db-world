@@ -180,7 +180,12 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
 
   const goToPlay = () => {
     if (!record) return;
-    navigate(Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', record.id));
+    const isMovie = record.type === 'MOVIE';
+    const route = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
+    navigate(
+      route.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`),
+      { state: { defaultTab: 'Watch' } }
+    );
   };
 
   if (loading && !record) return <HeroBannerSkeleton isMobile={isMobile} />;

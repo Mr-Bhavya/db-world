@@ -2,6 +2,19 @@ import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 const BASE = '/api/cinema';
 
+// ─── Watch Progress ───────────────────────────────────────────────────────────
+
+export const saveWatchProgress = (fileId, { recordId, positionMs, durationMs, audioLang, subLang }) =>
+  axiosInstance.put(`${BASE}/progress/${fileId}`, null, {
+    params: { recordId, positionMs, durationMs, audioLang, subLang },
+  }).then(r => r.data);
+
+export const getWatchProgress = (fileId) =>
+  axiosInstance.get(`${BASE}/progress/${fileId}`).then(r => r.data?.data ?? null);
+
+export const getRecentProgress = (days = 30) =>
+  axiosInstance.get(`${BASE}/progress`, { params: { days } }).then(r => r.data?.data ?? []);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build a full TMDB image URL from a path. */

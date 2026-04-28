@@ -2001,6 +2001,15 @@ export default function RecordDetailPage() {
 
   const watchTabIdx = tabs.indexOf('Watch');
 
+  // Jump to Watch tab when navigated here via Play button
+  const didAutoJump = React.useRef(false);
+  React.useEffect(() => {
+    if (location.state?.defaultTab === 'Watch' && record && !didAutoJump.current) {
+      didAutoJump.current = true;
+      setActiveTab(watchTabIdx);
+    }
+  }, [record]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Tab bar: always opaque T.bg so content below never shows through
   const tabBg   = T.bg;
   const tabBord = T.border;

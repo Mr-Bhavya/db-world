@@ -117,7 +117,11 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
 
   const goPlay = (e) => {
     e?.stopPropagation();
-    navigate(Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', record.id));
+    const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
+    navigate(
+      base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`),
+      { state: { defaultTab: 'Watch' } }
+    );
     onClose();
   };
 
@@ -427,8 +431,12 @@ const getPrimeWidth = (h, expanded) => {
 
   const goPlay = useCallback((e) => {
     e?.stopPropagation();
-    navigate(Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', record.id));
-  }, [navigate, record.id]);
+    const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
+    navigate(
+      base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`),
+      { state: { defaultTab: 'Watch' } }
+    );
+  }, [isMovie, navigate, record.id, record.title]);
 
   // ── motion ────────────────────────────────────────────────────────────────
   const motionAnimate = expandOnHover
