@@ -13,14 +13,23 @@ import lombok.extern.log4j.Log4j2;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 @Log4j2
 @RequiredArgsConstructor
 public class DefaultIngestionPipeline implements IngestionPipeline {
+
+    /**
+     * Maximum FFmpeg/processing jobs that may run at the same time.
+     * Prevents CPU/memory overload when a large batch is submitted at once.
+     */
+    private static final int MAX_CONCURRENT_PROCESSING = 2;
 
     private final List<SourceHandler>    sourceHandlers;
     private final List<DownloadStrategy> downloadStrategies;
@@ -28,8 +37,15 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
     private final TrackingService    trackingService;
 
-    /** Guards against two jobs running concurrently for the same record. recordId → active jobId. */
-    private final ConcurrentHashMap<Long, String> activeRecordJobs = new ConcurrentHashMap<>();
+    /** Caps total simultaneous processing (FFmpeg) jobs across all records. */
+    private final Semaphore globalProcessingSemaphore = new Semaphore(MAX_CONCURRENT_PROCESSING);
+
+    /**
+     * Per-record semaphore: only one FFmpeg process at a time for a given record.
+     * Jobs for the same record queue here rather than failing immediately.
+     */
+    private final ConcurrentHashMap<Long, Semaphore> recordLocks = new ConcurrentHashMap<>();
+
     private final IngestionRepository repository;
     private final ExecutorService    jobExecutor;
     private final IngestionJobStore  jobStore;
@@ -48,20 +64,10 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         ctx.setStatus(MirrorStatus.QUEUED);
         ctx.setLogCollector(new LogCollector());
         ctx.setRecordId(request.getRecordId());
-
-        Long recordId = request.getRecordId();
-        if (recordId != null) {
-            String existingJob = activeRecordJobs.putIfAbsent(recordId, jobId);
-            if (existingJob != null) {
-                throw new IllegalStateException(
-                        "Record #" + recordId + " is already being processed by job " + existingJob
-                        + ". Wait for it to finish before starting a new ingestion.");
-            }
-        }
+        ctx.setStartedAt(Instant.now());
 
         jobStore.register(jobId, request);
         trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
-        // Share the TrackingService's LogCollector so ctx.log() entries appear in the HTML report
         ctx.setLogCollector(trackingService.getLogCollector(jobId));
 
         jobExecutor.submit(() -> execute(ctx));
@@ -86,7 +92,6 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
     private void execute(IngestionContext ctx) {
         String jobId = ctx.getJobId();
-        // Resolve record name once — carried through all updateJobMeta calls
         final String recordName = resolveRecordName(ctx.getRequest().getRecordId());
         try {
             trackingService.updateStatus(jobId, MirrorStatus.STARTED);
@@ -129,11 +134,9 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
             jobStore.setSourceType(jobId, ctx.getSource().getType());
             ctx.log("SOURCE", "Resolved source type: " + ctx.getSource().getType());
 
-            // seed uri into tracking so WS shows it immediately
             trackingService.updateJobMeta(jobId, ctx.getSource().getType(),
                     null, ctx.getRequest().getUri(), ctx.getRequest().getRecordId(), recordName);
 
-            // ── Cancellation check ───────────────────────────────────────────
             if (isCancelled(ctx)) { markCancelled(ctx); return; }
 
             // ── Download ─────────────────────────────────────────────────────
@@ -154,7 +157,6 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 throw new RuntimeException("Download failed: " + downloadResult.getErrorMessage());
             }
 
-            // update fileName in tracking once we know it
             trackingService.updateJobMeta(jobId, ctx.getSource().getType(),
                     downloadResult.getFileName(), ctx.getRequest().getUri(),
                     ctx.getRequest().getRecordId(), recordName);
@@ -182,51 +184,88 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 downloadQueue.signalComplete(jobId);
             }
             jobStore.remove(jobId);
-            Long recordId = ctx.getRecordId();
-            if (recordId != null) {
-                activeRecordJobs.remove(recordId, jobId); // bivalue remove: only clears our own entry
-            }
         }
     }
 
     private void runProcessing(IngestionContext ctx, String recordName) throws Exception {
-        String jobId = ctx.getJobId();
+        String  jobId     = ctx.getJobId();
+        Long    recordId  = ctx.getRecordId();
 
-        trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
-        ctx.setStatus(MirrorStatus.PROCESSING);
+        Semaphore recordLock = recordId != null
+                ? recordLocks.computeIfAbsent(recordId, k -> new Semaphore(1))
+                : null;
 
-        for (ProcessingStrategy processor : processors) {
-            if (!processor.supports(ctx)) continue;
-
-            ctx.log("PROCESS", "Running: " + processor.getClass().getSimpleName());
-            updateStep(ctx, resolveStep(processor));
-
-            ProcessingResult result = processor.process(ctx);
-            ctx.setProcessing(result);
-
-            if (!result.isSuccess()) {
-                ctx.logError("PROCESS", "Failed: " + result.getErrorMessage());
-                throw new RuntimeException("Processing failed: " + result.getErrorMessage());
+        // Acquire global slot — caps total concurrent FFmpeg processes
+        if (!tryAcquireSlot(globalProcessingSemaphore, ctx, "global processing slot")) return;
+        try {
+            // Acquire per-record slot — serialises same-record jobs
+            if (recordLock != null && !tryAcquireSlot(recordLock, ctx, "per-record processing slot")) {
+                return; // finally will release globalProcessingSemaphore
             }
+            try {
+                trackingService.updateStatus(jobId, MirrorStatus.PROCESSING);
+                ctx.setStatus(MirrorStatus.PROCESSING);
 
-            if (result.getFinalFile() != null) {
-                String finalFileName = result.getFinalFile().getFileName().toString();
-                trackingService.updateJobMeta(jobId, ctx.getSource() != null ? ctx.getSource().getType() : null,
-                        finalFileName, ctx.getRequest() != null ? ctx.getRequest().getUri() : null, ctx.getRecordId(), recordName);
-                if (ctx.getDownload() != null) {
-                    ctx.getDownload().setFilePath(result.getFinalFile());
-                    ctx.getDownload().setFileName(finalFileName);
+                for (ProcessingStrategy processor : processors) {
+                    if (!processor.supports(ctx)) continue;
+
+                    ctx.log("PROCESS", "Running: " + processor.getClass().getSimpleName());
+                    updateStep(ctx, resolveStep(processor));
+
+                    ProcessingResult result = processor.process(ctx);
+                    ctx.setProcessing(result);
+
+                    if (!result.isSuccess()) {
+                        ctx.logError("PROCESS", "Failed: " + result.getErrorMessage());
+                        throw new RuntimeException("Processing failed: " + result.getErrorMessage());
+                    }
+
+                    if (result.getFinalFile() != null) {
+                        String finalFileName = result.getFinalFile().getFileName().toString();
+                        trackingService.updateJobMeta(jobId,
+                                ctx.getSource() != null ? ctx.getSource().getType() : null,
+                                finalFileName,
+                                ctx.getRequest() != null ? ctx.getRequest().getUri() : null,
+                                ctx.getRecordId(), recordName);
+                        if (ctx.getDownload() != null) {
+                            ctx.getDownload().setFilePath(result.getFinalFile());
+                            ctx.getDownload().setFileName(finalFileName);
+                        }
+                    }
+
+                    if (isCancelled(ctx)) { markCancelled(ctx); return; }
                 }
+
+                ctx.setStatus(MirrorStatus.SUCCESS);
+                ctx.log("PIPELINE", "Job completed successfully");
+                trackingService.complete(jobId);
+                ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
+                repository.save(ctx);
+            } finally {
+                if (recordLock != null) recordLock.release();
             }
-
-            if (isCancelled(ctx)) { markCancelled(ctx); return; }
+        } finally {
+            globalProcessingSemaphore.release();
         }
+    }
 
-        ctx.setStatus(MirrorStatus.SUCCESS);
-        ctx.log("PIPELINE", "Job completed successfully");
-        trackingService.complete(jobId);
-        ctx.setHtmlReport(trackingService.getHtmlReport(jobId));
-        repository.save(ctx);
+    /**
+     * Tries to acquire the semaphore, polling every 500 ms.
+     * Logs a one-time "waiting" message on first failure and checks for
+     * cancellation on each poll so the job can be cancelled while queued.
+     * Returns false (and calls markCancelled) if the job is cancelled while waiting.
+     */
+    private boolean tryAcquireSlot(Semaphore semaphore, IngestionContext ctx, String slotName)
+            throws InterruptedException {
+        if (semaphore.tryAcquire()) return true;
+        ctx.log("PROCESS", "Waiting for " + slotName + "…");
+        while (!semaphore.tryAcquire(500, TimeUnit.MILLISECONDS)) {
+            if (isCancelled(ctx)) {
+                markCancelled(ctx);
+                return false;
+            }
+        }
+        return true;
     }
 
     // ──────────────────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Getter
@@ -15,6 +16,7 @@ public class IngestionContext {
     private String jobId;
     private Long recordId;
     private String user;
+    private Instant startedAt;
 
     private IngestionRequest request;
 

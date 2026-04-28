@@ -11,7 +11,7 @@ import { useT } from '@shared/theme';
 import {
   Add, Delete, Link as LinkIcon, MusicNote, Lock, LockOutlined, Archive,
   Send, Clear, VideoSettings, Info, CloudDownload, FolderOpen,
-  UploadFile, Close,
+  UploadFile, Close, Tv,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSnackbar } from 'notistack';
@@ -28,6 +28,7 @@ const urlSchema = z.object({
   url:        z.string().min(1, 'URL required'),
   customName: z.string().optional(),
   rename:     z.boolean().default(false),
+  episode:    z.coerce.number().int().positive().optional().nullable(),
 });
 
 const schema = z.object({
@@ -78,9 +79,9 @@ function SourceBadge({ type }) {
 
 // ── Single URL row ─────────────────────────────────────────────────────────
 
-function UrlRow({ index, control, watch, remove, isOnly, isYtMode }) {
-  const T = useT();
-  const url  = watch(`urls.${index}.url`);
+function UrlRow({ index, control, watch, remove, isOnly, isYtMode, isTvRecord, showEpisode }) {
+  const T   = useT();
+  const url = watch(`urls.${index}.url`);
   const type = detectUrlType(url);
 
   return (
@@ -140,6 +141,29 @@ function UrlRow({ index, control, watch, remove, isOnly, isYtMode }) {
           )}
         </Stack>
 
+        {/* Per-URL episode (TV series + multiple URLs) */}
+        {showEpisode && (
+          <Stack direction="row" spacing={1} alignItems="center" mt={0.75}>
+            <Tv sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <Controller
+              name={`urls.${index}.episode`}
+              control={control}
+              render={({ field, fieldState }) => (
+                <TextField
+                  {...field}
+                  value={field.value ?? ''}
+                  label="Episode"
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 1 }}
+                  error={!!fieldState.error}
+                  sx={{ width: 100 }}
+                />
+              )}
+            />
+          </Stack>
+        )}
+
         {/* Custom rename */}
         {!isYtMode && (
           <Box sx={{ mt: 1 }}>
@@ -186,17 +210,17 @@ function UrlRow({ index, control, watch, remove, isOnly, isYtMode }) {
 
 export default function IngestionForm({ onSubmitted }) {
   const { enqueueSnackbar } = useSnackbar();
-  const setFormOpen = useIngestionStore((s) => s.setFormOpen);
+  const setFormOpen  = useIngestionStore((s) => s.setFormOpen);
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
   const torrentInputRef = useRef(null);
-  const [torrentFile, setTorrentFile] = useState(null);
+  const [torrentFile,   setTorrentFile]   = useState(null);
   const [torrentBase64, setTorrentBase64] = useState(null);
 
   const { control, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } =
     useForm({
       resolver: zodResolver(schema),
       defaultValues: {
-        urls:      [{ url: '', customName: '', rename: false }],
+        urls:      [{ url: '', customName: '', rename: false, episode: null }],
         record:    null,
         season:    null,
         episode:   null,
@@ -213,7 +237,6 @@ export default function IngestionForm({ onSubmitted }) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'urls' });
 
-  // Watch key fields for conditional rendering
   const urls      = watch('urls');
   const useAuth   = watch('useAuth');
   const extract   = watch('extract');
@@ -222,13 +245,15 @@ export default function IngestionForm({ onSubmitted }) {
   const audioITag = watch('audioITag');
   const record    = watch('record');
 
-  // Detect source type of first URL for yt-dlp mode
-  const firstUrl    = urls?.[0]?.url ?? '';
-  const firstType   = detectUrlType(firstUrl);
-  const isYtMode    = isYtDlp(firstType);
-  const isTvRecord  = record?.type === 'TV_SERIES';
+  const firstUrl  = urls?.[0]?.url ?? '';
+  const firstType = detectUrlType(firstUrl);
+  const isYtMode  = isYtDlp(firstType);
+  const isTvRecord = record?.type === 'TV_SERIES';
 
-  // YT formats fetch — triggered when user has a YT URL
+  // Per-URL episode fields only when TV series + more than one URL
+  const showPerUrlEpisode = isTvRecord && fields.length > 1;
+
+  // YT formats fetch
   const [fetchUrl, setFetchUrl] = useState('');
   const fetchTimerRef = useRef(null);
 
@@ -257,39 +282,81 @@ export default function IngestionForm({ onSubmitted }) {
     e.target.value = '';
   };
 
+  // Auto-increment episode when adding a new URL in TV + multi mode
+  const handleAppendUrl = () => {
+    const lastEpisode = fields.length > 0
+      ? Number(watch(`urls.${fields.length - 1}.episode`)) || null
+      : null;
+    append({
+      url: '', customName: '', rename: false,
+      episode: lastEpisode != null ? lastEpisode + 1 : null,
+    });
+  };
+
   // ── Submit ───────────────────────────────────────────────────────────────
 
   const onSubmit = useCallback(async (data) => {
-    const uris = data.urls
-      .map((u) => u.url.trim())
-      .filter(Boolean);
+    const uris = data.urls.map((u) => u.url.trim()).filter(Boolean);
 
     if (!torrentBase64 && uris.length === 0) {
       enqueueSnackbar('Provide at least one URL or upload a .torrent file', { variant: 'warning' });
       return;
     }
 
-    const body = {
-      uris,
-      recordId:  data.record?.id ?? null,
-      season:    data.season  ? Number(data.season)  : null,
-      episode:   data.episode ? Number(data.episode) : null,
-      onlyAudio: data.audioOnly,
-      extract:   data.extract,
-      // auth
-      urlProtected: data.useAuth,
-      username: data.useAuth ? data.username : undefined,
-      password: data.useAuth ? data.password : undefined,
-      // zip password
+    const sharedOptions = {
+      recordId:        data.record?.id ?? null,
+      onlyAudio:       data.audioOnly,
+      extract:         data.extract,
+      urlProtected:    data.useAuth,
+      username:        data.useAuth ? data.username : undefined,
+      password:        data.useAuth ? data.password : undefined,
       extractPassword: data.extract && data.zipPwd ? data.zipPwd : undefined,
-      // yt-dlp formats
-      videoITag: isYtMode && !data.audioOnly ? data.videoITag : undefined,
-      audioITag: isYtMode ? data.audioITag : undefined,
-      // rename (take first customName if set)
-      rename:    data.urls[0]?.rename || false,
-      fileName:  data.urls[0]?.rename ? data.urls[0]?.customName : undefined,
-      // torrent file
+      videoITag:       isYtMode && !data.audioOnly ? data.videoITag : undefined,
+      audioITag:       isYtMode ? data.audioITag : undefined,
       ...(torrentBase64 && { torrentBase64 }),
+    };
+
+    // TV series + multiple URLs → fire one job per URL with its own episode (sequential)
+    if (showPerUrlEpisode && uris.length > 1) {
+      const season = data.season ? Number(data.season) : null;
+      const validUrls = data.urls.filter((u) => u.url.trim());
+
+      let ok = 0, bad = 0;
+      for (const u of validUrls) {
+        try {
+          await startIngestion({
+            ...sharedOptions,
+            uris:    [u.url.trim()],
+            season,
+            episode: u.episode ? Number(u.episode) : null,
+            rename:   u.rename || false,
+            fileName: u.rename ? u.customName : undefined,
+          });
+          ok++;
+        } catch {
+          bad++;
+        }
+      }
+
+      enqueueSnackbar(
+        `${ok} job(s) queued${bad ? `, ${bad} failed` : ''}`,
+        { variant: ok > 0 ? 'success' : 'error' }
+      );
+      if (ok > 0) {
+        reset(); setFetchUrl(''); setTorrentFile(null); setTorrentBase64(null);
+        setActiveTab(1); onSubmitted?.();
+      }
+      return;
+    }
+
+    // Default: single request with all URIs
+    const body = {
+      ...sharedOptions,
+      uris,
+      season:  data.season  ? Number(data.season)  : null,
+      episode: data.episode ? Number(data.episode) : null,
+      rename:   data.urls[0]?.rename || false,
+      fileName: data.urls[0]?.rename ? data.urls[0]?.customName : undefined,
     };
 
     try {
@@ -299,28 +366,20 @@ export default function IngestionForm({ onSubmitted }) {
           `${res.data?.length ?? 1} job(s) started`,
           { variant: 'success' }
         );
-        reset();
-        setFetchUrl('');
-        setTorrentFile(null);
-        setTorrentBase64(null);
-        setActiveTab(1); // switch to Live Jobs tab
-        onSubmitted?.();
+        reset(); setFetchUrl(''); setTorrentFile(null); setTorrentBase64(null);
+        setActiveTab(1); onSubmitted?.();
       } else {
         enqueueSnackbar(res.message || 'Failed to start job', { variant: 'error' });
       }
     } catch (e) {
       enqueueSnackbar(e?.response?.data?.message ?? 'Network error', { variant: 'error' });
     }
-  }, [isYtMode, enqueueSnackbar, reset, setActiveTab, onSubmitted]);
+  }, [isYtMode, showPerUrlEpisode, enqueueSnackbar, reset, setActiveTab, onSubmitted, torrentBase64]);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <Box
-      component="form"
-      onSubmit={handleSubmit(onSubmit)}
-      noValidate
-    >
+    <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
       <Stack spacing={2.5}>
 
         {/* ── URLs Section ──────────────────────────────────────────────── */}
@@ -333,13 +392,21 @@ export default function IngestionForm({ onSubmitted }) {
               <Button
                 size="small"
                 startIcon={<Add />}
-                onClick={() => append({ url: '', customName: '', rename: false })}
+                onClick={handleAppendUrl}
                 disabled={fields.length >= 20}
               >
                 Add URL
               </Button>
             )}
           </Stack>
+
+          {showPerUrlEpisode && (
+            <Alert severity="info" sx={{ mb: 1, py: 0.5 }} icon={<Tv sx={{ fontSize: 16 }} />}>
+              <Typography variant="caption">
+                Multiple URLs detected for a TV series — set the episode number for each URL.
+              </Typography>
+            </Alert>
+          )}
 
           <AnimatePresence>
             <Stack spacing={1}>
@@ -352,6 +419,8 @@ export default function IngestionForm({ onSubmitted }) {
                   remove={remove}
                   isOnly={fields.length === 1}
                   isYtMode={isYtMode}
+                  isTvRecord={isTvRecord}
+                  showEpisode={showPerUrlEpisode}
                 />
               ))}
             </Stack>
@@ -443,7 +512,7 @@ export default function IngestionForm({ onSubmitted }) {
           </Paper>
         )}
 
-        {/* Audio-only for non-YT ──────────────────────────────────────── */}
+        {/* Audio-only for non-YT */}
         {!isYtMode && (
           <Controller
             name="audioOnly"
@@ -473,21 +542,20 @@ export default function IngestionForm({ onSubmitted }) {
             name="record"
             control={control}
             render={({ field }) => (
-              <RecordSearch
-                value={field.value}
-                onChange={field.onChange}
-              />
+              <RecordSearch value={field.value} onChange={field.onChange} />
             )}
           />
 
           {isTvRecord && (
             <Stack direction="row" spacing={1.5} mt={1.5}>
+              {/* Season always shown for TV series */}
               <Controller
                 name="season"
                 control={control}
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
+                    value={field.value ?? ''}
                     label="Season"
                     size="small"
                     type="number"
@@ -498,22 +566,26 @@ export default function IngestionForm({ onSubmitted }) {
                   />
                 )}
               />
-              <Controller
-                name="episode"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="Episode"
-                    size="small"
-                    type="number"
-                    inputProps={{ min: 1 }}
-                    error={!!fieldState.error}
-                    helperText={fieldState.error?.message}
-                    sx={{ width: 120 }}
-                  />
-                )}
-              />
+              {/* Episode only shown for single URL — multi-URL uses per-row episode */}
+              {!showPerUrlEpisode && (
+                <Controller
+                  name="episode"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      value={field.value ?? ''}
+                      label="Episode"
+                      size="small"
+                      type="number"
+                      inputProps={{ min: 1 }}
+                      error={!!fieldState.error}
+                      helperText={fieldState.error?.message}
+                      sx={{ width: 120 }}
+                    />
+                  )}
+                />
+              )}
             </Stack>
           )}
         </Box>
@@ -579,7 +651,6 @@ export default function IngestionForm({ onSubmitted }) {
                   />
                 )}
               />
-
               <Collapse in={extract}>
                 <Controller
                   name="zipPwd"

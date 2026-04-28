@@ -3,6 +3,7 @@ package com.db.dbworld.app.media.ingestion.tracking;
 import com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType;
 import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 
+import java.time.Instant;
 import java.util.Map;
 
 public interface TrackingService {
@@ -33,4 +34,15 @@ public interface TrackingService {
      * in the HTML report.
      */
     LogCollector getLogCollector(String jobId);
+
+    /** Remove a job from the tracking map (e.g. after terminal state TTL). */
+    void remove(String jobId);
+
+    /** True if a job is currently tracked (active or recently terminal). */
+    boolean hasJob(String jobId);
+
+    /** Restore a job into the tracking map (used on server restart recovery). */
+    void restoreJob(String jobId, Instant startedAt, MirrorStatus status,
+                    String sourceType, String fileName, String uri,
+                    Long recordId, String recordName);
 }

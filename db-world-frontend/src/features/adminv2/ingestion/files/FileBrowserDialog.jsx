@@ -9,7 +9,7 @@ import {
 import { useT } from '@shared/theme';
 import {
   Folder, FolderOpen, InsertDriveFile, NavigateNext,
-  Home, CheckCircle,
+  Home, CheckCircle, CreateNewFolder,
 } from '@mui/icons-material';
 import { useFileBrowser } from '../hooks/useFileBrowser';
 
@@ -26,16 +26,22 @@ function fmtSize(b) {
  * Props:
  *   open       — bool
  *   onClose    — () => void
- *   onSelect   — (item: FileBrowserItem) => void
+ *   onSelect   — (item: FileBrowserItem & { root, subPath }) => void
  *   title      — dialog title
+ *   folderMode — bool  when true, a "Select this folder" button appears so the
+ *                      caller can receive a directory instead of a file
  */
-export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Browse Server Files' }) {
+export default function FileBrowserDialog({
+  open, onClose, onSelect,
+  title = 'Browse Server Files',
+  folderMode = false,
+}) {
   const T = useT();
-  const [root, setRoot]       = useState('temp');
-  const [subPath, setSubPath] = useState('');
+  const [root, setRoot]         = useState('temp');
+  const [subPath, setSubPath]   = useState('');
   const [selected, setSelected] = useState(null);
 
-  const { data: items = [], isLoading, error, refetch } = useFileBrowser(open ? root : null, subPath);
+  const { data: items = [], isLoading, error } = useFileBrowser(open ? root : null, subPath);
 
   const crumbs = subPath ? subPath.split('/').filter(Boolean) : [];
 
@@ -45,15 +51,21 @@ export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Br
   };
 
   const goToIndex = (idx) => {
-    const parts = crumbs.slice(0, idx + 1);
-    setSubPath(parts.join('/'));
+    setSubPath(crumbs.slice(0, idx + 1).join('/'));
     setSelected(null);
   };
 
   const goHome = () => { setSubPath(''); setSelected(null); };
 
   const handleConfirm = () => {
-    if (selected) onSelect(selected);
+    if (selected) onSelect({ ...selected, root, subPath: subPath.replace(/\/[^/]+$/, '') });
+    onClose();
+  };
+
+  // Called from the "Select this folder" button (folderMode only)
+  const handleSelectFolder = () => {
+    const folderName = crumbs.length > 0 ? crumbs[crumbs.length - 1] : root;
+    onSelect({ path: folderName, name: folderName, directory: true, root, subPath });
     onClose();
   };
 
@@ -62,15 +74,29 @@ export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Br
       <DialogTitle sx={{ pb: 1 }}>
         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
           <Typography variant="h6" fontWeight={600}>{title}</Typography>
-          <ToggleButtonGroup
-            size="small"
-            value={root}
-            exclusive
-            onChange={(_, v) => { if (v) { setRoot(v); setSubPath(''); setSelected(null); } }}
-          >
-            <ToggleButton value="temp">Temp</ToggleButton>
-            <ToggleButton value="stream">Stream</ToggleButton>
-          </ToggleButtonGroup>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {folderMode && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<CreateNewFolder sx={{ fontSize: 15 }} />}
+                onClick={handleSelectFolder}
+                color="warning"
+                sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+              >
+                Select this folder
+              </Button>
+            )}
+            <ToggleButtonGroup
+              size="small"
+              value={root}
+              exclusive
+              onChange={(_, v) => { if (v) { setRoot(v); setSubPath(''); setSelected(null); } }}
+            >
+              <ToggleButton value="temp">Temp</ToggleButton>
+              <ToggleButton value="stream">Stream</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
         </Stack>
       </DialogTitle>
 
@@ -88,26 +114,14 @@ export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Br
             </IconButton>
           </Tooltip>
           <Breadcrumbs separator={<NavigateNext fontSize="small" />} sx={{ flex: 1 }}>
-            <Link
-              component="button"
-              variant="caption"
-              onClick={goHome}
-              underline="hover"
-              sx={{ fontWeight: 600 }}
-            >
+            <Link component="button" variant="caption" onClick={goHome} underline="hover" sx={{ fontWeight: 600 }}>
               {root}
             </Link>
             {crumbs.map((c, i) => (
               i === crumbs.length - 1 ? (
                 <Typography key={i} variant="caption" fontWeight={600}>{c}</Typography>
               ) : (
-                <Link
-                  key={i}
-                  component="button"
-                  variant="caption"
-                  onClick={() => goToIndex(i)}
-                  underline="hover"
-                >
+                <Link key={i} component="button" variant="caption" onClick={() => goToIndex(i)} underline="hover">
                   {c}
                 </Link>
               )
@@ -193,13 +207,11 @@ export default function FileBrowserDialog({ open, onClose, onSelect, title = 'Br
           </Typography>
         )}
         <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          disabled={!selected}
-          onClick={handleConfirm}
-        >
-          Select
-        </Button>
+        {!folderMode && (
+          <Button variant="contained" disabled={!selected} onClick={handleConfirm}>
+            Select
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

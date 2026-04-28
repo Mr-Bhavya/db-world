@@ -38,6 +38,7 @@ public class JpaIngestionRepository implements IngestionRepository {
             entity.setStep(context.getCurrentStep());
             entity.setSourceType(parseSourceType(context.getSource() != null ? context.getSource().getType() : null));
             entity.setRecordId(context.getRecordId());
+            entity.setStartedAt(context.getStartedAt() != null ? context.getStartedAt() : Instant.now());
             entity.setCompletedAt(Instant.now());
 
             if (context.getRequest() != null) {
