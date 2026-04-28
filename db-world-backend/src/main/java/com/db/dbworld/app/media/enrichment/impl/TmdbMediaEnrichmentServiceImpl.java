@@ -8,6 +8,7 @@ import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import com.db.dbworld.app.media.enrichment.TmdbMediaEnrichmentService;
 import com.db.dbworld.app.media.enrichment.TrackFilter;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
+import com.db.dbworld.app.stream.tag.TrackTitleFormatter;
 import com.db.dbworld.core.exception.ProcessExecutionException;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.db.dbworld.core.processor.StreamProcessor;
@@ -62,26 +63,6 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private static final String TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
 
-    private static final Map<String, String> CODEC_DISPLAY = Map.ofEntries(
-            Map.entry("aac",               "AAC"),
-            Map.entry("ac3",               "AC-3"),
-            Map.entry("eac3",              "DDP"),
-            Map.entry("truehd",            "TrueHD"),
-            Map.entry("mlp",               "TrueHD"),
-            Map.entry("dts",               "DTS"),
-            Map.entry("flac",              "FLAC"),
-            Map.entry("mp3",               "MP3"),
-            Map.entry("opus",              "Opus"),
-            Map.entry("vorbis",            "Vorbis"),
-            Map.entry("subrip",            "SRT"),
-            Map.entry("srt",               "SRT"),
-            Map.entry("ass",               "ASS"),
-            Map.entry("ssa",               "ASS"),
-            Map.entry("hdmv_pgs_subtitle", "PGS"),
-            Map.entry("dvd_subtitle",      "VOBSUB"),
-            Map.entry("webvtt",            "WebVTT"),
-            Map.entry("mov_text",          "MP4 Text")
-    );
 
     private final RecordRepository recordRepository;
     private final ProcessExecutor  processExecutor;
@@ -254,7 +235,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             for (int i = 0; i < count; i++) {
                 cmd.addAll(List.of("-metadata:s:a:" + idx, "language=" + lang));
                 TrackFilter.TrackInfo info = (infos != null && i < infos.size()) ? infos.get(i) : null;
-                String title = info != null ? buildAudioTitle(info) : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(lang);
+                String title = info != null ? buildAudioTitle(info) : MediaTagResolver.resolveLanguage(lang);
                 if (!title.isBlank()) {
                     cmd.addAll(List.of("-metadata:s:a:" + idx, "title=" + title));
                 }
@@ -301,7 +282,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             for (int i = 0; i < count; i++) {
                 cmd.addAll(List.of("-metadata:s:s:" + idx, "language=" + lang));
                 TrackFilter.TrackInfo info = (infos != null && i < infos.size()) ? infos.get(i) : null;
-                String title = info != null ? buildSubTitle(info) : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(lang);
+                String title = info != null ? buildSubTitle(info) : MediaTagResolver.resolveLanguage(lang);
                 if (!title.isBlank()) {
                     cmd.addAll(List.of("-metadata:s:s:" + idx, "title=" + title));
                 }
@@ -313,46 +294,12 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         }
     }
 
-    private String buildAudioTitle(TrackFilter.TrackInfo info) {
-        List<String> parts = new ArrayList<>();
-        String langDisplay = info.lang().isBlank() ? "" : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(info.lang().toLowerCase());
-        if (!langDisplay.isBlank() && !"Unknown".equalsIgnoreCase(langDisplay)) parts.add(langDisplay);
-        if (!info.codec().isBlank()) parts.add(CODEC_DISPLAY.getOrDefault(info.codec().toLowerCase(), info.codec().toUpperCase()));
-        String ch = formatChannels(info.channels(), info.channelLayout());
-        if (!ch.isBlank()) parts.add(ch);
-        if (info.bitRate() > 0) parts.add((info.bitRate() / 1000) + " kbps");
-        return String.join(" | ", parts);
+    private static String buildAudioTitle(TrackFilter.TrackInfo info) {
+        return TrackTitleFormatter.formatAudioTitle(info);
     }
 
-    private String buildSubTitle(TrackFilter.TrackInfo info) {
-        String langDisplay = info.lang().isBlank() ? "" : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(info.lang().toLowerCase());
-        String base = (langDisplay.isBlank() || "Unknown".equalsIgnoreCase(langDisplay))
-                ? (info.lang().isBlank() ? "" : info.lang().toUpperCase())
-                : langDisplay;
-        return info.forced() ? base + " [Forced]" : base;
-    }
-
-    private static String formatChannels(int channels, String layout) {
-        if (layout != null && !layout.isBlank()) {
-            String normalized = layout.toLowerCase().replace("(side)", "").trim();
-            return switch (normalized) {
-                case "mono"   -> "Mono";
-                case "stereo" -> "Stereo";
-                case "5.1"    -> "5.1";
-                case "6.1"    -> "6.1";
-                case "7.1"    -> "7.1";
-                case "4.0"    -> "4.0";
-                default -> layout;
-            };
-        }
-        return switch (channels) {
-            case 1 -> "Mono";
-            case 2 -> "Stereo";
-            case 6 -> "5.1";
-            case 7 -> "6.1";
-            case 8 -> "7.1";
-            default -> channels > 0 ? channels + "ch" : "";
-        };
+    private static String buildSubTitle(TrackFilter.TrackInfo info) {
+        return TrackTitleFormatter.formatSubTitle(info);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

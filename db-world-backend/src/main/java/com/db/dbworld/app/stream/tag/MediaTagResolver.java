@@ -104,6 +104,35 @@ public final class MediaTagResolver {
             Map.entry("subrip", "SRT")
     );
 
+    /** ffprobe {@code codec_name} → human-readable display label for audio streams. */
+    public static final Map<String, String> FFPROBE_AUDIO_CODEC_DISPLAY = Map.ofEntries(
+            Map.entry("aac",               "AAC"),
+            Map.entry("ac3",               "AC-3"),
+            Map.entry("eac3",              "DDP"),
+            Map.entry("truehd",            "TrueHD"),
+            Map.entry("mlp",               "TrueHD"),
+            Map.entry("dts",               "DTS"),
+            Map.entry("flac",              "FLAC"),
+            Map.entry("mp3",               "MP3"),
+            Map.entry("opus",              "Opus"),
+            Map.entry("vorbis",            "Vorbis"),
+            Map.entry("pcm_s16le",         "PCM"),
+            Map.entry("pcm_s24le",         "PCM"),
+            Map.entry("pcm_s32le",         "PCM")
+    );
+
+    /** ffprobe {@code codec_name} → human-readable display label for subtitle streams. */
+    public static final Map<String, String> FFPROBE_SUB_CODEC_DISPLAY = Map.ofEntries(
+            Map.entry("subrip",            "SRT"),
+            Map.entry("srt",               "SRT"),
+            Map.entry("ass",               "ASS"),
+            Map.entry("ssa",               "ASS"),
+            Map.entry("hdmv_pgs_subtitle", "PGS"),
+            Map.entry("dvd_subtitle",      "VOBSUB"),
+            Map.entry("webvtt",            "WebVTT"),
+            Map.entry("mov_text",          "MP4 Text")
+    );
+
     public static final Map<String, String> SUB_TITLE_MAP = Map.ofEntries(
             Map.entry("sdh", "SDH"),
             Map.entry("cc", "SDH"),
@@ -217,6 +246,39 @@ public final class MediaTagResolver {
     public static String resolveResolution(Integer height) {
         if (height == null) return null;
         return RESOLUTION_BUCKETS.floorEntry(height).getValue();
+    }
+
+    public static String resolveAudioCodecDisplay(String ffprobeCodec) {
+        if (ffprobeCodec == null || ffprobeCodec.isBlank()) return "";
+        return FFPROBE_AUDIO_CODEC_DISPLAY.getOrDefault(ffprobeCodec.toLowerCase(), ffprobeCodec.toUpperCase());
+    }
+
+    public static String resolveSubCodecDisplay(String ffprobeCodec) {
+        if (ffprobeCodec == null || ffprobeCodec.isBlank()) return "";
+        return FFPROBE_SUB_CODEC_DISPLAY.getOrDefault(ffprobeCodec.toLowerCase(), ffprobeCodec.toUpperCase());
+    }
+
+    public static String resolveChannelLayout(int channels, String channelLayout) {
+        if (channelLayout != null && !channelLayout.isBlank()) {
+            String norm = channelLayout.toLowerCase().replace("(side)", "").trim();
+            return switch (norm) {
+                case "mono"   -> "Mono";
+                case "stereo" -> "Stereo";
+                case "5.1"    -> "5.1";
+                case "6.1"    -> "6.1";
+                case "7.1"    -> "7.1";
+                case "4.0"    -> "4.0";
+                default -> channelLayout;
+            };
+        }
+        return switch (channels) {
+            case 1 -> "Mono";
+            case 2 -> "Stereo";
+            case 6 -> "5.1";
+            case 7 -> "6.1";
+            case 8 -> "7.1";
+            default -> channels > 0 ? channels + "ch" : "";
+        };
     }
 
     public static String resolveExtension(String format) {
