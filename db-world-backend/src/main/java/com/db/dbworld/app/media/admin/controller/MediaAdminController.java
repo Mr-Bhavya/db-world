@@ -1,4 +1,4 @@
-package com.db.dbworld.controllers;
+package com.db.dbworld.app.media.admin.controller;
 
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-
 import java.util.List;
 import java.util.Map;
 
@@ -29,9 +28,7 @@ public class MediaAdminController {
     private final MediaInfoService mediaInfoService;
     private final SymlinkService   symlinkService;
 
-    /* =========================================================
-       MEDIA FILE INFO
-       ========================================================= */
+    /* ── File info ───────────────────────────────────────────────────── */
 
     @GetMapping("/files")
     public ResponseEntity<ApiResponse<List<MediaFileDto>>> getAllMediaFiles() {
@@ -69,46 +66,30 @@ public class MediaAdminController {
                 mediaInfoService.deleteByFilePath(dto.getFilePath());
             });
         }
-        return ResponseEntity.ok(ApiResponse.success(ids.size() + (purge ? " files permanently deleted" : " files removed from library")));
-    }
-
-    private void deleteActualFile(String filePath, String id) {
-        if (filePath == null || filePath.isBlank()) return;
-        try {
-            boolean deleted = Files.deleteIfExists(Path.of(filePath));
-            log.info("[ADMIN] File {} (id={}) deleted from disk: {}", filePath, id, deleted);
-        } catch (Exception e) {
-            log.warn("[ADMIN] Could not delete file {} (id={}): {}", filePath, id, e.getMessage());
-        }
+        return ResponseEntity.ok(ApiResponse.success(
+                ids.size() + (purge ? " files permanently deleted" : " files removed from library")));
     }
 
     @PostMapping("/files/cleanup")
     public ResponseEntity<ApiResponse<Map<String, Object>>> cleanupMediaFiles() {
-        // Remove DB entries whose file no longer exists on disk
         List<MediaFileDto> all = mediaInfoService.findAll();
         int removed = 0;
         for (MediaFileDto dto : all) {
-            if (dto.getFilePath() != null) {
-                java.nio.file.Path p = java.nio.file.Path.of(dto.getFilePath());
-                if (!java.nio.file.Files.exists(p)) {
-                    symlinkService.deleteById(dto.getId());
-                    mediaInfoService.deleteByFilePath(dto.getFilePath());
-                    removed++;
-                }
+            if (dto.getFilePath() != null && !Files.exists(Path.of(dto.getFilePath()))) {
+                symlinkService.deleteById(dto.getId());
+                mediaInfoService.deleteByFilePath(dto.getFilePath());
+                removed++;
             }
         }
         return ResponseEntity.ok(ApiResponse.success("Cleanup complete",
                 Map.of("total", all.size(), "removed", removed)));
     }
 
-    /* =========================================================
-       SYMLINKS
-       ========================================================= */
+    /* ── Symlinks ────────────────────────────────────────────────────── */
 
     @PostMapping("/symlinks/repair")
     public ResponseEntity<ApiResponse<ResponsePayloads.SymlinkRepairResult>> repairAllSymlinks(
             @RequestParam(defaultValue = "false") boolean dryRun) {
-
         log.info("[ADMIN] Bulk symlink repair triggered (dryRun={})", dryRun);
         ResponsePayloads.SymlinkRepairResult result = symlinkService.ensureAll(dryRun);
         return ResponseEntity.ok(ApiResponse.success(
@@ -119,7 +100,6 @@ public class MediaAdminController {
     public ResponseEntity<ApiResponse<ResponsePayloads.SymlinkRepairSingleResult>> repairSingleSymlink(
             @PathVariable String fileId,
             @RequestParam(defaultValue = "false") boolean dryRun) {
-
         log.info("[ADMIN] Single symlink repair triggered for fileId={} (dryRun={})", fileId, dryRun);
         ResponsePayloads.SymlinkRepairSingleResult result = symlinkService.ensureOne(fileId, dryRun);
         return ResponseEntity.ok(ApiResponse.success(
@@ -129,8 +109,19 @@ public class MediaAdminController {
     @PostMapping("/symlinks/rebuild")
     public ResponseEntity<ApiResponse<ResponsePayloads.SymlinkRepairResult>> rebuildAllSymlinks() {
         log.info("[ADMIN] Symlink rebuild triggered");
-        // Rebuild = delete all symlinks then repair all
         ResponsePayloads.SymlinkRepairResult result = symlinkService.ensureAll(false);
         return ResponseEntity.ok(ApiResponse.success("Symlink rebuild completed", result));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void deleteActualFile(String filePath, String id) {
+        if (filePath == null || filePath.isBlank()) return;
+        try {
+            boolean deleted = Files.deleteIfExists(Path.of(filePath));
+            log.info("[ADMIN] File {} (id={}) deleted from disk: {}", filePath, id, deleted);
+        } catch (Exception e) {
+            log.warn("[ADMIN] Could not delete file {} (id={}): {}", filePath, id, e.getMessage());
+        }
     }
 }

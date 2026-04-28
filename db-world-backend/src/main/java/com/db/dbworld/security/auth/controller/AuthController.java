@@ -1,4 +1,4 @@
-package com.db.dbworld.controllers;
+package com.db.dbworld.security.auth.controller;
 
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.LoginRequest;
@@ -60,15 +60,11 @@ public class AuthController {
 
         ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken())
                 .httpOnly(true)
-                .secure(false) // ⚠️ IMPORTANT for localhost (HTTP)
-                .sameSite("Lax") // ✅ works for local dev
-                .path("/") // ✅ VERY IMPORTANT
+                .secure(false)
+                .sameSite("Lax")
+                .path("/")
                 .maxAge(tokens.refreshTokenTtl())
                 .build();
-
-//        Production (HTTPS)
-//                .secure(true)
-//                .sameSite("None")
 
         ResponsePayloads.LoginResponse response = new ResponsePayloads.LoginResponse(
                 tokens.accessToken(),
@@ -82,13 +78,6 @@ public class AuthController {
 
     /* ── Refresh token ─────────────────────────────────────────────── */
 
-    /**
-     * Exchange a valid refresh-token cookie for a new access token.
-     *
-     * Returns 401 (not 400) when the cookie is absent so that the frontend
-     * axios interceptor treats it identically to an expired access token and
-     * triggers the force-logout flow instead of an unhandled 400 error.
-     */
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshAccessToken(
             @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken
@@ -108,11 +97,6 @@ public class AuthController {
 
     /* ── Verify ────────────────────────────────────────────────────── */
 
-    /**
-     * Lightweight endpoint that confirms the Bearer token is valid.
-     * Spring Security validates the JWT before this method is invoked;
-     * an expired token triggers a 401 → the client interceptor refreshes it.
-     */
     @GetMapping("/verify")
     public ApiResponse<Map<String, Object>> verifyToken(Authentication authentication) {
 
@@ -133,13 +117,6 @@ public class AuthController {
 
     /* ── Logout ────────────────────────────────────────────────────── */
 
-    /**
-     * Revoke the refresh token and clear the cookie.
-     *
-     * The cookie is optional (required = false) — if it is already expired
-     * or absent the endpoint still succeeds and clears the cookie header,
-     * so the client always ends up fully logged out regardless of server state.
-     */
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken
@@ -148,7 +125,6 @@ public class AuthController {
             try {
                 authenticationService.revokeRefreshToken(refreshToken);
             } catch (Exception e) {
-                // Token may already be expired / deleted — not an error from the client's view.
                 log.warn("Logout: refresh token revocation skipped — {}", e.getMessage());
             }
         }

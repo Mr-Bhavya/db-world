@@ -1,18 +1,18 @@
 package com.db.dbworld.app.pm.controller;
 
+import com.db.dbworld.app.pm.dto.CredentialDto;
+import com.db.dbworld.app.pm.dto.PasswordManagerDto;
+import com.db.dbworld.app.pm.mapper.CredentialMapper;
+import com.db.dbworld.app.pm.service.PasswordManagerService;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.role.annotations.AnyRole;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.RequestPayloads;
 import com.db.dbworld.payloads.ResponsePayloads;
-import com.db.dbworld.app.pm.dto.CredentialDto;
-import com.db.dbworld.app.pm.dto.PasswordManagerDto;
-import com.db.dbworld.app.pm.service.PasswordManagerService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.MalformedURLException;
@@ -22,21 +22,23 @@ import java.util.*;
 @Log4j2
 @RestController
 @RequestMapping("/api/pm")
+@RequiredArgsConstructor
 public class PasswordManagerController {
 
-    @Autowired private PasswordManagerService passwordManagerService;
-    @Autowired private ModelMapper modelMapper;
+    private final PasswordManagerService passwordManagerService;
+    private final CredentialMapper       credentialMapper;
 
     @GetMapping("/")
     @AnyRole
     public ApiResponse<List<ResponsePayloads.PasswordManagerResponse>> getPasswordManagerByUser() {
-        List<ResponsePayloads.PasswordManagerResponse> responses = passwordManagerService.getPasswordManagerByUser().stream().map(dto -> {
-            ResponsePayloads.PasswordManagerResponse r = new ResponsePayloads.PasswordManagerResponse();
-            r.setId(dto.getId());
-            r.setHost(dto.getHost().getName());
-            r.setCredentials(dto.getCredentials());
-            return r;
-        }).toList();
+        List<ResponsePayloads.PasswordManagerResponse> responses = passwordManagerService
+                .getPasswordManagerByUser().stream().map(dto -> {
+                    ResponsePayloads.PasswordManagerResponse r = new ResponsePayloads.PasswordManagerResponse();
+                    r.setId(dto.getId());
+                    r.setHost(dto.getHost().getName());
+                    r.setCredentials(dto.getCredentials());
+                    return r;
+                }).toList();
         return ApiResponse.success(responses);
     }
 
@@ -45,7 +47,7 @@ public class PasswordManagerController {
     public ApiResponse<Void> addCredentialByUser(@RequestBody RequestPayloads.AddCredential addCredential) {
         try {
             String host = new URL(addCredential.getUrl().toLowerCase()).getHost();
-            CredentialDto credential = modelMapper.map(addCredential, CredentialDto.class);
+            CredentialDto credential = credentialMapper.fromAddCredential(addCredential);
             passwordManagerService.addCredential(host, credential);
             return ApiResponse.success("Credential is added.");
         } catch (MalformedURLException ex) {
@@ -53,15 +55,16 @@ public class PasswordManagerController {
         }
     }
 
-    @AnyRole
     @PostMapping("/credentials")
-    public ApiResponse<Map<String, Object>> addCredentialsByUser(@RequestBody List<RequestPayloads.AddCredential> addCredentials) {
-        Map<String, String> failed = new HashMap<>();
-        List<String> success = new ArrayList<>();
+    @AnyRole
+    public ApiResponse<Map<String, Object>> addCredentialsByUser(
+            @RequestBody List<RequestPayloads.AddCredential> addCredentials) {
+        Map<String, String> failed  = new HashMap<>();
+        List<String>        success = new ArrayList<>();
         addCredentials.forEach(c -> {
             try {
                 String host = new URL(c.getUrl().toLowerCase()).getHost();
-                CredentialDto credential = modelMapper.map(c, CredentialDto.class);
+                CredentialDto credential = credentialMapper.fromAddCredential(c);
                 passwordManagerService.addCredential(host, credential);
                 success.add(c.getUrl() + " / " + c.getUsername());
             } catch (Exception ex) {
@@ -69,8 +72,7 @@ public class PasswordManagerController {
                 log.error("Failed to add credential {} : {}", c, ex.getMessage());
             }
         });
-        Map<String, Object> response = Map.of("success", success, "failed", failed);
-        return ApiResponse.success(response);
+        return ApiResponse.success(Map.of("success", success, "failed", failed));
     }
 
     @PutMapping("/{pmId}")
@@ -78,26 +80,27 @@ public class PasswordManagerController {
     public ApiResponse<PasswordManagerDto> updateCredentialByPmId(
             @Valid @NotEmpty @PathVariable String pmId,
             @RequestBody @Valid RequestPayloads.UpdateCredential updateCredential) {
-        CredentialDto credential = modelMapper.map(updateCredential, CredentialDto.class);
-        return ApiResponse.success("Credential is updated.", passwordManagerService.updateCredential(pmId, credential));
+        CredentialDto credential = credentialMapper.fromUpdateCredential(updateCredential);
+        return ApiResponse.success("Credential is updated.",
+                passwordManagerService.updateCredential(pmId, credential));
     }
 
-    @AnyRole
     @DeleteMapping("/{pmId}")
+    @AnyRole
     public ApiResponse<Void> deletePasswordMangerById(@Valid @NotEmpty @PathVariable String pmId) {
         passwordManagerService.deletePasswordManagerById(pmId);
         return ApiResponse.success("Deleted Successfully.");
     }
 
-    @AnyRole
     @DeleteMapping("/credential/{credentialId}")
+    @AnyRole
     public ApiResponse<Void> deleteCredentialById(@Valid @NotEmpty @PathVariable String credentialId) {
         passwordManagerService.deleteCredentialById(credentialId);
         return ApiResponse.success("Deleted Successfully.");
     }
 
-    @AnyRole
     @GetMapping("/host")
+    @AnyRole
     public ApiResponse<List<String>> getAllHost() {
         return ApiResponse.success(passwordManagerService.getAllHosts());
     }

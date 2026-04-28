@@ -3,24 +3,21 @@ package com.db.dbworld.core.role.service.impl;
 import com.db.dbworld.core.role.dto.RoleDto;
 import com.db.dbworld.core.role.entity.RoleEntity;
 import com.db.dbworld.core.role.enums.Role;
+import com.db.dbworld.core.role.mapper.RoleMapper;
 import com.db.dbworld.core.role.repository.UserRoleRepository;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
-import com.db.dbworld.core.user.dto.UserDto;
 import com.db.dbworld.core.role.service.RoleService;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class RoleServiceImpl implements RoleService {
 
-    @Autowired
-    private UserRoleRepository userRoleRepository;
-
-    @Autowired
-    private ModelMapper modelMapper;
+    private final UserRoleRepository userRoleRepository;
+    private final RoleMapper         roleMapper;
 
     @Override
     public RoleDto addRole(RoleDto userRole) {
@@ -34,26 +31,24 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public List<RoleDto> getRoles() {
-        List<RoleEntity> userRoleEntityList = this.userRoleRepository.findAll();
-        return userRoleEntityList.stream().map(
-                userRoleEntity -> this.modelMapper.map(userRoleEntity, RoleDto.class)
-        ).toList();
+        return userRoleRepository.findAll().stream()
+                .map(roleMapper::toDto)
+                .toList();
     }
 
     @Override
     public RoleDto getRoleById(String roleId) {
-        return this.modelMapper.map(userRoleRepository.findById(Integer.valueOf(roleId)).orElseThrow(
-                ()-> new ResourceNotFoundException("Role", "id", roleId)
-        ), RoleDto.class);
+        RoleEntity entity = userRoleRepository.findById(Integer.valueOf(roleId))
+                .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
+        return roleMapper.toDto(entity);
     }
 
     @Override
     public RoleDto getRoleByName(String roleName) {
-        return this.modelMapper.map(userRoleRepository.findByName(Role.fromString(roleName)), RoleDto.class);
+        return roleMapper.toDto(userRoleRepository.findByName(Role.fromString(roleName)));
     }
 
     @Override
     public void deleteRole(String roleId) {
-
     }
 }

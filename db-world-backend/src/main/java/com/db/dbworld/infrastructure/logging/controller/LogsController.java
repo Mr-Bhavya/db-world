@@ -1,4 +1,4 @@
-package com.db.dbworld.controllers;
+package com.db.dbworld.infrastructure.logging.controller;
 
 import com.db.dbworld.infrastructure.logging.LogsService;
 import com.db.dbworld.infrastructure.logging.dto.LogFormat;
@@ -23,16 +23,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LogsController {
 
     private final LogsService logsService;
-    private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
-    private final Map<String, Thread> followThreads = new ConcurrentHashMap<>();
+    private final Map<String, SseEmitter> emitters     = new ConcurrentHashMap<>();
+    private final Map<String, Thread>     followThreads = new ConcurrentHashMap<>();
 
     public LogsController(LogsService logsService) {
         this.logsService = logsService;
     }
 
-    // =====================================================
-    // UNIFIED LOGS ENDPOINT
-    // =====================================================
+    // ── Unified endpoint ─────────────────────────────────────────────────
 
     @GetMapping("/{source}/{type}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
@@ -44,15 +42,8 @@ public class LogsController {
             @RequestParam(required = false) Integer minutes
     ) {
         try {
-            LogsService.LogResponse response = logsService.getLogs(
-                    type,
-                    format,
-                    lines,
-                    minutes
-            );
-
+            LogsService.LogResponse response = logsService.getLogs(type, format, lines, minutes);
             return ResponseEntity.ok(ApiResponse.success(response.getData()));
-
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(HttpStatus.BAD_REQUEST, "Invalid parameters: " + e.getMessage()));
@@ -62,9 +53,7 @@ public class LogsController {
         }
     }
 
-    // =====================================================
-    // APPLICATION LOGS (Backward compatible)
-    // =====================================================
+    // ── Backward-compatible aliases ───────────────────────────────────────
 
     @GetMapping("/app/{type}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
@@ -77,10 +66,6 @@ public class LogsController {
         return getLogs("app", type, format, lines, minutes);
     }
 
-    // =====================================================
-    // NGINX LOGS (Backward compatible)
-    // =====================================================
-
     @GetMapping("/nginx/{type}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getNginxLogs(
@@ -91,10 +76,6 @@ public class LogsController {
     ) {
         return getLogs("nginx", type, format, lines, minutes);
     }
-
-    // =====================================================
-    // ARIA2 LOGS (Backward compatible)
-    // =====================================================
 
     @GetMapping("/aria2c/{type}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
@@ -107,90 +88,45 @@ public class LogsController {
         return getLogs("aria2c", type, format, lines, minutes);
     }
 
-    // =====================================================
-    // LIVE FOLLOW STREAM (SSE) - FIXED VERSION
-    // =====================================================
+    // ── SSE live follow ───────────────────────────────────────────────────
 
-    @GetMapping(
-            value = "/{source}/{type}/follow",
-            produces = MediaType.TEXT_EVENT_STREAM_VALUE
-    )
+    @GetMapping(value = "/{source}/{type}/follow", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter followLogs(
             @PathVariable String source,
             @PathVariable LogType type,
             @RequestParam(defaultValue = "JSON") LogFormat format
     ) {
         String sessionId = source + "-" + type + "-" + System.currentTimeMillis() + "-" + Math.random();
-        SseEmitter emitter = new SseEmitter(180_000L); // 3 minute timeout
+        SseEmitter emitter = new SseEmitter(180_000L);
 
         try {
-            // Store emitter
             emitters.put(sessionId, emitter);
+            emitter.send(SseEmitter.event().name("connect").data(Map.of(
+                    "status", "connected", "sessionId", sessionId,
+                    "source", source, "type", type, "format", format)));
 
-            // Send initial connection event
-            emitter.send(SseEmitter.event()
-                    .name("connect")
-                    .data(Map.of(
-                            "status", "connected",
-                            "sessionId", sessionId,
-                            "source", source,
-                            "type", type,
-                            "format", format
-                    ))
-            );
-
-            // Start following logs
-            Thread followThread = logsService.followLogs(
-                    type,
-                    format,
-                    sessionId,
-                    line -> {
-                        try {
-                            emitter.send(SseEmitter.event()
-                                    .name("log")
-                                    .data(line)
-                                    .id(String.valueOf(System.currentTimeMillis())));
-                        } catch (IOException e) {
-                            // Client disconnected - clean up
-                            cleanup(sessionId);
-                        }
-                    }
-            ).getThread();
+            Thread followThread = logsService.followLogs(type, format, sessionId, line -> {
+                try {
+                    emitter.send(SseEmitter.event().name("log").data(line)
+                            .id(String.valueOf(System.currentTimeMillis())));
+                } catch (IOException e) {
+                    cleanup(sessionId);
+                }
+            }).getThread();
 
             followThreads.put(sessionId, followThread);
-
-            // Set up cleanup handlers
-            emitter.onCompletion(() -> {
-                System.out.println("SSE completed for session: " + sessionId);
-                cleanup(sessionId);
-            });
-
-            emitter.onTimeout(() -> {
-                System.out.println("SSE timeout for session: " + sessionId);
-                cleanup(sessionId);
-            });
-
-            emitter.onError((e) -> {
-                System.err.println("SSE error for session: " + sessionId + " - " + e.getMessage());
-                cleanup(sessionId);
-            });
+            emitter.onCompletion(() -> cleanup(sessionId));
+            emitter.onTimeout(()    -> cleanup(sessionId));
+            emitter.onError((e)     -> cleanup(sessionId));
 
         } catch (Exception e) {
-            System.err.println("Error setting up SSE for session: " + sessionId + " - " + e.getMessage());
             cleanup(sessionId);
             emitter.completeWithError(e);
         }
-
         return emitter;
     }
 
-    /**
-     * Legacy follow endpoint for backward compatibility
-     */
-    @GetMapping(
-            value = "/app/{type}/follow",
-            produces = MediaType.TEXT_EVENT_STREAM_VALUE
-    )
+    @GetMapping(value = "/app/{type}/follow", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter followAppLogs(
             @PathVariable LogType type,
             @RequestParam(defaultValue = "JSON") LogFormat format
@@ -198,9 +134,7 @@ public class LogsController {
         return followLogs("app", type, format);
     }
 
-    // =====================================================
-    // UTILITY ENDPOINTS
-    // =====================================================
+    // ── Utility endpoints ─────────────────────────────────────────────────
 
     @DeleteMapping("/follow/{sessionId}")
     @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
@@ -215,8 +149,7 @@ public class LogsController {
         return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "activeSessions", emitters.keySet(),
                 "count", emitters.size(),
-                "threads", followThreads.size()
-        )));
+                "threads", followThreads.size())));
     }
 
     @GetMapping("/health")
@@ -224,37 +157,20 @@ public class LogsController {
         return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "status", "ok",
                 "activeSessions", emitters.size(),
-                "activeThreads", followThreads.size()
-        )));
+                "activeThreads", followThreads.size())));
     }
 
-    // =====================================================
-    // PRIVATE HELPER METHODS
-    // =====================================================
+    // ─────────────────────────────────────────────────────────────────────
 
     private void cleanup(String sessionId) {
         try {
-            // Remove and complete emitter
             SseEmitter emitter = emitters.remove(sessionId);
             if (emitter != null) {
-                try {
-                    emitter.complete();
-                } catch (Exception e) {
-                    // Ignore completion errors
-                }
+                try { emitter.complete(); } catch (Exception ignored) {}
             }
-
-            // Stop follow thread
             Thread thread = followThreads.remove(sessionId);
-            if (thread != null && thread.isAlive()) {
-                thread.interrupt();
-            }
-
-            // Stop logs service follow
+            if (thread != null && thread.isAlive()) thread.interrupt();
             logsService.stopFollowing(sessionId);
-
-        } catch (Exception e) {
-            System.err.println("Error during cleanup for session: " + sessionId + " - " + e.getMessage());
-        }
+        } catch (Exception ignored) {}
     }
 }

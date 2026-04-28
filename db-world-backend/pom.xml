@@ -41,7 +41,6 @@
         <!-- Versions not in Spring Boot BOM -->
         <disruptor.version>3.4.4</disruptor.version>
         <jjwt.version>0.11.5</jjwt.version>
-        <modelmapper.version>3.2.0</modelmapper.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <jasypt.version>3.0.5</jasypt.version>
         <springdoc.version>2.2.0</springdoc.version>
@@ -196,11 +195,6 @@
         </dependency>
 
         <!-- ── Mapping ───────────────────────────────────────────────── -->
-        <dependency>
-            <groupId>org.modelmapper</groupId>
-            <artifactId>modelmapper</artifactId>
-            <version>${modelmapper.version}</version>
-        </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
