@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Horizontal lines icon representing an episode list -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Top line with play triangle -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,5 L21,5 Q21.5,5 21.5,5.5 L21.5,6.5 Q21.5,7 21,7 L3,7 Q2.5,7 2.5,6.5 L2.5,5.5 Q2.5,5 3,5 Z"/>
+    <!-- Middle line -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,11 L21,11 Q21.5,11 21.5,11.5 L21.5,12.5 Q21.5,13 21,13 L3,13 Q2.5,13 2.5,12.5 L2.5,11.5 Q2.5,11 3,11 Z"/>
+    <!-- Bottom line (shorter) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,17 L15,17 Q15.5,17 15.5,17.5 L15.5,18.5 Q15.5,19 15,19 L3,19 Q2.5,19 2.5,18.5 L2.5,17.5 Q2.5,17 3,17 Z"/>
+    <!-- Play triangle on bottom right -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M18,16 L18,21 L22.5,18.5 Z"/>
+</vector>
