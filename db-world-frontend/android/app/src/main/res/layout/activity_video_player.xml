@@ -249,7 +249,7 @@
             <View
                 android:id="@+id/brightness_fill"
                 android:layout_width="match_parent"
-                android:layout_height="50%"
+                android:layout_height="0dp"
                 android:layout_gravity="bottom"
                 android:background="@android:color/white" />
         </FrameLayout>
@@ -293,7 +293,7 @@
             <View
                 android:id="@+id/volume_fill"
                 android:layout_width="match_parent"
-                android:layout_height="50%"
+                android:layout_height="0dp"
                 android:layout_gravity="bottom"
                 android:background="@android:color/white" />
         </FrameLayout>
