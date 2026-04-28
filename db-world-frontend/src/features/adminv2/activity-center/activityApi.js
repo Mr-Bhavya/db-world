@@ -24,7 +24,7 @@ export const fetchUserActivities = ({ userEmail, limit = 50, activityType = '', 
 
 const API_LOGS = '/api/admin/activity-logs';
 
-export const fetchApiLogs = ({ page = 0, size = 50, username = '', method = '', status = '', uri = '' } = {}) =>
+export const fetchApiLogs = ({ page = 0, size = 50, username = '', method = '', status = '', uri = '', sortBy = 'timestamp', sortDir = 'desc' } = {}) =>
   axiosInstance.get(API_LOGS, {
     params: {
       page, size,
@@ -32,6 +32,8 @@ export const fetchApiLogs = ({ page = 0, size = 50, username = '', method = '', 
       ...(method   && { method }),
       ...(status   && { status }),
       ...(uri      && { uri }),
+      sortBy,
+      sortDir,
     },
   }).then(r => r.data.data);
 

@@ -34,10 +34,13 @@ public class UserActivityLogController {
             @RequestParam(required = false)      String ip,
             @RequestParam(required = false)      String requestId,
             @RequestParam(required = false)      String startDate,
-            @RequestParam(required = false)      String endDate) {
+            @RequestParam(required = false)      String endDate,
+            @RequestParam(defaultValue = "timestamp") String sortBy,
+            @RequestParam(defaultValue = "desc")      String sortDir) {
 
-        PageRequest pageable = PageRequest.of(page, Math.min(size, 200),
-                Sort.by(Sort.Direction.DESC, "timestamp"));
+        Sort.Direction dir = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String safeSort = sortBy.matches("timestamp|method|status|duration|userEmail|uri|ip") ? sortBy : "timestamp";
+        PageRequest pageable = PageRequest.of(page, Math.min(size, 200), Sort.by(dir, safeSort));
 
         LocalDateTime start = startDate != null ? LocalDateTime.parse(startDate) : null;
         LocalDateTime end   = endDate   != null ? LocalDateTime.parse(endDate)   : null;

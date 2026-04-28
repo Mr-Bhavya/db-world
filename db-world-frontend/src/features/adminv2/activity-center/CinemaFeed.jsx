@@ -58,56 +58,66 @@ function ActivityRow({ a, showUser = true }) {
           '&:hover': { bgcolor: `${T.glassBorder}40` },
         }}
       >
-        <TableCell sx={{ width: 105, pl: 2 }}>
+        {/* Type */}
+        <TableCell sx={{ width: 95, pl: 1.5 }}>
           <TypeChip type={a.activityType} />
         </TableCell>
 
-        <TableCell sx={{ maxWidth: { xs: 130, sm: 240, md: 360 } }}>
+        {/* File / search — min width so it never collapses to nothing */}
+        <TableCell sx={{ minWidth: 160, maxWidth: 320 }}>
           <Tooltip title={a.filePath || a.activityValue || ''} placement="top">
-            <Typography sx={{ fontSize: 13, fontWeight: 500, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 500, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {isSearch ? `"${a.activityValue}"` : fileName(a.filePath || a.activityValue)}
             </Typography>
           </Tooltip>
           {!isSearch && a.fileSize > 0 && (
-            <Typography sx={{ fontSize: 11, color: T.textFaint }}>{fmtBytes(a.fileSize)}</Typography>
+            <Typography sx={{ fontSize: 10, color: T.textFaint }}>{fmtBytes(a.fileSize)}</Typography>
           )}
         </TableCell>
 
+        {/* User — always visible, avatar + short email */}
         {showUser && (
-          <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              <Avatar sx={{ width: 22, height: 22, bgcolor: '#0d9488', fontSize: 10 }}>
-                {a.userEmail?.[0]?.toUpperCase() ?? '?'}
-              </Avatar>
-              <Typography sx={{ fontSize: 12, color: T.textMuted }}>{a.userEmail}</Typography>
-            </Box>
+          <TableCell sx={{ minWidth: 120, maxWidth: 180 }}>
+            <Tooltip title={a.userEmail ?? ''}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Avatar sx={{ width: 20, height: 20, bgcolor: '#0d9488', fontSize: 9, flexShrink: 0 }}>
+                  {a.userEmail?.[0]?.toUpperCase() ?? '?'}
+                </Avatar>
+                <Typography sx={{ fontSize: 11, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {a.userEmail}
+                </Typography>
+              </Box>
+            </Tooltip>
           </TableCell>
         )}
 
-        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-          {a.bytesTransferred > 0 && (
+        {/* Transferred — always visible */}
+        <TableCell sx={{ minWidth: 80, whiteSpace: 'nowrap' }}>
+          {a.bytesTransferred > 0 ? (
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: T.text }}>{fmtBytes(a.bytesTransferred)}</Typography>
               {a.updateCount > 1 && (
                 <Chip
                   size="small"
                   icon={<LinkIcon sx={{ fontSize: '9px !important' }} />}
-                  label={`${a.updateCount} conn`}
-                  sx={{ height: 15, fontSize: 9, mt: 0.25, bgcolor: `#0d948818`, color: '#0d9488', '& .MuiChip-icon': { color: '#0d9488' } }}
+                  label={`${a.updateCount}×`}
+                  sx={{ height: 14, fontSize: 9, mt: 0.2, bgcolor: `#0d948818`, color: '#0d9488', '& .MuiChip-icon': { color: '#0d9488' } }}
                 />
               )}
             </Box>
-          )}
+          ) : <Typography sx={{ fontSize: 11, color: T.textFaint }}>—</Typography>}
         </TableCell>
 
-        <TableCell sx={{ whiteSpace: 'nowrap', pr: 2 }}>
-          <Typography sx={{ fontSize: 12, color: T.textFaint }}>{fmtAgo(a.lastUpdated)}</Typography>
+        {/* When */}
+        <TableCell sx={{ minWidth: 72, whiteSpace: 'nowrap', pr: 1 }}>
+          <Typography sx={{ fontSize: 11, color: T.textFaint }}>{fmtAgo(a.lastUpdated)}</Typography>
         </TableCell>
 
-        <TableCell sx={{ width: 32, pr: 0.5 }}>
+        {/* Expand */}
+        <TableCell sx={{ width: 28, px: 0 }}>
           {hasExtra && (
             <IconButton size="small" sx={{ color: T.textFaint, p: 0.25 }}>
-              {open ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+              {open ? <ExpandLessIcon sx={{ fontSize: 15 }} /> : <ExpandMoreIcon sx={{ fontSize: 15 }} />}
             </IconButton>
           )}
         </TableCell>
@@ -388,8 +398,8 @@ export default function CinemaFeed({ hours, activityType, onHoursChange, onTypeC
 
           {rLoading && <LinearProgress sx={{ '& .MuiLinearProgress-bar': { bgcolor: '#0d9488' } }} />}
 
-          <TableContainer sx={{ maxHeight: { xs: 420, md: 580 }, overflowY: 'auto' }}>
-            <Table size="small" stickyHeader>
+          <TableContainer sx={{ maxHeight: { xs: 420, md: 580 }, overflowY: 'auto', overflowX: 'auto' }}>
+            <Table size="small" stickyHeader sx={{ minWidth: 600 }}>
               <TableHead>
                 <TableRow>
                   <TH>Type</TH>
@@ -397,12 +407,12 @@ export default function CinemaFeed({ hours, activityType, onHoursChange, onTypeC
                   <TH>User</TH>
                   <TH>Transferred</TH>
                   <TH>When</TH>
-                  <TableCell sx={{ bgcolor: T.glass, borderColor: T.border }} />
+                  <TableCell sx={{ bgcolor: T.glass, borderColor: T.border, width: 28 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {rLoading && Array.from({ length: 7 }).map((_, i) => (
-                  <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton /></TableCell>)}</TableRow>
+                  <TableRow key={i}>{Array.from({ length: 6 }).map((_, j) => <TableCell key={j}><Skeleton /></TableCell>)}</TableRow>
                 ))}
                 {!rLoading && activities.length === 0 && (
                   <TableRow><TableCell colSpan={6} align="center" sx={{ py: 6, color: T.textFaint, fontSize: 13 }}>No activities found</TableCell></TableRow>
