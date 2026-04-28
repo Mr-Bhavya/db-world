@@ -13,6 +13,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import java.util.List;
 import java.util.Map;
 
@@ -44,23 +47,39 @@ public class MediaAdminController {
     }
 
     @DeleteMapping("/files/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteMediaFile(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> deleteMediaFile(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "false") boolean purge) {
         mediaInfoService.getById(id).ifPresent(dto -> {
+            if (purge) deleteActualFile(dto.getFilePath(), id);
             symlinkService.deleteById(id);
             mediaInfoService.deleteByFilePath(dto.getFilePath());
         });
-        return ResponseEntity.ok(ApiResponse.success("Deleted"));
+        return ResponseEntity.ok(ApiResponse.success(purge ? "Permanently deleted" : "Removed from library"));
     }
 
     @DeleteMapping("/files")
-    public ResponseEntity<ApiResponse<Void>> deleteMediaFiles(@RequestBody List<String> ids) {
+    public ResponseEntity<ApiResponse<Void>> deleteMediaFiles(
+            @RequestBody List<String> ids,
+            @RequestParam(defaultValue = "false") boolean purge) {
         for (String id : ids) {
             mediaInfoService.getById(id).ifPresent(dto -> {
+                if (purge) deleteActualFile(dto.getFilePath(), id);
                 symlinkService.deleteById(id);
                 mediaInfoService.deleteByFilePath(dto.getFilePath());
             });
         }
-        return ResponseEntity.ok(ApiResponse.success(ids.size() + " files deleted"));
+        return ResponseEntity.ok(ApiResponse.success(ids.size() + (purge ? " files permanently deleted" : " files removed from library")));
+    }
+
+    private void deleteActualFile(String filePath, String id) {
+        if (filePath == null || filePath.isBlank()) return;
+        try {
+            boolean deleted = Files.deleteIfExists(Path.of(filePath));
+            log.info("[ADMIN] File {} (id={}) deleted from disk: {}", filePath, id, deleted);
+        } catch (Exception e) {
+            log.warn("[ADMIN] Could not delete file {} (id={}): {}", filePath, id, e.getMessage());
+        }
     }
 
     @PostMapping("/files/cleanup")

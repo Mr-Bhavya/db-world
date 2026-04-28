@@ -99,11 +99,11 @@ export const seedMediaFiles = (recordId) =>
 export const getAllMediaFiles = () =>
   axiosInstance.get('/api/admin/media/files').then(r => r.data.data ?? r.data);
 
-export const deleteMediaFileById = (id) =>
-  axiosInstance.delete(`/api/admin/media/files/${id}`).then(r => r.data);
+export const deleteMediaFileById = (id, purge = false) =>
+  axiosInstance.delete(`/api/admin/media/files/${id}`, { params: { purge } }).then(r => r.data);
 
-export const bulkDeleteMediaFiles = (ids) =>
-  axiosInstance.delete('/api/admin/media/files', { data: ids }).then(r => r.data);
+export const bulkDeleteMediaFiles = (ids, purge = false) =>
+  axiosInstance.delete('/api/admin/media/files', { data: ids, params: { purge } }).then(r => r.data);
 
 export const cleanupOrphanedFiles = () =>
   axiosInstance.post('/api/admin/media/files/cleanup').then(r => r.data);
