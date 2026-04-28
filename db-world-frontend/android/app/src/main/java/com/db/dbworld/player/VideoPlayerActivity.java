@@ -104,7 +104,8 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     private ExoPlayer            player;
     private PlayerView           playerView;
     private DefaultTrackSelector trackSelector;
-    private boolean              isZoomed = false;
+    private boolean              isZoomed   = false;
+    private String               currentUrl = null;
 
     // ── Views ──────────────────────────────────────────────────────────────────
     private FrameLayout  controlsContainer;
@@ -150,7 +151,8 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     private float gestureStartVolume;
     private float gestureStartBrightness;
     private boolean gestureIsBrightness;
-    private boolean isScaling = false;
+    private boolean isScaling        = false;
+    private boolean multiTouchActive = false;
     private int     screenWidth;
     private int     screenHeight;
 
@@ -237,6 +239,14 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         scheduleHideControls();
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (player == null && currentUrl != null && !currentUrl.isEmpty()) {
+            initializePlayer(currentUrl);
+        }
+    }
+
     @Override protected void onResume()  { super.onResume(); setImmersiveMode(); }
     @Override public void onWindowFocusChanged(boolean h) {
         super.onWindowFocusChanged(h);
@@ -262,6 +272,14 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         handler.removeCallbacksAndMessages(null);
     }
 
+    /** On-screen back button: always exits (never enters PIP). */
+    private void exitPlayer() {
+        if (episodePanelOpen) { hideEpisodePanel(); return; }
+        savePositionAndReport();
+        finish();
+    }
+
+    /** System back key: enters PIP if playing, exits otherwise. */
     @Override
     public void onBackPressed() {
         if (episodePanelOpen) { hideEpisodePanel(); return; }
@@ -280,6 +298,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     // ══════════════════════════════════════════════════════════════════════════
 
     private void initializePlayer(String url) {
+        currentUrl = url;
         DefaultRenderersFactory rf = new DefaultRenderersFactory(this)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
                 .setEnableDecoderFallback(true);
@@ -416,7 +435,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     }
 
     private void setupControls() {
-        btnBack.setOnClickListener(v -> onBackPressed());
+        btnBack.setOnClickListener(v -> exitPlayer());
         btnPip.setOnClickListener(v -> enterPiP());
 
         btnPlayPause.setOnClickListener(v -> {
@@ -543,6 +562,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     private void handleSwipe(MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                multiTouchActive       = false;
                 gestureStartY          = event.getY();
                 gestureIsBrightness    = event.getX() < screenWidth / 2.0f;
                 if (gestureIsBrightness) {
@@ -553,7 +573,12 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
                 }
                 break;
 
+            case MotionEvent.ACTION_POINTER_DOWN:
+                multiTouchActive = true;
+                break;
+
             case MotionEvent.ACTION_MOVE:
+                if (multiTouchActive) break;
                 float delta    = gestureStartY - event.getY();
                 float fraction = delta / (screenHeight * 0.6f);
 
@@ -628,7 +653,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
             for (int i = 0; i < audioGroups.size(); i++) {
                 Format fmt     = audioGroups.get(i).getFormat(0);
                 String label   = buildAudioLabel(fmt);
-                RadioButton rb = makeRadioButton(label, i == currentAudioGroupIdx);
+                RadioButton rb = makeRadioButton(label);
                 final int idx  = i;
                 rb.setOnClickListener(v -> {
                     currentAudioGroupIdx = idx;
@@ -636,6 +661,10 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
                     currentAudioLang = langName(audioGroups.get(idx).getFormat(0).language);
                 });
                 rg.addView(rb);
+            }
+            // Set checked AFTER all buttons are in the group so RadioGroup tracks exclusivity
+            if (currentAudioGroupIdx >= 0 && currentAudioGroupIdx < rg.getChildCount()) {
+                ((RadioButton) rg.getChildAt(currentAudioGroupIdx)).setChecked(true);
             }
             content.addView(rg);
             content.addView(makeDivider());
@@ -646,7 +675,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         RadioGroup subRg = new RadioGroup(this);
         subRg.setOrientation(RadioGroup.VERTICAL);
 
-        RadioButton offRb = makeRadioButton("Off", currentSubtitleGroupIdx == -1);
+        RadioButton offRb = makeRadioButton("Off");
         offRb.setOnClickListener(v -> {
             currentSubtitleGroupIdx = -1;
             disableSubtitles();
@@ -657,7 +686,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         for (int i = 0; i < subtitleGroups.size(); i++) {
             Format fmt     = subtitleGroups.get(i).getFormat(0);
             String label   = langName(fmt.language);
-            RadioButton rb = makeRadioButton(label, i == currentSubtitleGroupIdx);
+            RadioButton rb = makeRadioButton(label);
             final int idx  = i;
             rb.setOnClickListener(v -> {
                 currentSubtitleGroupIdx = idx;
@@ -665,6 +694,15 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
                 currentSubLang = langName(subtitleGroups.get(idx).getFormat(0).language);
             });
             subRg.addView(rb);
+        }
+        // Set checked AFTER all buttons are in the group
+        if (currentSubtitleGroupIdx == -1) {
+            ((RadioButton) subRg.getChildAt(0)).setChecked(true);
+        } else {
+            int subIdx = currentSubtitleGroupIdx + 1; // +1 because "Off" is at index 0
+            if (subIdx < subRg.getChildCount()) {
+                ((RadioButton) subRg.getChildAt(subIdx)).setChecked(true);
+            }
         }
         content.addView(subRg);
 
@@ -700,10 +738,9 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         return v;
     }
 
-    private RadioButton makeRadioButton(String text, boolean checked) {
+    private RadioButton makeRadioButton(String text) {
         RadioButton rb = new RadioButton(this);
         rb.setText(text);
-        rb.setChecked(checked);
         rb.setTextColor(0xFFFFFFFF);
         rb.setTextSize(14f);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(

@@ -32,4 +32,7 @@ public interface TmdbRecordSyncRepository extends JpaRepository<TmdbRecordSyncEn
     Page<TmdbRecordSyncEntity> findByRecordType(RecordType recordType, Pageable pageable);
 
     Page<TmdbRecordSyncEntity> findByStatusAndRecordType(SyncStatus status, RecordType recordType, Pageable pageable);
+
+    /** Used by force-sync to fetch all records for a specific type without pagination. */
+    List<TmdbRecordSyncEntity> findAllByRecordType(RecordType recordType);
 }

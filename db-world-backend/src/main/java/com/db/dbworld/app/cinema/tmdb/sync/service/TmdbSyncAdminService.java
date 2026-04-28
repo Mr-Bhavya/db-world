@@ -1,5 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.sync.service;
 
+import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +29,7 @@ public class TmdbSyncAdminService {
     private final TmdbRecordSyncRepository repository;
     private final TmdbSyncOrchestratorService orchestrator;
     private final TmdbIngestionService ingestionService;
+    private final TmdbRecordSyncService syncService;
 
     /* ── Stats ────────────────────────────────────────────────── */
 
@@ -59,6 +62,40 @@ public class TmdbSyncAdminService {
         }
 
         return page.map(this::toDto);
+    }
+
+    /* ── Force Sync (re-sync every record, ignoring shouldSync guard) ── */
+
+    public void forceSync(RecordType type) {
+        List<TmdbRecordSyncEntity> targets = type != null
+                ? repository.findAllByRecordType(type)
+                : repository.findAll();
+
+        log.info("Force sync queued: {} records, type={}", targets.size(), type);
+
+        Thread.ofVirtual().name("tmdb-force-sync").start(() -> {
+            int success = 0, failed = 0;
+            for (TmdbRecordSyncEntity entity : targets) {
+                try {
+                    Thread.sleep(TmdbSync.DELAY_MS);
+                    if (entity.getRecordType() == RecordType.MOVIE) {
+                        ingestionService.refreshMovie(entity.getTmdbId());
+                    } else {
+                        ingestionService.refreshTvSeries(entity.getTmdbId());
+                    }
+                    syncService.markSynced(entity.getTmdbId(), entity.getRecordType());
+                    success++;
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Force sync interrupted after {}/{} records", success + failed, targets.size());
+                    break;
+                } catch (Exception ex) {
+                    syncService.markFailed(entity.getTmdbId(), entity.getRecordType(), ex);
+                    failed++;
+                }
+            }
+            log.info("Force sync completed: success={}, failed={}", success, failed);
+        });
     }
 
     /* ── Trigger ──────────────────────────────────────────────── */
@@ -135,7 +172,8 @@ public class TmdbSyncAdminService {
                 e.getLastCheckedAt(),
                 e.getLastSyncedAt(),
                 e.getSyncVersion(),
-                e.getErrorMessage()
+                e.getErrorMessage(),
+                e.getTmdb() != null ? e.getTmdb().getTitle() : null
         );
     }
 

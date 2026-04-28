@@ -58,4 +58,15 @@ public class TmdbSyncController {
         syncAdminService.retrySync(id);
         return ApiResponse.success("Retry queued for id " + id);
     }
+
+    /* ── Force Sync (re-sync all records, bypasses shouldSync guard) ── */
+
+    @AdminAccess
+    @PostMapping("/force")
+    public ApiResponse<Void> force(
+            @RequestParam(required = false) RecordType type
+    ) {
+        syncAdminService.forceSync(type);
+        return ApiResponse.success("Force sync started" + (type != null ? " for " + type : " for all records"));
+    }
 }

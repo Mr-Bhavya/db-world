@@ -202,6 +202,11 @@ export const triggerTmdbSync = (type) =>
 export const retryTmdbSync = (id) =>
   axiosInstance.post(`/api/cinema/admin/tmdb/sync/retry/${id}`).then(r => r.data);
 
+export const forceTmdbSync = (type) =>
+  axiosInstance.post('/api/cinema/admin/tmdb/sync/force', null, {
+    params: type ? { type } : undefined,
+  }).then(r => r.data);
+
 /* ─── REDIS CACHE ───────────────────────────────────────────── */
 
 export const getRedisInfo = () =>

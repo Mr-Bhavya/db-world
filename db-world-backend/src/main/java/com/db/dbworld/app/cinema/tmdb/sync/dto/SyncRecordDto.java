@@ -10,5 +10,6 @@ public record SyncRecordDto(
         Instant lastCheckedAt,
         Instant lastSyncedAt,
         Long syncVersion,
-        String errorMessage
+        String errorMessage,
+        String title
 ) {}
