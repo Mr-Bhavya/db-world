@@ -169,6 +169,7 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
 
     // ── Handler / Runnables ────────────────────────────────────────────────────
     private final Handler  handler              = new Handler(Looper.getMainLooper());
+    private final Runnable immersiveRunnable    = this::setImmersiveMode;
     private final Runnable hideControlsRunnable = this::hideControls;
     private final Runnable hideGestureRunnable  = () -> {
         brightnessIndicator.setVisibility(View.GONE);
@@ -264,12 +265,13 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
     @Override
     public void onBackPressed() {
         if (episodePanelOpen) { hideEpisodePanel(); return; }
-        if (isInPiP) { super.onBackPressed(); return; }
+        if (isInPiP) { finish(); return; }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 && player != null && player.isPlaying()) {
             enterPiP();
         } else {
-            super.onBackPressed();
+            savePositionAndReport();
+            finish();
         }
     }
 
@@ -968,13 +970,21 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
 
     @SuppressWarnings("deprecation")
     private void setImmersiveMode() {
-        getWindow().getDecorView().setSystemUiVisibility(
+        handler.removeCallbacks(immersiveRunnable);
+        View decorView = getWindow().getDecorView();
+        decorView.setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
             | View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            | View.SYSTEM_UI_FLAG_IMMERSIVE);
+        decorView.setOnSystemUiVisibilityChangeListener(visibility -> {
+            if ((visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
+                handler.removeCallbacks(immersiveRunnable);
+                handler.postDelayed(immersiveRunnable, 3000);
+            }
+        });
     }
 
     // ══════════════════════════════════════════════════════════════════════════

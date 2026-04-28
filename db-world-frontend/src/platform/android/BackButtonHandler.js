@@ -6,16 +6,18 @@ const BackButtonHandler = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    let backButtonCleanup; // This will store the cleanup function or listener handle
+    let backButtonCleanup;
+    let lastFired = 0; // debounce — gesture nav can fire events twice in quick succession
 
     const setupListener = async () => {
-      // Wait for the listener to be added
-      const listener = await App.addListener('backButton', () => {
-        // Use window.history.length to check history length (navigate.length isn’t correct)
+      const listener = await App.addListener(‘backButton’, () => {
+        const now = Date.now();
+        if (now - lastFired < 400) return; // ignore duplicate within 400 ms
+        lastFired = now;
         if (window.history.length > 1) {
           navigate(-1);
         } else {
-            App.exitApp();
+          App.exitApp();
         }
       });
 
