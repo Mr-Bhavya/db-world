@@ -56,5 +56,18 @@ build/
 /temp/
 /db-world-frontend/android/.gradle/
 /db-world-frontend/android/.idea/
-/runtime/
+/runtime/backend.env
+/runtime/.env.local
+/runtime/.env.production
+/runtime/rsa-private.key
+/runtime/rsa-public.key
 /.postman/
+
+### Secrets - never commit real credentials ###
+**/application-prod*.yml
+**/application-local*.yml
+*.key
+*.pem
+*.env
+*.env.*
+!*.env.example
