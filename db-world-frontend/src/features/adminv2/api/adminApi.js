@@ -95,9 +95,17 @@ export const rescanMediaFile = (id) =>
 export const seedMediaFiles = (recordId) =>
   axiosInstance.post(`/api/media/info/seed/${recordId}`).then(r => r.data.data);
 
-// All media files (global, not per-record)
-export const getAllMediaFiles = () =>
-  axiosInstance.get('/api/admin/media/files').then(r => r.data.data ?? r.data);
+// Paginated media files list — returns Spring Page { content, totalElements, totalPages, number, last }
+export const getMediaFilesPaged = (params) =>
+  axiosInstance.get('/api/admin/media/files', { params }).then(r => r.data.data ?? r.data);
+
+// Aggregate stats — fast, no track data
+export const getMediaFilesStats = () =>
+  axiosInstance.get('/api/admin/media/files/stats').then(r => r.data.data);
+
+// Full detail for a single file — includes all tracks + rawMediaInfo
+export const getMediaFileDetail = (id) =>
+  axiosInstance.get(`/api/admin/media/files/${id}`).then(r => r.data.data);
 
 export const deleteMediaFileById = (id, purge = false) =>
   axiosInstance.delete(`/api/admin/media/files/${id}`, { params: { purge } }).then(r => r.data);

@@ -1,6 +1,8 @@
 package com.db.dbworld.app.media.admin.controller;
 
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
+import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
+import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.payloads.ApiResponse;
@@ -8,6 +10,7 @@ import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.utils.DbWorldConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,8 +34,20 @@ public class MediaAdminController {
     /* ── File info ───────────────────────────────────────────────────── */
 
     @GetMapping("/files")
-    public ResponseEntity<ApiResponse<List<MediaFileDto>>> getAllMediaFiles() {
-        return ResponseEntity.ok(ApiResponse.success(mediaInfoService.findAll()));
+    public ResponseEntity<ApiResponse<Page<MediaFileSummaryDto>>> getMediaFilesPaged(
+            @RequestParam(defaultValue = "")      String  q,
+            @RequestParam(required = false)       Boolean linked,
+            @RequestParam(defaultValue = "newest") String  sort,
+            @RequestParam(defaultValue = "0")     int     page,
+            @RequestParam(defaultValue = "50")    int     size) {
+        Page<MediaFileSummaryDto> result = mediaInfoService.getPagedSummary(
+                q.isBlank() ? null : q, linked, sort, page, Math.min(size, 200));
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @GetMapping("/files/stats")
+    public ResponseEntity<ApiResponse<MediaFileStatsDto>> getMediaFileStats() {
+        return ResponseEntity.ok(ApiResponse.success(mediaInfoService.getStats()));
     }
 
     @GetMapping("/files/{id}")

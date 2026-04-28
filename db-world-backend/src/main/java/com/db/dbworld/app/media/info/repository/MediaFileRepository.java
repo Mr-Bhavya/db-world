@@ -1,6 +1,8 @@
 package com.db.dbworld.app.media.info.repository;
 
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -38,4 +40,40 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
     @Query("SELECT m FROM MediaFileEntity m WHERE m.record IS NULL " +
            "AND LOWER(m.fileName) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY m.createdAt DESC")
     List<MediaFileEntity> findUnassignedByName(@Param("q") String q);
+
+    // ── Paginated admin list (two-query pattern: IDs first, then entities with tracks) ──
+
+    @Query("SELECT m.id FROM MediaFileEntity m WHERE " +
+           "(:q IS NULL OR LOWER(m.fileName) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<String> findIdsByQ(@Param("q") String q, Pageable pageable);
+
+    @Query("SELECT m.id FROM MediaFileEntity m WHERE m.record IS NOT NULL AND " +
+           "(:q IS NULL OR LOWER(m.fileName) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<String> findLinkedIdsByQ(@Param("q") String q, Pageable pageable);
+
+    @Query("SELECT m.id FROM MediaFileEntity m WHERE m.record IS NULL AND " +
+           "(:q IS NULL OR LOWER(m.fileName) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<String> findUnlinkedIdsByQ(@Param("q") String q, Pageable pageable);
+
+    @EntityGraph(attributePaths = "tracks")
+    List<MediaFileEntity> findAllByIdIn(List<String> ids);
+
+    // ── Stats queries ─────────────────────────────────────────────────────────
+
+    @Query("SELECT COUNT(m) FROM MediaFileEntity m")
+    long countTotal();
+
+    @Query("SELECT COUNT(m) FROM MediaFileEntity m WHERE m.record IS NOT NULL")
+    long countLinked();
+
+    @Query("SELECT COALESCE(SUM(m.fileSize), 0) FROM MediaFileEntity m")
+    long sumFileSize();
+
+    @Query(value = "SELECT COUNT(DISTINCT media_file_id) FROM media_tracks " +
+                   "WHERE track_type = 'Video' AND v_hdr_format IS NOT NULL", nativeQuery = true)
+    long countHdr();
+
+    @Query(value = "SELECT COUNT(DISTINCT media_file_id) FROM media_tracks " +
+                   "WHERE track_type = 'Video' AND v_height >= 2160", nativeQuery = true)
+    long countUhd();
 }

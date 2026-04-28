@@ -1,7 +1,10 @@
 package com.db.dbworld.app.media.info.service;
 
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
+import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
+import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
@@ -63,6 +66,12 @@ public interface MediaInfoService {
      * Used by {@code SymlinkService.ensureAll()} for bulk symlink repair.
      */
     List<MediaFileDto> findAll();
+
+    /** Paginated summary list — no rawMediaInfo, fast. */
+    Page<MediaFileSummaryDto> getPagedSummary(String q, Boolean linked, String sort, int page, int size);
+
+    /** Aggregate stats — counts and sizes only, no track data loaded. */
+    MediaFileStatsDto getStats();
 
     @Transactional(readOnly = true)
     MediaFileDto collectMediaInfo(Path filePath);

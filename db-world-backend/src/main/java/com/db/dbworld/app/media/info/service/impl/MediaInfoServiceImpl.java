@@ -2,6 +2,8 @@ package com.db.dbworld.app.media.info.service.impl;
 
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
+import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
+import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
 import com.db.dbworld.app.media.info.dto.TrackDto;
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.entity.track.*;
@@ -14,15 +16,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Log4j2
 @Service
@@ -108,6 +113,133 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Transactional(readOnly = true)
     public List<MediaFileDto> findAll() {
         return mediaFileRepository.findAll().stream().map(this::toDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<MediaFileSummaryDto> getPagedSummary(String q, Boolean linked, String sort, int page, int size) {
+        Sort jpaSort = switch (sort != null ? sort : "newest") {
+            case "oldest"    -> Sort.by("createdAt").ascending();
+            case "largest"   -> Sort.by("fileSize").descending();
+            case "smallest"  -> Sort.by("fileSize").ascending();
+            case "name-asc"  -> Sort.by("fileName").ascending();
+            case "name-desc" -> Sort.by("fileName").descending();
+            default          -> Sort.by("createdAt").descending();
+        };
+
+        PageRequest pageable = PageRequest.of(page, size, jpaSort);
+        String qParam = (q != null && !q.isBlank()) ? q.strip() : null;
+
+        Page<String> idPage;
+        if (linked == null) {
+            idPage = mediaFileRepository.findIdsByQ(qParam, pageable);
+        } else if (linked) {
+            idPage = mediaFileRepository.findLinkedIdsByQ(qParam, pageable);
+        } else {
+            idPage = mediaFileRepository.findUnlinkedIdsByQ(qParam, pageable);
+        }
+
+        if (!idPage.hasContent()) {
+            return Page.empty(pageable);
+        }
+
+        List<MediaFileEntity> entities = mediaFileRepository.findAllByIdIn(idPage.getContent());
+        Map<String, MediaFileEntity> byId = entities.stream()
+                .collect(Collectors.toMap(MediaFileEntity::getId, Function.identity()));
+
+        List<MediaFileSummaryDto> summaries = idPage.getContent().stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(this::toSummaryDto)
+                .toList();
+
+        return new PageImpl<>(summaries, pageable, idPage.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MediaFileStatsDto getStats() {
+        long total  = mediaFileRepository.countTotal();
+        long linked = mediaFileRepository.countLinked();
+        return MediaFileStatsDto.builder()
+                .total(total)
+                .linked(linked)
+                .unlinked(total - linked)
+                .totalSize(mediaFileRepository.sumFileSize())
+                .hdrCount(mediaFileRepository.countHdr())
+                .uhdCount(mediaFileRepository.countUhd())
+                .build();
+    }
+
+    private MediaFileSummaryDto toSummaryDto(MediaFileEntity entity) {
+        MediaFileSummaryDto.MediaFileSummaryDtoBuilder b = MediaFileSummaryDto.builder()
+                .id(entity.getId())
+                .recordId(entity.getRecord() != null ? entity.getRecord().getId() : null)
+                .fileName(entity.getFileName())
+                .filePath(entity.getFilePath())
+                .fileSize(entity.getFileSize())
+                .mimeType(entity.getMimeType())
+                .ingestionJobId(entity.getIngestionJobId())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt());
+
+        VideoTrackEntity primaryVideo = null;
+        AudioTrackEntity primaryAudio = null;
+        GeneralTrackEntity general    = null;
+        int videoCount = 0, audioCount = 0, textCount = 0;
+
+        for (TrackEntity t : entity.getTracks()) {
+            if (t instanceof GeneralTrackEntity g) {
+                general = g;
+            } else if (t instanceof VideoTrackEntity v) {
+                videoCount++;
+                boolean vHasFps = v.getFrameRate() != null && !v.getFrameRate().isBlank();
+                if (primaryVideo == null) {
+                    primaryVideo = v;
+                } else {
+                    boolean pHasFps = primaryVideo.getFrameRate() != null && !primaryVideo.getFrameRate().isBlank();
+                    int vH = v.getHeight() != null ? v.getHeight() : -1;
+                    int pH = primaryVideo.getHeight() != null ? primaryVideo.getHeight() : -1;
+                    if ((vHasFps && !pHasFps) || (vHasFps == pHasFps && vH > pH)) {
+                        primaryVideo = v;
+                    }
+                }
+            } else if (t instanceof AudioTrackEntity a) {
+                audioCount++;
+                if (primaryAudio == null ||
+                    ("yes".equalsIgnoreCase(a.getDefaultTrack()) && !"yes".equalsIgnoreCase(primaryAudio.getDefaultTrack()))) {
+                    primaryAudio = a;
+                }
+            } else if (t instanceof TextTrackEntity) {
+                textCount++;
+            }
+        }
+
+        if (general != null) {
+            b.duration(general.getDuration())
+             .videoCount(general.getVideoCount() != null ? general.getVideoCount() : videoCount)
+             .audioCount(general.getAudioCount() != null ? general.getAudioCount() : audioCount)
+             .textCount(general.getTextCount()  != null ? general.getTextCount()  : textCount);
+        } else {
+            b.videoCount(videoCount).audioCount(audioCount).textCount(textCount);
+        }
+
+        if (primaryVideo != null) {
+            b.videoHeight(primaryVideo.getHeight())
+             .videoWidth(primaryVideo.getWidth())
+             .videoCodec(primaryVideo.getFormat())
+             .hdrFormat(primaryVideo.getHdrFormat())
+             .frameRate(primaryVideo.getFrameRate())
+             .videoBitRate(primaryVideo.getBitRate());
+        }
+
+        if (primaryAudio != null) {
+            b.audioFormat(primaryAudio.getFormat())
+             .audioChannels(primaryAudio.getChannels())
+             .audioLanguage(primaryAudio.getLanguage());
+        }
+
+        return b.build();
     }
 
     @Override
