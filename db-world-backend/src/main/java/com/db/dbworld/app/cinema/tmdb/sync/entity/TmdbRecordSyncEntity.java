@@ -5,7 +5,6 @@ import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.BatchSize;
 
 import java.time.Instant;
 
@@ -53,6 +52,5 @@ public class TmdbRecordSyncEntity {
     /** Read-only join to TmdbEntity to resolve the title without a separate query. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tmdb_id", insertable = false, updatable = false)
-    @BatchSize(size = 50)
     private TmdbEntity tmdb;
 }

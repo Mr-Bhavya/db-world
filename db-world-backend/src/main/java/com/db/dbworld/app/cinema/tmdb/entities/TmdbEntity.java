@@ -14,6 +14,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +27,7 @@ import static jakarta.persistence.CascadeType.PERSIST;
 @Table(name = "tmdb_data", schema = "new_db_world")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "record_type")
+@BatchSize(size = 50)
 @Getter
 @Setter
 public class TmdbEntity {
