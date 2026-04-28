@@ -52,9 +52,9 @@ public class TmdbClient {
 
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/movie/{id}")
+                        .path("/movie/" + id)
                         .queryParam("append_to_response", "images,videos,credits")
-                        .build(id))
+                        .build())
                 .retrieve()
                 .bodyToMono(MovieTmdbResponse.class);
     }
@@ -104,9 +104,9 @@ public class TmdbClient {
 
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/tv/{id}")
+                        .path("/tv/" + id)
                         .queryParam("append_to_response", "images,videos,credits")
-                        .build(id))
+                        .build())
                 .retrieve()
                 .bodyToMono(TvSeriesTmdbResponse.class);
     }
