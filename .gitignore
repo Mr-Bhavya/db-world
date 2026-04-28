@@ -46,7 +46,6 @@ build/
 /db-world-frontend/build/
 /db-world-frontend/node/
 /db-world-frontend/delete/
-/db-world-frontend/android/
 /download/
 /status/
 /db-world-backend/src/main/resources/public/
@@ -54,8 +53,6 @@ build/
 /db-world-frontend/package-lock.json
 /TMDB_NEW/
 /temp/
-/db-world-frontend/android/.gradle/
-/db-world-frontend/android/.idea/
 /runtime/backend.env
 /runtime/.env.local
 /runtime/.env.production
