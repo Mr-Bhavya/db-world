@@ -52,14 +52,25 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
 
         ctx.log("EXTRACT", "Extracting: " + archivePath + " → " + extractDir);
 
+        StringBuilder stderrAccumulator = new StringBuilder();
+
         try {
             Files.createDirectories(extractDir);
+
+            // Pre-flight: verify the target filesystem is writable before starting 7z
+            Path probe = extractDir.resolve(".writetest");
+            try {
+                Files.createFile(probe);
+                Files.delete(probe);
+            } catch (IOException e) {
+                throw new IOException("Target directory is not writable (filesystem may be read-only): " + extractDir, e);
+            }
 
             processExecutor.executeExtraction(
                     archivePath.toAbsolutePath().toString(),
                     extractDir.toAbsolutePath().toString(),
-                    ctx.getRequest().getExtractPassword(),   // NEW third arg
-                    buildStreamProcessor(ctx),
+                    ctx.getRequest().getExtractPassword(),
+                    buildStreamProcessor(ctx, stderrAccumulator),
                     ctx.getCancellationFlag(),
                     Duration.ofHours(2)
             );
@@ -71,10 +82,12 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
             result.setSuccess(true);
 
         } catch (ProcessExecutionException e) {
-            log.error("[{}] Extraction failed: {}", ctx.getJobId(), e.getMessage());
-            ctx.logError("EXTRACT", "Extraction failed: " + e.getMessage());
+            String detail = stderrAccumulator.length() > 0 ? " | 7z: " + stderrAccumulator.toString().trim() : "";
+            String message = "Extraction failed: " + e.getMessage() + detail;
+            log.error("[{}] {}", ctx.getJobId(), message);
+            ctx.logError("EXTRACT", message);
             result.setSuccess(false);
-            result.setErrorMessage("Extraction failed: " + e.getMessage());
+            result.setErrorMessage(message);
 
         } catch (IOException e) {
             log.error("[{}] IO error during extraction: {}", ctx.getJobId(), e.getMessage());
@@ -86,7 +99,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
         return result;
     }
 
-    private StreamProcessor buildStreamProcessor(IngestionContext ctx) {
+    private StreamProcessor buildStreamProcessor(IngestionContext ctx, StringBuilder stderrAccumulator) {
         long startedAt = System.currentTimeMillis();
         return new StreamProcessor() {
             @Override
@@ -103,6 +116,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
                 }
 
                 if (isErrorStream) {
+                    stderrAccumulator.append(trimmed).append('\n');
                     ctx.logError("7Z_ERR", trimmed);
                     return;
                 }

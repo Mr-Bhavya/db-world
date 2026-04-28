@@ -62,6 +62,27 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     private static final String TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
     private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)[._ -]S(\\d{2})E(\\d{2})(?:[._ -]|$)");
 
+    private static final Map<String, String> CODEC_DISPLAY = Map.ofEntries(
+            Map.entry("aac",               "AAC"),
+            Map.entry("ac3",               "AC-3"),
+            Map.entry("eac3",              "DDP"),
+            Map.entry("truehd",            "TrueHD"),
+            Map.entry("mlp",               "TrueHD"),
+            Map.entry("dts",               "DTS"),
+            Map.entry("flac",              "FLAC"),
+            Map.entry("mp3",               "MP3"),
+            Map.entry("opus",              "Opus"),
+            Map.entry("vorbis",            "Vorbis"),
+            Map.entry("subrip",            "SRT"),
+            Map.entry("srt",               "SRT"),
+            Map.entry("ass",               "ASS"),
+            Map.entry("ssa",               "ASS"),
+            Map.entry("hdmv_pgs_subtitle", "PGS"),
+            Map.entry("dvd_subtitle",      "VOBSUB"),
+            Map.entry("webvtt",            "WebVTT"),
+            Map.entry("mov_text",          "MP4 Text")
+    );
+
     private final RecordRepository recordRepository;
     private final ProcessExecutor  processExecutor;
     private final TrackingService  trackingService;
@@ -193,12 +214,27 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
      * are included consecutively (e.g. 2 Hindi tracks, then 1 English track).
      */
     private void applyAudioTrackMetadata(List<String> cmd, TrackFilter filter) {
-        if (filter == null || filter.getKeepAudioLanguages() == null
-                || filter.getKeepAudioLanguages().isEmpty()) {
+        if (filter == null) return;
+
+        boolean hasLangFilter = filter.getKeepAudioLanguages() != null
+                && !filter.getKeepAudioLanguages().isEmpty();
+
+        if (!hasLangFilter) {
+            // No language filtering — set titles for all audio tracks in source order
+            List<TrackFilter.TrackInfo> all = filter.getAllAudioTracks();
+            if (all == null || all.isEmpty()) return;
+            for (int idx = 0; idx < all.size(); idx++) {
+                String title = buildAudioTitle(all.get(idx));
+                if (!title.isBlank()) {
+                    cmd.addAll(List.of("-metadata:s:a:" + idx, "title=" + title));
+                }
+            }
             return;
         }
-        List<String> langs = filter.getKeepAudioLanguages();
-        Map<String, Integer> counts = filter.getAudioStreamCounts();
+
+        List<String> langs  = filter.getKeepAudioLanguages();
+        Map<String, Integer> counts     = filter.getAudioStreamCounts();
+        Map<String, List<TrackFilter.TrackInfo>> infosByLang = filter.getAudioTracksByLang();
 
         String defaultLang = filter.getDefaultAudioLanguage();
         if (defaultLang == null || !langs.contains(defaultLang)) {
@@ -209,13 +245,19 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             defaultLang = langs.get(0);
         }
 
-        int idx = 0;
+        int     idx           = 0;
         boolean defaultMarked = false;
         for (String lang : langs) {
-            int    count = counts != null ? counts.getOrDefault(lang, 1) : 1;
+            int count = counts != null ? counts.getOrDefault(lang, 1) : 1;
+            List<TrackFilter.TrackInfo> infos = infosByLang != null ? infosByLang.get(lang) : null;
             boolean isDefaultLang = lang.equals(defaultLang);
             for (int i = 0; i < count; i++) {
                 cmd.addAll(List.of("-metadata:s:a:" + idx, "language=" + lang));
+                TrackFilter.TrackInfo info = (infos != null && i < infos.size()) ? infos.get(i) : null;
+                String title = info != null ? buildAudioTitle(info) : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(lang);
+                if (!title.isBlank()) {
+                    cmd.addAll(List.of("-metadata:s:a:" + idx, "title=" + title));
+                }
                 boolean makeDefault = isDefaultLang && !defaultMarked;
                 cmd.addAll(List.of("-disposition:a:" + idx, makeDefault ? "default" : "0"));
                 if (makeDefault) defaultMarked = true;
@@ -225,30 +267,92 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     }
 
     /**
-     * Appends per-subtitle-track language and disposition metadata
+     * Appends per-subtitle-track language, disposition, and title metadata
      * using index-based output stream specifiers (e.g. {@code -metadata:s:s:0}).
      */
     private void applySubtitleTrackMetadata(List<String> cmd, TrackFilter filter) {
-        if (filter == null || filter.getKeepSubtitleLanguages() == null
-                || filter.getKeepSubtitleLanguages().isEmpty()) {
-            // null = keep all subtitle tracks (no specific metadata to apply);
-            // empty = remove all (no output subtitle streams exist to annotate)
+        if (filter == null) return;
+        // empty keepSubtitleLanguages = remove all — no output streams to annotate
+        if (filter.getKeepSubtitleLanguages() != null && filter.getKeepSubtitleLanguages().isEmpty()) return;
+
+        boolean hasLangFilter = filter.getKeepSubtitleLanguages() != null;
+
+        if (!hasLangFilter) {
+            // null = keep all subtitles in source order — set titles only
+            List<TrackFilter.TrackInfo> all = filter.getAllSubTracks();
+            if (all == null || all.isEmpty()) return;
+            for (int idx = 0; idx < all.size(); idx++) {
+                String title = buildSubTitle(all.get(idx));
+                if (!title.isBlank()) {
+                    cmd.addAll(List.of("-metadata:s:s:" + idx, "title=" + title));
+                }
+            }
             return;
         }
+
         List<String> subLangs = filter.getKeepSubtitleLanguages();
-        Map<String, Integer> counts = filter.getSubStreamCounts();
+        Map<String, Integer> counts     = filter.getSubStreamCounts();
+        Map<String, List<TrackFilter.TrackInfo>> infosByLang = filter.getSubTracksByLang();
 
         int idx = 0;
         for (String lang : subLangs) {
-            int    count = counts != null ? counts.getOrDefault(lang, 1) : 1;
+            int count = counts != null ? counts.getOrDefault(lang, 1) : 1;
+            List<TrackFilter.TrackInfo> infos = infosByLang != null ? infosByLang.get(lang) : null;
             for (int i = 0; i < count; i++) {
                 cmd.addAll(List.of("-metadata:s:s:" + idx, "language=" + lang));
+                TrackFilter.TrackInfo info = (infos != null && i < infos.size()) ? infos.get(i) : null;
+                String title = info != null ? buildSubTitle(info) : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(lang);
+                if (!title.isBlank()) {
+                    cmd.addAll(List.of("-metadata:s:s:" + idx, "title=" + title));
+                }
                 if (filter.isNoDefaultSubtitle()) {
                     cmd.addAll(List.of("-disposition:s:" + idx, "0"));
                 }
                 idx++;
             }
         }
+    }
+
+    private String buildAudioTitle(TrackFilter.TrackInfo info) {
+        List<String> parts = new ArrayList<>();
+        String langDisplay = info.lang().isBlank() ? "" : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(info.lang().toLowerCase());
+        if (!langDisplay.isBlank() && !"Unknown".equalsIgnoreCase(langDisplay)) parts.add(langDisplay);
+        if (!info.codec().isBlank()) parts.add(CODEC_DISPLAY.getOrDefault(info.codec().toLowerCase(), info.codec().toUpperCase()));
+        String ch = formatChannels(info.channels(), info.channelLayout());
+        if (!ch.isBlank()) parts.add(ch);
+        if (info.bitRate() > 0) parts.add((info.bitRate() / 1000) + " kbps");
+        return String.join(" | ", parts);
+    }
+
+    private String buildSubTitle(TrackFilter.TrackInfo info) {
+        String langDisplay = info.lang().isBlank() ? "" : com.db.dbworld.app.stream.tag.MediaTagResolver.resolveLanguage(info.lang().toLowerCase());
+        String base = (langDisplay.isBlank() || "Unknown".equalsIgnoreCase(langDisplay))
+                ? (info.lang().isBlank() ? "" : info.lang().toUpperCase())
+                : langDisplay;
+        return info.forced() ? base + " [Forced]" : base;
+    }
+
+    private static String formatChannels(int channels, String layout) {
+        if (layout != null && !layout.isBlank()) {
+            String normalized = layout.toLowerCase().replace("(side)", "").trim();
+            return switch (normalized) {
+                case "mono"   -> "Mono";
+                case "stereo" -> "Stereo";
+                case "5.1"    -> "5.1";
+                case "6.1"    -> "6.1";
+                case "7.1"    -> "7.1";
+                case "4.0"    -> "4.0";
+                default -> layout;
+            };
+        }
+        return switch (channels) {
+            case 1 -> "Mono";
+            case 2 -> "Stereo";
+            case 6 -> "5.1";
+            case 7 -> "6.1";
+            case 8 -> "7.1";
+            default -> channels > 0 ? channels + "ch" : "";
+        };
     }
 
     // ──────────────────────────────────────────────────────────────────────────

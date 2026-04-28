@@ -46,11 +46,17 @@ public class SmartTrackFilterService {
      * @return effective TrackFilter to use, or {@code null} if no filtering is needed
      */
     public TrackFilter resolve(Path mediaFile, TrackFilter userFilter) {
-        if (userFilter != null && userFilter.hasAnyFilter()) {
-            return userFilter;
-        }
-
         TrackLanguages langs = probeLanguages(mediaFile);
+
+        if (userFilter != null && userFilter.hasAnyFilter()) {
+            // Preserve the user's filter settings; only augment with track infos for title generation
+            return userFilter.toBuilder()
+                    .allAudioTracks(langs.allAudioTracks())
+                    .allSubTracks(langs.allSubTracks())
+                    .audioTracksByLang(langs.audioByLang())
+                    .subTracksByLang(langs.subByLang())
+                    .build();
+        }
 
         // Build lists using the ORIGINAL codes from the file (not normalized) so
         // FFmpeg -map language specifiers match the container metadata exactly.
@@ -58,8 +64,13 @@ public class SmartTrackFilterService {
         List<String> keepSubs  = buildCodeList(langs.subtitles());
 
         if (keepAudio.isEmpty() && keepSubs.isEmpty()) {
-            log.debug("No priority languages found in {} — track filter skipped", mediaFile.getFileName());
-            return null;
+            log.debug("No priority languages found in {} — no lang filter, track titles only", mediaFile.getFileName());
+            return TrackFilter.builder()
+                    .allAudioTracks(langs.allAudioTracks())
+                    .allSubTracks(langs.allSubTracks())
+                    .audioTracksByLang(langs.audioByLang())
+                    .subTracksByLang(langs.subByLang())
+                    .build();
         }
 
         log.debug("Smart filter for {}: audio={}, subs={}", mediaFile.getFileName(), keepAudio, keepSubs);
@@ -71,6 +82,10 @@ public class SmartTrackFilterService {
                 .noDefaultSubtitle(true)
                 .audioStreamCounts(keepAudio.isEmpty() ? null : buildCountMap(keepAudio, langs.audioCounts()))
                 .subStreamCounts(keepSubs.isEmpty() ? null : buildCountMap(keepSubs, langs.subCounts()))
+                .allAudioTracks(langs.allAudioTracks())
+                .allSubTracks(langs.allSubTracks())
+                .audioTracksByLang(langs.audioByLang())
+                .subTracksByLang(langs.subByLang())
                 .build();
     }
 
@@ -114,38 +129,71 @@ public class SmartTrackFilterService {
      * track type. First occurrence of each resolved language wins.
      */
     private TrackLanguages probeLanguages(Path file) {
-        Map<String, String>  audioLangs   = new LinkedHashMap<>(); // resolvedName → originalCode (first seen)
+        Map<String, String>  audioLangs   = new LinkedHashMap<>();
         Map<String, String>  subLangs     = new LinkedHashMap<>();
-        Map<String, Integer> audioCounts  = new LinkedHashMap<>(); // originalCode → stream count
+        Map<String, Integer> audioCounts  = new LinkedHashMap<>();
         Map<String, Integer> subCounts    = new LinkedHashMap<>();
+        List<TrackFilter.TrackInfo> allAudio  = new ArrayList<>();
+        List<TrackFilter.TrackInfo> allSubs   = new ArrayList<>();
+        Map<String, List<TrackFilter.TrackInfo>> audioByLang = new LinkedHashMap<>();
+        Map<String, List<TrackFilter.TrackInfo>> subByLang   = new LinkedHashMap<>();
         try {
             String json = processExecutor.runFfprobeStreamsJson(file);
             JsonNode root    = objectMapper.readTree(json);
             JsonNode streams = root.path("streams");
             for (JsonNode stream : streams) {
-                String codecType = stream.path("codec_type").asText("").trim();
-                String lang      = stream.path("tags").path("language").asText("").trim();
-                if (lang.isBlank()) continue;
-                String resolved = MediaTagResolver.resolveLanguage(lang.toLowerCase());
-                if ("Unknown".equalsIgnoreCase(resolved)) continue;
+                String  codecType   = stream.path("codec_type").asText("").trim();
+                String  lang        = stream.path("tags").path("language").asText("").trim();
+                String  codecName   = stream.path("codec_name").asText("").trim();
+                long    bitRate     = parseBitRate(stream.path("bit_rate").asText(""));
+                int     channels    = stream.path("channels").asInt(0);
+                String  chanLayout  = stream.path("channel_layout").asText("").trim();
+                boolean forced      = stream.path("disposition").path("forced").asInt(0) == 1;
+                boolean defTrack    = stream.path("disposition").path("default").asInt(0) == 1;
+
                 if ("audio".equalsIgnoreCase(codecType)) {
-                    audioLangs.putIfAbsent(resolved, lang);
-                    audioCounts.merge(lang, 1, Integer::sum);
+                    if (!lang.isBlank()) {
+                        String resolved = MediaTagResolver.resolveLanguage(lang.toLowerCase());
+                        if (!"Unknown".equalsIgnoreCase(resolved)) {
+                            audioLangs.putIfAbsent(resolved, lang);
+                            audioCounts.merge(lang, 1, Integer::sum);
+                        }
+                    }
+                    TrackFilter.TrackInfo info = new TrackFilter.TrackInfo(lang, codecName, bitRate, channels, chanLayout, forced, defTrack);
+                    allAudio.add(info);
+                    audioByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(info);
                 } else if ("subtitle".equalsIgnoreCase(codecType)) {
-                    subLangs.putIfAbsent(resolved, lang);
-                    subCounts.merge(lang, 1, Integer::sum);
+                    if (!lang.isBlank()) {
+                        String resolved = MediaTagResolver.resolveLanguage(lang.toLowerCase());
+                        if (!"Unknown".equalsIgnoreCase(resolved)) {
+                            subLangs.putIfAbsent(resolved, lang);
+                            subCounts.merge(lang, 1, Integer::sum);
+                        }
+                    }
+                    TrackFilter.TrackInfo info = new TrackFilter.TrackInfo(lang, codecName, bitRate, 0, "", forced, defTrack);
+                    allSubs.add(info);
+                    subByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(info);
                 }
             }
         } catch (Exception e) {
             log.warn("Failed to probe track languages for {}: {}", file.getFileName(), e.getMessage());
         }
-        return new TrackLanguages(audioLangs, subLangs, audioCounts, subCounts);
+        return new TrackLanguages(audioLangs, subLangs, audioCounts, subCounts, allAudio, allSubs, audioByLang, subByLang);
+    }
+
+    private static long parseBitRate(String s) {
+        if (s == null || s.isBlank()) return 0L;
+        try { return Long.parseLong(s.trim()); } catch (NumberFormatException e) { return 0L; }
     }
 
     private record TrackLanguages(
             Map<String, String>  audio,
             Map<String, String>  subtitles,
             Map<String, Integer> audioCounts,
-            Map<String, Integer> subCounts
+            Map<String, Integer> subCounts,
+            List<TrackFilter.TrackInfo> allAudioTracks,
+            List<TrackFilter.TrackInfo> allSubTracks,
+            Map<String, List<TrackFilter.TrackInfo>> audioByLang,
+            Map<String, List<TrackFilter.TrackInfo>> subByLang
     ) {}
 }

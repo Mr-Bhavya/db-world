@@ -26,10 +26,24 @@ import java.util.Map;
  * </pre>
  */
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class TrackFilter {
+
+    /**
+     * Per-track metadata collected from the source file by SmartTrackFilterService.
+     * Used to generate human-readable title tags during FFmpeg enrichment.
+     */
+    public record TrackInfo(
+            String  lang,
+            String  codec,
+            long    bitRate,
+            int     channels,
+            String  channelLayout,
+            boolean forced,
+            boolean defaultTrack
+    ) {}
 
     /**
      * ISO 639-2/B language codes for audio tracks to retain (e.g. "hin", "eng", "guj").
@@ -85,6 +99,18 @@ public class TrackFilter {
      * {@code null} means assume 1 stream per language.
      */
     private Map<String, Integer> subStreamCounts;
+
+    /** All audio tracks in source-file order; populated by SmartTrackFilterService for title generation. */
+    private List<TrackInfo> allAudioTracks;
+
+    /** All subtitle tracks in source-file order; populated by SmartTrackFilterService for title generation. */
+    private List<TrackInfo> allSubTracks;
+
+    /** Audio tracks grouped by language code; populated for filtered cases. */
+    private Map<String, List<TrackInfo>> audioTracksByLang;
+
+    /** Subtitle tracks grouped by language code; populated for filtered cases. */
+    private Map<String, List<TrackInfo>> subTracksByLang;
 
     /** Returns {@code true} if any filtering or metadata directive is requested. */
     public boolean hasAnyFilter() {
