@@ -11,10 +11,10 @@ import java.time.Duration;
 @Configuration
 public class HttpClientConfig {
 
-    private final DbWorldProperties dbWorldProperties;
+    private final AppProperties appProperties;
 
-    public HttpClientConfig(DbWorldProperties dbWorldProperties) {
-        this.dbWorldProperties = dbWorldProperties;
+    public HttpClientConfig(AppProperties appProperties) {
+        this.appProperties = appProperties;
     }
 
     @Bean
@@ -26,7 +26,7 @@ public class HttpClientConfig {
     RestTemplate tmdbRestTemplate(RestTemplateBuilder builder) {
 
         ClientHttpRequestInterceptor auth = (req, body, ex) -> {
-            req.getHeaders().setBearerAuth(dbWorldProperties.tokens().tmdb());
+            req.getHeaders().setBearerAuth(appProperties.getTmdbAccessToken());
             return ex.execute(req, body);
         };
 

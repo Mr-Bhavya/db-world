@@ -4,7 +4,7 @@ import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.payloads.ResponsePayloads;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,7 @@ import java.util.stream.Stream;
  * Manages OS-level symbolic links for media files.
  *
  * Each media file in the DB gets a symlink at:
- *   {@code <symlinkRoot>/<mediaFileId>} → relative path to the real file
+ *   {@code <symlinkRoot>/<mediaFileId>} â†’ relative path to the real file
  *
  * This lets the streaming layer resolve any file by a stable UUID regardless
  * of where the file is stored on disk.
@@ -46,16 +46,16 @@ public class SymlinkService {
 
     private static final String TAG = "[SYMLINK]";
 
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
     private final MediaFileRepository      mediaFileRepository;
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // CREATE
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Creates (or replaces) the symlink for the given media file ID and path.
-     * Preferred hot-path overload — no DB round-trip.
+     * Preferred hot-path overload â€” no DB round-trip.
      */
     public void create(String fileId, String filePath) {
         if (fileId == null || filePath == null) {
@@ -105,9 +105,9 @@ public class SymlinkService {
         create(entity.getId(), entity.getFilePath());
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // DELETE
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public void deleteById(String fileId) {
         try {
@@ -121,9 +121,9 @@ public class SymlinkService {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // VALIDATION
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public boolean isValid(String fileId) {
         try {
@@ -147,7 +147,7 @@ public class SymlinkService {
         return false;
     }
 
-    /** ID + path overload — avoids entity construction in watcher hot path. */
+    /** ID + path overload â€” avoids entity construction in watcher hot path. */
     public boolean ensure(String fileId, String filePath) {
         if (!isValid(fileId)) {
             create(fileId, filePath);
@@ -156,9 +156,9 @@ public class SymlinkService {
         return false;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // SINGLE-ID REPAIR
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public ResponsePayloads.SymlinkRepairSingleResult ensureOne(String fileId, boolean dryRun) {
         try {
@@ -193,9 +193,9 @@ public class SymlinkService {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // BULK REPAIR
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public ResponsePayloads.SymlinkRepairResult ensureAll(boolean dryRun) {
         int repaired = 0;
@@ -212,7 +212,7 @@ public class SymlinkService {
             if (e.getId() != null) dbIds.add(e.getId());
         }
 
-        // DB → symlink: create / repair missing links
+        // DB â†’ symlink: create / repair missing links
         for (MediaFileEntity entity : entities) {
             try {
                 if (entity.getId() == null || entity.getFilePath() == null) { skipped++; continue; }
@@ -226,7 +226,7 @@ public class SymlinkService {
             }
         }
 
-        // Symlink dir → DB: remove orphans
+        // Symlink dir â†’ DB: remove orphans
         if (Files.exists(symlinkRoot)) {
             try (Stream<Path> paths = Files.list(symlinkRoot)) {
                 paths.filter(path -> Files.exists(path, LinkOption.NOFOLLOW_LINKS)).forEach(path -> {

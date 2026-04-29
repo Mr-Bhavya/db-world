@@ -116,11 +116,12 @@ aria2:
 tmdb:
   baseUrl: ${TMDB_BASE_URL}
   bearerToken: ${TMDB_ACCESS_TOKEN}
-  apiKey: ${TMDB_API_KEY}}
+  apiKey: ${TMDB_API_KEY}
 
 # =========================================================
 # Swagger
 # =========================================================
+springdoc:
   swagger-ui:
     enabled: ${SWAGGER_ENABLED:false}
     path: /docs

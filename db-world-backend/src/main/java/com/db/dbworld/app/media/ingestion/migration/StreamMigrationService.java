@@ -1,7 +1,7 @@
 package com.db.dbworld.app.media.ingestion.migration;
 
 import com.db.dbworld.app.media.info.service.MediaInfoService;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,7 @@ import java.util.*;
 /**
  * One-time migration: scans the stream-path directory for media files that
  * have no corresponding DB entry, and creates one for each using MediaInfoService
- * (with recordId = null — files can be linked later via the admin UI).
+ * (with recordId = null â€” files can be linked later via the admin UI).
  *
  * Trigger via POST /api/ingestion/migrate/scan-stream (admin-only).
  */
@@ -27,7 +27,7 @@ public class StreamMigrationService {
     );
 
     private final MediaInfoService         mediaInfoService;
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
 
     public MigrationReport scanAndLink() throws IOException {
         Path streamRoot = runtimeProperties.getStreamPath();
@@ -73,7 +73,7 @@ public class StreamMigrationService {
             }
         }
 
-        log.info("Migration complete — scanned={}, alreadyPresent={}, created={}, failed={}",
+        log.info("Migration complete â€” scanned={}, alreadyPresent={}, created={}, failed={}",
                 scanned, alreadyPresent, created, failed);
         return new MigrationReport(scanned, alreadyPresent, created, failed, failedFiles);
     }

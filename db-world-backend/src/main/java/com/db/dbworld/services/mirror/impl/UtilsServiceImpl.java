@@ -13,7 +13,7 @@
 //import com.db.dbworld.core.processor.StreamProcessor;
 //import com.db.dbworld.core.processor.StreamProcessorFactory;
 //import com.db.dbworld.core.processor.YtDlpStreamProcessor;
-//import com.db.dbworld.utils.DbWorldConstants;
+//import com.db.dbworld.config.AppConstants;
 //import com.db.dbworld.utils.DbWorldUtils;
 //import com.google.gson.Gson;
 //import com.google.gson.JsonObject;
@@ -98,7 +98,7 @@
 //
 //    @Override
 //    public void deleteTempFiles() {
-//        File[] listFiles = new File(DbWorldConstants.TEMP_DOWNLOAD_PATH).listFiles();
+//        File[] listFiles = new File(AppConstants.TEMP_DOWNLOAD_PATH).listFiles();
 //        if (listFiles != null && listFiles.length != 0) {
 //            Arrays.stream(listFiles).forEach(file -> {
 //                dbWorldUtils.deleteFileOrDirectory(file.getAbsolutePath(), false);
@@ -190,10 +190,10 @@
 //                "--progress-template", "%(progress)j"
 //        ));
 //
-//        if (url.contains(DbWorldConstants.HOTSTAR_COM)) {
+//        if (url.contains(AppConstants.HOTSTAR_COM)) {
 //            cmd.addAll(List.of(
-//                    DbWorldConstants.YTDLP_COOKIES_CMD,
-//                    DbWorldConstants.HS_COOKIES_PATH
+//                    AppConstants.YTDLP_COOKIES_CMD,
+//                    AppConstants.HS_COOKIES_PATH
 //            ));
 //        }
 //

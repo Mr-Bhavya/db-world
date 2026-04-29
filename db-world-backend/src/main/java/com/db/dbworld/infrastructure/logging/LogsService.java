@@ -4,7 +4,7 @@ import com.db.dbworld.infrastructure.logging.dto.LogFormat;
 import com.db.dbworld.infrastructure.logging.dto.LogSource;
 import com.db.dbworld.infrastructure.logging.dto.LogType;
 import com.db.dbworld.infrastructure.logging.parser.*;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +25,7 @@ import java.util.zip.GZIPInputStream;
 @Service
 public class LogsService {
 
-    private final DbWorldRuntimeProperties props;
+    private final AppProperties props;
     private final Map<LogType, LogLineParser<?>> appParsers;
     private final Map<String, FollowSession> followSessions = new ConcurrentHashMap<>();
 
@@ -34,7 +34,7 @@ public class LogsService {
     private static final int DEFAULT_MAX_LINES = 500;
     private static final int BUFFER_SIZE = 8192;
 
-    public LogsService(DbWorldRuntimeProperties props) {
+    public LogsService(AppProperties props) {
         this.props = props;
         this.appParsers = initParsers();
     }
@@ -80,8 +80,8 @@ public class LogsService {
 
     /**
      * Query logs for any source.
-     * date == null → read from the active live log file.
-     * date != null → read from rotated gzip archives for that date.
+     * date == null â†’ read from the active live log file.
+     * date != null â†’ read from rotated gzip archives for that date.
      */
     public LogResponse getLogsForSource(String source, String subType,
                                         LogFormat format, Integer lines, LocalDate date)
@@ -162,7 +162,7 @@ public class LogsService {
     }
 
     /**
-     * Live follow for any source — tails the active log file.
+     * Live follow for any source â€” tails the active log file.
      */
     public FollowSession followLogsForSource(String source, String subType,
                                              LogFormat format, String sessionId,
@@ -238,7 +238,7 @@ public class LogsService {
                 if (!line.isBlank()) result.add(line);
             }
         }
-        Collections.reverse(result); // oldest → newest
+        Collections.reverse(result); // oldest â†’ newest
         return result;
     }
 

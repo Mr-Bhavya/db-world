@@ -12,7 +12,7 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.core.role.enums.Role;
 import com.db.dbworld.core.user.repository.UserRepository;
 //import com.db.dbworld.dao.dbcinema.stream.MediaFileInfoRepository;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.PageRequest;
@@ -50,7 +50,7 @@ public class AdminDashboardService {
                 .build();
     }
 
-    /* ── Sections ──────────────────────────────────────────────────────────── */
+    /* â”€â”€ Sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     private AdminDashboardDto.UserStats buildUserStats() {
         long total   = userRepository.count();
@@ -116,7 +116,7 @@ public class AdminDashboardService {
         long minutes  = TimeUnit.MILLISECONDS.toMinutes(uptimeMs) % 60;
         String uptime = hours + "h " + minutes + "m";
 
-        // CPU (JVM process) — not per-core OS-level, but available without native libs
+        // CPU (JVM process) â€” not per-core OS-level, but available without native libs
         double cpuPercent = 0;
         try {
             com.sun.management.OperatingSystemMXBean osBean =

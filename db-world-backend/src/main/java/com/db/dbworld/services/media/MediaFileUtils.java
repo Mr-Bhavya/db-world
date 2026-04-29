@@ -40,14 +40,14 @@
 //
 //    /* -------------------- Dependencies -------------------- */
 //
-//    private final DbWorldRuntimeProperties runtimeProperties;
+//    private final AppProperties runtimeProperties;
 //    private final DBCinemaRecordsService dbCinemaRecordsService;
 //    private final MediaFileNamingService mediaFileNamingService;
 //
 //    /* -------------------- Constructor -------------------- */
 //
 //    public MediaFileUtils(
-//            DbWorldRuntimeProperties runtimeProperties,
+//            AppProperties runtimeProperties,
 //            DBCinemaRecordsService dbCinemaRecordsService,
 //            MediaFileNamingService mediaFileNamingService
 //    ) {
@@ -164,7 +164,7 @@
 //                    mediaFileNamingService.getYearInfo(record),
 //                    streamPath,
 //                    baseFolder,
-//                    DbWorldConstants.RECORD_TYE.SERIES,
+//                    AppConstants.RECORD_TYE.SERIES,
 //                    record.getId(),
 //                    season,
 //                    episode,
@@ -197,7 +197,7 @@
 //                    mediaFileNamingService.getYearInfo(record),
 //                    streamPath,
 //                    baseFolder,
-//                    DbWorldConstants.RECORD_TYE.MOVIE,
+//                    AppConstants.RECORD_TYE.MOVIE,
 //                    record.getId(),
 //                    null,
 //                    null,

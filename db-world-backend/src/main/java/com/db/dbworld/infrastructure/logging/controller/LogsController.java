@@ -4,7 +4,7 @@ import com.db.dbworld.infrastructure.logging.LogsService;
 import com.db.dbworld.infrastructure.logging.dto.LogFormat;
 import com.db.dbworld.infrastructure.logging.dto.LogType;
 import com.db.dbworld.payloads.ApiResponse;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,10 +30,10 @@ public class LogsController {
         this.logsService = logsService;
     }
 
-    // ── Unified endpoint ─────────────────────────────────────────────────
+    // â”€â”€ Unified endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping("/{source}/{type}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getLogs(
             @PathVariable String source,
             @PathVariable LogType type,
@@ -53,10 +53,10 @@ public class LogsController {
         }
     }
 
-    // ── Backward-compatible aliases ───────────────────────────────────────
+    // â”€â”€ Backward-compatible aliases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping("/app/{type}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getApplicationLogs(
             @PathVariable LogType type,
             @RequestParam(defaultValue = "JSON") LogFormat format,
@@ -67,7 +67,7 @@ public class LogsController {
     }
 
     @GetMapping("/nginx/{type}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getNginxLogs(
             @PathVariable LogType type,
             @RequestParam(defaultValue = "RAW") LogFormat format,
@@ -78,7 +78,7 @@ public class LogsController {
     }
 
     @GetMapping("/aria2c/{type}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getAria2Logs(
             @PathVariable LogType type,
             @RequestParam(defaultValue = "RAW") LogFormat format,
@@ -88,7 +88,7 @@ public class LogsController {
         return getLogs("aria2c", type, format, lines, minutes);
     }
 
-    // ── SSE live follow ───────────────────────────────────────────────────
+    // â”€â”€ SSE live follow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping(value = "/{source}/{type}/follow", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter followLogs(
@@ -134,17 +134,17 @@ public class LogsController {
         return followLogs("app", type, format);
     }
 
-    // ── Utility endpoints ─────────────────────────────────────────────────
+    // â”€â”€ Utility endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @DeleteMapping("/follow/{sessionId}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> stopFollowing(@PathVariable String sessionId) {
         cleanup(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Stopped following logs"));
     }
 
     @GetMapping("/sessions")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getActiveSessions() {
         return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "activeSessions", emitters.keySet(),
@@ -160,7 +160,7 @@ public class LogsController {
                 "activeThreads", followThreads.size())));
     }
 
-    // ─────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void cleanup(String sessionId) {
         try {

@@ -5,7 +5,7 @@
 //import com.db.dbworld.core.exception.DbWorldException;
 //import com.db.dbworld.payloads.fileexplorer.FileDto;
 //import com.db.dbworld.services.media.MediaFileInfoService;
-//import com.db.dbworld.utils.DbWorldConstants;
+//import com.db.dbworld.config.AppConstants;
 //import com.db.dbworld.utils.DbWorldUtils;
 //import org.modelmapper.ModelMapper;
 //import org.springframework.beans.factory.annotation.Autowired;
@@ -54,7 +54,7 @@
 //    public void moveFile(UUID id, String newRelativeDirectory) throws IOException {
 //        FileEntity fileEntity = getFile(id);
 //        Path oldPath = Paths.get(fileEntity.getFilePath());
-//        Path targetDir = Paths.get(DbWorldConstants.STREAM_HOME_PATH, newRelativeDirectory);
+//        Path targetDir = Paths.get(AppConstants.STREAM_HOME_PATH, newRelativeDirectory);
 ////        Files.createDirectories(targetDir);
 //        Path newPath = targetDir.resolve(fileEntity.getFileName());
 //        Files.move(oldPath, newPath, StandardCopyOption.REPLACE_EXISTING);
@@ -67,7 +67,7 @@
 //    public void copyFile(UUID id, String destinationRelativeDirectory) throws IOException {
 //        FileEntity sourceEntity = getFile(id);
 //        Path sourcePath = Paths.get(sourceEntity.getFilePath());
-//        Path targetDir = Paths.get(DbWorldConstants.STREAM_HOME_PATH, destinationRelativeDirectory);
+//        Path targetDir = Paths.get(AppConstants.STREAM_HOME_PATH, destinationRelativeDirectory);
 //        Files.createDirectories(targetDir);
 //        Path targetPath = targetDir.resolve(sourceEntity.getFileName());
 //        Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
@@ -86,18 +86,18 @@
 //
 //    // List files in a given relative directory.
 //    public List<FileDto> listFiles(String relativeDirectory) {
-//        Path dirPath = Paths.get(DbWorldConstants.STREAM_HOME_PATH, relativeDirectory).toAbsolutePath();
+//        Path dirPath = Paths.get(AppConstants.STREAM_HOME_PATH, relativeDirectory).toAbsolutePath();
 //        return fileRepository.findByParentFolder(dirPath.toString()).stream().map(fileEntity ->
 //                this.modelMapper.map(fileEntity, FileDto.class))
 //                .peek(fileDto -> fileDto.setFilePath(fileDto.getFilePath()
 //                        .replace("\\", "/")
-//                        .replace(DbWorldConstants.STREAM_HOME_PATH.replace("\\", "/"), "")))
+//                        .replace(AppConstants.STREAM_HOME_PATH.replace("\\", "/"), "")))
 //                .toList();
 //    }
 //
 //    // Save a new file from a MultipartFile.
 //    public FileEntity saveNewFile(String fileName, String relativeDirectory, MultipartFile file) throws IOException {
-//        Path dirPath = Paths.get(DbWorldConstants.STREAM_HOME_PATH, relativeDirectory);
+//        Path dirPath = Paths.get(AppConstants.STREAM_HOME_PATH, relativeDirectory);
 //        Files.createDirectories(dirPath);
 //        Path filePath = dirPath.resolve(fileName);
 //        Files.write(filePath, file.getBytes(), StandardOpenOption.CREATE);

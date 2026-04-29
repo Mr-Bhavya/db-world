@@ -28,7 +28,7 @@ app:
     temp: ${app.data-path}/temp
     downloads: ${app.data-path}/downloads
     integration: ${app.data-path}\ProcessedVideos\
-    torrents: ${app.videos-path}/Torrent Download
+    torrents: ${app.data-path}/Torrent Download
     archived-logs: ${app.paths.logs}/archived
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 

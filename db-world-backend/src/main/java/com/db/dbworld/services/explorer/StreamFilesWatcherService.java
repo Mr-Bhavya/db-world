@@ -45,7 +45,7 @@
 //    private final MediaFileInfoService mediaService;
 //    private final DBCinemaRecordsService recordsService;
 //    private final SystemLinkService systemLinkService;
-//    private final DbWorldRuntimeProperties runtimeProperties;
+//    private final AppProperties runtimeProperties;
 //    private final MediaFileNamingService mediaFileNamingService;
 //    private final MediaFileUtils mediaFileUtils;
 //    private final ProcessExecutor processExecutor;
@@ -69,7 +69,7 @@
 //    public StreamFilesWatcherService(MediaFileInfoService mediaService,
 //                                     DBCinemaRecordsService recordsService,
 //                                     SystemLinkService systemLinkService,
-//                                     DbWorldRuntimeProperties runtimeProperties,
+//                                     AppProperties runtimeProperties,
 //                                     MediaFileNamingService mediaFileNamingService,
 //                                     MediaFileUtils mediaFileUtils,
 //                                     ProcessExecutor processExecutor) throws IOException {

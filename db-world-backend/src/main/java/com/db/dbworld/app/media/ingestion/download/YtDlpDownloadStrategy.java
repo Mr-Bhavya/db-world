@@ -7,8 +7,8 @@ import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.processor.StreamProcessor;
-import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppConstants;
+import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class YtDlpDownloadStrategy implements DownloadStrategy {
 
     private final ProcessExecutor          processExecutor;
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
     private final FileStorageService       fileStorageService;
     private final TrackingService          trackingService;
     private final ObjectMapper             objectMapper;
@@ -107,9 +107,9 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Command builder — mirrors old UtilsServiceImpl.getYtCommand()
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Command builder â€” mirrors old UtilsServiceImpl.getYtCommand()
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private List<String> buildCommand(IngestionContext ctx, String outputTemplate) {
         String uri = ctx.getRequest().getUri();
@@ -122,7 +122,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
 
         if (requiresCookies(uri)) {
             cmd.addAll(List.of(
-                    DbWorldConstants.YTDLP_COOKIES_CMD,
+                    AppConstants.YTDLP_COOKIES_CMD,
                     runtimeProperties.getHsCookies().toString()
             ));
         }
@@ -151,12 +151,12 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
     }
 
     private boolean requiresCookies(String uri) {
-        return uri != null && uri.toLowerCase().contains(DbWorldConstants.HOTSTAR_COM);
+        return uri != null && uri.toLowerCase().contains(AppConstants.HOTSTAR_COM);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // File resolution helpers
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private String parseFilename(String processOutput, String capturedFilename, String jobId) {
         if (processOutput != null && !processOutput.isBlank()) {
@@ -193,9 +193,9 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         return null;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Stream processor — parses yt-dlp progress JSON and updates TrackingService
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Stream processor â€” parses yt-dlp progress JSON and updates TrackingService
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Parses yt-dlp stdout line by line.
@@ -273,7 +273,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
                                     eta   != null ? eta   : 0L));
                 }
             } catch (Exception ignored) {
-                // best-effort — malformed progress line is non-fatal
+                // best-effort â€” malformed progress line is non-fatal
             }
         }
 

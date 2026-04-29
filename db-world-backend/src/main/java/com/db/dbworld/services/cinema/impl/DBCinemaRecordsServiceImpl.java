@@ -32,7 +32,7 @@
 //import com.db.dbworld.services.cinema.TmdbService;
 //import com.db.dbworld.core.user.service.UserService;
 //import com.db.dbworld.utils.DBSpecifications;
-//import com.db.dbworld.utils.DbWorldConstants;
+//import com.db.dbworld.config.AppConstants;
 //import com.db.dbworld.utils.DbWorldUtils;
 //import com.db.dbworld.utils.PojoConverter;
 //import com.google.gson.Gson;
@@ -73,7 +73,7 @@
 //import java.util.*;
 //import java.util.stream.Collectors;
 //
-//import static com.db.dbworld.utils.DbWorldConstants.*;
+//import static com.db.dbworld.utils.AppConstants.*;
 //
 //
 //@Service
@@ -580,15 +580,15 @@
 //            Long userId = userEntity.getUserId();
 //
 //            // Process user action
-//            if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_UN_LIKE)) {
+//            if (process.equalsIgnoreCase(AppConstants.PROCESS_UN_LIKE)) {
 //                this.userRecordDataRepository.setIsLikeAsFalseByUserIdRecordId(userId, recordId);
-//            } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_UN_WATCH)) {
+//            } else if (process.equalsIgnoreCase(AppConstants.PROCESS_UN_WATCH)) {
 //                this.userRecordDataRepository.setIsWatchAsFalseByUserIdRecordId(userId, recordId);
-//            } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_UN_WATCHLIST)) {
+//            } else if (process.equalsIgnoreCase(AppConstants.PROCESS_UN_WATCHLIST)) {
 //                this.userRecordDataRepository.setIsWatchListedAsFalseByUserIdRecordId(userId, recordId);
-//            } else if (process.equalsIgnoreCase(DbWorldConstants.PROCESS_LIKE) ||
-//                    process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCH) ||
-//                    process.equalsIgnoreCase(DbWorldConstants.PROCESS_WATCHLIST)) {
+//            } else if (process.equalsIgnoreCase(AppConstants.PROCESS_LIKE) ||
+//                    process.equalsIgnoreCase(AppConstants.PROCESS_WATCH) ||
+//                    process.equalsIgnoreCase(AppConstants.PROCESS_WATCHLIST)) {
 //
 //                UserRecordDataEntity userRecordDataEntity = this.userRecordDataRepository
 //                        .findByUserUserIdAndDbCinemaRecordId(userId, recordId)
@@ -600,13 +600,13 @@
 //                        });
 //
 //                switch (process) {
-//                    case DbWorldConstants.PROCESS_LIKE:
+//                    case AppConstants.PROCESS_LIKE:
 //                        userRecordDataEntity.setLiked(true);
 //                        break;
-//                    case DbWorldConstants.PROCESS_WATCH:
+//                    case AppConstants.PROCESS_WATCH:
 //                        userRecordDataEntity.setWatched(true);
 //                        break;
-//                    case DbWorldConstants.PROCESS_WATCHLIST:
+//                    case AppConstants.PROCESS_WATCHLIST:
 //                        userRecordDataEntity.setWatchListed(true);
 //                        break;
 //                }
@@ -769,7 +769,7 @@
 //    }
 //
 //    @Override
-//    @Cacheable(keyGenerator = DbWorldConstants.CUSTOM_REDIS_KEY_GENERATOR)
+//    @Cacheable(keyGenerator = AppConstants.CUSTOM_REDIS_KEY_GENERATOR)
 //    public List<GenresDto> getAllGenres() {
 //        List<GenresEntity> genresEntities = genresRepository.findAll(Sort.by("name").ascending());
 //        return genresEntities.stream().map(genresEntity -> this.modelMapper.map(genresEntity, GenresDto.class)).collect(Collectors.toList());
@@ -975,28 +975,28 @@
 //    private JsonObject modifyTmdbJson(String recordDetailsResponse, String recordProviderResponse, String recordType) {
 //        //Getting Record Details and modifying "videos" object
 //        JsonObject recordDetailsJson = new Gson().fromJson(Objects.requireNonNull(recordDetailsResponse), JsonObject.class);
-//        JsonElement videosJsonElement = recordDetailsJson.getAsJsonObject(DbWorldConstants.TMDB_VIDEOS_PROPERTY_KEY)
-//                .get(DbWorldConstants.TMDB_RESULTS_PROPERTY_KEY);
-//        recordDetailsJson.add(DbWorldConstants.TMDB_VIDEOS_PROPERTY_KEY, videosJsonElement);
+//        JsonElement videosJsonElement = recordDetailsJson.getAsJsonObject(AppConstants.TMDB_VIDEOS_PROPERTY_KEY)
+//                .get(AppConstants.TMDB_RESULTS_PROPERTY_KEY);
+//        recordDetailsJson.add(AppConstants.TMDB_VIDEOS_PROPERTY_KEY, videosJsonElement);
 //
 //        //Getting Record's ott provider and adding in record details Json Object
 //        JsonObject inKeyJsonObject = new Gson().fromJson(Objects.requireNonNull(recordProviderResponse), JsonObject.class)
-//                .getAsJsonObject(DbWorldConstants.TMDB_RESULTS_PROPERTY_KEY)
-//                .getAsJsonObject(DbWorldConstants.TMDB_IN_PROPERTY_KEY);
+//                .getAsJsonObject(AppConstants.TMDB_RESULTS_PROPERTY_KEY)
+//                .getAsJsonObject(AppConstants.TMDB_IN_PROPERTY_KEY);
 //
 //        if (inKeyJsonObject != null && (!inKeyJsonObject.isJsonNull() || !inKeyJsonObject.isEmpty())) {
 //            JsonObject providersJsonObject = new JsonObject();
-//            providersJsonObject.add(DbWorldConstants.TMDB_RENT_PROPERTY_KEY, inKeyJsonObject.get(DbWorldConstants.TMDB_RENT_PROPERTY_KEY));
-//            providersJsonObject.add(DbWorldConstants.TMDB_BUY_PROPERTY_KEY, inKeyJsonObject.get(DbWorldConstants.TMDB_BUY_PROPERTY_KEY));
-//            providersJsonObject.add(DbWorldConstants.TMDB_FLATRATE_PROPERTY_KEY, inKeyJsonObject.get(DbWorldConstants.TMDB_FLATRATE_PROPERTY_KEY));
+//            providersJsonObject.add(AppConstants.TMDB_RENT_PROPERTY_KEY, inKeyJsonObject.get(AppConstants.TMDB_RENT_PROPERTY_KEY));
+//            providersJsonObject.add(AppConstants.TMDB_BUY_PROPERTY_KEY, inKeyJsonObject.get(AppConstants.TMDB_BUY_PROPERTY_KEY));
+//            providersJsonObject.add(AppConstants.TMDB_FLATRATE_PROPERTY_KEY, inKeyJsonObject.get(AppConstants.TMDB_FLATRATE_PROPERTY_KEY));
 //
-//            recordDetailsJson.add(DbWorldConstants.PROVIDERS_PROPERTY_KEY, providersJsonObject);
+//            recordDetailsJson.add(AppConstants.PROVIDERS_PROPERTY_KEY, providersJsonObject);
 //        }
 //
 //        //If it's Series then have to modify some properties
 //        if (recordType.equalsIgnoreCase(RECORD_TYE.SERIES.name())) {
-//            recordDetailsJson.add(DbWorldConstants.TMDB_TITLE_PROPERTY_KEY, recordDetailsJson.get(DbWorldConstants.TMDB_NAME_PROPERTY_KEY));
-//            recordDetailsJson.add(DbWorldConstants.TMDB_ORIGINAL_TITLE_PROPERTY_KEY, recordDetailsJson.get(DbWorldConstants.TMDB_ORIGINAL_NAME_PROPERTY_KEY));
+//            recordDetailsJson.add(AppConstants.TMDB_TITLE_PROPERTY_KEY, recordDetailsJson.get(AppConstants.TMDB_NAME_PROPERTY_KEY));
+//            recordDetailsJson.add(AppConstants.TMDB_ORIGINAL_TITLE_PROPERTY_KEY, recordDetailsJson.get(AppConstants.TMDB_ORIGINAL_NAME_PROPERTY_KEY));
 //        }
 //        return recordDetailsJson;
 //    }

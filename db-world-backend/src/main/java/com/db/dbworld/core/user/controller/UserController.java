@@ -8,7 +8,7 @@ import com.db.dbworld.core.user.dto.*;
 import com.db.dbworld.audit.activity.dto.LoginDataDto;
 import com.db.dbworld.audit.activity.service.LoginDataService;
 import com.db.dbworld.core.user.service.UserService;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -32,7 +32,7 @@ public class UserController {
     private final LoginDataService loginDataService;
 
     // ==============================
-    // ✅ CREATE USER
+    // âœ… CREATE USER
     // ==============================
     @AdminAccess
     @PostMapping
@@ -49,7 +49,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ GET USER BY ID
+    // âœ… GET USER BY ID
     // ==============================
     @AdminAccess
     @GetMapping("/{userId}")
@@ -58,7 +58,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ GET ALL USERS (ADMIN ONLY) — paginated + filtered
+    // âœ… GET ALL USERS (ADMIN ONLY) â€” paginated + filtered
     // ==============================
     @AdminAccess
     @GetMapping("/all")
@@ -73,7 +73,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ Search (Auto Complete)
+    // âœ… Search (Auto Complete)
     // ==============================
     @AnyRole
     @GetMapping("/search")
@@ -85,7 +85,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ GET PROFILE
+    // âœ… GET PROFILE
     // ==============================
     @AnyRole
     @GetMapping("/profile")
@@ -96,7 +96,7 @@ public class UserController {
         ResponsePayloads.UserProfileResponse profile =
                 new ResponsePayloads.UserProfileResponse();
 
-        // 🔒 Explicit safe mapping
+        // ðŸ”’ Explicit safe mapping
         profile.setUserId(userDto.getUserId());
         profile.setFirstName(userDto.getFirstName());
         profile.setLastName(userDto.getLastName());
@@ -112,7 +112,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ UPDATE USER
+    // âœ… UPDATE USER
     // ==============================
     @AnyRole
     @PutMapping("/{userId}")
@@ -133,7 +133,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ Delete USER
+    // âœ… Delete USER
     // ==============================
     @AdminAccess
     @DeleteMapping("/{userId}")
@@ -145,7 +145,7 @@ public class UserController {
     }
 
     // ==============================
-    // 🔐 CHANGE PASSWORD
+    // ðŸ” CHANGE PASSWORD
     // ==============================
     @AnyRole
     @PatchMapping("/change-password")
@@ -157,7 +157,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ LOGIN HISTORY
+    // âœ… LOGIN HISTORY
     // ==============================
     @AnyRole
     @GetMapping("/login-history")
@@ -167,7 +167,7 @@ public class UserController {
     }
 
     // ==============================
-    // ✅ GET ROLE
+    // âœ… GET ROLE
     // ==============================
     @AnyRole
     @GetMapping("/role")

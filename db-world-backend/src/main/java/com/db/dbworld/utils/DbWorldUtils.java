@@ -1,5 +1,7 @@
 package com.db.dbworld.utils;
 
+import com.db.dbworld.config.AppConstants;
+import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.google.gson.JsonArray;
@@ -30,9 +32,9 @@ import java.util.*;
 @Log4j2
 public class DbWorldUtils {
 
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
 
-    public DbWorldUtils (DbWorldRuntimeProperties runtimeProperties) {
+    public DbWorldUtils (AppProperties runtimeProperties) {
         this.runtimeProperties = runtimeProperties;
     }
 
@@ -61,7 +63,7 @@ public class DbWorldUtils {
     }
 
     public void checkRecordType(String type) {
-        if (!type.equalsIgnoreCase(DbWorldConstants.RECORD_TYE.MOVIE.name()) && !type.equalsIgnoreCase((DbWorldConstants.RECORD_TYE.SERIES.name()))) {
+        if (!type.equalsIgnoreCase(AppConstants.RECORD_TYE.MOVIE.name()) && !type.equalsIgnoreCase((AppConstants.RECORD_TYE.SERIES.name()))) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Record Type is not correct. Please Try again with valid record type.");
         }
     }

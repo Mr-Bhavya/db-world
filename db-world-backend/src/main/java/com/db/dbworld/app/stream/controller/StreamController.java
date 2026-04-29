@@ -8,7 +8,7 @@ import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.security.auth.JwtService;
 import com.db.dbworld.app.stream.service.StreamService;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -31,11 +31,11 @@ public class StreamController {
     private final JwtService       jwtService;
     private final MediaInfoService mediaInfoService;
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // CDN URL resolve — returns JSON with CDN URL + metadata
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // CDN URL resolve â€” returns JSON with CDN URL + metadata
     // Client embeds cdnUrl directly in <video src> or <a href>.
     // type: ONLINE (inline/stream) | DOWNLOAD (attachment)
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping("/resolve/{mediaFileId}")
     public ApiResponse<CdnResolveDto> resolveById(
@@ -71,23 +71,23 @@ public class StreamController {
         return ApiResponse.success(dto);
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Media-info
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping("/media-info/{recordId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<List<MediaFileDto>> getMediaInfoByRecord(@PathVariable Long recordId) {
         log.info("Fetching media info for recordId={}", recordId);
         return ApiResponse.success(mediaInfoService.getByRecordId(recordId));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Search
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping("/search")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<List<DbWorldRecords.StreamableFileInfo>> search(
             @Valid @NotEmpty @RequestParam("q") String query) {
 
@@ -100,7 +100,7 @@ public class StreamController {
     }
 
     @GetMapping("/search/media-info/file/{fileId}")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<MediaFileDto> getMediaInfoByFile(@PathVariable String fileId) {
         MediaFileDto mediaFileDto = streamService.listAllStreamable()
                 .stream()
@@ -111,7 +111,7 @@ public class StreamController {
     }
 
     @GetMapping("/search/media-info")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<MediaFileDto> getMediaInfoByPath(@RequestParam("path") String path) {
         Path realPath = streamService.resolveRealPath(path);
         if (!java.nio.file.Files.exists(realPath)) {
@@ -120,7 +120,7 @@ public class StreamController {
         return ApiResponse.success(mediaInfoService.collectMediaInfo(realPath));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private String getClientIp(HttpServletRequest req) {
         String xff = req.getHeader("X-Forwarded-For");

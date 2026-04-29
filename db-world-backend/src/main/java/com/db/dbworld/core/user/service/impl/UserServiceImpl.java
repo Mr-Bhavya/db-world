@@ -14,7 +14,7 @@ import com.db.dbworld.core.user.mapper.UserMapper;
 import com.db.dbworld.core.user.repository.UserRepository;
 import com.db.dbworld.core.user.service.UserService;
 
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -44,7 +44,7 @@ public class UserServiceImpl implements UserService {
     private final LoginDataRepository loginDataRepository;
 
     // ==============================
-    // ✅ CREATE USER
+    // âœ… CREATE USER
     // ==============================
     @Override
     public UserDto createUser(CreateUserRequest request) {
@@ -82,7 +82,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ GET USER
+    // âœ… GET USER
     // ==============================
     @Override
     public UserDto getUserDtoById(Long userId) {
@@ -189,7 +189,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ UPDATE USER (NO PASSWORD)
+    // âœ… UPDATE USER (NO PASSWORD)
     // ==============================
     @Override
     public UserDto updateUser(UpdateUserRequest request, Long userId) {
@@ -206,7 +206,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ CHANGE PASSWORD
+    // âœ… CHANGE PASSWORD
     // ==============================
     @Override
     public void changePassword(ChangePasswordRequest request) {
@@ -223,7 +223,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ PROFILE
+    // âœ… PROFILE
     // ==============================
     @Override
     public UserDto getUserProfile() {
@@ -231,7 +231,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ ROLE
+    // âœ… ROLE
     // ==============================
     @Override
     public String getRoleForUser() {
@@ -257,7 +257,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ DELETE
+    // âœ… DELETE
     // ==============================
     @Override
     public void deleteUserById(Long userId) {
@@ -284,7 +284,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ EMAIL LOOKUP
+    // âœ… EMAIL LOOKUP
     // ==============================
     @Override
     public UserDto getUserDtoByEmail(String email) {
@@ -298,7 +298,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // ✅ UPDATE DOB
+    // âœ… UPDATE DOB
     // ==============================
     @Override
     public void updateDob(Date dob) {
@@ -308,7 +308,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // ==============================
-    // 🔒 INTERNAL
+    // ðŸ”’ INTERNAL
     // ==============================
     private UserEntity getCurrentUser() {
         return getUserEntityById(userContext.userId());

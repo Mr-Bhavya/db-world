@@ -1,7 +1,7 @@
 package com.db.dbworld.payloads;
 
 import com.db.dbworld.app.pm.dto.CustomFieldDto;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import jakarta.validation.constraints.*;
 import lombok.*;
 

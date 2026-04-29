@@ -2,7 +2,7 @@ package com.db.dbworld.app.media.ingestion.service;
 
 import com.db.dbworld.app.media.ingestion.model.YtFormat;
 import com.db.dbworld.app.media.ingestion.model.YtFormatsResponse;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class YtFormatService {
 
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
     private final ObjectMapper             objectMapper;
 
     /**

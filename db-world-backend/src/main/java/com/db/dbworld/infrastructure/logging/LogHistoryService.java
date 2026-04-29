@@ -1,6 +1,6 @@
 package com.db.dbworld.infrastructure.logging;
 
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 public class LogHistoryService {
 
     private final ObjectMapper mapper;
-    private final DbWorldRuntimeProperties props;
+    private final AppProperties props;
 
     // ---------- CONFIG ----------
 
@@ -219,7 +219,7 @@ public class LogHistoryService {
     }
 
     // ============================================================
-    // GZIP STREAM — CONSTANT MEMORY
+    // GZIP STREAM â€” CONSTANT MEMORY
     // ============================================================
 
     private final AtomicInteger sentCount = new AtomicInteger();

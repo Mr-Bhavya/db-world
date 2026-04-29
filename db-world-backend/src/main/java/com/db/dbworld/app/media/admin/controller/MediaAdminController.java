@@ -7,7 +7,7 @@ import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.ResponsePayloads;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
@@ -24,14 +24,14 @@ import java.util.Map;
 @Log4j2
 @RestController
 @RequestMapping("/api/admin/media")
-@PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+@PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
 @RequiredArgsConstructor
 public class MediaAdminController {
 
     private final MediaInfoService mediaInfoService;
     private final SymlinkService   symlinkService;
 
-    /* ── File info ───────────────────────────────────────────────────── */
+    /* â”€â”€ File info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @GetMapping("/files")
     public ResponseEntity<ApiResponse<Page<MediaFileSummaryDto>>> getMediaFilesPaged(
@@ -108,7 +108,7 @@ public class MediaAdminController {
                 Map.of("total", all.size(), "removed", removed)));
     }
 
-    /* ── Symlinks ────────────────────────────────────────────────────── */
+    /* â”€â”€ Symlinks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
     @PostMapping("/symlinks/repair")
     public ResponseEntity<ApiResponse<ResponsePayloads.SymlinkRepairResult>> repairAllSymlinks(
@@ -136,7 +136,7 @@ public class MediaAdminController {
         return ResponseEntity.ok(ApiResponse.success("Symlink rebuild completed", result));
     }
 
-    // ─────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void deleteActualFile(String filePath, String id) {
         if (filePath == null || filePath.isBlank()) return;

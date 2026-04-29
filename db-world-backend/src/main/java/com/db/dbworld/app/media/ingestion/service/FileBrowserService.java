@@ -1,7 +1,7 @@
 package com.db.dbworld.app.media.ingestion.service;
 
 import com.db.dbworld.app.media.ingestion.model.FileBrowserItem;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class FileBrowserService {
 
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
 
     private static final List<String> MEDIA_EXTENSIONS = List.of(
             "mkv", "mp4", "avi", "mov", "wmv", "flv", "webm",

@@ -1,15 +1,15 @@
 package com.db.dbworld.factory;
 
+import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.payloads.MirrorStatus;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import org.springframework.stereotype.Component;
 
 @Component
 public class MirrorStatusFactory {
 
-    private final DbWorldRuntimeProperties runtime;
+    private final AppProperties runtime;
 
-    public MirrorStatusFactory(DbWorldRuntimeProperties runtime) {
+    public MirrorStatusFactory(AppProperties runtime) {
         this.runtime = runtime;
     }
 

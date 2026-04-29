@@ -8,8 +8,8 @@
 //import com.db.dbworld.services.media.MediaFileInfoService;
 //import com.db.dbworld.services.media.StreamService;
 //import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
-//import com.db.dbworld.utils.DbWorldConstants;
-//import com.db.dbworld.utils.DbWorldRuntimeProperties;
+//import com.db.dbworld.config.AppConstants;
+//import com.db.dbworld.config.AppProperties;
 //import com.db.dbworld.utils.DbWorldUtils;
 //import com.fasterxml.jackson.databind.DeserializationFeature;
 //import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,14 +45,14 @@
 //@Transactional
 //public class StreamServiceImpl implements StreamService {
 //
-//    private final DbWorldRuntimeProperties runtime;
+//    private final AppProperties runtime;
 //    private final DbWorldUtils dbWorldUtils;
 //    private final ProcessExecutor processExecutor;
 //    private final UserCinemaActivityService activityService;
 //    private final MediaFileInfoService mediaFileInfoService;
 //    private final Map<String, String> normalizedCache = new ConcurrentHashMap<>();
 //
-//    public StreamServiceImpl(DbWorldRuntimeProperties runtime, DbWorldUtils dbWorldUtils, ProcessExecutor processExecutor, UserCinemaActivityService activityService, MediaFileInfoService mediaFileInfoService) {
+//    public StreamServiceImpl(AppProperties runtime, DbWorldUtils dbWorldUtils, ProcessExecutor processExecutor, UserCinemaActivityService activityService, MediaFileInfoService mediaFileInfoService) {
 //        log.info("StreamServiceImpl initialized with runtime={}, dbWorldUtils={}, processExecutor={}, activityService={}, mediaFileInfoService={}",
 //                runtime != null, dbWorldUtils != null, processExecutor != null, activityService != null, mediaFileInfoService != null);
 //        this.runtime = runtime;
@@ -211,7 +211,7 @@
 ////            Path root = runtime.getSymlinkPath().toAbsolutePath().normalize();
 ////            String cleanPath = StringUtils.cleanPath(root.relativize(normalized).toString());
 ////            String requestId = UUID.randomUUID().toString();
-////            String result = DbWorldConstants.CDN_STREAM_ID + cleanPath +
+////            String result = AppConstants.CDN_STREAM_ID + cleanPath +
 ////                    "?userId=" + URLEncoder.encode(user, StandardCharsets.UTF_8) +
 ////                    "&rangeStart=" + rangeStart +
 ////                    "&downloadId=" + requestId +
@@ -245,17 +245,17 @@
 //
 //            // ---------- ID-based (symlink) ----------
 //            if (normalized.startsWith(symlinkRoot)) {
-//                baseLocation = DbWorldConstants.CDN_STREAM_ID;
+//                baseLocation = AppConstants.CDN_STREAM_ID;
 //                relativePath = symlinkRoot.relativize(normalized);
 //                log.debug("ID-based streaming: baseLocation={}, relativePath={}", baseLocation, relativePath);
 //            }
 //            // ---------- PATH-based (legacy / direct) ----------
 //            else if (normalized.startsWith(streamRoot)) {
-//                baseLocation = DbWorldConstants.CDN_STREAM_PATH;
+//                baseLocation = AppConstants.CDN_STREAM_PATH;
 //                relativePath = streamRoot.relativize(normalized);
 //                log.debug("Path-based streaming (internal): baseLocation={}, relativePath={}", baseLocation, relativePath);
 //            } else if (normalized.startsWith(externalRoot)) {
-//                baseLocation = DbWorldConstants.CDN_STREAM_PATH;
+//                baseLocation = AppConstants.CDN_STREAM_PATH;
 //                relativePath = externalRoot.relativize(normalized);
 //                log.debug("Path-based streaming (external): baseLocation={}, relativePath={}", baseLocation, relativePath);
 //            } else {
@@ -420,7 +420,7 @@
 //        log.trace("containsNearMatchOptimized called: text={}, token={}", text, token);
 //        int tokenLen = token.length();
 //
-//        // Check length ±1 substrings
+//        // Check length Â±1 substrings
 //        for (int windowSize = Math.max(3, tokenLen - 1);
 //             windowSize <= Math.min(text.length(), tokenLen + 1);
 //             windowSize++) {

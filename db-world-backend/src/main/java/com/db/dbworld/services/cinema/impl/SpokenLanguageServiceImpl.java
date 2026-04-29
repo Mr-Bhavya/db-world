@@ -14,7 +14,7 @@
 //
 //import java.util.List;
 //
-//import static com.db.dbworld.utils.DbWorldConstants.TMDB_LANGUAGES_CONFIGURATION_URL;
+//import static com.db.dbworld.utils.AppConstants.TMDB_LANGUAGES_CONFIGURATION_URL;
 //
 //@Log4j2
 //@Service

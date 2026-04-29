@@ -1,7 +1,7 @@
 //package com.db.dbworld.payloads.mediafile;
 //
 //import com.db.dbworld.entities.dbcinema.DBCinemaRecordsEntity;
-//import static com.db.dbworld.utils.DbWorldConstants.RECORD_TYE;
+//import static com.db.dbworld.utils.AppConstants.RECORD_TYE;
 //import lombok.AllArgsConstructor;
 //import lombok.Data;
 //

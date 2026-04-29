@@ -107,14 +107,14 @@
 //            String seriesName = extractSeriesName(relativePath);
 //            String season = seasonEpisode.substring(0, 3);
 //            return String.format("%s/%s/%s/%s/%s",
-//                    normalizePath(DbWorldConstants.STREAM_HOME_PATH),
+//                    normalizePath(AppConstants.STREAM_HOME_PATH),
 //                    UNASSIGNED_FOLDER,
 //                    seriesName,
 //                    season,
 //                    sourceFilePath.getFileName().toString());
 //        } else {
 //            return String.format("%s/%s/%s",
-//                    normalizePath(DbWorldConstants.STREAM_HOME_PATH),
+//                    normalizePath(AppConstants.STREAM_HOME_PATH),
 //                    UNASSIGNED_FOLDER,
 //                    sourceFilePath.getFileName().toString());
 //        }

@@ -1,7 +1,6 @@
 package com.db.dbworld.payloads;
 
-import com.db.dbworld.utils.DbWorldConstants;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.utils.PathSanitizer;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -65,7 +64,7 @@ public class MirrorStatus {
     private String message;
 
     @JsonIgnore
-    private transient DbWorldRuntimeProperties runtime;
+    private transient AppProperties runtime;
 
     // Derived boolean fields based on state
     public boolean isPause() {
@@ -162,7 +161,7 @@ public class MirrorStatus {
 
     // Factory constructor
     public MirrorStatus(
-            DbWorldRuntimeProperties runtime,
+            AppProperties runtime,
             String folderName,
             String fileUrl,
             String fileName,
@@ -214,11 +213,9 @@ public class MirrorStatus {
     }
 
     private void initializePaths(String folderName, String fileName, boolean extract) {
-        validateConstants();
-
         try {
-            this.recordIdPath = buildCleanPath(DbWorldConstants.INTEGRATION_FOLDER_PATH, folderName);
-            this.tempRecordIdPath = buildCleanPath(DbWorldConstants.TEMP_DOWNLOAD_PATH, folderName);
+            this.recordIdPath = buildCleanPath(runtime.getIntegrationPath().toString(), folderName);
+            this.tempRecordIdPath = buildCleanPath(runtime.getTempPath().toString(), folderName);
 
             this.filePath = buildCleanPath(recordIdPath, fileName);
             this.tempFilePath = buildCleanPath(tempRecordIdPath, tempFileName);
@@ -248,19 +245,6 @@ public class MirrorStatus {
         }
 
         return pathBuilder.toString();
-    }
-
-    private void validateConstants() {
-        if (!StringUtils.hasText(DbWorldConstants.INTEGRATION_FOLDER_PATH) ||
-                "null".equals(DbWorldConstants.INTEGRATION_FOLDER_PATH)) {
-            DbWorldConstants.INTEGRATION_FOLDER_PATH = "/ext_hdisk/dbworld/integration/";
-            log.warn("Using default integration folder path: {}", DbWorldConstants.INTEGRATION_FOLDER_PATH);
-        }
-        if (!StringUtils.hasText(DbWorldConstants.TEMP_DOWNLOAD_PATH) ||
-                "null".equals(DbWorldConstants.TEMP_DOWNLOAD_PATH)) {
-            DbWorldConstants.TEMP_DOWNLOAD_PATH = "/ext_hdisk/dbworld/temp/";
-            log.warn("Using default temp download path: {}", DbWorldConstants.TEMP_DOWNLOAD_PATH);
-        }
     }
 
     private void createDirectories(String... paths) throws IOException {

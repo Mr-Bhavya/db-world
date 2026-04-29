@@ -7,7 +7,7 @@ import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
 import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,12 +33,12 @@ public class UserCinemaActivityController {
     private final UserService userService;
     private final UserContext userContext;
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Admin endpoints
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping("/admin/all-recent")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getAllRecentActivities(
             @RequestParam(defaultValue = "100") Integer limit,
             @RequestParam(required = false)     String activityType,
@@ -59,7 +59,7 @@ public class UserCinemaActivityController {
     }
 
     @GetMapping("/admin/user-activities")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getUserActivities(
             @RequestParam                       String userEmail,
             @RequestParam(defaultValue = "50")  Integer limit,
@@ -85,7 +85,7 @@ public class UserCinemaActivityController {
     }
 
     @GetMapping("/admin/activity-stats")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getActivityStats(
             @RequestParam(defaultValue = "7") Long days) {
 
@@ -99,7 +99,7 @@ public class UserCinemaActivityController {
     }
 
     @GetMapping("/admin/user-list")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getUserList(
             @RequestParam(defaultValue = "24") Long hours) {
 
@@ -115,7 +115,7 @@ public class UserCinemaActivityController {
     }
 
     @GetMapping("/admin/dashboard-stats")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getDashboardStats(
             @RequestParam(defaultValue = "7") Long days) {
 
@@ -128,12 +128,12 @@ public class UserCinemaActivityController {
         return ApiResponse.success(r);
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // User endpoints
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @GetMapping("/user/my-activities")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getMyActivities(
             @RequestParam(defaultValue = "50") Integer limit,
             @RequestParam(required = false)    String activityType,
@@ -157,7 +157,7 @@ public class UserCinemaActivityController {
     }
 
     @GetMapping("/initial-data")
-    @PreAuthorize(DbWorldConstants.ALL_AUTHORIZE)
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getInitialData() {
         String role = userService.getRoleForUser();
         Map<String, Object> r = new HashMap<>();
@@ -175,9 +175,9 @@ public class UserCinemaActivityController {
         return ApiResponse.success(r);
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Helpers
-    // ──────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private boolean isAdmin(String role) {
         return "ADMIN".equals(role) || "OWNER".equals(role);

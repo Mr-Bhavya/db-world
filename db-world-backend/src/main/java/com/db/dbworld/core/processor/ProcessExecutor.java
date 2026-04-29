@@ -1,7 +1,7 @@
 package com.db.dbworld.core.processor;
 
 import com.db.dbworld.core.exception.ProcessExecutionException;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 
@@ -29,9 +29,9 @@ public class ProcessExecutor implements AutoCloseable {
                     Thread.ofVirtual().name("process-scheduler-", 0).factory()
             );
 
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
 
-    public ProcessExecutor(DbWorldRuntimeProperties runtimeProperties) {
+    public ProcessExecutor(AppProperties runtimeProperties) {
         this.runtimeProperties = runtimeProperties;
     }
 
@@ -69,7 +69,7 @@ public class ProcessExecutor implements AutoCloseable {
             if (config.cancellationFlag() != null) {
                 cancellationTask = scheduler.scheduleAtFixedRate(() -> {
                     if (finalProcess.isAlive() && config.cancellationFlag().get()) {
-                        log.debug("Cancellation requested → terminating process");
+                        log.debug("Cancellation requested â†’ terminating process");
                         destroyProcess(finalProcess, handle, config.onTimeout());
                     }
                 }, 0, 300, TimeUnit.MILLISECONDS);
@@ -80,7 +80,7 @@ public class ProcessExecutor implements AutoCloseable {
                 timeoutTask = scheduler.schedule(() -> {
                     if (finalProcess.isAlive()) {
                         timedOut.set(true);
-                        log.warn("Process timed out → {}", config.timeout());
+                        log.warn("Process timed out â†’ {}", config.timeout());
                         destroyProcess(finalProcess, handle, config.onTimeout());
                     }
                 }, config.timeout().toMillis(), TimeUnit.MILLISECONDS);
@@ -181,7 +181,7 @@ public class ProcessExecutor implements AutoCloseable {
     public void executeExtraction(
             String archivePath,
             String outputPath,
-            String password,            // NEW — null means no password
+            String password,            // NEW â€” null means no password
             StreamProcessor streamProcessor,
             AtomicBoolean cancellationFlag,
             Duration timeout
@@ -215,7 +215,7 @@ public class ProcessExecutor implements AutoCloseable {
         if (!result.success()) {
             throw ProcessExecutionException.forExitCode(
                     result.exitCode(),
-                    safeCommandStr          // safe — password redacted
+                    safeCommandStr          // safe â€” password redacted
             );
         }
     }

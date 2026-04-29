@@ -7,8 +7,8 @@
 //import com.db.dbworld.payloads.mediafile.MediaFileDetails;
 //import com.db.dbworld.services.media.resolver.MediaTagResolver;
 //import com.db.dbworld.core.processor.StreamProcessorFactory;
-//import com.db.dbworld.utils.DbWorldConstants;
-//import com.db.dbworld.utils.DbWorldRuntimeProperties;
+//import com.db.dbworld.config.AppConstants;
+//import com.db.dbworld.config.AppProperties;
 //import com.db.dbworld.utils.DbWorldUtils;
 //import jakarta.persistence.EntityManager;
 //import lombok.extern.log4j.Log4j2;
@@ -49,7 +49,7 @@
 //    private final MediaFileNamingService mediaFileNamingService;
 //
 //    public MediaInfoCommandService (DbWorldUtils dbWorldUtils,
-//                                    EntityManager entityManager, DbWorldRuntimeProperties runtimeProperties, ProcessExecutor processExecutor, MediaFileNamingService mediaFileNamingService) {
+//                                    EntityManager entityManager, AppProperties runtimeProperties, ProcessExecutor processExecutor, MediaFileNamingService mediaFileNamingService) {
 //        this.dbWorldUtils = dbWorldUtils;
 //        this.entityManager = entityManager;
 //        this.processExecutor = processExecutor;
@@ -127,7 +127,7 @@
 //            log.info("Attempting to rename file from {} to {}", path, newPath);
 //
 //            dbWorldUtils.moveFileOrDir(path.toString(), newPath.toString(), true);
-//            log.info("File renamed successfully: {} → {} in {} ms",
+//            log.info("File renamed successfully: {} â†’ {} in {} ms",
 //                    path, newPath, System.currentTimeMillis() - startTime);
 //        } catch (Exception e) {
 //            log.warn("Failed to rename file: {} - Error: {}", path, e.getMessage(), e);
@@ -184,7 +184,7 @@
 //        String name = StringUtils.trimToEmpty(fileDetails.getName());
 //        String year = StringUtils.trimToEmpty(fileDetails.getYear());
 //
-//        if (DbWorldConstants.RECORD_TYE.SERIES == fileDetails.getRecordType()) {
+//        if (AppConstants.RECORD_TYE.SERIES == fileDetails.getRecordType()) {
 //            String season = StringUtils.defaultIfBlank(fileDetails.getSeason(), "S01");
 //            String episode = StringUtils.defaultIfBlank(fileDetails.getEpisode(), "E01");
 //
@@ -746,7 +746,7 @@
 //                }
 //            }
 //        } else {
-//            // No preferred languages → keep all
+//            // No preferred languages â†’ keep all
 //            languageTracks.values().forEach(result::addAll);
 //            log.info("No preferred languages found. Keeping all subtitle tracks: {}", result);
 //        }

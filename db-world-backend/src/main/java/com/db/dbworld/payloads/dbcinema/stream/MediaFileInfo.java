@@ -1,7 +1,7 @@
 package com.db.dbworld.payloads.dbcinema.stream;
 
 import com.db.dbworld.core.exception.DbWorldException;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -51,12 +51,12 @@ public class MediaFileInfo {
      * Runtime properties are used ONLY internally
      */
     @JsonIgnore
-    private transient DbWorldRuntimeProperties runtime;
+    private transient AppProperties runtime;
 
     /**
      * Explicit initializer (safe for Jackson + manual creation)
      */
-    public MediaFileInfo initialize(DbWorldRuntimeProperties runtime) {
+    public MediaFileInfo initialize(AppProperties runtime) {
 
         this.runtime = runtime;
 

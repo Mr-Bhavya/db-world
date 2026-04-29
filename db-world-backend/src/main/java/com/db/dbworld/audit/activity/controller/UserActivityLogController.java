@@ -3,7 +3,7 @@ package com.db.dbworld.audit.activity.controller;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.audit.activity.dto.UserActivityLogDto;
 import com.db.dbworld.audit.activity.service.UserActivityLogService;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,7 +23,7 @@ public class UserActivityLogController {
     private final UserActivityLogService logService;
 
     @GetMapping
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ApiResponse<Map<String, Object>> getLogs(
             @RequestParam(defaultValue = "0")    int page,
             @RequestParam(defaultValue = "50")   int size,

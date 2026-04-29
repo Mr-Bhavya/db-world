@@ -3,7 +3,7 @@
 //import com.db.dbworld.dao.fileexplorer.FileRepository;
 //import com.db.dbworld.entities.fileexplorer.FileEntity;
 //import com.db.dbworld.payloads.fileexplorer.FileDto;
-//import com.db.dbworld.utils.DbWorldConstants;
+//import com.db.dbworld.config.AppConstants;
 //import jakarta.annotation.PostConstruct;
 //import lombok.extern.log4j.Log4j2;
 //import org.modelmapper.ModelMapper;
@@ -28,7 +28,7 @@
 //public class FileImporter {
 //
 //    @Value("${app.stream-path}")
-//    private final String baseDirectory = DbWorldConstants.STREAM_HOME_PATH;
+//    private final String baseDirectory = AppConstants.STREAM_HOME_PATH;
 //
 //    @Autowired
 //    private ModelMapper modelMapper;

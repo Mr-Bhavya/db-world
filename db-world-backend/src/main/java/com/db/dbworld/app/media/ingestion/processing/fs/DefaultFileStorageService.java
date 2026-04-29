@@ -3,7 +3,7 @@ package com.db.dbworld.app.media.ingestion.processing.fs;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.utils.PathSanitizer;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,7 @@ import java.nio.file.Path;
 
 /**
  * Default file storage implementation.
- * Uses DbWorldRuntimeProperties to resolve base paths from application.yml
+ * Uses AppProperties to resolve base paths from application.yml
  * instead of hardcoded strings.
  */
 @Log4j2
@@ -21,7 +21,7 @@ import java.nio.file.Path;
 @RequiredArgsConstructor
 public class DefaultFileStorageService implements FileStorageService {
 
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
     private final RecordRepository         recordRepository;
 
     @Override
@@ -40,7 +40,7 @@ public class DefaultFileStorageService implements FileStorageService {
                 .resolve(recordTypePath)
                 .resolve(safeFolderName(ctx));
 
-        // For TV series, create a season subfolder (S01, S02, …)
+        // For TV series, create a season subfolder (S01, S02, â€¦)
         if ("TV_SERIES".equals(recordTypePath)) {
             Integer season = ctx.getRequest() != null ? ctx.getRequest().getSeason() : null;
             if (season != null) {
@@ -88,13 +88,13 @@ public class DefaultFileStorageService implements FileStorageService {
             Path dst = resolveFinalFile(ctx);
             java.nio.file.Files.createDirectories(dst.getParent());
             java.nio.file.Files.move(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            log.debug("[{}] Moved: {} → {}", ctx.getJobId(), src, dst);
+            log.debug("[{}] Moved: {} â†’ {}", ctx.getJobId(), src, dst);
         } catch (Exception e) {
             throw new RuntimeException("Move to final failed for job: " + ctx.getJobId(), e);
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private String safeFolderName(IngestionContext ctx) {
         String folder = ctx.getRequest() != null ? ctx.getRequest().getFolderName() : null;

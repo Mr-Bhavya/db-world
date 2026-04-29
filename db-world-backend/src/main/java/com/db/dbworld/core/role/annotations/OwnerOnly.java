@@ -1,6 +1,6 @@
 package com.db.dbworld.core.role.annotations;
 
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.lang.annotation.*;
@@ -12,6 +12,6 @@ import java.lang.annotation.*;
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-@PreAuthorize(DbWorldConstants.OWNER_AUTHORIZE)
+@PreAuthorize(AppConstants.OWNER_AUTHORIZE)
 public @interface OwnerOnly {
 }

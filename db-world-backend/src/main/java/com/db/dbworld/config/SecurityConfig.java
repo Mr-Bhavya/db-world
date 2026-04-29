@@ -2,7 +2,7 @@ package com.db.dbworld.config;
 
 import com.db.dbworld.core.security.handler.TokenAuthenticationHandler;
 import com.db.dbworld.security.auth.CustomAuthenticationProvider;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -41,7 +41,7 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(DbWorldConstants.PUBLIC_APIS).permitAll()
+                        .requestMatchers(AppConstants.PUBLIC_APIS).permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

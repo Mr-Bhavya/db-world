@@ -7,7 +7,7 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.core.exception.DbWorldException;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.utils.FileIdentityUtils;
 import com.db.dbworld.utils.RecordPathResolver;
 import jakarta.annotation.PostConstruct;
@@ -38,15 +38,15 @@ import static java.nio.file.StandardWatchEventKinds.*;
  *
  * Key improvements over the old implementation:
  * <ul>
- *   <li><b>Simplified new-file processing</b> — delegates to
+ *   <li><b>Simplified new-file processing</b> â€” delegates to
  *       {@link MediaInfoService#collectAndPersist} (single call vs. old
- *       multi-step: run command → parse JSON → build entity → save → link).</li>
- *   <li><b>New entity model</b> — works with {@link MediaFileEntity} from
+ *       multi-step: run command â†’ parse JSON â†’ build entity â†’ save â†’ link).</li>
+ *   <li><b>New entity model</b> â€” works with {@link MediaFileEntity} from
  *       {@code app.media.info}, decoupled from old {@code MediaFileInfoEntity}.</li>
- *   <li><b>Direct repository injection</b> — move/rename detection uses
+ *   <li><b>Direct repository injection</b> â€” move/rename detection uses
  *       {@link MediaFileRepository} directly for entity-level updates.</li>
  *   <li><b>No {@code MediaFileNamingService} or {@code ProcessExecutor}
- *       dependencies</b> — those are encapsulated inside {@code MediaInfoService}.</li>
+ *       dependencies</b> â€” those are encapsulated inside {@code MediaInfoService}.</li>
  * </ul>
  */
 @Log4j2
@@ -58,15 +58,15 @@ public class FileWatcherService {
     private static final int    MAX_RETRY_ATTEMPTS    = 2;
     private static final long   RETRY_DELAY_BASE_MS   = 1_000;
 
-    // ── Dependencies ─────────────────────────────────────────────────────────
+    // â”€â”€ Dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private final MediaInfoService       mediaInfoService;
     private final MediaFileRepository    mediaFileRepository;
     private final SymlinkService         symlinkService;
     private final CatalogService recordsService;
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
 
-    // ── State ─────────────────────────────────────────────────────────────────
+    // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private final WatchService watchService;
     private final Map<WatchKey, Path> watchKeys      = new ConcurrentHashMap<>();
@@ -88,14 +88,14 @@ public class FileWatcherService {
     @Getter @Setter
     private volatile boolean dryRun = false;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
+    // â”€â”€ Constructor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public FileWatcherService(
             MediaInfoService         mediaInfoService,
             MediaFileRepository      mediaFileRepository,
             SymlinkService           symlinkService,
             CatalogService   recordsService,
-            DbWorldRuntimeProperties runtimeProperties
+            AppProperties runtimeProperties
     ) throws IOException {
         this.mediaInfoService    = mediaInfoService;
         this.mediaFileRepository = mediaFileRepository;
@@ -114,11 +114,11 @@ public class FileWatcherService {
         log.info("{} Initialized with {} processing threads", TAG, threads);
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    // â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @PostConstruct
     public void init() {
-        // Start the watcher loop immediately (non-blocking — runs in watcherExecutor)
+        // Start the watcher loop immediately (non-blocking â€” runs in watcherExecutor)
         startWatcher();
         // Register directories in the background so startup is not blocked by a
         // potentially large directory tree walk (e.g. /ext_hdisk/videos in production).
@@ -149,7 +149,7 @@ public class FileWatcherService {
         log.info("{} Stopped. processed={} errors={}", TAG, processedCount.get(), errorCount.get());
     }
 
-    // ── Directory registration ─────────────────────────────────────────────
+    // â”€â”€ Directory registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void registerAll(Path start) throws IOException {
         if (!Files.exists(start)) return;
@@ -181,7 +181,7 @@ public class FileWatcherService {
         }
     }
 
-    // ── Watch loop ────────────────────────────────────────────────────────────
+    // â”€â”€ Watch loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void startWatcher() {
         watcherExecutor.submit(() -> {
@@ -228,7 +228,7 @@ public class FileWatcherService {
         });
     }
 
-    // ── Event dispatch ────────────────────────────────────────────────────────
+    // â”€â”€ Event dispatch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void handleCreateOrModifyEvent(Path path) {
         if (Files.isDirectory(path)) {
@@ -250,7 +250,7 @@ public class FileWatcherService {
         });
     }
 
-    // ── File event processing ──────────────────────────────────────────────
+    // â”€â”€ File event processing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void processFileEvent(Path file) throws IOException {
         String filePath = file.toString();
@@ -288,7 +288,7 @@ public class FileWatcherService {
                 return;
             }
 
-            // Move / rename detection — compare size + partial hash against DB entries
+            // Move / rename detection â€” compare size + partial hash against DB entries
             List<MediaFileEntity> existing = mediaFileRepository.findAllByRecordId(recordId);
 
             if (handleMoveOrRename(file, filePath, existing)) {
@@ -304,7 +304,7 @@ public class FileWatcherService {
                 return;
             }
 
-            // New file — collect metadata, persist, and create symlink
+            // New file â€” collect metadata, persist, and create symlink
             log.info("{} New file for record {}: {}", TAG, recordId, filePath);
             processNewFile(file, recordId);
             processedCount.incrementAndGet();
@@ -340,7 +340,7 @@ public class FileWatcherService {
 
     /**
      * Delegates the full collect-parse-persist cycle to {@link MediaInfoService}.
-     * One call replaces the old multi-step: execute command → parse JSON → build entities → save.
+     * One call replaces the old multi-step: execute command â†’ parse JSON â†’ build entities â†’ save.
      */
     private void processNewFile(Path file, Long recordId) {
         String filePath = file.toString();
@@ -384,7 +384,7 @@ public class FileWatcherService {
         }
     }
 
-    // ── Utilities ─────────────────────────────────────────────────────────────
+    // â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private <T> T executeWithRetry(java.util.concurrent.Callable<T> task, String name) throws Exception {
         Exception last = null;
@@ -418,12 +418,12 @@ public class FileWatcherService {
         ScheduledExecutorService s = Executors.newSingleThreadScheduledExecutor(
                 r -> { Thread t = new Thread(r, "watcher-stats"); t.setDaemon(true); return t; });
         s.scheduleAtFixedRate(() ->
-                log.debug("{} Stats — processed={} errors={} dirs={}",
+                log.debug("{} Stats â€” processed={} errors={} dirs={}",
                         TAG, processedCount.get(), errorCount.get(), registeredDirs.size()),
                 5, 5, TimeUnit.MINUTES);
     }
 
-    // ── Spring Integration entry points ──────────────────────────────────────
+    // â”€â”€ Spring Integration entry points â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public void handleCreateOrModify(Message<File> message) {
         logMessage("handleCreateOrModify", message);
@@ -445,7 +445,7 @@ public class FileWatcherService {
         }
     }
 
-    // ── Public metrics ────────────────────────────────────────────────────────
+    // â”€â”€ Public metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public long getProcessedCount()       { return processedCount.get(); }
     public long getErrorCount()           { return errorCount.get(); }

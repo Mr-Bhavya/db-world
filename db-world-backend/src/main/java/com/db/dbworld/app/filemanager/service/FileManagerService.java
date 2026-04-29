@@ -4,7 +4,7 @@ import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
 import com.db.dbworld.app.filemanager.dto.FileUploadErrorDto;
 import com.db.dbworld.app.filemanager.dto.FileUploadResultDto;
-import com.db.dbworld.utils.DbWorldRuntimeProperties;
+import com.db.dbworld.config.AppProperties;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
@@ -36,9 +36,9 @@ public class FileManagerService {
 
     private final ConcurrentHashMap<String, DownloadTicket> downloadTickets = new ConcurrentHashMap<>();
 
-    private final DbWorldRuntimeProperties runtimeProperties;
+    private final AppProperties runtimeProperties;
 
-    public FileManagerService(DbWorldRuntimeProperties runtimeProperties) {
+    public FileManagerService(AppProperties runtimeProperties) {
         this.runtimeProperties = runtimeProperties;
     }
 
@@ -46,7 +46,7 @@ public class FileManagerService {
         return runtimeProperties.getBasePath().toAbsolutePath().normalize();
     }
 
-    // ── Path jail ─────────────────────────────────────────────────────────────
+    // â”€â”€ Path jail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private Path jailed(String rawPath) {
         Path base = baseDir();
@@ -71,7 +71,7 @@ public class FileManagerService {
         return "/" + base.relativize(p).toString().replace("\\", "/");
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private FileItemDto toDto(Path p) throws IOException {
         BasicFileAttributes attrs = Files.readAttributes(p, BasicFileAttributes.class);
@@ -135,7 +135,7 @@ public class FileManagerService {
         };
     }
 
-    // ── API methods ───────────────────────────────────────────────────────────
+    // â”€â”€ API methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public FileListDto listDirectory(String path, String sortBy, String order) throws IOException {
         Path dir = jailed(path);
@@ -165,7 +165,7 @@ public class FileManagerService {
 
     @Nonnull
     private static Comparator<FileItemDto> getFileItemDtoComparator(String sortBy, String order) {
-        // Field comparator — optionally reversed for desc; directories always sort first
+        // Field comparator â€” optionally reversed for desc; directories always sort first
         Comparator<FileItemDto> field = switch (sortBy != null ? sortBy : "name") {
             case "size"     -> Comparator.comparingLong(FileItemDto::getSizeBytes);
             case "modified" -> Comparator.comparing(FileItemDto::getLastModified);
@@ -290,7 +290,7 @@ public class FileManagerService {
         return ticketId;
     }
 
-    /** Validates ticket and streams file directly to response — no browser memory buffering. */
+    /** Validates ticket and streams file directly to response â€” no browser memory buffering. */
     public void downloadFileWithTicket(String ticketId, HttpServletResponse response) throws IOException {
         DownloadTicket ticket = downloadTickets.remove(ticketId);
         if (ticket == null || ticket.expiresAt().isBefore(Instant.now())) {

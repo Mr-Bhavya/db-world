@@ -4,7 +4,7 @@ import com.db.dbworld.infrastructure.logging.LogsService;
 import com.db.dbworld.infrastructure.logging.dto.LogFormat;
 import com.db.dbworld.infrastructure.logging.dto.LogSource;
 import com.db.dbworld.api.response.ApiResponse;
-import com.db.dbworld.utils.DbWorldConstants;
+import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -40,7 +40,7 @@ public class AdminLogsController {
      * can build its UI without hardcoding anything.
      */
     @GetMapping("/sources")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getSources() {
         List<Map<String, Object>> sources = Arrays.stream(LogSource.values())
                 .map(src -> {
@@ -73,13 +73,13 @@ public class AdminLogsController {
     /**
      * Fetch logs for a source/type.
      * <ul>
-     *   <li>{@code date} (YYYY-MM-DD) — historical day from rotated archives; omit for live/today.</li>
-     *   <li>{@code format} — JSON (default for app) or RAW.</li>
-     *   <li>{@code lines} — max lines to return (default 500).</li>
+     *   <li>{@code date} (YYYY-MM-DD) â€” historical day from rotated archives; omit for live/today.</li>
+     *   <li>{@code format} â€” JSON (default for app) or RAW.</li>
+     *   <li>{@code lines} â€” max lines to return (default 500).</li>
      * </ul>
      */
     @GetMapping("/{source}/{type}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getLogs(
             @PathVariable String source,
             @PathVariable String type,
@@ -124,7 +124,7 @@ public class AdminLogsController {
     // =====================================================================
 
     @GetMapping("/{source}/{type}/dates")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> getAvailableDates(
             @PathVariable String source,
             @PathVariable String type,
@@ -149,7 +149,7 @@ public class AdminLogsController {
     // =====================================================================
 
     @GetMapping(value = "/{source}/{type}/follow", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public SseEmitter followLogs(
             @PathVariable String source,
             @PathVariable String type,
@@ -202,7 +202,7 @@ public class AdminLogsController {
     }
 
     @DeleteMapping("/follow/{sessionId}")
-    @PreAuthorize(DbWorldConstants.OWNER_ADMIN_AUTHORIZE)
+    @PreAuthorize(AppConstants.OWNER_ADMIN_AUTHORIZE)
     public ResponseEntity<ApiResponse<?>> stopFollow(@PathVariable String sessionId) {
         cleanupSse(sessionId);
         return ResponseEntity.ok(ApiResponse.success("Stopped"));

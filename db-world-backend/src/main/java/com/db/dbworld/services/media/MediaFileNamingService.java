@@ -7,7 +7,7 @@
 //import com.db.dbworld.core.exception.DbWorldException;
 //import com.db.dbworld.payloads.mediafile.MediaFileDetails;
 //import com.db.dbworld.services.media.resolver.MediaTagResolver;
-//import com.db.dbworld.utils.DbWorldConstants;
+//import com.db.dbworld.config.AppConstants;
 //import com.db.dbworld.utils.PathSanitizer;
 //import com.fasterxml.jackson.core.JsonProcessingException;
 //import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,8 +45,8 @@
 //        DBCinemaRecordsEntity record = fileDetails.getDbCinemaRecordsEntity();
 //        String recordType = record.getType();
 //
-//        if (DbWorldConstants.RECORD_TYE.MOVIE.name().equalsIgnoreCase(recordType)) buildMovieFileName(sb, fileDetails, mediaFileInfoEntity);
-//        else if (DbWorldConstants.RECORD_TYE.SERIES.name().equalsIgnoreCase(recordType)) buildSeriesFileName(fileDetails, sb, mediaFileInfoEntity);
+//        if (AppConstants.RECORD_TYE.MOVIE.name().equalsIgnoreCase(recordType)) buildMovieFileName(sb, fileDetails, mediaFileInfoEntity);
+//        else if (AppConstants.RECORD_TYE.SERIES.name().equalsIgnoreCase(recordType)) buildSeriesFileName(fileDetails, sb, mediaFileInfoEntity);
 //
 //        appendFileExtension(sb, fileDetails, mediaFileInfoEntity);
 //        return PathSanitizer.sanitizeFilename(sb.toString());
@@ -252,7 +252,7 @@
 //    private String normalizeTitle(String name) {
 //        if (name == null) return "";
 //        return name.trim()
-//                .replaceAll("\\s+", ".")     // spaces → dot
+//                .replaceAll("\\s+", ".")     // spaces â†’ dot
 //                .replaceAll("[^a-zA-Z0-9.]", ""); // remove unsafe chars
 //    }
 //

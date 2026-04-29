@@ -10,7 +10,7 @@ import com.db.dbworld.app.media.info.entity.track.*;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
-import com.db.dbworld.config.DbWorldProperties;
+import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,7 +38,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final MediaFileRepository mediaFileRepository;
     private final RecordRepository recordRepository;
     private final ObjectMapper objectMapper;
-    private final DbWorldProperties properties;
+    private final AppProperties properties;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Public API
@@ -302,8 +302,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
 
         Path absolute = filePath.toAbsolutePath().normalize();
 
-        Path streamRoot = Path.of(properties.streamPath()).toAbsolutePath().normalize();
-        Path externalRoot = Path.of(properties.paths().externalVideos()).toAbsolutePath().normalize();
+        Path streamRoot = properties.getStreamPath().toAbsolutePath().normalize();
+        Path externalRoot = properties.getExternalVideosPath().toAbsolutePath().normalize();
 
         Path relative;
 

@@ -3,7 +3,7 @@
 //import com.db.dbworld.entities.dbcinema.stream.MediaFileInfoEntity;
 //import com.db.dbworld.core.exception.DbWorldException;
 //import com.db.dbworld.payloads.ResponsePayloads;
-//import com.db.dbworld.utils.DbWorldRuntimeProperties;
+//import com.db.dbworld.config.AppProperties;
 //import lombok.extern.log4j.Log4j2;
 //import org.springframework.beans.factory.annotation.Autowired;
 //import org.springframework.stereotype.Service;
@@ -21,12 +21,12 @@
 //@Service
 //public class SystemLinkService {
 //
-//    private final DbWorldRuntimeProperties runtimeProperties;
+//    private final AppProperties runtimeProperties;
 //    private final MediaFileInfoService mediaFileInfoService;
 //
 //    @Autowired
 //    public SystemLinkService(
-//            DbWorldRuntimeProperties runtimeProperties,
+//            AppProperties runtimeProperties,
 //            MediaFileInfoService mediaFileInfoService) {
 //        this.runtimeProperties = runtimeProperties;
 //        this.mediaFileInfoService = mediaFileInfoService;
@@ -117,7 +117,7 @@
 //            MediaFileInfoEntity entity = mediaFileInfoService.findEntityById(fileId)
 //                    .orElse(null);
 //
-//            // ---- DB exists → create / repair
+//            // ---- DB exists â†’ create / repair
 //            if (entity != null && entity.getFilePath() != null) {
 //
 //                if (isValid(fileId)) {
@@ -141,7 +141,7 @@
 //                        .build();
 //            }
 //
-//            // ---- Orphan symlink → delete
+//            // ---- Orphan symlink â†’ delete
 //            if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
 //
 //                if (!dryRun) {
@@ -196,7 +196,7 @@
 //            }
 //        }
 //
-//        // ---- DB → SYMLINK
+//        // ---- DB â†’ SYMLINK
 //        for (MediaFileInfoEntity entity : entities) {
 //            try {
 //                if (entity == null || entity.getId() == null || entity.getFilePath() == null) {
@@ -217,7 +217,7 @@
 //            }
 //        }
 //
-//        // ---- SYMLINK → DB (cleanup orphans)
+//        // ---- SYMLINK â†’ DB (cleanup orphans)
 //        if (Files.exists(symlinkRoot)) {
 //            try (Stream<Path> paths = Files.list(symlinkRoot)) {
 //                paths.forEach(path -> {

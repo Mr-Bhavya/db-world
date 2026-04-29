@@ -3,7 +3,7 @@
 //import com.db.dbworld.core.exception.ProcessExecutionException;
 //import com.db.dbworld.helpers.ProcessExecutor;
 //import com.db.dbworld.payloads.mirror.ytdlp.YoutubeDownloadRequest;
-//import com.db.dbworld.utils.DbWorldRuntimeProperties;
+//import com.db.dbworld.config.AppProperties;
 //import lombok.extern.log4j.Log4j2;
 //import org.springframework.beans.factory.annotation.Autowired;
 //import org.springframework.stereotype.Service;
@@ -21,11 +21,11 @@
 //public class YoutubeDownloadServiceImpl implements YoutubeDownloadService {
 //
 //    private final ProcessExecutor processExecutor;
-//    private final DbWorldRuntimeProperties runtimeProperties;
+//    private final AppProperties runtimeProperties;
 //
 //    @Autowired
 //    public YoutubeDownloadServiceImpl(ProcessExecutor processExecutor,
-//                                      DbWorldRuntimeProperties runtimeProperties) {
+//                                      AppProperties runtimeProperties) {
 //        this.processExecutor = processExecutor;
 //        this.runtimeProperties = runtimeProperties;
 //    }
