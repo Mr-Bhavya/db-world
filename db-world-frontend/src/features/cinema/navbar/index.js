@@ -428,8 +428,6 @@ function Navbar({ coverColor, onGenreSelect }) {
         </FloatingNavWrapper>
       )}
 
-      {/* Bottom spacer so rail content clears the floating pill */}
-      {isMobile && <Box sx={{ height: '80px', flexShrink: 0 }} />}
     </>
   );
 }
