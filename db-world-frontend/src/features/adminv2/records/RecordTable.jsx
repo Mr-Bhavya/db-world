@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { Box, Chip, IconButton, Tooltip } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MovieIcon from '@mui/icons-material/Movie';
@@ -20,7 +19,7 @@ const SORT_FIELD_MAP = {
 
 export default function RecordTable({ rows, totalElements, loading, onDelete }) {
   const T = useT();
-  const { sortModel, setSortModel, setSelectedRows, openDrawer, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
+  const { sortModel, setSortModel, setSelectedRows, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
 
   const gridSx = useMemo(() => ({
     // v8 CSS variables override container/pinned backgrounds
@@ -173,16 +172,15 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       ),
     },
     {
-      field: 'actions', headerName: '', width: 108, sortable: false,
+      field: 'actions', headerName: '', width: 72, sortable: false,
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', gap: .5 }}>
-          <Tooltip title="View"><IconButton size="small" onClick={() => openDrawer(row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}><VisibilityIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
           <Tooltip title="Edit"><IconButton size="small" onClick={() => openModal('edit', row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.success, bgcolor: `${T.success}15` } }}><EditIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
           <Tooltip title="Delete"><IconButton size="small" onClick={() => onDelete(row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.error, bgcolor: T.errorBg } }}><DeleteIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
         </Box>
       ),
     },
-  ], [T, onDelete, openDrawer, openModal, openTmdbModal, openRecordDetail, openMediaFiles]);
+  ], [T, onDelete, openModal, openTmdbModal, openRecordDetail, openMediaFiles]);
 
   return (
     <DataGrid

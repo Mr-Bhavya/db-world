@@ -74,7 +74,8 @@ export default function RecordFilters({ onAdd }) {
       <TextField select size="small" label="Type" value={filters.type}
         onChange={e => setFilter('type', e.target.value)}
         sx={{ ...inputSx, minWidth: 120 }}
-        SelectProps={{ MenuProps: getSelectMenuProps(T) }}>
+        InputLabelProps={{ shrink: true }}
+        SelectProps={{ displayEmpty: true, MenuProps: getSelectMenuProps(T) }}>
         <MenuItem value="">All</MenuItem>
         <MenuItem value="MOVIE">Movie</MenuItem>
         <MenuItem value="TV_SERIES">Series</MenuItem>

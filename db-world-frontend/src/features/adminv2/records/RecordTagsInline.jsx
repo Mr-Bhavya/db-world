@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
 import { addRecordTag, removeRecordTag } from '../api/adminApi';
-import { MANUAL_TAGS, AUTO_TAGS, TAG_COLORS, TAG_LABELS } from './tagConstants';
+import { useTagDefs } from './useTagDefs';
 
 const parseTags = (tags) =>
   tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
@@ -17,10 +17,10 @@ export default function RecordTagsInline({ record }) {
   const [pendingTag, setPendingTag] = useState(null);
   const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
+  const { autoTagTypes, manualTagDefs, tagColor, tagLabel } = useTagDefs();
 
   const currentTagTypes = parseTags(record.tags);
-  // Only offer manual tags that aren't already assigned
-  const addableTags = MANUAL_TAGS.filter(t => !currentTagTypes.includes(t));
+  const addableTags = manualTagDefs.filter(d => !currentTagTypes.includes(d.tagType));
 
   const addMutation = useMutation({
     mutationFn: ({ recordId, tagType }) => addRecordTag(recordId, { tagType }),
@@ -42,19 +42,18 @@ export default function RecordTagsInline({ record }) {
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: .5, alignItems: 'center' }}>
       {currentTagTypes.map(tagType => {
-        const isAuto = AUTO_TAGS.has(tagType);
-        const color = TAG_COLORS[tagType] ?? T.teal;
+        const isAuto = autoTagTypes.has(tagType);
+        const color  = tagColor(tagType);
         return (
           <Chip
             key={tagType}
-            label={TAG_LABELS[tagType] ?? tagType.replace(/_/g, ' ')}
+            label={tagLabel(tagType)}
             size="small"
             onDelete={isAuto ? undefined : () => removeMutation.mutate({ recordId: record.recordId, tagType })}
             icon={isAuto ? <LockIcon sx={{ fontSize: '10px !important', color: `${color} !important` }} /> : undefined}
             sx={{
               height: 18, fontSize: 10, fontWeight: 700,
-              bgcolor: `${color}18`,
-              color,
+              bgcolor: `${color}18`, color,
               border: `1px solid ${color}44`,
               '& .MuiChip-deleteIcon': { color, fontSize: 12 },
               '& .MuiChip-icon': { ml: '4px' },
@@ -72,11 +71,12 @@ export default function RecordTagsInline({ record }) {
           <Popover open={Boolean(anchor)} anchorEl={anchor} onClose={() => setAnchor(null)}
             PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, color: T.textPrimary, minWidth: 180, boxShadow: '0 4px 20px rgba(0,0,0,0.2)' } }}>
             <MenuList dense>
-              {addableTags.map(t => (
-                <MenuItem key={t} onClick={() => addMutation.mutate({ recordId: record.recordId, tagType: t })}
+              {addableTags.map(def => (
+                <MenuItem key={def.tagType}
+                  onClick={() => addMutation.mutate({ recordId: record.recordId, tagType: def.tagType })}
                   sx={{ fontSize: 12, color: T.textPrimary, '&:hover': { bgcolor: T.tealBg } }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: TAG_COLORS[t], mr: 1, flexShrink: 0 }} />
-                  {TAG_LABELS[t]}
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tagColor(def.tagType), mr: 1, flexShrink: 0 }} />
+                  {def.displayName ?? tagLabel(def.tagType)}
                 </MenuItem>
               ))}
             </MenuList>
