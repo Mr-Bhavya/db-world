@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
@@ -22,6 +23,7 @@ import java.time.Duration;
 public class TmdbWebClientConfig {
 
     @Bean
+    @Lazy
     public WebClient tmdbWebClient(TmdbProperties properties) {
 
         log.info("Initializing TMDB WebClient (baseUrl={})", properties.getBaseUrl());

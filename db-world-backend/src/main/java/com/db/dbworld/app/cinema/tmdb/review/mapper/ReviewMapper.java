@@ -9,6 +9,9 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Mapper(
@@ -54,6 +57,12 @@ public interface ReviewMapper {
         if (date == null || date.isBlank()) {
             return null;
         }
-        return Instant.parse(date);
+        try {
+            return Instant.parse(date);
+        } catch (DateTimeParseException e) {
+            // TMDB sometimes returns "2024-05-21 08:02:52 UTC" instead of ISO-8601
+            String normalized = date.trim().replace(" UTC", "Z").replace(" ", "T");
+            return Instant.parse(normalized);
+        }
     }
 }

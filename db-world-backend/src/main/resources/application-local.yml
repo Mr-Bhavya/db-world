@@ -3,6 +3,11 @@ spring:
     activate:
       on-profile: local
 
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+
 # ===========================
 # Common Application Properties
 # ===========================
@@ -28,7 +33,7 @@ app:
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 
   cdn:
-    base-url: http://cdn.db-world.in/
+    base-url: https://cdn.db-world.in/
 
   tools:
     yt-dlp: C:\Tools\ytdlp\yt-dlp

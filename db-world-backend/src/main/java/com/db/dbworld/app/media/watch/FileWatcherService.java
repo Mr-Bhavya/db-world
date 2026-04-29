@@ -118,19 +118,26 @@ public class FileWatcherService {
 
     @PostConstruct
     public void init() {
-        try {
-            Path basePath = runtimeProperties.getStreamPath();
-            if (Files.notExists(basePath)) {
-                Files.createDirectories(basePath);
-                log.info("{} Created base directory: {}", TAG, basePath);
+        // Start the watcher loop immediately (non-blocking — runs in watcherExecutor)
+        startWatcher();
+        // Register directories in the background so startup is not blocked by a
+        // potentially large directory tree walk (e.g. /ext_hdisk/videos in production).
+        Thread initThread = new Thread(() -> {
+            try {
+                Path basePath = runtimeProperties.getStreamPath();
+                if (Files.notExists(basePath)) {
+                    Files.createDirectories(basePath);
+                    log.info("{} Created base directory: {}", TAG, basePath);
+                }
+                registerAll(basePath);
+                scheduleStats();
+                log.info("{} Watching {}, dryRun={}", TAG, basePath, dryRun);
+            } catch (IOException e) {
+                log.error("{} Failed to initialize file watcher: {}", TAG, e.getMessage(), e);
             }
-            registerAll(basePath);
-            startWatcher();
-            scheduleStats();
-            log.info("{} Watching {}, dryRun={}", TAG, basePath, dryRun);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to initialize FileWatcherService", e);
-        }
+        }, "file-watcher-init");
+        initThread.setDaemon(true);
+        initThread.start();
     }
 
     @PreDestroy
