@@ -20,28 +20,36 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SchedulerAdminController {
 
-    private final TagScheduler       tagScheduler;
-    private final TmdbSyncScheduler  tmdbSyncScheduler;
+    private final TagScheduler        tagScheduler;
+    private final TmdbSyncScheduler   tmdbSyncScheduler;
     private final PersonSyncScheduler personSyncScheduler;
     private final PersonSyncService   personSyncService;
 
-    /** List known scheduler jobs. */
+    /** List all admin-managed scheduler jobs with their actual cron expressions. */
     @GetMapping("/jobs")
     @AdminAccess
     public ApiResponse<List<Map<String, Object>>> listJobs() {
         return ApiResponse.success(List.of(
-                Map.of("id", "TagScheduler",      "name", "Tag Scheduler",
-                        "cronExpression", "0 0 3 * * *",   "enabled", true, "status", "IDLE",
-                        "description", "Recalculates tag rails and trending scores"),
-                Map.of("id", "TmdbSyncScheduler", "name", "TMDB Sync",
-                        "cronExpression", "0 0 2 * * *",   "enabled", true, "status", "IDLE",
-                        "description", "Syncs changed movies & TV series from TMDB"),
+                Map.of("id", "TagScheduler", "name", "Tag Scheduler",
+                        "cronExpression", "0 0 */6 * * *",
+                        "enabled", true, "status", "IDLE",
+                        "description", "Recalculates tag pools: Trending, Featured, New and all genre rails"),
+                Map.of("id", "TmdbMovieSync", "name", "TMDB Movie Sync",
+                        "cronExpression", "0 0 2 * * *",
+                        "timezone", "Asia/Kolkata",
+                        "enabled", true, "status", "IDLE",
+                        "description", "Syncs updated movie metadata and images from TMDB (2:00 AM IST)"),
+                Map.of("id", "TmdbTvSync", "name", "TMDB TV Sync",
+                        "cronExpression", "0 10 2 * * *",
+                        "timezone", "Asia/Kolkata",
+                        "enabled", true, "status", "IDLE",
+                        "description", "Syncs updated TV series metadata and images from TMDB (2:10 AM IST)"),
                 Map.of("id", "PersonSyncScheduler", "name", "Person Detail Sync",
-                        "cronExpression", "0 0 3 * * *",   "enabled", true, "status", "IDLE",
-                        "description", "Fetches full biography & details for unsynced cast/crew (" + personSyncService.countUnsynced() + " pending)"),
-                Map.of("id", "RailCacheInvalidation", "name", "Rail Cache Invalidation",
-                        "cronExpression", "0 */30 * * * *", "enabled", true, "status", "IDLE",
-                        "description", "Invalidates and rebuilds cinema rail caches")
+                        "cronExpression", "0 0 3 * * *",
+                        "timezone", "Asia/Kolkata",
+                        "enabled", true, "status", "IDLE",
+                        "description", "Fetches full biography and images for unsynced cast/crew ("
+                                + personSyncService.countUnsynced() + " pending)")
         ));
     }
 
@@ -52,27 +60,31 @@ public class SchedulerAdminController {
         return ApiResponse.success(List.of());
     }
 
-    /** Manually trigger a job by name. */
+    /** Manually trigger a job by its id. */
     @PostMapping("/trigger/{jobName}")
     @AdminAccess
     public ApiResponse<Void> trigger(@PathVariable String jobName) {
-        log.info("Admin triggered scheduler job: {}", jobName);
+        log.info("Admin manually triggered scheduler job: {}", jobName);
         switch (jobName) {
-            case "TagScheduler"      -> new Thread(tagScheduler::updateTags,      "admin-tag-trigger").start();
-            case "TmdbSyncScheduler" -> new Thread(() -> {
-                tmdbSyncScheduler.runMovieSync();
-                tmdbSyncScheduler.runTvSync();
-            }, "admin-tmdb-trigger").start();
-            case "PersonSyncScheduler" -> new Thread(personSyncScheduler::runPersonSync, "admin-person-sync-trigger").start();
-            default -> { return ApiResponse.error(HttpStatus.BAD_REQUEST, "Unknown job: " + jobName); }
+            case "TagScheduler" ->
+                new Thread(tagScheduler::updateTags, "admin-tag-trigger").start();
+            case "TmdbMovieSync" ->
+                new Thread(tmdbSyncScheduler::runMovieSync, "admin-tmdb-movie-trigger").start();
+            case "TmdbTvSync" ->
+                new Thread(tmdbSyncScheduler::runTvSync, "admin-tmdb-tv-trigger").start();
+            case "PersonSyncScheduler" ->
+                new Thread(personSyncScheduler::runPersonSync, "admin-person-sync-trigger").start();
+            default -> {
+                return ApiResponse.error(HttpStatus.BAD_REQUEST, "Unknown job: " + jobName);
+            }
         }
         return ApiResponse.success("Job triggered: " + jobName);
     }
 
-    /** Toggle job enabled state (no-op stub — real toggle needs persistent config). */
+    /** Toggle job enabled state — no-op until persistent config is implemented. */
     @PatchMapping("/toggle/{jobName}")
     @AdminAccess
     public ApiResponse<Void> toggle(@PathVariable String jobName) {
-        return ApiResponse.success("Toggled " + jobName + " (restart required to apply)");
+        return ApiResponse.success("Toggled " + jobName + " (app restart required to apply)");
     }
 }
