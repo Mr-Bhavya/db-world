@@ -2,6 +2,8 @@ package com.db.dbworld.app.cinema.interaction.repository;
 
 import com.db.dbworld.app.cinema.interaction.entity.UserInteractionEntity;
 import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -20,6 +22,12 @@ public interface InteractionRepository
     List<UserInteractionEntity> findByUserIdAndInteractionType(
             Long userId,
             InteractionType type
+    );
+
+    Page<UserInteractionEntity> findByUserIdAndInteractionTypeOrderByIdDesc(
+            Long userId,
+            InteractionType type,
+            Pageable pageable
     );
 
     @Query("""

@@ -4,10 +4,11 @@ import { Box, Chip, Skeleton, useMediaQuery, useTheme } from '@mui/material';
 import { useSelector } from 'react-redux';
 import { AnimatePresence, motion } from 'framer-motion';
 
-import Navbar     from '../../navbar';
-import HeroBanner from '../../components/HeroBanner/HeroBanner';
-import RailRow    from '../../components/RailRow/RailRow';
-import { fetchPageRails, fetchPageCategories } from '../../api/cinemaApi';
+import Navbar          from '../../navbar';
+import HeroBanner      from '../../components/HeroBanner/HeroBanner';
+import RailRow         from '../../components/RailRow/RailRow';
+import WatchlistRailRow from '../../components/WatchlistRailRow/WatchlistRailRow';
+import { fetchPageRails, fetchPageCategories, fetchWatchlistRecords } from '../../api/cinemaApi';
 import useInteractions from '../../hooks/useInteractions';
 import useRailRecords  from '../../hooks/useRailRecords';
 import { useCategory } from '../../navbar/CategoryContext';
@@ -137,6 +138,31 @@ const CinemaPage = ({ pageType = 'home' }) => {
 
   const { interactions, loadForRecords, toggleWatchlist, toggleLike, toggleLove, toggleWatched } = useInteractions();
 
+  // ── Watchlist rail (home page only) ──────────────────────────────────────────
+  const [watchlistRecords, setWatchlistRecords] = useState([]);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+
+  useEffect(() => {
+    if (!userId || pageType !== 'home') return;
+    setWatchlistLoading(true);
+    fetchWatchlistRecords(0, 50)
+      .then(data => setWatchlistRecords(data?.records ?? []))
+      .catch(console.error)
+      .finally(() => setWatchlistLoading(false));
+  }, [userId, pageType]);
+
+  // Load interactions for watchlist records so optimistic un-watchlist works
+  useEffect(() => {
+    if (userId && watchlistRecords.length > 0)
+      loadForRecords(userId, watchlistRecords.map(r => r.id));
+  }, [userId, watchlistRecords, loadForRecords]);
+
+  // Filter out records the user just removed from their list (optimistic)
+  const visibleWatchlistRecords = useMemo(
+    () => watchlistRecords.filter(r => interactions[r.id]?.watchlisted !== false),
+    [watchlistRecords, interactions]
+  );
+
   // ── Fetch rail metadata + genres when page/category changes ──
   useEffect(() => {
     let cancelled = false;
@@ -245,7 +271,18 @@ const CinemaPage = ({ pageType = 'home' }) => {
           </>
         ) : (
           <>
-
+            {/* ── My List rail (home only, hidden when empty) ── */}
+            {pageType === 'home' && (
+              <WatchlistRailRow
+                records={visibleWatchlistRecords}
+                loading={watchlistLoading}
+                interactions={interactions}
+                onWatchlist={handleWatchlist}
+                onLike={handleLike}
+                onLove={handleLove}
+                onWatched={handleWatched}
+              />
+            )}
 
             {remainingRails.map((rail, idx) => (
               <RailRow

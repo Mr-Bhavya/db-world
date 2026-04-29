@@ -10,6 +10,8 @@ import com.db.dbworld.app.cinema.rail.entity.*;
 import com.db.dbworld.app.cinema.rail.mapper.RailMapper;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import com.db.dbworld.app.cinema.rail.repository.*;
+import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
+import com.db.dbworld.app.cinema.interaction.repository.InteractionRepository;
 import com.db.dbworld.app.cinema.rail.service.*;
 import com.db.dbworld.app.cinema.tmdb.genre.dto.GenreDto;
 import com.db.dbworld.app.cinema.tmdb.genre.entity.GenreEntity;
@@ -45,6 +47,8 @@ public class RailServiceImpl implements RailService {
     private final RailAggregationService railAggregationService;
     private final RailCacheService cacheService;
     private final RailRecordBuilder railRecordBuilder;
+
+    private final InteractionRepository interactionRepository;
 
     private final RailMapper railMapper;
     private final RecordMapper recordMapper;
@@ -212,6 +216,61 @@ public class RailServiceImpl implements RailService {
         }
 
         return railPageDto;
+    }
+
+    /* ---------------------------------------------------
+       Watchlist Rail
+    ---------------------------------------------------- */
+
+    @Override
+    @Transactional(readOnly = true)
+    public RailPageDto getWatchlistRecords(Long userId, int page, int size) {
+        int pageSize = Math.min(size, MAX_PAGE_SIZE);
+        org.springframework.data.domain.Page<?> interactionPage =
+                interactionRepository.findByUserIdAndInteractionTypeOrderByIdDesc(
+                        userId,
+                        InteractionType.WATCHLIST,
+                        PageRequest.of(page, pageSize)
+                );
+
+        List<Long> recordIds = interactionPage.getContent().stream()
+                .map(e -> ((com.db.dbworld.app.cinema.interaction.entity.UserInteractionEntity) e).getRecord().getId())
+                .toList();
+
+        if (recordIds.isEmpty()) {
+            return RailPageDto.builder()
+                    .railId(null)
+                    .page(page).size(pageSize)
+                    .hasNext(false)
+                    .records(List.of())
+                    .build();
+        }
+
+        List<RailRecordProjection> projections = recordRepository.findRailRecordProjection(recordIds);
+
+        Map<Long, RailRecordProjection> byId = projections.stream()
+                .collect(Collectors.toMap(RailRecordProjection::getId, r -> r));
+        List<RailRecordProjection> ordered = recordIds.stream()
+                .map(byId::get).filter(Objects::nonNull).toList();
+
+        List<Long> tmdbIds = extractTmdbIds(ordered);
+        if (tmdbIds.isEmpty()) {
+            return buildMinimalRailPage(null, page, pageSize, interactionPage.hasNext(), ordered);
+        }
+
+        RailAggregationResult aggregate = railAggregationService.aggregate(tmdbIds);
+        List<RailRecordDto> records = ordered.stream()
+                .map(r -> railRecordBuilder.build(
+                        r, aggregate.genres(), aggregate.posters(),
+                        aggregate.backdrops(), aggregate.videos(), aggregate.providers()))
+                .toList();
+
+        return RailPageDto.builder()
+                .railId(null)
+                .page(page).size(pageSize)
+                .hasNext(interactionPage.hasNext())
+                .records(records)
+                .build();
     }
 
     /* ---------------------------------------------------

@@ -63,6 +63,17 @@ export const autocomplete = (q) =>
     .get(`${BASE}/catalog/autocomplete`, { params: { q } })
     .then(unwrap);
 
+// ─── Watchlist Rail ───────────────────────────────────────────────────────────
+
+/**
+ * GET /api/cinema/interactions/watchlist/records?page=0&size=50
+ * → RailPageDto { records: RailRecordDto[], hasNext, page, size }
+ */
+export const fetchWatchlistRecords = (page = 0, size = 50) =>
+  axiosInstance
+    .get(`${BASE}/interactions/watchlist/records`, { params: { page, size } })
+    .then(unwrap);
+
 // ─── Interactions ─────────────────────────────────────────────────────────────
 
 /** GET /api/cinema/interactions?userId=&recordId=  → InteractionDto */

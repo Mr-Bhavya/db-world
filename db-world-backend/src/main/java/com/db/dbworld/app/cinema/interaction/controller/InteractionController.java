@@ -3,6 +3,8 @@ package com.db.dbworld.app.cinema.interaction.controller;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.cinema.interaction.dto.InteractionDto;
 import com.db.dbworld.app.cinema.interaction.service.InteractionService;
+import com.db.dbworld.app.cinema.rail.dto.RailPageDto;
+import com.db.dbworld.app.cinema.rail.service.RailService;
 import com.db.dbworld.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import java.util.List;
 public class InteractionController {
 
     private final InteractionService interactionService;
+    private final RailService railService;
     private final UserContext userContext;
 
     /* =========================
@@ -92,6 +95,20 @@ public class InteractionController {
     ) {
         interactionService.updateProgress(userContext.userId(), recordId, progress);
         return ApiResponse.success("Progress updated");
+    }
+
+    /* =========================
+       WATCHLIST RECORDS
+       ========================= */
+
+    @GetMapping("/watchlist/records")
+    public ApiResponse<RailPageDto> getWatchlistRecords(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "50") int size
+    ) {
+        return ApiResponse.success(
+                railService.getWatchlistRecords(userContext.userId(), page, size)
+        );
     }
 
     /* =========================

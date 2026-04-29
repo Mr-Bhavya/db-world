@@ -31,6 +31,12 @@ public interface RailService {
      */
     List<GenreDto> getCategories(PageType pageType);
 
+    /**
+     * Returns the current user's watchlisted records as a rail page (most recent first).
+     * Returns an empty record list when nothing is watchlisted.
+     */
+    RailPageDto getWatchlistRecords(Long userId, int page, int size);
+
     RailDto getRail(Long id);
 
     RailDto createRail(RailRequest request);
