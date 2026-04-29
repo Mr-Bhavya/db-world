@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.*;
@@ -29,12 +28,10 @@ public class TmdbSyncScheduler {
     private final TmdbRecordSyncService syncStateService;
     private final ApplicationEventPublisher applicationEventPublisher;
 
-    @Scheduled(cron = Scheduler.DAILY_2AM, zone = Time.ZONE_IST)
     public void runMovieSync() {
         runSync(RecordType.MOVIE);
     }
 
-    @Scheduled(cron = Scheduler.DAILY_2_10AM, zone = Time.ZONE_IST)
     public void runTvSync() {
         runSync(RecordType.TV_SERIES);
     }
