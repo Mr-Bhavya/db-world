@@ -23,13 +23,14 @@ import DragIndicatorIcon      from '@mui/icons-material/DragIndicator';
 import CloseIcon              from '@mui/icons-material/Close';
 import TuneIcon               from '@mui/icons-material/Tune';
 import SettingsIcon           from '@mui/icons-material/Settings';
+import { Reorder, useDragControls, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useT, getSelectMenuProps } from '@shared/theme';
 import {
   getTagSummary, getRecordsByTag, getRecordsTable,
   bulkAddTag, bulkRemoveTag, recalculateTag, recalculateAllTags,
-  getRails, createRail, updateRail, deleteRail,
+  getRails, createRail, updateRail, deleteRail, reorderRails,
   getTagDefinitions, updateTagDefinition, getRailMetadata,
 } from '../api/adminApi';
 import { TAG_COLORS, TAG_LABELS, AUTO_TAGS, ALL_TAGS } from '../records/tagConstants';
@@ -336,44 +337,46 @@ function TagRecordTable({ tagType }) {
             )}
           </Box>
         ) : (
-          <Box>
-            <Box sx={{ display: 'grid', gridTemplateColumns: isAuto ? '48px 1fr 100px 80px 160px 160px' : '48px 48px 1fr 100px 80px 160px 160px',
-              px: 2, py: 0.75, borderBottom: `1px solid ${T.border}`, bgcolor: T.adminBg }}>
-              {!isAuto && (
-                <Checkbox size="small" checked={allSelected} indeterminate={selected.length > 0 && !allSelected}
-                  onChange={toggleAll}
-                  icon={<CheckBoxOutlineBlankIcon sx={{ fontSize: 16, color: T.textFaint }} />}
-                  checkedIcon={<CheckBoxIcon sx={{ fontSize: 16, color: T.teal }} />}
-                  indeterminateIcon={<CheckBoxIcon sx={{ fontSize: 16, color: T.teal }} />} />
-              )}
-              {['#', 'Name', 'Type', 'Year', 'Added', 'Updated'].map(h => (
-                <Typography key={h} sx={{ fontSize: 10, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: .5 }}>{h}</Typography>
-              ))}
-            </Box>
-            {rows.map(r => (
-              <Box key={r.recordId}
-                sx={{ display: 'grid', gridTemplateColumns: isAuto ? '48px 1fr 100px 80px 160px 160px' : '48px 48px 1fr 100px 80px 160px 160px',
-                  px: 2, py: 1, borderBottom: `1px solid ${T.border}`, alignItems: 'center', '&:hover': { bgcolor: T.tealBg } }}>
+          <Box sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <Box sx={{ minWidth: 600 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: isAuto ? '48px 1fr 100px 80px 160px 160px' : '48px 48px 1fr 100px 80px 160px 160px',
+                px: 2, py: 0.75, borderBottom: `1px solid ${T.border}`, bgcolor: T.adminBg }}>
                 {!isAuto && (
-                  <Checkbox size="small" checked={selected.includes(r.recordId)} onChange={() => toggleOne(r.recordId)}
+                  <Checkbox size="small" checked={allSelected} indeterminate={selected.length > 0 && !allSelected}
+                    onChange={toggleAll}
                     icon={<CheckBoxOutlineBlankIcon sx={{ fontSize: 16, color: T.textFaint }} />}
-                    checkedIcon={<CheckBoxIcon sx={{ fontSize: 16, color: T.teal }} />} />
+                    checkedIcon={<CheckBoxIcon sx={{ fontSize: 16, color: T.teal }} />}
+                    indeterminateIcon={<CheckBoxIcon sx={{ fontSize: 16, color: T.teal }} />} />
                 )}
-                <Typography sx={{ fontSize: 11, color: T.textFaint }}>{r.recordId}</Typography>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</Typography>
-                <Chip label={r.type} size="small"
-                  sx={{ height: 18, fontSize: 9, fontWeight: 700,
-                    bgcolor: r.type === 'MOVIE' ? `${T.teal}18` : `${T.success}18`,
-                    color: r.type === 'MOVIE' ? T.teal : T.success,
-                    border: `1px solid ${r.type === 'MOVIE' ? T.teal : T.success}44` }} />
-                <Typography sx={{ fontSize: 11, color: T.textMuted }}>{r.year ?? '—'}</Typography>
-                <Typography sx={{ fontSize: 11, color: T.textFaint }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</Typography>
-                <Typography sx={{ fontSize: 11, color: T.textFaint }}>{r.updatedAt ? new Date(r.updatedAt).toLocaleDateString() : '—'}</Typography>
+                {['#', 'Name', 'Type', 'Year', 'Added', 'Updated'].map(h => (
+                  <Typography key={h} sx={{ fontSize: 10, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: .5 }}>{h}</Typography>
+                ))}
               </Box>
-            ))}
-            {rows.length === 0 && (
-              <Typography sx={{ fontSize: 13, color: T.textFaint, textAlign: 'center', py: 4 }}>No records with this tag</Typography>
-            )}
+              {rows.map(r => (
+                <Box key={r.recordId}
+                  sx={{ display: 'grid', gridTemplateColumns: isAuto ? '48px 1fr 100px 80px 160px 160px' : '48px 48px 1fr 100px 80px 160px 160px',
+                    px: 2, py: 1, borderBottom: `1px solid ${T.border}`, alignItems: 'center', '&:hover': { bgcolor: T.tealBg } }}>
+                  {!isAuto && (
+                    <Checkbox size="small" checked={selected.includes(r.recordId)} onChange={() => toggleOne(r.recordId)}
+                      icon={<CheckBoxOutlineBlankIcon sx={{ fontSize: 16, color: T.textFaint }} />}
+                      checkedIcon={<CheckBoxIcon sx={{ fontSize: 16, color: T.teal }} />} />
+                  )}
+                  <Typography sx={{ fontSize: 11, color: T.textFaint }}>{r.recordId}</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</Typography>
+                  <Chip label={r.type} size="small"
+                    sx={{ height: 18, fontSize: 9, fontWeight: 700,
+                      bgcolor: r.type === 'MOVIE' ? `${T.teal}18` : `${T.success}18`,
+                      color: r.type === 'MOVIE' ? T.teal : T.success,
+                      border: `1px solid ${r.type === 'MOVIE' ? T.teal : T.success}44` }} />
+                  <Typography sx={{ fontSize: 11, color: T.textMuted }}>{r.year ?? '—'}</Typography>
+                  <Typography sx={{ fontSize: 11, color: T.textFaint }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</Typography>
+                  <Typography sx={{ fontSize: 11, color: T.textFaint }}>{r.updatedAt ? new Date(r.updatedAt).toLocaleDateString() : '—'}</Typography>
+                </Box>
+              ))}
+              {rows.length === 0 && (
+                <Typography sx={{ fontSize: 13, color: T.textFaint, textAlign: 'center', py: 4 }}>No records with this tag</Typography>
+              )}
+            </Box>
           </Box>
         )}
       </Box>
@@ -460,60 +463,59 @@ function TagDefinitionsPanel() {
       </Box>
 
       <Box sx={{ border: `1px solid ${T.glassBorder}`, borderRadius: 2, overflow: 'hidden', bgcolor: T.glass }}>
-        {/* Header row */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 72px 60px 64px', gap: 1,
-          px: 2, py: 0.75, bgcolor: T.inputBg, borderBottom: `1px solid ${T.border}` }}>
-          {['Tag', 'Default Sort', 'Direction', 'Pool', 'Active', ''].map(h => (
-            <Typography key={h} sx={{ fontSize: 10, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '.06em' }}>
-              {h}
-            </Typography>
-          ))}
-        </Box>
-
-        {defs.map((def, i) => {
-          const color = TAG_COLORS[def.tagType] ?? T.teal;
-          const label = TAG_LABELS[def.tagType] ?? def.tagType;
-          return (
-            <Box key={def.tagType}>
-              {i > 0 && <Divider sx={{ borderColor: T.border }} />}
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 72px 60px 64px', gap: 1,
-                px: 2, py: 1, alignItems: 'center', '&:hover': { bgcolor: T.hoverBg } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
-                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>{label}</Typography>
-                  {def.lastRefreshedAt && (
-                    <Typography sx={{ fontSize: 10, color: T.textFaint }}>
-                      ·&nbsp;{new Date(def.lastRefreshedAt).toLocaleString()}
-                    </Typography>
-                  )}
-                </Box>
-                <Typography sx={{ fontSize: 12, color: T.textMuted, fontFamily: 'monospace' }}>
-                  {def.defaultSort ?? '—'}
+        <Box sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <Box sx={{ minWidth: 520 }}>
+            {/* Header row */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px 64px 56px 48px', gap: 1,
+              px: 2, py: 0.75, bgcolor: T.inputBg, borderBottom: `1px solid ${T.border}` }}>
+              {['Tag', 'Default Sort', 'Direction', 'Pool', 'Active', ''].map(h => (
+                <Typography key={h} sx={{ fontSize: 10, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                  {h}
                 </Typography>
-                <Typography sx={{ fontSize: 12, color: T.textMuted }}>
-                  {def.defaultDirection ?? '—'}
-                </Typography>
-                <Typography sx={{ fontSize: 12, color: T.textMuted }}>{def.poolSize}</Typography>
-                <Chip
-                  label={def.active ? 'ON' : 'OFF'}
-                  size="small"
-                  sx={{
-                    height: 18, fontSize: '0.6rem', fontWeight: 700,
-                    bgcolor: def.active ? `${T.teal}22` : `${T.error}18`,
-                    color: def.active ? T.teal : T.error,
-                    border: `1px solid ${def.active ? T.teal : T.error}44`,
-                  }}
-                />
-                <Tooltip title="Edit config">
-                  <IconButton size="small" onClick={() => setEditDef({ ...def })}
-                    sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
-                    <SettingsIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+              ))}
             </Box>
-          );
-        })}
+
+            {defs.map((def, i) => {
+              const color = TAG_COLORS[def.tagType] ?? T.teal;
+              const label = TAG_LABELS[def.tagType] ?? def.tagType;
+              return (
+                <Box key={def.tagType}>
+                  {i > 0 && <Divider sx={{ borderColor: T.border }} />}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px 64px 56px 48px', gap: 1,
+                    px: 2, py: 1, alignItems: 'center', '&:hover': { bgcolor: T.hoverBg } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: 12, color: T.textMuted, fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {def.defaultSort ?? '—'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: T.textMuted }}>
+                      {def.defaultDirection ?? '—'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: T.textMuted }}>{def.poolSize}</Typography>
+                    <Chip
+                      label={def.active ? 'ON' : 'OFF'}
+                      size="small"
+                      sx={{
+                        height: 18, fontSize: '0.6rem', fontWeight: 700,
+                        bgcolor: def.active ? `${T.teal}22` : `${T.error}18`,
+                        color: def.active ? T.teal : T.error,
+                        border: `1px solid ${def.active ? T.teal : T.error}44`,
+                      }}
+                    />
+                    <Tooltip title="Edit config">
+                      <IconButton size="small" onClick={() => setEditDef({ ...def })}
+                        sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
+                        <SettingsIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
       </Box>
 
       {/* Edit dialog */}
@@ -701,7 +703,7 @@ function TagsTab() {
 }
 
 // ── Rail row ──────────────────────────────────────────────────────────────────
-function RailRow({ rail, onEdit, onDelete, onToggle }) {
+function RailRow({ rail, onEdit, onDelete, onToggle, dragControls }) {
   const T   = useT();
   const rule = rail.rule ?? {};
 
@@ -719,7 +721,10 @@ function RailRow({ rail, onEdit, onDelete, onToggle }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.2, px: 1.5,
       '&:hover': { bgcolor: T.hoverBg } }}>
-      <DragIndicatorIcon sx={{ fontSize: 16, color: T.textFaint, cursor: 'grab', flexShrink: 0 }} />
+      <DragIndicatorIcon
+        onPointerDown={dragControls ? e => dragControls.start(e) : undefined}
+        sx={{ fontSize: 16, color: T.textFaint, cursor: 'grab', flexShrink: 0, touchAction: 'none',
+          '&:active': { cursor: 'grabbing' } }} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: T.textPrimary,
@@ -1007,6 +1012,16 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
   );
 }
 
+// ── Draggable rail row wrapper ────────────────────────────────────────────────
+function DraggableRailRow({ rail, onEdit, onDelete, onToggle }) {
+  const dragControls = useDragControls();
+  return (
+    <Reorder.Item value={rail} dragListener={false} dragControls={dragControls} style={{ listStyle: 'none' }} layout>
+      <RailRow rail={rail} onEdit={onEdit} onDelete={onDelete} onToggle={onToggle} dragControls={dragControls} />
+    </Reorder.Item>
+  );
+}
+
 // ── Rails tab ─────────────────────────────────────────────────────────────────
 function RailsTab() {
   const T                   = useT();
@@ -1020,6 +1035,21 @@ function RailsTab() {
     queryFn:  getRails,
     staleTime: 30_000,
   });
+
+  // Local ordered state for drag-to-reorder
+  const [orderedRails, setOrderedRails] = useState([]);
+  const [orderDirty,   setOrderDirty]   = useState(false);
+
+  useEffect(() => {
+    if (rails.length > 0 && !orderDirty) {
+      setOrderedRails([...rails].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0)));
+    }
+  }, [rails, orderDirty]);
+
+  const handleReorder = (newOrder) => {
+    setOrderedRails(newOrder);
+    setOrderDirty(true);
+  };
 
   const { mutate: doSave, isPending: saving } = useMutation({
     mutationFn: (d) => d.id ? updateRail(d.id, d) : createRail(d),
@@ -1035,6 +1065,7 @@ function RailsTab() {
     mutationFn: (rail) => deleteRail(rail.id),
     onSuccess: () => {
       enqueueSnackbar('Rail deleted', { variant: 'success' });
+      setOrderDirty(false);
       qc.invalidateQueries({ queryKey: ['adminRails'] });
       setDeleteDialog({ open: false, rail: null });
     },
@@ -1047,14 +1078,32 @@ function RailsTab() {
     onError: () => enqueueSnackbar('Toggle failed', { variant: 'error' }),
   });
 
+  const { mutate: doReorder, isPending: reordering } = useMutation({
+    mutationFn: () => reorderRails(orderedRails),
+    onSuccess: () => {
+      enqueueSnackbar('Order saved', { variant: 'success', autoHideDuration: 1500 });
+      setOrderDirty(false);
+      qc.invalidateQueries({ queryKey: ['adminRails'] });
+    },
+    onError: () => enqueueSnackbar('Failed to save order', { variant: 'error' }),
+  });
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Sub-toolbar */}
-      <Box sx={{ px: { xs: 2, md: 3 }, py: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, borderBottom: `1px solid ${T.border}` }}>
+      <Box sx={{ px: { xs: 2, md: 3 }, py: 1.25, display: 'flex', alignItems: 'center', gap: 1,
+        flexShrink: 0, borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
         <PlaylistPlayIcon sx={{ color: T.teal, fontSize: 18 }} />
         <Typography sx={{ fontSize: 12, color: T.textMuted, flex: 1 }}>
-          Configure homepage rails — drag to reorder, toggle to show/hide
+          Configure homepage rails — drag handle to reorder, toggle to show/hide
         </Typography>
+        {orderDirty && (
+          <Button size="small" variant="contained" disabled={reordering}
+            onClick={() => doReorder()}
+            sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 700, fontSize: 12 }}>
+            {reordering ? <CircularProgress size={14} color="inherit" /> : 'Save Order'}
+          </Button>
+        )}
         <Button size="small" variant="contained" startIcon={<AddIcon />}
           onClick={() => setRailDialog({ open: true, data: { ...BLANK_RAIL } })}
           sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600, fontSize: 12 }}>
@@ -1068,7 +1117,7 @@ function RailsTab() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, p: 1 }}>
             {[...Array(5)].map((_, i) => <Skeleton key={i} variant="rectangular" height={52} sx={{ borderRadius: 1.5, bgcolor: T.glass }} />)}
           </Box>
-        ) : rails.length === 0 ? (
+        ) : orderedRails.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <PlaylistPlayIcon sx={{ fontSize: 48, color: T.textFaint, mb: 1 }} />
             <Typography sx={{ color: T.textFaint, fontSize: '0.85rem' }}>No rails configured</Typography>
@@ -1080,15 +1129,22 @@ function RailsTab() {
           </Box>
         ) : (
           <Box sx={{ border: `1px solid ${T.glassBorder}`, borderRadius: 2, overflow: 'hidden', bgcolor: T.glass }}>
-            {rails.map((rail, i) => (
-              <Box key={rail.id ?? i}>
-                {i > 0 && <Divider sx={{ borderColor: T.border }} />}
-                <RailRow rail={rail}
-                  onEdit={(r) => setRailDialog({ open: true, data: { ...r } })}
-                  onDelete={(r) => setDeleteDialog({ open: true, rail: r })}
-                  onToggle={doToggle} />
-              </Box>
-            ))}
+            <Reorder.Group axis="y" values={orderedRails} onReorder={handleReorder}
+              style={{ padding: 0, margin: 0 }}>
+              <AnimatePresence>
+                {orderedRails.map((rail, i) => (
+                  <Box key={rail.id ?? i}>
+                    {i > 0 && <Divider sx={{ borderColor: T.border }} />}
+                    <DraggableRailRow
+                      rail={rail}
+                      onEdit={(r) => setRailDialog({ open: true, data: { ...r } })}
+                      onDelete={(r) => setDeleteDialog({ open: true, rail: r })}
+                      onToggle={doToggle}
+                    />
+                  </Box>
+                ))}
+              </AnimatePresence>
+            </Reorder.Group>
           </Box>
         )}
       </Box>

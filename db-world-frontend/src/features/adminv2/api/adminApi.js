@@ -186,6 +186,11 @@ export const updateRail = (id, body) =>
 export const deleteRail = (id) =>
   axiosInstance.delete(`/api/cinema/rails/${id}`).then(r => r.data);
 
+export const reorderRails = (orderedRails) =>
+  Promise.all(orderedRails.map((rail, i) =>
+    axiosInstance.put(`/api/cinema/rails/${rail.id}`, { ...rail, priority: i }).then(r => r.data.data)
+  ));
+
 /* ─── TMDB SYNC ─────────────────────────────────────────────── */
 
 export const getTmdbSyncStats = () =>
