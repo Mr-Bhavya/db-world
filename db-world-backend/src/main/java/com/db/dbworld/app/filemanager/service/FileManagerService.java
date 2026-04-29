@@ -2,6 +2,8 @@ package com.db.dbworld.app.filemanager.service;
 
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
+import com.db.dbworld.app.filemanager.dto.FileUploadErrorDto;
+import com.db.dbworld.app.filemanager.dto.FileUploadResultDto;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
@@ -17,14 +19,22 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 @Service
 @Log4j2
 public class FileManagerService {
+
+    private static final long TICKET_TTL_MS = 60_000; // 60-second one-time download tokens
+
+    private record DownloadTicket(String path, Instant expiresAt) {}
+
+    private final ConcurrentHashMap<String, DownloadTicket> downloadTickets = new ConcurrentHashMap<>();
 
     @Value("${file-manager.base-dir:/}")
     private String baseDirConfig;
@@ -222,21 +232,74 @@ public class FileManagerService {
         }
     }
 
-    public List<FileItemDto> uploadFiles(String path, MultipartFile[] files) throws IOException {
+    public FileUploadResultDto uploadFiles(String path, MultipartFile[] files) throws IOException {
         Path dir = jailed(path);
         if (!Files.isDirectory(dir)) throw new IllegalArgumentException("Upload target is not a directory");
+
         List<FileItemDto> uploaded = new ArrayList<>();
+        List<FileUploadErrorDto> errors = new ArrayList<>();
+
         for (MultipartFile f : files) {
             String originalName = f.getOriginalFilename();
             if (originalName == null || originalName.isBlank()) {
-                throw new IllegalArgumentException("Upload file is missing a filename");
+                errors.add(FileUploadErrorDto.builder()
+                    .fileName("(unknown)")
+                    .error("File is missing a filename")
+                    .build());
+                continue;
             }
             String name = Path.of(originalName).getFileName().toString();
             Path dest = jailed(path + "/" + name);
-            f.transferTo(dest);
-            uploaded.add(toDto(dest));
+            try {
+                f.transferTo(dest);
+                uploaded.add(toDto(dest));
+            } catch (java.nio.file.AccessDeniedException e) {
+                errors.add(FileUploadErrorDto.builder()
+                    .fileName(name)
+                    .error("Permission denied: cannot write to " + path)
+                    .build());
+                log.warn("Permission denied uploading {} to {}: {}", name, path, e.getMessage());
+            } catch (IOException e) {
+                errors.add(FileUploadErrorDto.builder()
+                    .fileName(name)
+                    .error(e.getMessage() != null ? e.getMessage() : "Upload failed")
+                    .build());
+                log.error("Failed to upload {} to {}: {}", name, path, e.getMessage());
+            }
         }
-        return uploaded;
+
+        return FileUploadResultDto.builder()
+            .uploaded(uploaded)
+            .errors(errors)
+            .totalRequested(files.length)
+            .successCount(uploaded.size())
+            .failureCount(errors.size())
+            .build();
+    }
+
+    /** Issues a one-time download ticket valid for {@value TICKET_TTL_MS}ms. */
+    public String issueDownloadTicket(String path) {
+        // Validate path exists and is a file before issuing a ticket
+        Path file = jailed(path);
+        if (!Files.isRegularFile(file)) throw new IllegalArgumentException("Not a file: " + path);
+
+        // Purge expired tickets to avoid unbounded growth
+        Instant now = Instant.now();
+        downloadTickets.entrySet().removeIf(e -> e.getValue().expiresAt().isBefore(now));
+
+        String ticketId = UUID.randomUUID().toString();
+        downloadTickets.put(ticketId, new DownloadTicket(path, now.plusMillis(TICKET_TTL_MS)));
+        return ticketId;
+    }
+
+    /** Validates ticket and streams file directly to response — no browser memory buffering. */
+    public void downloadFileWithTicket(String ticketId, HttpServletResponse response) throws IOException {
+        DownloadTicket ticket = downloadTickets.remove(ticketId);
+        if (ticket == null || ticket.expiresAt().isBefore(Instant.now())) {
+            response.sendError(HttpServletResponse.SC_GONE, "Download ticket expired or invalid");
+            return;
+        }
+        downloadFile(ticket.path(), response);
     }
 
     public FileItemDto createDirectory(String parentPath, String name) throws IOException {

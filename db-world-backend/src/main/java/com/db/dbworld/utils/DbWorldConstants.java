@@ -72,7 +72,9 @@ public class DbWorldConstants {
             "/ws/user-cinema-activity",
             "/api/stream/resolve/**",
             "/*", "/db-world/**", "/static/**",
-            "/api/metrics/**", "/actuator/**", "/api/migration/**"
+            "/api/metrics/**", "/actuator/**", "/api/migration/**",
+            // Download stream uses a one-time ticket token — no JWT needed
+            "/api/admin/file-manager/download/stream"
     };
 
     // Configured constants from application.yml

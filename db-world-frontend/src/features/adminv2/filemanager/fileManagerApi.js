@@ -11,15 +11,22 @@ export const searchFiles = ({ q, path = '/', recursive = true }) =>
 export const getFileInfo = (path) =>
   axiosInstance.get(`${BASE}/info`, { params: { path } }).then(r => r.data.data);
 
-export const downloadFile = (path, filename) =>
-  axiosInstance.get(`${BASE}/download`, { params: { path }, responseType: 'blob' }).then(r => {
-    const url = URL.createObjectURL(r.data);
-    const a   = document.createElement('a');
-    a.href    = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
+/**
+ * Stream-downloads a file without loading it into browser memory.
+ * Gets a one-time ticket, then navigates to the stream URL so the browser
+ * handles the download natively (works for files of any size).
+ */
+export const downloadFile = async (path) => {
+  const { data } = await axiosInstance.post(`${BASE}/download-ticket`, null, { params: { path } });
+  const ticketId = data.data.ticketId;
+  const url = `${BASE}/download/stream?ticket=${encodeURIComponent(ticketId)}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
 
 export const uploadFiles = (path, files, onProgress) => {
   const fd = new FormData();
@@ -28,7 +35,7 @@ export const uploadFiles = (path, files, onProgress) => {
     params: { path },
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: e => onProgress && onProgress(Math.round((e.loaded * 100) / (e.total ?? 1))),
-  }).then(r => r.data.data);
+  }).then(r => r.data.data); // returns FileUploadResultDto { uploaded, errors, successCount, failureCount }
 };
 
 export const createDirectory = (path, name) =>

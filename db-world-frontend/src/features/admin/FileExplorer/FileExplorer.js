@@ -50,11 +50,12 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStreamMediaList } from '@shared/services/ApiServices';
+import { downloadFile as downloadFileApi } from '../../adminv2/filemanager/fileManagerApi';
 import FileInfoModal from './FileInfoModal';
 import FileActionModal from './FileActionModal';
 import useFileOperations from './useFileOperations';
 import { FileContextMenu, FileActionMenu, FileSelectMenu, FileSortMenu } from './FileMenus';
-// import FileUploadModal from './FileUploadModal';
+import FileUploadModal from './FileUploadModal';
 import { styled, keyframes } from '@mui/material/styles';
 
 // Animations
@@ -404,10 +405,25 @@ const FileExplorer = () => {
     setShowUploadModal(true);
   }, []);
 
+  const handleDownloadFile = useCallback(async (file) => {
+    if (!file || file.isDirectory) return;
+    try {
+      await downloadFileApi(file.filePath);
+    } catch (err) {
+      console.error('Download failed:', err);
+    }
+  }, []);
+
   const handleDownloadSelected = useCallback(() => {
-    // Implement download logic
-    //console.log('Downloading selected files:', selectedFiles);
-  }, [selectedFiles]);
+    // Download non-directory files one by one
+    const files = selectedFiles.filter(f => !f.isDirectory);
+    files.forEach(f => handleDownloadFile(f));
+  }, [selectedFiles, handleDownloadFile]);
+
+  // Download current selectedFile (from context menu / action menu)
+  const handleDownloadCurrent = useCallback(() => {
+    handleDownloadFile(selectedFile);
+  }, [selectedFile, handleDownloadFile]);
 
   // Animation variants
   const containerVariants = {
@@ -873,18 +889,21 @@ const FileExplorer = () => {
         selectedFiles={selectedFiles}
         setSelectedFiles={setSelectedFiles}
         handleOpenModal={handleOpenModal}
+        onDownload={handleDownloadSelected}
       />
 
       <FileContextMenu
         contextMenu={contextMenu}
         setContextMenu={setContextMenu}
         handleOpenModal={handleOpenModal}
+        onDownload={handleDownloadCurrent}
       />
 
       <FileActionMenu
         fileMenuAnchor={fileMenuAnchor}
         setFileMenuAnchor={setFileMenuAnchor}
         handleOpenModal={handleOpenModal}
+        onDownload={handleDownloadCurrent}
       />
 
       <FileSortMenu
@@ -1228,12 +1247,12 @@ const FileExplorer = () => {
         file={selectedFile}
       />
 
-      {/* <FileUploadModal
+      <FileUploadModal
         open={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         currentPath={currentPath}
         onUploadSuccess={() => fetchFiles(currentPath, false)}
-      /> */}
+      />
     </GlassContainer>
   );
 };

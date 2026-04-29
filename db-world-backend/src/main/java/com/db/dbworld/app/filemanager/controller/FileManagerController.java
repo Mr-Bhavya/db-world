@@ -2,6 +2,7 @@ package com.db.dbworld.app.filemanager.controller;
 
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
+import com.db.dbworld.app.filemanager.dto.FileUploadResultDto;
 import com.db.dbworld.app.filemanager.dto.request.FileOperationRequest;
 import com.db.dbworld.app.filemanager.dto.request.MkdirRequest;
 import com.db.dbworld.app.filemanager.dto.request.RenameRequest;
@@ -17,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/file-manager")
@@ -52,8 +54,15 @@ public class FileManagerController {
         service.downloadFile(path, response);
     }
 
+    /** Issues a one-time ticket so the browser can stream-download without loading into memory. */
+    @PostMapping("/download-ticket")
+    public ApiResponse<Map<String, String>> issueDownloadTicket(@RequestParam String path) {
+        String ticketId = service.issueDownloadTicket(path);
+        return ApiResponse.success(Map.of("ticketId", ticketId));
+    }
+
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<List<FileItemDto>> upload(
+    public ApiResponse<FileUploadResultDto> upload(
             @RequestParam(defaultValue = "/") String path,
             @RequestParam("files") MultipartFile[] files) throws IOException {
         return ApiResponse.success(service.uploadFiles(path, files));

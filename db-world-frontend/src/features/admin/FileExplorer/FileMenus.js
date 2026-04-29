@@ -210,7 +210,8 @@ const floatingButtonVariants = {
 export const FileContextMenu = React.memo(({
   contextMenu,
   setContextMenu,
-  handleOpenModal
+  handleOpenModal,
+  onDownload
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -229,7 +230,11 @@ export const FileContextMenu = React.memo(({
   };
 
   const handleMenuItemClick = (action) => {
-    handleOpenModal(action);
+    if (action === 'download') {
+      onDownload?.();
+    } else {
+      handleOpenModal(action);
+    }
     handleClose();
   };
 
@@ -311,7 +316,8 @@ export const FileContextMenu = React.memo(({
 export const FileActionMenu = React.memo(({
   fileMenuAnchor,
   setFileMenuAnchor,
-  handleOpenModal
+  handleOpenModal,
+  onDownload
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -332,7 +338,11 @@ export const FileActionMenu = React.memo(({
   };
 
   const handleMenuItemClick = (action) => {
-    handleOpenModal(action);
+    if (action === 'download') {
+      onDownload?.();
+    } else {
+      handleOpenModal(action);
+    }
     handleClose();
   };
 
@@ -433,7 +443,8 @@ export const FileActionMenu = React.memo(({
 export const FileSelectMenu = React.memo(({
   selectedFiles,
   setSelectedFiles,
-  handleOpenModal
+  handleOpenModal,
+  onDownload
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -480,7 +491,7 @@ export const FileSelectMenu = React.memo(({
             <Tooltip key={action.action} title={action.label} arrow disableTouchListener>
               <IconButton
                 size="medium"
-                onClick={() => handleOpenModal(action.action)}
+                onClick={() => action.action === 'download' ? onDownload?.() : handleOpenModal(action.action)}
                 sx={{
                   color: action.color,
                   bgcolor: alpha(action.color, 0.1),
@@ -601,7 +612,7 @@ export const FileSelectMenu = React.memo(({
                 arrow
               >
                 <FloatingActionButton
-                  onClick={() => handleOpenModal(action.action)}
+                  onClick={() => action.action === 'download' ? onDownload?.() : handleOpenModal(action.action)}
                   onMouseEnter={() => setHoveredAction(action.action)}
                   onMouseLeave={() => setHoveredAction(null)}
                   sx={{
