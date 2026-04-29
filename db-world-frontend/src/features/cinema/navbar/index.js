@@ -11,12 +11,11 @@ import {
   Toolbar,
   IconButton,
   Button,
+  ButtonBase,
   Box,
   useTheme,
   useMediaQuery,
   styled,
-  BottomNavigation,
-  BottomNavigationAction,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -102,19 +101,49 @@ const Pill = styled(Button, {
   '&:hover': { background: active ? '#fff' : 'rgba(255,255,255,0.22)' },
 }));
 
-/** Fixed bottom nav (mobile) */
-const MobileBottomNav = styled(BottomNavigation)(() => ({
-  position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1200,
-  background: 'rgba(14,14,14,0.97)', backdropFilter: 'blur(14px)',
-  borderTop: '1px solid rgba(255,255,255,0.08)', height: 60,
+/** Floating pill bottom nav (mobile) */
+const FloatingBottomNav = styled(Box)(({ theme }) => ({
+  position: 'fixed',
+  bottom: 16,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 1200,
+  display: 'inline-flex',
+  alignItems: 'center',
+  background: theme.palette.mode === 'dark'
+    ? 'rgba(16,16,16,0.96)'
+    : 'rgba(22,22,22,0.96)',
+  backdropFilter: 'blur(28px)',
+  WebkitBackdropFilter: 'blur(28px)',
+  borderRadius: 50,
+  border: '1px solid rgba(255,255,255,0.09)',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
+  height: 60,
+  padding: '4px 6px',
+  whiteSpace: 'nowrap',
 }));
 
-const MobileBottomNavAction = styled(BottomNavigationAction)(() => ({
-  color: 'rgba(255,255,255,0.5)', minWidth: 0, padding: '6px 0 4px',
-  '&.Mui-selected': { color: '#fff' },
-  '& .MuiBottomNavigationAction-label': {
-    fontSize: '0.65rem',
-    '&.Mui-selected': { fontSize: '0.65rem', fontWeight: 600 },
+/** Single item inside the floating pill */
+const FloatingNavItem = styled(ButtonBase, {
+  shouldForwardProp: p => p !== 'active',
+})(({ active, theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 3,
+  padding: '0 16px',
+  height: '100%',
+  borderRadius: 40,
+  color: active ? '#fff' : 'rgba(255,255,255,0.42)',
+  background: active
+    ? `${theme.palette.primary.main}28`
+    : 'transparent',
+  transition: 'color 0.18s ease, background 0.18s ease',
+  minWidth: 52,
+  '&:hover': {
+    color: 'rgba(255,255,255,0.82)',
+    background: 'rgba(255,255,255,0.07)',
   },
 }));
 
@@ -236,20 +265,6 @@ function Navbar({ coverColor, onGenreSelect }) {
         px: 2, pb: 1.2, pt: 0.3,
         scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
       }}>
-        {!isMediaPage && (
-          <>
-            {/* Shows chip — nav shortcut, never active-styled */}
-            <Pill onClick={() => handleNavSelect(navItems[2])}>
-              Shows
-            </Pill>
-            {/* Movies chip — nav shortcut, never active-styled */}
-            <Pill onClick={() => handleNavSelect(navItems[1])}>
-              Movies
-            </Pill>
-          </>
-        )}
-
-        {/* Categories chip */}
         <Pill
           onClick={() => setCategoryModalOpen(true)}
           endIcon={<ExpandMoreIcon sx={{ fontSize: '0.9rem !important', ml: -0.5 }} />}
@@ -394,25 +409,37 @@ function Navbar({ coverColor, onGenreSelect }) {
         transition: 'height 0.3s ease',
       }} />
 
-      {/* ── Mobile bottom navigation ── */}
+      {/* ── Floating pill bottom navigation (mobile) ── */}
       {isMobile && (
-        <MobileBottomNav
-          value={bottomNavValue}
-          onChange={(_, newValue) => handleNavSelect(navItems[newValue])}
-          showLabels
-        >
-          {navItems.map(item => (
-            <MobileBottomNavAction
-              key={item.id}
-              label={item.id === 2 ? 'TV Shows' : item.title}
-              icon={item.id === 3 ? <CategoryIcon /> : item.icon}
-            />
-          ))}
-        </MobileBottomNav>
+        <FloatingBottomNav>
+          {navItems.map(item => {
+            const isActive = bottomNavValue === item.id;
+            return (
+              <FloatingNavItem
+                key={item.id}
+                active={isActive}
+                onClick={() => handleNavSelect(item)}
+              >
+                <Box sx={{ display: 'flex', fontSize: '1.3rem', lineHeight: 1 }}>
+                  {item.icon}
+                </Box>
+                <Box component="span" sx={{
+                  fontSize: '0.6rem',
+                  fontWeight: isActive ? 700 : 400,
+                  letterSpacing: '0.03em',
+                  lineHeight: 1,
+                  color: 'inherit',
+                }}>
+                  {item.id === 2 ? 'Shows' : item.title}
+                </Box>
+              </FloatingNavItem>
+            );
+          })}
+        </FloatingBottomNav>
       )}
 
-      {/* Bottom spacer so content sits above bottom nav */}
-       {/* {isMobile && <Box sx={{ height: '60px' }} />} */}
+      {/* Bottom spacer so content clears the floating nav */}
+      {isMobile && <Box sx={{ height: '80px' }} />}
     </>
   );
 }
