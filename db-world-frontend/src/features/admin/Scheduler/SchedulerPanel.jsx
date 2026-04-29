@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import axios from 'axios';
+import axiosInstance from '../../../shared/components/ui/utils/AxiosInstants';
 import { useT } from '@shared/theme';
 
 // ─── Per-job display metadata ─────────────────────────────────────────────────
@@ -25,10 +25,10 @@ const JOB_META = {
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 const api = {
-  jobs:    () => axios.get('/api/admin/scheduler/jobs').then(r => r.data?.data ?? []),
-  history: () => axios.get('/api/admin/scheduler/history').then(r => r.data?.data ?? []),
-  trigger: (jobId) => axios.post(`/api/admin/scheduler/trigger/${jobId}`),
-  toggle:  (jobId) => axios.patch(`/api/admin/scheduler/toggle/${jobId}`),
+  jobs:    () => axiosInstance.get('/api/admin/scheduler/jobs').then(r => r.data?.data ?? []),
+  history: () => axiosInstance.get('/api/admin/scheduler/history').then(r => r.data?.data ?? []),
+  trigger: (jobId) => axiosInstance.post(`/api/admin/scheduler/trigger/${jobId}`),
+  toggle:  (jobId) => axiosInstance.patch(`/api/admin/scheduler/toggle/${jobId}`),
 };
 
 // ─── Cron human description ────────────────────────────────────────────────────

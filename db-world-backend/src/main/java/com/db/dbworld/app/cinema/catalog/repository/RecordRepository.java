@@ -394,7 +394,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     Page<RecordAdminRowDto> findAdminTable(
             Long recordId,
             String name,
-            RecordType type,
+            String type,
             Long tmdbId,
             Integer year,
             Pageable pageable

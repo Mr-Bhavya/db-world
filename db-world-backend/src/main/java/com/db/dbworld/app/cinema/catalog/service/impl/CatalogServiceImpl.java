@@ -173,7 +173,7 @@ public class CatalogServiceImpl implements CatalogService {
             Pageable pageable
     ) {
         return recordRepository.findAdminTable(
-                recordId, name, type, tmdbId, year, remapAdminTableSort(pageable)
+                recordId, name, type != null ? type.name() : null, tmdbId, year, remapAdminTableSort(pageable)
         );
     }
 
