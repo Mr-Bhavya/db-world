@@ -43,6 +43,10 @@ public class RailRecordDto {
     // Hover preview
     private String overview;
 
+    // Runtime metadata
+    private Integer runtime;         // minutes (movies only)
+    private Integer numberOfSeasons; // series only
+
     // Hover trailer
     private String previewVideoUrl;
 

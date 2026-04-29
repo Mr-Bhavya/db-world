@@ -25,4 +25,8 @@ public interface RailRecordProjection {
     String getOverview();
 
     Long getTmdbId();
+
+    Integer getRuntime();
+
+    Integer getNumberOfSeasons();
 }

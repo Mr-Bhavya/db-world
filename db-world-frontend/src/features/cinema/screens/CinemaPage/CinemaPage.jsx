@@ -219,7 +219,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
         transition: 'background 0.8s ease',
         '--cinema-bg': '#141414',
         color: '#fff',
-        pb: 8,
+        pb: { xs: '96px', md: 8 },
       }}
     >
       {/* ── Cinema Navbar ── */}

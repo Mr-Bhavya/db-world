@@ -67,7 +67,7 @@ function darken([r, g, b], factor = 0.45) {
 const HeroBannerSkeleton = ({ isMobile }) => (
   isMobile ? (
     // Mobile skeleton: large poster card + buttons below
-    <Box sx={{ minHeight: '82svh', display: 'flex', flexDirection: 'column', alignItems: 'center', pt: '10px', pb: 1, px: 4 }}>
+    <Box sx={{ minHeight: '82svh', display: 'flex', flexDirection: 'column', alignItems: 'center', pt: '16px', pb: 1, px: 4 }}>
       {/* Poster card skeleton */}
       <Box sx={{ position: 'relative', width: '74vw', maxWidth: 300, aspectRatio: '2/3', borderRadius: 3, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.07)', width: '74vw' }}>
         <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: 'rgba(255,255,255,.07)' }} />
@@ -211,7 +211,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
       <Box
         sx={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          pt: '10px',
+          pt: '16px',
           pb: 4,
           position: 'relative',
         }}

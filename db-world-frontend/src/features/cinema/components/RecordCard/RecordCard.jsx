@@ -67,19 +67,26 @@ const ActionBtn = ({ icon, activeIcon, active, tooltip, onClick, variant = 'outl
 
 // ─── Netflix hover popup (portal) ────────────────────────────────────────────
 
+const fmtRuntime = (mins) => {
+  if (!mins || mins <= 0) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m > 0 ? `${m}m` : ''}`.trim() : `${m}m`;
+};
+
 const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onWatched, anchorRect, onClose }) => {
   const navigate = useNavigate();
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [muted, setMuted] = useState(true);
   const isMovie = record.type === 'MOVIE';
-    const iframeRef = useRef(null);
+  const iframeRef = useRef(null);
 
-    const videoSrc = record.previewVideoUrl
-        ? `${record.previewVideoUrl}&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&vq=hd1080`
-        : null;
+  const videoSrc = record.previewVideoUrl
+    ? `${record.previewVideoUrl}&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&vq=hd1080`
+    : null;
 
   const POPUP_VIDEO_H = Math.round(POPUP_W * 9 / 16);
-  const popupH = POPUP_VIDEO_H + 190;
+  const popupH = POPUP_VIDEO_H + (record.overview ? 290 : 210);
   const left = Math.max(8, Math.min(
     anchorRect.left + anchorRect.width / 2 - POPUP_W / 2,
     window.innerWidth - POPUP_W - 8
@@ -216,20 +223,10 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
       </Box>
 
       {/* ── Info ── */}
-      <Box sx={{ px: 1.8, pt: 1.4, pb: 1.6, bgcolor: '#181818' }}>
-        {/* Title */}
-        <Typography sx={{
-          color: '#fff', fontWeight: 700, fontSize: '1rem',
-          lineHeight: 1.25, mb: 1.2,
-          display: '-webkit-box', WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        }}>
-          {record.title}
-        </Typography>
+      <Box sx={{ px: 2, pt: 1.5, pb: 2, bgcolor: '#181818' }}>
 
         {/* ── Action row ── */}
-        <Box sx={{ display: 'flex', gap: 0.8, mb: 1.4, alignItems: 'center' }}>
-          {/* Play */}
+        <Box sx={{ display: 'flex', gap: 0.8, mb: 1.2, alignItems: 'center' }}>
           <ActionBtn
             variant="filled"
             icon={<PlayArrow sx={{ fontSize: 20 }} />}
@@ -237,8 +234,6 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             tooltip="Play / Download"
             onClick={goPlay}
           />
-
-          {/* Watchlist */}
           <ActionBtn
             icon={<BookmarkAdd sx={{ fontSize: 17 }} />}
             activeIcon={<BookmarkAdded sx={{ fontSize: 17, color: '#46d369' }} />}
@@ -246,8 +241,6 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             tooltip={interaction.watchlisted ? 'Remove from My List' : 'Add to My List'}
             onClick={() => onWatchlist?.(record)}
           />
-
-          {/* Like */}
           <ActionBtn
             icon={<ThumbUpOutlined sx={{ fontSize: 17 }} />}
             activeIcon={<ThumbUp sx={{ fontSize: 17, color: '#fff' }} />}
@@ -255,8 +248,6 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             tooltip={interaction.liked ? 'Unlike' : 'Like'}
             onClick={() => onLike?.(record)}
           />
-
-          {/* Love / Favourite */}
           <ActionBtn
             icon={<FavoriteBorder sx={{ fontSize: 17 }} />}
             activeIcon={<Favorite sx={{ fontSize: 17, color: '#fff' }} />}
@@ -264,8 +255,6 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             tooltip={interaction.loved ? 'Remove from Favourites' : 'Love it'}
             onClick={() => onLove?.(record)}
           />
-
-          {/* Watched */}
           <ActionBtn
             icon={<VisibilityOff sx={{ fontSize: 17 }} />}
             activeIcon={<Visibility sx={{ fontSize: 17, color: '#a5d6a7' }} />}
@@ -273,8 +262,6 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             tooltip={interaction.watched ? 'Mark as Unwatched' : 'Mark as Watched'}
             onClick={() => onWatched?.(record)}
           />
-
-          {/* Info — pushed right */}
           <Box sx={{ ml: 'auto' }}>
             <ActionBtn
               icon={<Info sx={{ fontSize: 17 }} />}
@@ -285,8 +272,8 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
           </Box>
         </Box>
 
-        {/* Metadata */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 0.8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Metadata row */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 0.9, flexWrap: 'wrap', alignItems: 'center' }}>
           {record.voteAverage > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
               <Star sx={{ fontSize: 12, color: '#46d369' }} />
@@ -296,8 +283,18 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             </Box>
           )}
           {year(record.releaseDate) && (
-            <Typography sx={{ color: 'rgba(255,255,255,.6)', fontSize: '0.78rem' }}>
+            <Typography sx={{ color: 'rgba(255,255,255,.55)', fontSize: '0.78rem' }}>
               {year(record.releaseDate)}
+            </Typography>
+          )}
+          {isMovie && fmtRuntime(record.runtime) && (
+            <Typography sx={{ color: 'rgba(255,255,255,.55)', fontSize: '0.78rem' }}>
+              {fmtRuntime(record.runtime)}
+            </Typography>
+          )}
+          {!isMovie && record.numberOfSeasons > 0 && (
+            <Typography sx={{ color: 'rgba(255,255,255,.55)', fontSize: '0.78rem' }}>
+              {record.numberOfSeasons === 1 ? '1 Season' : `${record.numberOfSeasons} Seasons`}
             </Typography>
           )}
           <Chip
@@ -311,16 +308,38 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
           />
         </Box>
 
+        {/* Title */}
+        <Typography sx={{
+          color: '#fff', fontWeight: 800, fontSize: '1rem',
+          lineHeight: 1.3, mb: record.overview ? 0.8 : 0.6,
+          display: '-webkit-box', WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {record.title}
+        </Typography>
+
+        {/* Overview */}
+        {record.overview && (
+          <Typography sx={{
+            color: 'rgba(255,255,255,.6)', fontSize: '0.8rem',
+            lineHeight: 1.55, mb: 0.9,
+            display: '-webkit-box', WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          }}>
+            {record.overview}
+          </Typography>
+        )}
+
         {/* Genres */}
         {record.genres?.length > 0 && (
-          <Typography sx={{ color: 'rgba(255,255,255,.45)', fontSize: '0.72rem', mb: 0.8 }}>
+          <Typography sx={{ color: 'rgba(255,255,255,.38)', fontSize: '0.72rem', mb: 0.7 }}>
             {record.genres.slice(0, 4).join(' · ')}
           </Typography>
         )}
 
         {/* Providers */}
         {record.providers?.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', mt: 0.6 }}>
+          <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap' }}>
             {record.providers.slice(0, 6).map(p =>
               p.logoPath && (
                 <Box
@@ -329,7 +348,7 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
                   src={tmdbImg(p.logoPath, 'w92')}
                   alt={p.providerName}
                   title={p.providerName}
-                  sx={{ width: 28, height: 28, borderRadius: 1, objectFit: 'cover' }}
+                  sx={{ width: 26, height: 26, borderRadius: 1, objectFit: 'cover' }}
                 />
               )
             )}
