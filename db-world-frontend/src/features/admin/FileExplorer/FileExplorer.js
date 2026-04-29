@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Box,
   Container,
@@ -257,6 +257,36 @@ const FileExplorer = () => {
     handleCloseModal,
     handleFileAction
   } = useFileOperations();
+
+  // Long-press refs for mobile multi-select
+  const longPressTimeoutRef = useRef(null);
+  const longPressFiredRef = useRef(false);
+
+  const handleTouchStart = useCallback((file) => {
+    longPressFiredRef.current = false;
+    longPressTimeoutRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      if (navigator.vibrate) navigator.vibrate(50);
+      setSelectedFiles(prev =>
+        prev.find(f => f.filePath === file.filePath) ? prev : [...prev, file]
+      );
+    }, 500);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback(() => {
+    // Cancel long press if finger moves (user is scrolling)
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  }, []);
 
   const fetchFiles = useCallback(async (path, showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -531,7 +561,7 @@ const FileExplorer = () => {
               }}
             >
               {/* View Mode Toggle */}
-              <Tooltip title={viewMode === 'grid' ? 'List view' : 'Grid view'}>
+              <Tooltip title={viewMode === 'grid' ? 'List view' : 'Grid view'} disableTouchListener>
                 <IconButton
                   onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
                   sx={{
@@ -960,8 +990,21 @@ const FileExplorer = () => {
                           isdirectory={file.isDirectory.toString()}
                           onDoubleClick={() => handleDoubleClick(file)}
                           onContextMenu={(e) => handleContextMenu(e, file)}
+                          onTouchStart={() => handleTouchStart(file)}
+                          onTouchEnd={handleTouchEnd}
+                          onTouchMove={handleTouchMove}
                           onClick={(e) => {
-                            // Folders navigate on single click; files toggle selection
+                            // Long-press already handled selection — skip the click
+                            if (longPressFiredRef.current) {
+                              longPressFiredRef.current = false;
+                              return;
+                            }
+                            // When already in selection mode, all taps toggle selection
+                            if (selectedFiles.length > 0) {
+                              handleToggleSelect(file, e);
+                              return;
+                            }
+                            // Normal: folders navigate, files select
                             if (file.isDirectory) {
                               handleDoubleClick(file);
                             } else {
@@ -989,6 +1032,26 @@ const FileExplorer = () => {
                               '.MuiCard-root:hover &': { opacity: 1 },
                             }}
                           />
+
+                          {/* "..." actions button: grid-view on mobile always, list-view handled below */}
+                          {isMobile && viewMode === 'grid' && (
+                            <IconButton
+                              size="small"
+                              onClick={(e) => { e.stopPropagation(); handleFileMenuClick(e, file); }}
+                              sx={{
+                                position: 'absolute',
+                                top: 2,
+                                right: 2,
+                                zIndex: 2,
+                                p: 0.5,
+                                bgcolor: alpha(theme.palette.background.paper, 0.85),
+                                backdropFilter: 'blur(4px)',
+                                '& .MuiSvgIcon-root': { fontSize: '1rem' },
+                              }}
+                            >
+                              <MoreVertIcon />
+                            </IconButton>
+                          )}
 
                           <Box sx={{
                             display: 'flex',

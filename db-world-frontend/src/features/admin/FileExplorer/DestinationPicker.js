@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+
 import {
   Box,
   Typography,
-  TextField,
   List,
   ListItem,
   ListItemButton,
@@ -19,28 +19,23 @@ import {
   Tooltip,
   alpha,
   useTheme,
-  Fade,
-  Zoom,
   Button
 } from '@mui/material';
-import { 
-  Folder as FolderIcon, 
-  ChevronRight, 
-  InsertDriveFile,
+import {
+  Folder as FolderIcon,
+  ChevronRight,
   Home as HomeIcon,
   ArrowUpward as UpIcon,
   KeyboardArrowRight,
   Refresh as RefreshIcon,
-  CheckCircle,
+  CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Storage,
   FolderOpen,
-  Search
 } from '@mui/icons-material';
 import { motion, AnimatePresence, LazyMotion, domAnimation } from 'framer-motion';
 import { handleApiError } from '@shared/components/ui/utils/errorHandler';
 import { getStreamMediaList } from '@shared/services/ApiServices';
-import { styled, keyframes } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
 
 // Animations
 const fadeInUp = {
@@ -61,16 +56,6 @@ const slideIn = {
   exit: { x: 20, opacity: 0 }
 };
 
-const shimmerAnimation = keyframes`
-  0% { background-position: -200px 0; }
-  100% { background-position: 200px 0; }
-`;
-
-const pulseAnimation = keyframes`
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
-`;
 
 // Styled Components
 const GlassPaper = styled(Paper)(({ theme }) => ({
@@ -105,32 +90,6 @@ const PathBar = styled(Box)(({ theme }) => ({
   borderRadius: theme.spacing(2, 2, 0, 0),
 }));
 
-const StyledTextField = styled(TextField)(({ theme }) => ({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: theme.spacing(1.5),
-    backgroundColor: alpha(theme.palette.background.paper, 0.8),
-    backdropFilter: 'blur(5px)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    '&:hover': {
-      backgroundColor: alpha(theme.palette.background.paper, 0.9),
-      transform: 'translateY(-2px)',
-      boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.1)}`,
-    },
-    '&.Mui-focused': {
-      backgroundColor: alpha(theme.palette.background.paper, 0.95),
-      boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.2)}`,
-    },
-    '& fieldset': {
-      borderColor: alpha(theme.palette.divider, 0.2),
-    },
-  },
-  '& .MuiInputLabel-root': {
-    color: alpha(theme.palette.text.primary, 0.7),
-    '&.Mui-focused': {
-      color: theme.palette.primary.main,
-    },
-  }
-}));
 
 const BreadcrumbLink = styled(Link)(({ theme }) => ({
   display: 'flex',
@@ -176,26 +135,6 @@ const FolderItemButton = styled(motion(ListItemButton))(({ theme, isdirectory })
   }
 }));
 
-const FileSizeChip = styled(Chip)(({ theme }) => ({
-  height: 20,
-  fontSize: '0.65rem',
-  fontWeight: 500,
-  backgroundColor: alpha(theme.palette.info.main, 0.1),
-  color: theme.palette.info.main,
-  border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
-}));
-
-const LoadingShimmer = styled(Box)(({ theme }) => ({
-  width: '100%',
-  height: '100%',
-  background: `linear-gradient(90deg, 
-    ${alpha(theme.palette.background.paper, 0.8)} 25%, 
-    ${alpha(theme.palette.primary.light, 0.1)} 50%, 
-    ${alpha(theme.palette.background.paper, 0.8)} 75%)`,
-  backgroundSize: '400px 100%',
-  animation: `${shimmerAnimation} 2s infinite linear`,
-  borderRadius: theme.spacing(1),
-}));
 
 const EmptyState = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -210,18 +149,14 @@ const EmptyState = styled(Box)(({ theme }) => ({
 
 const DestinationPicker = ({ destination, setDestination }) => {
   const theme = useTheme();
-  const [manualPath, setManualPath] = useState(destination);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
   const [hoveredItem, setHoveredItem] = useState(null);
-  const [validatingPath, setValidatingPath] = useState(false);
-  const [lastValidatedPath, setLastValidatedPath] = useState('');
 
   const pathParts = useMemo(() => destination.split('/').filter(Boolean), [destination]);
 
   useEffect(() => {
-    setManualPath(destination);
     setError('');
     loadFolders(destination);
   }, [destination]);
@@ -231,15 +166,12 @@ const DestinationPicker = ({ destination, setDestination }) => {
     try {
       const response = await getStreamMediaList(encodeURIComponent(path));
       if (response.success && response.data) {
-        const folders = response.data.filter(item => item.isDirectory);
-        setItems(folders);
-        setLastValidatedPath(path);
+        setItems(response.data.filter(item => item.isDirectory));
       } else {
         setError(response.message || 'Failed to load folders');
         setItems([]);
       }
     } catch (err) {
-      handleApiError(err);
       setError(err.message || 'Server error');
       setItems([]);
     } finally {
@@ -247,11 +179,8 @@ const DestinationPicker = ({ destination, setDestination }) => {
     }
   };
 
-  const updatePath = useCallback(async (path) => {
+  const updatePath = useCallback((path) => {
     setDestination(path);
-    setValidatingPath(true);
-    await loadFolders(path);
-    setValidatingPath(false);
   }, [setDestination]);
 
   const handleBreadcrumbClick = (index) => {
@@ -272,37 +201,7 @@ const DestinationPicker = ({ destination, setDestination }) => {
     updatePath(parentPath || '/');
   };
 
-  const validatePath = (path) => {
-    if (!path.startsWith('/')) return 'Path must start with /';
-    if (path.includes('//')) return 'Path cannot contain consecutive slashes';
-    if (path.length > 500) return 'Path is too long';
-    if (!/^[a-zA-Z0-9_\-./ ]+$/.test(path)) return 'Path contains invalid characters';
-    return '';
-  };
-
-  const handleManualPathSubmit = async () => {
-    const errorMsg = validatePath(manualPath);
-    if (errorMsg) {
-      setError(errorMsg);
-    } else {
-      await updatePath(manualPath);
-    }
-  };
-
-  const formatFileSize = (bytes) => {
-    if (!bytes || bytes === '0') return '0 B';
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
-  };
-
-  const getFolderStats = () => {
-    const folderCount = items.filter(item => item.isDirectory).length;
-    const totalItems = items.length;
-    return { folderCount, totalItems };
-  };
-
-  const stats = getFolderStats();
+  const folderCount = items.length;
 
   return (
     <LazyMotion features={domAnimation}>
@@ -399,10 +298,10 @@ const DestinationPicker = ({ destination, setDestination }) => {
                     <FolderOpen fontSize="small" />
                     {destination === '/' ? 'Root Directory' : destination}
                   </Typography>
-                  {stats.folderCount > 0 && (
+                  {folderCount > 0 && (
                     <Chip
                       icon={<FolderOpen fontSize="small" />}
-                      label={`${stats.folderCount} folder${stats.folderCount !== 1 ? 's' : ''}`}
+                      label={`${folderCount} folder${folderCount !== 1 ? 's' : ''}`}
                       size="small"
                       sx={{
                         backgroundColor: alpha(theme.palette.primary.main, 0.1),
@@ -598,41 +497,32 @@ const DestinationPicker = ({ destination, setDestination }) => {
                 )}
               </Box>
 
-              {/* Path Input — secondary, for manual override */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                  Or type a path manually:
+              {/* Selected folder indicator */}
+              <Box
+                sx={{
+                  mt: 1.5,
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  bgcolor: alpha(theme.palette.primary.main, 0.08),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <CheckCircleIcon sx={{ fontSize: 16, color: 'primary.main', flexShrink: 0 }} />
+                <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                  Destination:
                 </Typography>
-                <StyledTextField
-                  fullWidth
-                  placeholder="/path/to/destination"
-                  value={manualPath}
-                  onChange={(e) => {
-                    setManualPath(e.target.value);
-                    setError('');
-                  }}
-                  onBlur={handleManualPathSubmit}
-                  onKeyDown={(e) => e.key === 'Enter' && handleManualPathSubmit()}
-                  error={!!error}
-                  helperText={error}
-                  InputProps={{
-                    endAdornment: (
-                      <AnimatePresence>
-                        {validatingPath ? (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                            <CircularProgress size={18} />
-                          </motion.div>
-                        ) : lastValidatedPath === destination ? (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
-                            <CheckCircle sx={{ color: theme.palette.success.main, fontSize: 18 }} />
-                          </motion.div>
-                        ) : null}
-                      </AnimatePresence>
-                    ),
-                  }}
-                  disabled={loading}
-                  size="small"
-                />
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  color="primary.main"
+                  sx={{ wordBreak: 'break-all' }}
+                >
+                  {destination}
+                </Typography>
               </Box>
             </Box>
           </GlassPaper>

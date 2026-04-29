@@ -452,6 +452,67 @@ export const FileSelectMenu = React.memo(({
     { action: 'delete', icon: DeleteIcon, label: 'Delete', color: theme.palette.error.main, danger: true },
   ];
 
+  // Mobile: full-width bottom action bar with visible icons
+  if (isMobile) {
+    return (
+      <Slide direction="up" in mountOnEnter unmountOnExit>
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            bgcolor: 'background.paper',
+            borderTop: `2px solid ${theme.palette.primary.main}`,
+            boxShadow: `0 -4px 24px ${alpha(theme.palette.common.black, 0.18)}`,
+            zIndex: 1300,
+            px: 2,
+            py: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          <Typography variant="body2" fontWeight={700} sx={{ flex: 1, color: 'primary.main' }}>
+            {fileCount} selected
+          </Typography>
+          {actions.map(action => (
+            <Tooltip key={action.action} title={action.label} arrow disableTouchListener>
+              <IconButton
+                size="medium"
+                onClick={() => handleOpenModal(action.action)}
+                sx={{
+                  color: action.color,
+                  bgcolor: alpha(action.color, 0.1),
+                  border: `1px solid ${alpha(action.color, 0.3)}`,
+                  borderRadius: 2,
+                  width: 44,
+                  height: 44,
+                  '&:hover': { bgcolor: alpha(action.color, 0.2) },
+                }}
+              >
+                <action.icon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          ))}
+          <IconButton
+            size="medium"
+            onClick={() => setSelectedFiles([])}
+            sx={{
+              color: 'text.secondary',
+              bgcolor: alpha(theme.palette.action.hover, 0.8),
+              borderRadius: 2,
+              width: 44,
+              height: 44,
+            }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Slide>
+    );
+  }
+
   return (
     <AnimatePresence>
       <Slide direction="left" in={selectedFiles.length > 0} mountOnEnter unmountOnExit>
