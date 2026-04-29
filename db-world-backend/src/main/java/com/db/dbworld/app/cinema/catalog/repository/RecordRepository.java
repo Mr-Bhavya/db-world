@@ -6,12 +6,8 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
-import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
-import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
-import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
-import com.db.dbworld.app.cinema.enums.RecordTagType;
-import com.db.dbworld.app.cinema.enums.RecordType;
-import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
+import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -465,7 +461,9 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 t.popularity as popularity,
                 COALESCE(t.releaseDate, t.firstAirDate) as releaseDate,
                 t.overview as overview,
-                t.id as tmdbId
+                t.id as tmdbId,
+                TREAT(t as MovieTmdbEntity).runtime as runtime,
+                TREAT(t as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
             FROM RecordEntity r
             JOIN r.tmdb t
             WHERE r.id IN :ids

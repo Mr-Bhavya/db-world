@@ -88,6 +88,8 @@ public class RailRecordBuilder {
                 .popularity(r.getPopularity())
                 .releaseDate(r.getReleaseDate())
                 .overview(r.getOverview())
+                .runtime(r.getRuntime())
+                .numberOfSeasons(r.getNumberOfSeasons())
                 .previewVideoUrl(selectVideo(videoList))
                 .providers(providerList != null ? providerList : EMPTY_PROVIDERS)
                 .build();
@@ -110,6 +112,8 @@ public class RailRecordBuilder {
                 .popularity(r.getPopularity())
                 .releaseDate(r.getReleaseDate())
                 .overview(r.getOverview())
+                .runtime(r.getRuntime())
+                .numberOfSeasons(r.getNumberOfSeasons())
                 .genres(EMPTY_GENRES)
                 .providers(EMPTY_PROVIDERS)
                 .build();
