@@ -115,10 +115,11 @@ public class RailResolverImpl implements RailResolver {
                     .findByRailIdOrderByPriorityAsc(rail.getId(), sortedPageable)
                     .map(item -> item.getRecord().getId());
 
-            case "tag"      -> resolveTagIds(rule, effectiveType, category, sortedPageable);
-            case "genre"    -> resolveGenreIds(rule, effectiveType, category, sortedPageable);
-            case "language" -> resolveLanguageIds(rule, effectiveType, category, sortedPageable);
-            case "filter"   -> resolveFilterIds(rule, effectiveType, category, sortedPageable);
+            case "tag"       -> resolveTagIds(rule, effectiveType, category, sortedPageable);
+            case "genre"     -> resolveGenreIds(rule, effectiveType, category, sortedPageable);
+            case "language"  -> resolveLanguageIds(rule, effectiveType, category, sortedPageable);
+            case "filter"    -> resolveFilterIds(rule, effectiveType, category, sortedPageable);
+            case "watchlist" -> new SliceImpl<>(List.of(), pageable, false); // resolved by RailServiceImpl
 
             default -> new SliceImpl<>(List.of(), pageable, false);
         };

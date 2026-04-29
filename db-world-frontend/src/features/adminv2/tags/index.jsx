@@ -37,11 +37,12 @@ import { TAG_COLORS, TAG_LABELS, AUTO_TAGS, ALL_TAGS } from '../records/tagConst
 
 const PAGE_TYPES  = ['HOME', 'MOVIES', 'SERIES'];
 const RULE_TYPES  = [
-  { value: 'tag',      label: 'Tag'      },
-  { value: 'genre',    label: 'Genre'    },
-  { value: 'language', label: 'Language' },
-  { value: 'filter',   label: 'Filter'   },
-  { value: 'manual',   label: 'Manual'   },
+  { value: 'tag',       label: 'Tag'              },
+  { value: 'genre',     label: 'Genre'            },
+  { value: 'language',  label: 'Language'         },
+  { value: 'filter',    label: 'Filter'           },
+  { value: 'manual',    label: 'Manual'           },
+  { value: 'watchlist', label: 'My List (Watchlist)' },
 ];
 const BLANK_RULE = { type: 'tag', tag: 'TRENDING', genreId: null, languages: [], field: '', value: '', recordType: '', sort: 'popularity', direction: 'DESC' };
 const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageType: 'HOME', rule: { ...BLANK_RULE } };
@@ -709,12 +710,13 @@ function RailRow({ rail, onEdit, onDelete, onToggle, dragControls }) {
 
   const ruleChip = () => {
     switch (rule.type) {
-      case 'tag':      return TAG_LABELS[rule.tag] ?? rule.tag ?? '—';
-      case 'genre':    return `Genre ${rule.genreId ?? '?'}`;
-      case 'language': return (rule.languages ?? []).join(', ') || '—';
-      case 'filter':   return `${rule.field ?? '?'} ${rule.value ?? ''}`.trim();
-      case 'manual':   return 'Manual list';
-      default:         return rule.type ?? '—';
+      case 'tag':       return TAG_LABELS[rule.tag] ?? rule.tag ?? '—';
+      case 'genre':     return `Genre ${rule.genreId ?? '?'}`;
+      case 'language':  return (rule.languages ?? []).join(', ') || '—';
+      case 'filter':    return `${rule.field ?? '?'} ${rule.value ?? ''}`.trim();
+      case 'manual':    return 'Manual list';
+      case 'watchlist': return 'User watchlist';
+      default:          return rule.type ?? '—';
     }
   };
 
@@ -960,45 +962,56 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
           </Alert>
         )}
 
-        <Divider sx={{ borderColor: T.border }} />
+        {/* WATCHLIST */}
+        {rule.type === 'watchlist' && (
+          <Alert severity="info" sx={{ bgcolor: `${T.teal}12`, color: T.textMuted,
+            border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
+            <strong>My List</strong> shows each user their own watchlisted records, sorted most-recently-added first.
+            No additional configuration needed — sorting and record type are determined by the user's list.
+          </Alert>
+        )}
 
-        {/* ── Sorting & record type ─────────────────────────── */}
-        <Typography sx={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '.08em' }}>
-          Sorting &amp; Record Type
-        </Typography>
+        {rule.type !== 'watchlist' && (<>
+          <Divider sx={{ borderColor: T.border }} />
 
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          {/* ── Sorting & record type ─────────────────────────── */}
+          <Typography sx={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '.08em' }}>
+            Sorting &amp; Record Type
+          </Typography>
+
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <FormControl size="small" fullWidth sx={inputSx}>
+              <InputLabel>Sort Field</InputLabel>
+              <Select value={rule.sort ?? ''} label="Sort Field"
+                onChange={e => setRuleV('sort', e.target.value)} MenuProps={getSelectMenuProps(T)}>
+                <MenuItem value=""><em>Default (from Tag Config)</em></MenuItem>
+                {sortFields.map(f => (
+                  <MenuItem key={f} value={f}>
+                    {f === 'tagPriority' ? 'tagPriority — computed score ★' : f}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 110, ...inputSx }}>
+              <InputLabel>Direction</InputLabel>
+              <Select value={rule.direction ?? 'DESC'} label="Direction"
+                onChange={e => setRuleV('direction', e.target.value)} MenuProps={getSelectMenuProps(T)}>
+                <MenuItem value="DESC">DESC — newest/highest first</MenuItem>
+                <MenuItem value="ASC">ASC — oldest/lowest first</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
           <FormControl size="small" fullWidth sx={inputSx}>
-            <InputLabel>Sort Field</InputLabel>
-            <Select value={rule.sort ?? ''} label="Sort Field"
-              onChange={e => setRuleV('sort', e.target.value)} MenuProps={getSelectMenuProps(T)}>
-              <MenuItem value=""><em>Default (from Tag Config)</em></MenuItem>
-              {sortFields.map(f => (
-                <MenuItem key={f} value={f}>
-                  {f === 'tagPriority' ? 'tagPriority — computed score ★' : f}
-                </MenuItem>
-              ))}
+            <InputLabel>Record Type Override</InputLabel>
+            <Select value={rule.recordType ?? ''} label="Record Type Override"
+              onChange={e => setRuleV('recordType', e.target.value)} MenuProps={getSelectMenuProps(T)}>
+              <MenuItem value="">Auto (infer from page type)</MenuItem>
+              <MenuItem value="MOVIE">Movie only</MenuItem>
+              <MenuItem value="TV_SERIES">Series only</MenuItem>
             </Select>
           </FormControl>
-          <FormControl size="small" sx={{ minWidth: 110, ...inputSx }}>
-            <InputLabel>Direction</InputLabel>
-            <Select value={rule.direction ?? 'DESC'} label="Direction"
-              onChange={e => setRuleV('direction', e.target.value)} MenuProps={getSelectMenuProps(T)}>
-              <MenuItem value="DESC">DESC — newest/highest first</MenuItem>
-              <MenuItem value="ASC">ASC — oldest/lowest first</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-
-        <FormControl size="small" fullWidth sx={inputSx}>
-          <InputLabel>Record Type Override</InputLabel>
-          <Select value={rule.recordType ?? ''} label="Record Type Override"
-            onChange={e => setRuleV('recordType', e.target.value)} MenuProps={getSelectMenuProps(T)}>
-            <MenuItem value="">Auto (infer from page type)</MenuItem>
-            <MenuItem value="MOVIE">Movie only</MenuItem>
-            <MenuItem value="TV_SERIES">Series only</MenuItem>
-          </Select>
-        </FormControl>
+        </>)}
 
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, borderTop: `1px solid ${T.border}`, pt: 1.5 }}>

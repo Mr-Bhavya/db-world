@@ -20,6 +20,7 @@ import com.db.dbworld.app.cinema.tmdb.genre.repository.GenreRepository;
 
 import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.core.context.UserContext;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class RailServiceImpl implements RailService {
     private final RailRecordBuilder railRecordBuilder;
 
     private final InteractionRepository interactionRepository;
+    private final UserContext userContext;
 
     private final RailMapper railMapper;
     private final RecordMapper recordMapper;
@@ -104,9 +106,21 @@ public class RailServiceImpl implements RailService {
         Pageable probe = PageRequest.of(0, 1);
 
         return rails.stream()
-                .filter(rail -> railResolver.resolveIds(rail, probe, category).hasContent())
+                .filter(rail -> hasContent(rail, probe, category))
                 .map(railMapper::toDto)
                 .toList();
+    }
+
+    private boolean hasContent(RailEntity rail, Pageable probe, Long category) {
+        if (rail.getRule() != null && "watchlist".equals(rail.getRule().getType())) {
+            try {
+                Long userId = userContext.userId();
+                return interactionRepository.existsByUserIdAndInteractionType(userId, InteractionType.WATCHLIST);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return railResolver.resolveIds(rail, probe, category).hasContent();
     }
 
     /**
@@ -151,6 +165,11 @@ public class RailServiceImpl implements RailService {
         int pageSize = size != null
                 ? Math.min(size, MAX_PAGE_SIZE)
                 : rail.getLimitSize();
+
+        // Watchlist rails are user-specific — bypass the resolver entirely
+        if (rail.getRule() != null && "watchlist".equals(rail.getRule().getType())) {
+            return getWatchlistRecords(userContext.userId(), page, pageSize);
+        }
 
         // 1. Cache check (only for non-category requests — category changes frequently)
         if (category == null) {

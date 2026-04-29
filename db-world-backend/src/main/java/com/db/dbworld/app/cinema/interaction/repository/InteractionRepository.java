@@ -30,6 +30,8 @@ public interface InteractionRepository
             Pageable pageable
     );
 
+    boolean existsByUserIdAndInteractionType(Long userId, InteractionType type);
+
     @Query("""
                 SELECT ui
                 FROM UserInteractionEntity ui
