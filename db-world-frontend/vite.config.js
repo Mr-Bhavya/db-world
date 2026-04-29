@@ -303,7 +303,7 @@ export default defineConfig(({ mode }) => {
             vendor:  ['react', 'react-dom', 'react-router-dom'],
             mui:     ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
             charts:  ['recharts', 'chart.js', 'react-chartjs-2'],
-            grid:    ['ag-grid-react', '@mui/x-data-grid'],
+            grid:    ['@mui/x-data-grid'],
             player:  ['react-player'],
           },
         },

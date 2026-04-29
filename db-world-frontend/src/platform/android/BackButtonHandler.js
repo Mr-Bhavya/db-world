@@ -10,7 +10,7 @@ const BackButtonHandler = () => {
     let lastFired = 0; // debounce — gesture nav can fire events twice in quick succession
 
     const setupListener = async () => {
-      const listener = await App.addListener(‘backButton’, () => {
+      const listener = await App.addListener('backButton', () => {
         const now = Date.now();
         if (now - lastFired < 400) return; // ignore duplicate within 400 ms
         lastFired = now;
