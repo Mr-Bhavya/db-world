@@ -1,6 +1,7 @@
-// Navbar — Netflix-style with cover-colour tinting on mobile
+// Navbar — Cinema with floating pill bottom nav (mobile) + themed desktop bar
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { alpha } from '@mui/material/styles';
 import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
 import { fetchPageCategories } from '../api/cinemaApi';
@@ -22,11 +23,11 @@ import {
   ExpandMore as ExpandMoreIcon,
   Movie as MovieIcon,
   Tv as TvIcon,
-  Category as CategoryIcon,
   Home as HomeIcon,
   NotificationsOutlined as BellIcon,
   ArrowBack as BackIcon,
   FileDownload as DownloadIcon,
+  Tune as TuneIcon,
 } from '@mui/icons-material';
 import { Capacitor } from '@capacitor/core';
 
@@ -38,17 +39,17 @@ import { useCategory } from './CategoryContext';
 
 const StyledAppBar = styled(AppBar, {
   shouldForwardProp: (p) => !['scrolled', 'coverColor'].includes(p),
-})(({ scrolled, coverColor }) => ({
-  // At top: show poster colour. When scrolled: remove it (go dark/transparent).
+})(({ scrolled, coverColor, theme }) => ({
   background: scrolled
-    ? 'rgba(20,20,20,0.97)'
+    ? alpha(theme.palette.background.paper ?? '#141414', 0.97)
     : coverColor
       ? 'transparent'
-      : 'linear-gradient(180deg, rgba(0,0,0,0.72) 0%, transparent 100%)',
-  backdropFilter: scrolled ? 'blur(4px)' : 'none',
-  boxShadow: 'none',
+      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.75)} 0%, transparent 100%)`,
+  backdropFilter: scrolled ? 'blur(8px)' : 'none',
+  WebkitBackdropFilter: scrolled ? 'blur(8px)' : 'none',
+  boxShadow: scrolled ? `0 1px 0 ${alpha(theme.palette.common.white, 0.06)}` : 'none',
   borderBottom: 'none',
-  transition: 'background 0.5s ease',
+  transition: 'background 0.4s ease, backdrop-filter 0.4s ease',
   backgroundImage: 'none',
   willChange: 'background',
 }));
@@ -56,8 +57,10 @@ const StyledAppBar = styled(AppBar, {
 /** Desktop text-only nav link */
 const NavLink = styled(Button, {
   shouldForwardProp: (p) => p !== 'active',
-})(({ active }) => ({
-  color: active ? '#fff' : 'rgba(255,255,255,0.72)',
+})(({ active, theme }) => ({
+  color: active
+    ? theme.palette.text.primary
+    : alpha(theme.palette.text.primary ?? '#fff', 0.68),
   textTransform: 'none',
   fontWeight: active ? 700 : 400,
   fontSize: '0.875rem',
@@ -71,34 +74,23 @@ const NavLink = styled(Button, {
   boxShadow: 'none',
   position: 'relative',
   transition: 'color 0.15s ease',
-  '&:hover': { color: '#fff', background: 'none', boxShadow: 'none' },
+  '&:hover': {
+    color: theme.palette.text.primary,
+    background: 'none',
+    boxShadow: 'none',
+  },
   '&::after': {
     content: '""',
-    position: 'absolute', bottom: -1, left: '50%',
+    position: 'absolute',
+    bottom: -1,
+    left: '50%',
     transform: 'translateX(-50%)',
-    width: active ? '4px' : 0, height: active ? '4px' : 0,
-    borderRadius: '50%', backgroundColor: '#e50914',
+    width: active ? '5px' : 0,
+    height: active ? '5px' : 0,
+    borderRadius: '50%',
+    backgroundColor: theme.palette.primary.main,
     transition: 'width 0.2s ease, height 0.2s ease',
   },
-}));
-
-/** Mobile pill chip */
-const Pill = styled(Button, {
-  shouldForwardProp: (p) => p !== 'active',
-})(({ active }) => ({
-  color: active ? '#141414' : 'rgba(255,255,255,0.9)',
-  background: active ? '#fff' : 'rgba(255,255,255,0.13)',
-  textTransform: 'none',
-  fontWeight: active ? 700 : 400,
-  fontSize: '0.8rem',
-  borderRadius: '14px',
-  padding: '5px 14px',
-  minWidth: 'auto',
-  border: 'none',
-  boxShadow: 'none',
-  flexShrink: 0,
-  transition: 'background 0.2s, color 0.2s',
-  '&:hover': { background: active ? '#fff' : 'rgba(255,255,255,0.22)' },
 }));
 
 /** Floating pill bottom nav (mobile) */
@@ -110,14 +102,12 @@ const FloatingBottomNav = styled(Box)(({ theme }) => ({
   zIndex: 1200,
   display: 'inline-flex',
   alignItems: 'center',
-  background: theme.palette.mode === 'dark'
-    ? 'rgba(16,16,16,0.96)'
-    : 'rgba(22,22,22,0.96)',
+  background: alpha(theme.palette.common.black, 0.92),
   backdropFilter: 'blur(28px)',
   WebkitBackdropFilter: 'blur(28px)',
   borderRadius: 50,
-  border: '1px solid rgba(255,255,255,0.09)',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.09)}`,
+  boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.6)}, inset 0 1px 0 ${alpha(theme.palette.common.white, 0.05)}`,
   height: 60,
   padding: '4px 6px',
   whiteSpace: 'nowrap',
@@ -135,24 +125,22 @@ const FloatingNavItem = styled(ButtonBase, {
   padding: '0 16px',
   height: '100%',
   borderRadius: 40,
-  color: active ? '#fff' : 'rgba(255,255,255,0.42)',
+  color: active
+    ? theme.palette.common.white
+    : alpha(theme.palette.common.white, 0.42),
   background: active
-    ? `${theme.palette.primary.main}28`
+    ? alpha(theme.palette.primary.main, 0.22)
     : 'transparent',
   transition: 'color 0.18s ease, background 0.18s ease',
   minWidth: 52,
   '&:hover': {
-    color: 'rgba(255,255,255,0.82)',
-    background: 'rgba(255,255,255,0.07)',
+    color: alpha(theme.palette.common.white, 0.82),
+    background: alpha(theme.palette.common.white, 0.07),
   },
 }));
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-/**
- * Props:
- *   coverColor  string | null  — 'r,g,b' from hero poster dominant colour
- */
 function Navbar({ coverColor, onGenreSelect }) {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -169,27 +157,36 @@ function Navbar({ coverColor, onGenreSelect }) {
 
   const scrollTimerRef = useRef(null);
 
-  const [categoryList,     setCategoryList]     = useState([]);
-  const [isScrolled,       setIsScrolled]       = useState(false);
-  const [searchActive,     setSearchActive]     = useState(false);
+  const [categoryList,      setCategoryList]      = useState([]);
+  const [isScrolled,        setIsScrolled]        = useState(false);
+  const [searchActive,      setSearchActive]      = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
 
-  // ─── nav config ─────────────────────────────────────────────────────────────
   const isAndroid = Capacitor.getPlatform() === 'android';
 
+  // All page navigation items (used by desktop nav + routing sync)
   const navItems = useMemo(() => [
-    { id: 0, title: 'Home',       route: Constants.DB_CINEMA_BROWSE_ROUTE,  icon: <HomeIcon /> },
-    { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
-    { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
-    { id: 3, title: 'Categories', route: null,                               icon: <CategoryIcon /> },
+    { id: 0, title: 'Home',       route: Constants.DB_CINEMA_BROWSE_ROUTE, icon: <HomeIcon /> },
+    { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
+    { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
+    { id: 3, title: 'Categories', route: null,                              icon: null },
     ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_CINEMA_DOWNLOADS, icon: <DownloadIcon /> }] : []),
   ], [isAndroid]);
 
-  // Sync selectedNav with URL
+  // Mobile bottom pill items: Home / Movies / Shows / Search / Downloads(Android)
+  const bottomNavItems = useMemo(() => [
+    { id: 0,  title: 'Home',      route: Constants.DB_CINEMA_BROWSE_ROUTE, icon: <HomeIcon /> },
+    { id: 1,  title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
+    { id: 2,  title: 'Shows',     route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
+    { id: 99, title: 'Search',    route: null,                              icon: <SearchIcon /> },
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_CINEMA_DOWNLOADS, icon: <DownloadIcon /> }] : []),
+  ], [isAndroid]);
+
+  // Sync selectedNav with current URL
   useEffect(() => {
     const path = location.pathname;
     let match = navItems[0];
-    if (path.includes(Constants.DB_CINEMA_MOVIES_ROUTE)) match = navItems[1];
+    if (path.includes(Constants.DB_CINEMA_MOVIES_ROUTE))  match = navItems[1];
     else if (path.includes(Constants.DB_CINEMA_SERIES_ROUTE)) match = navItems[2];
     selectNav(match);
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -207,18 +204,20 @@ function Navbar({ coverColor, onGenreSelect }) {
     };
   }, []);
 
-  // Load categories
+  // Load category list for the modal
   useEffect(() => {
     fetchPageCategories('home')
       .then(data => setCategoryList(Array.isArray(data) ? data : []))
       .catch(() => setCategoryList([]));
   }, []);
 
-  // ─── handlers ────────────────────────────────────────────────────────────────
+  // ─── Handlers ────────────────────────────────────────────────────────────────
 
   const handleNavSelect = useCallback((item) => {
     if (item.id === 3) {
       setCategoryModalOpen(true);
+    } else if (item.id === 99) {
+      setSearchActive(true);
     } else {
       selectNav(item);
       setCategoryModalOpen(false);
@@ -236,6 +235,7 @@ function Navbar({ coverColor, onGenreSelect }) {
     selectCategory(category);
     setCategoryModalOpen(false);
     onGenreSelect?.(category);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [selectCategory, onGenreSelect]);
 
   const handleClearCategory = useCallback(() => {
@@ -243,37 +243,25 @@ function Navbar({ coverColor, onGenreSelect }) {
     selectCategory(null);
     onGenreSelect?.(null);
     setCategoryModalOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [clearCategory, onGenreSelect, selectCategory]);
 
-  // ─── derived state ───────────────────────────────────────────────────────────
+  // ─── Derived state ───────────────────────────────────────────────────────────
 
   const isMediaPage = selectedNav && (selectedNav.id === 1 || selectedNav.id === 2);
-  const bottomNavValue = selectedNav?.id ?? 0;
 
-  // ─── Mobile Row 2 (filter chips) ─────────────────────────────────────────────
-
-  const mobileFilterRow = isMobile && (
-    // Collapse on scroll using maxHeight/opacity transition
-    <Box sx={{
-      maxHeight: isScrolled ? 0 : '52px',
-      overflow: 'hidden',
-      opacity: isScrolled ? 0 : 1,
-      transition: 'max-height 0.3s ease, opacity 0.25s ease',
-    }}>
-      <Box sx={{
-        display: 'flex', gap: 1, overflowX: 'auto',
-        px: 2, pb: 1.2, pt: 0.3,
-        scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
-      }}>
-        <Pill
-          onClick={() => setCategoryModalOpen(true)}
-          endIcon={<ExpandMoreIcon sx={{ fontSize: '0.9rem !important', ml: -0.5 }} />}
-          active={!!selectedCategory}
-        >
-          {selectedCategory ? selectedCategory.name : 'Categories'}
-        </Pill>
-      </Box>
-    </Box>
+  const iconBtn = (onClick, children, extraSx = {}) => (
+    <IconButton
+      size="medium"
+      onClick={onClick}
+      sx={{
+        color: alpha(theme.palette.common.white, 0.9),
+        '&:hover': { color: theme.palette.common.white, bgcolor: alpha(theme.palette.common.white, 0.06) },
+        ...extraSx,
+      }}
+    >
+      {children}
+    </IconButton>
   );
 
   // ─── JSX ─────────────────────────────────────────────────────────────────────
@@ -292,38 +280,21 @@ function Navbar({ coverColor, onGenreSelect }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, minWidth: 0 }}>
             {isMobile ? (
               isMediaPage ? (
-                // Movies / TV Shows page: back arrow + page title
                 <>
-                  <IconButton
-                    size="small"
-                    onClick={handleBackToHome}
-                    sx={{ color: '#fff', p: 0.5 }}
-                  >
+                  <IconButton size="small" onClick={handleBackToHome}
+                    sx={{ color: '#fff', p: 0.5 }}>
                     <BackIcon sx={{ fontSize: '1.3rem' }} />
                   </IconButton>
-                  <Box
-                    sx={{
-                      fontWeight: 700, fontSize: '1.2rem', color: '#fff',
-                      letterSpacing: '-0.01em', lineHeight: 1,
-                    }}
-                    component="span"
-                  >
+                  <Box component="span" sx={{ fontWeight: 700, fontSize: '1.2rem', color: '#fff', letterSpacing: '-0.01em', lineHeight: 1 }}>
                     {selectedNav?.title}
                   </Box>
                 </>
               ) : (
-                // Home page: db-world icon + "Home"
                 <>
                   <Link to={Constants.DB_WORLD_HOME_ROUTE} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                     <img src={DB_WORLD_TEAL_SVG} alt="Logo" style={{ height: 26 }} />
                   </Link>
-                  <Box
-                    sx={{
-                      fontWeight: 700, fontSize: '1.2rem', color: '#fff',
-                      letterSpacing: '-0.01em', lineHeight: 1,
-                    }}
-                    component="span"
-                  >
+                  <Box component="span" sx={{ fontWeight: 700, fontSize: '1.2rem', color: '#fff', letterSpacing: '-0.01em', lineHeight: 1 }}>
                     {selectedNav?.title ?? 'Home'}
                   </Box>
                 </>
@@ -333,18 +304,19 @@ function Navbar({ coverColor, onGenreSelect }) {
               <>
                 <Link to={Constants.DB_WORLD_HOME_ROUTE} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <img src={DB_WORLD_TEAL_SVG} alt="Logo" style={{ height: 30 }} />
-                  <Box component="span" sx={{ fontWeight: 800, fontSize: '1.15rem', color: '#e50914', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                  <Box component="span" sx={{ fontWeight: 800, fontSize: '1.15rem', color: theme.palette.primary.main, letterSpacing: '-0.02em', lineHeight: 1 }}>
                     DB Cinema
                   </Box>
                 </Link>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
                   {navItems.map(item => (
                     <NavLink
                       key={item.id}
                       active={selectedNav?.id === item.id}
                       onClick={() => handleNavSelect(item)}
-                      endIcon={item.id === 3 ? <ExpandMoreIcon sx={{ fontSize: '1rem !important', ml: -0.5 }} /> : undefined}
+                      endIcon={item.id === 3
+                        ? <ExpandMoreIcon sx={{ fontSize: '1rem !important', ml: -0.5 }} />
+                        : undefined}
                     >
                       {item.id === 3 && selectedCategory ? selectedCategory.name : item.title}
                     </NavLink>
@@ -354,37 +326,31 @@ function Navbar({ coverColor, onGenreSelect }) {
             )}
           </Box>
 
-          {/* RIGHT: bell (mobile) + download (Android) + search */}
+          {/* RIGHT */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
             {isMobile && (
-              <IconButton size="medium" sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}>
-                <BellIcon sx={{ fontSize: '1.35rem' }} />
-              </IconButton>
+              <>
+                {/* Bell */}
+                {iconBtn(undefined, <BellIcon sx={{ fontSize: '1.3rem' }} />)}
+
+                {/* Category / filter icon — accent-colored when a category is active */}
+                {iconBtn(
+                  () => setCategoryModalOpen(true),
+                  <TuneIcon sx={{ fontSize: '1.3rem' }} />,
+                  selectedCategory ? { color: theme.palette.primary.main } : {},
+                )}
+              </>
             )}
-            {isAndroid && (
-              <IconButton
-                onClick={() => navigate(Constants.DB_CINEMA_DOWNLOADS)}
-                size="medium"
-                sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}
-              >
-                <DownloadIcon sx={{ fontSize: '1.35rem' }} />
-              </IconButton>
+
+            {/* Desktop: search icon stays in top bar */}
+            {!isMobile && (
+              iconBtn(() => setSearchActive(true), <SearchIcon sx={{ fontSize: '1.35rem' }} />)
             )}
-            <IconButton
-              onClick={() => setSearchActive(true)}
-              size="medium"
-              sx={{ color: '#fff', '&:hover': { color: 'rgba(255,255,255,0.7)' } }}
-            >
-              <SearchIcon sx={{ fontSize: '1.35rem' }} />
-            </IconButton>
           </Box>
         </Toolbar>
-
-        {/* Mobile Row 2: filter chips (collapses on scroll) */}
-        {mobileFilterRow}
       </StyledAppBar>
 
-      {/* ── Category dropdown ── */}
+      {/* ── Category modal ── */}
       <CategoryModal
         open={categoryModalOpen}
         categories={categoryList}
@@ -392,7 +358,7 @@ function Navbar({ coverColor, onGenreSelect }) {
         onSelect={handleCategorySelect}
         onClear={handleClearCategory}
         onClose={() => setCategoryModalOpen(false)}
-        appBarHeight={isMobile ? (isScrolled ? 52 : 96) : 68}
+        appBarHeight={isMobile ? 52 : 68}
       />
 
       {/* ── Search Overlay ── */}
@@ -400,20 +366,19 @@ function Navbar({ coverColor, onGenreSelect }) {
         {searchActive && <SearchOverlay onClose={() => setSearchActive(false)} />}
       </AnimatePresence>
 
-      {/* ── Spacer — shrinks when filter row is hidden ── */}
-      <Box sx={{
-        height: {
-          xs: isScrolled ? '52px' : '96px',
-          md: '68px',
-        },
-        transition: 'height 0.3s ease',
-      }} />
+      {/* ── Spacer:
+            mobile → just toolbar height (52px); no filter row anymore
+            desktop → 0 so hero image bleeds under the transparent AppBar
+      ── */}
+      <Box sx={{ height: { xs: '52px', md: '0px' } }} />
 
-      {/* ── Floating pill bottom navigation (mobile) ── */}
+      {/* ── Floating pill bottom navigation (mobile only) ── */}
       {isMobile && (
         <FloatingBottomNav>
-          {navItems.map(item => {
-            const isActive = bottomNavValue === item.id;
+          {bottomNavItems.map(item => {
+            const isActive = item.id === 99
+              ? searchActive
+              : selectedNav?.id === item.id;
             return (
               <FloatingNavItem
                 key={item.id}
@@ -430,7 +395,7 @@ function Navbar({ coverColor, onGenreSelect }) {
                   lineHeight: 1,
                   color: 'inherit',
                 }}>
-                  {item.id === 2 ? 'Shows' : item.title}
+                  {item.title}
                 </Box>
               </FloatingNavItem>
             );
@@ -438,7 +403,7 @@ function Navbar({ coverColor, onGenreSelect }) {
         </FloatingBottomNav>
       )}
 
-      {/* Bottom spacer so content clears the floating nav */}
+      {/* Bottom spacer so rail content clears the floating pill */}
       {isMobile && <Box sx={{ height: '80px' }} />}
     </>
   );
