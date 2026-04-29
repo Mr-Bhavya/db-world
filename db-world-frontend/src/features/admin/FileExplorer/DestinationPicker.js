@@ -391,98 +391,28 @@ const DestinationPicker = ({ destination, setDestination }) => {
             </PathBar>
 
             {/* Main Content */}
-            <Box sx={{ p: 2.5 }}>
-              {/* Path Input */}
-              <Box sx={{ mb: 3, position: 'relative' }}>
-                <Typography variant="subtitle2" fontWeight="600" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Storage fontSize="small" />
-                  Destination Path
-                </Typography>
-                <StyledTextField
-                  fullWidth
-                  placeholder="/path/to/destination"
-                  value={manualPath}
-                  onChange={(e) => {
-                    setManualPath(e.target.value);
-                    setError('');
-                  }}
-                  onBlur={handleManualPathSubmit}
-                  onKeyDown={(e) => e.key === 'Enter' && handleManualPathSubmit()}
-                  error={!!error}
-                  helperText={error}
-                  InputProps={{
-                    endAdornment: (
-                      <AnimatePresence>
-                        {validatingPath ? (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0 }}
-                          >
-                            <CircularProgress size={20} />
-                          </motion.div>
-                        ) : lastValidatedPath === destination && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring' }}
-                          >
-                            <CheckCircle sx={{ color: theme.palette.success.main }} />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    ),
-                  }}
-                  disabled={loading}
-                  size="small"
-                />
-              </Box>
-
-              {/* Stats Bar */}
-              <AnimatePresence>
-                {!error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <Box sx={{ 
-                      display: 'flex', 
-                      gap: 2, 
-                      mb: 2,
-                      flexWrap: 'wrap' 
-                    }}>
-                      <Chip
-                        icon={<FolderOpen fontSize="small" />}
-                        label={`${stats.folderCount} Folders`}
-                        size="small"
-                        sx={{
-                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                          color: theme.palette.primary.main,
-                          fontWeight: 500,
-                        }}
-                      />
-                      <Chip
-                        icon={<InsertDriveFile fontSize="small" />}
-                        label={`${stats.totalItems} Items`}
-                        size="small"
-                        sx={{
-                          backgroundColor: alpha(theme.palette.info.main, 0.1),
-                          color: theme.palette.info.main,
-                          fontWeight: 500,
-                        }}
-                      />
-                    </Box>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Folder List */}
-              <Box sx={{ position: 'relative' }}>
-                <Typography variant="subtitle2" fontWeight="600" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FolderOpen fontSize="small" />
-                  {destination === '/' ? 'Root Directory' : `Contents of ${destination}`}
-                </Typography>
+            <Box sx={{ p: 2 }}>
+              {/* Folder Browser — primary element */}
+              <Box sx={{ position: 'relative', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="subtitle2" fontWeight="600" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FolderOpen fontSize="small" />
+                    {destination === '/' ? 'Root Directory' : destination}
+                  </Typography>
+                  {stats.folderCount > 0 && (
+                    <Chip
+                      icon={<FolderOpen fontSize="small" />}
+                      label={`${stats.folderCount} folder${stats.folderCount !== 1 ? 's' : ''}`}
+                      size="small"
+                      sx={{
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        color: theme.palette.primary.main,
+                        fontWeight: 500,
+                        height: 22,
+                      }}
+                    />
+                  )}
+                </Box>
 
                 {loading ? (
                   <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -668,29 +598,42 @@ const DestinationPicker = ({ destination, setDestination }) => {
                 )}
               </Box>
 
-              {/* Help Text */}
-              <AnimatePresence>
-                {!loading && !error && items.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <Typography 
-                      variant="caption" 
-                      color="text.secondary" 
-                      sx={{ 
-                        display: 'block', 
-                        mt: 1.5,
-                        fontStyle: 'italic',
-                        textAlign: 'center'
-                      }}
-                    >
-                      Click on a folder to navigate, or type a path above
-                    </Typography>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {/* Path Input — secondary, for manual override */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                  Or type a path manually:
+                </Typography>
+                <StyledTextField
+                  fullWidth
+                  placeholder="/path/to/destination"
+                  value={manualPath}
+                  onChange={(e) => {
+                    setManualPath(e.target.value);
+                    setError('');
+                  }}
+                  onBlur={handleManualPathSubmit}
+                  onKeyDown={(e) => e.key === 'Enter' && handleManualPathSubmit()}
+                  error={!!error}
+                  helperText={error}
+                  InputProps={{
+                    endAdornment: (
+                      <AnimatePresence>
+                        {validatingPath ? (
+                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                            <CircularProgress size={18} />
+                          </motion.div>
+                        ) : lastValidatedPath === destination ? (
+                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
+                            <CheckCircle sx={{ color: theme.palette.success.main, fontSize: 18 }} />
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    ),
+                  }}
+                  disabled={loading}
+                  size="small"
+                />
+              </Box>
             </Box>
           </GlassPaper>
         </motion.div>

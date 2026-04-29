@@ -22,6 +22,7 @@ const useFileOperations = () => {
   const [operationType, setOperationType] = useState(null);
   
   const abortControllerRef = useRef(null);
+  const closeTimeoutRef = useRef(null);
 
   // Operation types for tracking
   const OPERATION_TYPES = {
@@ -63,10 +64,16 @@ const useFileOperations = () => {
 
   // Handle modal operations with animation
   const handleOpenModal = useCallback((type, file = null) => {
+    // Cancel any pending post-close cleanup so selectedFile isn't wiped after the new modal opens
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+
     if (file) {
       setSelectedFile(file);
     }
-    
+
     setOperationType(type);
     
     // Add animation delay for modal opening
@@ -121,8 +128,10 @@ const useFileOperations = () => {
         break;
     }
     
-    // Reset after animation completes
-    setTimeout(() => {
+    // Reset after animation completes — track the timeout so handleOpenModal can cancel it
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    closeTimeoutRef.current = setTimeout(() => {
+      closeTimeoutRef.current = null;
       setSelectedFile(null);
       setOperationType(null);
       setOperationProgress(0);

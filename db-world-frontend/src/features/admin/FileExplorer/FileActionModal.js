@@ -226,13 +226,16 @@ const FileActionModal = ({
 
   useEffect(() => {
     if (open) {
-      setDestination(currentPath);
+      // copy/move should start navigation from root so any folder in the tree is reachable
+      setDestination(action === 'move' || action === 'copy' ? '/' : currentPath);
       setNewName(selectedFile?.fileName || '');
       setError('');
       setLoading(false);
       setSuccess(false);
+      setConfirmDelete(false);
     }
-  }, [open, currentPath, selectedFile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // Only run on open-toggle; selectedFile race is prevented in useFileOperations
 
   const validateName = (name) => {
     if (!name.trim()) {

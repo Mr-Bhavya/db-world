@@ -16,6 +16,7 @@ import {
   Breadcrumbs,
   Link,
   Chip,
+  Checkbox,
   alpha,
   useTheme,
   useMediaQuery,
@@ -249,6 +250,7 @@ const FileExplorer = () => {
     showInfoModal,
     showMoveModal,
     showCopyModal,
+    showCreateModal,
     selectedFile,
     setSelectedFile,
     handleOpenModal,
@@ -530,30 +532,25 @@ const FileExplorer = () => {
             >
               {/* View Mode Toggle */}
               <Tooltip title={viewMode === 'grid' ? 'List view' : 'Grid view'}>
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                <IconButton
+                  onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                  sx={{
+                    bgcolor: viewMode === 'grid'
+                      ? alpha(theme.palette.primary.main, 0.1)
+                      : alpha(theme.palette.background.default, 0.8),
+                    backdropFilter: 'blur(5px)',
+                    borderRadius: 2,
+                    border: `1px solid ${viewMode === 'grid'
+                      ? alpha(theme.palette.primary.main, 0.3)
+                      : alpha(theme.palette.divider, 0.2)}`,
+                    color: viewMode === 'grid'
+                      ? theme.palette.primary.main
+                      : 'inherit',
+                    transition: 'all 0.3s ease',
+                  }}
                 >
-                  <IconButton
-                    onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-                    sx={{
-                      bgcolor: viewMode === 'grid' 
-                        ? alpha(theme.palette.primary.main, 0.1)
-                        : alpha(theme.palette.background.default, 0.8),
-                      backdropFilter: 'blur(5px)',
-                      borderRadius: 2,
-                      border: `1px solid ${viewMode === 'grid' 
-                        ? alpha(theme.palette.primary.main, 0.3)
-                        : alpha(theme.palette.divider, 0.2)}`,
-                      color: viewMode === 'grid' 
-                        ? theme.palette.primary.main 
-                        : 'inherit',
-                      transition: 'all 0.3s ease'
-                    }}
-                  >
-                    {viewMode === 'grid' ? <ViewList /> : <GridView />}
-                  </IconButton>
-                </motion.div>
+                  {viewMode === 'grid' ? <ViewList /> : <GridView />}
+                </IconButton>
               </Tooltip>
 
               {/* Sort Button */}
@@ -963,38 +960,35 @@ const FileExplorer = () => {
                           isdirectory={file.isDirectory.toString()}
                           onDoubleClick={() => handleDoubleClick(file)}
                           onContextMenu={(e) => handleContextMenu(e, file)}
-                          onClick={(e) => handleToggleSelect(file, e)}
+                          onClick={(e) => {
+                            // Folders navigate on single click; files toggle selection
+                            if (file.isDirectory) {
+                              handleDoubleClick(file);
+                            } else {
+                              handleToggleSelect(file, e);
+                            }
+                          }}
                         >
-                          {/* Selection indicator */}
-                          {isSelected && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: 'spring' }}
-                              style={{
-                                position: 'absolute',
-                                top: 8,
-                                right: 8,
-                                width: 24,
-                                height: 24,
-                                borderRadius: '50%',
-                                backgroundColor: theme.palette.primary.main,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                zIndex: 1,
-                                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.4)}`,
-                              }}
-                            >
-                              <Typography variant="caption" sx={{ 
-                                color: 'white', 
-                                fontSize: '0.7rem',
-                                fontWeight: 'bold'
-                              }}>
-                                ✓
-                              </Typography>
-                            </motion.div>
-                          )}
+                          {/* Checkbox for multi-select — always visible on mobile, hover-revealed on desktop */}
+                          <Checkbox
+                            checked={isSelected}
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSelect(file, e);
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: 2,
+                              left: 2,
+                              zIndex: 2,
+                              p: 0.5,
+                              opacity: isMobile || isSelected ? 1 : 0,
+                              transition: 'opacity 0.15s',
+                              '& .MuiSvgIcon-root': { fontSize: '1.1rem' },
+                              '.MuiCard-root:hover &': { opacity: 1 },
+                            }}
+                          />
 
                           <Box sx={{
                             display: 'flex',
@@ -1155,7 +1149,7 @@ const FileExplorer = () => {
       />
 
       <FileActionModal
-        open={showRenameModal}
+        open={showCreateModal}
         onClose={() => handleCloseModal('create')}
         title="Create New Folder"
         action="create"
