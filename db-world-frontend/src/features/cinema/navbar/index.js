@@ -93,15 +93,31 @@ const NavLink = styled(Button, {
   },
 }));
 
-/** Floating pill bottom nav (mobile) */
-const FloatingBottomNav = styled(Box)(({ theme }) => ({
+/**
+ * Outer wrapper: full-width fixed bar that uses flexbox to centre the pill.
+ * Using a flex-wrapper + auto margins avoids transform: translateX(-50%) which
+ * can create a ghost horizontal-scroll on some browsers/devices.
+ */
+const FloatingNavWrapper = styled(Box)(() => ({
   position: 'fixed',
   bottom: 16,
-  left: '50%',
-  transform: 'translateX(-50%)',
+  left: 0,
+  right: 0,
   zIndex: 1200,
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: '0 12px',         // minimum edge gap on narrow screens
+  pointerEvents: 'none',     // clicks fall through the wrapper to the page
+}));
+
+/** The pill itself — not positioned, just sized + styled */
+const FloatingBottomNav = styled(Box)(({ theme }) => ({
   display: 'inline-flex',
   alignItems: 'center',
+  pointerEvents: 'auto',
+  maxWidth: 'calc(100vw - 24px)',  // never wider than the screen
+  overflow: 'hidden',
   background: alpha(theme.palette.common.black, 0.92),
   backdropFilter: 'blur(28px)',
   WebkitBackdropFilter: 'blur(28px)',
@@ -110,7 +126,6 @@ const FloatingBottomNav = styled(Box)(({ theme }) => ({
   boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.6)}, inset 0 1px 0 ${alpha(theme.palette.common.white, 0.05)}`,
   height: 60,
   padding: '4px 6px',
-  whiteSpace: 'nowrap',
 }));
 
 /** Single item inside the floating pill */
@@ -122,9 +137,13 @@ const FloatingNavItem = styled(ButtonBase, {
   alignItems: 'center',
   justifyContent: 'center',
   gap: 3,
-  padding: '0 16px',
+  padding: '0 14px',
   height: '100%',
   borderRadius: 40,
+  // flex: allow items to shrink when system font is very large
+  flex: '1 1 auto',
+  minWidth: 44,
+  overflow: 'hidden',
   color: active
     ? theme.palette.common.white
     : alpha(theme.palette.common.white, 0.42),
@@ -132,7 +151,6 @@ const FloatingNavItem = styled(ButtonBase, {
     ? alpha(theme.palette.primary.main, 0.22)
     : 'transparent',
   transition: 'color 0.18s ease, background 0.18s ease',
-  minWidth: 52,
   '&:hover': {
     color: alpha(theme.palette.common.white, 0.82),
     background: alpha(theme.palette.common.white, 0.07),
@@ -374,37 +392,44 @@ function Navbar({ coverColor, onGenreSelect }) {
 
       {/* ── Floating pill bottom navigation (mobile only) ── */}
       {isMobile && (
-        <FloatingBottomNav>
-          {bottomNavItems.map(item => {
-            const isActive = item.id === 99
-              ? searchActive
-              : selectedNav?.id === item.id;
-            return (
-              <FloatingNavItem
-                key={item.id}
-                active={isActive}
-                onClick={() => handleNavSelect(item)}
-              >
-                <Box sx={{ display: 'flex', fontSize: '1.3rem', lineHeight: 1 }}>
-                  {item.icon}
-                </Box>
-                <Box component="span" sx={{
-                  fontSize: '0.6rem',
-                  fontWeight: isActive ? 700 : 400,
-                  letterSpacing: '0.03em',
-                  lineHeight: 1,
-                  color: 'inherit',
-                }}>
-                  {item.title}
-                </Box>
-              </FloatingNavItem>
-            );
-          })}
-        </FloatingBottomNav>
+        <FloatingNavWrapper>
+          <FloatingBottomNav>
+            {bottomNavItems.map(item => {
+              const isActive = item.id === 99
+                ? searchActive
+                : selectedNav?.id === item.id;
+              return (
+                <FloatingNavItem
+                  key={item.id}
+                  active={isActive}
+                  onClick={() => handleNavSelect(item)}
+                >
+                  <Box sx={{ display: 'flex', fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>
+                    {item.icon}
+                  </Box>
+                  {/* Use px (not rem) so system font-size can't blow up the pill */}
+                  <Box component="span" sx={{
+                    fontSize: '9px',
+                    fontWeight: isActive ? 700 : 400,
+                    letterSpacing: '0.03em',
+                    lineHeight: 1,
+                    color: 'inherit',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '100%',
+                  }}>
+                    {item.title}
+                  </Box>
+                </FloatingNavItem>
+              );
+            })}
+          </FloatingBottomNav>
+        </FloatingNavWrapper>
       )}
 
       {/* Bottom spacer so rail content clears the floating pill */}
-      {isMobile && <Box sx={{ height: '80px' }} />}
+      {isMobile && <Box sx={{ height: '80px', flexShrink: 0 }} />}
     </>
   );
 }
