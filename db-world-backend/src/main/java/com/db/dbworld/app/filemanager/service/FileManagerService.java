@@ -4,11 +4,11 @@ import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
 import com.db.dbworld.app.filemanager.dto.FileUploadErrorDto;
 import com.db.dbworld.app.filemanager.dto.FileUploadResultDto;
+import com.db.dbworld.utils.DbWorldRuntimeProperties;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,18 +36,14 @@ public class FileManagerService {
 
     private final ConcurrentHashMap<String, DownloadTicket> downloadTickets = new ConcurrentHashMap<>();
 
-    @Value("${file-manager.base-dir:/}")
-    private String baseDirConfig;
+    private final DbWorldRuntimeProperties runtimeProperties;
 
-    private Path cachedBaseDir;
-
-    @PostConstruct
-    private void initBaseDir() {
-        this.cachedBaseDir = Path.of(baseDirConfig).toAbsolutePath().normalize();
+    public FileManagerService(DbWorldRuntimeProperties runtimeProperties) {
+        this.runtimeProperties = runtimeProperties;
     }
 
     private Path baseDir() {
-        return cachedBaseDir;
+        return runtimeProperties.getBasePath().toAbsolutePath().normalize();
     }
 
     // ── Path jail ─────────────────────────────────────────────────────────────
@@ -58,8 +54,10 @@ public class FileManagerService {
         if (rawPath == null || rawPath.isBlank() || rawPath.equals("/")) {
             resolved = base;
         } else {
-            String rel = rawPath.startsWith("/") ? rawPath.substring(1) : rawPath;
-            resolved = base.resolve(rel).normalize();
+            // Strip ALL leading slashes so "//foo" doesn't become an absolute path
+            // when passed to Path.resolve(), which would escape the jail.
+            String rel = rawPath.replaceAll("^/+", "");
+            resolved = rel.isEmpty() ? base : base.resolve(rel).normalize();
         }
         if (!resolved.startsWith(base)) {
             throw new SecurityException("Path traversal attempt blocked: " + rawPath);

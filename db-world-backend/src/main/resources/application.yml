@@ -136,8 +136,3 @@ logging:
     org.springframework: ${SPRING_LOG_LEVEL:INFO}
     com.db.dbworld: ${APP_LOG_LEVEL:DEBUG}
 
-# =========================================================
-# File Manager
-# =========================================================
-file-manager:
-  base-dir: /
