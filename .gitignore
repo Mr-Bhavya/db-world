@@ -60,6 +60,9 @@ build/
 /runtime/rsa-public.key
 /.postman/
 
+### Server config — kept in private repo (db-world-config) ###
+/server_config/
+
 ### Build artefacts — never commit these ###
 *.war
 *.jar
