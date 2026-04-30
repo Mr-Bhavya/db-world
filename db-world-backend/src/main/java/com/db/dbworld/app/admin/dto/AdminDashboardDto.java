@@ -15,7 +15,7 @@ public class AdminDashboardDto {
     private SyncStats      sync;
     private MediaStats     media;
     private SystemStats    system;
-    private TagStats       tags;
+    private List<TagEntry> tags;
     private List<RecentRecord> recentRecords;
 
     /* ── Nested DTOs ──────────────────────────────────────────────────────── */
@@ -59,14 +59,10 @@ public class AdminDashboardDto {
     }
 
     @Data @Builder
-    public static class TagStats {
-        private long trending;
-        private long featured;
-        private long availableForDownload;
-        private long editorPick;
-        private long showOnTop;
-        private long recentlyAdded;
-        private long top10;
+    public static class TagEntry {
+        private String tagType;
+        private String displayName;
+        private long   count;
     }
 
     @Data @Builder

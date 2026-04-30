@@ -8,7 +8,7 @@ import {
   People, Movie, Sync, VideoLibrary, Computer,
   Refresh, Label, Storage, Analytics, ArrowForward,
   Movie as MovieIcon, Tv, CheckCircle, Error, HourglassEmpty,
-  Download, Folder, Schedule, LocalOffer, ManageAccounts,
+  Folder, Schedule, LocalOffer, ManageAccounts,
   Dashboard as DashboardIcon, TableChart, WbSunny, NightsStay,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -40,26 +40,13 @@ const NAV_SECTIONS = [
   { id: 'media-files',    label: 'Media Files',      icon: VideoLibrary,   path: 'media-files',    color: A.violet,  group: 'Content'  },
   { id: 'tag-management', label: 'Tags & Rails',     icon: LocalOffer,     path: 'tag-management', color: A.amber,   group: 'Content'  },
   { id: 'tmdb-sync',      label: 'TMDB Sync',        icon: Sync,           path: 'tmdb-sync',      color: A.emerald, group: 'Content'  },
-  { id: 'downloads',      label: 'Downloads',        icon: Download,       path: 'downloads',      color: A.pink,    group: 'Activity' },
-  { id: 'ingestion',      label: 'Ingestion',        icon: Folder,         path: 'ingestion',      color: A.orange,  group: 'Activity' },
+  { id: 'ingestion',      label: 'Media Ingestion',  icon: Folder,         path: 'ingestion',      color: A.orange,  group: 'Activity' },
   { id: 'activity-center',label: 'Activity',         icon: TableChart,     path: 'activity-center',color: A.red,     group: 'Activity', badge: 'Live' },
   { id: 'system-info',    label: 'System Info',      icon: Computer,       path: 'system-info',    color: A.indigo,  group: 'System'   },
   { id: 'logs',           label: 'Log Viewer',       icon: Analytics,      path: 'logs',           color: A.violet,  group: 'System'   },
   { id: 'redis',          label: 'Redis Cache',      icon: Storage,        path: 'redis',          color: A.emerald, group: 'System'   },
   { id: 'scheduler',      label: 'Scheduler',        icon: Schedule,       path: 'scheduler',      color: A.amber,   group: 'System'   },
 ];
-
-// ─── Tag label map (camelCase key → display label) ────────────────────────────
-const TAG_LABELS = {
-  trending:             'Trending',
-  featured:             'Featured',
-  availableForDownload: 'Available',
-  editorPick:           "Editor's Pick",
-  showOnTop:            'Show On Top',
-  recentlyAdded:        'Recently Added',
-  top10:                'Top 10',
-  newRelease:           'New Release',
-};
 
 // ─── Utilities ─────────────────────────────────────────────────────────────────
 function getGreeting() {
@@ -273,17 +260,15 @@ const AdminDashboard = () => {
 
   const s = stats;
 
-  // Dynamically derive tag entries from API response
+  // Tags come from the backend as an array of active TagDefinition entries
   const tagEntries = useMemo(() => {
-    if (!s?.tags) return [];
-    return Object.entries(s.tags)
-      .filter(([, v]) => v != null)
-      .map(([key, count], i) => ({
-        key,
-        label: camelToLabel(key),
-        count,
-        color: ACCENTS[i % ACCENTS.length],
-      }));
+    if (!Array.isArray(s?.tags)) return [];
+    return s.tags.map((t, i) => ({
+      key:   t.tagType,
+      label: t.displayName,
+      count: t.count,
+      color: ACCENTS[i % ACCENTS.length],
+    }));
   }, [s?.tags]);
 
   // Nav tile columns: 4 on md+, 3 on sm, 2 on xs — computed from NAV_SECTIONS
