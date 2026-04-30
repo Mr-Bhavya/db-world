@@ -71,6 +71,7 @@ db-world-frontend/android/app/build/
 db-world-frontend/android/.gradle/
 db-world-frontend/.angular/
 logs/
+!db-world-frontend/src/**/logs/
 *.log
 
 ### Secrets - never commit real credentials ###
