@@ -76,7 +76,8 @@ import okhttp3.ResponseBody;
 public class DbWorldDownloadPlugin extends Plugin {
 
     private static final String CHANNEL_ID = "dbworld_downloads";
-    private static final long   NOTIFY_EVERY_BYTES = 256 * 1024; // fire progress every 256 KB
+    private static final long PROGRESS_EVENT_BYTES = 256 * 1024; // fire JS event every 256 KB
+    private static final long NOTIF_INTERVAL_MS    = 800;        // refresh notification every 800 ms
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -103,12 +104,14 @@ public class DbWorldDownloadPlugin extends Plugin {
         String  url;
         String  fileName;
         String  title;
-        volatile long   bytesDownloaded = 0;
-        volatile long   bytesTotal      = -1;
-        volatile String status          = "pending";
-        volatile int    progress        = 0;
-        volatile Call   okCall;
-        volatile boolean cancelled      = false;
+        volatile long    bytesDownloaded = 0;
+        volatile long    bytesTotal      = -1;
+        volatile String  status          = "pending";
+        volatile int     progress        = 0;
+        volatile Call    okCall;
+        volatile boolean cancelled       = false;
+        volatile boolean paused          = false;
+        volatile long    lastNotifMs     = 0;  // last time notification was refreshed
         int notifId;
     }
 
@@ -228,10 +231,39 @@ public class DbWorldDownloadPlugin extends Plugin {
         call.resolve();
     }
 
-    // ─── pauseDownload / resumeDownload (stubs) ───────────────────────────────
+    // ─── pauseDownload / resumeDownload ──────────────────────────────────────
+    // Pause holds the download thread in a sleep loop (TCP back-pressure pauses
+    // the server-side send). Resume wakes it up. The connection stays open.
 
-    @PluginMethod public void pauseDownload(PluginCall call)  { call.resolve(); }
-    @PluginMethod public void resumeDownload(PluginCall call) { call.resolve(); }
+    @PluginMethod
+    public void pauseDownload(PluginCall call) {
+        String id = call.getString("downloadId");
+        if (id != null) {
+            DownloadTask task = activeTasks.get(id);
+            if (task != null && "running".equals(task.status)) {
+                task.paused = true;
+                task.status = "paused";
+                fireEvent("downloadStateChanged", task);
+                updateProgressNotif(task);
+            }
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void resumeDownload(PluginCall call) {
+        String id = call.getString("downloadId");
+        if (id != null) {
+            DownloadTask task = activeTasks.get(id);
+            if (task != null && "paused".equals(task.status)) {
+                task.paused = false;
+                task.status = "running";
+                fireEvent("downloadStateChanged", task);
+                updateProgressNotif(task);
+            }
+        }
+        call.resolve();
+    }
 
     // ─── listDownloads ────────────────────────────────────────────────────────
 
@@ -310,15 +342,23 @@ public class DbWorldDownloadPlugin extends Plugin {
 
                 byte[] buf = new byte[16 * 1024];
                 int    count;
-                long   lastFireBytes = 0;
+                long   lastEventBytes = 0;
 
                 while ((count = in.read(buf)) != -1) {
+                    // ── Pause: sleep in a tight loop until resumed or cancelled ──
+                    while (task.paused && !task.cancelled) {
+                        try { Thread.sleep(200); } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt(); break;
+                        }
+                    }
+
                     if (task.cancelled) {
                         out.close();
                         outputFile.delete();
                         cleanupCancelled(task);
                         return;
                     }
+
                     out.write(buf, 0, count);
                     task.bytesDownloaded += count;
 
@@ -326,9 +366,17 @@ public class DbWorldDownloadPlugin extends Plugin {
                         task.progress = (int)(task.bytesDownloaded * 100 / task.bytesTotal);
                     }
 
-                    if (task.bytesDownloaded - lastFireBytes >= NOTIFY_EVERY_BYTES) {
-                        lastFireBytes = task.bytesDownloaded;
+                    long now = System.currentTimeMillis();
+
+                    // JS progress event: every 256 KB
+                    if (task.bytesDownloaded - lastEventBytes >= PROGRESS_EVENT_BYTES) {
+                        lastEventBytes = task.bytesDownloaded;
                         fireEvent("downloadProgress", task);
+                    }
+
+                    // Notification: time-gated — Android silently drops rapid updates
+                    if (now - task.lastNotifMs >= NOTIF_INTERVAL_MS) {
+                        task.lastNotifMs = now;
                         updateProgressNotif(task);
                     }
                 }

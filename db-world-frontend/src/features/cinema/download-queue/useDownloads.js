@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 export function normalizeDownload(item = {}) {
@@ -62,6 +62,22 @@ export function useDownloads() {
     })();
     return () => listeners.forEach(l => l?.remove());
   }, []);
+
+  // Polling fallback: events fire only when this component is mounted.
+  // If a download was started from another page, events were missed.
+  // Poll listDownloads() every 2 s while any download is active/queued.
+  const downloadsRef = useRef(downloads);
+  useEffect(() => { downloadsRef.current = downloads; }, [downloads]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const hasActive = downloadsRef.current.some(
+        d => d.status === 'running' || d.status === 'pending' || d.status === 'paused'
+      );
+      if (hasActive) refresh();
+    }, 2000);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   // Actions
   const pause = useCallback(async (id) => {
