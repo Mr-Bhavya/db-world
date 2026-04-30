@@ -1627,8 +1627,9 @@ function FileCard({ mediaInfo, allFiles, record }) {
           CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
         }
     } catch (e) {
-      console.error('Download failed', e);
-      enqueueSnackbar('Failed to start download', { variant: 'error' });
+      const msg = e?.message || e?.code || String(e);
+      console.error('Download failed', msg, e);
+      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
     } finally {
       setResolving(false);
     }
