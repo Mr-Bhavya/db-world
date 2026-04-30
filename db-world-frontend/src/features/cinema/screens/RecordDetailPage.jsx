@@ -82,6 +82,7 @@ import Constants from '@shared/constants';
 
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
+import { buildAndroidEpisodeList } from '../utils/episodeUtils';
 import { useT } from '@shared/theme/ThemeContext';
 import MediaDownloadViewer from './media-files';
 
@@ -1591,6 +1592,7 @@ function FileCard({ mediaInfo, allFiles, record }) {
       setEnrichedFiles(enriched);
       const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
       if (Capacitor.getPlatform() === 'android') {
+        const episodes = buildAndroidEpisodeList(enriched, current);
         AndroidPlugins.launchNativePlayer({
           url: current?.streamUrl,
           title: record?.tmdb?.title || record?.title || general?.fileName || '',
@@ -1598,6 +1600,7 @@ function FileCard({ mediaInfo, allFiles, record }) {
           fileId: String(mediaInfo.id || ''),
           preferredAudio: 'Hindi',
           preferredSub: null,
+          episodes,
         });
       } else {
         setPlayerOpen(true);
