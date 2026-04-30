@@ -1,5 +1,6 @@
 package com.db.dbworld.download;
 
+import android.Manifest;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -7,14 +8,18 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -31,7 +36,19 @@ import java.util.Queue;
  *   cancelDownload({ downloadId })      → {}
  *   listDownloads()                     → { downloads: [...] }
  */
-@CapacitorPlugin(name = "DbWorldDownload")
+@CapacitorPlugin(
+    name = "DbWorldDownload",
+    permissions = {
+        @Permission(
+            alias = "notifications",
+            strings = { Manifest.permission.POST_NOTIFICATIONS }
+        ),
+        @Permission(
+            alias = "storage",
+            strings = { Manifest.permission.WRITE_EXTERNAL_STORAGE }
+        )
+    }
+)
 public class DbWorldDownloadPlugin extends Plugin {
 
     private DownloadManager downloadManager;
@@ -75,6 +92,37 @@ public class DbWorldDownloadPlugin extends Plugin {
     protected void handleOnDestroy() {
         super.handleOnDestroy();
         try { getContext().unregisterReceiver(completionReceiver); } catch (Exception ignored) {}
+    }
+
+    // ─── ensurePermissions ────────────────────────────────────────────────────
+
+    /**
+     * Requests the runtime permission needed for downloads on the current API level:
+     *  - Android 13+ (API 33): POST_NOTIFICATIONS (for download progress notification)
+     *  - Android 6-9 (API 23-28): WRITE_EXTERNAL_STORAGE (for public Movies directory)
+     *  - Android 10-12: no runtime permission needed — resolves immediately
+     * Download proceeds regardless of whether notifications permission is granted.
+     */
+    @PluginMethod
+    public void ensurePermissions(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (getPermissionState("notifications") != PermissionState.GRANTED) {
+                requestPermissionForAlias("notifications", call, "permissionsCallback");
+                return;
+            }
+        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            if (getPermissionState("storage") != PermissionState.GRANTED) {
+                requestPermissionForAlias("storage", call, "permissionsCallback");
+                return;
+            }
+        }
+        call.resolve();
+    }
+
+    @PermissionCallback
+    private void permissionsCallback(PluginCall call) {
+        // Resolve regardless — DownloadManager works even if notifications are denied
+        call.resolve();
     }
 
     // ─── startDownload ────────────────────────────────────────────────────────
