@@ -371,11 +371,10 @@ public class DbWorldDownloadPlugin extends Plugin {
         request.setTitle(fileName);
         request.setDescription("DB-World");
         request.setNotificationVisibility(
-                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MOVIES, fileName);
-        request.allowScanningByMediaScanner();
+                DownloadManager.Request.VISIBILITY_VISIBLE);
+        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
         request.setAllowedOverMetered(true);
-        request.setAllowedOverRoaming(false);
+        request.setAllowedOverRoaming(true);
         return downloadManager.enqueue(request);
     }
 
@@ -405,15 +404,22 @@ public class DbWorldDownloadPlugin extends Plugin {
         JSObject obj = new JSObject();
         long   id              = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID));
         int    dmStatus        = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+        int    dmReason        = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
         long   bytesDownloaded = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
         long   bytesTotal      = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
         String title           = c.getString(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE));
 
         double progress = (bytesTotal > 0) ? (bytesDownloaded * 100.0 / bytesTotal) : 0;
+        String statusStr = dmStatusToString(dmStatus);
+
+        android.util.Log.d("DbWorldDownload",
+                "poll id=" + id + " status=" + statusStr + " reason=" + dmReason
+                + " bytes=" + bytesDownloaded + "/" + bytesTotal);
 
         obj.put("downloadId",      String.valueOf(id));
         obj.put("title",           title != null ? title : "");
-        obj.put("status",          dmStatusToString(dmStatus));
+        obj.put("status",          statusStr);
+        obj.put("reason",          dmReason);
         obj.put("bytesDownloaded", bytesDownloaded);
         obj.put("bytesTotal",      bytesTotal);
         obj.put("progress",        (int) Math.round(progress));
