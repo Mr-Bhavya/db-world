@@ -60,6 +60,16 @@ build/
 /runtime/rsa-public.key
 /.postman/
 
+### Build artefacts — never commit these ###
+*.war
+*.jar
+db-world-frontend/dist/
+db-world-frontend/android/app/build/
+db-world-frontend/android/.gradle/
+db-world-frontend/.angular/
+logs/
+*.log
+
 ### Secrets - never commit real credentials ###
 **/application-prod*.yml
 **/application-local*.yml
