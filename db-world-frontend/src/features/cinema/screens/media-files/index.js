@@ -214,7 +214,6 @@ const AudioSummary = ({ audio, subtitle, compact = false }) => {
 
 const FileActions = ({ file, allFiles, record, compact = false }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { resolving, playerOpen, setPlayerOpen, enrichedFiles, setEnrichedFiles, handlePlay, handleDownload } =
     useFileActions(file, allFiles, record);
@@ -222,34 +221,44 @@ const FileActions = ({ file, allFiles, record, compact = false }) => {
   const isDark = theme.palette.mode === 'dark';
   const playBg = isDark ? '#fff' : '#0f172a';
   const playColor = isDark ? '#000' : '#fff';
+  const iconSx = { border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.75 };
 
   return (
     <>
-      <Box sx={{
-        display: 'flex', alignItems: 'center', gap: compact ? 0.6 : 1,
-        flexWrap: compact ? 'nowrap' : { xs: 'wrap', sm: 'nowrap' },
-      }}>
-        <Button
-          size="small" variant="contained"
-          startIcon={resolving ? <CircularProgress size={13} color="inherit" /> : <PlayArrow sx={{ fontSize: 18 }} />}
-          onClick={handlePlay} disabled={resolving}
-          sx={{
-            bgcolor: playBg, color: playColor, fontWeight: 700,
-            fontSize: compact ? '0.72rem' : '0.78rem',
-            textTransform: 'none', borderRadius: 1.5,
-            px: compact ? 1.2 : { xs: 1.5, sm: 2 }, py: compact ? 0.5 : 0.7,
-            flexShrink: 0, minWidth: compact ? 0 : undefined,
-            '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.88)' : 'rgba(15,23,42,0.88)' },
-          }}
-        >
-          {compact && isMobile ? null : 'Play'}
-        </Button>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'nowrap' }}>
+        {compact ? (
+          <Tooltip title="Play">
+            <span>
+              <IconButton size="small" onClick={handlePlay} disabled={resolving}
+                sx={{ ...iconSx, bgcolor: playBg, color: playColor, borderColor: 'transparent',
+                  '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.88)' : 'rgba(15,23,42,0.88)' },
+                }}>
+                {resolving ? <CircularProgress size={12} color="inherit" /> : <PlayArrow sx={{ fontSize: 14 }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        ) : (
+          <Button
+            size="small" variant="contained"
+            startIcon={resolving ? <CircularProgress size={13} color="inherit" /> : <PlayArrow sx={{ fontSize: 18 }} />}
+            onClick={handlePlay} disabled={resolving}
+            sx={{
+              bgcolor: playBg, color: playColor, fontWeight: 700,
+              fontSize: '0.78rem', textTransform: 'none', borderRadius: 1.5,
+              px: { xs: 1.5, sm: 2 }, py: 0.7, flexShrink: 0,
+              '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.88)' : 'rgba(15,23,42,0.88)' },
+            }}
+          >
+            Play
+          </Button>
+        )}
 
         <Tooltip title="Download">
-          <IconButton size="small" onClick={handleDownload} disabled={resolving}
-            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.75 }}>
-            {resolving ? <CircularProgress size={13} /> : <Download sx={{ fontSize: 15 }} />}
-          </IconButton>
+          <span>
+            <IconButton size="small" onClick={handleDownload} disabled={resolving} sx={iconSx}>
+              {resolving ? <CircularProgress size={12} /> : <Download sx={{ fontSize: compact ? 13 : 15 }} />}
+            </IconButton>
+          </span>
         </Tooltip>
 
         <CopyUrlButton
@@ -257,22 +266,11 @@ const FileActions = ({ file, allFiles, record, compact = false }) => {
           label="Copy download URL"
         />
 
-        {!compact && (
-          <Tooltip title="File details">
-            <IconButton size="small" onClick={() => setDrawerOpen(true)}
-              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.75 }}>
-              <InfoOutlined sx={{ fontSize: 15 }} />
-            </IconButton>
-          </Tooltip>
-        )}
-        {compact && (
-          <Tooltip title="File details">
-            <IconButton size="small" onClick={() => setDrawerOpen(true)}
-              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.75 }}>
-              <InfoOutlined sx={{ fontSize: 13 }} />
-            </IconButton>
-          </Tooltip>
-        )}
+        <Tooltip title="File details">
+          <IconButton size="small" onClick={() => setDrawerOpen(true)} sx={iconSx}>
+            <InfoOutlined sx={{ fontSize: compact ? 13 : 15 }} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       <CinemaPlayer
@@ -387,31 +385,27 @@ const EpisodeQualityRow = ({ file, allEpisodeFiles, record, index }) => {
       transition={{ duration: 0.15, delay: index * 0.04 }}
     >
       <Box sx={{
-        display: 'flex', alignItems: 'center', gap: 1.5,
-        px: { xs: 1.5, sm: 2 }, py: { xs: 0.9, sm: 1 },
+        px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.1 },
         borderLeft: `3px solid ${qColor}`,
-        ml: 0, transition: 'background 0.15s',
+        transition: 'background 0.15s',
         '&:hover': { bgcolor: alpha(qColor, 0.05) },
-        flexWrap: { xs: 'wrap', sm: 'nowrap' },
       }}>
-        {/* Quality + badges */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, minWidth: { sm: 180 } }}>
-          <QualityLabel quality={quality} size="sm" />
-          {codec && <CodecBadge codec={codec} />}
-          {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
+        {/* Row 1: quality badges (left) + actions (right, never wraps) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+            <QualityLabel quality={quality} size="sm" />
+            {codec && <CodecBadge codec={codec} />}
+            {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
+          </Box>
+          <Box sx={{ flexShrink: 0 }}>
+            <FileActions file={file} allFiles={allEpisodeFiles} record={record} compact />
+          </Box>
         </Box>
 
-        {/* Meta + audio (flex 1) */}
-        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+        {/* Row 2: file meta + audio/sub summary */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
           <FileMeta file={file} />
-          {audio?.length > 0 && (
-            <AudioSummary audio={audio} subtitle={subtitle} compact />
-          )}
-        </Box>
-
-        {/* Actions */}
-        <Box sx={{ flexShrink: 0 }}>
-          <FileActions file={file} allFiles={allEpisodeFiles} record={record} compact />
+          {audio?.length > 0 && <AudioSummary audio={audio} subtitle={subtitle} compact />}
         </Box>
       </Box>
     </motion.div>
