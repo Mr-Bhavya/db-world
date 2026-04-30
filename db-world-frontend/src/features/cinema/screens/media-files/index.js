@@ -90,7 +90,7 @@ function useFileActions(file, allFiles, record) {
     } catch (err) {
       const msg = err?.message || err?.code || String(err);
       console.error('[Download] FAILED:', msg, err);
-      enqueueSnackbar('Failed to start download', { variant: 'error' });
+      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
     } finally { setResolving(false); }
   }, [file, record, enqueueSnackbar]);
 
