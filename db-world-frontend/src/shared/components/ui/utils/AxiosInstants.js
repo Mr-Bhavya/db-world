@@ -87,6 +87,11 @@ axiosInstance.interceptors.response.use(
 
         localStorage.setItem('token', newToken);
         original.headers.Authorization = `Bearer ${newToken}`;
+        // Also refresh the `t` query-param used by stream resolve endpoints,
+        // otherwise the retry still carries the old expired token in the URL.
+        if (original.params?.t) {
+          original.params = { ...original.params, t: newToken };
+        }
         drainQueue(null, newToken);
         return axiosInstance(original);
 
