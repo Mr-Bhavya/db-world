@@ -174,7 +174,7 @@ const BackdropSection = ({ record }) => {
                                 <Button
                                     variant="contained"
                                     startIcon={<PlayArrow />}
-                                    onClick={() => navigate(Constants.DB_DONWLOAD_RECORD_ROUTE.replace(':recordId', record.id))}
+                                    onClick={() => navigate(Constants.DB_RECORD_MEDIA_FILES_ROUTE.replace(':recordId', record.id))}
                                     sx={{
                                         bgcolor: '#fff', color: '#000', fontWeight: 700,
                                         fontSize: '0.95rem', px: 3, py: 1.1, borderRadius: 2,

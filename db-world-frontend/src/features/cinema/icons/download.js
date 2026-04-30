@@ -35,7 +35,7 @@ function Download({
                 return;
             }
             navigate(
-                `${Constants.DB_DONWLOAD_RECORD_ROUTE.replace(":recordId", record.recordId)}`,
+                `${Constants.DB_RECORD_MEDIA_FILES_ROUTE.replace(":recordId", record.recordId)}`,
                 { state: { record } }
             );
         } else {

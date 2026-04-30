@@ -63,10 +63,10 @@ const LazyUserManagement       = lazy(() => import('@features/admin/users'));
 const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
 const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer'));
 const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
-const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
+const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
-const LazyDownloadsPage       = lazy(() => import('@features/cinema/downloads/index.jsx'));
+const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
 
 // Loading Component
 const LoadingFallback = () => (
@@ -213,14 +213,14 @@ const routeConfig = {
     { path: Constants.DB_CINEMA_BROWSE_ROUTE, element: <CinemaPageWrapper pageType="home"   key="home"   /> },
     { path: Constants.DB_CINEMA_MOVIES_ROUTE, element: <CinemaPageWrapper pageType="movies" key="movies" /> },
     { path: Constants.DB_CINEMA_SERIES_ROUTE, element: <CinemaPageWrapper pageType="series" key="series" /> },
-    { path: Constants.DB_DONWLOAD_RECORD_ROUTE, element: <LazyMediaDownloadViewer /> },
+    { path: Constants.DB_RECORD_MEDIA_FILES_ROUTE, element: <LazyMediaFilesPage /> },
     { path: Constants.DB_ADD_PASSWORD_ROUTE, element: <AddPassword /> },
     { path: Constants.DB_GENERATE_PASSWORD_ROUTE, element: <GeneratePassword /> },
     { path: Constants.DB_VIEW_PASSWORD_ROUTE, element: <ViewPassword /> },
     { path: Constants.EDIT_USER_PROFILE_ROUTE, element: <EditProfile /> },
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
-    { path: Constants.DB_CINEMA_DOWNLOADS, element: <LazyDownloadsPage /> },
+    { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],

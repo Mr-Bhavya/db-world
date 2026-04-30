@@ -83,7 +83,7 @@ import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useT } from '@shared/theme/ThemeContext';
-import MediaDownloadViewer from './download';
+import MediaDownloadViewer from './media-files';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

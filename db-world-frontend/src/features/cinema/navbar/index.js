@@ -188,7 +188,7 @@ function Navbar({ coverColor, onGenreSelect }) {
     { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
     { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
     { id: 3, title: 'Categories', route: null,                              icon: null },
-    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_CINEMA_DOWNLOADS, icon: <DownloadIcon /> }] : []),
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadIcon /> }] : []),
   ], [isAndroid]);
 
   // Mobile bottom pill items: Home / Movies / Shows / Search / Downloads(Android)
@@ -197,7 +197,7 @@ function Navbar({ coverColor, onGenreSelect }) {
     { id: 1,  title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
     { id: 2,  title: 'Shows',     route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
     { id: 99, title: 'Search',    route: null,                              icon: <SearchIcon /> },
-    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_CINEMA_DOWNLOADS, icon: <DownloadIcon /> }] : []),
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadIcon /> }] : []),
   ], [isAndroid]);
 
   // Sync selectedNav with current URL
