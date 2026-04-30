@@ -20,6 +20,7 @@ import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { QUALITY_ORDER, QUALITY_META } from '../../media/constants';
+import { tmdbImg } from '../../api/cinemaApi';
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 
@@ -70,20 +71,32 @@ function useFileActions(file, allFiles, record) {
     try {
       const res = await resolveMediaUrl(file.mediaFileId, 'DOWNLOAD');
       const cdnUrl = res?.data?.cdnUrl;
-      if (!cdnUrl) throw new Error();
+      console.log('[Download] resolve res:', JSON.stringify(res));
+      console.log('[Download] cdnUrl:', cdnUrl);
+      if (!cdnUrl) throw new Error('resolve returned no cdnUrl');
       if (Capacitor.getPlatform() === 'android') {
+        console.log('[Download] calling ensurePermissions...');
         await DbWorldDownload.ensurePermissions();
-        await DbWorldDownload.startDownload({
+        console.log('[Download] ensurePermissions ok — calling startDownload');
+        const dlResult = await DbWorldDownload.startDownload({
           url: cdnUrl,
           fileName: file.general?.fileName || 'download',
           title: file.general?.fileName || record?.tmdb?.title || 'Download',
+          thumbnailUrl: tmdbImg(record?.tmdb?.posterPath, 'w185') || '',
         });
-        enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
+        console.log('[Download] startDownload result:', JSON.stringify(dlResult));
+        if (dlResult?.alreadyDownloaded) {
+          enqueueSnackbar(`Already downloaded: ${file.general?.fileName || 'file'}`, { variant: 'info' });
+        } else {
+          enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
+        }
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: file.general?.fileName, openInNewTab: true });
       }
-    } catch {
-      enqueueSnackbar('Failed to start download', { variant: 'error' });
+    } catch (err) {
+      const msg = err?.message || err?.code || String(err);
+      console.error('[Download] FAILED:', msg, err);
+      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
     } finally { setResolving(false); }
   }, [file, record, enqueueSnackbar]);
 

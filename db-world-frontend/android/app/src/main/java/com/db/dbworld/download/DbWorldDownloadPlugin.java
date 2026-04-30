@@ -1,104 +1,229 @@
 package com.db.dbworld.download;
 
-import android.app.DownloadManager;
-import android.content.BroadcastReceiver;
+import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.database.Cursor;
-import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 /**
- * DbWorldDownload Capacitor plugin.
+ * DbWorldDownload — OkHttp-based download plugin.
  *
- * - Only 1 download runs at a time; additional calls are queued.
- * - When a download completes, the next item in the queue starts automatically.
+ * Replaces DownloadManager (which silently stalls on many OEM builds) with
+ * a direct OkHttp download on a background thread.  Fires progress events to
+ * JS and shows a system notification with a live progress bar.
  *
- * JS API:
- *   startDownload({ url, fileName })    → { downloadId, queued }
- *   getStatus({ downloadId })           → { downloadId, status, bytesDownloaded, bytesTotal, progress }
- *   cancelDownload({ downloadId })      → {}
- *   listDownloads()                     → { downloads: [...] }
+ * JS API (unchanged):
+ *   ensurePermissions()              → {}
+ *   startDownload({ url, fileName }) → { downloadId, queued }
+ *   getStatus({ downloadId })        → { downloadId, status, … }
+ *   cancelDownload({ downloadId })   → {}
+ *   deleteDownload({ downloadId })   → {}
+ *   pauseDownload({ downloadId })    → {}   (stub)
+ *   resumeDownload({ downloadId })   → {}   (stub)
+ *   listDownloads()                  → { downloads: […] }
  */
-@CapacitorPlugin(name = "DbWorldDownload")
+@CapacitorPlugin(
+    name = "DbWorldDownload",
+    permissions = {
+        @Permission(
+            alias = "notifications",
+            strings = { Manifest.permission.POST_NOTIFICATIONS }
+        ),
+        @Permission(
+            alias = "storage",
+            strings = { Manifest.permission.WRITE_EXTERNAL_STORAGE }
+        )
+    }
+)
 public class DbWorldDownloadPlugin extends Plugin {
 
-    private DownloadManager downloadManager;
+    private static final String CHANNEL_ID = "dbworld_downloads";
+    private static final long PROGRESS_EVENT_BYTES = 256 * 1024; // fire JS event every 256 KB
+    private static final long NOTIF_INTERVAL_MS    = 800;        // refresh notification every 800 ms
 
-    /** Queue of pending download requests (when one is already running). */
-    private final Queue<JSObject> pendingQueue = new ArrayDeque<>();
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.SECONDS)   // no read timeout — large files
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build();
 
-    /** The DownloadManager ID of the currently active download (-1 if none). */
-    private long activeDownloadId = -1L;
+    private final ExecutorService executor    = Executors.newSingleThreadExecutor();
+    private final Handler         mainHandler = new Handler(Looper.getMainLooper());
 
-    private BroadcastReceiver completionReceiver;
+    // Tracks every active/queued download this session
+    private final Map<String, DownloadTask> activeTasks   = new ConcurrentHashMap<>();
+    private final List<JSObject>            finishedItems = new ArrayList<>();
+    private final Queue<JSObject>           pendingQueue  = new ArrayDeque<>();
+    private final AtomicBoolean             isDownloading = new AtomicBoolean(false);
+
+    private int nextNotifId = 3000;
+
+    // ─── Internal task record ─────────────────────────────────────────────────
+
+    private static class DownloadTask {
+        String  downloadId;
+        String  url;
+        String  fileName;
+        String  title;
+        String  thumbnailUrl = "";
+        volatile long    bytesDownloaded  = 0;
+        volatile long    bytesTotal       = -1;
+        volatile String  status           = "pending";
+        volatile int     progress         = 0;
+        volatile Call    okCall;
+        volatile boolean cancelled        = false;
+        volatile boolean paused           = false;
+        volatile long    lastNotifMs      = 0;
+        // Speed / ETA (written only from download thread, read by notif/event)
+        volatile long    speedBytesPerSec = 0;
+        volatile long    etaSeconds       = -1;
+        long             speedSampleBytes = 0;   // bytes at last speed sample
+        long             speedSampleTime  = 0;   // ms at last speed sample
+        // Playback
+        volatile String  localUri         = "";
+        volatile boolean canPlay          = false;
+        int notifId;
+    }
+
+    // ─── load / destroy ───────────────────────────────────────────────────────
 
     @Override
     public void load() {
         super.load();
-        downloadManager = (DownloadManager) getContext()
-                .getSystemService(Context.DOWNLOAD_SERVICE);
-
-        completionReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
-                if (id == activeDownloadId) {
-                    activeDownloadId = -1L;
-                    // Notify JS side
-                    JSObject data = new JSObject();
-                    data.put("downloadId", String.valueOf(id));
-                    notifyListeners("downloadComplete", data);
-                    // Start next queued download
-                    startNextQueued();
-                }
-            }
-        };
-        getContext().registerReceiver(
-                completionReceiver,
-                new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        );
+        createNotificationChannel();
+        android.util.Log.d("DbWorldDownload", "plugin loaded (OkHttp mode)");
     }
 
     @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
-        try { getContext().unregisterReceiver(completionReceiver); } catch (Exception ignored) {}
+        executor.shutdownNow();
+    }
+
+    // ─── ensurePermissions ────────────────────────────────────────────────────
+
+    @PluginMethod
+    public void ensurePermissions(PluginCall call) {
+        android.util.Log.d("DbWorldDownload", "ensurePermissions API=" + Build.VERSION.SDK_INT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (getPermissionState("notifications") != PermissionState.GRANTED) {
+                requestPermissionForAlias("notifications", call, "permissionsCallback");
+                return;
+            }
+        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            if (getPermissionState("storage") != PermissionState.GRANTED) {
+                requestPermissionForAlias("storage", call, "permissionsCallback");
+                return;
+            }
+        }
+        call.resolve();
+    }
+
+    @PermissionCallback
+    private void permissionsCallback(PluginCall call) {
+        call.resolve();
     }
 
     // ─── startDownload ────────────────────────────────────────────────────────
 
     @PluginMethod
     public void startDownload(PluginCall call) {
-        String url      = call.getString("url");
-        String fileName = call.getString("fileName", "");
+        String url          = call.getString("url");
+        String fileName     = call.getString("fileName", "download");
+        String title        = call.getString("title", fileName);
+        String thumbnailUrl = call.getString("thumbnailUrl", "");
 
-        if (url == null || url.isEmpty()) {
-            call.reject("URL is required");
+        if (url == null || url.isEmpty()) { call.reject("URL is required"); return; }
+        if (fileName == null || fileName.isEmpty()) fileName = "download";
+
+        android.util.Log.d("DbWorldDownload",
+                "startDownload fileName=" + fileName + " url=" + url.substring(0, Math.min(80, url.length())));
+
+        // ── Duplicate detection ───────────────────────────────────────────────
+        // 1. Same file already actively downloading?
+        for (DownloadTask t : activeTasks.values()) {
+            if (fileName.equals(t.fileName)) {
+                JSObject result = new JSObject();
+                result.put("downloadId", t.downloadId);
+                result.put("queued", false);
+                result.put("alreadyActive", true);
+                call.resolve(result);
+                return;
+            }
+        }
+        // 2. Same file already in the pending queue?
+        for (JSObject item : pendingQueue) {
+            if (fileName.equals(item.optString("fileName", ""))) {
+                JSObject result = new JSObject();
+                result.put("downloadId", "queued_pending");
+                result.put("queued", true);
+                result.put("alreadyActive", true);
+                call.resolve(result);
+                return;
+            }
+        }
+        // 3. File already exists on disk?
+        File existingFile = getOutputFile(fileName);
+        if (existingFile.exists()) {
+            android.util.Log.d("DbWorldDownload", "file already on disk, skipping: " + fileName);
+            String existingId = findFinishedId(fileName);
+            if (existingId == null) {
+                // Disk file not yet tracked — register it as a completed item
+                existingId = String.valueOf(System.currentTimeMillis());
+                JSObject fi = buildFinishedJSObject(existingId, title, fileName, thumbnailUrl, existingFile);
+                synchronized (finishedItems) { finishedItems.add(0, fi); }
+            }
+            JSObject result = new JSObject();
+            result.put("downloadId", existingId);
+            result.put("queued", false);
+            result.put("alreadyDownloaded", true);
+            call.resolve(result);
             return;
         }
 
-        if (fileName == null || fileName.isEmpty()) {
-            String last = Uri.parse(url).getLastPathSegment();
-            fileName = (last != null && !last.isEmpty()) ? last : "download";
-        }
-
-        // If something is already running, queue this request
-        if (activeDownloadId != -1L && isDownloadActive(activeDownloadId)) {
+        if (isDownloading.get()) {
             JSObject item = new JSObject();
-            item.put("url", url);
-            item.put("fileName", fileName);
+            item.put("url", url); item.put("fileName", fileName); item.put("title", title);
+            item.put("thumbnailUrl", thumbnailUrl != null ? thumbnailUrl : "");
             pendingQueue.add(item);
 
             JSObject result = new JSObject();
@@ -108,11 +233,13 @@ public class DbWorldDownloadPlugin extends Plugin {
             return;
         }
 
-        long downloadId = enqueueDownload(url, fileName);
-        activeDownloadId = downloadId;
+        DownloadTask task = buildTask(url, fileName, title, thumbnailUrl);
+        activeTasks.put(task.downloadId, task);
+        isDownloading.set(true);
+        executor.execute(() -> performDownload(task));
 
         JSObject result = new JSObject();
-        result.put("downloadId", String.valueOf(downloadId));
+        result.put("downloadId", task.downloadId);
         result.put("queued", false);
         call.resolve(result);
     }
@@ -121,47 +248,72 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void getStatus(PluginCall call) {
-        String idStr = call.getString("downloadId");
-        if (idStr == null || idStr.startsWith("queued_")) {
-            JSObject result = new JSObject();
-            result.put("status", "pending");
-            call.resolve(result);
-            return;
-        }
+        String id = call.getString("downloadId");
+        if (id == null) { call.reject("downloadId required"); return; }
 
-        long id;
-        try { id = Long.parseLong(idStr); } catch (NumberFormatException e) {
-            call.reject("Invalid downloadId"); return;
-        }
+        DownloadTask task = activeTasks.get(id);
+        if (task != null) { call.resolve(taskToJSObject(task)); return; }
 
-        DownloadManager.Query q = new DownloadManager.Query();
-        q.setFilterById(id);
-        Cursor c = downloadManager.query(q);
-
-        if (!c.moveToFirst()) { c.close(); call.reject("Download not found"); return; }
-        call.resolve(cursorToJSObject(c));
-        c.close();
+        JSObject result = new JSObject();
+        result.put("downloadId", id);
+        result.put("status", id.startsWith("queued_") ? "pending" : "unknown");
+        call.resolve(result);
     }
 
     // ─── cancelDownload ───────────────────────────────────────────────────────
 
     @PluginMethod
     public void cancelDownload(PluginCall call) {
-        String idStr = call.getString("downloadId");
-        if (idStr == null) { call.reject("downloadId required"); return; }
+        String id = call.getString("downloadId");
+        if (id == null) { call.reject("downloadId required"); return; }
+        cancelTask(id);
+        call.resolve();
+    }
 
-        // Handle queued (not yet started) items — just ignore since we don't have their real ID
-        if (idStr.startsWith("queued_")) { call.resolve(); return; }
+    // ─── deleteDownload ───────────────────────────────────────────────────────
 
-        long id;
-        try { id = Long.parseLong(idStr); } catch (NumberFormatException e) {
-            call.reject("Invalid downloadId"); return;
+    @PluginMethod
+    public void deleteDownload(PluginCall call) {
+        String id = call.getString("downloadId");
+        if (id == null) { call.reject("downloadId required"); return; }
+        cancelTask(id);
+        // Remove from finished list too
+        synchronized (finishedItems) {
+            finishedItems.removeIf(o -> id.equals(o.optString("downloadId", null)));
         }
+        call.resolve();
+    }
 
-        downloadManager.remove(id);
-        if (id == activeDownloadId) {
-            activeDownloadId = -1L;
-            startNextQueued();
+    // ─── pauseDownload / resumeDownload ──────────────────────────────────────
+    // Pause holds the download thread in a sleep loop (TCP back-pressure pauses
+    // the server-side send). Resume wakes it up. The connection stays open.
+
+    @PluginMethod
+    public void pauseDownload(PluginCall call) {
+        String id = call.getString("downloadId");
+        if (id != null) {
+            DownloadTask task = activeTasks.get(id);
+            if (task != null && "running".equals(task.status)) {
+                task.paused = true;
+                task.status = "paused";
+                fireEvent("downloadStateChanged", task);
+                updateProgressNotif(task);
+            }
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void resumeDownload(PluginCall call) {
+        String id = call.getString("downloadId");
+        if (id != null) {
+            DownloadTask task = activeTasks.get(id);
+            if (task != null && "paused".equals(task.status)) {
+                task.paused = false;
+                task.status = "running";
+                fireEvent("downloadStateChanged", task);
+                updateProgressNotif(task);
+            }
         }
         call.resolve();
     }
@@ -170,26 +322,37 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void listDownloads(PluginCall call) {
-        DownloadManager.Query q = new DownloadManager.Query();
-        Cursor c = downloadManager.query(q);
-
         JSArray list = new JSArray();
-        while (c.moveToNext()) {
-            list.put(cursorToJSObject(c));
-        }
-        c.close();
 
-        // Append pending-queued items as synthetic entries
+        // Active tasks
+        for (DownloadTask t : activeTasks.values()) {
+            list.put(taskToJSObject(t));
+        }
+
+        // Queued items (not yet started)
         int pos = 0;
         for (JSObject item : pendingQueue) {
             JSObject obj = new JSObject();
             obj.put("downloadId", "queued_" + pos++);
-            obj.put("title", item.optString("fileName", "Pending"));
-            obj.put("status", "pending");
-            obj.put("bytesDownloaded", 0);
-            obj.put("bytesTotal", 0);
+            obj.put("title",    item.optString("title", item.optString("fileName", "Pending")));
+            obj.put("fileName", item.optString("fileName", "download"));
+            obj.put("status",   "pending");
             obj.put("progress", 0);
+            obj.put("bytesDownloaded", 0);
+            obj.put("bytesTotal", -1);
             list.put(obj);
+        }
+
+        // Finished downloads (this session) — skip files deleted from disk
+        synchronized (finishedItems) {
+            for (JSObject fi : finishedItems) {
+                String localUri = fi.optString("localUri", "");
+                if (!localUri.isEmpty()) {
+                    File f = new File(localUri.replace("file://", ""));
+                    if (!f.exists()) continue;
+                }
+                list.put(fi);
+            }
         }
 
         JSObject result = new JSObject();
@@ -197,68 +360,332 @@ public class DbWorldDownloadPlugin extends Plugin {
         call.resolve(result);
     }
 
+    // ─── Download execution ───────────────────────────────────────────────────
+
+    private void performDownload(DownloadTask task) {
+        android.util.Log.d("DbWorldDownload", "performDownload start id=" + task.downloadId);
+        task.status = "running";
+        showProgressNotif(task);
+        fireEvent("downloadStateChanged", task);
+
+        Request request = new Request.Builder()
+                .url(task.url)
+                .addHeader("User-Agent", "DbWorld-Android/1.0")
+                .build();
+
+        task.okCall = httpClient.newCall(request);
+
+        try (Response response = task.okCall.execute()) {
+            if (task.cancelled) { cleanupCancelled(task); return; }
+
+            android.util.Log.d("DbWorldDownload", "HTTP " + response.code() + " for id=" + task.downloadId);
+
+            if (!response.isSuccessful()) {
+                android.util.Log.e("DbWorldDownload", "HTTP error " + response.code());
+                failTask(task, "HTTP " + response.code());
+                return;
+            }
+
+            ResponseBody body = response.body();
+            if (body == null) { failTask(task, "empty response body"); return; }
+
+            task.bytesTotal = body.contentLength();
+            android.util.Log.d("DbWorldDownload",
+                    "content-length=" + task.bytesTotal + " fileName=" + task.fileName);
+
+            // Save to Downloads/DB-World/
+            File outputDir = new File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "DB-World");
+            if (!outputDir.exists()) outputDir.mkdirs();
+            File outputFile = new File(outputDir, task.fileName);
+
+            // Initialise speed sampling
+            task.speedSampleTime  = System.currentTimeMillis();
+            task.speedSampleBytes = 0;
+
+            try (InputStream in = body.byteStream();
+                 FileOutputStream out = new FileOutputStream(outputFile)) {
+
+                byte[] buf = new byte[16 * 1024];
+                int    count;
+                long   lastEventBytes = 0;
+
+                while ((count = in.read(buf)) != -1) {
+                    // ── Pause: sleep until resumed or cancelled ───────────────
+                    while (task.paused && !task.cancelled) {
+                        try { Thread.sleep(200); } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt(); break;
+                        }
+                        // Reset speed sample so pause time doesn't distort speed
+                        task.speedSampleTime  = System.currentTimeMillis();
+                        task.speedSampleBytes = task.bytesDownloaded;
+                    }
+
+                    if (task.cancelled) {
+                        out.close();
+                        outputFile.delete();
+                        cleanupCancelled(task);
+                        return;
+                    }
+
+                    out.write(buf, 0, count);
+                    task.bytesDownloaded += count;
+
+                    if (task.bytesTotal > 0) {
+                        task.progress = (int)(task.bytesDownloaded * 100 / task.bytesTotal);
+                    }
+
+                    long now = System.currentTimeMillis();
+
+                    // JS progress event: every 256 KB
+                    if (task.bytesDownloaded - lastEventBytes >= PROGRESS_EVENT_BYTES) {
+                        lastEventBytes = task.bytesDownloaded;
+                        fireEvent("downloadProgress", task);
+                    }
+
+                    // Notification + speed/ETA: time-gated
+                    if (now - task.lastNotifMs >= NOTIF_INTERVAL_MS) {
+                        // Speed = bytes since last sample / elapsed ms → bytes/s
+                        long elapsed = now - task.speedSampleTime;
+                        if (elapsed > 0) {
+                            long delta = task.bytesDownloaded - task.speedSampleBytes;
+                            task.speedBytesPerSec = delta * 1000 / elapsed;
+                            if (task.speedBytesPerSec > 0 && task.bytesTotal > 0) {
+                                task.etaSeconds =
+                                    (task.bytesTotal - task.bytesDownloaded) / task.speedBytesPerSec;
+                            }
+                        }
+                        task.speedSampleTime  = now;
+                        task.speedSampleBytes = task.bytesDownloaded;
+                        task.lastNotifMs      = now;
+                        updateProgressNotif(task);
+                    }
+                }
+                out.flush();
+            }
+
+            task.status    = "success";
+            task.progress  = 100;
+            task.localUri  = "file://" + outputFile.getAbsolutePath();
+            task.canPlay   = true;
+            task.speedBytesPerSec = 0;
+            task.etaSeconds       = -1;
+            android.util.Log.d("DbWorldDownload", "download complete id=" + task.downloadId);
+
+            fireEvent("downloadProgress",    task);
+            fireEvent("downloadComplete",    task);
+            fireEvent("downloadStateChanged", task);
+            showCompleteNotif(task);
+
+            synchronized (finishedItems) { finishedItems.add(0, taskToJSObject(task)); }
+
+        } catch (IOException e) {
+            if (!task.cancelled) {
+                android.util.Log.e("DbWorldDownload", "IO error: " + e.getMessage(), e);
+                failTask(task, e.getMessage());
+            }
+        } finally {
+            activeTasks.remove(task.downloadId);
+            isDownloading.set(false);
+            startNextQueued();
+        }
+    }
+
+    // ─── Notification helpers ─────────────────────────────────────────────────
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel ch = new NotificationChannel(
+                    CHANNEL_ID, "DB-World Downloads", NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription("Download progress");
+            NotificationManager nm = (NotificationManager)
+                    getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.createNotificationChannel(ch);
+        }
+    }
+
+    private void showProgressNotif(DownloadTask task) {
+        try {
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getContext(), CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle(task.title)
+                    .setContentText("Downloading…")
+                    .setProgress(100, 0, true)   // indeterminate until we know size
+                    .setOngoing(true)
+                    .setPriority(NotificationCompat.PRIORITY_LOW);
+            NotificationManagerCompat.from(getContext()).notify(task.notifId, b.build());
+        } catch (Exception ignored) {}
+    }
+
+    private void updateProgressNotif(DownloadTask task) {
+        try {
+            boolean indeterminate = task.bytesTotal <= 0;
+
+            StringBuilder text = new StringBuilder();
+            if (indeterminate) {
+                text.append(formatBytes(task.bytesDownloaded));
+            } else {
+                text.append(formatBytes(task.bytesDownloaded))
+                    .append(" / ")
+                    .append(formatBytes(task.bytesTotal));
+            }
+            if (task.speedBytesPerSec > 0) {
+                text.append("  ·  ").append(formatBytes(task.speedBytesPerSec)).append("/s");
+            }
+            if (task.etaSeconds > 0) {
+                text.append("  ·  ETA ").append(formatSeconds(task.etaSeconds));
+            }
+            if ("paused".equals(task.status)) {
+                text.append("  ·  Paused");
+            }
+
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getContext(), CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle(task.title)
+                    .setContentText(text.toString())
+                    .setProgress(100, task.progress, indeterminate && !"paused".equals(task.status))
+                    .setOngoing(true)
+                    .setPriority(NotificationCompat.PRIORITY_LOW);
+            NotificationManagerCompat.from(getContext()).notify(task.notifId, b.build());
+        } catch (Exception ignored) {}
+    }
+
+    private void showCompleteNotif(DownloadTask task) {
+        try {
+            NotificationManagerCompat.from(getContext()).cancel(task.notifId);
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getContext(), CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                    .setContentTitle(task.title)
+                    .setContentText("Download complete")
+                    .setAutoCancel(true)
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+            NotificationManagerCompat.from(getContext()).notify(task.notifId + 10000, b.build());
+        } catch (Exception ignored) {}
+    }
+
     // ─── Internal helpers ─────────────────────────────────────────────────────
 
-    private long enqueueDownload(String url, String fileName) {
-        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-        request.setTitle(fileName);
-        request.setDescription("DB-World");
-        request.setNotificationVisibility(
-                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MOVIES, fileName);
-        request.allowScanningByMediaScanner();
-        request.setAllowedOverMetered(true);
-        request.setAllowedOverRoaming(false);
-        return downloadManager.enqueue(request);
+    private DownloadTask buildTask(String url, String fileName, String title, String thumbnailUrl) {
+        DownloadTask t = new DownloadTask();
+        t.downloadId    = String.valueOf(System.currentTimeMillis());
+        t.url           = url;
+        t.fileName      = fileName;
+        t.title         = title;
+        t.thumbnailUrl  = thumbnailUrl != null ? thumbnailUrl : "";
+        t.notifId       = nextNotifId++;
+        return t;
+    }
+
+    private void cancelTask(String id) {
+        if (id.startsWith("queued_")) return;
+        DownloadTask task = activeTasks.get(id);
+        if (task != null) {
+            task.cancelled = true;
+            if (task.okCall != null) task.okCall.cancel();
+            NotificationManagerCompat.from(getContext()).cancel(task.notifId);
+        }
+    }
+
+    private void cleanupCancelled(DownloadTask task) {
+        NotificationManagerCompat.from(getContext()).cancel(task.notifId);
+        android.util.Log.d("DbWorldDownload", "download cancelled id=" + task.downloadId);
+    }
+
+    private void failTask(DownloadTask task, String reason) {
+        task.status = "failed";
+        android.util.Log.e("DbWorldDownload", "failTask id=" + task.downloadId + " reason=" + reason);
+        fireEvent("downloadError",        task);
+        fireEvent("downloadStateChanged", task);
+        NotificationManagerCompat.from(getContext()).cancel(task.notifId);
     }
 
     private void startNextQueued() {
         JSObject next = pendingQueue.poll();
         if (next == null) return;
-        String url      = next.optString("url", "");
-        String fileName = next.optString("fileName", "download");
-        if (!url.isEmpty()) {
-            activeDownloadId = enqueueDownload(url, fileName);
+        DownloadTask task = buildTask(
+                next.optString("url", ""),
+                next.optString("fileName", "download"),
+                next.optString("title", "Download"),
+                next.optString("thumbnailUrl", ""));
+        if (!task.url.isEmpty()) {
+            activeTasks.put(task.downloadId, task);
+            isDownloading.set(true);
+            executor.execute(() -> performDownload(task));
         }
     }
 
-    private boolean isDownloadActive(long id) {
-        DownloadManager.Query q = new DownloadManager.Query();
-        q.setFilterById(id);
-        q.setFilterByStatus(DownloadManager.STATUS_RUNNING | DownloadManager.STATUS_PENDING | DownloadManager.STATUS_PAUSED);
-        Cursor c = downloadManager.query(q);
-        boolean active = c.moveToFirst();
-        c.close();
-        return active;
+    private void fireEvent(String event, DownloadTask task) {
+        JSObject obj = taskToJSObject(task);
+        mainHandler.post(() -> notifyListeners(event, obj));
     }
 
-    private JSObject cursorToJSObject(Cursor c) {
+    private JSObject taskToJSObject(DownloadTask task) {
         JSObject obj = new JSObject();
-        long   id               = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID));
-        int    dmStatus         = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-        long   bytesDownloaded  = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-        long   bytesTotal       = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
-        String title            = c.getString(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE));
-
-        double progress = (bytesTotal > 0) ? (bytesDownloaded * 100.0 / bytesTotal) : 0;
-
-        obj.put("downloadId", String.valueOf(id));
-        obj.put("title",      title != null ? title : "");
-        obj.put("status",     dmStatusToString(dmStatus));
-        obj.put("bytesDownloaded", bytesDownloaded);
-        obj.put("bytesTotal",      bytesTotal);
-        obj.put("progress",        (int) Math.round(progress));
+        obj.put("downloadId",      task.downloadId);
+        obj.put("title",           task.title);
+        obj.put("fileName",        task.fileName);
+        obj.put("status",          task.status);
+        obj.put("progress",        task.progress);
+        obj.put("bytesDownloaded", task.bytesDownloaded);
+        obj.put("bytesTotal",      task.bytesTotal);
+        obj.put("speedBytesPerSec", task.speedBytesPerSec);
+        obj.put("etaSeconds",       task.etaSeconds);
+        obj.put("localUri",         task.localUri);
+        obj.put("playableUri",      task.localUri);
+        obj.put("canPlay",          task.canPlay);
+        obj.put("thumbnailUrl",     task.thumbnailUrl);
         return obj;
     }
 
-    private String dmStatusToString(int status) {
-        switch (status) {
-            case DownloadManager.STATUS_PENDING:    return "pending";
-            case DownloadManager.STATUS_RUNNING:    return "running";
-            case DownloadManager.STATUS_PAUSED:     return "paused";
-            case DownloadManager.STATUS_SUCCESSFUL: return "success";
-            case DownloadManager.STATUS_FAILED:     return "failed";
-            default:                                return "unknown";
+    private File getOutputFile(String fileName) {
+        File dir = new File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "DB-World");
+        return new File(dir, fileName);
+    }
+
+    private String findFinishedId(String fileName) {
+        synchronized (finishedItems) {
+            for (JSObject fi : finishedItems) {
+                if (fileName.equals(fi.optString("fileName", ""))) {
+                    return fi.optString("downloadId", null);
+                }
+            }
         }
+        return null;
+    }
+
+    private JSObject buildFinishedJSObject(String id, String title, String fileName,
+                                           String thumbnailUrl, File file) {
+        JSObject fi = new JSObject();
+        fi.put("downloadId",      id);
+        fi.put("title",           title);
+        fi.put("fileName",        fileName);
+        fi.put("status",          "success");
+        fi.put("progress",        100);
+        fi.put("bytesDownloaded", file.length());
+        fi.put("bytesTotal",      file.length());
+        fi.put("localUri",        "file://" + file.getAbsolutePath());
+        fi.put("playableUri",     "file://" + file.getAbsolutePath());
+        fi.put("canPlay",         true);
+        fi.put("thumbnailUrl",    thumbnailUrl != null ? thumbnailUrl : "");
+        fi.put("speedBytesPerSec", 0);
+        fi.put("etaSeconds",      -1);
+        return fi;
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 0)           return "?";
+        if (bytes < 1024)        return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        return String.format("%.1f MB", bytes / (1024.0 * 1024));
+    }
+
+    private static String formatSeconds(long secs) {
+        if (secs <= 0)     return "";
+        if (secs < 60)     return secs + "s";
+        if (secs < 3600)   return (secs / 60) + "m " + (secs % 60) + "s";
+        return (secs / 3600) + "h " + ((secs % 3600) / 60) + "m";
     }
 }

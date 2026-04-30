@@ -17,7 +17,7 @@ import FolderOpenIcon      from '@mui/icons-material/FolderOpen';
 import { useT }            from '@shared/theme/ThemeContext';
 import AndroidPlugins      from '@platform/android/AndroidPlugins';
 import CinemaPlayer        from '@features/cinema/player/CinemaPlayer';
-import DownloadItem, { STATUS_COLOR, fmtBytes } from './DownloadItem';
+import DownloadItem, { STATUS_COLOR, fmtBytes, fmtSpeed, fmtEta } from './DownloadItem';
 import { useDownloads }    from './useDownloads';
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
@@ -70,6 +70,10 @@ function DetailPanel({ item, actions, onPlay }) {
           { label: 'Progress',   value: `${item.progress ?? 0}%`,     color: isActive ? '#2196f3' : undefined },
           { label: 'Downloaded', value: fmtBytes(item.bytesDownloaded) },
           { label: 'Total Size', value: fmtBytes(item.bytesTotal) },
+          ...(isActive && item.speedBytesPerSec > 0 ? [
+            { label: 'Speed', value: fmtSpeed(item.speedBytesPerSec), color: '#2196f3' },
+            { label: 'ETA',   value: fmtEta(item.etaSeconds) || '—' },
+          ] : []),
         ].map(({ label, value, color: c }) => (
           <Box key={label} sx={{ bgcolor: `${T.glassBorder}55`, borderRadius: 1.5, p: 1.25 }}>
             <Typography variant="caption" sx={{ color: T.textFaint, display: 'block', mb: 0.25, fontSize: '0.65rem' }}>

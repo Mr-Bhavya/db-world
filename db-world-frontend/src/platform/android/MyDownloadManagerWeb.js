@@ -20,6 +20,10 @@ class MyDownloadManagerWeb extends WebPlugin {
     this.downloads = loadStored();
   }
 
+  async ensurePermissions() {
+    return {};
+  }
+
   async startDownload(options) {
     const { url, fileName } = options;
     if (!url) throw new Error('URL is required');

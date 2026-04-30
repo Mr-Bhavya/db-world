@@ -1617,18 +1617,24 @@ function FileCard({ mediaInfo, allFiles, record }) {
         if (!cdnUrl) throw new Error('No CDN URL');
         if (Capacitor.getPlatform() === 'android') {
           await DbWorldDownload.ensurePermissions();
-          await DbWorldDownload.startDownload({
+          const dlResult = await DbWorldDownload.startDownload({
             url: cdnUrl,
             fileName: general?.fileName || 'download',
             title: record?.tmdb?.title || general?.fileName || 'Download',
+            thumbnailUrl: tmdbImg(record?.tmdb?.posterPath, 'w185') || '',
           });
-          enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+          if (dlResult?.alreadyDownloaded) {
+            enqueueSnackbar(`Already downloaded: ${general?.fileName || 'file'}`, { variant: 'info', autoHideDuration: 3000 });
+          } else {
+            enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+          }
         } else {
           CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
         }
     } catch (e) {
-      console.error('Download failed', e);
-      enqueueSnackbar('Failed to start download', { variant: 'error' });
+      const msg = e?.message || e?.code || String(e);
+      console.error('Download failed', msg, e);
+      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
     } finally {
       setResolving(false);
     }
