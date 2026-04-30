@@ -61,7 +61,7 @@ const LazyFileManager          = lazy(() => import('@features/admin/filemanager'
 const LazySchedulerPanel       = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
 const LazyUserManagement       = lazy(() => import('@features/admin/users'));
 const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
-const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer'));
+const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer.jsx'));
 const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
