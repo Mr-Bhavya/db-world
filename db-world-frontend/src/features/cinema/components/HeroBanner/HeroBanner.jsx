@@ -78,9 +78,12 @@ const HeroBannerSkeleton = ({ isMobile }) => (
         </Box>
       </Box>
       {/* Button skeletons */}
-      <Box sx={{ display: 'flex', gap: 1.5, mt: 2.5 }}>
-        <Skeleton variant="rounded" width={110} height={44} sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2 }} />
-        <Skeleton variant="rounded" width={120} height={44} sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2 }} />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2.5, width: '74vw', maxWidth: 300 }}>
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Skeleton variant="rounded" height={44} sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2, flex: 1 }} />
+          <Skeleton variant="rounded" height={44} sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2, flex: 1 }} />
+        </Box>
+        <Skeleton variant="rounded" height={44} sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2, width: '100%' }} />
       </Box>
     </Box>
   ) : (
@@ -318,40 +321,47 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
             </Box>
 
             {/* ── Action buttons below poster ── */}
-            <Box sx={{ display: 'flex', gap: 1.5, mt: 2.2, alignItems: 'center' }}>
-              <Button
-                variant="contained"
-                startIcon={<PlayArrow />}
-                onClick={goToPlay}
-                sx={{
-                  bgcolor: '#fff', color: '#000', fontWeight: 700, fontSize: '0.88rem',
-                  px: 3, py: 1, borderRadius: 2, textTransform: 'none', minWidth: 105,
-                  '&:hover': { bgcolor: 'rgba(255,255,255,.85)' },
-                }}
-              >
-                Play
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={ix.watchlisted ? <Check /> : <Add />}
-                onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
-                sx={{
-                  borderColor: 'rgba(255,255,255,.6)', color: '#fff',
-                  fontWeight: 600, fontSize: '0.88rem',
-                  px: 2.2, py: 1, borderRadius: 2, textTransform: 'none', minWidth: 110,
-                  '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' },
-                }}
-              >
-                My List
-              </Button>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2.2, width: '74vw', maxWidth: 300 }}>
+              {/* Row 1: Play + My List */}
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrow />}
+                  onClick={goToPlay}
+                  sx={{
+                    flex: 1,
+                    bgcolor: '#fff', color: '#000', fontWeight: 700, fontSize: '0.88rem',
+                    py: 1, borderRadius: 2, textTransform: 'none',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,.85)' },
+                  }}
+                >
+                  Play
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={ix.watchlisted ? <Check /> : <Add />}
+                  onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
+                  sx={{
+                    flex: 1,
+                    borderColor: 'rgba(255,255,255,.6)', color: '#fff',
+                    fontWeight: 600, fontSize: '0.88rem',
+                    py: 1, borderRadius: 2, textTransform: 'none',
+                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' },
+                  }}
+                >
+                  My List
+                </Button>
+              </Box>
+              {/* Row 2: More Info full width */}
               <Button
                 variant="outlined"
                 startIcon={<Info />}
                 onClick={goToDetail}
                 sx={{
-                  borderColor: 'rgba(255,255,255,.6)', color: '#fff',
+                  width: '100%',
+                  borderColor: 'rgba(255,255,255,.4)', color: 'rgba(255,255,255,.85)',
                   fontWeight: 600, fontSize: '0.88rem',
-                  px: 2.2, py: 1, borderRadius: 2, textTransform: 'none',
+                  py: 0.9, borderRadius: 2, textTransform: 'none',
                   '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' },
                 }}
               >
