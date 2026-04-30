@@ -27,7 +27,7 @@ import {
   Cancel as CancelIcon,
   Upload as UploadIcon,
 } from '@mui/icons-material';
-import { uploadFiles } from '../../adminv2/filemanager/fileManagerApi';
+import { uploadFiles } from '../filemanager/fileManagerApi';
 
 const STATUS = { PENDING: 'pending', UPLOADING: 'uploading', DONE: 'done', ERROR: 'error' };
 

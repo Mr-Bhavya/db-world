@@ -50,7 +50,7 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStreamMediaList } from '@shared/services/ApiServices';
-import { downloadFile as downloadFileApi } from '../../adminv2/filemanager/fileManagerApi';
+import { downloadFile as downloadFileApi } from '../filemanager/fileManagerApi';
 import FileInfoModal from './FileInfoModal';
 import FileActionModal from './FileActionModal';
 import useFileOperations from './useFileOperations';

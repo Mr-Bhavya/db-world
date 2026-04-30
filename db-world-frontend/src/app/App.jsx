@@ -50,19 +50,19 @@ const queryClient = new QueryClient({
 import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 
 // Lazy load heavy components for better performance
-const LazyAdminDashboard      = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
-const LazyActivityCenter      = lazy(() => import('../features/adminv2/activity-center'));
-const LazyMediaFilesManagement = lazy(() => import('../features/adminv2/mediafiles'));
-const LazyTmdbSyncManager     = lazy(() => import('../features/adminv2/tmdb-sync'));
-const LazyIngestionPage       = lazy(() => import('../features/adminv2/ingestion'));
-const LazyServerInfo          = lazy(() => import('../features/adminv2/system-info'));
-const LazyRedisManager        = lazy(() => import('../features/adminv2/redis'));
-const LazyFileManager         = lazy(() => import('../features/adminv2/filemanager'));
-const LazySchedulerPanel      = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
-const LazyUserManagementV2    = lazy(() => import('../features/adminv2/users'));
-const LazyRecordManagementV2  = lazy(() => import('../features/adminv2/records'));
-const LazyLogViewerV2         = lazy(() => import('../features/adminv2/logs/LogViewer'));
-const LazyTagManagement       = lazy(() => import('../features/adminv2/tags'));
+const LazyAdminDashboard       = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
+const LazyActivityCenter       = lazy(() => import('@features/admin/activity-center'));
+const LazyMediaFilesManagement = lazy(() => import('@features/admin/mediafiles'));
+const LazyTmdbSyncManager      = lazy(() => import('@features/admin/tmdb-sync'));
+const LazyIngestionPage        = lazy(() => import('@features/admin/ingestion'));
+const LazyServerInfo           = lazy(() => import('@features/admin/system-info'));
+const LazyRedisManager         = lazy(() => import('@features/admin/redis'));
+const LazyFileManager          = lazy(() => import('@features/admin/filemanager'));
+const LazySchedulerPanel       = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
+const LazyUserManagement       = lazy(() => import('@features/admin/users'));
+const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
+const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer'));
+const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
 const LazyMediaDownloadViewer = lazy(() => import('@features/cinema/screens/download/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
@@ -307,18 +307,18 @@ const ThemedApp = () => {
                   <Route path={Constants.DB_ADMIN_BASE_ROUTE} element={<AdminLayout />}>
                     <Route index element={<Navigate to="dashboard" replace />} />
                     <Route path="dashboard"     element={<LazyAdminDashboard />} />
-                    <Route path="users"         element={<LazyUserManagementV2 />} />
+                    <Route path="users"         element={<LazyUserManagement />} />
                     <Route path="activity-center" element={<LazyActivityCenter />} />
                     {/* legacy redirects */}
                     <Route path="activity-logs"  element={<Navigate to="../activity-center" replace />} />
                     <Route path="user-activity"  element={<Navigate to="../activity-center" replace />} />
-                    <Route path="records"       element={<LazyRecordManagementV2 />} />
+                    <Route path="records"       element={<LazyRecordManagement />} />
                     <Route path="media-files"   element={<LazyMediaFilesManagement />} />
                     <Route path="tag-management" element={<LazyTagManagement />} />
                     <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
                     <Route path="ingestion"     element={<LazyIngestionPage />} />
                     <Route path="system-info"   element={<LazyServerInfo />} />
-                    <Route path="logs"          element={<LazyLogViewerV2 />} />
+                    <Route path="logs"          element={<LazyLogViewer />} />
                     <Route path="redis"         element={<LazyRedisManager />} />
                     <Route path="files"         element={<LazyFileManager />} />
                     <Route path="scheduler"     element={<LazySchedulerPanel />} />
