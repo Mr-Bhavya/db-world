@@ -129,3 +129,18 @@ export const upsertReview = (recordId, rating, content) =>
 /** DELETE /api/cinema/reviews?recordId= */
 export const deleteReview = (recordId) =>
   axiosInstance.delete(`${BASE}/reviews`, { params: { recordId } }).then(unwrap);
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+/** GET /api/notifications?limit=N → UserNotificationDto[] */
+export const fetchNotifications = (limit = 30) =>
+  axiosInstance.get('/api/notifications', { params: { limit } }).then(unwrap);
+
+/** GET /api/notifications/unread-count → number */
+export const fetchUnreadCount = () =>
+  axiosInstance.get('/api/notifications/unread-count')
+    .then(r => r.data?.data?.count ?? 0);
+
+/** PUT /api/notifications/mark-read */
+export const markNotificationsRead = () =>
+  axiosInstance.put('/api/notifications/mark-read').then(unwrap);

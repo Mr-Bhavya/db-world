@@ -4,7 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { alpha } from '@mui/material/styles';
 import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
-import { fetchPageCategories } from '../api/cinemaApi';
+import { fetchPageCategories, fetchUnreadCount } from '../api/cinemaApi';
 import DB_WORLD_TEAL_SVG from '@assets/images/db-world-circle.png';
 
 import {
@@ -14,6 +14,7 @@ import {
   Button,
   ButtonBase,
   Box,
+  Badge,
   useTheme,
   useMediaQuery,
   styled,
@@ -34,6 +35,7 @@ import { Capacitor } from '@capacitor/core';
 import { AnimatePresence } from 'framer-motion';
 import CategoryModal from './CategoryModal';
 import { useCategory } from './CategoryContext';
+import NotificationPanel from '../components/notifications/NotificationPanel';
 
 // ─── Styled components ────────────────────────────────────────────────────────
 
@@ -179,6 +181,8 @@ function Navbar({ coverColor, onGenreSelect }) {
   const [isScrolled,        setIsScrolled]        = useState(false);
   const [searchActive,      setSearchActive]      = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [unreadCount,       setUnreadCount]       = useState(0);
+  const [bellAnchorEl,      setBellAnchorEl]      = useState(null);
 
   const isAndroid = Capacitor.getPlatform() === 'android';
 
@@ -229,6 +233,13 @@ function Navbar({ coverColor, onGenreSelect }) {
       .catch(() => setCategoryList([]));
   }, []);
 
+  // Load unread notification count once on mount
+  useEffect(() => {
+    fetchUnreadCount()
+      .then(count => setUnreadCount(Number(count) || 0))
+      .catch(() => {});
+  }, []);
+
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
   const handleNavSelect = useCallback((item) => {
@@ -263,6 +274,10 @@ function Navbar({ coverColor, onGenreSelect }) {
     setCategoryModalOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [clearCategory, onGenreSelect, selectCategory]);
+
+  const handleBellClick = (e) => setBellAnchorEl(e.currentTarget);
+  const handleBellClose = () => setBellAnchorEl(null);
+  const handleUnreadClear = useCallback(() => setUnreadCount(0), []);
 
   // ─── Derived state ───────────────────────────────────────────────────────────
 
@@ -346,21 +361,26 @@ function Navbar({ coverColor, onGenreSelect }) {
 
           {/* RIGHT */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
-            {isMobile && (
-              <>
-                {/* Bell */}
-                {iconBtn(undefined, <BellIcon sx={{ fontSize: '1.3rem' }} />)}
+            {/* Bell — shown on all screen sizes */}
+            {iconBtn(handleBellClick, (
+              <Badge
+                badgeContent={unreadCount > 0 ? unreadCount : null}
+                color="error"
+                max={99}
+                sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: 16, minWidth: 16, p: '0 4px' } }}
+              >
+                <BellIcon sx={{ fontSize: '1.3rem' }} />
+              </Badge>
+            ))}
 
-                {/* Category / filter icon — accent-colored when a category is active */}
-                {iconBtn(
-                  () => setCategoryModalOpen(true),
-                  <TuneIcon sx={{ fontSize: '1.3rem' }} />,
-                  selectedCategory ? { color: theme.palette.primary.main } : {},
-                )}
-              </>
+            {/* Category filter — mobile only */}
+            {isMobile && iconBtn(
+              () => setCategoryModalOpen(true),
+              <TuneIcon sx={{ fontSize: '1.3rem' }} />,
+              selectedCategory ? { color: theme.palette.primary.main } : {},
             )}
 
-            {/* Desktop: search icon stays in top bar */}
+            {/* Search — desktop only */}
             {!isMobile && (
               iconBtn(() => setSearchActive(true), <SearchIcon sx={{ fontSize: '1.35rem' }} />)
             )}
@@ -377,6 +397,13 @@ function Navbar({ coverColor, onGenreSelect }) {
         onClear={handleClearCategory}
         onClose={() => setCategoryModalOpen(false)}
         appBarHeight={isMobile ? 52 : 68}
+      />
+
+      {/* ── Notification panel ── */}
+      <NotificationPanel
+        anchorEl={bellAnchorEl}
+        onClose={handleBellClose}
+        onUnreadClear={handleUnreadClear}
       />
 
       {/* ── Search Overlay ── */}

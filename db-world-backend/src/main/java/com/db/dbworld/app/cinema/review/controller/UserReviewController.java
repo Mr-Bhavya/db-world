@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.review.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
+import com.db.dbworld.app.cinema.notification.service.UserNotificationService;
 import com.db.dbworld.app.cinema.review.dto.UserReviewDto;
 import com.db.dbworld.app.cinema.review.dto.UserReviewRequest;
 import com.db.dbworld.app.cinema.review.service.UserReviewService;
@@ -16,8 +17,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserReviewController {
 
-    private final UserReviewService reviewService;
-    private final UserContext        userContext;
+    private final UserReviewService       reviewService;
+    private final UserContext             userContext;
+    private final UserNotificationService notifService;
 
     /* =========================
        SUBMIT / UPDATE
@@ -31,7 +33,9 @@ public class UserReviewController {
     ) {
         Long   userId   = userContext.userId();
         String username = userContext.email();          // email as display name
-        return ApiResponse.success(reviewService.upsert(userId, username, recordId, body));
+        UserReviewDto result = reviewService.upsert(userId, username, recordId, body);
+        notifService.createReviewNotifications(userId, username, recordId);
+        return ApiResponse.success(result);
     }
 
     /* =========================
