@@ -384,7 +384,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
                   width: i === idx ? 24 : 8,
                   height: 8,
                   borderRadius: 4,
-                  background: i === idx ? 'var(--mui-palette-primary-main, #1976d2)' : 'rgba(255,255,255,.35)',
+                  background: i === idx ? '#0d9488' : 'rgba(255,255,255,.35)',
                   cursor: 'pointer',
                   opacity: i === idx ? 1 : 0.5,
                 }}
@@ -551,7 +551,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
                 width: i === idx ? 24 : 8,
                 height: 8,
                 borderRadius: 4,
-                background: i === idx ? 'var(--mui-palette-primary-main, #1976d2)' : 'rgba(255,255,255,.35)',
+                background: i === idx ? '#0d9488' : 'rgba(255,255,255,.35)',
                 cursor: 'pointer',
                 opacity: i === idx ? 1 : 0.5,
               }}
@@ -569,8 +569,8 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
           transition={{ duration: CYCLE_MS / 1000, ease: 'linear' }}
           style={{
             height: '100%',
-            background: 'var(--mui-palette-primary-main, #1976d2)',
-            boxShadow: '0 0 8px rgba(25,118,210,0.6)',
+            background: '#0d9488',
+            boxShadow: '0 0 8px rgba(13,148,136,0.7)',
             transformOrigin: 'left',
           }}
         />
