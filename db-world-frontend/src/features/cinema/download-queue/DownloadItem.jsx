@@ -34,6 +34,20 @@ export function fmtBytes(b) {
   return `${(b / 1024).toFixed(0)} KB`;
 }
 
+export function fmtSpeed(bps) {
+  if (!bps || bps <= 0) return '';
+  if (bps >= 1_048_576) return `${(bps / 1_048_576).toFixed(1)} MB/s`;
+  if (bps >= 1024)      return `${(bps / 1024).toFixed(0)} KB/s`;
+  return `${bps} B/s`;
+}
+
+export function fmtEta(secs) {
+  if (!secs || secs <= 0) return '';
+  if (secs < 60)   return `${secs}s`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+  return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+}
+
 function Avatar({ title }) {
   const ch  = (title || '?').charAt(0).toUpperCase();
   const hue = (ch.charCodeAt(0) * 47) % 360;
@@ -55,8 +69,11 @@ function Avatar({ title }) {
 export default function DownloadItem({ item, onPlay, onSelect, selected, actions }) {
   const T        = useT();
   const isActive = item.status === 'running' || item.status === 'pending';
+  const isPaused = item.status === 'paused';
   const canPlay  = item.status === 'success' && item.canPlay && item.playableUri;
   const color    = STATUS_COLOR[item.status] ?? STATUS_COLOR.unknown;
+  const speed    = fmtSpeed(item.speedBytesPerSec);
+  const eta      = fmtEta(item.etaSeconds);
 
   return (
     <Box
@@ -100,16 +117,23 @@ export default function DownloadItem({ item, onPlay, onSelect, selected, actions
           )}
         </Box>
 
-        {isActive && (
-          <LinearProgress
-            variant={item.bytesTotal > 0 ? 'determinate' : 'indeterminate'}
-            value={item.progress || 0}
-            sx={{
-              mt: 0.6, borderRadius: 1, height: 3,
-              bgcolor: `${STATUS_COLOR.running}22`,
-              '& .MuiLinearProgress-bar': { bgcolor: color },
-            }}
-          />
+        {(isActive || isPaused) && (
+          <>
+            {speed && (
+              <Typography variant="caption" sx={{ color: T.textFaint, fontSize: '0.65rem', mt: 0.25, display: 'block' }}>
+                {speed}{eta ? ` · ETA ${eta}` : ''}
+              </Typography>
+            )}
+            <LinearProgress
+              variant={item.bytesTotal > 0 ? 'determinate' : 'indeterminate'}
+              value={item.progress || 0}
+              sx={{
+                mt: 0.5, borderRadius: 1, height: 3,
+                bgcolor: `${STATUS_COLOR.running}22`,
+                '& .MuiLinearProgress-bar': { bgcolor: color },
+              }}
+            />
+          </>
         )}
       </Box>
 

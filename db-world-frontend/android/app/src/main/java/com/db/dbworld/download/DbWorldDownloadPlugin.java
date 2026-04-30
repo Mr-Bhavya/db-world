@@ -104,14 +104,22 @@ public class DbWorldDownloadPlugin extends Plugin {
         String  url;
         String  fileName;
         String  title;
-        volatile long    bytesDownloaded = 0;
-        volatile long    bytesTotal      = -1;
-        volatile String  status          = "pending";
-        volatile int     progress        = 0;
+        volatile long    bytesDownloaded  = 0;
+        volatile long    bytesTotal       = -1;
+        volatile String  status           = "pending";
+        volatile int     progress         = 0;
         volatile Call    okCall;
-        volatile boolean cancelled       = false;
-        volatile boolean paused          = false;
-        volatile long    lastNotifMs     = 0;  // last time notification was refreshed
+        volatile boolean cancelled        = false;
+        volatile boolean paused           = false;
+        volatile long    lastNotifMs      = 0;
+        // Speed / ETA (written only from download thread, read by notif/event)
+        volatile long    speedBytesPerSec = 0;
+        volatile long    etaSeconds       = -1;
+        long             speedSampleBytes = 0;   // bytes at last speed sample
+        long             speedSampleTime  = 0;   // ms at last speed sample
+        // Playback
+        volatile String  localUri         = "";
+        volatile boolean canPlay          = false;
         int notifId;
     }
 
@@ -333,9 +341,16 @@ public class DbWorldDownloadPlugin extends Plugin {
             android.util.Log.d("DbWorldDownload",
                     "content-length=" + task.bytesTotal + " fileName=" + task.fileName);
 
-            File outputDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            // Save to Downloads/DB-World/
+            File outputDir = new File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "DB-World");
             if (!outputDir.exists()) outputDir.mkdirs();
             File outputFile = new File(outputDir, task.fileName);
+
+            // Initialise speed sampling
+            task.speedSampleTime  = System.currentTimeMillis();
+            task.speedSampleBytes = 0;
 
             try (InputStream in = body.byteStream();
                  FileOutputStream out = new FileOutputStream(outputFile)) {
@@ -345,11 +360,14 @@ public class DbWorldDownloadPlugin extends Plugin {
                 long   lastEventBytes = 0;
 
                 while ((count = in.read(buf)) != -1) {
-                    // ── Pause: sleep in a tight loop until resumed or cancelled ──
+                    // ── Pause: sleep until resumed or cancelled ───────────────
                     while (task.paused && !task.cancelled) {
                         try { Thread.sleep(200); } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt(); break;
                         }
+                        // Reset speed sample so pause time doesn't distort speed
+                        task.speedSampleTime  = System.currentTimeMillis();
+                        task.speedSampleBytes = task.bytesDownloaded;
                     }
 
                     if (task.cancelled) {
@@ -374,17 +392,33 @@ public class DbWorldDownloadPlugin extends Plugin {
                         fireEvent("downloadProgress", task);
                     }
 
-                    // Notification: time-gated — Android silently drops rapid updates
+                    // Notification + speed/ETA: time-gated
                     if (now - task.lastNotifMs >= NOTIF_INTERVAL_MS) {
-                        task.lastNotifMs = now;
+                        // Speed = bytes since last sample / elapsed ms → bytes/s
+                        long elapsed = now - task.speedSampleTime;
+                        if (elapsed > 0) {
+                            long delta = task.bytesDownloaded - task.speedSampleBytes;
+                            task.speedBytesPerSec = delta * 1000 / elapsed;
+                            if (task.speedBytesPerSec > 0 && task.bytesTotal > 0) {
+                                task.etaSeconds =
+                                    (task.bytesTotal - task.bytesDownloaded) / task.speedBytesPerSec;
+                            }
+                        }
+                        task.speedSampleTime  = now;
+                        task.speedSampleBytes = task.bytesDownloaded;
+                        task.lastNotifMs      = now;
                         updateProgressNotif(task);
                     }
                 }
                 out.flush();
             }
 
-            task.status   = "success";
-            task.progress = 100;
+            task.status    = "success";
+            task.progress  = 100;
+            task.localUri  = "file://" + outputFile.getAbsolutePath();
+            task.canPlay   = true;
+            task.speedBytesPerSec = 0;
+            task.etaSeconds       = -1;
             android.util.Log.d("DbWorldDownload", "download complete id=" + task.downloadId);
 
             fireEvent("downloadProgress",    task);
@@ -435,15 +469,30 @@ public class DbWorldDownloadPlugin extends Plugin {
     private void updateProgressNotif(DownloadTask task) {
         try {
             boolean indeterminate = task.bytesTotal <= 0;
-            String  text = indeterminate
-                    ? formatBytes(task.bytesDownloaded)
-                    : formatBytes(task.bytesDownloaded) + " / " + formatBytes(task.bytesTotal);
+
+            StringBuilder text = new StringBuilder();
+            if (indeterminate) {
+                text.append(formatBytes(task.bytesDownloaded));
+            } else {
+                text.append(formatBytes(task.bytesDownloaded))
+                    .append(" / ")
+                    .append(formatBytes(task.bytesTotal));
+            }
+            if (task.speedBytesPerSec > 0) {
+                text.append("  ·  ").append(formatBytes(task.speedBytesPerSec)).append("/s");
+            }
+            if (task.etaSeconds > 0) {
+                text.append("  ·  ETA ").append(formatSeconds(task.etaSeconds));
+            }
+            if ("paused".equals(task.status)) {
+                text.append("  ·  Paused");
+            }
 
             NotificationCompat.Builder b = new NotificationCompat.Builder(getContext(), CHANNEL_ID)
                     .setSmallIcon(android.R.drawable.stat_sys_download)
                     .setContentTitle(task.title)
-                    .setContentText(text)
-                    .setProgress(100, task.progress, indeterminate)
+                    .setContentText(text.toString())
+                    .setProgress(100, task.progress, indeterminate && !"paused".equals(task.status))
                     .setOngoing(true)
                     .setPriority(NotificationCompat.PRIORITY_LOW);
             NotificationManagerCompat.from(getContext()).notify(task.notifId, b.build());
@@ -526,6 +575,11 @@ public class DbWorldDownloadPlugin extends Plugin {
         obj.put("progress",        task.progress);
         obj.put("bytesDownloaded", task.bytesDownloaded);
         obj.put("bytesTotal",      task.bytesTotal);
+        obj.put("speedBytesPerSec", task.speedBytesPerSec);
+        obj.put("etaSeconds",       task.etaSeconds);
+        obj.put("localUri",         task.localUri);
+        obj.put("playableUri",      task.localUri);
+        obj.put("canPlay",          task.canPlay);
         return obj;
     }
 
@@ -534,5 +588,12 @@ public class DbWorldDownloadPlugin extends Plugin {
         if (bytes < 1024)        return bytes + " B";
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         return String.format("%.1f MB", bytes / (1024.0 * 1024));
+    }
+
+    private static String formatSeconds(long secs) {
+        if (secs <= 0)     return "";
+        if (secs < 60)     return secs + "s";
+        if (secs < 3600)   return (secs / 60) + "m " + (secs % 60) + "s";
+        return (secs / 3600) + "h " + ((secs % 3600) / 60) + "m";
     }
 }

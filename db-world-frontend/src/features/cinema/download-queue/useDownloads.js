@@ -15,6 +15,8 @@ export function normalizeDownload(item = {}) {
     playableUri:      item.playableUri || item.localUri   || item.path || '',
     mimeType:         item.mimeType   || '',
     canPlay:          Boolean(item.canPlay),
+    speedBytesPerSec: item.speedBytesPerSec || 0,
+    etaSeconds:       item.etaSeconds ?? -1,
   };
 }
 
