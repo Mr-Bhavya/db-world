@@ -12,7 +12,7 @@ import {
 import { tmdbImg } from '../../api/cinemaApi';
 import Constants from '@shared/constants';
 
-const CYCLE_MS  = 80000000;
+const CYCLE_MS  = 8000;
 const FADE_SECS = 0.6;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -117,6 +117,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
   const [idx,        setIdx]        = useState(0);
   const [dir,        setDir]        = useState(1);
   const [posterColor, setPosterColor] = useState('20,20,20'); // 'r,g,b'
+  const [progressKey, setProgressKey] = useState(0);
   const timerRef      = useRef(null);
   const touchStartRef = useRef(null);
 
@@ -130,6 +131,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
     timerRef.current = setInterval(() => {
       setDir(1);
       setIdx(i => (i + 1) % Math.max(featured.length, 1));
+      setProgressKey(k => k + 1);
     }, CYCLE_MS);
   }, [featured.length]);
 
@@ -142,6 +144,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
     clearInterval(timerRef.current);
     setDir(d);
     setIdx(i => (i + d + featured.length) % featured.length);
+    setProgressKey(k => k + 1);
     startCycle();
   };
 
@@ -170,6 +173,17 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
     });
     return () => { cancelled = true; };
   }, [record?.id, isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (featured.length < 2) return;
+    const nextIdx = (idx + 1) % featured.length;
+    const nextRecord = featured[nextIdx];
+    const nextUrl = tmdbImg(nextRecord?.backdropPath ?? nextRecord?.backdropPathText, 'original');
+    if (nextUrl) {
+      const img = new Image();
+      img.src = nextUrl;
+    }
+  }, [idx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goToDetail = () => {
     if (!record) return;
@@ -243,7 +257,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
                 borderRadius: 3,
                 overflow: 'hidden',
                 border: '1.5px solid rgba(255,255,255,0.15)',
-                boxShadow: `0 28px 72px rgba(0,0,0,0.85), 0 0 50px rgba(${posterColor},0.3)`,
+                boxShadow: `0 28px 72px rgba(0,0,0,0.85), 0 0 50px rgba(${posterColor},0.6)`,
                 cursor: 'pointer',
                 flexShrink: 0,
               }}
@@ -330,21 +344,39 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
               >
                 My List
               </Button>
+              <Button
+                variant="outlined"
+                startIcon={<Info />}
+                onClick={goToDetail}
+                sx={{
+                  borderColor: 'rgba(255,255,255,.6)', color: '#fff',
+                  fontWeight: 600, fontSize: '0.88rem',
+                  px: 2.2, py: 1, borderRadius: 2, textTransform: 'none',
+                  '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' },
+                }}
+              >
+                More Info
+              </Button>
             </Box>
           </motion.div>
         </AnimatePresence>
 
-        {/* Dot indicators */}
+        {/* Pill indicators */}
         {featured.length > 1 && (
           <Box sx={{ display: 'flex', gap: 0.8, mt: 2.5, zIndex: 2 }}>
             {featured.map((_, i) => (
-              <Box
+              <motion.div
                 key={i}
-                onClick={() => { clearInterval(timerRef.current); setDir(i > idx ? 1 : -1); setIdx(i); startCycle(); }}
-                sx={{
-                  width: i === idx ? 20 : 6, height: 6, borderRadius: 3,
-                  bgcolor: i === idx ? '#fff' : 'rgba(255,255,255,.35)',
-                  cursor: 'pointer', transition: 'all .3s',
+                layout
+                onClick={() => { clearInterval(timerRef.current); setDir(i > idx ? 1 : -1); setIdx(i); setProgressKey(k => k + 1); startCycle(); }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                style={{
+                  width: i === idx ? 24 : 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background: i === idx ? 'var(--mui-palette-primary-main, #1976d2)' : 'rgba(255,255,255,.35)',
+                  cursor: 'pointer',
+                  opacity: i === idx ? 1 : 0.5,
                 }}
               />
             ))}
@@ -371,26 +403,30 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
       }}
     >
       {/* Backdrop image */}
-      <AnimatePresence mode="sync" initial={false} custom={dir}>
+      <AnimatePresence mode="sync" initial={false}>
         <motion.div
           key={record.id}
-          custom={dir}
-          variants={{
-            enter:  (d) => ({ opacity: 0, x: d > 0 ? 60 : -60 }),
-            center: { opacity: 1, x: 0 },
-            exit:   (d) => ({ opacity: 0, x: d > 0 ? -60 : 60 }),
-          }}
-          initial="enter" animate="center" exit="exit"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={{ duration: FADE_SECS, ease: 'easeInOut' }}
           style={{ position: 'absolute', inset: 0 }}
         >
           {backdrop && (
-            <Box
-              component="img"
-              src={backdrop}
-              alt={record.title}
-              sx={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
-            />
+            <motion.div
+              key={`kb-${record.id}`}
+              initial={{ scale: 1 }}
+              animate={{ scale: 1.06 }}
+              transition={{ duration: CYCLE_MS / 1000, ease: 'linear' }}
+              style={{ position: 'absolute', inset: 0 }}
+            >
+              <Box
+                component="img"
+                src={backdrop}
+                alt={record.title}
+                sx={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
+              />
+            </motion.div>
           )}
           <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(0,0,0,.85) 0%, rgba(0,0,0,.55) 45%, transparent 75%)' }} />
           <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,.95) 0%, rgba(0,0,0,.4) 30%, transparent 60%)' }} />
@@ -401,8 +437,9 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
       <Box
         sx={{
           position: 'absolute',
-          bottom: 100, left: 80,
-          width: '42%',
+          bottom: { xs: 80, md: 100 },
+          left: { xs: 16, sm: 40, md: 80 },
+          width: { xs: '90%', sm: '60%', md: '42%' },
           zIndex: 2,
         }}
       >
@@ -491,18 +528,43 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
         </>
       )}
 
-      {/* Dot indicators */}
+      {/* Pill indicators */}
       {featured.length > 1 && (
         <Box sx={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 0.8, zIndex: 3 }}>
           {featured.map((_, i) => (
-            <Box
+            <motion.div
               key={i}
-              onClick={() => { clearInterval(timerRef.current); setDir(i > idx ? 1 : -1); setIdx(i); startCycle(); }}
-              sx={{ width: i === idx ? 24 : 8, height: 8, borderRadius: 4, bgcolor: i === idx ? 'primary.main' : 'rgba(255,255,255,.35)', cursor: 'pointer', transition: 'all .3s' }}
+              layout
+              onClick={() => { clearInterval(timerRef.current); setDir(i > idx ? 1 : -1); setIdx(i); setProgressKey(k => k + 1); startCycle(); }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              style={{
+                width: i === idx ? 24 : 8,
+                height: 8,
+                borderRadius: 4,
+                background: i === idx ? 'var(--mui-palette-primary-main, #1976d2)' : 'rgba(255,255,255,.35)',
+                cursor: 'pointer',
+                opacity: i === idx ? 1 : 0.5,
+              }}
             />
           ))}
         </Box>
       )}
+
+      {/* Progress bar */}
+      <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, zIndex: 4, overflow: 'hidden' }}>
+        <motion.div
+          key={progressKey}
+          initial={{ scaleX: 0, originX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ duration: CYCLE_MS / 1000, ease: 'linear' }}
+          style={{
+            height: '100%',
+            background: 'var(--mui-palette-primary-main, #1976d2)',
+            boxShadow: '0 0 8px rgba(25,118,210,0.6)',
+            transformOrigin: 'left',
+          }}
+        />
+      </Box>
 
       <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to bottom, transparent, var(--cinema-bg, #141414))', pointerEvents: 'none', zIndex: 2 }} />
     </Box>
