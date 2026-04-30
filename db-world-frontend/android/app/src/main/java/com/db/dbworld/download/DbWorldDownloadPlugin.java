@@ -105,22 +105,27 @@ public class DbWorldDownloadPlugin extends Plugin {
      */
     @PluginMethod
     public void ensurePermissions(PluginCall call) {
+        android.util.Log.d("DbWorldDownload", "ensurePermissions: API=" + Build.VERSION.SDK_INT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (getPermissionState("notifications") != PermissionState.GRANTED) {
+                android.util.Log.d("DbWorldDownload", "requesting POST_NOTIFICATIONS");
                 requestPermissionForAlias("notifications", call, "permissionsCallback");
                 return;
             }
         } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             if (getPermissionState("storage") != PermissionState.GRANTED) {
+                android.util.Log.d("DbWorldDownload", "requesting WRITE_EXTERNAL_STORAGE");
                 requestPermissionForAlias("storage", call, "permissionsCallback");
                 return;
             }
         }
+        android.util.Log.d("DbWorldDownload", "ensurePermissions: no request needed, resolving");
         call.resolve();
     }
 
     @PermissionCallback
     private void permissionsCallback(PluginCall call) {
+        android.util.Log.d("DbWorldDownload", "permissionsCallback: resolving");
         // Resolve regardless — DownloadManager works even if notifications are denied
         call.resolve();
     }
@@ -131,6 +136,9 @@ public class DbWorldDownloadPlugin extends Plugin {
     public void startDownload(PluginCall call) {
         String url      = call.getString("url");
         String fileName = call.getString("fileName", "");
+
+        android.util.Log.d("DbWorldDownload", "startDownload: fileName=" + fileName
+                + " url=" + (url != null ? url.substring(0, Math.min(120, url.length())) : "null"));
 
         if (url == null || url.isEmpty()) {
             call.reject("URL is required");
@@ -156,13 +164,19 @@ public class DbWorldDownloadPlugin extends Plugin {
             return;
         }
 
-        long downloadId = enqueueDownload(url, fileName);
-        activeDownloadId = downloadId;
+        try {
+            long downloadId = enqueueDownload(url, fileName);
+            activeDownloadId = downloadId;
+            android.util.Log.d("DbWorldDownload", "enqueued ok: downloadId=" + downloadId);
 
-        JSObject result = new JSObject();
-        result.put("downloadId", String.valueOf(downloadId));
-        result.put("queued", false);
-        call.resolve(result);
+            JSObject result = new JSObject();
+            result.put("downloadId", String.valueOf(downloadId));
+            result.put("queued", false);
+            call.resolve(result);
+        } catch (Exception e) {
+            android.util.Log.e("DbWorldDownload", "enqueueDownload failed: " + e.getMessage(), e);
+            call.reject("enqueue failed: " + e.getMessage());
+        }
     }
 
     // ─── getStatus ────────────────────────────────────────────────────────────

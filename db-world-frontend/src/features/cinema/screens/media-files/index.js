@@ -70,19 +70,26 @@ function useFileActions(file, allFiles, record) {
     try {
       const res = await resolveMediaUrl(file.mediaFileId, 'DOWNLOAD');
       const cdnUrl = res?.data?.cdnUrl;
-      if (!cdnUrl) throw new Error();
+      console.log('[Download] resolve res:', JSON.stringify(res));
+      console.log('[Download] cdnUrl:', cdnUrl);
+      if (!cdnUrl) throw new Error('resolve returned no cdnUrl');
       if (Capacitor.getPlatform() === 'android') {
+        console.log('[Download] calling ensurePermissions...');
         await DbWorldDownload.ensurePermissions();
-        await DbWorldDownload.startDownload({
+        console.log('[Download] ensurePermissions ok — calling startDownload');
+        const dlResult = await DbWorldDownload.startDownload({
           url: cdnUrl,
           fileName: file.general?.fileName || 'download',
           title: file.general?.fileName || record?.tmdb?.title || 'Download',
         });
+        console.log('[Download] startDownload result:', JSON.stringify(dlResult));
         enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: file.general?.fileName, openInNewTab: true });
       }
-    } catch {
+    } catch (err) {
+      const msg = err?.message || err?.code || String(err);
+      console.error('[Download] FAILED:', msg, err);
       enqueueSnackbar('Failed to start download', { variant: 'error' });
     } finally { setResolving(false); }
   }, [file, record, enqueueSnackbar]);
