@@ -4,6 +4,7 @@ import com.db.dbworld.app.admin.dto.AdminDashboardDto;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.catalog.repository.RecordTagRepository;
+import com.db.dbworld.app.cinema.catalog.tags.entity.TagDefinitionRepository;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
@@ -31,11 +32,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminDashboardService {
 
-    private final UserRepository          userRepository;
-    private final RecordRepository        recordRepository;
+    private final UserRepository           userRepository;
+    private final RecordRepository         recordRepository;
     private final TmdbRecordSyncRepository syncRepository;
-    private final RecordTagRepository     tagRepository;
-    private final MediaFileRepository mediaFileRepository;
+    private final RecordTagRepository      tagRepository;
+    private final MediaFileRepository      mediaFileRepository;
+    private final TagDefinitionRepository  tagDefinitionRepository;
 
     @Transactional(readOnly = true)
     public AdminDashboardDto getStats() {
@@ -133,20 +135,21 @@ public class AdminDashboardService {
                 .build();
     }
 
-    private AdminDashboardDto.TagStats buildTagStats() {
-        return AdminDashboardDto.TagStats.builder()
-                .trending(    safeTagCount(RecordTagType.TRENDING))
-                .featured(    safeTagCount(RecordTagType.FEATURED))
-                .editorPick(  safeTagCount(RecordTagType.EDITOR_PICK))
-                .availableForDownload(   safeTagCount(RecordTagType.AVAILABLE_FOR_DOWNLOAD))
-                .recentlyAdded(safeTagCount(RecordTagType.RECENTLY_ADDED))
-                .top10(        safeTagCount(RecordTagType.TOP_10))
-                .build();
-    }
-
-    private long safeTagCount(RecordTagType type) {
-        try { return tagRepository.countByTagType(type); }
-        catch (Exception e) { return 0; }
+    private List<AdminDashboardDto.TagEntry> buildTagStats() {
+        return tagDefinitionRepository.findByActiveTrueOrderByTagType()
+                .stream()
+                .map(def -> {
+                    long count = 0;
+                    try {
+                        count = tagRepository.countByTagType(RecordTagType.valueOf(def.getTagType()));
+                    } catch (Exception ignored) {}
+                    return AdminDashboardDto.TagEntry.builder()
+                            .tagType(def.getTagType())
+                            .displayName(def.getDisplayName())
+                            .count(count)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     private List<AdminDashboardDto.RecentRecord> buildRecentRecords() {

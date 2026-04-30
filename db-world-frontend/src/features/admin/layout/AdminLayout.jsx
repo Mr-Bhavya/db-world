@@ -110,6 +110,9 @@ const AdminLayoutInner = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed,  setCollapsed]  = useState({});
 
+  // On mobile the drawer always shows the full sidebar regardless of `open`
+  const showFull = open || isMobile;
+
   const currentPath = location.pathname.split('/').pop();
 
   const handleNav = useCallback((path) => {
@@ -130,11 +133,11 @@ const AdminLayoutInner = () => {
       {/* Logo / header */}
       <Box sx={{
         display: 'flex', alignItems: 'center',
-        justifyContent: open ? 'space-between' : 'center',
-        px: open ? 2 : 0, py: 2, minHeight: 60,
+        justifyContent: showFull ? 'space-between' : 'center',
+        px: showFull ? 2 : 0, py: 2, minHeight: 60,
         borderBottom: `1px solid ${T.border}`,
       }}>
-        {open && (
+        {showFull && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <AdminPanelSettings sx={{ color: T.teal, fontSize: 22 }} />
             <Typography sx={{ fontWeight: 800, color: T.text, fontSize: '0.95rem', letterSpacing: '-0.02em' }}>
@@ -142,13 +145,15 @@ const AdminLayoutInner = () => {
             </Typography>
           </Box>
         )}
-        <IconButton
-          size="small"
-          onClick={() => setOpen(p => !p)}
-          sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}
-        >
-          {open ? <ChevronLeft /> : <MenuIcon />}
-        </IconButton>
+        {!isMobile && (
+          <IconButton
+            size="small"
+            onClick={() => setOpen(p => !p)}
+            sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}
+          >
+            {open ? <ChevronLeft /> : <MenuIcon />}
+          </IconButton>
+        )}
       </Box>
 
       {/* Nav */}
@@ -160,7 +165,7 @@ const AdminLayoutInner = () => {
         {NAV.map((section) => (
           <Box key={section.id}>
             {/* Section label */}
-            {open && section.label && (
+            {showFull && section.label && (
               <Box
                 sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   px: 2, pt: 2, pb: 0.5, cursor: 'pointer' }}
@@ -175,15 +180,15 @@ const AdminLayoutInner = () => {
                   : <ExpandLess sx={{ fontSize: 14, color: T.textFaint }} />}
               </Box>
             )}
-            {!open && section.label && (
+            {!showFull && section.label && (
               <Divider sx={{ borderColor: T.border, mx: 1, my: 0.5 }} />
             )}
 
             <Collapse in={!collapsed[section.id]} timeout="auto">
-              <List dense disablePadding sx={{ px: open ? 1 : 0.5 }}>
+              <List dense disablePadding sx={{ px: showFull ? 1 : 0.5 }}>
                 {section.items.map((item) => {
                   const active = currentPath === item.path || location.pathname.endsWith('/' + item.path);
-                  return open ? (
+                  return showFull ? (
                     <ListItemButton
                       key={item.id}
                       selected={active}
@@ -240,14 +245,14 @@ const AdminLayoutInner = () => {
       {/* User footer */}
       <Box sx={{
         borderTop: `1px solid ${T.border}`,
-        p: open ? 1.5 : 0.75,
+        p: showFull ? 1.5 : 0.75,
         display: 'flex', alignItems: 'center',
-        gap: open ? 1 : 0, justifyContent: open ? 'flex-start' : 'center',
+        gap: showFull ? 1 : 0, justifyContent: showFull ? 'flex-start' : 'center',
       }}>
         <Avatar sx={{ width: 30, height: 30, bgcolor: T.teal, fontSize: '0.75rem' }}>
           {user?.firstName?.[0] ?? user?.email?.[0]?.toUpperCase() ?? 'A'}
         </Avatar>
-        {open && (
+        {showFull && (
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontSize: '0.78rem', color: T.text, fontWeight: 600,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -258,7 +263,7 @@ const AdminLayoutInner = () => {
             </Typography>
           </Box>
         )}
-        {open && (
+        {showFull && (
           <Tooltip title="Sign out">
             <IconButton size="small" onClick={logout}
               sx={{ color: T.textFaint, '&:hover': { color: '#ef4444' } }}>
