@@ -14,8 +14,11 @@ import {
 } from '@mui/material';
 import {
   Close, PlayArrow, Download, ContentCopy, Check,
-  Audiotrack, Subtitles, FourK, Hd,
+  Audiotrack, Subtitles,
 } from '@mui/icons-material';
+import { QUALITY_META, HDR_META, CODEC_META } from '../../media/constants';
+import { getQuality, getCodec, getHdrTags } from '../../media/helpers';
+import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { motion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -28,66 +31,6 @@ import CinemaPlayer from '../../player/CinemaPlayer';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 
-// ─── Re-use the same badge helpers from download page ─────────────────────────
-
-const QUALITY_META = {
-  '8K': { color: '#ff3d00' }, '4K': { color: '#ff6b35' }, '2160p': { color: '#ff6b35' },
-  '2K': { color: '#f59e0b' }, '1440p': { color: '#f59e0b' },
-  '1080p': { color: '#10b981' }, '720p': { color: '#3b82f6' },
-  '480p': { color: '#8b5cf6' }, 'SD': { color: '#6b7280' }, 'Unknown': { color: '#4b5563' },
-};
-const HDR_META = {
-  'DV': { color: '#7c3aed', label: 'Dolby Vision' }, 'HDR10+': { color: '#d97706', label: 'HDR10+' },
-  'HDR10': { color: '#b45309', label: 'HDR10' }, 'HDR': { color: '#92400e', label: 'HDR' },
-};
-const CODEC_META = { 'AV1': { color: '#0891b2' }, 'H.265': { color: '#059669' }, 'H.264': { color: '#2563eb' }, 'VP9': { color: '#7c3aed' } };
-
-function getQuality(video, fileName) {
-  if (video?.resolution) {
-    const [w, h] = video.resolution.split('x').map(Number);
-    if (h >= 4320 || w >= 7680) return '8K';
-    if (h >= 2160 || w >= 3840) return '4K';
-    if (h >= 1440 || w >= 2560) return '1440p';
-    if (h >= 1080 || w >= 1920) return '1080p';
-    if (h >= 720  || w >= 1280) return '720p';
-    if (h >= 480  || w >= 854)  return '480p';
-    if (h > 0) return 'SD';
-  }
-  const m = fileName?.match(/(\d{3,4}p|4K|8K)/i);
-  if (m) return m[1].toLowerCase() === '4k' ? '4K' : m[1].toLowerCase() === '8k' ? '8K' : m[1];
-  return 'Unknown';
-}
-function getCodec(fmt) {
-  if (!fmt) return null;
-  const f = fmt.toUpperCase();
-  if (f.includes('AV1')) return 'AV1';
-  if (f.includes('HEVC') || f.includes('H.265') || f.includes('H265')) return 'H.265';
-  if (f.includes('AVC') || f.includes('H.264') || f.includes('H264')) return 'H.264';
-  if (f.includes('VP9')) return 'VP9';
-  return fmt.split('(')[0].trim().split(' ')[0];
-}
-function getHdrTags(hdrDetails, fileName) {
-  const src = `${hdrDetails || ''} ${fileName || ''}`.toUpperCase();
-  const tags = [];
-  if (src.includes('DOLBY VISION') || src.includes(' DV ') || src.includes('.DV.')) tags.push('DV');
-  if (src.includes('HDR10+') || src.includes('HDR10PLUS')) tags.push('HDR10+');
-  else if (src.includes('HDR10')) tags.push('HDR10');
-  else if (src.includes('HDR')) tags.push('HDR');
-  return tags;
-}
-
-const Badge = ({ color, label, border = false }) => (
-  <Box sx={{
-    display: 'inline-flex', alignItems: 'center',
-    px: 0.9, py: 0.15, borderRadius: 0.8,
-    bgcolor: border ? alpha(color, 0.16) : color,
-    color: border ? color : '#fff',
-    border: border ? `1px solid ${alpha(color, 0.4)}` : 'none',
-    fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.7, flexShrink: 0,
-  }}>
-    {label}
-  </Box>
-);
 
 // ─── CopyButton — shows check on success ─────────────────────────────────────
 
@@ -132,7 +75,6 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const codec    = getCodec(video?.format);
   const hdrTags  = getHdrTags(video?.hdrDetails, general?.fileName);
   const bitDepth = video?.bitDepth;
-  const qMeta    = QUALITY_META[quality] || QUALITY_META['Unknown'];
 
   const matchesCurrentFile = (item, target) => {
     if (target?.mediaFileId && item?.mediaFileId) {
@@ -241,10 +183,18 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
 
         {/* Badges */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: 1.5 }}>
-          <Badge color={qMeta.color} label={quality === '2160p' ? '4K' : quality} />
-          {codec && <Badge color={CODEC_META[codec]?.color || '#6b7280'} label={codec} border />}
-          {hdrTags.map(t => <Badge key={t} color={HDR_META[t]?.color || '#6b7280'} label={HDR_META[t]?.label ?? t} border />)}
-          {bitDepth === 10 && <Badge color="#6366f1" label="10-bit" border />}
+          <QBadge quality={quality} />
+          {codec && <CodecBadge codec={codec} />}
+          {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
+          {bitDepth === 10 && (
+            <Box sx={{
+              display: 'inline-flex', alignItems: 'center',
+              px: 0.9, py: 0.2, borderRadius: 1,
+              bgcolor: alpha('#6366f1', 0.16), color: '#818cf8',
+              border: `1px solid ${alpha('#6366f1', 0.32)}`,
+              fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.6, flexShrink: 0,
+            }}>10-bit</Box>
+          )}
         </Box>
 
         {/* Quick stats */}

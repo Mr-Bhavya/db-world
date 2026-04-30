@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Box, Container, Typography, Chip, IconButton, Button, Collapse,
-  Divider, CircularProgress, useTheme, useMediaQuery, alpha, Tooltip,
-  Stack, Paper,
+  Box, Typography, Chip, IconButton, Button, Collapse,
+  CircularProgress, useTheme, useMediaQuery, alpha, Tooltip, Stack,
 } from '@mui/material';
 import {
-  ArrowBack, ExpandMore, ExpandLess, PlayArrow, Download, ContentCopy,
-  Check, Subtitles, Audiotrack, Tv, Movie,
-  VideoSettings, ChevronRight, LiveTv,
+  PlayArrow, Download, ContentCopy, Check, Audiotrack,
+  ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, Tv,
+  InfoOutlined, SubtitlesOutlined,
 } from '@mui/icons-material';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSnackbar } from 'notistack';
 import { Capacitor } from '@capacitor/core';
@@ -20,14 +19,80 @@ import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
-import { QUALITY_ORDER, QUALITY_META, HDR_META, CODEC_META } from '../../media/constants';
+import { QUALITY_ORDER, QUALITY_META } from '../../media/constants';
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 
-// ─── CopyIconButton — async URL resolver variant ──────────────────────────────
+// ─── Shared hook: play + download for one file ────────────────────────────────
 
-const CopyIconButton = ({ getUrl, label }) => {
-  const theme = useTheme();
+function useFileActions(file, allFiles, record) {
+  const { enqueueSnackbar } = useSnackbar();
+  const [resolving, setResolving] = useState(false);
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const [enrichedFiles, setEnrichedFiles] = useState(null);
+
+  const resolveAll = useCallback(async (type) => {
+    const targets = allFiles?.length ? allFiles : [file];
+    return Promise.all(targets.map(async (f) => {
+      if (!f?.mediaFileId) return f;
+      try {
+        const res = await resolveMediaUrl(f.mediaFileId, type);
+        return res?.data?.cdnUrl ? { ...f, streamUrl: res.data.cdnUrl } : f;
+      } catch { return f; }
+    }));
+  }, [file, allFiles]);
+
+  const handlePlay = useCallback(async () => {
+    setResolving(true);
+    try {
+      const enriched = await resolveAll('ONLINE');
+      setEnrichedFiles(enriched);
+      const current = enriched.find(f => f.mediaFileId === file.mediaFileId) ?? enriched[0];
+      if (Capacitor.getPlatform() === 'android') {
+        AndroidPlugins.launchNativePlayer({
+          url: current?.streamUrl,
+          title: file.general?.fileName || record?.tmdb?.title || '',
+          fileName: file.general?.fileName || '',
+          fileId: String(file.id || ''),
+          preferredAudio: 'Hindi',
+          preferredSub: null,
+        });
+      } else {
+        setPlayerOpen(true);
+      }
+    } catch {
+      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+    } finally { setResolving(false); }
+  }, [file, allFiles, record, resolveAll, enqueueSnackbar]);
+
+  const handleDownload = useCallback(async () => {
+    setResolving(true);
+    try {
+      const res = await resolveMediaUrl(file.mediaFileId, 'DOWNLOAD');
+      const cdnUrl = res?.data?.cdnUrl;
+      if (!cdnUrl) throw new Error();
+      if (Capacitor.getPlatform() === 'android') {
+        await DbWorldDownload.ensurePermissions();
+        await DbWorldDownload.startDownload({
+          url: cdnUrl,
+          fileName: file.general?.fileName || 'download',
+          title: file.general?.fileName || record?.tmdb?.title || 'Download',
+        });
+        enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
+      } else {
+        CommonServices.handleDownload(cdnUrl, { fileName: file.general?.fileName, openInNewTab: true });
+      }
+    } catch {
+      enqueueSnackbar('Failed to start download', { variant: 'error' });
+    } finally { setResolving(false); }
+  }, [file, record, enqueueSnackbar]);
+
+  return { resolving, playerOpen, setPlayerOpen, enrichedFiles, setEnrichedFiles, handlePlay, handleDownload };
+}
+
+// ─── Async copy button ────────────────────────────────────────────────────────
+
+const CopyUrlButton = ({ getUrl, label = 'Copy URL' }) => {
   const [copied, setCopied] = useState(false);
   const [working, setWorking] = useState(false);
   const handle = async () => {
@@ -43,189 +108,322 @@ const CopyIconButton = ({ getUrl, label }) => {
   return (
     <Tooltip title={copied ? 'Copied!' : label}>
       <IconButton size="small" onClick={handle} disabled={working} sx={{
-        border: `1px solid ${copied ? theme.palette.success.main : alpha(theme.palette.divider, 0.5)}`,
-        borderRadius: 1.5, p: 0.6,
+        border: '1px solid', borderColor: copied ? 'success.main' : 'divider',
+        borderRadius: 1.5, p: 0.75,
         color: copied ? 'success.main' : 'text.secondary',
+        transition: 'border-color 0.2s, color 0.2s',
       }}>
-        {copied ? <Check sx={{ fontSize: 15 }} /> : <ContentCopy sx={{ fontSize: 15 }} />}
+        {copied ? <Check sx={{ fontSize: 14 }} /> : <ContentCopy sx={{ fontSize: 14 }} />}
       </IconButton>
     </Tooltip>
   );
 };
 
-// ─── QualityRow — compact row for one quality variant (used in episodes) ──────
+// ─── Quality label (hero text element) ───────────────────────────────────────
 
-const QualityRow = ({ file, allEpisodeFiles, record }) => {
+const QualityLabel = ({ quality, size = 'md' }) => {
+  const meta = QUALITY_META[quality] || QUALITY_META['Unknown'];
+  const labels = {
+    '8K': '8K', '4K': '4K UHD', '2160p': '4K UHD',
+    '2K': '2K', '1440p': '1440p',
+    '1080p': 'Full HD', '720p': 'HD', '480p': 'SD', 'SD': 'SD',
+  };
+  const display = labels[quality] || quality;
+  const fontSize = size === 'sm' ? { xs: '0.95rem', sm: '1.05rem' } : { xs: '1.15rem', sm: '1.3rem' };
+  return (
+    <Typography sx={{
+      fontWeight: 900, letterSpacing: '-0.02em',
+      fontSize, color: meta.color, lineHeight: 1,
+    }}>
+      {display}
+    </Typography>
+  );
+};
+
+// ─── Compact file stats ───────────────────────────────────────────────────────
+
+const FileMeta = ({ file }) => {
   const theme = useTheme();
-  const { enqueueSnackbar } = useSnackbar();
+  const { general, video } = file;
+  const parts = [
+    video?.resolution,
+    general?.duration && CommonServices.formatDuration(general.duration),
+    general?.fileSize,
+    video?.bitRate && `${(video.bitRate / 1_000_000).toFixed(1)} Mbps`,
+  ].filter(Boolean);
+
+  return (
+    <Typography sx={{
+      fontSize: '0.75rem', color: theme.palette.text.secondary,
+      letterSpacing: '0.01em', lineHeight: 1.5,
+    }}>
+      {parts.join('  ·  ')}
+    </Typography>
+  );
+};
+
+// ─── Audio tracks summary ─────────────────────────────────────────────────────
+
+const AudioSummary = ({ audio, subtitle, compact = false }) => {
+  const theme = useTheme();
+  if (!audio?.length && !subtitle?.length) return null;
+
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, alignItems: 'center' }}>
+      {audio?.slice(0, compact ? 2 : 4).map((a, i) => {
+        const lang = a.language || `Track ${i + 1}`;
+        const fmt  = a.format?.split('(')[0].trim();
+        const ch   = a.channels ? `${a.channels}ch` : '';
+        return (
+          <Box key={i} sx={{
+            display: 'flex', alignItems: 'center', gap: 0.4,
+            px: 0.9, py: 0.25, borderRadius: 1,
+            bgcolor: alpha(theme.palette.info.main, 0.08),
+            border: `1px solid ${alpha(theme.palette.info.main, 0.18)}`,
+          }}>
+            <Audiotrack sx={{ fontSize: 10, color: theme.palette.info.main, opacity: 0.8 }} />
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 500, color: theme.palette.info.main }}>
+              {[lang, fmt, ch].filter(Boolean).join(' · ')}
+            </Typography>
+          </Box>
+        );
+      })}
+      {audio?.length > (compact ? 2 : 4) && (
+        <Typography sx={{ fontSize: '0.65rem', color: theme.palette.text.disabled }}>
+          +{audio.length - (compact ? 2 : 4)} audio
+        </Typography>
+      )}
+      {subtitle?.length > 0 && !compact && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', gap: 0.4,
+          px: 0.9, py: 0.25, borderRadius: 1,
+          bgcolor: alpha(theme.palette.warning.main, 0.07),
+          border: `1px solid ${alpha(theme.palette.warning.main, 0.18)}`,
+        }}>
+          <SubtitlesOutlined sx={{ fontSize: 10, color: theme.palette.warning.main, opacity: 0.8 }} />
+          <Typography sx={{ fontSize: '0.65rem', fontWeight: 500, color: theme.palette.warning.main }}>
+            {subtitle.length} sub{subtitle.length > 1 ? 's' : ''}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+// ─── Action buttons row ───────────────────────────────────────────────────────
+
+const FileActions = ({ file, allFiles, record, compact = false }) => {
+  const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [playerOpen, setPlayerOpen] = useState(false);
-  const [resolving, setResolving] = useState(false);
-  const [enrichedFiles, setEnrichedFiles] = useState(null);
+  const { resolving, playerOpen, setPlayerOpen, enrichedFiles, setEnrichedFiles, handlePlay, handleDownload } =
+    useFileActions(file, allFiles, record);
 
-  const { general, video, audio, subtitle } = file;
-  const quality  = getQuality(video, general?.fileName);
-  const codec    = getCodec(video?.format);
-  const hdrTags  = getHdrTags(video?.hdrDetails, general?.fileName);
-
-  const resolveAll = useCallback(async (type) => {
-    const targets = allEpisodeFiles?.length > 0 ? allEpisodeFiles : [file];
-    return Promise.all(targets.map(async (f) => {
-      if (!f?.mediaFileId) return f;
-      try {
-        const res = await resolveMediaUrl(f.mediaFileId, type);
-        const cdnUrl = res?.data?.cdnUrl;
-        return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
-      } catch { return f; }
-    }));
-  }, [file, allEpisodeFiles]);
-
-  const handlePlay = async () => {
-    setResolving(true);
-    try {
-      const enriched = await resolveAll('ONLINE');
-      setEnrichedFiles(enriched);
-      const current = enriched.find(f => f.mediaFileId === file.mediaFileId) ?? enriched[0];
-      if (Capacitor.getPlatform() === 'android') {
-        AndroidPlugins.launchNativePlayer({
-          url: current?.streamUrl,
-          title: general?.fileName || record?.tmdb?.title || '',
-          fileName: general?.fileName || '',
-          fileId: String(file.id || ''),
-          preferredAudio: 'Hindi',
-          preferredSub: null,
-        });
-      } else {
-        setPlayerOpen(true);
-      }
-    } catch {
-      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
-    } finally { setResolving(false); }
-  };
-
-  const handleDownload = async () => {
-    setResolving(true);
-    try {
-      const res = await resolveMediaUrl(file.mediaFileId, 'DOWNLOAD');
-      const cdnUrl = res?.data?.cdnUrl;
-      if (!cdnUrl) throw new Error('No CDN URL');
-      if (Capacitor.getPlatform() === 'android') {
-        await DbWorldDownload.ensurePermissions();
-        await DbWorldDownload.startDownload({
-          url: cdnUrl,
-          fileName: general?.fileName || 'download',
-          title: general?.fileName || record?.tmdb?.title || 'Download',
-        });
-        enqueueSnackbar(`Added: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
-      } else {
-        CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
-      }
-    } catch {
-      enqueueSnackbar('Failed to start download', { variant: 'error' });
-    } finally { setResolving(false); }
-  };
+  const isDark = theme.palette.mode === 'dark';
+  const playBg = isDark ? '#fff' : '#0f172a';
+  const playColor = isDark ? '#000' : '#fff';
 
   return (
     <>
       <Box sx={{
-        px: { xs: 1.5, sm: 2 }, py: { xs: 0.9, sm: 1 },
-        display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 },
-        flexWrap: { xs: 'wrap', sm: 'nowrap' },
-        '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.35) },
-        transition: 'background 0.12s',
+        display: 'flex', alignItems: 'center', gap: compact ? 0.6 : 1,
+        flexWrap: compact ? 'nowrap' : { xs: 'wrap', sm: 'nowrap' },
       }}>
-        {/* Quality badges */}
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
-          <QBadge quality={quality} />
-          {codec && <CodecBadge codec={codec} />}
-          {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
-          {video?.bitDepth === 10 && (
-            <Box sx={{ px: 0.8, py: 0.15, borderRadius: 0.8, bgcolor: alpha('#6366f1', 0.15), color: '#818cf8', border: `1px solid ${alpha('#6366f1', 0.35)}`, fontSize: '0.6rem', fontWeight: 700, lineHeight: 1.6 }}>
-              10-bit
-            </Box>
-          )}
-        </Stack>
+        <Button
+          size="small" variant="contained"
+          startIcon={resolving ? <CircularProgress size={13} color="inherit" /> : <PlayArrow sx={{ fontSize: 18 }} />}
+          onClick={handlePlay} disabled={resolving}
+          sx={{
+            bgcolor: playBg, color: playColor, fontWeight: 700,
+            fontSize: compact ? '0.72rem' : '0.78rem',
+            textTransform: 'none', borderRadius: 1.5,
+            px: compact ? 1.2 : { xs: 1.5, sm: 2 }, py: compact ? 0.5 : 0.7,
+            flexShrink: 0, minWidth: compact ? 0 : undefined,
+            '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.88)' : 'rgba(15,23,42,0.88)' },
+          }}
+        >
+          {compact && isMobile ? null : 'Play'}
+        </Button>
 
-        {/* Stats */}
-        <Stack direction="row" spacing={1.5} sx={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
-          {general?.fileSize && (
-            <Typography sx={{ fontSize: '0.72rem', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>
-              {general.fileSize}
-            </Typography>
-          )}
-          {general?.duration && (
-            <Typography sx={{ fontSize: '0.7rem', color: theme.palette.text.disabled, whiteSpace: 'nowrap' }}>
-              {CommonServices.formatDuration(general.duration)}
-            </Typography>
-          )}
-          {audio?.length > 0 && !isMobile && (
-            <Typography sx={{ fontSize: '0.68rem', color: theme.palette.text.disabled, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              🔊 {audio.slice(0, 2).map(a => a.language || a.format?.split('(')[0].trim()).filter(Boolean).join(', ')}
-            </Typography>
-          )}
-        </Stack>
+        <Tooltip title="Download">
+          <IconButton size="small" onClick={handleDownload} disabled={resolving}
+            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.75 }}>
+            {resolving ? <CircularProgress size={13} /> : <Download sx={{ fontSize: 15 }} />}
+          </IconButton>
+        </Tooltip>
 
-        {/* Actions — always on same line */}
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0, ml: 'auto' }}>
-          <Button
-            size="small" variant="contained"
-            startIcon={resolving ? <CircularProgress size={12} color="inherit" /> : <PlayArrow sx={{ fontSize: 16 }} />}
-            onClick={handlePlay} disabled={resolving}
-            sx={{
-              bgcolor: theme.palette.mode === 'dark' ? '#fff' : '#111',
-              color: theme.palette.mode === 'dark' ? '#000' : '#fff',
-              fontWeight: 700, fontSize: '0.72rem', textTransform: 'none',
-              px: { xs: 1.2, sm: 1.5 }, py: 0.5, borderRadius: 1.5, minWidth: 0,
-              '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.85)' },
-            }}
-          >
-            {isMobile ? null : 'Play'}
-          </Button>
-          <Tooltip title="Download">
-            <IconButton size="small" onClick={handleDownload} disabled={resolving}
-              sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.5)}`, borderRadius: 1.5, p: 0.6 }}>
-              {resolving ? <CircularProgress size={14} /> : <Download sx={{ fontSize: 15 }} />}
-            </IconButton>
-          </Tooltip>
-          <CopyIconButton
-            getUrl={() => resolveMediaUrl(file.mediaFileId, 'DOWNLOAD').then(r => r?.data?.cdnUrl)}
-            label="Copy download link"
-          />
+        <CopyUrlButton
+          getUrl={() => resolveMediaUrl(file.mediaFileId, 'DOWNLOAD').then(r => r?.data?.cdnUrl)}
+          label="Copy download URL"
+        />
+
+        {!compact && (
           <Tooltip title="File details">
             <IconButton size="small" onClick={() => setDrawerOpen(true)}
-              sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.5)}`, borderRadius: 1.5, p: 0.6 }}>
-              <ChevronRight sx={{ fontSize: 15 }} />
+              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.75 }}>
+              <InfoOutlined sx={{ fontSize: 15 }} />
             </IconButton>
           </Tooltip>
-        </Stack>
+        )}
+        {compact && (
+          <Tooltip title="File details">
+            <IconButton size="small" onClick={() => setDrawerOpen(true)}
+              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.75 }}>
+              <InfoOutlined sx={{ fontSize: 13 }} />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
 
       <CinemaPlayer
         open={playerOpen}
         onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
         mediaInfo={enrichedFiles ? (enrichedFiles.find(f => f.mediaFileId === file.mediaFileId) ?? file) : file}
-        allFiles={enrichedFiles ?? allEpisodeFiles ?? [file]}
+        allFiles={enrichedFiles ?? allFiles ?? [file]}
         record={record}
       />
       <MediaDetailsDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         mediaInfo={file}
-        allFiles={allEpisodeFiles ?? [file]}
+        allFiles={allFiles ?? [file]}
         record={record}
       />
     </>
   );
 };
 
-// ─── EpisodeCard — collapsible card for one episode's quality variants ─────────
+// ─── Movie file card ──────────────────────────────────────────────────────────
 
-const EpisodeCard = ({ episodeNum, files, allSeasonFiles, record }) => {
+const MovieFileCard = ({ file, allFiles, record }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { general, video, audio, subtitle } = file;
+
+  const quality  = getQuality(video, general?.fileName);
+  const codec    = getCodec(video?.format);
+  const hdrTags  = getHdrTags(video?.hdrDetails, general?.fileName);
+  const bitDepth = video?.bitDepth;
+  const qColor   = (QUALITY_META[quality] || QUALITY_META['Unknown']).color;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Box sx={{
+        borderRadius: 2, overflow: 'hidden',
+        border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+        borderLeft: `4px solid ${qColor}`,
+        bgcolor: theme.palette.mode === 'dark'
+          ? alpha(theme.palette.background.paper, 0.5)
+          : theme.palette.background.paper,
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          borderColor: alpha(qColor, 0.6),
+          boxShadow: `0 4px 24px ${alpha(qColor, 0.12)}`,
+        },
+      }}>
+        <Box sx={{
+          px: { xs: 2, sm: 2.5 }, pt: { xs: 1.8, sm: 2 }, pb: { xs: 1.5, sm: 1.8 },
+          display: 'flex', flexDirection: 'column', gap: 1,
+        }}>
+          {/* Quality + badges */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+              <QualityLabel quality={quality} />
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                {codec && <CodecBadge codec={codec} />}
+                {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
+                {bitDepth === 10 && (
+                  <Box sx={{
+                    px: 0.9, py: 0.2, borderRadius: 1,
+                    bgcolor: alpha('#6366f1', 0.14), color: '#818cf8',
+                    border: `1px solid ${alpha('#6366f1', 0.32)}`,
+                    fontSize: '0.63rem', fontWeight: 700, lineHeight: 1.6,
+                  }}>10-bit</Box>
+                )}
+              </Box>
+            </Box>
+            {/* Actions top-right on desktop, below on mobile */}
+            {!isMobile && (
+              <FileActions file={file} allFiles={allFiles} record={record} compact={false} />
+            )}
+          </Box>
+
+          {/* Stats */}
+          <FileMeta file={file} />
+
+          {/* Audio + subs */}
+          <AudioSummary audio={audio} subtitle={subtitle} compact={false} />
+
+          {/* Mobile actions */}
+          {isMobile && (
+            <Box sx={{ pt: 0.5 }}>
+              <FileActions file={file} allFiles={allFiles} record={record} compact={false} />
+            </Box>
+          )}
+        </Box>
+      </Box>
+    </motion.div>
+  );
+};
+
+// ─── Episode quality variant row (compact, inside episode expand) ─────────────
+
+const EpisodeQualityRow = ({ file, allEpisodeFiles, record, index }) => {
+  const theme = useTheme();
+  const { general, video, audio, subtitle } = file;
+  const quality = getQuality(video, general?.fileName);
+  const codec   = getCodec(video?.format);
+  const hdrTags = getHdrTags(video?.hdrDetails, general?.fileName);
+  const qColor  = (QUALITY_META[quality] || QUALITY_META['Unknown']).color;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.15, delay: index * 0.04 }}
+    >
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        px: { xs: 1.5, sm: 2 }, py: { xs: 0.9, sm: 1 },
+        borderLeft: `3px solid ${qColor}`,
+        ml: 0, transition: 'background 0.15s',
+        '&:hover': { bgcolor: alpha(qColor, 0.05) },
+        flexWrap: { xs: 'wrap', sm: 'nowrap' },
+      }}>
+        {/* Quality + badges */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, minWidth: { sm: 180 } }}>
+          <QualityLabel quality={quality} size="sm" />
+          {codec && <CodecBadge codec={codec} />}
+          {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
+        </Box>
+
+        {/* Meta + audio (flex 1) */}
+        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+          <FileMeta file={file} />
+          {audio?.length > 0 && (
+            <AudioSummary audio={audio} subtitle={subtitle} compact />
+          )}
+        </Box>
+
+        {/* Actions */}
+        <Box sx={{ flexShrink: 0 }}>
+          <FileActions file={file} allFiles={allEpisodeFiles} record={record} compact />
+        </Box>
+      </Box>
+    </motion.div>
+  );
+};
+
+// ─── Episode row (collapsible) ────────────────────────────────────────────────
+
+const EpisodeRow = ({ episodeNum, files, allSeasonFiles, record }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Sort files by quality (best first)
   const sortedFiles = useMemo(() =>
     [...files].sort((a, b) =>
       qualityRank(getQuality(a.video, a.general?.fileName)) -
@@ -236,305 +434,83 @@ const EpisodeCard = ({ episodeNum, files, allSeasonFiles, record }) => {
     [...new Set(sortedFiles.map(f => getQuality(f.video, f.general?.fileName)))],
     [sortedFiles]);
 
-  // Auto-expand if only one variant; collapse when there are multiple
   const [expanded, setExpanded] = useState(files.length === 1);
   const hasMultiple = files.length > 1;
-
   const isUnknown = episodeNum === 'Unknown';
 
   return (
-    <Paper variant="outlined" sx={{
-      mb: 1, borderRadius: 2, overflow: 'hidden',
-      borderColor: alpha(theme.palette.divider, 0.6),
-      '&:hover': { borderColor: alpha(theme.palette.primary.main, 0.3) },
+    <Box sx={{
+      borderRadius: 2, overflow: 'hidden', mb: 1,
+      border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+      bgcolor: theme.palette.mode === 'dark'
+        ? alpha(theme.palette.background.paper, 0.4)
+        : theme.palette.background.paper,
       transition: 'border-color 0.18s',
+      '&:hover': { borderColor: alpha(theme.palette.primary.main, 0.25) },
     }}>
-      {/* ── Episode header ── */}
+      {/* Episode header */}
       <Box
         onClick={() => hasMultiple && setExpanded(v => !v)}
         sx={{
-          display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 },
-          px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.2 },
+          display: 'flex', alignItems: 'center', gap: 1.5,
+          px: { xs: 1.5, sm: 2 }, py: { xs: 1.1, sm: 1.2 },
           cursor: hasMultiple ? 'pointer' : 'default',
-          bgcolor: expanded
-            ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04)
+          userSelect: 'none',
+          bgcolor: expanded && hasMultiple
+            ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.07 : 0.04)
             : 'transparent',
-          '&:hover': hasMultiple ? { bgcolor: alpha(theme.palette.primary.main, 0.06) } : {},
           transition: 'background 0.15s',
+          '&:hover': hasMultiple ? { bgcolor: alpha(theme.palette.primary.main, 0.06) } : {},
         }}
       >
-        {/* Episode number badge */}
+        {/* Episode badge */}
         <Box sx={{
-          minWidth: isUnknown ? 56 : 44, height: 26, borderRadius: 1.5, flexShrink: 0,
+          minWidth: isUnknown ? 52 : 40, height: 26, borderRadius: 1.5, flexShrink: 0,
           bgcolor: alpha(theme.palette.primary.main, 0.12),
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, color: theme.palette.primary.main, letterSpacing: '0.02em' }}>
+          <Typography sx={{ fontSize: '0.7rem', fontWeight: 900, color: theme.palette.primary.main, letterSpacing: '0.03em' }}>
             {isUnknown ? '?' : `E${String(episodeNum).padStart(2, '0')}`}
           </Typography>
         </Box>
 
-        {/* Quality summary chips */}
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flex: 1, overflow: 'hidden', flexWrap: 'nowrap' }}>
-          {uniqueQualities.slice(0, isMobile ? 3 : 6).map(q => (
-            <QBadge key={q} quality={q} />
-          ))}
-          {uniqueQualities.length > (isMobile ? 3 : 6) && (
-            <Typography sx={{ fontSize: '0.65rem', color: theme.palette.text.disabled, whiteSpace: 'nowrap' }}>
-              +{uniqueQualities.length - (isMobile ? 3 : 6)}
+        {/* Quality summary */}
+        <Stack direction="row" spacing={0.4} sx={{ flex: 1, overflow: 'hidden', flexWrap: 'nowrap', alignItems: 'center' }}>
+          {uniqueQualities.slice(0, isMobile ? 3 : 5).map(q => <QBadge key={q} quality={q} />)}
+          {uniqueQualities.length > (isMobile ? 3 : 5) && (
+            <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.disabled, whiteSpace: 'nowrap' }}>
+              +{uniqueQualities.length - (isMobile ? 3 : 5)}
             </Typography>
           )}
         </Stack>
 
-        {/* File count or size (compact) */}
-        {hasMultiple ? (
+        {/* File count */}
+        {hasMultiple && (
           <Typography sx={{ fontSize: '0.68rem', color: theme.palette.text.disabled, flexShrink: 0, whiteSpace: 'nowrap' }}>
             {files.length} files
           </Typography>
-        ) : (
-          sortedFiles[0]?.general?.fileSize && (
-            <Typography sx={{ fontSize: '0.68rem', color: theme.palette.text.disabled, flexShrink: 0, whiteSpace: 'nowrap' }}>
-              {sortedFiles[0].general.fileSize}
-            </Typography>
-          )
         )}
-
-        {/* Expand toggle */}
-        {hasMultiple && (
-          <IconButton size="small" sx={{ flexShrink: 0, p: 0.3, color: 'text.secondary' }}>
-            {expanded ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
-          </IconButton>
-        )}
-      </Box>
-
-      {/* ── Quality rows ── */}
-      <Collapse in={expanded || !hasMultiple} timeout="auto" unmountOnExit>
-        <Divider sx={{ opacity: 0.6 }} />
-        {sortedFiles.map((file, i) => (
-          <React.Fragment key={file.id ?? file.mediaFileId ?? i}>
-            <QualityRow file={file} allEpisodeFiles={sortedFiles} record={record} />
-            {i < sortedFiles.length - 1 && <Divider sx={{ opacity: 0.3 }} />}
-          </React.Fragment>
-        ))}
-      </Collapse>
-    </Paper>
-  );
-};
-
-// ─── FileCard — full detail card (used for movies) ───────────────────────────
-
-const StatItem = ({ label, value }) => {
-  const theme = useTheme();
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.1 }}>
-      <Typography sx={{ fontSize: '0.6rem', color: theme.palette.text.disabled, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize: '0.75rem', color: theme.palette.text.primary, fontWeight: 500 }}>
-        {value}
-      </Typography>
-    </Box>
-  );
-};
-
-const FileCard = ({ mediaInfo, allFiles = [], record }) => {
-  const theme = useTheme();
-  const { enqueueSnackbar } = useSnackbar();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [playerOpen, setPlayerOpen] = useState(false);
-  const [resolving, setResolving] = useState(false);
-  const [enrichedFiles, setEnrichedFiles] = useState(null);
-
-  const { general, video, audio, subtitle } = mediaInfo;
-  const quality  = getQuality(video, general?.fileName);
-  const codec    = getCodec(video?.format);
-  const hdrTags  = getHdrTags(video?.hdrDetails, general?.fileName);
-  const bitDepth = video?.bitDepth;
-
-  const resolveAll = async (type) => {
-    const files = allFiles.length > 0 ? allFiles : [mediaInfo];
-    return Promise.all(files.map(async (f) => {
-      if (!f?.mediaFileId) return f;
-      try {
-        const res = await resolveMediaUrl(f.mediaFileId, type);
-        const cdnUrl = res?.data?.cdnUrl;
-        return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
-      } catch { return f; }
-    }));
-  };
-
-  const handlePlay = async () => {
-    setResolving(true);
-    try {
-      const enriched = await resolveAll('ONLINE');
-      setEnrichedFiles(enriched);
-      const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
-      if (Capacitor.getPlatform() === 'android') {
-        AndroidPlugins.launchNativePlayer({
-          url: current?.streamUrl,
-          title: general?.fileName || record?.tmdb?.title || '',
-          fileName: general?.fileName || '',
-          fileId: String(mediaInfo.id || ''),
-          preferredAudio: 'Hindi',
-          preferredSub: null,
-        });
-      } else {
-        setPlayerOpen(true);
-      }
-    } catch { enqueueSnackbar('Failed to prepare stream', { variant: 'error' }); }
-    finally { setResolving(false); }
-  };
-
-  const handleDownload = async () => {
-    setResolving(true);
-    try {
-      const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
-      const cdnUrl = res?.data?.cdnUrl;
-      if (!cdnUrl) throw new Error('No CDN URL');
-      if (Capacitor.getPlatform() === 'android') {
-        await DbWorldDownload.ensurePermissions();
-        await DbWorldDownload.startDownload({ url: cdnUrl, fileName: general?.fileName || 'download', title: general?.fileName || record?.tmdb?.title || 'Download' });
-        enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
-      } else {
-        CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
-      }
-    } catch { enqueueSnackbar('Failed to start download', { variant: 'error' }); }
-    finally { setResolving(false); }
-  };
-
-  return (
-    <>
-      <Box sx={{
-        bgcolor: alpha(theme.palette.background.paper, 0.6),
-        border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-        borderRadius: 2, overflow: 'hidden', transition: 'border-color 0.2s',
-        '&:hover': { borderColor: alpha(theme.palette.primary.main, 0.4) },
-      }}>
-        <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
-          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, wordBreak: 'break-all', lineHeight: 1.4, mb: 1 }}>
-            {general?.fileName || 'Unknown file'}
+        {!hasMultiple && sortedFiles[0]?.general?.fileSize && (
+          <Typography sx={{ fontSize: '0.68rem', color: theme.palette.text.disabled, flexShrink: 0, whiteSpace: 'nowrap' }}>
+            {sortedFiles[0].general.fileSize}
           </Typography>
+        )}
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: 1.5 }}>
-            <QBadge quality={quality} />
-            {codec && <CodecBadge codec={codec} />}
-            {hdrTags.map(t => <HdrBadge key={t} tag={t} />)}
-            {bitDepth === 10 && (
-              <Box sx={{ px: 0.9, py: 0.2, borderRadius: 1, bgcolor: alpha('#6366f1', 0.15), color: '#818cf8', border: `1px solid ${alpha('#6366f1', 0.35)}`, fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.6 }}>
-                10-bit
-              </Box>
-            )}
+        {hasMultiple && (
+          <Box sx={{ color: 'text.secondary', lineHeight: 0, flexShrink: 0 }}>
+            {expanded ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
           </Box>
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 0.6, mb: 1 }}>
-            {video?.resolution  && <StatItem label="Resolution"     value={video.resolution} />}
-            {video?.frameRate   && <StatItem label="Frame Rate"     value={`${video.frameRate} fps`} />}
-            {video?.bitRate     && <StatItem label="Video Bitrate"  value={`${(video.bitRate / 1e6).toFixed(1)} Mbps`} />}
-            {general?.duration  && <StatItem label="Duration"       value={CommonServices.formatDuration(general.duration)} />}
-            {general?.fileSize  && <StatItem label="Size"           value={general.fileSize} />}
-          </Box>
-
-          {audio?.length > 0 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.7, mb: 0.5 }}>
-              {audio.map((a, i) => (
-                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.3, borderRadius: 1, bgcolor: alpha(theme.palette.info.main, 0.08), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
-                  <Audiotrack sx={{ fontSize: 11, color: theme.palette.info.main }} />
-                  <Typography sx={{ fontSize: '0.7rem', color: theme.palette.info.main, fontWeight: 500 }}>
-                    {a.format?.split('(')[0].trim()} {a.channels ? `${a.channels}ch` : ''} {a.language ? `· ${a.language}` : ''}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
-
-          {subtitle?.length > 0 && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-              <Subtitles sx={{ fontSize: 13, color: theme.palette.text.disabled }} />
-              <Typography sx={{ fontSize: '0.72rem', color: theme.palette.text.disabled }}>
-                {subtitle.length} subtitle{subtitle.length > 1 ? 's' : ''}
-                {': '}{subtitle.slice(0, 4).map(s => s.language).filter(Boolean).join(', ')}{subtitle.length > 4 ? '…' : ''}
-              </Typography>
-            </Box>
-          )}
-
-          <Box sx={{ display: 'flex', gap: 1, mt: 1.8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Button size="small" variant="contained"
-              startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <PlayArrow />}
-              onClick={handlePlay} disabled={resolving}
-              sx={{ bgcolor: theme.palette.mode === 'dark' ? '#fff' : '#111', color: theme.palette.mode === 'dark' ? '#000' : '#fff', fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5, '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.85)' } }}>
-              Play
-            </Button>
-            <CopyIconButton getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'ONLINE').then(r => r?.data?.cdnUrl)} label="Copy stream URL" />
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-            <Button size="small" variant="outlined"
-              startIcon={resolving ? <CircularProgress size={14} color="inherit" /> : <Download />}
-              onClick={handleDownload} disabled={resolving}
-              sx={{ fontSize: '0.78rem', textTransform: 'none', px: 1.8, py: 0.7, borderRadius: 1.5 }}>
-              Download
-            </Button>
-            <CopyIconButton getUrl={() => resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD').then(r => r?.data?.cdnUrl)} label="Copy download URL" />
-            <Box sx={{ flex: 1 }} />
-            <Button size="small" variant="text" endIcon={<ChevronRight sx={{ fontSize: 16 }} />}
-              onClick={() => setDrawerOpen(true)}
-              sx={{ fontSize: '0.72rem', textTransform: 'none', color: theme.palette.text.secondary, px: 1 }}>
-              Details
-            </Button>
-          </Box>
-        </Box>
+        )}
       </Box>
 
-      <CinemaPlayer
-        open={playerOpen}
-        onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
-        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? mediaInfo) : mediaInfo}
-        allFiles={enrichedFiles ?? allFiles}
-        record={record}
-      />
-      <MediaDetailsDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        mediaInfo={mediaInfo}
-        allFiles={allFiles}
-        record={record}
-      />
-    </>
-  );
-};
-
-// ─── QualitySection ───────────────────────────────────────────────────────────
-
-const QualitySection = ({ quality, files, allFiles, record }) => {
-  const theme = useTheme();
-  const meta = QUALITY_META[quality] || QUALITY_META['Unknown'];
-  const [open, setOpen] = useState(true);
-
-  return (
-    <Box sx={{ mb: 1.5 }}>
-      <Box onClick={() => setOpen(v => !v)} sx={{
-        display: 'flex', alignItems: 'center', gap: 1.5,
-        px: 2, py: 1, mb: open ? 1 : 0,
-        bgcolor: alpha(meta.color, 0.1),
-        border: `1px solid ${alpha(meta.color, 0.25)}`,
-        borderLeft: `4px solid ${meta.color}`,
-        borderRadius: '0 8px 8px 0',
-        cursor: 'pointer', userSelect: 'none', transition: 'background 0.15s',
-        '&:hover': { bgcolor: alpha(meta.color, 0.15) },
-      }}>
-        <Box sx={{ fontWeight: 800, fontSize: '0.95rem', color: meta.color, minWidth: 46 }}>{meta.label}</Box>
-        <Box sx={{ height: 14, width: 1, bgcolor: alpha(meta.color, 0.3) }} />
-        <Typography sx={{ fontSize: '0.78rem', color: theme.palette.text.secondary, flex: 1 }}>
-          {files.length} file{files.length !== 1 ? 's' : ''}
-        </Typography>
-        <IconButton size="small" sx={{ color: meta.color, p: 0.3 }}>
-          {open ? <ExpandLess sx={{ fontSize: 17 }} /> : <ExpandMore sx={{ fontSize: 17 }} />}
-        </IconButton>
-      </Box>
-      <Collapse in={open} timeout="auto" unmountOnExit>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {files.map((f, i) => (
-            <motion.div key={f.id ?? i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, delay: i * 0.04 }}>
-              <FileCard mediaInfo={f} allFiles={allFiles} record={record} />
-            </motion.div>
+      {/* Quality variants */}
+      <Collapse in={expanded || !hasMultiple} timeout="auto" unmountOnExit>
+        <Box sx={{ borderTop: `1px solid ${alpha(theme.palette.divider, 0.4)}` }}>
+          {sortedFiles.map((file, i) => (
+            <React.Fragment key={file.id ?? file.mediaFileId ?? i}>
+              {i > 0 && <Box sx={{ borderTop: `1px solid ${alpha(theme.palette.divider, 0.25)}` }} />}
+              <EpisodeQualityRow file={file} allEpisodeFiles={sortedFiles} record={record} index={i} />
+            </React.Fragment>
           ))}
         </Box>
       </Collapse>
@@ -542,64 +518,80 @@ const QualitySection = ({ quality, files, allFiles, record }) => {
   );
 };
 
-// ─── MovieFiles ───────────────────────────────────────────────────────────────
+// ─── Season picker ────────────────────────────────────────────────────────────
 
-const MovieFiles = ({ files, record }) => {
+const SeasonPicker = ({ seasons, activeSeason, onSelect, groupedBySeasonEpisode }) => {
   const theme = useTheme();
-  const [activeQuality, setActiveQuality] = useState('All');
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const grouped = useMemo(() => {
-    const map = {};
-    files.forEach(f => {
-      const q = getQuality(f.video, f.general?.fileName);
-      if (!map[q]) map[q] = [];
-      map[q].push(f);
-    });
-    return map;
-  }, [files]);
+  const seasonLabel = s => s === 'Unknown' ? 'Unknown' : `Season ${parseInt(s, 10)}`;
 
-  const qualities = useMemo(() =>
-    ['All', ...QUALITY_ORDER.filter(q => grouped[q]?.length > 0)],
-    [grouped]);
-
-  const displayed = useMemo(() =>
-    activeQuality === 'All' ? grouped : { [activeQuality]: grouped[activeQuality] || [] },
-    [activeQuality, grouped]);
+  const summary = useCallback((s) => {
+    const sData = groupedBySeasonEpisode[s] ?? {};
+    const epCount = Object.keys(sData).length;
+    const allFiles = Object.values(sData).flat();
+    const topQual = QUALITY_ORDER.find(q =>
+      allFiles.some(f => getQuality(f.video, f.general?.fileName) === q)
+    );
+    return { epCount, topQual };
+  }, [groupedBySeasonEpisode]);
 
   return (
-    <Box>
-      {qualities.length > 2 && (
-        <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1.5, mb: 2, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
-          {qualities.map(q => {
-            const meta = q === 'All' ? null : QUALITY_META[q];
-            const count = q === 'All' ? files.length : (grouped[q]?.length ?? 0);
-            const active = activeQuality === q;
-            return (
-              <Chip key={q} label={`${meta?.label ?? q}  ${count}`} size="small" onClick={() => setActiveQuality(q)}
-                sx={{ flexShrink: 0, fontWeight: 600, fontSize: '0.75rem',
-                  bgcolor: active ? (meta ? meta.color : theme.palette.primary.main) : alpha(theme.palette.divider, 0.3),
-                  color: active ? '#fff' : theme.palette.text.secondary,
-                  border: 'none', cursor: 'pointer', '&:hover': { bgcolor: active ? undefined : alpha(theme.palette.divider, 0.5) },
-                }} />
-            );
-          })}
-        </Box>
-      )}
-      {QUALITY_ORDER.filter(q => displayed[q]?.length > 0).map(q => (
-        <QualitySection key={q} quality={q} files={displayed[q]} allFiles={files} record={record} />
-      ))}
+    <Box sx={{
+      display: 'flex', gap: 1, overflowX: 'auto', pb: 0.5,
+      scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
+    }}>
+      {seasons.map(s => {
+        const active = activeSeason === s;
+        const { epCount, topQual } = summary(s);
+        const qMeta = topQual ? (QUALITY_META[topQual] || QUALITY_META['Unknown']) : null;
+        return (
+          <Box
+            key={s}
+            onClick={() => onSelect(s)}
+            sx={{
+              flexShrink: 0, cursor: 'pointer', borderRadius: 2,
+              px: { xs: 1.5, sm: 2 }, py: { xs: 0.9, sm: 1.1 },
+              border: `1.5px solid ${active ? theme.palette.primary.main : alpha(theme.palette.divider, 0.5)}`,
+              bgcolor: active
+                ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.14 : 0.07)
+                : alpha(theme.palette.background.paper, 0.5),
+              transition: 'all 0.18s',
+              '&:hover': { borderColor: active ? undefined : alpha(theme.palette.primary.main, 0.4) },
+            }}
+          >
+            <Typography sx={{
+              fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.25,
+              color: active ? theme.palette.primary.main : theme.palette.text.primary,
+            }}>
+              {seasonLabel(s)}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.4 }}>
+              <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.disabled, whiteSpace: 'nowrap' }}>
+                {epCount} ep
+              </Typography>
+              {qMeta && !isMobile && (
+                <Box sx={{
+                  px: 0.6, borderRadius: 0.5,
+                  bgcolor: qMeta.color, color: '#fff',
+                  fontSize: '0.53rem', fontWeight: 800, lineHeight: 1.8,
+                }}>
+                  {qMeta.label}
+                </Box>
+              )}
+            </Box>
+          </Box>
+        );
+      })}
     </Box>
   );
 };
 
-// ─── SeriesFiles ──────────────────────────────────────────────────────────────
+// ─── Series view ──────────────────────────────────────────────────────────────
 
-const SeriesFiles = ({ files, record }) => {
+const SeriesView = ({ files, record }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Group: season → episodeNum → [files]
-  // Prefer stored TMDB numbers over filename parsing
   const groupedBySeasonEpisode = useMemo(() => {
     const map = {};
     files.forEach(f => {
@@ -621,88 +613,38 @@ const SeriesFiles = ({ files, record }) => {
       if (a === 'Unknown') return 1;
       if (b === 'Unknown') return -1;
       return Number(a) - Number(b);
-    }),
-    [groupedBySeasonEpisode]);
+    }), [groupedBySeasonEpisode]);
 
   const [activeSeason, setActiveSeason] = useState(() => seasons[0] ?? null);
 
   useEffect(() => {
-    if (seasons.length > 0 && !seasons.includes(activeSeason)) {
-      setActiveSeason(seasons[0]);
-    }
-  }, [seasons]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (seasons.length > 0 && !seasons.includes(activeSeason)) setActiveSeason(seasons[0]);
+  }, [seasons]); // eslint-disable-line
 
   const episodeMap = groupedBySeasonEpisode[activeSeason] ?? {};
-
-  // Sort episodes numerically; 'Unknown' always last
   const episodes = useMemo(() =>
     Object.keys(episodeMap).sort((a, b) => {
       if (a === 'Unknown') return 1;
       if (b === 'Unknown') return -1;
       return Number(a) - Number(b);
-    }),
-    [episodeMap]);
+    }), [episodeMap]);
 
-  const totalFiles = Object.values(episodeMap).reduce((s, arr) => s + arr.length, 0);
-
-  const seasonLabel = (s) => s === 'Unknown' ? 'Unknown' : `Season ${parseInt(s, 10)}`;
-
-  // Compute quality summary per season tab
-  const seasonSummary = useCallback((s) => {
-    const sData = groupedBySeasonEpisode[s] ?? {};
-    const allFiles = Object.values(sData).flat();
-    const quals = [...new Set(
-      QUALITY_ORDER.filter(q => allFiles.some(f => getQuality(f.video, f.general?.fileName) === q))
-    )];
-    const epCount = Object.keys(sData).length;
-    return { epCount, quals };
-  }, [groupedBySeasonEpisode]);
+  const totalFiles = Object.values(episodeMap).reduce((s, a) => s + a.length, 0);
+  const seasonLabel = s => s === 'Unknown' ? 'Unknown' : `Season ${parseInt(s, 10)}`;
 
   return (
     <Box>
-      {/* ── Season tabs ── */}
       {seasons.length > 1 && (
-        <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1.5, mb: 2.5, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
-          {seasons.map(s => {
-            const active = activeSeason === s;
-            const { epCount, quals } = seasonSummary(s);
-            return (
-              <Box key={s} onClick={() => setActiveSeason(s)} sx={{
-                flexShrink: 0, cursor: 'pointer',
-                px: { xs: 1.5, sm: 2 }, py: { xs: 0.9, sm: 1 }, borderRadius: 2,
-                border: `1px solid ${active ? theme.palette.primary.main : alpha(theme.palette.divider, 0.5)}`,
-                bgcolor: active ? alpha(theme.palette.primary.main, 0.12) : alpha(theme.palette.background.paper, 0.4),
-                transition: 'all 0.18s',
-                '&:hover': { bgcolor: active ? undefined : alpha(theme.palette.primary.main, 0.06) },
-              }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: active ? theme.palette.primary.main : theme.palette.text.primary, lineHeight: 1.3 }}>
-                  {seasonLabel(s)}
-                </Typography>
-                <Stack direction="row" spacing={0.5} mt={0.4} alignItems="center">
-                  <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.disabled, whiteSpace: 'nowrap' }}>
-                    {epCount} ep
-                  </Typography>
-                  {quals.slice(0, isMobile ? 2 : 3).map(q => {
-                    const meta = QUALITY_META[q] || QUALITY_META['Unknown'];
-                    return (
-                      <Box key={q} sx={{ px: 0.5, borderRadius: 0.6, bgcolor: meta.color, color: '#fff', fontSize: '0.55rem', fontWeight: 800, lineHeight: 1.7 }}>
-                        {meta.label}
-                      </Box>
-                    );
-                  })}
-                  {quals.length > (isMobile ? 2 : 3) && (
-                    <Typography sx={{ fontSize: '0.6rem', color: theme.palette.text.disabled }}>
-                      +{quals.length - (isMobile ? 2 : 3)}
-                    </Typography>
-                  )}
-                </Stack>
-              </Box>
-            );
-          })}
+        <Box sx={{ mb: 2.5 }}>
+          <SeasonPicker
+            seasons={seasons}
+            activeSeason={activeSeason}
+            onSelect={setActiveSeason}
+            groupedBySeasonEpisode={groupedBySeasonEpisode}
+          />
         </Box>
       )}
 
-      {/* ── Season header ── */}
       {activeSeason && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
           <LiveTv sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
@@ -710,27 +652,27 @@ const SeriesFiles = ({ files, record }) => {
             {seasonLabel(activeSeason)}
           </Typography>
           <Typography sx={{ fontSize: '0.78rem', color: theme.palette.text.secondary }}>
-            · {episodes.length} episode{episodes.length !== 1 ? 's' : ''} · {totalFiles} file{totalFiles !== 1 ? 's' : ''}
+            · {episodes.length} episode{episodes.length !== 1 ? 's' : ''}
+            {totalFiles !== episodes.length ? ` · ${totalFiles} files` : ''}
           </Typography>
         </Box>
       )}
 
-      {/* ── Episode cards ── */}
       <AnimatePresence mode="wait">
         <motion.div
           key={activeSeason}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.18 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.2 }}
         >
           {episodes.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 6, color: theme.palette.text.disabled }}>
+            <Box sx={{ textAlign: 'center', py: 8, color: theme.palette.text.disabled }}>
               <Typography>No files for this season</Typography>
             </Box>
           ) : (
             episodes.map(ep => (
-              <EpisodeCard
+              <EpisodeRow
                 key={ep}
                 episodeNum={ep}
                 files={episodeMap[ep]}
@@ -750,20 +692,102 @@ const SeriesFiles = ({ files, record }) => {
   );
 };
 
-// ─── Main MediaDownloadViewer ─────────────────────────────────────────────────
+// ─── Movie view (quality-filtered list) ──────────────────────────────────────
 
-const MediaDownloadViewer = (props) => {
+const MovieView = ({ files, record }) => {
+  const theme = useTheme();
+  const [activeQuality, setActiveQuality] = useState('All');
+
+  const grouped = useMemo(() => {
+    const map = {};
+    files.forEach(f => {
+      const q = getQuality(f.video, f.general?.fileName);
+      if (!map[q]) map[q] = [];
+      map[q].push(f);
+    });
+    return map;
+  }, [files]);
+
+  const qualities = useMemo(() =>
+    ['All', ...QUALITY_ORDER.filter(q => grouped[q]?.length > 0)],
+    [grouped]);
+
+  const displayed = useMemo(() =>
+    activeQuality === 'All'
+      ? QUALITY_ORDER.flatMap(q => grouped[q] ?? [])
+      : grouped[activeQuality] ?? [],
+    [activeQuality, grouped]);
+
+  return (
+    <Box>
+      {qualities.length > 2 && (
+        <Box sx={{
+          display: 'flex', gap: 0.8, overflowX: 'auto', pb: 1.5, mb: 2.5,
+          scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
+        }}>
+          {qualities.map(q => {
+            const meta = q === 'All' ? null : (QUALITY_META[q] || QUALITY_META['Unknown']);
+            const count = q === 'All' ? files.length : (grouped[q]?.length ?? 0);
+            const active = activeQuality === q;
+            return (
+              <Chip
+                key={q}
+                label={`${meta?.label ?? 'All'}  ${count}`}
+                size="small"
+                onClick={() => setActiveQuality(q)}
+                sx={{
+                  flexShrink: 0, fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer',
+                  bgcolor: active
+                    ? (meta ? meta.color : theme.palette.primary.main)
+                    : alpha(theme.palette.divider, 0.35),
+                  color: active ? '#fff' : theme.palette.text.secondary,
+                  border: 'none',
+                  '&:hover': { bgcolor: active ? undefined : alpha(theme.palette.divider, 0.55) },
+                }}
+              />
+            );
+          })}
+        </Box>
+      )}
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+        {displayed.map((f, i) => (
+          <MovieFileCard key={f.id ?? f.mediaFileId ?? i} file={f} allFiles={files} record={record} />
+        ))}
+      </Box>
+    </Box>
+  );
+};
+
+// ─── Loading state ────────────────────────────────────────────────────────────
+
+const LoadingState = () => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 14, gap: 2 }}>
+    <CircularProgress size={36} />
+    <Typography variant="body2" sx={{ color: 'text.secondary' }}>Loading files…</Typography>
+  </Box>
+);
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+const EmptyState = () => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 14, gap: 2, color: 'text.disabled' }}>
+    <VideoSettings sx={{ fontSize: 52, opacity: 0.25 }} />
+    <Typography variant="body1" sx={{ fontWeight: 600, opacity: 0.5 }}>No media files available</Typography>
+    <Typography variant="body2" sx={{ opacity: 0.4 }}>Files will appear here once media is added to the server</Typography>
+  </Box>
+);
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
+const MediaFilesPage = (props) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { recordId: urlRecordId } = useParams();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const record = props.record || location.state?.record;
   const resolvedRecordId = urlRecordId ?? record?.id ?? record?.recordId;
-  const showBack       = props.showBack ?? true;
-  const showHeroSection = props.showHeroSection ?? !!props.record;
-  const onBack         = props.onBack;
 
   const [mediaFileList, setMediaFileList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -781,97 +805,45 @@ const MediaDownloadViewer = (props) => {
       .finally(() => setLoading(false));
   }, [resolvedRecordId, navigate]);
 
-  // Backend returns 'TV_SERIES' for series and 'MOVIE' for movies
   const recType = record?.type?.toUpperCase() ?? '';
   const isSeries = recType === 'TV_SERIES' || recType === 'SERIES' || recType === 'TV';
-  const posterPath = record?.tmdb?.posterPath || record?.tmdb?.poster_path || record?.tmdb?.backdropPath || record?.tmdb?.backdrop_path;
-  const title      = record?.tmdb?.title || record?.tmdb?.name || record?.title || '';
-  const overview   = record?.tmdb?.overview || '';
-  const releaseYear = record?.tmdb?.releaseDate || record?.tmdb?.release_date;
 
   return (
-    <Box sx={{ bgcolor: theme.palette.background.default, minHeight: '100vh', color: theme.palette.text.primary }}>
-
-      {showBack && (
-        <Button startIcon={<ArrowBack />} onClick={() => onBack ? onBack() : navigate(-1)}
-          size="small" variant="outlined"
-          sx={{ my: 3, mx: 2, textTransform: 'none',
-            borderColor: alpha(theme.palette.divider, 0.5),
-            color: theme.palette.text.secondary,
-            '&:hover': { borderColor: theme.palette.primary.main, color: theme.palette.primary.main } }}>
-          Back
-        </Button>
-      )}
-
-      {/* ── Hero ── */}
-      {showHeroSection && (
-        <Box sx={{ position: 'relative', overflow: 'hidden',
-          background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)} 0%, ${theme.palette.background.default} 100%)` }}>
-          {posterPath && (
-            <Box sx={{ position: 'absolute', inset: 0, zIndex: 0,
-              backgroundImage: `url(https://image.tmdb.org/t/p/w780${posterPath})`,
-              backgroundSize: 'cover', backgroundPosition: 'center top',
-              filter: 'blur(28px) brightness(0.18)', transform: 'scale(1.1)' }} />
-          )}
-          <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, pt: { xs: 2, sm: 3 }, pb: 4 }}>
-            <Box sx={{ display: 'flex', gap: { xs: 2, sm: 3, md: 4 }, alignItems: 'flex-end' }}>
-              {posterPath && (
-                <Box component="img" src={`https://image.tmdb.org/t/p/w300${posterPath}`} alt={title}
-                  sx={{ width: { xs: 70, sm: 110, md: 150 }, flexShrink: 0, borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', aspectRatio: '2/3', objectFit: 'cover' }} />
-              )}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                  <Chip icon={isSeries ? <Tv sx={{ fontSize: 14 }} /> : <Movie sx={{ fontSize: 14 }} />}
-                    label={isSeries ? 'TV Series' : 'Movie'} size="small"
-                    sx={{ bgcolor: alpha(theme.palette.primary.main, 0.2), color: theme.palette.primary.main, fontWeight: 700, fontSize: '0.7rem' }} />
-                  {releaseYear && (
-                    <Typography sx={{ fontSize: '0.8rem', color: alpha(theme.palette.text.primary, 0.5) }}>
-                      {String(releaseYear).slice(0, 4)}
-                    </Typography>
-                  )}
-                </Box>
-                <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ fontWeight: 800, lineHeight: 1.15, mb: 1 }}>
-                  {title}
-                </Typography>
-                {overview && !isMobile && (
-                  <Typography sx={{ fontSize: '0.85rem', color: alpha(theme.palette.text.primary, 0.6), lineHeight: 1.6,
-                    display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: 600 }}>
-                    {overview}
-                  </Typography>
-                )}
-              </Box>
-            </Box>
-          </Container>
-        </Box>
-      )}
-
-      {/* ── Files ── */}
-      <Container maxWidth="xl" sx={{ pb: { xs: 10, sm: 6 }, mt: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-          <VideoSettings color="primary" />
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>Available Files</Typography>
-          {!loading && (
-            <Chip label={`${mediaFileList.length} total`} size="small" color="primary" variant="outlined" />
-          )}
-        </Box>
-
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
-            <CircularProgress />
-          </Box>
-        ) : mediaFileList.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 12, color: theme.palette.text.disabled }}>
-            <VideoSettings sx={{ fontSize: 56, mb: 2, opacity: 0.3 }} />
-            <Typography>No media files available</Typography>
-          </Box>
-        ) : isSeries ? (
-          <SeriesFiles files={mediaFileList} record={record} />
-        ) : (
-          <MovieFiles files={mediaFileList} record={record} />
+    <Box sx={{ color: theme.palette.text.primary }}>
+      {/* Section header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+        {isSeries
+          ? <LiveTv sx={{ color: theme.palette.primary.main, fontSize: 22 }} />
+          : <Movie sx={{ color: theme.palette.primary.main, fontSize: 22 }} />
+        }
+        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.01em' }}>
+          Available Files
+        </Typography>
+        {!loading && mediaFileList.length > 0 && (
+          <Chip
+            label={mediaFileList.length}
+            size="small"
+            sx={{
+              fontWeight: 700, fontSize: '0.72rem',
+              bgcolor: alpha(theme.palette.primary.main, 0.12),
+              color: theme.palette.primary.main,
+              height: 22,
+            }}
+          />
         )}
-      </Container>
+      </Box>
+
+      {loading ? (
+        <LoadingState />
+      ) : mediaFileList.length === 0 ? (
+        <EmptyState />
+      ) : isSeries ? (
+        <SeriesView files={mediaFileList} record={record} />
+      ) : (
+        <MovieView files={mediaFileList} record={record} />
+      )}
     </Box>
   );
 };
 
-export default MediaDownloadViewer;
+export default MediaFilesPage;
