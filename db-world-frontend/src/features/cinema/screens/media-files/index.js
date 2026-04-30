@@ -20,6 +20,7 @@ import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { QUALITY_ORDER, QUALITY_META } from '../../media/constants';
+import { tmdbImg } from '../../api/cinemaApi';
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 
@@ -81,9 +82,14 @@ function useFileActions(file, allFiles, record) {
           url: cdnUrl,
           fileName: file.general?.fileName || 'download',
           title: file.general?.fileName || record?.tmdb?.title || 'Download',
+          thumbnailUrl: tmdbImg(record?.tmdb?.posterPath, 'w185') || '',
         });
         console.log('[Download] startDownload result:', JSON.stringify(dlResult));
-        enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
+        if (dlResult?.alreadyDownloaded) {
+          enqueueSnackbar(`Already downloaded: ${file.general?.fileName || 'file'}`, { variant: 'info' });
+        } else {
+          enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
+        }
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: file.general?.fileName, openInNewTab: true });
       }

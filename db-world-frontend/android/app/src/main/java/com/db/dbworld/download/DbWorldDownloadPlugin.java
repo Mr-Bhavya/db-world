@@ -104,6 +104,7 @@ public class DbWorldDownloadPlugin extends Plugin {
         String  url;
         String  fileName;
         String  title;
+        String  thumbnailUrl = "";
         volatile long    bytesDownloaded  = 0;
         volatile long    bytesTotal       = -1;
         volatile String  status           = "pending";
@@ -166,9 +167,10 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void startDownload(PluginCall call) {
-        String url      = call.getString("url");
-        String fileName = call.getString("fileName", "download");
-        String title    = call.getString("title", fileName);
+        String url          = call.getString("url");
+        String fileName     = call.getString("fileName", "download");
+        String title        = call.getString("title", fileName);
+        String thumbnailUrl = call.getString("thumbnailUrl", "");
 
         if (url == null || url.isEmpty()) { call.reject("URL is required"); return; }
         if (fileName == null || fileName.isEmpty()) fileName = "download";
@@ -176,9 +178,52 @@ public class DbWorldDownloadPlugin extends Plugin {
         android.util.Log.d("DbWorldDownload",
                 "startDownload fileName=" + fileName + " url=" + url.substring(0, Math.min(80, url.length())));
 
+        // ── Duplicate detection ───────────────────────────────────────────────
+        // 1. Same file already actively downloading?
+        for (DownloadTask t : activeTasks.values()) {
+            if (fileName.equals(t.fileName)) {
+                JSObject result = new JSObject();
+                result.put("downloadId", t.downloadId);
+                result.put("queued", false);
+                result.put("alreadyActive", true);
+                call.resolve(result);
+                return;
+            }
+        }
+        // 2. Same file already in the pending queue?
+        for (JSObject item : pendingQueue) {
+            if (fileName.equals(item.optString("fileName", ""))) {
+                JSObject result = new JSObject();
+                result.put("downloadId", "queued_pending");
+                result.put("queued", true);
+                result.put("alreadyActive", true);
+                call.resolve(result);
+                return;
+            }
+        }
+        // 3. File already exists on disk?
+        File existingFile = getOutputFile(fileName);
+        if (existingFile.exists()) {
+            android.util.Log.d("DbWorldDownload", "file already on disk, skipping: " + fileName);
+            String existingId = findFinishedId(fileName);
+            if (existingId == null) {
+                // Disk file not yet tracked — register it as a completed item
+                existingId = String.valueOf(System.currentTimeMillis());
+                JSObject fi = buildFinishedJSObject(existingId, title, fileName, thumbnailUrl, existingFile);
+                synchronized (finishedItems) { finishedItems.add(0, fi); }
+            }
+            JSObject result = new JSObject();
+            result.put("downloadId", existingId);
+            result.put("queued", false);
+            result.put("alreadyDownloaded", true);
+            call.resolve(result);
+            return;
+        }
+
         if (isDownloading.get()) {
             JSObject item = new JSObject();
             item.put("url", url); item.put("fileName", fileName); item.put("title", title);
+            item.put("thumbnailUrl", thumbnailUrl != null ? thumbnailUrl : "");
             pendingQueue.add(item);
 
             JSObject result = new JSObject();
@@ -188,7 +233,7 @@ public class DbWorldDownloadPlugin extends Plugin {
             return;
         }
 
-        DownloadTask task = buildTask(url, fileName, title);
+        DownloadTask task = buildTask(url, fileName, title, thumbnailUrl);
         activeTasks.put(task.downloadId, task);
         isDownloading.set(true);
         executor.execute(() -> performDownload(task));
@@ -298,9 +343,16 @@ public class DbWorldDownloadPlugin extends Plugin {
             list.put(obj);
         }
 
-        // Finished downloads (this session)
+        // Finished downloads (this session) — skip files deleted from disk
         synchronized (finishedItems) {
-            for (JSObject fi : finishedItems) list.put(fi);
+            for (JSObject fi : finishedItems) {
+                String localUri = fi.optString("localUri", "");
+                if (!localUri.isEmpty()) {
+                    File f = new File(localUri.replace("file://", ""));
+                    if (!f.exists()) continue;
+                }
+                list.put(fi);
+            }
         }
 
         JSObject result = new JSObject();
@@ -514,13 +566,14 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     // ─── Internal helpers ─────────────────────────────────────────────────────
 
-    private DownloadTask buildTask(String url, String fileName, String title) {
+    private DownloadTask buildTask(String url, String fileName, String title, String thumbnailUrl) {
         DownloadTask t = new DownloadTask();
-        t.downloadId = String.valueOf(System.currentTimeMillis());
-        t.url        = url;
-        t.fileName   = fileName;
-        t.title      = title;
-        t.notifId    = nextNotifId++;
+        t.downloadId    = String.valueOf(System.currentTimeMillis());
+        t.url           = url;
+        t.fileName      = fileName;
+        t.title         = title;
+        t.thumbnailUrl  = thumbnailUrl != null ? thumbnailUrl : "";
+        t.notifId       = nextNotifId++;
         return t;
     }
 
@@ -553,7 +606,8 @@ public class DbWorldDownloadPlugin extends Plugin {
         DownloadTask task = buildTask(
                 next.optString("url", ""),
                 next.optString("fileName", "download"),
-                next.optString("title", "Download"));
+                next.optString("title", "Download"),
+                next.optString("thumbnailUrl", ""));
         if (!task.url.isEmpty()) {
             activeTasks.put(task.downloadId, task);
             isDownloading.set(true);
@@ -580,7 +634,45 @@ public class DbWorldDownloadPlugin extends Plugin {
         obj.put("localUri",         task.localUri);
         obj.put("playableUri",      task.localUri);
         obj.put("canPlay",          task.canPlay);
+        obj.put("thumbnailUrl",     task.thumbnailUrl);
         return obj;
+    }
+
+    private File getOutputFile(String fileName) {
+        File dir = new File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "DB-World");
+        return new File(dir, fileName);
+    }
+
+    private String findFinishedId(String fileName) {
+        synchronized (finishedItems) {
+            for (JSObject fi : finishedItems) {
+                if (fileName.equals(fi.optString("fileName", ""))) {
+                    return fi.optString("downloadId", null);
+                }
+            }
+        }
+        return null;
+    }
+
+    private JSObject buildFinishedJSObject(String id, String title, String fileName,
+                                           String thumbnailUrl, File file) {
+        JSObject fi = new JSObject();
+        fi.put("downloadId",      id);
+        fi.put("title",           title);
+        fi.put("fileName",        fileName);
+        fi.put("status",          "success");
+        fi.put("progress",        100);
+        fi.put("bytesDownloaded", file.length());
+        fi.put("bytesTotal",      file.length());
+        fi.put("localUri",        "file://" + file.getAbsolutePath());
+        fi.put("playableUri",     "file://" + file.getAbsolutePath());
+        fi.put("canPlay",         true);
+        fi.put("thumbnailUrl",    thumbnailUrl != null ? thumbnailUrl : "");
+        fi.put("speedBytesPerSec", 0);
+        fi.put("etaSeconds",      -1);
+        return fi;
     }
 
     private static String formatBytes(long bytes) {

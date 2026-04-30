@@ -48,9 +48,23 @@ export function fmtEta(secs) {
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
 }
 
-function Avatar({ title }) {
+function Avatar({ title, thumbnailUrl }) {
+  const [imgError, setImgError] = React.useState(false);
   const ch  = (title || '?').charAt(0).toUpperCase();
   const hue = (ch.charCodeAt(0) * 47) % 360;
+
+  if (thumbnailUrl && !imgError) {
+    return (
+      <Box sx={{ width: 44, height: 44, flexShrink: 0, borderRadius: 1.5, overflow: 'hidden', mr: 1.5 }}>
+        <img
+          src={thumbnailUrl}
+          alt=""
+          onError={() => setImgError(true)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      </Box>
+    );
+  }
   return (
     <Box sx={{
       width: 44, height: 44, flexShrink: 0,
@@ -89,7 +103,7 @@ export default function DownloadItem({ item, onPlay, onSelect, selected, actions
         '&:hover': onSelect ? { bgcolor: `${color}12`, borderColor: `${color}66` } : {},
       }}
     >
-      <Avatar title={item.title} />
+      <Avatar title={item.title} thumbnailUrl={item.thumbnailUrl} />
 
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="body2" sx={{

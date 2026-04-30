@@ -4,6 +4,7 @@ import { useSnackbar } from 'notistack';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import CommonServices from '@shared/services/CommonServices';
+import { tmdbImg } from '../api/cinemaApi';
 import { resolveMediaUrl } from '@shared/services/ApiServices';
 
 /**
@@ -67,12 +68,17 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
       if (!cdnUrl) throw new Error('No CDN URL');
       if (Capacitor.getPlatform() === 'android') {
         await DbWorldDownload.ensurePermissions();
-        await DbWorldDownload.startDownload({
+        const dlResult = await DbWorldDownload.startDownload({
           url: cdnUrl,
           fileName: mediaInfo.general?.fileName || 'download',
           title: record?.tmdb?.title || record?.title || mediaInfo.general?.fileName || 'Download',
+          thumbnailUrl: tmdbImg(record?.tmdb?.posterPath, 'w185') || '',
         });
-        enqueueSnackbar(`Added to downloads: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+        if (dlResult?.alreadyDownloaded) {
+          enqueueSnackbar(`Already downloaded: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'info', autoHideDuration: 3000 });
+        } else {
+          enqueueSnackbar(`Added to downloads: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+        }
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: mediaInfo.general?.fileName, openInNewTab: true });
       }
