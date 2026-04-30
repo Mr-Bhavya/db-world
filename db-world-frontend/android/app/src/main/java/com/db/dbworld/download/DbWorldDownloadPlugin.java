@@ -82,10 +82,20 @@ public class DbWorldDownloadPlugin extends Plugin {
                 }
             }
         };
-        getContext().registerReceiver(
-                completionReceiver,
-                new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        );
+        // Android 14+ (API 34) requires an explicit exported flag for dynamic receivers.
+        // DownloadManager sends a system broadcast, so the receiver must be EXPORTED.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            getContext().registerReceiver(
+                    completionReceiver,
+                    new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                    Context.RECEIVER_EXPORTED
+            );
+        } else {
+            getContext().registerReceiver(
+                    completionReceiver,
+                    new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+            );
+        }
     }
 
     @Override
