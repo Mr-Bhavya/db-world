@@ -19,8 +19,8 @@ import {
 import {
   PlayArrow, Pause, VolumeUp, VolumeOff, VolumeDown,
   Fullscreen, FullscreenExit, PictureInPicture, Close,
-  SkipNext, Replay10, Forward10, Settings, Subtitles,
-  Audiotrack, Hd, FourK, Warning, CheckCircle, OpenInNew,
+  Replay10, Forward10, Subtitles,
+  Audiotrack, Warning, CheckCircle, OpenInNew,
   ArrowBack, QueuePlayNext, ViewList,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -352,7 +352,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
   // Track menus
   const [audioAnchor,   setAudioAnchor]   = useState(null);
   const [subAnchor,     setSubAnchor]     = useState(null);
-  const [qualAnchor,    setQualAnchor]    = useState(null);
   const [activeAudio,   setActiveAudio]   = useState(0);
   const [activeSub,     setActiveSub]     = useState(-1); // -1 = off
 
@@ -384,20 +383,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
     });
     return list;
   }, [currentFile]);
-
-  const qualityFiles = useMemo(() =>
-    (allFiles.length > 1 ? allFiles : []).map(f => {
-      const q = getQualityLabel(f);
-      const codec = (f.video?.format ?? '').toUpperCase().includes('HEVC') ? 'H.265' : 'H.264';
-      return { label: q, secondary: codec, file: f };
-    }),
-    [allFiles]
-  );
-
-  const activeQualIndex = useMemo(() =>
-    qualityFiles.findIndex(q => q.file?.streamUrl === currentFile?.streamUrl),
-    [qualityFiles, currentFile]
-  );
 
   const episodeMap = useMemo(() => buildEpisodeMap(allFiles), [allFiles]);
   const currentEp  = useMemo(() => parseEpisode(currentFile?.general?.fileName), [currentFile]);
@@ -432,8 +417,11 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
     const savedTime = v.currentTime;
     v.src = currentFile.streamUrl;
     v.load();
-    // Restore position when switching quality
-    const onLoaded = () => { if (savedTime > 1) v.currentTime = savedTime; };
+    // Restore position (quality switch) and autoplay on load
+    const onLoaded = () => {
+      if (savedTime > 1) v.currentTime = savedTime;
+      v.play().catch(() => {});
+    };
     v.addEventListener('loadedmetadata', onLoaded, { once: true });
     return () => v.removeEventListener('loadedmetadata', onLoaded);
   }, [open, currentFile?.streamUrl]);
@@ -519,7 +507,7 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
       if (!v) return;
       switch (e.key) {
         case ' ':
-        case 'k': e.preventDefault(); v.paused ? v.play() : v.pause(); break;
+        case 'k': e.preventDefault(); if (v.paused) v.play().catch(() => {}); else v.pause(); break;
         case 'ArrowLeft':  e.preventDefault(); v.currentTime = Math.max(0, v.currentTime - 10); break;
         case 'ArrowRight': e.preventDefault(); v.currentTime = Math.min(v.duration, v.currentTime + 10); break;
         case 'ArrowUp':    e.preventDefault(); v.volume = Math.min(1, v.volume + 0.1); setVolume(v.volume); break;
@@ -540,7 +528,8 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    v.paused ? v.play() : v.pause();
+    if (v.paused) v.play().catch(() => {});
+    else v.pause();
     showControls();
   };
 
@@ -588,21 +577,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
     const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const v = videoRef.current;
     if (v) { v.currentTime = pct * duration; showControls(); }
-  };
-
-  const handleQualitySwitch = (i) => {
-    const target = qualityFiles[i]?.file;
-    if (!target) return;
-    const savedTime = videoRef.current?.currentTime ?? 0;
-    setCurrentFile(target);
-    setWarnings(checkCodecSupport(target));
-    // Resume at same position — handled by loadedmetadata hook above
-    requestAnimationFrame(() => {
-      if (videoRef.current) {
-        videoRef.current.currentTime = savedTime;
-        videoRef.current.play();
-      }
-    });
   };
 
   const playEpisode = useCallback((ep) => {
@@ -671,7 +645,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
 
   // ── Render ───────────────────────────────────────────────────────────────────
   const title = record?.tmdb?.title || record?.tmdb?.name || record?.name || currentFile?.general?.fileName || 'Now Playing';
-  const qualLabel = getQualityLabel(currentFile);
   const VolumeIcon = muted || volume === 0 ? VolumeOff : volume < 0.5 ? VolumeDown : VolumeUp;
 
   return (
@@ -702,8 +675,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
           component="video"
           ref={videoRef}
           sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
-          onClick={!isMobile ? togglePlay : undefined}
-          onTouchEnd={isMobile ? handleTouchTap : undefined}
           playsInline
           preload="auto"
         />
@@ -844,7 +815,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
                       </Typography>
                     )}
                   </Box>
-                  <Chip label={qualLabel} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.68rem', fontWeight: 700, height: 22 }} />
                   {isSeries && (
                     <Tooltip title="Episodes  (E)">
                       <IconButton size="small" onClick={() => setEpPanelOpen(true)} sx={{ color: 'rgba(255,255,255,0.7)', '&:hover': { color: '#fff' } }}>
@@ -862,25 +832,12 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
                 </Box>
               </Box>
 
-              {/* ── Center play/pause (large, desktop) ── */}
-              {!isMobile && (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}>
-                  <IconButton
-                    onClick={togglePlay}
-                    sx={{
-                      color: '#fff',
-                      bgcolor: 'rgba(0,0,0,0.4)',
-                      '&:hover': { bgcolor: 'rgba(0,0,0,0.6)', transform: 'scale(1.1)' },
-                      transition: 'all 0.15s',
-                      p: 2,
-                    }}
-                  >
-                    {playing
-                      ? <Pause sx={{ fontSize: 48 }} />
-                      : <PlayArrow sx={{ fontSize: 48 }} />}
-                  </IconButton>
-                </Box>
-              )}
+              {/* ── Center: transparent click area for play/pause ── */}
+              <Box
+                sx={{ flex: 1, cursor: 'pointer', pointerEvents: 'auto' }}
+                onClick={!isMobile ? togglePlay : undefined}
+                onTouchEnd={isMobile ? handleTouchTap : undefined}
+              />
 
               {/* ── Bottom controls ── */}
               <Box sx={{
@@ -1011,19 +968,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
                     </IconButton>
                   </Tooltip>
 
-                  {/* Quality */}
-                  {qualityFiles.length > 1 && (
-                    <Tooltip title="Quality">
-                      <IconButton
-                        size="small"
-                        onClick={(e) => setQualAnchor(e.currentTarget)}
-                        sx={{ color: 'rgba(255,255,255,0.7)', '&:hover': { color: '#fff' } }}
-                      >
-                        <Hd sx={{ fontSize: { xs: 18, sm: 20 } }} />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-
                   {/* PiP */}
                   {!isMobile && document.pictureInPictureEnabled && (
                     <Tooltip title="Picture in Picture">
@@ -1087,16 +1031,6 @@ const CinemaPlayer = ({ open, onClose, mediaInfo: initialMediaInfo, allFiles = [
         activeIndex={activeSub + 1}
         onSelect={(i) => setActiveSub(i - 1)}
         noTracksLabel="No subtitles"
-      />
-      <TrackMenu
-        anchorEl={qualAnchor}
-        open={Boolean(qualAnchor)}
-        onClose={() => setQualAnchor(null)}
-        title="Quality"
-        tracks={qualityFiles}
-        activeIndex={activeQualIndex}
-        onSelect={handleQualitySwitch}
-        noTracksLabel="No quality options"
       />
     </Dialog>
   );
