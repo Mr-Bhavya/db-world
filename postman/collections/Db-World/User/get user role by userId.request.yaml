@@ -1,0 +1,8 @@
+$kind: http-request
+url: http://localhost:9090/api/user/656d5aa1a7459d4d4d0bbb4f/role
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 7000

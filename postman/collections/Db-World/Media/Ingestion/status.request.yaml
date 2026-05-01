@@ -1,0 +1,5 @@
+$kind: http-request
+name: status
+url: "{{baseUrl}}/api/ingestion/status"
+method: GET
+order: 4502980990781361

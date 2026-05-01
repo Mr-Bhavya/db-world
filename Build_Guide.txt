@@ -1,0 +1,17 @@
+# Default: Build with npm (npm-build profile activates automatically)
+mvn clean install
+
+# Explicit npm build
+mvn clean install -Dbuild.source=npm
+
+# Use existing build files (place files in db-world-frontend/existing-build/)
+
+
+# Use custom existing build directory
+mvn clean install -Dbuild.source=existing -Dexisting.build.dir=/path/to/build
+
+# Build specific module with npm
+mvn clean install -pl db-world-frontend -Dbuild.source=npm
+
+# Build specific module with existing files
+mvn clean install -pl db-world-frontend -Dbuild.source=existing

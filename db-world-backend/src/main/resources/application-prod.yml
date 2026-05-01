@@ -1,89 +1,53 @@
-# Server Config
-Server:
-  port: 9090
-  jetty:
-    idle-timeout: 60000 # 60 seconds
-  compression:  # Enable Gzip compression
-    enabled: true
-    min-response-size: 1024
-    mime-types: application/octet-stream,text/plain,text/html,text/css,application/json,application/xml
-
-#MySQL Database
 spring:
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    username: dbworld_admin
-    password: BD@pi#2024
-    url: jdbc:mysql://localhost:3306/db_world?createDatabaseIfNotExist=true&jdbcCompliantTruncation=false
-  jpa:
-    show-sql: false
-    generate-ddl: true
-    hibernate:
-      dialect: org.hibernate.dialect.MySQLDialect
-      enable_lazy_load_no_trans: true
-      event:
-        merge:
-          entity_copy_observer: allow
-      ddl-auto: update
-      naming:
-        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-  devtools:
-    livereload:
-      enable: false
-  mvc:
-    converters:
-      preferred-json-mapper: gson
-  gson:
-    enable-complex-map-key-serialization: true
-  servlet:
-    multipart:
-      enabled: true
-  data:
-    redis:
-      host: localhost
-      port: 6379
-  task:  # Enable async processing
-    execution:
-      pool:
-        core-size: 10
-        max-size: 20
-        queue-capacity: 50
+  config:
+    activate:
+      on-profile: prod
 
-#Security
-jwt:
-  token:
-    validity: 36000000  # validity in millisecond 10*60*60*1000 ~ 10hour
-    secret: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
+# ===========================
+# Common Application Properties
+# ===========================
+app:
+  name: db-world
+  version: 3.0.0
+  base-path: /app/db_world
+  data-path: /ext_hdisk/dbworld
+  stream-path: /ext_hdisk/videos
+  symlink-path: /ext_hdisk/video_symlink
 
-# Jasypt Configuration
-jasypt:
-  encryptor:
-    bean: jasyptStringEncryptor
-    algorithm: PBEWithMD5AndDES
-    password: 351cef9ce60e980850221454b1319d79461c0ad358532e210842d8c2698fb5ed3844579aa7325c1d22c6efb6915836078ef19ca41dc56b244f1175777bcccc45
 
-#Swagger
-springdoc:
-  api-docs:
-    path: /api/dbworld-api-doc
-  swagger-ui:
-    path: /dbworld-api-doc.html
-
-dbworld:
   paths:
-    tempDownloadPath: /ext_hdisk/dbworld/download/
-    logFilePath: /app/db_world/logs/dbworld.log
-    log4j2LogPath: /app/db_world/logs
-    integrationFolderPath: /ext_hdisk/dbworld/integration/
-    streamHomePath: /ext_hdisk/videos
-    externalStreamHomePath: /home/dbworld_admin/ext_hdisk_1/videos
-    torrentDownloadPath: /ext_hdisk/videos/Torrent Download
+    logs: ${app.base-path}/logs
+    main-log: ${app.paths.logs}/${app.name}-info.json
+    download-log: ${app.paths.logs}/nginx/download_tracker.log
+    config: ${app.base-path}/config
+    temp: ${app.data-path}/temp
+    downloads: ${app.data-path}/downloads
+    integration: ${app.data-path}/integration
+    torrents: ${app.videos-path}/Torrent Download
+    archived-logs: ${app.paths.logs}/archived
+    external-videos: /home/dbworld_admin/ext_hdisk_1/videos
+
+  cdn:
+    base-url: https://cdn.db-world.in
+
+  tools:
     yt-dlp: yt-dlp
+    ffmpeg: ffmpeg
+    seven-zip: 7z
     mediainfo: mediainfo
-    hsCookiesPath: /home/dbworld_admin/ext_hdisk/dbworld/HS_COOKIES.txt
-    extHDiskPath: /ext_hdisk
-  api_keys:
-    tmdb: 30061af77dba3722bbe14a2691055544
+    hs-cookies: ${app.paths.config}/HS_COOKIES.txt
+
+server:
+  port: ${SERVER_PORT:9090}
+
+cors:
+  allowed-origins: https://db-world.in
+
+springdoc:
+  swagger-ui:
+    enabled: false
 
 logging:
-  config: classpath:log4j2.xml
+  level:
+    root: INFO
+    com.db.dbworld: INFO

@@ -1,254 +1,264 @@
 {
-	"info": {
-		"_postman_id": "33c71d48-ed2c-43f6-b89a-b0ec355afe20",
-		"name": "db-world-java",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "27546179"
-	},
-	"item": [
-		{
-			"name": "User",
-			"item": [
-				{
-					"name": "get all users",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:9090/api/user/",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"user",
-								""
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "delete user by userId",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:9090/api/user/6513e993a30ebe2acfa12473",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"user",
-								"6513e993a30ebe2acfa12473"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "create user",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"firstName\": null,\r\n    \"lastName\": \"Data\",\r\n    \"dob\":\"1999-06-03\",\r\n    \"gender\":\"male\",\r\n    \"mobileNo\":null,\r\n    \"email\": null,\r\n    \"password\": \"1234\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:9090/api/user/",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"user",
-								""
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "update user by id",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"firstName\": \"Sample\",\r\n    \"lastName\": \"By Update 1\",\r\n    \"age\": null,\r\n    \"dob\": \"1999-06-03\",\r\n    \"gender\": \"male\",\r\n    \"mobileNo\": 8980184608,\r\n    \"email\": \"sampledata@gmail.com\",\r\n    \"password\": \"1234\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:9090/api/user/6513e9435290331b5f05940a",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"user",
-								"6513e9435290331b5f05940a"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "get user by Id",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "GET",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"firstName\": \"Sample\",\r\n    \"lastName\": \"By Update 1\",\r\n    \"age\": null,\r\n    \"dob\": \"1999-06-03\",\r\n    \"gender\": \"male\",\r\n    \"mobileNo\": 8980184608,\r\n    \"email\": \"sampledata@gmail.com\",\r\n    \"password\": \"1234\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:9090/api/user/6513e9435290331b5f05940a",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"user",
-								"6513e9435290331b5f05940a"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "get user by email",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "GET",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"email\": \"sampledata@gmail.com\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:9090/api/user/userbyemail?email=dbmovies0@gmail.com",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"user",
-								"userbyemail"
-							],
-							"query": [
-								{
-									"key": "email",
-									"value": "dbmovies0@gmail.com"
-								}
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "auth",
-			"item": [
-				{
-					"name": "login",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"email\":\"\",\r\n    \"password\":\"1234\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:9090/api/auth/login",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "login Copy",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"email\":\"\",\r\n    \"password\":\"1234\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:9090/api/auth/login",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "9090",
-							"path": [
-								"api",
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		}
-	]
+  "info": {
+    "_postman_id": "33c71d48-ed2c-43f6-b89a-b0ec355afe20",
+    "name": "db-world-java",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "27546179"
+  },
+  "item": [
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "get all users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:9090/api/user/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "user",
+                ""
+              ]
+            }
+          },
+          "response": [],
+          "id": "0d9d958d-d0c2-4605-af46-842781dc6181"
+        },
+        {
+          "name": "delete user by userId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:9090/api/user/6513e993a30ebe2acfa12473",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "user",
+                "6513e993a30ebe2acfa12473"
+              ]
+            }
+          },
+          "response": [],
+          "id": "cca60082-4ce7-486f-aa28-3a694d18e2a2"
+        },
+        {
+          "name": "create user",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"firstName\": null,\r\n    \"lastName\": \"Data\",\r\n    \"dob\":\"1999-06-03\",\r\n    \"gender\":\"male\",\r\n    \"mobileNo\":null,\r\n    \"email\": null,\r\n    \"password\": \"1234\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:9090/api/user/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "user",
+                ""
+              ]
+            }
+          },
+          "response": [],
+          "id": "6b75d16f-3a01-43ea-91e5-a031b59a255a"
+        },
+        {
+          "name": "update user by id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"firstName\": \"Sample\",\r\n    \"lastName\": \"By Update 1\",\r\n    \"age\": null,\r\n    \"dob\": \"1999-06-03\",\r\n    \"gender\": \"male\",\r\n    \"mobileNo\": 8980184608,\r\n    \"email\": \"sampledata@gmail.com\",\r\n    \"password\": \"1234\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:9090/api/user/6513e9435290331b5f05940a",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "user",
+                "6513e9435290331b5f05940a"
+              ]
+            }
+          },
+          "response": [],
+          "id": "bb5b4732-9fdc-4ba4-98ac-3b3cc38e1e66"
+        },
+        {
+          "name": "get user by Id",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"firstName\": \"Sample\",\r\n    \"lastName\": \"By Update 1\",\r\n    \"age\": null,\r\n    \"dob\": \"1999-06-03\",\r\n    \"gender\": \"male\",\r\n    \"mobileNo\": 8980184608,\r\n    \"email\": \"sampledata@gmail.com\",\r\n    \"password\": \"1234\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:9090/api/user/6513e9435290331b5f05940a",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "user",
+                "6513e9435290331b5f05940a"
+              ]
+            }
+          },
+          "response": [],
+          "id": "afcff796-9e21-48e3-b130-e1029f20773f"
+        },
+        {
+          "name": "get user by email",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\": \"sampledata@gmail.com\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:9090/api/user/userbyemail?email=dbmovies0@gmail.com",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "user",
+                "userbyemail"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "dbmovies0@gmail.com"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "id": "5edf4c76-8fdf-4505-89cf-2f5b107b7377"
+        }
+      ],
+      "id": "c227408e-a75d-4110-b2e8-cfc9be34b6a0"
+    },
+    {
+      "name": "auth",
+      "item": [
+        {
+          "name": "login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\":\"\",\r\n    \"password\":\"1234\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:9090/api/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "id": "6601c8de-3405-4eca-bd5a-dc126e0ef7fe"
+        },
+        {
+          "name": "login Copy",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\":\"\",\r\n    \"password\":\"1234\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:9090/api/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "9090",
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "id": "6930ea1b-f488-45d3-83e9-2cfcef3053ad"
+        }
+      ],
+      "id": "0cd8425a-10b7-401a-a08f-62ccbe4682a7"
+    }
+  ]
 }

@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/spoken-language/"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 2000

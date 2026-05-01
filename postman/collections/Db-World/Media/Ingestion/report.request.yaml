@@ -1,0 +1,5 @@
+$kind: http-request
+name: report
+url: "{{baseUrl}}/api/ingestion/{{jobId}}/report"
+method: GET
+order: 4502987199473511

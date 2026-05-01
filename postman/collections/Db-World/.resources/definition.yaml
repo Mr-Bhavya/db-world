@@ -1,0 +1,223 @@
+$kind: collection
+name: Db-World
+variables:
+  LOCALHOST_BASE_URL: http://localhost:9000
+  DB_WORLD_TOKEN: ""
+scripts:
+  - type: http:beforeRequest
+    code: "const token = pm.environment.get(\"accessToken\");\r
+
+      const url = pm.request.url.toString();\r
+
+      \r
+
+      // 🚫 Skip auth endpoints\r
+
+      if (\r
+
+      \    url.includes(\"/auth/login\") ||\r
+
+      \    url.includes(\"/auth/register\") ||\r
+
+      \    url.includes(\"/auth/refresh-token\")\r
+
+      ) {\r
+
+      \    return;\r
+
+      }\r
+
+      \r
+
+      // ✅ If token exists → check expiry\r
+
+      if (token) {\r
+
+      \    try {\r
+
+      \        const payload = JSON.parse(atob(token.split('.')[1]));\r
+
+      \        const exp = payload.exp * 1000;\r
+
+      \        const now = Date.now();\r
+
+      \r
+
+      \        const isExpiringSoon = now > (exp - 10000); // 10 sec buffer\r
+
+      \r
+
+      \        if (isExpiringSoon && !pm.environment.get(\"isRefreshing\")) {\r
+
+      \            console.log(\"⚠️ Token expiring soon → refreshing BEFORE
+      request\");\r
+
+      \r
+
+      \            pm.environment.set(\"isRefreshing\", true);\r
+
+      \r
+
+      \            pm.sendRequest({\r
+
+      \                url: pm.environment.get(\"baseUrl\") +
+      \"/api/auth/refresh-token\",\r
+
+      \                method: \"POST\",\r
+
+      \                header: {\r
+
+      \                    // IMPORTANT: do NOT send old token\r
+
+      \                    \"Authorization\": \"\"\r
+
+      \                }\r
+
+      \            }, function (err, res) {\r
+
+      \                pm.environment.set(\"isRefreshing\", false);\r
+
+      \r
+
+      \                if (!err && res) {\r
+
+      \                    const data = res.json();\r
+
+      \r
+
+      \                    if (data?.data?.accessToken) {\r
+
+      \                        pm.environment.set(\"accessToken\",
+      data.data.accessToken);\r
+
+      \                        console.log(\"✅ Pre-refresh successful\");\r
+
+      \                    } else {\r
+
+      \                        console.log(\"❌ Pre-refresh failed\");\r
+
+      \                    }\r
+
+      \                }\r
+
+      \            });\r
+
+      \        }\r
+
+      \r
+
+      \    } catch (e) {\r
+
+      \        console.log(\"⚠️ Token decode failed\");\r
+
+      \    }\r
+
+      \r
+
+      \    // ✅ Attach token (latest)\r
+
+      \    pm.request.headers.upsert({\r
+
+      \        key: \"Authorization\",\r
+
+      \        value: `Bearer ${pm.environment.get(\"accessToken\")}`\r
+
+      \    });\r
+
+      }"
+  - type: http:afterResponse
+    code: "const res = pm.response;\r
+
+      \r
+
+      // 🛑 Safety\r
+
+      if (!res) return;\r
+
+      \r
+
+      let data = {};\r
+
+      try {\r
+
+      \    data = res.json();\r
+
+      } catch (e) {}\r
+
+      \r
+
+      // ✅ Save token (login or refresh)\r
+
+      if (data?.data?.accessToken) {\r
+
+      \    pm.environment.set(\"accessToken\", data.data.accessToken);\r
+
+      \    console.log(\"✅ Token saved/updated\");\r
+
+      }\r
+
+      \r
+
+      // 🔁 Fallback: handle 401\r
+
+      if (res.code === 401 && !pm.environment.get(\"isRefreshing\")) {\r
+
+      \    console.log(\"🔄 401 detected → refreshing token\");\r
+
+      \r
+
+      \    pm.environment.set(\"isRefreshing\", true);\r
+
+      \r
+
+      \    pm.sendRequest({\r
+
+      \        url: pm.environment.get(\"baseUrl\") +
+      \"/api/auth/refresh-token\",\r
+
+      \        method: \"POST\",\r
+
+      \        header: {\r
+
+      \            \"Authorization\": \"\"\r
+
+      \        }\r
+
+      \    }, function (err, refreshRes) {\r
+
+      \        pm.environment.set(\"isRefreshing\", false);\r
+
+      \r
+
+      \        if (!err && refreshRes) {\r
+
+      \            const refreshData = refreshRes.json();\r
+
+      \r
+
+      \            if (refreshData?.data?.accessToken) {\r
+
+      \                pm.environment.set(\"accessToken\",
+      refreshData.data.accessToken);\r
+
+      \r
+
+      \                console.log(\"✅ Token refreshed (fallback)\");\r
+
+      \r
+
+      \                // 🔁 Retry request\r
+
+      \                postman.setNextRequest(pm.info.requestName);\r
+
+      \            } else {\r
+
+      \                console.log(\"❌ Refresh failed\");\r
+
+      \            }\r
+
+      \        }\r
+
+      \    });\r
+
+      }"

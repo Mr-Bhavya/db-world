@@ -1,0 +1,5 @@
+$kind: http-request
+name: Stream/download file
+url: http://localhost:9090/api/stream/video/1234567
+method: GET
+order: 3000

@@ -1,0 +1,6 @@
+$kind: http-request
+url: http://localhost:9090/api/stream/search?q=mar
+method: GET
+queryParams:
+  q: mar
+order: 1000

@@ -1,7 +1,11 @@
 package com.db.dbworld.payloads;
 
+import com.db.dbworld.app.pm.dto.CustomFieldDto;
+import com.db.dbworld.config.AppConstants;
 import jakarta.validation.constraints.*;
 import lombok.*;
+
+import java.util.List;
 
 public class RequestPayloads {
 
@@ -29,6 +33,19 @@ public class RequestPayloads {
         private String password;
         private String pin;
         private String notes;
+        private List<CustomFieldDto> customFields;
+    }
+
+    @Data
+    public static class UpdateCredential {
+        @NotEmpty
+        private String id;
+        @NotEmpty
+        private String username;
+        private String password;
+        private String pin;
+        private String notes;
+        private List<CustomFieldDto> customFields;
     }
 
     @Data
@@ -39,25 +56,20 @@ public class RequestPayloads {
 
     @Data
     public static class Mirror{
-        @NotEmpty
-        private String folderName;
-        @NotEmpty
         private String url;
+        private List<String> urls;
+        private String folderName;
         private String username;
         private String password;
         private String fileName;
+        private Long fileSize;
         private boolean isUrlProtected;
         private boolean isRename;
         private boolean isExtract;
         private String extractPassword;
-    }
-
-    @Getter
-    @Setter
-    public static class YtDlp extends MirrorStatus.YtDlp {
-        public YtDlp(){
-            super();
-        }
+        private String videoITag;
+        private String audioITag;
+        private boolean onlyAudio;
     }
 
     @Data
@@ -93,5 +105,4 @@ public class RequestPayloads {
         private String file;
         private String value;
     }
-
 }

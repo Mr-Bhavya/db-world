@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/cinema/record/1902/watchlist?userId=1004"
+method: GET
+queryParams:
+  userId: "1004"
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 4000

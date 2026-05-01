@@ -1,0 +1,31 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/utils/mirror"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"url\":\"https://pixeldra.in/api/file/pETwrxay/info/zip/Panchayat.S03\
+    .1080p.AMZN.WEB-DL.DDP5.1.H.265-Telly/Panchayat.S03E06.Chingaari.1080p.AMZN\
+    .WEB-DL.DDP5.1.H.265-Telly.mkv\",\r
+
+    \    \"username\":\"\",\r
+
+    \    \"password\":\"\",\r
+
+    \    \"isRename\":true,\r
+
+    \    \"fileName\":\"temp.mkv\",\r
+
+    \    \"isExtract\": false,\r
+
+    \    \"isUrlProtected\":false,\r
+
+    \    \"extractPassword\": \"\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 1000

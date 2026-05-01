@@ -1,0 +1,5 @@
+$kind: http-request
+name: rerun
+url: "{{baseUrl}}/api/ingestion/{{jobId}}/rerun"
+method: POST
+order: 4492223874394561

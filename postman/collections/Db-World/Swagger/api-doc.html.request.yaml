@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:9090/dbworld-api-doc.html
+method: GET
+order: 2000

@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:9090/api/user/656d5aa1a7459d4d4d0bbb4f/userAppData/
+method: GET
+order: 2000

@@ -1,0 +1,17 @@
+$kind: http-request
+url: http://localhost:9090/api/user/userbyemail?email=dbmovies0@gmail.com
+method: GET
+queryParams:
+  email: dbmovies0@gmail.com
+body:
+  type: json
+  content: "{\r
+
+    \    \"email\": \"sampledata@gmail.com\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 6000

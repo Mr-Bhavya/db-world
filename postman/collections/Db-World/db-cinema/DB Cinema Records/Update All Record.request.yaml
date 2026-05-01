@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/admin/cinema/records"
+method: PUT
+body:
+  type: json
+  content: ""
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 15000

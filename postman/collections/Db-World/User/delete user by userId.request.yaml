@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:9090/api/user/6531522814ddd362db50a001
+method: DELETE
+order: 2000

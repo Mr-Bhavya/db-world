@@ -1,0 +1,10 @@
+$kind: http-request
+url: https://api.themoviedb.org/3/discover/movie?api_key=30061af77dba3722bbe14a2691055544&language=en-US&sort_by=popularity.desc&page=1&append_to_response=videos,images,credits
+method: GET
+queryParams:
+  api_key: 30061af77dba3722bbe14a2691055544
+  language: en-US
+  sort_by: popularity.desc
+  page: "1"
+  append_to_response: videos,images,credits
+order: 4000

@@ -1,0 +1,31 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/utils/yt/info?url=https://www.hotstar.com/in/m\
+  ovies/manjummel-boys/watch"
+method: GET
+queryParams:
+  url: https://www.hotstar.com/in/movies/manjummel-boys/watch
+body:
+  type: json
+  content: "{\r
+
+    \    \"url\":\"https://throbbing-wave-b47d.cibigiy702.workers.dev/1951b1542\
+    51875010d34566ec98e91d7/drivebot.cfd/Heart.of.the.Hunter.2024.1080p.NF.WEB-\
+    DL.DUAL.DDP5.1.Atmos.HDR-DV.H.265-Telly.mkv\",\r
+
+    \    \"username\":\"\",\r
+
+    \    \"password\":\"\",\r
+
+    \    \"rename\":true,\r
+
+    \    \"fileName\":\"Heart.of.the.Hunter.2024.1080p.NF.WEB-DL.DUAL.DDP5.1.At\
+    mos.HDR-DV.H.265-Telly.mkv\",\r
+
+    \    \"isProtected\":false\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 2000

@@ -1,0 +1,13 @@
+$kind: http-request
+url: http://localhost:9090/api/user/656d5aa1a7459d4d4d0bbb4f/role
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"id\": \"658d012dd69482433a9f4aea\",\r
+
+    \    \"name\": \"OWNER\"\r
+
+    }"
+order: 8000

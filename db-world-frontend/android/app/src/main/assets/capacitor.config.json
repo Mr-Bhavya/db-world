@@ -1,0 +1,21 @@
+{
+	"appId": "com.db.dbworld",
+	"appName": "DB World",
+	"webDir": "build",
+	"bundledWebRuntime": false,
+	"server": {
+		"url": "https://db-world.in",
+		"cleartext": false,
+		"allowNavigation": [
+			"db-world.in",
+			"*.db-world.in",
+			"cdn.db-world.in"
+		]
+	},
+	"appendUserAgent": "DBWorldApp/2.0 (Android)",
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	}
+}

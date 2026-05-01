@@ -1,52 +1,63 @@
-package com.db.dbworld.handler;
-
-import com.db.dbworld.payloads.ApiResponse;
-import com.google.gson.Gson;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.stereotype.Component;
-
-import java.io.IOException;
-
-@Component
-public class TokenAuthenticationHandler {
-
-    @Component
-    public static class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
-
-        @Override
-        public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
-            ApiResponse<String> apiResponse = new ApiResponse<>(HttpStatus.UNAUTHORIZED, false, authException.getMessage());
-            String message = "I can see that, you are sending some request like ('/pmd/index.php', '/.aws/credentials', '/www/.git/config', '/?<play>withme</>', '/boaform/admin/formLogin') on my server. " +
-                    "Are you a Hacker? Are you trying to access data by sending some query? " +
-                    "If yes then let me know you are able to access it or not. Also can you please provide some feedback and suggestion" +
-                    " So I can improve my code and security accordingly." +
-                    "Also you can contact me on Email: dbmovies0@gmail.com";
-//            ApiResponse apiResponse = new ApiResponse(HttpStatus.UNAUTHORIZED, false, message);
-            response.setStatus(apiResponse.getHttpStatusCode());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write(new Gson().toJson(apiResponse));
-        }
-    }
-
-    @Component
-    public static class JwtAccessDeniedHandler implements AccessDeniedHandler {
-
-        @Override
-        public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException, ServletException {
-            ApiResponse<String> apiResponse = new ApiResponse<>(HttpStatus.FORBIDDEN, false, accessDeniedException.getMessage());
-            response.setStatus(apiResponse.getHttpStatusCode());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write(new Gson().toJson(apiResponse));
-        }
-
-    }
-
-}
+//package com.db.dbworld.handler;
+//
+//import com.db.dbworld.payloads.ApiResponse;
+//import com.google.gson.Gson;
+//import jakarta.servlet.http.HttpServletRequest;
+//import jakarta.servlet.http.HttpServletResponse;
+//import org.springframework.http.MediaType;
+//import org.springframework.security.access.AccessDeniedException;
+//import org.springframework.security.core.AuthenticationException;
+//import org.springframework.security.web.AuthenticationEntryPoint;
+//import org.springframework.security.web.access.AccessDeniedHandler;
+//import org.springframework.stereotype.Component;
+//
+//import java.io.IOException;
+//
+///**
+// * @deprecated Migrated to {@link com.db.dbworld.core.security.handler.TokenAuthenticationHandler}.
+// * This class will be removed once all SecurityConfig references are updated.
+// */
+//@Deprecated(forRemoval = true)
+//@Component
+//public class TokenAuthenticationHandler {
+//
+//    private static final Gson GSON = new Gson();
+//
+//    private static void writeResponse(HttpServletResponse response, int status, String message) throws IOException {
+//        response.setStatus(status);
+//        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+//        response.getWriter().write(GSON.toJson(ApiResponse.error(status, message)));
+//    }
+//
+//    @Component
+//    public static class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
+//        @Override
+//        public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException ex) throws IOException {
+//            writeResponse(response, 401, ex.getMessage());
+//        }
+//    }
+//
+//    @Component
+//    public static class JwtAccessDeniedHandler implements AccessDeniedHandler {
+//        @Override
+//        public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException ex) throws IOException {
+//            writeResponse(response, 403, ex.getMessage());
+//        }
+//    }
+//
+//    @Component
+//    public static final class BearerTokenAccessDeniedHandler implements AccessDeniedHandler {
+//        @Override
+//        public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException ex) throws IOException {
+//            writeResponse(response, 403, ex.getMessage());
+//        }
+//    }
+//
+//    @Component
+//    public static final class BearerTokenAuthenticationEntryPoint implements AuthenticationEntryPoint {
+//        @Override
+//        public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException ex) throws IOException {
+//            writeResponse(response, 401, ex.getMessage());
+//        }
+//    }
+//}

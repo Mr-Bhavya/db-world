@@ -45,8 +45,40 @@ build/
 /db-world-frontend/node_modules/
 /db-world-frontend/build/
 /db-world-frontend/node/
+/db-world-frontend/delete/
 /download/
 /status/
 /db-world-backend/src/main/resources/public/
-/db-world.war
+/db-world_new.war
 /db-world-frontend/package-lock.json
+/TMDB_NEW/
+/temp/
+/runtime/backend.env
+/runtime/.env.local
+/runtime/.env.production
+/runtime/rsa-private.key
+/runtime/rsa-public.key
+/.postman/
+
+### Server config — kept in private repo (db-world-config) ###
+/server_config/
+
+### Build artefacts — never commit these ###
+*.war
+*.jar
+db-world-frontend/dist/
+db-world-frontend/android/app/build/
+db-world-frontend/android/.gradle/
+db-world-frontend/.angular/
+logs/
+!db-world-frontend/src/**/logs/
+*.log
+
+### Secrets - never commit real credentials ###
+**/application-prod*.yml
+**/application-local*.yml
+*.key
+*.pem
+*.env
+*.env.*
+!*.env.example

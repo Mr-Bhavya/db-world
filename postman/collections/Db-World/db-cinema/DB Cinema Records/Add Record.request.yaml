@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/admin/cinema/record"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"name\": \"lokah\",\r
+
+    \    \"type\": \"movie\",\r
+
+    \    \"tmdbId\": 1290190,\r
+
+    \    \"showOnTop\": false\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 11000

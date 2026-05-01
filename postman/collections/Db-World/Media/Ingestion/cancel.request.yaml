@@ -1,0 +1,5 @@
+$kind: http-request
+name: cancel
+url: "{{baseUrl}}/api/ingestion/{{jobId}}/cancel"
+method: PUT
+order: 1625112372114802

@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/cinema/record/type/movie?page=0&size=12"
+method: GET
+queryParams:
+  page: "0"
+  size: "12"
+auth:
+  type: bearer
+  credentials:
+    token: {{token}}
+order: 10000

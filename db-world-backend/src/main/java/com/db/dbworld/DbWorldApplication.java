@@ -16,7 +16,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableJpaAuditing
 @EnableJpaRepositories
 @SpringBootApplication
-@OpenAPIDefinition(info = @Info(title = "DB-WORLD APIS", version = "1.0", description = ""))
 public class DbWorldApplication {
 
     public static void main(String[] args) {

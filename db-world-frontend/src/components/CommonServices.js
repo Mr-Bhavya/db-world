@@ -238,6 +238,15 @@ const convertMediaInfoToCustomFormat = (data) => {
     })
 }
 
+export const decryptResponse = (encryptedResponse, secretKey) => {
+    const key = CryptoJS.enc.Utf8.parse(secretKey);
+    const decrypted = CryptoJS.AES.decrypt(encryptedResponse, key, {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+    return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+  };
+
 
 export default {
     getTimeDateFromTimeStamp,

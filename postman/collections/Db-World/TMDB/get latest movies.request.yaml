@@ -1,0 +1,7 @@
+$kind: http-request
+url: https://api.themoviedb.org/3/movie/latest?api_key=30061af77dba3722bbe14a2691055544&append_to_response=videos,images,credits
+method: GET
+queryParams:
+  api_key: 30061af77dba3722bbe14a2691055544
+  append_to_response: videos,images,credits
+order: 3000

@@ -1,0 +1,23 @@
+# Production (laptop) profile — copy to application-prod_laptop.yml and fill in real values
+# DO NOT commit application-prod_laptop.yml to git
+
+spring:
+  datasource:
+    username: your_db_user
+    password: your_db_password
+
+dbworld:
+  api_keys:
+    tmdb: your_tmdb_api_key
+
+jwt:
+  token:
+    secret: your_jwt_secret_hex
+
+jasypt:
+  encryptor:
+    password: your_jasypt_password
+
+aria2:
+  rpc:
+    secret: your_aria2_rpc_secret

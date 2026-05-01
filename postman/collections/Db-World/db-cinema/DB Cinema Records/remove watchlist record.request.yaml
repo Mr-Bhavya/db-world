@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{LOCALHOST_BASE_URL}}/api/cinema/record/1902/unwatchlist?userId=1004"
+method: GET
+queryParams:
+  userId: "1004"
+order: 6000
