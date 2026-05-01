@@ -40,7 +40,7 @@ export default function FileToolbar({ onPaste, onDeleteSelected, allItems = [] }
     viewMode, setViewMode,
     sortBy, setSortBy, sortOrder, setSortOrder,
     filterType, setFilterType,
-    selectedItems, selectAll, clearSelection,
+    selectedItems, clearSelection,
     clipboard,
     setClipboard,
     setUploadOpen, setSearchOpen, openOperation,

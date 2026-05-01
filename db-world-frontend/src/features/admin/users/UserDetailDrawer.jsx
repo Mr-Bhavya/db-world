@@ -42,7 +42,7 @@ const InfoRow = ({ icon: Icon, label, value }) => {
 
 export default function UserDetailDrawer() {
   const T = useT();
-  const { drawerUserId, closeDrawer, openModal } = useUserStore();
+  const { drawerUserId, closeDrawer, openModal: _openModal } = useUserStore();
   const open = Boolean(drawerUserId);
 
   const { data: user, isLoading } = useQuery({

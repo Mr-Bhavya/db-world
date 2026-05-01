@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Grid, Card, CardContent, Chip, IconButton,
-  Tooltip, CircularProgress, LinearProgress, Tab, Tabs, Paper,
+  Box, Typography, Grid, Card, CardContent, Chip, CircularProgress, LinearProgress, Tab, Tabs, Paper,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Button, Divider,
+  Button, Divider
 } from '@mui/material';
 import {
-  Monitor, Refresh, Memory, Storage, NetworkCheck, Speed,
-  DeveloperBoard, Thermostat, CheckCircle, Warning, Error as ErrorIcon,
-  FiberManualRecord, Lan,
+  Monitor, Refresh, Memory, Storage, Speed,
+  DeveloperBoard, CheckCircle, Warning, Error as ErrorIcon,
+  FiberManualRecord
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -39,8 +38,7 @@ const loadColor = (pct) => {
   return '#ef4444';
 };
 
-const fmt = (val, fallback = '—') => val ?? fallback;
-const pct = (val) => (val != null ? `${Number(val).toFixed(1)}%` : '—');
+const _pct = (val) => (val != null ? `${Number(val).toFixed(1)}%` : '—');
 const bytes = (n) => {
   if (!n) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -83,7 +81,7 @@ function InfoRow({ label, value }) {
   return (
     <Box sx={{ display: 'flex', py: 0.75, borderBottom: `1px solid ${T.border}` }}>
       <Typography sx={{ width: 160, fontSize: '0.75rem', color: T.textMuted, flexShrink: 0 }}>{label}</Typography>
-      <Typography sx={{ fontSize: '0.75rem', color: T.text, fontFamily: typeof value === 'string' && value.match(/^[\d.:\/]+$/) ? 'monospace' : 'inherit', flex: 1, wordBreak: 'break-all' }}>
+      <Typography sx={{ fontSize: '0.75rem', color: T.text, fontFamily: typeof value === 'string' && value.match(/^[\d.:/]+$/) ? 'monospace' : 'inherit', flex: 1, wordBreak: 'break-all' }}>
         {value ?? '—'}
       </Typography>
     </Box>
@@ -125,7 +123,7 @@ function UsageBar({ label, used, total, usedPct, formattedUsed, formattedTotal }
 /* ── Tab panels ──────────────────────────────────────────────── */
 
 function OverviewTab({ info }) {
-  const T = useT();
+  const _T = useT();
   const si = info?.serverInfo;
   const perf = info?.performance;
   return (

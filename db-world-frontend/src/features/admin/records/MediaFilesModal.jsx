@@ -8,7 +8,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
 import ScienceIcon from '@mui/icons-material/Science';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
 import { getMediaFiles, deleteMediaFile, rescanMediaFile, seedMediaFiles } from '../api/adminApi';
@@ -56,7 +56,6 @@ const TrackRow = ({ label, track }) => {
 export default function MediaFilesModal() {
   const T = useT();
   const { enqueueSnackbar } = useSnackbar();
-  const qc = useQueryClient();
   const { mediaFilesRecordId, closeMediaFiles } = useRecordStore();
   const open = Boolean(mediaFilesRecordId);
 

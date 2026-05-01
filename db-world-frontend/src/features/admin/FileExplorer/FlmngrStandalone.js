@@ -4,21 +4,14 @@ import {
   Container,
   Typography,
   Button,
-  AppBar,
-  Toolbar,
-  IconButton,
   useTheme,
   useMediaQuery
 } from "@mui/material";
-import { ArrowBack } from "@mui/icons-material";
-import { useNavigate } from "react-router-dom";
 import { FlmngrPanel } from "@flmngr/flmngr-react";
 
-const FLMNGR_API_KEY =
-  import.meta.env.VITE_FLMNGR_API_KEY || 'abPhHyhIfD0gNqWnymrtCPeS' || "abPhHyhIfD0gNqWnymrtCPeS";
+const FLMNGR_API_KEY = import.meta.env.VITE_FLMNGR_API_KEY || 'abPhHyhIfD0gNqWnymrtCPeS';
 
 export default function FlmngrStandalone() {
-  const navigate = useNavigate();
   const theme = useTheme();
 
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));

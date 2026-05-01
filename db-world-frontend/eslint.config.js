@@ -33,6 +33,14 @@ export default [
       ...reactHooksPlugin.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',  // not needed with React 17+ JSX transform
       'react/prop-types': 'off',           // not using PropTypes
+      'react/display-name': 'warn',
+      'no-unused-vars': ['error', {
+        vars: 'all',
+        args: 'after-used',
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
     },
   },
 ];

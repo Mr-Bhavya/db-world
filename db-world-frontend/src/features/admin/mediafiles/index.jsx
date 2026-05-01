@@ -4,21 +4,20 @@ import {
   Button, TextField, InputAdornment, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Select, MenuItem, FormControl,
   InputLabel, ToggleButton, ToggleButtonGroup, Dialog, DialogTitle,
-  DialogContent, DialogActions, Divider, Alert, Snackbar,
-  CircularProgress, alpha, useMediaQuery, useTheme as useMuiTheme,
-  Menu, ListItemIcon, ListItemText, Fab, Badge, Tab, Tabs,
-  Skeleton, LinearProgress,
+  DialogContent, DialogActions, Divider, Alert, CircularProgress, alpha, useMediaQuery, useTheme as useMuiTheme,
+  Menu, ListItemIcon, ListItemText, Tab, Tabs,
+  Skeleton, LinearProgress
 } from '@mui/material';
 import {
   Search, Delete, Refresh, LinkOff, Link as LinkIcon,
   FolderOpen, VideoFile, AudioFile, Subtitles, Image as ImageIcon,
-  FilterList, Sort, ViewList, GridView, Build, DeleteForever,
-  LibraryAddCheck, CheckCircle, Cancel, Warning, Info, MoreVert,
+  GridView, Build, DeleteForever,
+  LibraryAddCheck, CheckCircle, Warning, MoreVert,
   ContentCopy, Sync, CleaningServices, RestorePage, Dangerous,
   InsertDriveFile, TableRows, KeyboardArrowDown, Close, OpenInNew,
-  Tv, Save,
+  Tv, Save
 } from '@mui/icons-material';
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
@@ -127,7 +126,6 @@ function RawFieldGrid({ data }) {
 // ─── TrackDetailModal — opens on file click ───────────────────────────────
 
 function TrackDetailModal({ fileId, onClose, onRescan, onRepair, onLink, onCopyPath, onDelete }) {
-  const T = useT();
   const [tab, setTab] = useState(0);
   const [episodeSeason, setEpisodeSeason] = useState('');
   const [episodeNum, setEpisodeNum] = useState('');
@@ -689,7 +687,7 @@ function MaintenanceMenu({ onRepairAll, onRebuild, onCleanup, onSync }) {
 // ─── MediaFilesPage (main export) ─────────────────────────────────────────
 
 export default function MediaFilesPage() {
-  const T = useT();
+  const _T = useT();
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const muiTheme = useMuiTheme();
@@ -720,7 +718,7 @@ export default function MediaFilesPage() {
   const queryParams = { q: debouncedQ || undefined, linked, sort };
 
   const {
-    data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage, error, refetch,
+    data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage, error, refetch: _refetch,
   } = useInfiniteQuery({
     queryKey: ['mediaFiles', queryParams],
     queryFn: ({ pageParam = 0 }) => getMediaFilesPaged({ ...queryParams, page: pageParam, size: 50 }),

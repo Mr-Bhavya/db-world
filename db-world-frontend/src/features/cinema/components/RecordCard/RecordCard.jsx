@@ -1,13 +1,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Box, Typography, IconButton, Chip, Skeleton, Tooltip,
   useMediaQuery, useTheme,
 } from '@mui/material';
 import {
-  PlayArrow, Add, Check, ThumbUp, ThumbUpOutlined,
+  PlayArrow, Check, ThumbUp, ThumbUpOutlined,
   Favorite, FavoriteBorder,
   Visibility, VisibilityOff,
   BookmarkAdd, BookmarkAdded,
@@ -381,47 +381,7 @@ const RecordCard = ({
   const hoverTimer = useRef(null);
   const videoTimer = useRef(null);
 
-  if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} />;
-
-  const isMovie    = record.type === 'MOVIE';
-  const isExpanded = expandOnHover && hovered;
-
-  // ── image ──────────────────────────────────────────────────────────────────
-  const imgPath = isExpanded
-    ? (record.backdropPath ?? record.posterPath)
-    : wide
-      ? (record.backdropPath ?? record.posterPath)
-      : (record.posterPath ?? record.backdropPath);
-
-  const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || wide ? 'w780' : 'w342');
-
-  // ── dimensions ────────────────────────────────────────────────────────────
-  // Prime rail uses a FIXED height — only width changes on hover (true horizontal expand).
-  // Wide rail uses 16:9 aspect ratio.  Poster rail uses 2:3.
-  const PRIME_WIDTH = { xs: 180, sm: 220,
-      md: isExpanded
-                                                ? `min(calc(420px * ${16/9}), 680px)`
-                                                : `calc(420px * ${9/16})` };
-const PRIME_HEIGHT = { xs: 160, sm: 190, md: 420 };
-const getPrimeWidth = (h, expanded) => {
-  const ratio = expanded ? (16 / 9) : (9 / 16);
-  return `calc(${h}px * ${ratio})`;
-};
-  const cardWidth = expandOnHover
-    ? {
-        xs: isExpanded ? `calc(160px * ${16/9})` : `calc(160px * ${9/16})`,
-        sm: isExpanded ? `calc(190px * ${16/9})` : `calc(190px * ${9/16})`,
-        md: isExpanded ? `calc(420px * ${16/9})` : `calc(420px * ${9/16})`,
-      }
-    : wide
-      ? { xs: 200, sm: 240, md: 280 }
-      : { xs: 110, sm: 130, md: 150 };
-
-  const aspectRatio = expandOnHover
-    ? (isExpanded ? '16 / 9' : '9 / 16')   // 👈 MAGIC
-    : wide
-      ? '16 / 9'
-      : '2 / 3';
+  const isMovie = record?.type === 'MOVIE';
 
   // ── hover ─────────────────────────────────────────────────────────────────
   const onMouseEnter = useCallback(() => {
@@ -446,7 +406,7 @@ const getPrimeWidth = (h, expanded) => {
     e?.stopPropagation();
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
     navigate(base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`));
-  }, [isMovie, navigate, record.id, record.title]);
+  }, [isMovie, navigate, record?.id, record?.title]);
 
   const goPlay = useCallback((e) => {
     e?.stopPropagation();
@@ -455,7 +415,41 @@ const getPrimeWidth = (h, expanded) => {
       base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`),
       { state: { defaultTab: 'Watch' } }
     );
-  }, [isMovie, navigate, record.id, record.title]);
+  }, [isMovie, navigate, record?.id, record?.title]);
+
+  if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} />;
+
+  const isExpanded = expandOnHover && hovered;
+
+  // ── image ──────────────────────────────────────────────────────────────────
+  const imgPath = isExpanded
+    ? (record.backdropPath ?? record.posterPath)
+    : wide
+      ? (record.backdropPath ?? record.posterPath)
+      : (record.posterPath ?? record.backdropPath);
+
+  const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || wide ? 'w780' : 'w342');
+
+  // ── dimensions ────────────────────────────────────────────────────────────
+  // Prime rail uses a FIXED height — only width changes on hover (true horizontal expand).
+  // Wide rail uses 16:9 aspect ratio.  Poster rail uses 2:3.
+  const PRIME_HEIGHT = { xs: 160, sm: 190, md: 420 };
+
+  const cardWidth = expandOnHover
+    ? {
+        xs: isExpanded ? `calc(160px * ${16/9})` : `calc(160px * ${9/16})`,
+        sm: isExpanded ? `calc(190px * ${16/9})` : `calc(190px * ${9/16})`,
+        md: isExpanded ? `calc(420px * ${16/9})` : `calc(420px * ${9/16})`,
+      }
+    : wide
+      ? { xs: 200, sm: 240, md: 280 }
+      : { xs: 110, sm: 130, md: 150 };
+
+  const aspectRatio = expandOnHover
+    ? (isExpanded ? '16 / 9' : '9 / 16')   // 👈 MAGIC
+    : wide
+      ? '16 / 9'
+      : '2 / 3';
 
   // ── motion ────────────────────────────────────────────────────────────────
   const motionAnimate = expandOnHover

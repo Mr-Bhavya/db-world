@@ -1,7 +1,7 @@
 import React, { Suspense } from "react";
 
 // Lazy-loading logic for images
-const LazyImage = ({ src, alt, className, style, skeleton, horizontal, handleError ,...rest }) => {
+const LazyImage = ({ src, alt, className, skeleton, handleError }) => {
   return (
     <Suspense
       fallback={

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Box, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 import { motion } from "framer-motion";
 
 // Fix for default markers in Leaflet

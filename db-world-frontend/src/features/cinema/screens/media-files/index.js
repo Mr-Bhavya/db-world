@@ -5,8 +5,7 @@ import {
 } from '@mui/material';
 import {
   PlayArrow, Download, ContentCopy, Check, Audiotrack,
-  ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, Tv,
-  InfoOutlined, SubtitlesOutlined,
+  ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, InfoOutlined, SubtitlesOutlined
 } from '@mui/icons-material';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -384,7 +383,6 @@ const MovieFileCard = ({ file, allFiles, record }) => {
 // ─── Episode quality variant row (compact, inside episode expand) ─────────────
 
 const EpisodeQualityRow = ({ file, allEpisodeFiles, record, index }) => {
-  const theme = useTheme();
   const { general, video, audio, subtitle } = file;
   const quality = getQuality(video, general?.fileName);
   const codec   = getCodec(video?.format);
@@ -427,7 +425,7 @@ const EpisodeQualityRow = ({ file, allEpisodeFiles, record, index }) => {
 
 // ─── Episode row (collapsible) ────────────────────────────────────────────────
 
-const EpisodeRow = ({ episodeNum, files, allSeasonFiles, record }) => {
+const EpisodeRow = ({ episodeNum, files, allSeasonFiles: _allSeasonFiles, record }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 

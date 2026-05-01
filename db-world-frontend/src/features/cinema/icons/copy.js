@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import CommonServices from '@shared/services/CommonServices';
-import Constants from '@shared/constants';
 import {
   IconButton,
   Tooltip,
-  Zoom,
-  styled
+  Zoom
 } from '@mui/material';
 import {
   ContentCopy as CopyIcon,

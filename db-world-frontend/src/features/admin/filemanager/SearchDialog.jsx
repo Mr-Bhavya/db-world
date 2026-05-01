@@ -103,7 +103,7 @@ export default function SearchDialog() {
           )}
           {!isFetching && debouncedQuery.length >= 2 && results.length === 0 && (
             <Typography sx={{ textAlign: 'center', py: 3, fontSize: 13, color: T.textMuted }}>
-              No results for "{debouncedQuery}"
+              No results for &quot;{debouncedQuery}&quot;
             </Typography>
           )}
           <List dense disablePadding>

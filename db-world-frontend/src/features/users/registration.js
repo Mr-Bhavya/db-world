@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Button, Checkbox, CircularProgress, FormControl, FormHelperText,
   Grid, IconButton, InputAdornment, MenuItem,
@@ -39,7 +39,6 @@ const SectionLabel = ({ children }) => {
 
 const Registration = () => {
   const navigate  = useNavigate();
-  const location  = useLocation();
   const T            = useT();
   const FIELD        = getFieldSx(T);
   const SELECT_MENU  = getSelectMenuProps(T);

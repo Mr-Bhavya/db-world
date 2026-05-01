@@ -1,9 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import {
-  Box, Typography, Chip, CircularProgress, Alert,
-  IconButton, Tooltip, Tabs, Tab, Divider, Button,
-  useMediaQuery, useTheme,
+  Box, Typography, Chip, CircularProgress, IconButton, Tooltip, Tabs, Tab, Divider, Button,
+  useMediaQuery, useTheme
 } from '@mui/material';
 import RefreshIcon         from '@mui/icons-material/Refresh';
 import PlayArrowIcon       from '@mui/icons-material/PlayArrow';

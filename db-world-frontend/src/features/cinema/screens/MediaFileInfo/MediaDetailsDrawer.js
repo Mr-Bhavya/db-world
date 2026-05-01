@@ -16,7 +16,6 @@ import {
   Close, PlayArrow, Download, ContentCopy, Check,
   Audiotrack, Subtitles,
 } from '@mui/icons-material';
-import { QUALITY_META, HDR_META, CODEC_META } from '../../media/constants';
 import { getQuality, getCodec, getHdrTags } from '../../media/helpers';
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { motion } from 'framer-motion';
@@ -127,7 +126,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
       } else {
         setPlayerOpen(true);
       }
-    } catch (e) {
+    } catch (_e) {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally {
       setResolving(false);

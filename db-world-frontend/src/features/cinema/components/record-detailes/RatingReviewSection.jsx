@@ -5,9 +5,7 @@ import {
     Rating,
     TextField,
     Button,
-    Divider,
-    Card,
-    styled
+    Divider
 } from '@mui/material';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import CardContent from '@mui/material/CardContent';

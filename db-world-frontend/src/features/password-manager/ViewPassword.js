@@ -605,7 +605,7 @@ const ViewPassword = () => {
         ) : filtered.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 6 }}>
             <Search sx={{ fontSize: 40, color: T.textMuted, mb: 1.5 }} />
-            <Typography sx={{ color: T.textMuted }}>No results for "{search}"</Typography>
+            <Typography sx={{ color: T.textMuted }}>No results for &quot;{search}&quot;</Typography>
           </Box>
         ) : (
           <AnimatePresence>

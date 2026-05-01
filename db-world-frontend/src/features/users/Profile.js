@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Avatar, Box, Button, Chip, CircularProgress, Container,
@@ -21,7 +21,7 @@ import {
   Devices as DevicesIcon,
   AccessTime as TimeIcon,
 } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { getUserDetail, changePassword, getLoginHistory } from '@shared/services/ApiServices';
 import { toast } from '@shared/components/ui/Toast';

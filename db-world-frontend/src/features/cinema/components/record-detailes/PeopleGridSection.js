@@ -1,6 +1,5 @@
 // components/PeopleGridSection.jsx
 import { Box, Typography, Avatar, Grid } from '@mui/material';
-import { styled } from '@mui/material/styles';
 import { PeopleGrid, SubSectionTitle } from './CustomComponents';
 
 const PeopleGridSection = ({ title, people = [], getSecondaryText }) => {
