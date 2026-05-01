@@ -231,18 +231,22 @@ public final class NtfsCompatibleFiles {
     // ── NTFS mount recovery ──────────────────────────────────────────────────
 
     /**
-     * Attempts to remount the ntfs-3g volume containing {@code path} as read-write.
-     * Does NOT unmount — uses {@code mount -o remount,rw} which is safe while the
-     * filesystem is in use by other processes.
+     * Attempts to make the ntfs-3g volume containing {@code path} writable again.
      *
-     * Steps tried in order:
+     * <h3>ntfs-3g remount limitation</h3>
+     * ntfs-3g does NOT support {@code mount -o remount,rw} — it responds with
+     * "remount is not supported at present. You have to unmount volume and then
+     * mount it once again." A full unmount → ntfsfix → remount cycle is required.
+     *
+     * <h3>Strategy</h3>
      * <ol>
-     *   <li>{@code mount -o remount,rw <mountPoint>}</li>
-     *   <li>{@code ntfsfix <device>} (clears dirty bit) then remount</li>
-     *   <li>{@code sudo mount -o remount,rw <mountPoint>}</li>
+     *   <li>Try {@code mount -o remount,rw} (works on ntfs3 kernel driver, not ntfs-3g)</li>
+     *   <li>If "remount not supported": attempt safe full-cycle via
+     *       {@link #tryFullUnmountFixRemount}</li>
+     *   <li>Sudo variants of the above</li>
      * </ol>
      *
-     * @return {@code true} when a remount attempt succeeded
+     * @return {@code true} when the volume is writable after this call
      */
     public static boolean attemptNtfsRemountRw(Path path) {
         if (path == null) return false;
@@ -252,30 +256,106 @@ public final class NtfsCompatibleFiles {
                 log.warn("No ntfs-3g/ntfs3 mount found for path: {}", path);
                 return false;
             }
-            log.warn("EROFS recovery: remounting {} ({}) rw", mount.mountPoint(), mount.device());
+            log.warn("EROFS recovery: attempting to make {} ({}) writable", mount.mountPoint(), mount.device());
 
-            String[] remountCmd = {"mount", "-o", "remount,rw", mount.mountPoint()};
+            // ── Step 1: live remount (works on ntfs3 kernel driver) ──────────
+            ExecResult r = execFull("mount", "-o", "remount,rw", mount.mountPoint());
+            if (r.exit == 0) { log.info("Live remount succeeded: {}", mount.mountPoint()); return true; }
 
-            int exit = execCapture(remountCmd);
-            if (exit == 0) { log.info("Remount succeeded: {}", mount.mountPoint()); return true; }
+            // ── Step 2: ntfs-3g does not support live remount ────────────────
+            if (isRemountNotSupported(r.output)) {
+                log.warn("ntfs-3g does not support live remount ({}). Attempting full unmount-fix-remount cycle.",
+                        r.output.trim());
+                if (tryFullUnmountFixRemount(mount)) return true;
 
-            // NTFS dirty bit — clear it then remount
-            log.warn("Direct remount failed (exit={}); running ntfsfix on {}", exit, mount.device());
-            execCapture("ntfsfix", mount.device());
+                // Full cycle failed — print actionable manual instructions
+                log.error("\n"
+                    + "══════════════════════════════════════════════════════════\n"
+                    + "  NTFS volume is read-only and auto-recovery failed.\n"
+                    + "  Manual fix required (run on the server):\n"
+                    + "\n"
+                    + "    sudo fuser -km {}\n"
+                    + "    sudo umount {}\n"
+                    + "    sudo ntfsfix {}\n"
+                    + "    sudo mount {}\n"
+                    + "\n"
+                    + "  Or switch to the ntfs3 kernel driver (kernel ≥ 5.15):\n"
+                    + "    sudo umount {}\n"
+                    + "    sudo mount -t ntfs3 {} {} -o uid=1000,gid=1000,umask=0022\n"
+                    + "  (ntfs3 supports live remount and is more stable than ntfs-3g)\n"
+                    + "══════════════════════════════════════════════════════════",
+                    mount.mountPoint(), mount.mountPoint(), mount.device(), mount.mountPoint(),
+                    mount.mountPoint(), mount.device(), mount.mountPoint());
+                return false;
+            }
 
-            exit = execCapture(remountCmd);
-            if (exit == 0) { log.info("Remount after ntfsfix succeeded: {}", mount.mountPoint()); return true; }
+            // ── Step 3: sudo live remount ────────────────────────────────────
+            r = execFull("sudo", "mount", "-o", "remount,rw", mount.mountPoint());
+            if (r.exit == 0) { log.info("sudo live remount succeeded: {}", mount.mountPoint()); return true; }
+            if (isRemountNotSupported(r.output)) {
+                log.warn("sudo live remount also not supported; trying sudo full cycle");
+                return tryFullUnmountFixRemount(mount);
+            }
 
-            // Last resort: try with sudo
-            exit = execCapture("sudo", "mount", "-o", "remount,rw", mount.mountPoint());
-            if (exit == 0) { log.info("sudo remount succeeded: {}", mount.mountPoint()); return true; }
-
-            log.error("All remount attempts failed for: {}", mount.mountPoint());
+            log.error("All remount attempts failed for: {} (last output: {})", mount.mountPoint(), r.output.trim());
             return false;
+
         } catch (Exception e) {
             log.error("NTFS remount attempt threw: {}", e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Full cycle: check for busy processes → umount → ntfsfix → mount.
+     * Only proceeds if {@code fuser} shows the mount is not in heavy use.
+     */
+    private static boolean tryFullUnmountFixRemount(NtfsMountInfo mount) {
+        try {
+            // Check what processes are using the mount
+            ExecResult fuser = execFull("fuser", "-m", mount.mountPoint());
+            String pids = fuser.output.trim();
+            if (!pids.isEmpty()) {
+                log.warn("Processes using {}: {} — will attempt lazy unmount", mount.mountPoint(), pids);
+            }
+
+            // Try graceful umount first, then lazy (-l) as fallback
+            if (execFull("umount", mount.mountPoint()).exit != 0) {
+                log.warn("Graceful umount failed; trying lazy umount -l");
+                execFull("umount", "-l", mount.mountPoint());
+            }
+
+            // Clear the NTFS dirty bit
+            ExecResult fix = execFull("ntfsfix", mount.device());
+            log.info("ntfsfix output: {}", fix.output.trim());
+
+            // Remount
+            ExecResult mnt = execFull("mount", mount.mountPoint());
+            if (mnt.exit == 0) {
+                log.info("Full unmount-fix-remount succeeded for {}", mount.mountPoint());
+                return true;
+            }
+            // Try with explicit ntfs-3g
+            mnt = execFull("mount", "-t", "ntfs-3g", mount.device(), mount.mountPoint());
+            if (mnt.exit == 0) {
+                log.info("ntfs-3g remount succeeded for {}", mount.mountPoint());
+                return true;
+            }
+
+            log.error("Full remount cycle failed. mount output: {}", mnt.output.trim());
+            return false;
+        } catch (Exception e) {
+            log.error("Full unmount-fix-remount threw: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean isRemountNotSupported(String output) {
+        if (output == null) return false;
+        String lower = output.toLowerCase();
+        return lower.contains("remount is not supported")
+                || lower.contains("remount not supported")
+                || lower.contains("unmount volume and then mount");
     }
 
     // ── Mount detection ───────────────────────────────────────────────────────
@@ -343,17 +423,27 @@ public final class NtfsCompatibleFiles {
                 .toArray(CopyOption[]::new);
     }
 
-    /** Runs a command, captures and logs output, returns exit code. */
-    private static int execCapture(String... cmd) throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes()).trim();
-        boolean done = p.waitFor(PROC_TIMEOUT_SEC, TimeUnit.SECONDS);
-        int exit = done ? p.exitValue() : -1;
-        if (!out.isEmpty()) {
-            log.debug("exec {}: exit={} output={}", String.join(" ", cmd), exit, out);
+    /** Result of a native process: exit code + combined stdout+stderr. */
+    private record ExecResult(int exit, String output) {
+        boolean ok() { return exit == 0; }
+    }
+
+    /** Runs a command; returns exit code and combined stdout+stderr. */
+    private static ExecResult execFull(String... cmd) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            boolean done = p.waitFor(PROC_TIMEOUT_SEC, TimeUnit.SECONDS);
+            int exit = done ? p.exitValue() : -1;
+            if (!out.isEmpty()) {
+                log.debug("exec [{}]: exit={} | {}", String.join(" ", cmd), exit, out);
+            }
+            return new ExecResult(exit, out);
+        } catch (Exception e) {
+            log.warn("exec [{}] threw: {}", String.join(" ", cmd), e.getMessage());
+            return new ExecResult(-1, e.getMessage() != null ? e.getMessage() : "");
         }
-        return exit;
     }
 }
