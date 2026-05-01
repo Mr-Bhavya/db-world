@@ -73,8 +73,8 @@ public class DefaultFileStorageService implements FileStorageService {
     @Override
     public void prepareDirectories(IngestionContext ctx) {
         try {
-            java.nio.file.Files.createDirectories(resolveTempDir(ctx));
-            java.nio.file.Files.createDirectories(resolveFinalDir(ctx));
+            NtfsCompatibleFiles.createDirectories(resolveTempDir(ctx));
+            NtfsCompatibleFiles.createDirectories(resolveFinalDir(ctx));
             log.debug("[{}] Directories prepared: temp={}, final={}",
                     ctx.getJobId(), resolveTempDir(ctx), resolveFinalDir(ctx));
         } catch (Exception e) {
@@ -87,7 +87,7 @@ public class DefaultFileStorageService implements FileStorageService {
         try {
             Path src = resolveTempFile(ctx);
             Path dst = resolveFinalFile(ctx);
-            java.nio.file.Files.createDirectories(dst.getParent());
+            NtfsCompatibleFiles.createDirectories(dst.getParent());
             NtfsCompatibleFiles.move(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             log.debug("[{}] Moved: {} â†’ {}", ctx.getJobId(), src, dst);
         } catch (Exception e) {

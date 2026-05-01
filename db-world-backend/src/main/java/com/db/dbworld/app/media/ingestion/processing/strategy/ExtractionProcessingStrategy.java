@@ -13,6 +13,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import com.db.dbworld.utils.NtfsCompatibleFiles;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,15 +56,18 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
         StringBuilder stderrAccumulator = new StringBuilder();
 
         try {
-            Files.createDirectories(extractDir);
+            NtfsCompatibleFiles.createDirectories(extractDir);
 
-            // Pre-flight: verify the target filesystem is writable before starting 7z
-            Path probe = extractDir.resolve(".writetest");
-            try {
-                Files.createFile(probe);
-                Files.delete(probe);
-            } catch (IOException e) {
-                throw new IOException("Target directory is not writable (filesystem may be read-only): " + extractDir, e);
+            // Pre-flight: verify the target filesystem is writable before starting 7z.
+            // Uses touch probe (not createFile) so EROFS from ntfs-3g doesn't mislead us.
+            if (!NtfsCompatibleFiles.isDirectoryWritable(extractDir)) {
+                ctx.logError("EXTRACT", "Target is read-only, attempting ntfs-3g remount: " + extractDir);
+                if (!NtfsCompatibleFiles.attemptNtfsRemountRw(extractDir)) {
+                    throw new IOException("Target directory is not writable and remount failed: " + extractDir);
+                }
+                if (!NtfsCompatibleFiles.isDirectoryWritable(extractDir)) {
+                    throw new IOException("Target directory remains read-only after remount: " + extractDir);
+                }
             }
 
             processExecutor.executeExtraction(

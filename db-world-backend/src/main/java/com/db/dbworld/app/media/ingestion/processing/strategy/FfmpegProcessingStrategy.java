@@ -175,15 +175,21 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile) throws IOException {
         ProcessingResult result = new ProcessingResult();
 
-        // Pre-flight: verify the filesystem is still writable (external drives can remount
-        // read-only mid-job due to I/O errors, even while existing open file descriptors work)
-        Path probe = sourceFile.getParent().resolve(".writetest");
-        try {
-            Files.createFile(probe);
-            Files.delete(probe);
-        } catch (IOException e) {
-            throw new IOException("Filesystem is read-only (check dmesg / 'mount | grep " +
-                    sourceFile.getRoot() + "'): " + sourceFile.getParent(), e);
+        // Pre-flight: verify the filesystem is still writable.
+        // Uses touch probe instead of Files.createFile() because ntfs-3g may return EROFS
+        // even for O_CREAT when it has remounted read-only after an NTFS metadata error.
+        // On failure, attempt automatic ntfs-3g remount recovery before giving up.
+        Path dir = sourceFile.getParent();
+        if (!NtfsCompatibleFiles.isDirectoryWritable(dir)) {
+            ctx.logError("FFMPEG", "Filesystem appears read-only, attempting ntfs-3g remount recovery: " + dir);
+            if (!NtfsCompatibleFiles.attemptNtfsRemountRw(dir)) {
+                throw new IOException("Filesystem is read-only and remount failed "
+                        + "(check dmesg / 'mount | grep " + sourceFile.getRoot() + "'): " + dir);
+            }
+            if (!NtfsCompatibleFiles.isDirectoryWritable(dir)) {
+                throw new IOException("Filesystem remains read-only after remount: " + dir);
+            }
+            ctx.log("FFMPEG", "Filesystem remounted read-write — continuing");
         }
 
         // ── 1. Stage file in temp working directory ────────────────────
@@ -335,28 +341,41 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         }
     }
 
-    // Retries a filesystem operation on transient IO failure (e.g. bus-powered USB drive
-    // momentarily disconnecting under load). EROFS from ntfs-3g rename is handled upstream
-    // by NtfsCompatibleFiles.move() via copy+delete, so retries here cover other transient errors.
+    // Retries a filesystem operation on transient IO failure.
+    // On the penultimate attempt, also tries ntfs-3g remount recovery before the final retry.
     private <T> T withFsRetry(IngestionContext ctx, String opName, FsOp<T> op) throws IOException {
+        IOException lastEx = null;
         for (int attempt = 1; attempt <= FS_RETRY_MAX; attempt++) {
             try {
                 return op.run();
             } catch (IOException e) {
-                boolean transient_ = e.getMessage() != null && (
-                        e.getMessage().contains("Read-only file system")
-                        || e.getMessage().contains("Input/output error")
-                        || e.getMessage().contains("Transport endpoint"));
-                if (!transient_ || attempt == FS_RETRY_MAX) throw e;
-                ctx.logError("FFMPEG", opName + " hit transient IO error (attempt " + attempt + "/" + FS_RETRY_MAX
-                        + "), retrying in " + (FS_RETRY_DELAY_MS * attempt / 1000) + "s...");
+                lastEx = e;
+                boolean transient_ = NtfsCompatibleFiles.isNtfsFailure(e)
+                        || (e.getMessage() != null && (
+                               e.getMessage().contains("Input/output error")
+                            || e.getMessage().contains("Transport endpoint")));
+                if (!transient_) throw e;
+                if (attempt == FS_RETRY_MAX) break;
+
+                ctx.logError("FFMPEG", opName + " hit transient IO error (attempt " + attempt
+                        + "/" + FS_RETRY_MAX + "), retrying in " + (FS_RETRY_DELAY_MS * attempt / 1000) + "s...");
+
+                // On the attempt before the last, try remounting the ntfs-3g volume
+                if (attempt == FS_RETRY_MAX - 1) {
+                    ctx.logError("FFMPEG", "Attempting ntfs-3g remount recovery before final retry...");
+                    NtfsCompatibleFiles.attemptNtfsRemountRw(
+                            ctx.getDownload() != null && ctx.getDownload().getFilePath() != null
+                                    ? ctx.getDownload().getFilePath().getParent()
+                                    : null);
+                }
+
                 try { Thread.sleep(FS_RETRY_DELAY_MS * attempt); } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw e;
                 }
             }
         }
-        throw new AssertionError("unreachable");
+        throw lastEx;
     }
 
     private Path renameCanonicalFile(IngestionContext ctx, Path file, MediaFileDto mediaInfo) throws IOException {
@@ -427,7 +446,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     private Path stageForProcessing(IngestionContext ctx, Path sourceFile) throws IOException {
         Path tempDir = fileStorageService.resolveTempDir(ctx);
-        Files.createDirectories(tempDir);
+        NtfsCompatibleFiles.createDirectories(tempDir);
 
         if (sourceFile.toAbsolutePath().normalize().startsWith(tempDir.toAbsolutePath().normalize())) {
             return sourceFile;
@@ -441,7 +460,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     private Path moveToFinalLocation(IngestionContext ctx, Path file) throws IOException {
         Path finalDir = fileStorageService.resolveFinalDir(ctx);
-        Files.createDirectories(finalDir);
+        NtfsCompatibleFiles.createDirectories(finalDir);
 
         Path normalizedFile     = file.toAbsolutePath().normalize();
         Path normalizedFinalDir = finalDir.toAbsolutePath().normalize();
