@@ -180,14 +180,18 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         // even for O_CREAT when it has remounted read-only after an NTFS metadata error.
         // On failure, attempt automatic ntfs-3g remount recovery before giving up.
         Path dir = sourceFile.getParent();
-        if (!NtfsCompatibleFiles.isDirectoryWritable(dir)) {
-            ctx.logError("FFMPEG", "Filesystem appears read-only, attempting ntfs-3g remount recovery: " + dir);
+        IOException writeError = NtfsCompatibleFiles.probeWritable(dir);
+        if (writeError != null) {
+            ctx.logError("FFMPEG", "Filesystem not writable (" + writeError.getMessage()
+                    + "), attempting ntfs-3g remount recovery: " + dir);
             if (!NtfsCompatibleFiles.attemptNtfsRemountRw(dir)) {
-                throw new IOException("Filesystem is read-only and remount failed "
-                        + "(check dmesg / 'mount | grep " + sourceFile.getRoot() + "'): " + dir);
+                throw new IOException("Filesystem not writable and remount failed: "
+                        + writeError.getMessage(), writeError);
             }
-            if (!NtfsCompatibleFiles.isDirectoryWritable(dir)) {
-                throw new IOException("Filesystem remains read-only after remount: " + dir);
+            IOException afterRemount = NtfsCompatibleFiles.probeWritable(dir);
+            if (afterRemount != null) {
+                throw new IOException("Filesystem still not writable after remount: "
+                        + afterRemount.getMessage(), afterRemount);
             }
             ctx.log("FFMPEG", "Filesystem remounted read-write — continuing");
         }

@@ -59,14 +59,19 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
             NtfsCompatibleFiles.createDirectories(extractDir);
 
             // Pre-flight: verify the target filesystem is writable before starting 7z.
-            // Uses touch probe (not createFile) so EROFS from ntfs-3g doesn't mislead us.
-            if (!NtfsCompatibleFiles.isDirectoryWritable(extractDir)) {
-                ctx.logError("EXTRACT", "Target is read-only, attempting ntfs-3g remount: " + extractDir);
+            // probeWritable() uses native touch so the real OS error is captured.
+            java.io.IOException writeError = NtfsCompatibleFiles.probeWritable(extractDir);
+            if (writeError != null) {
+                ctx.logError("EXTRACT", "Target not writable (" + writeError.getMessage()
+                        + "), attempting ntfs-3g remount: " + extractDir);
                 if (!NtfsCompatibleFiles.attemptNtfsRemountRw(extractDir)) {
-                    throw new IOException("Target directory is not writable and remount failed: " + extractDir);
+                    throw new IOException("Target not writable and remount failed: "
+                            + writeError.getMessage(), writeError);
                 }
-                if (!NtfsCompatibleFiles.isDirectoryWritable(extractDir)) {
-                    throw new IOException("Target directory remains read-only after remount: " + extractDir);
+                java.io.IOException afterRemount = NtfsCompatibleFiles.probeWritable(extractDir);
+                if (afterRemount != null) {
+                    throw new IOException("Target still not writable after remount: "
+                            + afterRemount.getMessage(), afterRemount);
                 }
             }
 

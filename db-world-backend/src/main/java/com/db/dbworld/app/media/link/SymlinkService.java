@@ -5,6 +5,7 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.utils.NtfsCompatibleFiles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -66,13 +67,13 @@ public class SymlinkService {
             Path realFile    = Path.of(filePath).toAbsolutePath().normalize();
             Path symlink     = symlinkRoot.resolve(fileId);
 
-            Files.createDirectories(symlinkRoot);
+            NtfsCompatibleFiles.createDirectories(symlinkRoot);
             if (!Files.exists(realFile)) {
                 throw new DbWorldException("Cannot create link for missing file: " + realFile);
             }
 
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
-                Files.delete(symlink);
+                NtfsCompatibleFiles.delete(symlink);
             }
 
             // Use a relative target so the symlink survives directory moves
@@ -82,13 +83,15 @@ public class SymlinkService {
                 log.debug("{} Created symlink {} -> {}", TAG, symlink, relativeTarget);
                 return;
             } catch (Exception ex) {
-                if (!shouldFallbackToHardLink(ex, symlink, realFile)) {
-                    throw ex;
+                if (shouldFallbackToHardLink(ex, symlink, realFile)) {
+                    Files.createLink(symlink, realFile);
+                    log.warn("{} Symlink privilege unavailable for fileId={}; created hard link {} -> {}",
+                            TAG, fileId, symlink, realFile);
+                    return;
                 }
-                Files.createLink(symlink, realFile);
-                log.warn("{} Symlink privilege unavailable for fileId={}; created hard link {} -> {}",
-                        TAG, fileId, symlink, realFile);
-                return;
+                // ntfs-3g EROFS on symlink creation — log the real error and re-throw
+                log.error("{} createSymbolicLink failed for fileId={}: {}", TAG, fileId, ex.getMessage());
+                throw ex;
             }
 
         } catch (Exception ex) {
@@ -113,11 +116,11 @@ public class SymlinkService {
         try {
             Path symlink = runtimeProperties.getSymlinkPath().resolve(fileId);
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
-                Files.delete(symlink);
+                NtfsCompatibleFiles.delete(symlink);
                 log.info("{} Deleted {}", TAG, symlink);
             }
         } catch (Exception ex) {
-            log.warn("{} Failed to delete symlink for fileId={}", TAG, fileId, ex);
+            log.warn("{} Failed to delete symlink for fileId={}: {}", TAG, fileId, ex.getMessage());
         }
     }
 
@@ -177,7 +180,7 @@ public class SymlinkService {
             }
 
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
-                if (!dryRun) Files.delete(symlink);
+                if (!dryRun) NtfsCompatibleFiles.delete(symlink);
                 return ResponsePayloads.SymlinkRepairSingleResult.builder()
                         .fileId(fileId).deleted(true)
                         .message(dryRun ? "Orphan symlink would be deleted" : "Orphan symlink deleted").build();
@@ -233,13 +236,13 @@ public class SymlinkService {
                     try {
                         String fileId = path.getFileName().toString();
                         if (!dbIds.contains(fileId)) {
-                            if (!dryRun) Files.delete(path);
+                            if (!dryRun) NtfsCompatibleFiles.delete(path);
                             deleted.incrementAndGet();
                             log.info("{} Removed orphan symlink {}", TAG, path);
                         }
                     } catch (Exception ex) {
                         failed.incrementAndGet();
-                        log.warn("{} Failed to remove orphan {}", TAG, path, ex);
+                        log.warn("{} Failed to remove orphan {}: {}", TAG, path, ex.getMessage());
                     }
                 });
             } catch (Exception ex) {
