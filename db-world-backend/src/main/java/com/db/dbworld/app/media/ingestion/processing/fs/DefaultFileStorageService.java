@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.ingestion.processing.fs;
 
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.utils.NtfsCompatibleFiles;
 import com.db.dbworld.utils.PathSanitizer;
 import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
@@ -87,7 +88,7 @@ public class DefaultFileStorageService implements FileStorageService {
             Path src = resolveTempFile(ctx);
             Path dst = resolveFinalFile(ctx);
             java.nio.file.Files.createDirectories(dst.getParent());
-            java.nio.file.Files.move(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            NtfsCompatibleFiles.move(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             log.debug("[{}] Moved: {} â†’ {}", ctx.getJobId(), src, dst);
         } catch (Exception e) {
             throw new RuntimeException("Move to final failed for job: " + ctx.getJobId(), e);

@@ -13,6 +13,7 @@ import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.app.stream.tag.MediaSource;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
+import com.db.dbworld.utils.NtfsCompatibleFiles;
 import com.db.dbworld.utils.PathSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -334,15 +335,20 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         }
     }
 
-    // Retries a filesystem operation when ntfs-3g returns EROFS transiently
-    // (e.g. bus-powered USB drive resets under load but recovers within seconds).
+    // Retries a filesystem operation on transient IO failure (e.g. bus-powered USB drive
+    // momentarily disconnecting under load). EROFS from ntfs-3g rename is handled upstream
+    // by NtfsCompatibleFiles.move() via copy+delete, so retries here cover other transient errors.
     private <T> T withFsRetry(IngestionContext ctx, String opName, FsOp<T> op) throws IOException {
         for (int attempt = 1; attempt <= FS_RETRY_MAX; attempt++) {
             try {
                 return op.run();
             } catch (IOException e) {
-                if (!e.getMessage().contains("Read-only file system") || attempt == FS_RETRY_MAX) throw e;
-                ctx.logError("FFMPEG", opName + " hit transient EROFS (attempt " + attempt + "/" + FS_RETRY_MAX
+                boolean transient_ = e.getMessage() != null && (
+                        e.getMessage().contains("Read-only file system")
+                        || e.getMessage().contains("Input/output error")
+                        || e.getMessage().contains("Transport endpoint"));
+                if (!transient_ || attempt == FS_RETRY_MAX) throw e;
+                ctx.logError("FFMPEG", opName + " hit transient IO error (attempt " + attempt + "/" + FS_RETRY_MAX
                         + "), retrying in " + (FS_RETRY_DELAY_MS * attempt / 1000) + "s...");
                 try { Thread.sleep(FS_RETRY_DELAY_MS * attempt); } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
@@ -359,7 +365,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return file;
         }
         Path renamed = file.getParent().resolve(desiredName);
-        Files.move(file, renamed, StandardCopyOption.REPLACE_EXISTING);
+        NtfsCompatibleFiles.move(file, renamed, StandardCopyOption.REPLACE_EXISTING);
         ctx.log("FFMPEG", "Canonical rename → " + renamed.getFileName());
         return renamed;
     }
@@ -429,7 +435,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
         Path staged = tempDir.resolve(sourceFile.getFileName().toString());
         ctx.log("FFMPEG", "Staging in temp: " + sourceFile.getFileName() + " → " + tempDir);
-        Files.move(sourceFile, staged, StandardCopyOption.REPLACE_EXISTING);
+        NtfsCompatibleFiles.move(sourceFile, staged, StandardCopyOption.REPLACE_EXISTING);
         return staged;
     }
 
@@ -449,7 +455,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             ctx.log("FFMPEG", "Duplicate detected — renaming to: " + finalPath.getFileName());
         }
         ctx.log("FFMPEG", "Promoting to final: " + file.getFileName() + " → " + finalDir);
-        Files.move(file, finalPath); // no REPLACE_EXISTING — path is guaranteed free
+        NtfsCompatibleFiles.move(file, finalPath); // no REPLACE_EXISTING — path is guaranteed free
         return finalPath;
     }
 
