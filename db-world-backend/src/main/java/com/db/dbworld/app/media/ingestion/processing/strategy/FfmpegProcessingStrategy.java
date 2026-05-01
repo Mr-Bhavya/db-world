@@ -52,6 +52,11 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private static final Set<String> MEDIA_EXTENSIONS = Set.of(
             "mkv", "mp4", "avi", "mov", "ts", "m2ts", "m4v", "wmv", "flv", "webm", "mpg", "mpeg"
     );
+    private static final int    FS_RETRY_MAX      = 3;
+    private static final long   FS_RETRY_DELAY_MS = 5_000;
+
+    @FunctionalInterface
+    private interface FsOp<T> { T run() throws IOException; }
 
     private final FileStorageService         fileStorageService;
     private final MediaInfoService           mediaInfoService;
@@ -169,6 +174,17 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile) throws IOException {
         ProcessingResult result = new ProcessingResult();
 
+        // Pre-flight: verify the filesystem is still writable (external drives can remount
+        // read-only mid-job due to I/O errors, even while existing open file descriptors work)
+        Path probe = sourceFile.getParent().resolve(".writetest");
+        try {
+            Files.createFile(probe);
+            Files.delete(probe);
+        } catch (IOException e) {
+            throw new IOException("Filesystem is read-only (check dmesg / 'mount | grep " +
+                    sourceFile.getRoot() + "'): " + sourceFile.getParent(), e);
+        }
+
         // ── 1. Stage file in temp working directory ────────────────────
         Path workingFile = stageForProcessing(ctx, sourceFile);
 
@@ -184,12 +200,12 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         ctx.log("MEDIA_INFO", "Persisted: id=" + mediaInfo.getId()
                 + ", tracks=" + (mediaInfo.getTracks() != null ? mediaInfo.getTracks().size() : 0));
 
-        Path canonicalTempFile = renameCanonicalFile(ctx, stagedFile, mediaInfo);
+        Path canonicalTempFile = withFsRetry(ctx, "rename", () -> renameCanonicalFile(ctx, stagedFile, mediaInfo));
         MediaFileDto canonicalDto = canonicalTempFile.equals(stagedFile)
                 ? mediaInfo
                 : recollectMediaInfo(ctx, stagedFile, canonicalTempFile);
 
-        Path finalFile = moveToFinalLocation(ctx, canonicalTempFile);
+        Path finalFile = withFsRetry(ctx, "move-to-final", () -> moveToFinalLocation(ctx, canonicalTempFile));
         MediaFileDto finalDto = finalFile.equals(canonicalTempFile)
                 ? canonicalDto
                 : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
@@ -280,6 +296,25 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 "mediaFileId", dto.getId(),
                 "fileName", dto.getFileName() != null ? dto.getFileName() : ""
         );
+    }
+
+    // Retries a filesystem operation when ntfs-3g returns EROFS transiently
+    // (e.g. bus-powered USB drive resets under load but recovers within seconds).
+    private <T> T withFsRetry(IngestionContext ctx, String opName, FsOp<T> op) throws IOException {
+        for (int attempt = 1; attempt <= FS_RETRY_MAX; attempt++) {
+            try {
+                return op.run();
+            } catch (IOException e) {
+                if (!e.getMessage().contains("Read-only file system") || attempt == FS_RETRY_MAX) throw e;
+                ctx.logError("FFMPEG", opName + " hit transient EROFS (attempt " + attempt + "/" + FS_RETRY_MAX
+                        + "), retrying in " + (FS_RETRY_DELAY_MS * attempt / 1000) + "s...");
+                try { Thread.sleep(FS_RETRY_DELAY_MS * attempt); } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+        throw new AssertionError("unreachable");
     }
 
     private Path renameCanonicalFile(IngestionContext ctx, Path file, MediaFileDto mediaInfo) throws IOException {
