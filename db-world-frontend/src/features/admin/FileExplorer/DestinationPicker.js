@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
+function formatFileSize(bytes) {
+  if (bytes == null) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
 import {
   Box,
   Typography,
@@ -33,7 +41,6 @@ import {
   FolderOpen,
 } from '@mui/icons-material';
 import { motion, AnimatePresence, LazyMotion, domAnimation } from 'framer-motion';
-import { handleApiError } from '@shared/components/ui/utils/errorHandler';
 import { getStreamMediaList } from '@shared/services/ApiServices';
 import { styled } from '@mui/material/styles';
 
@@ -42,12 +49,6 @@ const fadeInUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -20 }
-};
-
-const scaleIn = {
-  initial: { scale: 0.95, opacity: 0 },
-  animate: { scale: 1, opacity: 1 },
-  exit: { scale: 0.95, opacity: 0 }
 };
 
 const slideIn = {

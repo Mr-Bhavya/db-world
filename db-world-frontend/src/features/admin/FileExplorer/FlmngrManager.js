@@ -23,8 +23,7 @@ import {
   ViewCompact,
   ViewList,
   Refresh,
-  Error as ErrorIcon,
-  Info as InfoIcon
+  Error as ErrorIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 // import { DB_FILE_MANAGER_ROUTE } from '@shared/constants';
@@ -39,12 +38,12 @@ import Constants from '@shared/constants';
 // Dynamic import to reduce initial bundle size
 const FlmngrPanel = React.lazy(() => import('@flmngr/flmngr-react').then(module => ({ default: module.FlmngrPanel })));
 
-const FLMNGR_API_KEY = import.meta.env.VITE_FLMNGR_API_KEY || 'abPhHyhIfD0gNqWnymrtCPeS' || "abPhHyhIfD0gNqWnymrtCPeS";
+const FLMNGR_API_KEY = import.meta.env.VITE_FLMNGR_API_KEY || 'abPhHyhIfD0gNqWnymrtCPeS';
 
 // ==================== STYLED COMPONENTS ====================
 const StyledContainer = styled(Box, {
   shouldForwardProp: (prop) => !['fullscreen', 'mobile', 'tablet'].includes(prop)
-})(({ theme, fullscreen, mobile, tablet }) => ({
+})(({ theme, fullscreen, mobile, tablet: _tablet }) => ({
   position: 'relative',
   height: fullscreen ? '100vh' : mobile ? 'calc(100vh - 56px)' : '100%',
   width: '100%',
@@ -193,8 +192,8 @@ const AdaptiveTooltip = ({ children, title, mobile, forceShow = false, ...props 
 
 // ==================== MAIN COMPONENT ====================
 export default function FlmngrManager({ 
-  onSelect, 
-  height = "500px", 
+  onSelect,
+  height: _height = "500px",
   fullscreen = false, 
   onFullscreenToggle,
   sx = {},

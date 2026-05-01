@@ -2,9 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Box,
   Container,
-  Grid,
   Card,
-  CardContent,
   Typography,
   IconButton,
   TextField,
@@ -19,10 +17,7 @@ import {
   Checkbox,
   alpha,
   useTheme,
-  useMediaQuery,
-  Fade,
-  Skeleton,
-  Badge
+  useMediaQuery
 } from '@mui/material';
 import {
   Folder as FolderIcon,
@@ -40,13 +35,7 @@ import {
   Upload,
   CreateNewFolder,
   Refresh,
-  SortByAlpha,
-  DateRange,
-  FolderOpen,
-  DriveFileMove,
-  ContentCopy,
-  Delete,
-  Info
+  FolderOpen
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStreamMediaList } from '@shared/services/ApiServices';
@@ -57,30 +46,6 @@ import useFileOperations from './useFileOperations';
 import { FileContextMenu, FileActionMenu, FileSelectMenu, FileSortMenu } from './FileMenus';
 import FileUploadModal from './FileUploadModal';
 import { styled, keyframes } from '@mui/material/styles';
-
-// Animations
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 }
-};
-
-const scaleIn = {
-  initial: { scale: 0.95, opacity: 0 },
-  animate: { scale: 1, opacity: 1 },
-  exit: { scale: 0.95, opacity: 0 }
-};
-
-const slideIn = {
-  initial: { x: -20, opacity: 0 },
-  animate: { x: 0, opacity: 1 },
-  exit: { x: 20, opacity: 0 }
-};
-
-const shimmerAnimation = keyframes`
-  0% { background-position: -200px 0; }
-  100% { background-position: 200px 0; }
-`;
 
 const pulseAnimation = keyframes`
   0% { transform: scale(1); }
@@ -213,18 +178,6 @@ const ActionButton = styled(motion(Button))(({ theme }) => ({
     transform: 'translateY(-2px)',
     boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
   },
-}));
-
-const LoadingShimmer = styled(Box)(({ theme }) => ({
-  width: '100%',
-  height: '100%',
-  background: `linear-gradient(90deg, 
-    ${alpha(theme.palette.background.paper, 0.8)} 25%, 
-    ${alpha(theme.palette.primary.light, 0.1)} 50%, 
-    ${alpha(theme.palette.background.paper, 0.8)} 75%)`,
-  backgroundSize: '400px 100%',
-  animation: `${shimmerAnimation} 2s infinite linear`,
-  borderRadius: theme.spacing(1),
 }));
 
 const FileExplorer = () => {

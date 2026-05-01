@@ -247,20 +247,20 @@ const ThemedApp = () => {
 
     const hideNativeStatusBar = async () => {
       if (!Capacitor.isNativePlatform()) return;
-      try { await StatusBar.hide(); } catch {}
+      try { await StatusBar.hide(); } catch { /* ignore */ }
     };
 
     const init = async () => {
       try {
         if (Capacitor.getPlatform() === 'android') {
           await hideNativeStatusBar();
-          try { await DbWorldDownload.ensurePermissions(); } catch {}
-          try { resumeListener = await CapacitorApp.addListener('resume', hideNativeStatusBar); } catch {}
+          try { await DbWorldDownload.ensurePermissions(); } catch { /* ignore */ }
+          try { resumeListener = await CapacitorApp.addListener('resume', hideNativeStatusBar); } catch { /* ignore */ }
           try {
             stateListener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
               if (isActive) hideNativeStatusBar();
             });
-          } catch {}
+          } catch { /* ignore */ }
         }
         timeoutId = setTimeout(() => setLoading(false), 1000);
       } catch {

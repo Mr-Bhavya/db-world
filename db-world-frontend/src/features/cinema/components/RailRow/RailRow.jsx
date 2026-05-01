@@ -1,8 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Box, Typography, IconButton, Skeleton, useMediaQuery, useTheme,
+  Box, Typography, IconButton, useMediaQuery, useTheme
 } from '@mui/material';
 import { ChevronLeft, ChevronRight, ArrowForward } from '@mui/icons-material';
 import RecordCard, { RecordCardSkeleton } from '../RecordCard/RecordCard';
@@ -40,7 +39,6 @@ const RailRow = ({
 }) => {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const navigate = useNavigate();
 
   const rowRef       = useRef(null);
   const scrollRef    = useRef(null);
@@ -176,7 +174,7 @@ const RailRow = ({
                 position: 'absolute', left: 0, top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 5, bgcolor: 'rgba(20,20,20,.85)',
-                color: '#fff', borderRadius: '0 4px 4px 0',
+                color: '#fff',
                 height: '100%', width: 40, borderRadius: 0,
                 '&:hover': { bgcolor: 'rgba(20,20,20,.95)' },
               }}
@@ -193,7 +191,7 @@ const RailRow = ({
                 position: 'absolute', right: 0, top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 5, bgcolor: 'rgba(20,20,20,.85)',
-                color: '#fff', borderRadius: '4px 0 0 4px',
+                color: '#fff',
                 height: '100%', width: 40, borderRadius: 0,
                 '&:hover': { bgcolor: 'rgba(20,20,20,.95)' },
               }}

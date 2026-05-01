@@ -1,13 +1,11 @@
 import Constants from '@shared/constants';
-import { addUser, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from '@app/redux/action/allActions';
-import { useDispatch } from "react-redux";
 import { Capacitor } from "@capacitor/core";
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 class CommonServices {
   // ========== TIME & DATE UTILITIES ==========
   
-  static getTimeDateFromTimeStamp = (timestamp, timezone) => {
+  static getTimeDateFromTimeStamp = (timestamp, _timezone) => {
     timestamp = parseInt(timestamp);
     let date = new Date(timestamp);
     
@@ -114,7 +112,7 @@ class CommonServices {
           });
           this._handleCopyFeedback(true, "Content shared", showToast, toastCallback);
           return { success: true, message: "Content shared", method: "web-share" };
-        } catch (shareError) {
+        } catch (_shareError) {
           // Web Share was cancelled or failed, continue to fallback
           //console.log("Web Share cancelled or failed, trying fallback...");
         }
@@ -382,8 +380,8 @@ class CommonServices {
       ? str.toString()
           .toLowerCase()
           .replace(/\s+/g, "-")
-          .replace(/[^\w\-]+/g, "")
-          .replace(/\-\-+/g, "-")
+          .replace(/[^\w-]+/g, "")
+          .replace(/--+/g, "-")
           .replace(/^-+/, "")
           .replace(/-+$/, "")
       : "";
@@ -414,7 +412,7 @@ class CommonServices {
 
   // ========== MEDIA INFO CONVERSION ==========
   
-  static convertMediaInfoToCustomFormat = (id, data, isSearchedFile) => {
+  static convertMediaInfoToCustomFormat = (id, data, _isSearchedFile) => {
     if (!data) return [];
 
     const dataArray = Array.isArray(data) ? data : [data];

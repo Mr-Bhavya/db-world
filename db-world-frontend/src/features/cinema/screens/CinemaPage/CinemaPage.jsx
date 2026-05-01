@@ -23,7 +23,7 @@ const PAGE_MAP = {
 
 // ─── Genre filter bar (desktop only) ─────────────────────────────────────────
 
-const GenreBar = ({ genres, selected, onSelect }) => (
+const _GenreBar = ({ genres, selected, onSelect }) => (
   <Box
     sx={{
       display: { xs: 'none', md: 'flex' }, // hidden on mobile — nav handles it
@@ -94,7 +94,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
   const [heroColor, setHeroColor] = useState(null);
 
   const [rails,       setRails]       = useState([]);
-  const [genres,      setGenres]      = useState([]);
+  const [_genres,     setGenres]      = useState([]);
   const [loadingMeta, setLoadingMeta] = useState(true);
 
   // Clear category when page type changes (navigating between Home/Movies/Series)
@@ -198,7 +198,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
   }, [apiPage, navigate]);
 
   // Desktop genre bar: select passes full genre object
-  const handleGenreSelect = useCallback((genreOrNull) => {
+  const _handleGenreSelect = useCallback((genreOrNull) => {
     if (!genreOrNull) clearCategory();
     else selectCategory(genreOrNull);
   }, [selectCategory, clearCategory]);

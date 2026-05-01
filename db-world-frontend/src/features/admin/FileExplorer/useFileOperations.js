@@ -2,9 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { 
   deleteFileApi, 
   moveFileApi, 
-  renameFileApi, 
-  copyFileApi,
-  createFolderApi 
+  renameFileApi 
 } from '@shared/services/ApiServices';
 import Constants from '@shared/constants';
 import { toast } from '@shared/components/ui/Toast';

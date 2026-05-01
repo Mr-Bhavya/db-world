@@ -3,7 +3,6 @@ import CommonServices from '@shared/services/CommonServices';
 import {
     CardContent,
     Typography,
-    Divider,
     IconButton,
     Collapse,
     Box,
@@ -23,16 +22,13 @@ import {
     Videocam,
     Audiotrack,
     Subtitles,
-    Info,
     Folder,
     Movie
 } from "@mui/icons-material";
-import Constants from '@shared/constants';
 
 export const MediaInfoContent = ({ mediaInfo }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    const isTablet = useMediaQuery(theme.breakpoints.down('md'));
     const [expandedSeasons, setExpandedSeasons] = useState({});
     const [expandedSections, setExpandedSections] = useState({
         audio: false,
@@ -218,11 +214,11 @@ export const MediaInfoContent = ({ mediaInfo }) => {
     const CompactGrid = ({
         children,
         layout = "auto", // "auto" | "dense" | "balanced"
-        maxColumns = { xs: 1, sm: 2, md: 3, lg: 4 },
+        maxColumns: _maxColumns = { xs: 1, sm: 2, md: 3, lg: 4 },
         spacing = { xs: 1, sm: 1.5, md: 2 },
         sx = {}
     }) => {
-        const theme = useTheme();
+        const _theme = useTheme();
 
         // Smart column calculation based on content and screen size
         const getResponsiveConfig = () => {

@@ -52,7 +52,7 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
       } else {
         setPlayerOpen(true);
       }
-    } catch (e) {
+    } catch (_e) {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally {
       setResolving(false);

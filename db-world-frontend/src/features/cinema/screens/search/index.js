@@ -456,7 +456,6 @@ function SearchOverlay({ onClose }) {
     </ResultsGrid>
   );
 
-  const displayedRecords = activeTab === 'stream' ? recordsWithFiles : records;
 
   // ── JSX ─────────────────────────────────────────────────────────────────────
 

@@ -5,7 +5,6 @@ import {
   Typography,
   Button,
   TextField,
-  Divider,
   Paper,
   CircularProgress,
   Dialog,
@@ -17,8 +16,7 @@ import {
   IconButton,
   alpha,
   useTheme,
-  Fade,
-  Zoom
+  Fade
 } from '@mui/material';
 import { 
   motion, 
@@ -40,12 +38,6 @@ import DestinationPicker from './DestinationPicker';
 import { styled, keyframes } from '@mui/material/styles';
 
 // Animations
-const fadeInUp = {
-  initial: { opacity: 0, y: 30, scale: 0.95 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: 20, scale: 0.95 }
-};
-
 const slideIn = {
   initial: { x: -100, opacity: 0 },
   animate: { x: 0, opacity: 1 },
@@ -170,17 +162,6 @@ const ActionButton = styled(motion(Button))(({ theme, actiontype }) => ({
       ? `0 8px 25px ${alpha(theme.palette.error.main, 0.3)}`
       : `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
   },
-}));
-
-const LoadingShimmer = styled(Box)(({ theme }) => ({
-  width: '100%',
-  height: '100%',
-  background: `linear-gradient(90deg, 
-    ${alpha(theme.palette.background.paper, 0.8)} 25%, 
-    ${alpha(theme.palette.primary.light, 0.1)} 50%, 
-    ${alpha(theme.palette.background.paper, 0.8)} 75%)`,
-  backgroundSize: '400px 100%',
-  animation: `${shimmerAnimation} 2s infinite linear`,
 }));
 
 const FileActionModal = ({
@@ -501,10 +482,10 @@ const FileActionModal = ({
                               mt: 0.5,
                               wordBreak: 'break-word'
                             }}>
-                              "{selectedFile?.fileName}"
+                              &quot;{selectedFile?.fileName}&quot;
                             </Box>
                           </Typography>
-                          <Alert 
+                          <Alert
                             severity="warning" 
                             sx={{ 
                               mt: 2,
@@ -660,7 +641,7 @@ const FileActionModal = ({
                 }}
               >
                 <Typography variant="body1" fontWeight="600" color="error">
-                  "{selectedFile?.fileName}"
+                  &quot;{selectedFile?.fileName}&quot;
                 </Typography>
               </Paper>
               <Alert 

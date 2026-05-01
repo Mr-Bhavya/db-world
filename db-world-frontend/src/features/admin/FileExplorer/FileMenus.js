@@ -11,7 +11,6 @@ import {
   Box,
   Typography,
   Chip,
-  Fade,
   Slide,
   Divider,
   Badge,
@@ -25,17 +24,13 @@ import {
   Info as InfoIcon,
   Download,
   EditNote,
-  Folder,
-  InsertDriveFile,
   Sort,
   SortByAlpha,
   DateRange,
   FolderSpecial,
   InsertDriveFileOutlined,
   ArrowBack,
-  SelectAll,
   Deselect,
-  MoreHoriz,
   CheckCircle,
   DragIndicator
 } from '@mui/icons-material';
@@ -144,16 +139,6 @@ const FloatingActionButton = styled(IconButton)(({ theme }) => ({
     fontSize: 20,
   }
 }));
-
-// Menu Icons with different colors
-const menuIcons = {
-  rename: { icon: EditNote, color: 'primary' },
-  move: { icon: DriveFileMove, color: 'info' },
-  copy: { icon: CopyIcon, color: 'success' },
-  delete: { icon: DeleteIcon, color: 'error' },
-  info: { icon: InfoIcon, color: 'warning' },
-  download: { icon: Download, color: 'success' }
-};
 
 // Animation variants
 const menuVariants = {
@@ -375,7 +360,7 @@ export const FileActionMenu = React.memo(({
         </Typography>
       </Box>
 
-      {menuItems.map((item, index) => (
+      {menuItems.map((item) => (
         <StyledMenuItem
           key={item.action}
           onClick={() => handleMenuItemClick(item.action)}

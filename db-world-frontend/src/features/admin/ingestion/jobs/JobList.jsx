@@ -6,9 +6,9 @@ import {
 import { useT } from '@shared/theme';
 import {
   PlayArrow, Queue, Pause, CheckCircle, Error as ErrorIcon,
-  Cancel, AllInclusive,
+  AllInclusive
 } from '@mui/icons-material';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import JobCard from './JobCard';
 import useIngestionStore from '../store/ingestionStore';
 

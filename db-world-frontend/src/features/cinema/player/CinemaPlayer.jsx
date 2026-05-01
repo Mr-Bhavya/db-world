@@ -154,7 +154,6 @@ const TrackMenu = ({ anchorEl, open, onClose, title, tracks, activeIndex, onSele
 // ─── Episode panel ────────────────────────────────────────────────────────────
 
 const EpisodePanel = ({ open, onClose, episodeMap, currentEp, onPlay, isMobile }) => {
-  const theme = useTheme();
   const seasons = Object.keys(episodeMap).map(Number).sort((a, b) => a - b);
   const [activeSeason, setActiveSeason] = useState(currentEp?.season ?? seasons[0] ?? 1);
 

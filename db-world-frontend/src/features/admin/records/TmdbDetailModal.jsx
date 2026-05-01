@@ -21,7 +21,7 @@ const tmdbBackdrop = (p) => p ? `${TMDB_BASE}w1280${p}` : null;
 const ratingColor  = (v) => v >= 7 ? '#4caf50' : v >= 5 ? '#ff9800' : '#f44336';
 const fmtRuntime   = (m) => !m ? null : `${Math.floor(m / 60)}h ${m % 60}m`;
 const fmtMoney     = (n) => n > 0 ? `$${n.toLocaleString()}` : null;
-const fmtMs        = (ms) => {
+const _fmtMs       = (ms) => {
   if (!ms) return null;
   const s = Math.round(ms / 1000);
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
@@ -141,7 +141,7 @@ function OverviewTab({ tmdb, isMovie }) {
       <Box sx={{ flex: 1.2, minWidth: 0 }}>
         {tmdb.tagline && (
           <Typography sx={{ fontSize: 13, fontStyle: 'italic', color: T.textMuted, mb: 1.5, lineHeight: 1.5 }}>
-            "{tmdb.tagline}"
+            &quot;{tmdb.tagline}&quot;
           </Typography>
         )}
 

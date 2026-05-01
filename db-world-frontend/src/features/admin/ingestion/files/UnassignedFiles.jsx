@@ -7,8 +7,7 @@ import {
   DialogActions, Autocomplete,
 } from '@mui/material';
 import {
-  Search, LinkOff, Link as LinkIcon, Download,
-  InsertDriveFile, Refresh, VideoFile,
+  Search, LinkOff, Link as LinkIcon, Refresh, VideoFile
 } from '@mui/icons-material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -119,7 +118,6 @@ function LinkDialog({ fileId, fileName, open, onClose }) {
 function UnassignedFileCard({ file }) {
   const [linkOpen, setLinkOpen] = useState(false);
 
-  const general = file.tracks?.find((t) => t.type === 'General');
   const video   = file.tracks?.find((t) => t.type === 'Video');
   const audio   = file.tracks?.find((t) => t.type === 'Audio');
 

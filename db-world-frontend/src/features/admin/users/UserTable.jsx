@@ -10,7 +10,6 @@ import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { formatDistanceToNow } from 'date-fns';
 import { useT }        from '@shared/theme';
 import { useUserStore } from '../stores/useUserStore';
-import { ROLE_COLORS }  from './constants';
 
 const ROLE_COLOR = { OWNER: '#f59e0b', ADMIN: '#3b82f6', VIEWER: '#10b981' };
 const COLUMNS = [

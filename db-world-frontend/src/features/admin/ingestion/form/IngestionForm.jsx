@@ -10,8 +10,7 @@ import {
 import { useT } from '@shared/theme';
 import {
   Add, Delete, Link as LinkIcon, MusicNote, Lock, LockOutlined, Archive,
-  Send, Clear, VideoSettings, Info, CloudDownload, FolderOpen,
-  UploadFile, Close, Tv,
+  Send, Clear, VideoSettings, UploadFile, Close, Tv
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSnackbar } from 'notistack';
@@ -79,7 +78,7 @@ function SourceBadge({ type }) {
 
 // ── Single URL row ─────────────────────────────────────────────────────────
 
-function UrlRow({ index, control, watch, remove, isOnly, isYtMode, isTvRecord, showEpisode }) {
+function UrlRow({ index, control, watch, remove, isOnly, isYtMode, isTvRecord: _isTvRecord, showEpisode }) {
   const T   = useT();
   const url = watch(`urls.${index}.url`);
   const type = detectUrlType(url);
@@ -210,7 +209,6 @@ function UrlRow({ index, control, watch, remove, isOnly, isYtMode, isTvRecord, s
 
 export default function IngestionForm({ onSubmitted }) {
   const { enqueueSnackbar } = useSnackbar();
-  const setFormOpen  = useIngestionStore((s) => s.setFormOpen);
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
   const torrentInputRef = useRef(null);
   const [torrentFile,   setTorrentFile]   = useState(null);

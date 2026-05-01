@@ -17,6 +17,7 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useAuth } from '@features/auth/context/Authentication';
 
+
 // ─── Accent palette ────────────────────────────────────────────────────────────
 const ACCENTS = [
   '#6366f1', '#10b981', '#f59e0b', '#ef4444',
@@ -56,9 +57,6 @@ function getGreeting() {
   return 'Good evening';
 }
 
-function camelToLabel(key) {
-  return TAG_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-}
 
 async function fetchDashboardStats() {
   const token = localStorage.getItem('token') ?? sessionStorage.getItem('token') ?? '';
@@ -199,7 +197,7 @@ const SystemBar = ({ label, value, color, loading }) => {
 };
 
 // ─── Section header ────────────────────────────────────────────────────────────
-const SectionHeader = ({ icon: IconEl, label, color, action, onAction, actionLabel }) => {
+const SectionHeader = ({ icon: IconEl, label, color, onAction, actionLabel }) => {
   const T = useT();
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>

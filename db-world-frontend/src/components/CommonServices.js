@@ -1,8 +1,7 @@
+/* global CryptoJS */
 import Constants from "./Constants";
-import { addUser, moviePageNumber, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from "../redux/action/allActions";
-import { useDispatch } from "react-redux";
 
-const getTimeDateFromTimeStamp = (timestamp, timezone) => {
+const getTimeDateFromTimeStamp = (timestamp, _timezone) => {
 
     timestamp = parseInt(timestamp);
 
@@ -84,7 +83,7 @@ const convertGiBTobytes = (GiB) => {
 
 const convertTobytes = (value, suffix) => {
     let bytes = null;
-    if (typeof (value) === null || typeof (value) === "undefined" || typeof (suffix) === null || typeof (suffix) === "undefined") {
+    if (value === null || value === undefined || suffix === null || suffix === undefined) {
         return null;
     }
 
@@ -96,7 +95,7 @@ const convertTobytes = (value, suffix) => {
         bytes = convertKiBTobytes(value);
     } else if (suffix === Constants.MIB) {
         bytes = convertMiBTobytes(value);
-    } else if (suffix === Constants.MIB) {
+    } else if (suffix === Constants.GIB) {
         bytes = convertGiBTobytes(value);
     }
     return bytes;

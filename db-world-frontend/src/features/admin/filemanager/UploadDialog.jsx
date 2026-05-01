@@ -46,7 +46,7 @@ export default function UploadDialog() {
       enqueueSnackbar(`Uploaded ${files.length} file(s)`, { variant: 'success' });
       setFiles([]);
       setUploadOpen(false);
-    } catch (e) {
+    } catch (_e) {
       enqueueSnackbar('Upload failed', { variant: 'error' });
       setFiles(prev => prev.map(f => ({ ...f, status: 'error' })));
     } finally {

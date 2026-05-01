@@ -52,7 +52,7 @@ function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPa
   const T     = useT();
   const start = totalElements === 0 ? 0 : page * pageSize + 1;
   const end   = Math.min((page + 1) * pageSize, totalElements);
-  const pageButtons = useMemo(() => {
+  const _pageButtons = useMemo(() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i);
     const set    = new Set([0, totalPages - 1, page, page - 1, page + 1].filter(p => p >= 0 && p < totalPages));
     const sorted = [...set].sort((a, b) => a - b);
@@ -958,7 +958,7 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
         {rule.type === 'manual' && (
           <Alert severity="info" sx={{ bgcolor: `${T.teal}12`, color: T.textMuted,
             border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
-            Manual rails show records from the rail's curated item list. Save the rail first, then add records via the rail items API.
+            Manual rails show records from the rail&apos;s curated item list. Save the rail first, then add records via the rail items API.
           </Alert>
         )}
 
@@ -967,7 +967,7 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
           <Alert severity="info" sx={{ bgcolor: `${T.teal}12`, color: T.textMuted,
             border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
             <strong>My List</strong> shows each user their own watchlisted records, sorted most-recently-added first.
-            No additional configuration needed — sorting and record type are determined by the user's list.
+            No additional configuration needed — sorting and record type are determined by the user&apos;s list.
           </Alert>
         )}
 

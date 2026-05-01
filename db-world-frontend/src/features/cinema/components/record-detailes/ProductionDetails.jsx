@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, Typography, styled, Avatar } from '@mui/material';
+import { Box, Typography, Avatar } from '@mui/material';
 import CardContent from '@mui/material/CardContent';
 import { DetailCard, SectionTitle } from './CustomComponents';
 

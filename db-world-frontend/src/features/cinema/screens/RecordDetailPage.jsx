@@ -120,7 +120,7 @@ const formatRuntime = (minutes) => {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 
-const formatDuration = (ms) => {
+const _formatDuration = (ms) => {
   if (!ms) return null;
   const totalSec = Math.round(ms / 1000);
   const h = Math.floor(totalSec / 3600);
@@ -286,8 +286,6 @@ function VideoDialog({ video, onClose }) {
 
 function ImageLightbox({ images, startIndex, onClose }) {
   const [idx, setIdx] = useState(startIndex ?? 0);
-  const img = images[idx];
-  if (!img) return null;
 
   const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
   const next = () => setIdx((i) => (i + 1) % images.length);
@@ -296,7 +294,10 @@ function ImageLightbox({ images, startIndex, onClose }) {
     if (e.key === 'ArrowLeft') prev();
     if (e.key === 'ArrowRight') next();
     if (e.key === 'Escape') onClose();
-  }, [idx]);
+  }, [idx]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const img = images[idx];
+  if (!img) return null;
 
   return (
     <Dialog
@@ -423,7 +424,7 @@ function ShareButton({ record }) {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   return (
@@ -680,7 +681,7 @@ function Hero({ record, interaction, onToggle, interactionLoading, onPlayTrailer
             {/* Tagline */}
             {tmdb.tagline && (
               <Typography variant="body2" sx={{ color: '#9e9e9e', fontStyle: 'italic', mb: 1.5, fontSize: '0.85rem', display: { xs: 'none', sm: 'block' } }}>
-                "{tmdb.tagline}"
+                &quot;{tmdb.tagline}&quot;
               </Typography>
             )}
 
@@ -1550,7 +1551,7 @@ function CopyBtn({ getUrl }) {
     try {
       const url = await getUrl();
       if (url) { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-    } catch {} finally { setWorking(false); }
+    } catch { /* ignore */ } finally { setWorking(false); }
   };
   return (
     <Tooltip title={copied ? 'Copied!' : 'Copy URL'}>
@@ -1605,7 +1606,7 @@ function FileCard({ mediaInfo, allFiles, record }) {
       } else {
         setPlayerOpen(true);
       }
-    } catch (e) {
+    } catch (_e) {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally {
       setResolving(false);
@@ -1810,6 +1811,7 @@ function QualityGroup({ quality, files, allFiles, record }) {
   );
 }
 
+// eslint-disable-next-line no-unused-vars
 function WatchTab({ recordId, record }) {
   const T = useT();
   const [files, setFiles] = useState([]);
@@ -1822,7 +1824,6 @@ function WatchTab({ recordId, record }) {
     loadStreamFileInfoByRecordId(recordId)
       .then(res => {
         if (res?.httpStatusCode === 200 || res?.data) {
-          const converted = CommonServices.convertMediaInfoToCustomFormat(null, res.data ?? res);
           // setFiles(converted);
           setFiles(res.data ?? res);
         }
@@ -1885,7 +1886,6 @@ export default function RecordDetailPage() {
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const T = useT();
-  const theme = useTheme();
 
   const [activeTab, setActiveTab] = useState(0);
   const [interactionState, setInteractionState] = useState(null);
@@ -1932,7 +1932,7 @@ export default function RecordDetailPage() {
   }, [record, recordLoading, recordError, navigate]);
 
   const toggleMutation = useMutation({
-    mutationFn: async ({ key, active, add, remove }) => active ? remove(id) : add(id),
+    mutationFn: async ({ key: _key, active, add, remove }) => active ? remove(id) : add(id),
     onMutate: ({ key, active }) => setInteractionState((prev) => ({ ...prev, [key]: !active })),
     onSuccess: () => qc.invalidateQueries(['cinema-interaction', userId, id]),
     onError: (err, { key, active }) => {
@@ -2021,7 +2021,7 @@ export default function RecordDetailPage() {
 
   // Tab bar: always opaque T.bg so content below never shows through
   const tabBg   = T.bg;
-  const tabBord = T.border;
+  const _tabBord = T.border;
 
   if (recordLoading) {
     return (

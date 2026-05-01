@@ -19,7 +19,7 @@ export const Backdrop = styled(motion.div)(({ theme }) => ({
     },
 }));
 
-export const BackdropImage = styled('div')(({ theme }) => ({
+export const BackdropImage = styled('div')(({ theme: _theme }) => ({
     position: 'absolute',
     top: 0,
     left: 0,
