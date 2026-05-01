@@ -192,6 +192,9 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         Path stagedFile = enrichWithTmdb(ctx, workingFile);
 
         // ── 3. Collect metadata, rename in temp, then move to final ────
+        // Clean up orphan records left by any previous failed run for this record
+        purgeOrphanTempRecords(ctx, stagedFile.getParent());
+
         MediaFileDto mediaInfo = mediaInfoService.collectAndPersist(
                 stagedFile,
                 ctx.getRecordId(),
@@ -200,23 +203,38 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         ctx.log("MEDIA_INFO", "Persisted: id=" + mediaInfo.getId()
                 + ", tracks=" + (mediaInfo.getTracks() != null ? mediaInfo.getTracks().size() : 0));
 
-        Path canonicalTempFile = withFsRetry(ctx, "rename", () -> renameCanonicalFile(ctx, stagedFile, mediaInfo));
-        MediaFileDto canonicalDto = canonicalTempFile.equals(stagedFile)
-                ? mediaInfo
-                : recollectMediaInfo(ctx, stagedFile, canonicalTempFile);
+        // Track the most-recently persisted DTO so we can roll back on failure
+        MediaFileDto latestDto = mediaInfo;
+        try {
+            Path canonicalTempFile = withFsRetry(ctx, "rename", () -> renameCanonicalFile(ctx, stagedFile, mediaInfo));
+            MediaFileDto canonicalDto = canonicalTempFile.equals(stagedFile)
+                    ? mediaInfo
+                    : recollectMediaInfo(ctx, stagedFile, canonicalTempFile);
+            latestDto = canonicalDto;
 
-        Path finalFile = withFsRetry(ctx, "move-to-final", () -> moveToFinalLocation(ctx, canonicalTempFile));
-        MediaFileDto finalDto = finalFile.equals(canonicalTempFile)
-                ? canonicalDto
-                : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
+            Path finalFile = withFsRetry(ctx, "move-to-final", () -> moveToFinalLocation(ctx, canonicalTempFile));
+            MediaFileDto finalDto = finalFile.equals(canonicalTempFile)
+                    ? canonicalDto
+                    : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
+            latestDto = finalDto;
 
-        symlinkService.create(finalDto.getId(), finalDto.getFilePath());
+            symlinkService.create(finalDto.getId(), finalDto.getFilePath());
 
-        result.setFinalFile(finalFile);
-        result.setSuccess(true);
-        result.setMediaInfo(toMediaInfoMap(finalDto));
+            result.setFinalFile(finalFile);
+            result.setSuccess(true);
+            result.setMediaInfo(toMediaInfoMap(finalDto));
+            return result;
 
-        return result;
+        } catch (Exception e) {
+            // Roll back the persisted media-file record so it doesn't appear as an orphan in the UI
+            String orphanPath = latestDto.getFilePath();
+            if (orphanPath != null) {
+                ctx.logError("FFMPEG", "Rolling back orphan media-file record: " + orphanPath);
+                try { mediaInfoService.deleteByFilePath(orphanPath); } catch (Exception ignored) {}
+            }
+            if (e instanceof IOException) throw (IOException) e;
+            throw new IOException(e);
+        }
     }
 
     private EpisodeRef detectFromFilename(Path file) {
@@ -296,6 +314,24 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 "mediaFileId", dto.getId(),
                 "fileName", dto.getFileName() != null ? dto.getFileName() : ""
         );
+    }
+
+    // Deletes any media-file DB records pointing to the given temp directory that were
+    // left behind by a previous failed job for the same record. Non-fatal: logs and continues.
+    private void purgeOrphanTempRecords(IngestionContext ctx, Path tempDir) {
+        try {
+            String tempDirStr = tempDir.toAbsolutePath().toString();
+            mediaInfoService.getByRecordId(ctx.getRecordId()).stream()
+                    .filter(dto -> dto.getFilePath() != null && dto.getFilePath().startsWith(tempDirStr))
+                    .forEach(dto -> {
+                        ctx.log("FFMPEG", "Purging orphan media-file from previous run: " + dto.getFilePath());
+                        try { mediaInfoService.deleteByFilePath(dto.getFilePath()); } catch (Exception e) {
+                            ctx.logError("FFMPEG", "Could not purge orphan: " + e.getMessage());
+                        }
+                    });
+        } catch (Exception e) {
+            ctx.logError("FFMPEG", "Orphan purge failed (non-fatal): " + e.getMessage());
+        }
     }
 
     // Retries a filesystem operation when ntfs-3g returns EROFS transiently
