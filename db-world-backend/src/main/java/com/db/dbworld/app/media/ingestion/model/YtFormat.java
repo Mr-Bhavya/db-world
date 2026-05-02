@@ -23,6 +23,7 @@ public class YtFormat {
     private String  vcodec;
     private String  fps;
     private Long    filesize;     // bytes, may be null
-    private String  formatNote;   // e.g. "1080p", "DASH audio"
-    private String  type;         // "video", "audio", "combined"
+    private String  formatNote;    // e.g. "1080p", "DASH audio"
+    private String  dynamicRange;  // "SDR", "HDR10", "HDR10+", "HLG", "DV" — null if unknown
+    private String  type;          // "video", "audio", "combined"
 }
