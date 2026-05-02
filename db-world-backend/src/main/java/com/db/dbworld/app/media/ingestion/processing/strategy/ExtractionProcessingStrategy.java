@@ -57,13 +57,8 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
         try {
             Files.createDirectories(extractDir);
 
-            // Pre-flight: verify the target filesystem is writable before starting 7z
-            Path probe = extractDir.resolve(".writetest");
-            try {
-                Files.createFile(probe);
-                Files.delete(probe);
-            } catch (IOException e) {
-                throw new IOException("Target directory is not writable (filesystem may be read-only): " + extractDir, e);
+            if (!Files.isWritable(extractDir)) {
+                throw new IOException("Target directory is not writable: " + extractDir);
             }
 
             processExecutor.executeExtraction(
