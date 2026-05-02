@@ -67,6 +67,11 @@ export const fetchYtFormats = async (url) => {
   return res.data;
 };
 
+export const fetchPlaylist = async (url) => {
+  const res = await axiosInstance.get('/api/ingestion/yt/playlist', { params: { url } });
+  return res.data;
+};
+
 // ── File browser ─────────────────────────────────────────────────────────────
 
 export const browseFiles = async (root, subPath = '') => {

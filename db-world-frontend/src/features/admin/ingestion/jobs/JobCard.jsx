@@ -215,25 +215,27 @@ export default function JobCard({ job }) {
     ? cfg.label
     : (step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label);
 
-  const pct      = progress?.percent ?? 0;
-  const speed    = fmtSpeed(progress?.speed);
-  const eta      = fmtEta(progress?.eta);
-  const isFfmpeg = step === 'FFMPEG';
-  const isExtr   = step === 'EXTRACT';
+  const pct       = progress?.percent ?? 0;
+  const speed     = fmtSpeed(progress?.speed);
+  const eta       = fmtEta(progress?.eta);
+  const isFfmpeg  = step === 'FFMPEG';
+  const isExtr    = step === 'EXTRACT';
+  const isMerging = progress?.phase === 'merging';
 
   const progressLeft =
-      isFfmpeg ? `${fmtDurationMs(progress?.downloaded)} / ${fmtDurationMs(progress?.total)}`
+      isMerging ? 'Merging audio + video…'
+    : isFfmpeg  ? `${fmtDurationMs(progress?.downloaded)} / ${fmtDurationMs(progress?.total)}`
     : isExtr    ? (pct > 0 ? `${pct.toFixed(1)}%` : 'Extracting…')
     :             `${fmtBytes(progress?.downloaded)} / ${fmtBytes(progress?.total)}`;
 
   const progressRight = [
-    speed               && speed,
-    eta                 && `ETA ${eta}`,
-    pct > 0 && !isExtr  && `${pct.toFixed(1)}%`,
+    !isMerging && speed              && speed,
+    !isMerging && eta                && `ETA ${eta}`,
+    pct > 0 && !isExtr && !isMerging && `${pct.toFixed(1)}%`,
   ].filter(Boolean).join('  ');
 
   const showProgress = isActive && progress &&
-    (progress.downloaded > 0 || status === 'DOWNLOADING' || isFfmpeg || isExtr);
+    (progress.downloaded > 0 || status === 'DOWNLOADING' || isFfmpeg || isExtr || isMerging);
 
   const displayName = fileName ?? (uri ? uri.split('/').pop().split('?')[0] : jobId);
 
@@ -334,7 +336,7 @@ export default function JobCard({ job }) {
                 )}
               </Stack>
               <LinearProgress
-                variant={pct > 0 ? 'determinate' : 'indeterminate'}
+                variant={isMerging || pct === 0 ? 'indeterminate' : 'determinate'}
                 value={pct}
                 sx={{ height: 4, borderRadius: 3 }}
               />
