@@ -13,7 +13,6 @@ import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.app.stream.tag.MediaSource;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
-import com.db.dbworld.utils.NtfsCompatibleFiles;
 import com.db.dbworld.utils.PathSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -53,12 +52,6 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private static final Set<String> MEDIA_EXTENSIONS = Set.of(
             "mkv", "mp4", "avi", "mov", "ts", "m2ts", "m4v", "wmv", "flv", "webm", "mpg", "mpeg"
     );
-    private static final int    FS_RETRY_MAX      = 3;
-    private static final long   FS_RETRY_DELAY_MS = 5_000;
-
-    @FunctionalInterface
-    private interface FsOp<T> { T run() throws IOException; }
-
     private final FileStorageService         fileStorageService;
     private final MediaInfoService           mediaInfoService;
     private final TmdbMediaEnrichmentService enrichmentService;
@@ -175,27 +168,6 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile) throws IOException {
         ProcessingResult result = new ProcessingResult();
 
-        // Pre-flight: verify the filesystem is still writable.
-        // Uses touch probe instead of Files.createFile() because ntfs-3g may return EROFS
-        // even for O_CREAT when it has remounted read-only after an NTFS metadata error.
-        // On failure, attempt automatic ntfs-3g remount recovery before giving up.
-        Path dir = sourceFile.getParent();
-        IOException writeError = NtfsCompatibleFiles.probeWritable(dir);
-        if (writeError != null) {
-            ctx.logError("FFMPEG", "Filesystem not writable (" + writeError.getMessage()
-                    + "), attempting ntfs-3g remount recovery: " + dir);
-            if (!NtfsCompatibleFiles.attemptNtfsRemountRw(dir)) {
-                throw new IOException("Filesystem not writable and remount failed: "
-                        + writeError.getMessage(), writeError);
-            }
-            IOException afterRemount = NtfsCompatibleFiles.probeWritable(dir);
-            if (afterRemount != null) {
-                throw new IOException("Filesystem still not writable after remount: "
-                        + afterRemount.getMessage(), afterRemount);
-            }
-            ctx.log("FFMPEG", "Filesystem remounted read-write — continuing");
-        }
-
         // ── 1. Stage file in temp working directory ────────────────────
         Path workingFile = stageForProcessing(ctx, sourceFile);
 
@@ -217,13 +189,13 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         // Track the most-recently persisted DTO so we can roll back on failure
         MediaFileDto latestDto = mediaInfo;
         try {
-            Path canonicalTempFile = withFsRetry(ctx, "rename", () -> renameCanonicalFile(ctx, stagedFile, mediaInfo));
+            Path canonicalTempFile = renameCanonicalFile(ctx, stagedFile, mediaInfo);
             MediaFileDto canonicalDto = canonicalTempFile.equals(stagedFile)
                     ? mediaInfo
                     : recollectMediaInfo(ctx, stagedFile, canonicalTempFile);
             latestDto = canonicalDto;
 
-            Path finalFile = withFsRetry(ctx, "move-to-final", () -> moveToFinalLocation(ctx, canonicalTempFile));
+            Path finalFile = moveToFinalLocation(ctx, canonicalTempFile);
             MediaFileDto finalDto = finalFile.equals(canonicalTempFile)
                     ? canonicalDto
                     : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
@@ -345,50 +317,17 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         }
     }
 
-    // Retries a filesystem operation on transient IO failure.
-    // On the penultimate attempt, also tries ntfs-3g remount recovery before the final retry.
-    private <T> T withFsRetry(IngestionContext ctx, String opName, FsOp<T> op) throws IOException {
-        IOException lastEx = null;
-        for (int attempt = 1; attempt <= FS_RETRY_MAX; attempt++) {
-            try {
-                return op.run();
-            } catch (IOException e) {
-                lastEx = e;
-                boolean transient_ = NtfsCompatibleFiles.isNtfsFailure(e)
-                        || (e.getMessage() != null && (
-                               e.getMessage().contains("Input/output error")
-                            || e.getMessage().contains("Transport endpoint")));
-                if (!transient_) throw e;
-                if (attempt == FS_RETRY_MAX) break;
-
-                ctx.logError("FFMPEG", opName + " hit transient IO error (attempt " + attempt
-                        + "/" + FS_RETRY_MAX + "), retrying in " + (FS_RETRY_DELAY_MS * attempt / 1000) + "s...");
-
-                // On the attempt before the last, try remounting the ntfs-3g volume
-                if (attempt == FS_RETRY_MAX - 1) {
-                    ctx.logError("FFMPEG", "Attempting ntfs-3g remount recovery before final retry...");
-                    NtfsCompatibleFiles.attemptNtfsRemountRw(
-                            ctx.getDownload() != null && ctx.getDownload().getFilePath() != null
-                                    ? ctx.getDownload().getFilePath().getParent()
-                                    : null);
-                }
-
-                try { Thread.sleep(FS_RETRY_DELAY_MS * attempt); } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw e;
-                }
-            }
-        }
-        throw lastEx;
-    }
-
     private Path renameCanonicalFile(IngestionContext ctx, Path file, MediaFileDto mediaInfo) throws IOException {
         String desiredName = buildCanonicalFileName(ctx, file, mediaInfo);
         if (desiredName == null || desiredName.isBlank() || desiredName.equals(file.getFileName().toString())) {
             return file;
         }
         Path renamed = file.getParent().resolve(desiredName);
-        NtfsCompatibleFiles.move(file, renamed, StandardCopyOption.REPLACE_EXISTING);
+        try {
+            Files.move(file, renamed, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new IOException("Failed to rename " + file.getFileName() + " → " + renamed.getFileName() + ": " + e.getMessage(), e);
+        }
         ctx.log("FFMPEG", "Canonical rename → " + renamed.getFileName());
         return renamed;
     }
@@ -450,7 +389,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     private Path stageForProcessing(IngestionContext ctx, Path sourceFile) throws IOException {
         Path tempDir = fileStorageService.resolveTempDir(ctx);
-        NtfsCompatibleFiles.createDirectories(tempDir);
+        Files.createDirectories(tempDir);
 
         if (sourceFile.toAbsolutePath().normalize().startsWith(tempDir.toAbsolutePath().normalize())) {
             return sourceFile;
@@ -458,13 +397,17 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
         Path staged = tempDir.resolve(sourceFile.getFileName().toString());
         ctx.log("FFMPEG", "Staging in temp: " + sourceFile.getFileName() + " → " + tempDir);
-        NtfsCompatibleFiles.move(sourceFile, staged, StandardCopyOption.REPLACE_EXISTING);
+        try {
+            Files.move(sourceFile, staged, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new IOException("Failed to stage " + sourceFile.getFileName() + " to temp: " + e.getMessage(), e);
+        }
         return staged;
     }
 
     private Path moveToFinalLocation(IngestionContext ctx, Path file) throws IOException {
         Path finalDir = fileStorageService.resolveFinalDir(ctx);
-        NtfsCompatibleFiles.createDirectories(finalDir);
+        Files.createDirectories(finalDir);
 
         Path normalizedFile     = file.toAbsolutePath().normalize();
         Path normalizedFinalDir = finalDir.toAbsolutePath().normalize();
@@ -478,7 +421,11 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             ctx.log("FFMPEG", "Duplicate detected — renaming to: " + finalPath.getFileName());
         }
         ctx.log("FFMPEG", "Promoting to final: " + file.getFileName() + " → " + finalDir);
-        NtfsCompatibleFiles.move(file, finalPath); // no REPLACE_EXISTING — path is guaranteed free
+        try {
+            Files.move(file, finalPath);
+        } catch (IOException e) {
+            throw new IOException("Failed to move " + file.getFileName() + " to final location: " + e.getMessage(), e);
+        }
         return finalPath;
     }
 

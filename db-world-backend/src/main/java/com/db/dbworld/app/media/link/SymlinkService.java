@@ -5,7 +5,6 @@ import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.config.AppProperties;
-import com.db.dbworld.utils.NtfsCompatibleFiles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -67,13 +66,13 @@ public class SymlinkService {
             Path realFile    = Path.of(filePath).toAbsolutePath().normalize();
             Path symlink     = symlinkRoot.resolve(fileId);
 
-            NtfsCompatibleFiles.createDirectories(symlinkRoot);
+            Files.createDirectories(symlinkRoot);
             if (!Files.exists(realFile)) {
                 throw new DbWorldException("Cannot create link for missing file: " + realFile);
             }
 
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
-                NtfsCompatibleFiles.delete(symlink);
+                Files.delete(symlink);
             }
 
             // Use a relative target so the symlink survives directory moves
@@ -116,7 +115,7 @@ public class SymlinkService {
         try {
             Path symlink = runtimeProperties.getSymlinkPath().resolve(fileId);
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
-                NtfsCompatibleFiles.delete(symlink);
+                Files.delete(symlink);
                 log.info("{} Deleted {}", TAG, symlink);
             }
         } catch (Exception ex) {
@@ -180,7 +179,7 @@ public class SymlinkService {
             }
 
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
-                if (!dryRun) NtfsCompatibleFiles.delete(symlink);
+                if (!dryRun) Files.delete(symlink);
                 return ResponsePayloads.SymlinkRepairSingleResult.builder()
                         .fileId(fileId).deleted(true)
                         .message(dryRun ? "Orphan symlink would be deleted" : "Orphan symlink deleted").build();
@@ -236,7 +235,7 @@ public class SymlinkService {
                     try {
                         String fileId = path.getFileName().toString();
                         if (!dbIds.contains(fileId)) {
-                            if (!dryRun) NtfsCompatibleFiles.delete(path);
+                            if (!dryRun) Files.delete(path);
                             deleted.incrementAndGet();
                             log.info("{} Removed orphan symlink {}", TAG, path);
                         }

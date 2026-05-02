@@ -2,7 +2,6 @@ package com.db.dbworld.app.media.ingestion.processing.fs;
 
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
-import com.db.dbworld.utils.NtfsCompatibleFiles;
 import com.db.dbworld.utils.PathSanitizer;
 import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
@@ -73,8 +72,8 @@ public class DefaultFileStorageService implements FileStorageService {
     @Override
     public void prepareDirectories(IngestionContext ctx) {
         try {
-            NtfsCompatibleFiles.createDirectories(resolveTempDir(ctx));
-            NtfsCompatibleFiles.createDirectories(resolveFinalDir(ctx));
+            java.nio.file.Files.createDirectories(resolveTempDir(ctx));
+            java.nio.file.Files.createDirectories(resolveFinalDir(ctx));
             log.debug("[{}] Directories prepared: temp={}, final={}",
                     ctx.getJobId(), resolveTempDir(ctx), resolveFinalDir(ctx));
         } catch (Exception e) {
@@ -87,8 +86,8 @@ public class DefaultFileStorageService implements FileStorageService {
         try {
             Path src = resolveTempFile(ctx);
             Path dst = resolveFinalFile(ctx);
-            NtfsCompatibleFiles.createDirectories(dst.getParent());
-            NtfsCompatibleFiles.move(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            java.nio.file.Files.createDirectories(dst.getParent());
+            java.nio.file.Files.move(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             log.debug("[{}] Moved: {} â†’ {}", ctx.getJobId(), src, dst);
         } catch (Exception e) {
             throw new RuntimeException("Move to final failed for job: " + ctx.getJobId(), e);

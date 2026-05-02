@@ -13,7 +13,6 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import com.db.dbworld.utils.NtfsCompatibleFiles;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,23 +55,10 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
         StringBuilder stderrAccumulator = new StringBuilder();
 
         try {
-            NtfsCompatibleFiles.createDirectories(extractDir);
+            Files.createDirectories(extractDir);
 
-            // Pre-flight: verify the target filesystem is writable before starting 7z.
-            // probeWritable() uses native touch so the real OS error is captured.
-            java.io.IOException writeError = NtfsCompatibleFiles.probeWritable(extractDir);
-            if (writeError != null) {
-                ctx.logError("EXTRACT", "Target not writable (" + writeError.getMessage()
-                        + "), attempting ntfs-3g remount: " + extractDir);
-                if (!NtfsCompatibleFiles.attemptNtfsRemountRw(extractDir)) {
-                    throw new IOException("Target not writable and remount failed: "
-                            + writeError.getMessage(), writeError);
-                }
-                java.io.IOException afterRemount = NtfsCompatibleFiles.probeWritable(extractDir);
-                if (afterRemount != null) {
-                    throw new IOException("Target still not writable after remount: "
-                            + afterRemount.getMessage(), afterRemount);
-                }
+            if (!Files.isWritable(extractDir)) {
+                throw new IOException("Target directory is not writable: " + extractDir);
             }
 
             processExecutor.executeExtraction(
