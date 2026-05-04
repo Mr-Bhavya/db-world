@@ -14,7 +14,7 @@ const YTDLP_DOMAINS = [
   'twitter.com', 'x.com', 'reddit.com', 'instagram.com',
   'tiktok.com', 'bilibili.com',
   // Indian OTT — all require yt-dlp (and cookies for authenticated content)
-  'hotstar.com', 'disneyplus.com',
+  'jiohotstar.com', 'disneyplus.com', 'hotstar.com',
   'sonyliv.com',
   'zee5.com',
   'jiocinema.com', 'jio.com',

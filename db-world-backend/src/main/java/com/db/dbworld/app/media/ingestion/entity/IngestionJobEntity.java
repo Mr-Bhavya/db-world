@@ -89,7 +89,8 @@ public class IngestionJobEntity {
     @Column(name = "total_bytes")
     private Long totalBytes;
 
-    @Column(name = "fail_reason", length = 1000)
+    @Lob
+    @Column(name = "fail_reason", columnDefinition = "LONGTEXT")
     private String failReason;
 
     /**

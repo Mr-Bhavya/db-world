@@ -3,6 +3,7 @@ package com.db.dbworld.app.media.ingestion.download;
 import com.db.dbworld.app.media.ingestion.model.DownloadResult;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.SourceMetadata;
+import com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
@@ -67,6 +68,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
                     ctx, capturedFilename, downloadedBytes, totalBytes, trackingService, objectMapper
             );
 
+            ctx.setCurrentStep(PipelineStepType.DOWNLOAD);
             String processOutput = processExecutor.runYtDlpCommand(cmd, processor, cancellation);
 
             String fileName = parseFilename(processOutput, capturedFilename.get(), ctx.getJobId());
@@ -110,7 +112,8 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
 
         // Progress JSON on individual lines — without --newline, yt-dlp uses \r
         // and the line-based StreamProcessor never sees the JSON until ffmpeg starts.
-        cmd.addAll(List.of("--newline"));
+        cmd.add("--progress");
+        cmd.add("--newline");
         cmd.addAll(List.of("--progress-template", "%(progress)j"));
 
         // Per-platform cookie support
@@ -232,14 +235,9 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         protected void processLine(String line, boolean isErrorStream) {
             if (line == null || line.isBlank()) return;
 
-            if (isErrorStream) {
-                // Detect ffmpeg merge stage from stderr
-                if (line.contains("[ffmpeg]") || line.contains("[Merger]")) {
-                    trackingService.updateProgress(ctx.getJobId(), ProgressSnapshot.merging());
-                    ctx.log("YTDLP", line.trim());
-                } else {
-                    ctx.logError("YTDLP_STDERR", line);
-                }
+            // Progress JSON from --progress-template %(progress)j --newline
+            if (line.startsWith("{") && line.contains("download")) {
+                parseProgress(line);
                 return;
             }
 
@@ -250,9 +248,14 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
                 return;
             }
 
-            // Progress JSON from --progress-template %(progress)j --newline
-            if (line.startsWith("{") && line.contains("downloaded_bytes")) {
-                parseProgress(line);
+            if (isErrorStream) {
+                // Detect ffmpeg merge stage from stderr
+                if (line.contains("[ffmpeg]") || line.contains("[Merger]")) {
+                    trackingService.updateProgress(ctx.getJobId(), ProgressSnapshot.merging());
+                    ctx.log("YTDLP", line.trim());
+                } else {
+                    ctx.logError("YTDLP_STDERR", line);
+                }
             }
         }
 
