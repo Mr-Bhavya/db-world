@@ -29,6 +29,7 @@ import {
   cleanupOrphanedFiles, rescanMediaFile, linkMediaFileToRecord,
   updateMediaFileEpisode,
 } from '../api/adminApi';
+import { getQuality } from '@features/cinema/media/helpers';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -444,8 +445,8 @@ function FileRow({ file, selected, onSelect, onOpen, onDelete, onRescan, onRepai
   const isMd = useMediaQuery(muiTheme.breakpoints.up('md'));
   const isLg = useMediaQuery(muiTheme.breakpoints.up('lg'));
 
-  const res   = resLabel(file.videoHeight);
-  const isHdr = !!(file.hdrFormat);
+  const res   = getQuality({ height: file?.videoHeight, width: file?.videoWidth }, file?.fileName);
+  const isHdr = !!(file?.hdrFormat);
 
   const rowSx = {
     cursor: 'pointer',
@@ -569,8 +570,8 @@ function FileRow({ file, selected, onSelect, onOpen, onDelete, onRescan, onRepai
 
 function FileCard({ file, selected, onSelect, onOpen, onDelete, onRescan, onRepair, onLink }) {
   const T = useT();
-  const res   = resLabel(file.videoHeight);
-  const isHdr = !!(file.hdrFormat);
+  const res   = getQuality({ height: file?.videoHeight, width: file?.videoWidth }, file?.fileName);
+  const isHdr = !!(file?.hdrFormat);
 
   return (
     <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', cursor: 'pointer',
