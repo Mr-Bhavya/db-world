@@ -5,7 +5,7 @@ import { alpha } from '@mui/material/styles';
 import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
 import { fetchPageCategories, fetchUnreadCount } from '../api/cinemaApi';
-import DB_WORLD_TEAL_SVG from '@assets/images/db-world-circle.png';
+import DB_WORLD_TEAL_SVG from '@assets/images/db-circle-icon.webp';
 
 import {
   AppBar,

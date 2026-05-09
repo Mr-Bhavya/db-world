@@ -3,7 +3,7 @@ import { Box, Container, Typography, IconButton, Tooltip } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { InfoOutlined } from '@mui/icons-material';
 import { useT } from '@shared/theme';
-import DbWorldLogo from '@assets/images/db-world-circle.png';
+import DbWorldLogo from '@assets/images/db-circle-icon.webp';
 
 const APP_VERSION = '2.0.0';
 

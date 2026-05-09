@@ -210,6 +210,7 @@ public class InMemoryTrackingService implements TrackingService {
             progressMap.put("total",      p.totalBytes());
             progressMap.put("speed",      p.speed());
             progressMap.put("eta",        p.eta());
+            progressMap.put("phase",      p.phase() != null ? p.phase() : "downloading");
             if (p.totalBytes() > 0) {
                 progressMap.put("percent",
                         Math.round(((double) p.downloadedBytes() / p.totalBytes()) * 100 * 10.0) / 10.0);

@@ -70,7 +70,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
                     Duration.ofHours(2)
             );
 
-            trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(100, 100, 0.0, 0));
+            trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(100, 100, 0.0, 0, "processing"));
             ctx.log("EXTRACT", "Extraction complete → " + extractDir);
 
             result.setFinalFile(extractDir);
@@ -105,7 +105,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
                 if (matcher.find()) {
                     int percent = Math.min(100, Integer.parseInt(matcher.group(1)));
                     long eta = estimateEtaSeconds(startedAt, percent);
-                    trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(percent, 100, 0.0, eta));
+                    trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(percent, 100, 0.0, eta, "processing"));
                     ctx.log("EXTRACT", trimmed);
                     return;
                 }

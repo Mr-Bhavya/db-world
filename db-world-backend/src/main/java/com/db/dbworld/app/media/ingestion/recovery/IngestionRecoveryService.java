@@ -131,7 +131,7 @@ public class IngestionRecoveryService {
                 if (total != null && total > 0 && completed != null) {
                     long eta = (speed != null && speed > 0) ? (total - completed) / speed : 0;
                     trackingService.updateProgress(syntheticId,
-                            new ProgressSnapshot(completed, total,
+                            ProgressSnapshot.downloading(completed, total,
                                     speed != null ? speed.doubleValue() : 0.0, eta));
                 }
             }

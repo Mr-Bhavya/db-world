@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.ingestion.service;
 
 import com.db.dbworld.app.media.ingestion.model.YtFormat;
 import com.db.dbworld.app.media.ingestion.model.YtFormatsResponse;
+import com.db.dbworld.app.media.ingestion.model.YtPlaylistEntry;
 import com.db.dbworld.config.AppProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,63 +12,105 @@ import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * Fetches available video/audio formats from a YouTube or streaming URL using yt-dlp -J.
- */
 @Log4j2
 @Service
 @RequiredArgsConstructor
 public class YtFormatService {
 
     private final AppProperties runtimeProperties;
-    private final ObjectMapper             objectMapper;
+    private final ObjectMapper  objectMapper;
+
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Run {@code yt-dlp -J --no-playlist <url>} and parse the returned JSON
-     * into separate video and audio format lists.
+     * Fetches available formats for a single video URL.
+     * If the URL resolves to a playlist, returns the playlist entries instead
+     * (videoFormats/audioFormats will be empty; caller should use playlistEntries).
      */
     public YtFormatsResponse fetchFormats(String url) throws Exception {
-        String ytDlp = runtimeProperties.getYtDlp();
-        if (ytDlp == null || ytDlp.isBlank()) {
-            throw new IllegalStateException("yt-dlp binary path not configured (app.tools.yt-dlp)");
+        String ytDlp = ytDlpBin();
+        Path cookie = runtimeProperties.getCookieForUrl(url);
+
+        // Try as single video first (--no-playlist)
+        List<String> cmd = buildJsonCmd(ytDlp, url, cookie, false);
+        String stdout = runBlocking(cmd, 90);
+
+        JsonNode root = objectMapper.readTree(stdout);
+
+        // Playlist detected
+        if ("playlist".equals(textOrNull(root, "_type"))) {
+            return parsePlaylist(root);
         }
 
-        ProcessBuilder pb = new ProcessBuilder(ytDlp, "-J", "--no-playlist", "--quiet", url);
+        return parseFormats(root);
+    }
+
+    /**
+     * Fetches playlist/series entries without downloading any video.
+     * Returns all entries so the frontend can show a selection list.
+     */
+    public YtFormatsResponse fetchPlaylist(String url) throws Exception {
+        String ytDlp = ytDlpBin();
+        Path cookie = runtimeProperties.getCookieForUrl(url);
+
+        List<String> cmd = buildJsonCmd(ytDlp, url, cookie, true);
+        String stdout = runBlocking(cmd, 120);
+
+        JsonNode root = objectMapper.readTree(stdout);
+        return parsePlaylist(root);
+    }
+
+    // ── Command builder ───────────────────────────────────────────────────────
+
+    private List<String> buildJsonCmd(String ytDlp, String url, Path cookie, boolean flatPlaylist) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(ytDlp);
+        cmd.add("-J");
+        if (flatPlaylist) {
+            cmd.add("--flat-playlist");
+        } else {
+            cmd.add("--no-playlist");
+        }
+        cmd.add("--no-warnings");
+        if (cookie != null) {
+            cmd.add("--cookies");
+            cmd.add(cookie.toString());
+        }
+        cmd.add(url);
+        return cmd;
+    }
+
+    private String runBlocking(List<String> cmd, int timeoutSec) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(false);
         Process proc = pb.start();
 
         String stdout;
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(proc.getInputStream()))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
             stdout = reader.lines().collect(Collectors.joining("\n"));
         }
 
-        boolean finished = proc.waitFor(60, TimeUnit.SECONDS);
+        boolean finished = proc.waitFor(timeoutSec, TimeUnit.SECONDS);
         if (!finished) {
             proc.destroyForcibly();
-            throw new RuntimeException("yt-dlp timed out fetching formats for: " + url);
+            throw new RuntimeException("yt-dlp timed out after " + timeoutSec + "s for: " + cmd.getLast());
         }
         if (proc.exitValue() != 0) {
-            throw new RuntimeException("yt-dlp exited with code " + proc.exitValue() + " for: " + url);
+            // Capture stderr for better error messages
+            throw new RuntimeException("yt-dlp exited with code " + proc.exitValue());
         }
-
-        return parseFormats(stdout);
+        return stdout;
     }
 
-    private YtFormatsResponse parseFormats(String json) throws Exception {
-        JsonNode root = objectMapper.readTree(json);
+    // ── Parsers ───────────────────────────────────────────────────────────────
 
-        String title     = textOrNull(root, "title");
-        String thumbnail = textOrNull(root, "thumbnail");
-        Long   duration  = root.has("duration") && !root.get("duration").isNull()
-                           ? root.get("duration").asLong() : null;
-        String uploader  = textOrNull(root, "uploader");
-
+    private YtFormatsResponse parseFormats(JsonNode root) {
         List<YtFormat> videoFormats = new ArrayList<>();
         List<YtFormat> audioFormats = new ArrayList<>();
 
@@ -76,10 +119,8 @@ public class YtFormatService {
             for (JsonNode f : formats) {
                 String vcodec = textOrNull(f, "vcodec");
                 String acodec = textOrNull(f, "acodec");
-
                 boolean hasVideo = vcodec != null && !"none".equals(vcodec);
                 boolean hasAudio = acodec != null && !"none".equals(acodec);
-
                 if (!hasVideo && !hasAudio) continue;
 
                 YtFormat fmt = YtFormat.builder()
@@ -96,6 +137,7 @@ public class YtFormatService {
                         .fps(textOrNull(f, "fps"))
                         .filesize(longOrNull(f, "filesize"))
                         .formatNote(textOrNull(f, "format_note"))
+                        .dynamicRange(normaliseDynamicRange(textOrNull(f, "dynamic_range")))
                         .type(hasVideo && hasAudio ? "combined" : hasVideo ? "video" : "audio")
                         .build();
 
@@ -105,22 +147,79 @@ public class YtFormatService {
         }
 
         return YtFormatsResponse.builder()
-                .title(title)
-                .thumbnail(thumbnail)
-                .duration(duration)
-                .uploader(uploader)
+                .title(textOrNull(root, "title"))
+                .thumbnail(textOrNull(root, "thumbnail"))
+                .duration(longOrNull(root, "duration"))
+                .uploader(textOrNull(root, "uploader"))
                 .videoFormats(videoFormats)
                 .audioFormats(audioFormats)
+                .isPlaylist(false)
                 .build();
     }
 
-    private String  textOrNull(JsonNode n, String field) {
-        return n.has(field) && !n.get(field).isNull() ? n.get(field).asText() : null;
+    private YtFormatsResponse parsePlaylist(JsonNode root) {
+        List<YtPlaylistEntry> entries = new ArrayList<>();
+        JsonNode entriesNode = root.get("entries");
+        if (entriesNode != null && entriesNode.isArray()) {
+            int index = 1;
+            for (JsonNode e : entriesNode) {
+                String id  = textOrNull(e, "id");
+                String url = textOrNull(e, "url");
+                if (url == null) url = textOrNull(e, "webpage_url");
+                if (id == null && url == null) continue;
+
+                entries.add(YtPlaylistEntry.builder()
+                        .index(index++)
+                        .id(id)
+                        .title(textOrNull(e, "title"))
+                        .url(url)
+                        .thumbnail(textOrNull(e, "thumbnail"))
+                        .duration(longOrNull(e, "duration"))
+                        .uploader(textOrNull(e, "uploader"))
+                        .build());
+            }
+        }
+
+        return YtFormatsResponse.builder()
+                .title(textOrNull(root, "title"))
+                .thumbnail(textOrNull(root, "thumbnail"))
+                .uploader(textOrNull(root, "uploader"))
+                .isPlaylist(true)
+                .playlistEntries(entries)
+                .videoFormats(List.of())
+                .audioFormats(List.of())
+                .build();
     }
-    private Integer intOrNull(JsonNode n, String field) {
-        return n.has(field) && !n.get(field).isNull() ? n.get(field).asInt() : null;
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private String ytDlpBin() {
+        String bin = runtimeProperties.getYtDlp();
+        if (bin == null || bin.isBlank())
+            throw new IllegalStateException("yt-dlp binary path not configured (app.tools.yt-dlp)");
+        return bin;
     }
-    private Long    longOrNull(JsonNode n, String field) {
-        return n.has(field) && !n.get(field).isNull() ? n.get(field).asLong() : null;
+
+    /** Normalise yt-dlp dynamic_range values to clean display strings. */
+    private String normaliseDynamicRange(String raw) {
+        if (raw == null) return null;
+        return switch (raw.toUpperCase()) {
+            case "SDR"                  -> "SDR";
+            case "HDR10"                -> "HDR10";
+            case "HDR10+"               -> "HDR10+";
+            case "HLG"                  -> "HLG";
+            case "DOLBY VISION", "DV"   -> "DV";
+            default                     -> raw;
+        };
+    }
+
+    private String  textOrNull(JsonNode n, String f) {
+        return n.has(f) && !n.get(f).isNull() ? n.get(f).asText() : null;
+    }
+    private Integer intOrNull(JsonNode n, String f) {
+        return n.has(f) && !n.get(f).isNull() ? n.get(f).asInt() : null;
+    }
+    private Long    longOrNull(JsonNode n, String f) {
+        return n.has(f) && !n.get(f).isNull() ? n.get(f).asLong() : null;
     }
 }
