@@ -478,7 +478,7 @@ class CommonServices {
             encodedLibrary: track?.encodedLibrary ?? raw?.Encoded_Library,
             isStreamable: track?.isStreamable === 'Yes' || raw?.IsStreamable === 'Yes',
           };
-        } else if (isRealVideoTrack(track, raw)) {
+        } else if (this.isRealVideoTrack(track, raw) && !mediaDetails.video?.format) {
           const durSecs = toSecs(track?.duration);
 
           mediaDetails.video = {
