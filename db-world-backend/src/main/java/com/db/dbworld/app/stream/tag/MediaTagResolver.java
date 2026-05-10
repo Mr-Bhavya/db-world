@@ -71,12 +71,11 @@ public final class MediaTagResolver {
 
     public static final NavigableMap<Integer, String> RESOLUTION_BUCKETS =
             new TreeMap<>(Map.of(
-                    3800, "4320p",
-                    1700, "2160p",
-                    1250, "1440p",
-                    750,  "1080p",
-                    500,  "720p",
-                    350,  "480p",
+                    3800, "2160p",
+                    2500, "1440p",
+                    1900, "1080p",
+                    1200, "720p",
+                    700,  "480p",
                     0,    "360p"
             ));
 
@@ -244,9 +243,17 @@ public final class MediaTagResolver {
         return LANGUAGE_MAP.getOrDefault(raw.toLowerCase(), "Unknown");
     }
 
-    public static String resolveResolution(Integer height) {
-        if (height == null) return null;
-        return RESOLUTION_BUCKETS.floorEntry(height).getValue();
+    public static String resolveResolution(Integer width, Integer height) {
+        if (width == null && height == null) {
+            return null;
+        }
+
+        int reference = Math.max(
+                width != null ? width : 0,  // Landscape video
+                height != null ? height : 0 // Portrait/mobile video
+        );
+
+        return RESOLUTION_BUCKETS.floorEntry(reference).getValue();
     }
 
     public static String resolveAudioCodecDisplay(String ffprobeCodec) {

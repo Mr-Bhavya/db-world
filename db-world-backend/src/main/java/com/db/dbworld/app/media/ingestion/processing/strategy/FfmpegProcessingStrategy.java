@@ -344,7 +344,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         TrackDto video = mediaInfo.getPrimaryVideoTrack();
         TrackDto audio = mediaInfo.getPrimaryAudioTrack();
 
-        String resolution = MediaTagResolver.resolveResolution(video != null ? video.getHeight() : null);
+        String resolution = MediaTagResolver.resolveResolution(video != null ? video.getWidth() : null, video != null ? video.getHeight() : null);
         String source = inferSource(file, ctx);
         String sourceType = inferSourceType(file);
         String videoCodec = normalizeVideoCodec(video != null ? video.getFormat() : null);
