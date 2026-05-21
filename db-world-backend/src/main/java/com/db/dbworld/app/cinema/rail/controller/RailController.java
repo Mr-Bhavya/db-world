@@ -75,10 +75,11 @@ public class RailController {
             @PathVariable Long railId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) Long category
+            @RequestParam(required = false) Long category,
+            @RequestParam(name = "pageType", required = false) PageType requestedPage
     ) {
         return ApiResponse.success(
-                railService.getRailRecords(railId, page, size, category)
+                railService.getRailRecords(railId, page, size, category, requestedPage)
         );
     }
 

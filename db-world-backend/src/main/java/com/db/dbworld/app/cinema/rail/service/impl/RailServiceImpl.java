@@ -3,6 +3,7 @@ package com.db.dbworld.app.cinema.rail.service.impl;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.app.cinema.rail.builder.RailRecordBuilder;
 import com.db.dbworld.app.cinema.rail.cache.RailCacheService;
 import com.db.dbworld.app.cinema.rail.dto.*;
@@ -50,6 +51,7 @@ public class RailServiceImpl implements RailService {
     private final RailRecordBuilder railRecordBuilder;
 
     private final InteractionRepository interactionRepository;
+    private final WatchProgressRepository watchProgressRepository;
     private final UserContext userContext;
 
     private final RailMapper railMapper;
@@ -92,7 +94,7 @@ public class RailServiceImpl implements RailService {
     public List<RailDto> getRails(PageType pageType, Long category) {
 
         List<RailEntity> rails = pageType != null
-                ? railRepository.findByPageTypeAndActiveTrueOrderByPriorityAsc(pageType)
+                ? railRepository.findActiveByPage(pageType)
                 : railRepository.findActiveRails();
 
         // When a category is selected, filter out genre rails that don't match
@@ -112,10 +114,19 @@ public class RailServiceImpl implements RailService {
     }
 
     private boolean hasContent(RailEntity rail, Pageable probe, Long category) {
-        if (rail.getRule() != null && "watchlist".equals(rail.getRule().getType())) {
+        String ruleType = rail.getRule() != null ? rail.getRule().getType() : null;
+
+        if ("watchlist".equals(ruleType)) {
             try {
                 Long userId = userContext.userId();
                 return interactionRepository.existsByUserIdAndInteractionType(userId, InteractionType.WATCHLIST);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        if ("continueWatching".equals(ruleType)) {
+            try {
+                return watchProgressRepository.existsByUserId(userContext.userId());
             } catch (Exception e) {
                 return false;
             }
@@ -152,12 +163,18 @@ public class RailServiceImpl implements RailService {
     @Override
     @Transactional(readOnly = true)
     public RailPageDto getRailRecords(Long railId, int page, Integer size) {
-        return getRailRecords(railId, page, size, null);
+        return getRailRecords(railId, page, size, null, null);
     }
 
     @Override
     @Transactional(readOnly = true)
     public RailPageDto getRailRecords(Long railId, int page, Integer size, Long category) {
+        return getRailRecords(railId, page, size, category, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RailPageDto getRailRecords(Long railId, int page, Integer size, Long category, PageType requestedPage) {
 
         RailEntity rail = railRepository.findById(railId)
                 .orElseThrow(() -> new EntityNotFoundException("Rail not found " + railId));
@@ -171,16 +188,21 @@ public class RailServiceImpl implements RailService {
             return getWatchlistRecords(userContext.userId(), page, pageSize);
         }
 
-        // 1. Cache check (only for non-category requests — category changes frequently)
-        if (category == null) {
+        // Continue Watching is user-specific too — skip the shared cache below, but use
+        // the resolver for the ID slice. Each user gets fresh data.
+        boolean userScoped = rail.getRule() != null
+                && "continueWatching".equals(rail.getRule().getType());
+
+        // 1. Cache check (only for non-category, non-user-scoped requests)
+        if (category == null && !userScoped) {
             RailPageDto cached = cacheService.get(railId, page, pageSize);
             if (cached != null) return cached;
         }
 
         Pageable pageable = PageRequest.of(page, pageSize);
 
-        // 2. Resolve with optional category filter
-        Slice<Long> slice = railResolver.resolveIds(rail, pageable, category);
+        // 2. Resolve with optional category filter (page-aware for multi-page rails)
+        Slice<Long> slice = railResolver.resolveIds(rail, pageable, category, requestedPage);
 
         List<Long> recordIds = slice.getContent();
 
@@ -229,8 +251,8 @@ public class RailServiceImpl implements RailService {
                 .records(result)
                 .build();
 
-        // Only cache non-category results
-        if (category == null) {
+        // Only cache non-category, non-user-scoped results
+        if (category == null && !userScoped) {
             cacheService.put(railId, page, pageSize, railPageDto, recordIds);
         }
 
@@ -345,6 +367,7 @@ public class RailServiceImpl implements RailService {
     @Override
     public RailDto createRail(RailRequest request) {
         RailEntity rail = railMapper.toEntity(request);
+        normalizePageTypes(rail);
         return railMapper.toDto(railRepository.save(rail));
     }
 
@@ -353,7 +376,29 @@ public class RailServiceImpl implements RailService {
         RailEntity rail = railRepository.findById(railId)
                 .orElseThrow(() -> new EntityNotFoundException("Rail not found"));
         railMapper.updateEntity(request, rail);
+        normalizePageTypes(rail);
         return railMapper.toDto(rail);
+    }
+
+    /**
+     * Bridges the legacy {@code pageType} field and the new {@code pageTypes} set:
+     * <ul>
+     *   <li>If {@code pageTypes} is empty but {@code pageType} is set, derive set from it.</li>
+     *   <li>If {@code pageTypes} is non-empty, mirror the first entry into {@code pageType}
+     *       so older read paths still see a sensible value until the field is dropped.</li>
+     *   <li>Final fallback: {@code HOME} only, so a rail never has zero pages.</li>
+     * </ul>
+     */
+    @SuppressWarnings("deprecation")
+    private void normalizePageTypes(RailEntity rail) {
+        if ((rail.getPageTypes() == null || rail.getPageTypes().isEmpty())
+                && rail.getPageType() != null) {
+            rail.setPageTypes(java.util.EnumSet.of(rail.getPageType()));
+        }
+        if (rail.getPageTypes() == null || rail.getPageTypes().isEmpty()) {
+            rail.setPageTypes(java.util.EnumSet.of(PageType.HOME));
+        }
+        rail.setPageType(rail.getPageTypes().iterator().next());
     }
 
     @Override

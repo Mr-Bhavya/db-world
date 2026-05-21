@@ -8,13 +8,16 @@ import com.db.dbworld.app.cinema.catalog.tags.services.TagDefinitionService;
 import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import com.db.dbworld.app.cinema.rail.entity.RailItemEntity;
 import com.db.dbworld.app.cinema.rail.repository.RailItemRepository;
 import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import com.db.dbworld.app.cinema.rail.service.RailResolver;
 import com.db.dbworld.app.cinema.rail.util.RailSortBuilder;
+import com.db.dbworld.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -23,11 +26,14 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Log4j2
 public class RailResolverImpl implements RailResolver {
 
     private final RailItemRepository railItemRepository;
     private final RecordRepository recordRepository;
     private final TagDefinitionService tagDefinitionService;
+    private final WatchProgressRepository watchProgressRepository;
+    private final UserContext userContext;
 
     /**
      * Legacy resolver (non paginated).
@@ -89,7 +95,7 @@ public class RailResolverImpl implements RailResolver {
      */
     @Override
     public Slice<Long> resolveIds(RailEntity rail, Pageable pageable) {
-        return resolveIds(rail, pageable, null);
+        return resolveIds(rail, pageable, null, null);
     }
 
     /**
@@ -98,9 +104,19 @@ public class RailResolverImpl implements RailResolver {
      */
     @Override
     public Slice<Long> resolveIds(RailEntity rail, Pageable pageable, Long category) {
+        return resolveIds(rail, pageable, category, null);
+    }
+
+    /**
+     * Page-aware overload. {@code requestedPage} drives type filtering for rails that
+     * target more than one page (e.g. a Continue Watching rail that lives on Home, Movies,
+     * and Series — same record source, page-specific type filter).
+     */
+    @Override
+    public Slice<Long> resolveIds(RailEntity rail, Pageable pageable, Long category, PageType requestedPage) {
 
         RailRule rule = rail.getRule();
-        RecordType effectiveType = resolveEffectiveType(rail);
+        RecordType effectiveType = resolveEffectiveType(rail, requestedPage);
         Sort sort = resolveSort(rule);
 
         Pageable sortedPageable = PageRequest.of(
@@ -115,14 +131,38 @@ public class RailResolverImpl implements RailResolver {
                     .findByRailIdOrderByPriorityAsc(rail.getId(), sortedPageable)
                     .map(item -> item.getRecord().getId());
 
-            case "tag"       -> resolveTagIds(rule, effectiveType, category, sortedPageable);
-            case "genre"     -> resolveGenreIds(rule, effectiveType, category, sortedPageable);
-            case "language"  -> resolveLanguageIds(rule, effectiveType, category, sortedPageable);
-            case "filter"    -> resolveFilterIds(rule, effectiveType, category, sortedPageable);
-            case "watchlist" -> new SliceImpl<>(List.of(), pageable, false); // resolved by RailServiceImpl
+            case "tag"              -> resolveTagIds(rule, effectiveType, category, sortedPageable);
+            case "genre"            -> resolveGenreIds(rule, effectiveType, category, sortedPageable);
+            case "language"         -> resolveLanguageIds(rule, effectiveType, category, sortedPageable);
+            case "filter"           -> resolveFilterIds(rule, effectiveType, category, sortedPageable);
+            case "watchlist"        -> new SliceImpl<>(List.of(), pageable, false); // resolved by RailServiceImpl
+            case "continueWatching" -> resolveContinueWatchingIds(effectiveType, pageable);
 
             default -> new SliceImpl<>(List.of(), pageable, false);
         };
+    }
+
+    /* ================================================================
+       CONTINUE WATCHING RESOLUTION (user-scoped)
+    ================================================================= */
+
+    private Slice<Long> resolveContinueWatchingIds(RecordType effectiveType, Pageable pageable) {
+        Long userId;
+        try {
+            userId = userContext.userId();
+        } catch (Exception e) {
+            // Unauthenticated request — return empty rather than fail.
+            log.debug("Continue Watching resolution skipped: no authenticated user ({})", e.getMessage());
+            return new SliceImpl<>(List.of(), pageable, false);
+        }
+
+        // GROUP BY in the query produces its own ordering; strip the Pageable sort so
+        // Hibernate doesn't tack on an incompatible ORDER BY.
+        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+
+        return effectiveType != null
+                ? watchProgressRepository.findRecentRecordIdsByUserAndType(userId, effectiveType, unsorted)
+                : watchProgressRepository.findRecentRecordIdsByUser(userId, unsorted);
     }
 
     /* ================================================================
@@ -270,20 +310,35 @@ public class RailResolverImpl implements RailResolver {
 
     /**
      * Derives the effective RecordType for filtering.
-     * Priority: rule.recordType (explicit override) > rail.pageType (auto-infer).
+     * Priority:
+     * <ol>
+     *   <li>{@code rule.recordType} (explicit override) — wins over everything.</li>
+     *   <li>{@code requestedPage} — the page the caller is rendering. For multi-page rails
+     *       this is the only correct source.</li>
+     *   <li>For backward compat: the rail's first {@code pageTypes} entry (or the legacy
+     *       {@code pageType} field if the set is empty).</li>
+     * </ol>
      */
-    private RecordType resolveEffectiveType(RailEntity rail) {
+    @SuppressWarnings("deprecation")
+    private RecordType resolveEffectiveType(RailEntity rail, PageType requestedPage) {
 
         RailRule rule = rail.getRule();
 
-        if (rule.getRecordType() != null && !rule.getRecordType().isBlank()) {
+        if (rule != null && rule.getRecordType() != null && !rule.getRecordType().isBlank()) {
             return RecordType.valueOf(rule.getRecordType().toUpperCase());
         }
 
-        PageType pageType = rail.getPageType();
-        if (pageType == null) return null;
+        PageType effectivePage = requestedPage;
+        if (effectivePage == null) {
+            if (rail.getPageTypes() != null && !rail.getPageTypes().isEmpty()) {
+                effectivePage = rail.getPageTypes().iterator().next();
+            } else {
+                effectivePage = rail.getPageType();
+            }
+        }
+        if (effectivePage == null) return null;
 
-        return switch (pageType) {
+        return switch (effectivePage) {
             case MOVIES -> RecordType.MOVIE;
             case SERIES -> RecordType.TV_SERIES;
             case HOME   -> null;

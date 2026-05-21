@@ -27,6 +27,12 @@ public interface RailService {
     RailPageDto getRailRecords(Long railId, int page, Integer size, Long category);
 
     /**
+     * Page-aware record loader. {@code requestedPage} drives record-type filtering for
+     * multi-page rails (e.g. Continue Watching on the Movies page only returns movies).
+     */
+    RailPageDto getRailRecords(Long railId, int page, Integer size, Long category, PageType requestedPage);
+
+    /**
      * Returns available categories (genres) for a page type.
      */
     List<GenreDto> getCategories(PageType pageType);
