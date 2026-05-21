@@ -9,6 +9,7 @@ import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
+import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import com.db.dbworld.app.cinema.rail.entity.RailItemEntity;
 import com.db.dbworld.app.cinema.rail.repository.RailItemRepository;
@@ -33,6 +34,7 @@ public class RailResolverImpl implements RailResolver {
     private final RecordRepository recordRepository;
     private final TagDefinitionService tagDefinitionService;
     private final WatchProgressRepository watchProgressRepository;
+    private final UserCinemaActivityRepository activityRepository;
     private final UserContext userContext;
 
     /**
@@ -156,6 +158,8 @@ public class RailResolverImpl implements RailResolver {
      * rail's natural ordering (typically popularity DESC).
      */
     private Slice<Long> resolveBecauseYouWatchedIds(RecordType effectiveType, Pageable pageable) {
+        // Source pick now spans BOTH watch_progress and user_cinema_activity (downloads
+        // + completed streams), so users who mostly download still get a useful recommendation.
         Long sourceRecordId = pickBecauseYouWatchedSource();
         if (sourceRecordId == null) return new SliceImpl<>(List.of(), pageable, false);
 
@@ -170,8 +174,13 @@ public class RailResolverImpl implements RailResolver {
     }
 
     /**
-     * Resolves the source record for a "Because you watched" rail. Returns null when
-     * the user is unauthenticated or has no progress yet.
+     * Resolves the source record for a "Because you watched" rail. Looks at:
+     * <ol>
+     *   <li>{@link WatchProgressRepository#findMostRecentRecordIdsByUser} — actual playback,</li>
+     *   <li>{@link UserCinemaActivityRepository#findMostRecentRecordIdsByUser} — completed
+     *       downloads/streams (covers the "user mostly downloads" use case),</li>
+     * </ol>
+     * and picks the most recent of the two. Returns null if neither source has data.
      */
     Long pickBecauseYouWatchedSource() {
         Long userId;
@@ -180,9 +189,12 @@ public class RailResolverImpl implements RailResolver {
         } catch (Exception e) {
             return null;
         }
-        List<Long> sources = watchProgressRepository.findMostRecentRecordIdsByUser(
-                userId, PageRequest.of(0, 1));
-        return sources.isEmpty() ? null : sources.get(0);
+        Pageable top1 = PageRequest.of(0, 1);
+        List<Long> fromProgress = watchProgressRepository.findMostRecentRecordIdsByUser(userId, top1);
+        List<Long> fromActivity = activityRepository.findMostRecentRecordIdsByUser(userId, top1);
+        if (!fromProgress.isEmpty()) return fromProgress.get(0);
+        if (!fromActivity.isEmpty()) return fromActivity.get(0);
+        return null;
     }
 
     /** Primary (first) genre ID for a record, or null if record/genres are missing. */

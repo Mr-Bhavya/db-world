@@ -4,6 +4,7 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
+import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import com.db.dbworld.app.cinema.rail.builder.RailRecordBuilder;
 import com.db.dbworld.app.cinema.rail.cache.RailCacheService;
 import com.db.dbworld.app.cinema.rail.dto.*;
@@ -52,6 +53,7 @@ public class RailServiceImpl implements RailService {
 
     private final InteractionRepository interactionRepository;
     private final WatchProgressRepository watchProgressRepository;
+    private final UserCinemaActivityRepository activityRepository;
     private final UserContext userContext;
 
     private final RailMapper railMapper;
@@ -125,10 +127,15 @@ public class RailServiceImpl implements RailService {
         }
         try {
             Long userId = userContext.userId();
-            List<Long> recent = watchProgressRepository.findMostRecentRecordIdsByUser(
-                    userId, PageRequest.of(0, 1));
-            if (recent.isEmpty()) return dto;
-            recordRepository.findById(recent.get(0)).ifPresent(source -> {
+            Pageable top1 = PageRequest.of(0, 1);
+            // Mirror the resolver's source-pick: watch_progress first, fall back to
+            // user_cinema_activity so download-only users still see a useful title.
+            Long sourceId = watchProgressRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
+                    .findFirst()
+                    .orElseGet(() -> activityRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
+                            .findFirst().orElse(null));
+            if (sourceId == null) return dto;
+            recordRepository.findById(sourceId).ifPresent(source -> {
                 String prefix = (dto.getTitle() == null || dto.getTitle().isBlank())
                         ? "Because you watched"
                         : dto.getTitle();

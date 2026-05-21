@@ -4,7 +4,9 @@ import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity;
 import com.db.dbworld.core.user.entity.UserEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -244,4 +246,130 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
             @Param("sessionIdPattern") String sessionIdPattern,
             @Param("cutoffTime") Instant cutoffTime,
             Pageable pageable);
+
+    /* =========================================================================
+       PRODUCTION TRACKING — upsert + helpers (added 2026-05-21)
+       =========================================================================
+       The canonical key (user_id, file_path, activity_type) makes one row per
+       (user, file, type). Multi-connection downloaders no longer create dupes —
+       parallel range requests increment counters on the same row via the
+       MySQL ON DUPLICATE KEY UPDATE branch below.
+    */
+
+    /**
+     * Atomic upsert into user_cinema_activity. Insert if no row exists for
+     * (user, file_path, activity_type); otherwise:
+     *   - bump update_count
+     *   - accumulate bytes_transferred (parallel range requests sum)
+     *   - take MAX(connection_count) — peak parallelism for this session
+     *   - refresh last_updated, completion_status, completion_percent
+     *   - leave first_seen_at and download_count/stream_count alone (set elsewhere)
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO user_cinema_activity
+              (user_id, activity_type, activity_value, session_id, file_path, file_size,
+               user_agent, remote_addr, bytes_transferred, update_count,
+               record_id, media_file_id, connection_count,
+               completion_status, completion_percent,
+               client_type, http_protocol, referer, country_code,
+               download_id, cdn_url, first_seen_at, created_time, last_updated)
+            VALUES
+              (:userId, :activityType, :activityValue, :sessionId, :filePath, :fileSize,
+               :userAgent, :remoteAddr, :bytesTransferred, 1,
+               :recordId, :mediaFileId, :connectionCount,
+               :completionStatus, :completionPercent,
+               :clientType, :httpProtocol, :referer, :countryCode,
+               :downloadId, :cdnUrl, :now, :now, :now)
+            ON DUPLICATE KEY UPDATE
+              activity_value     = VALUES(activity_value),
+              bytes_transferred  = COALESCE(bytes_transferred, 0) + COALESCE(VALUES(bytes_transferred), 0),
+              update_count       = COALESCE(update_count, 0) + 1,
+              connection_count   = GREATEST(COALESCE(connection_count, 1), VALUES(connection_count)),
+              user_agent         = COALESCE(VALUES(user_agent), user_agent),
+              remote_addr        = COALESCE(VALUES(remote_addr), remote_addr),
+              completion_status  = VALUES(completion_status),
+              completion_percent = VALUES(completion_percent),
+              client_type        = VALUES(client_type),
+              http_protocol      = COALESCE(VALUES(http_protocol), http_protocol),
+              referer            = COALESCE(VALUES(referer), referer),
+              country_code       = COALESCE(VALUES(country_code), country_code),
+              record_id          = COALESCE(VALUES(record_id), record_id),
+              media_file_id      = COALESCE(VALUES(media_file_id), media_file_id),
+              download_id        = COALESCE(VALUES(download_id), download_id),
+              cdn_url            = COALESCE(VALUES(cdn_url), cdn_url),
+              session_id         = COALESCE(session_id, VALUES(session_id)),
+              file_size          = COALESCE(VALUES(file_size), file_size),
+              last_updated       = VALUES(last_updated)
+            """, nativeQuery = true)
+    void upsertSession(
+            @Param("userId")             Long userId,
+            @Param("activityType")       String activityType,
+            @Param("activityValue")      String activityValue,
+            @Param("sessionId")          String sessionId,
+            @Param("filePath")           String filePath,
+            @Param("fileSize")           Long fileSize,
+            @Param("userAgent")          String userAgent,
+            @Param("remoteAddr")         String remoteAddr,
+            @Param("bytesTransferred")   Long bytesTransferred,
+            @Param("recordId")           Long recordId,
+            @Param("mediaFileId")        String mediaFileId,
+            @Param("connectionCount")    Integer connectionCount,
+            @Param("completionStatus")   String completionStatus,
+            @Param("completionPercent")  java.math.BigDecimal completionPercent,
+            @Param("clientType")         String clientType,
+            @Param("httpProtocol")       String httpProtocol,
+            @Param("referer")            String referer,
+            @Param("countryCode")        String countryCode,
+            @Param("downloadId")         String downloadId,
+            @Param("cdnUrl")             String cdnUrl,
+            @Param("now")                Instant now
+    );
+
+    /**
+     * Mark a (user, file, type) session as completed and increment the type-specific
+     * lifetime counter. Called at the end of a successful transfer (e.g. nginx CDN
+     * webhook or final 200/206 with full Content-Range).
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET completion_status = 'COMPLETED',
+                completion_percent = 100.00,
+                last_completed_at = :now,
+                last_updated = :now,
+                download_count = download_count + CASE WHEN activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END,
+                stream_count   = stream_count   + CASE WHEN activity_type = 'STREAM'   THEN 1 ELSE 0 END,
+                avg_speed_bps = :avgSpeedBps
+            WHERE user_id = :userId
+              AND file_path = :filePath
+              AND activity_type = :activityType
+            """, nativeQuery = true)
+    int markCompleted(
+            @Param("userId")       Long userId,
+            @Param("filePath")     String filePath,
+            @Param("activityType") String activityType,
+            @Param("avgSpeedBps")  Long avgSpeedBps,
+            @Param("now")          Instant now);
+
+    /**
+     * Most recent records the user actually completed or substantially watched/downloaded.
+     * Used by {@code becauseYouWatched} as a richer source signal than watch_progress alone.
+     */
+    @Query("""
+            SELECT a.recordId FROM UserCinemaActivityEntity a
+            WHERE a.user.userId = :userId
+              AND a.recordId IS NOT NULL
+              AND a.activityType IN ('STREAM', 'DOWNLOAD')
+            ORDER BY a.lastUpdated DESC
+            """)
+    List<Long> findMostRecentRecordIdsByUser(@Param("userId") Long userId, Pageable pageable);
+
+    /** Total times this user has actually completed (downloaded fully OR finished streaming) the given record. */
+    @Query("""
+            SELECT COALESCE(SUM(a.downloadCount + a.streamCount), 0)
+            FROM UserCinemaActivityEntity a
+            WHERE a.user.userId = :userId AND a.recordId = :recordId
+            """)
+    long countCompletedByUserAndRecord(@Param("userId") Long userId, @Param("recordId") Long recordId);
 }
