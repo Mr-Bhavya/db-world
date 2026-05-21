@@ -273,14 +273,16 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
                record_id, media_file_id, connection_count,
                completion_status, completion_percent,
                client_type, http_protocol, referer, country_code,
-               download_id, cdn_url, first_seen_at, created_time, last_updated)
+               download_id, cdn_url, first_seen_at, created_time, last_updated,
+               download_count, stream_count)
             VALUES
               (:userId, :activityType, :activityValue, :sessionId, :filePath, :fileSize,
                :userAgent, :remoteAddr, :bytesTransferred, 1,
                :recordId, :mediaFileId, :connectionCount,
                :completionStatus, :completionPercent,
                :clientType, :httpProtocol, :referer, :countryCode,
-               :downloadId, :cdnUrl, :now, :now, :now)
+               :downloadId, :cdnUrl, :now, :now, :now,
+               0, 0)
             ON DUPLICATE KEY UPDATE
               activity_value     = VALUES(activity_value),
               bytes_transferred  = COALESCE(bytes_transferred, 0) + COALESCE(VALUES(bytes_transferred), 0),
@@ -301,6 +303,8 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
               session_id         = COALESCE(session_id, VALUES(session_id)),
               file_size          = COALESCE(VALUES(file_size), file_size),
               last_updated       = VALUES(last_updated)
+              -- download_count / stream_count intentionally untouched here; they are
+              -- only bumped by markCompleted() once a transfer fully finishes.
             """, nativeQuery = true)
     void upsertSession(
             @Param("userId")             Long userId,

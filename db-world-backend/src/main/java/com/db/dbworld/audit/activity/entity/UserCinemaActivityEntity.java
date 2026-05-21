@@ -128,15 +128,15 @@ public class UserCinemaActivityEntity {
     private String mediaFileId;
 
     /** Total completed DOWNLOAD sessions for this (user, file). Increments only on COMPLETED transitions. */
-    @Column(name = "download_count", nullable = false)
+    @Column(name = "download_count", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 0")
     private Integer downloadCount = 0;
 
     /** Total completed STREAM sessions for this (user, file). */
-    @Column(name = "stream_count", nullable = false)
+    @Column(name = "stream_count", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 0")
     private Integer streamCount = 0;
 
     /** Peak parallel connections observed during the current/last session — signal of aria2/IDM/multi-threaded downloads. */
-    @Column(name = "connection_count", nullable = false)
+    @Column(name = "connection_count", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 1")
     private Integer connectionCount = 1;
 
     /** Last known transfer status. */
