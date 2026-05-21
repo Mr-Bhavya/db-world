@@ -10,8 +10,6 @@ import java.util.Optional;
 
 public interface RailRepository extends JpaRepository<RailEntity, Long> {
 
-    List<RailEntity> findByActiveTrueOrderByPriorityAsc();
-
     @Query("""
             SELECT r
             FROM RailEntity r
