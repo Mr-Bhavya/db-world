@@ -87,13 +87,18 @@ public class RailController {
        ADMIN / CRUD ENDPOINTS
     ================================================================= */
 
+    /**
+     * Admin endpoint: returns every rail (active or not, with or without content) so
+     * the admin Rails Tab can manage disabled rails and brand-new rails. The public
+     * /home /movies /series endpoints continue to filter by active + hasContent.
+     */
     @GetMapping("/rails")
     public ApiResponse<List<RailDto>> getRails(
             @RequestParam(required = false) PageType pageType
     ) {
         return ApiResponse.success(
                 "Rails loaded successfully",
-                railService.getRails(pageType)
+                railService.getAllRails(pageType)
         );
     }
 

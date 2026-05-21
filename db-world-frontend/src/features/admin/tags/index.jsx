@@ -57,14 +57,9 @@ const RAIL_SCOPE_TABS = [
   { key: 'ALL',    label: 'All'    },
 ];
 
-/**
- * Returns the rail's effective pageTypes as a string array — handles legacy single
- * `pageType` payloads from older backend versions that haven't been migrated yet.
- */
+/** Returns the rail's pageTypes array (or empty when missing). */
 function railPageTypes(rail) {
-  if (Array.isArray(rail?.pageTypes) && rail.pageTypes.length > 0) return rail.pageTypes;
-  if (rail?.pageType) return [rail.pageType];
-  return [];
+  return Array.isArray(rail?.pageTypes) ? rail.pageTypes : [];
 }
 
 /** Which sub-tab a rail belongs to: its single page, or ALL if it spans more than one. */

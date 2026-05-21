@@ -13,10 +13,19 @@ public interface RailService {
     /**
      * Returns rail metadata for a page (no records loaded).
      * If category (genreId) is provided, filters to category-relevant rails only.
+     * Used by the public /home /movies /series endpoints — drops inactive rails
+     * and rails whose rule resolves to zero records.
      */
     List<RailDto> getRails(PageType pageType);
 
     List<RailDto> getRails(PageType pageType, Long category);
+
+    /**
+     * Admin variant: returns every rail (active or not, content or not) so the
+     * admin Rails Tab can re-enable disabled rails and surface newly-created
+     * rails that haven't matched any records yet.
+     */
+    List<RailDto> getAllRails(PageType pageType);
 
     /**
      * Returns paginated records for a rail.

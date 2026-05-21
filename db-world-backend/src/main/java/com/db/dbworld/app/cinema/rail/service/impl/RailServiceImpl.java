@@ -116,6 +116,18 @@ public class RailServiceImpl implements RailService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<RailDto> getAllRails(PageType pageType) {
+        // Admin endpoint — no active filter, no hasContent filter. Lets the admin UI
+        // surface disabled rails (so they can be re-enabled) and brand-new rails
+        // whose rule hasn't matched any records yet.
+        List<RailEntity> rails = pageType != null
+                ? railRepository.findAllByPageOrderByPriority(pageType)
+                : railRepository.findAllOrderByPriority();
+        return rails.stream().map(railMapper::toDto).toList();
+    }
+
     /**
      * Rails like {@code becauseYouWatched} carry a per-user dynamic title — the static
      * {@code title} in the DB is used as a prefix, the source record's name gets
@@ -419,25 +431,11 @@ public class RailServiceImpl implements RailService {
         return railMapper.toDto(rail);
     }
 
-    /**
-     * Bridges the legacy {@code pageType} field and the new {@code pageTypes} set:
-     * <ul>
-     *   <li>If {@code pageTypes} is empty but {@code pageType} is set, derive set from it.</li>
-     *   <li>If {@code pageTypes} is non-empty, mirror the first entry into {@code pageType}
-     *       so older read paths still see a sensible value until the field is dropped.</li>
-     *   <li>Final fallback: {@code HOME} only, so a rail never has zero pages.</li>
-     * </ul>
-     */
-    @SuppressWarnings("deprecation")
+    /** Ensures a rail always has at least one page (HOME fallback). */
     private void normalizePageTypes(RailEntity rail) {
-        if ((rail.getPageTypes() == null || rail.getPageTypes().isEmpty())
-                && rail.getPageType() != null) {
-            rail.setPageTypes(java.util.EnumSet.of(rail.getPageType()));
-        }
         if (rail.getPageTypes() == null || rail.getPageTypes().isEmpty()) {
             rail.setPageTypes(java.util.EnumSet.of(PageType.HOME));
         }
-        rail.setPageType(rail.getPageTypes().iterator().next());
     }
 
     @Override

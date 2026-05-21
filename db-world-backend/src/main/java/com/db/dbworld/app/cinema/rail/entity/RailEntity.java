@@ -34,17 +34,6 @@ public class RailEntity {
     private Boolean infiniteScroll = true;
 
     /**
-     * Legacy single-page field. Kept for backward compatibility while existing rails are
-     * migrated to {@link #pageTypes}. Reads should prefer pageTypes; writes mirror the
-     * first element here so callers stuck on the old API still see something sensible.
-     * Will be removed once all callers are migrated.
-     */
-    @Deprecated
-    @Enumerated(EnumType.STRING)
-    @Column(name = "page_type")
-    private PageType pageType;
-
-    /**
      * Pages this rail appears on. A rail can target any subset of pages; the admin UI's
      * "All" sub-tab corresponds to rails with more than one entry here. Hibernate creates
      * the {@code rails_page_types} join table automatically (ddl-auto=update).

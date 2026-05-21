@@ -375,11 +375,9 @@ public class RailResolverImpl implements RailResolver {
      *   <li>{@code rule.recordType} (explicit override) — wins over everything.</li>
      *   <li>{@code requestedPage} — the page the caller is rendering. For multi-page rails
      *       this is the only correct source.</li>
-     *   <li>For backward compat: the rail's first {@code pageTypes} entry (or the legacy
-     *       {@code pageType} field if the set is empty).</li>
+     *   <li>The rail's first {@code pageTypes} entry when no caller context was supplied.</li>
      * </ol>
      */
-    @SuppressWarnings("deprecation")
     private RecordType resolveEffectiveType(RailEntity rail, PageType requestedPage) {
 
         RailRule rule = rail.getRule();
@@ -389,12 +387,8 @@ public class RailResolverImpl implements RailResolver {
         }
 
         PageType effectivePage = requestedPage;
-        if (effectivePage == null) {
-            if (rail.getPageTypes() != null && !rail.getPageTypes().isEmpty()) {
-                effectivePage = rail.getPageTypes().iterator().next();
-            } else {
-                effectivePage = rail.getPageType();
-            }
+        if (effectivePage == null && rail.getPageTypes() != null && !rail.getPageTypes().isEmpty()) {
+            effectivePage = rail.getPageTypes().iterator().next();
         }
         if (effectivePage == null) return null;
 
