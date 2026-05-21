@@ -36,16 +36,16 @@ public class WatchProgressService {
     public void saveProgress(Long userId, String fileId, Long recordId,
                               Long positionMs, Long durationMs,
                               String audioLang, String subLang) {
-        WatchProgressEntity entity = repository
-                .findByUserIdAndFileId(userId, fileId)
-                .orElseGet(() -> WatchProgressEntity.builder()
-                        .userId(userId).fileId(fileId).build());
-        entity.setRecordId(recordId);
-        entity.setPositionMs(positionMs);
-        entity.setDurationMs(durationMs);
-        entity.setAudioLang(audioLang);
-        entity.setSubLang(subLang);
-        repository.save(entity);
+        // Atomic upsert: the player can fire two saves for the same (user, file) within
+        // milliseconds. The prior find-then-insert flow raced and surfaced the
+        // uk_user_file_progress duplicate-key error. ON DUPLICATE KEY UPDATE resolves it
+        // server-side without us needing locking or retries.
+        repository.upsert(
+                userId, fileId, recordId,
+                positionMs, durationMs,
+                audioLang, subLang,
+                Instant.now()
+        );
     }
 
     public Optional<ProgressDto> getProgress(Long userId, String fileId) {

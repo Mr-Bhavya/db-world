@@ -110,7 +110,34 @@ public class RailServiceImpl implements RailService {
         return rails.stream()
                 .filter(rail -> hasContent(rail, probe, category))
                 .map(railMapper::toDto)
+                .map(this::applyDynamicTitle)
                 .toList();
+    }
+
+    /**
+     * Rails like {@code becauseYouWatched} carry a per-user dynamic title — the static
+     * {@code title} in the DB is used as a prefix, the source record's name gets
+     * appended. Returns the dto unchanged if no source can be resolved.
+     */
+    private RailDto applyDynamicTitle(RailDto dto) {
+        if (dto.getRule() == null || !"becauseYouWatched".equals(dto.getRule().getType())) {
+            return dto;
+        }
+        try {
+            Long userId = userContext.userId();
+            List<Long> recent = watchProgressRepository.findMostRecentRecordIdsByUser(
+                    userId, PageRequest.of(0, 1));
+            if (recent.isEmpty()) return dto;
+            recordRepository.findById(recent.get(0)).ifPresent(source -> {
+                String prefix = (dto.getTitle() == null || dto.getTitle().isBlank())
+                        ? "Because you watched"
+                        : dto.getTitle();
+                dto.setTitle(prefix + " " + source.getName());
+            });
+        } catch (Exception ignored) {
+            // Unauthenticated or lookup failure — keep the static title.
+        }
+        return dto;
     }
 
     private boolean hasContent(RailEntity rail, Pageable probe, Long category) {
@@ -124,9 +151,13 @@ public class RailServiceImpl implements RailService {
                 return false;
             }
         }
-        if ("continueWatching".equals(ruleType)) {
+        if ("continueWatching".equals(ruleType) || "becauseYouWatched".equals(ruleType)) {
             try {
-                return watchProgressRepository.existsByUserId(userContext.userId());
+                // existsByUserId alone would return true for users whose only progress
+                // rows have a null recordId — the rail would render empty. Restrict to
+                // entries that can actually populate the rail. For becauseYouWatched
+                // this is a necessary precondition (no source → no recommendations).
+                return watchProgressRepository.existsByUserIdAndRecordIdNotNull(userContext.userId());
             } catch (Exception e) {
                 return false;
             }
@@ -188,10 +219,11 @@ public class RailServiceImpl implements RailService {
             return getWatchlistRecords(userContext.userId(), page, pageSize);
         }
 
-        // Continue Watching is user-specific too — skip the shared cache below, but use
-        // the resolver for the ID slice. Each user gets fresh data.
-        boolean userScoped = rail.getRule() != null
-                && "continueWatching".equals(rail.getRule().getType());
+        // Continue Watching and Because You Watched are user-specific — skip the shared
+        // cache below, but use the resolver for the ID slice. Each user gets fresh data.
+        String ruleType = rail.getRule() != null ? rail.getRule().getType() : null;
+        boolean userScoped = "continueWatching".equals(ruleType)
+                || "becauseYouWatched".equals(ruleType);
 
         // 1. Cache check (only for non-category, non-user-scoped requests)
         if (category == null && !userScoped) {

@@ -131,12 +131,13 @@ public class RailResolverImpl implements RailResolver {
                     .findByRailIdOrderByPriorityAsc(rail.getId(), sortedPageable)
                     .map(item -> item.getRecord().getId());
 
-            case "tag"              -> resolveTagIds(rule, effectiveType, category, sortedPageable);
-            case "genre"            -> resolveGenreIds(rule, effectiveType, category, sortedPageable);
-            case "language"         -> resolveLanguageIds(rule, effectiveType, category, sortedPageable);
-            case "filter"           -> resolveFilterIds(rule, effectiveType, category, sortedPageable);
-            case "watchlist"        -> new SliceImpl<>(List.of(), pageable, false); // resolved by RailServiceImpl
-            case "continueWatching" -> resolveContinueWatchingIds(effectiveType, pageable);
+            case "tag"               -> resolveTagIds(rule, effectiveType, category, sortedPageable);
+            case "genre"             -> resolveGenreIds(rule, effectiveType, category, sortedPageable);
+            case "language"          -> resolveLanguageIds(rule, effectiveType, category, sortedPageable);
+            case "filter"            -> resolveFilterIds(rule, effectiveType, category, sortedPageable);
+            case "watchlist"         -> new SliceImpl<>(List.of(), pageable, false); // resolved by RailServiceImpl
+            case "continueWatching"  -> resolveContinueWatchingIds(effectiveType, pageable);
+            case "becauseYouWatched" -> resolveBecauseYouWatchedIds(effectiveType, sortedPageable);
 
             default -> new SliceImpl<>(List.of(), pageable, false);
         };
@@ -145,6 +146,53 @@ public class RailResolverImpl implements RailResolver {
     /* ================================================================
        CONTINUE WATCHING RESOLUTION (user-scoped)
     ================================================================= */
+
+    /**
+     * "Because you watched X" — picks the user's most recent watched record (the
+     * source), and returns other records sharing its primary genre. The source itself
+     * is excluded so the rail doesn't recommend what the user just watched.
+     *
+     * <p>Sort: honors the rail's configured sort if any, otherwise falls back to the
+     * rail's natural ordering (typically popularity DESC).
+     */
+    private Slice<Long> resolveBecauseYouWatchedIds(RecordType effectiveType, Pageable pageable) {
+        Long sourceRecordId = pickBecauseYouWatchedSource();
+        if (sourceRecordId == null) return new SliceImpl<>(List.of(), pageable, false);
+
+        Long primaryGenreId = primaryGenreIdOf(sourceRecordId);
+        if (primaryGenreId == null) return new SliceImpl<>(List.of(), pageable, false);
+
+        Specification<RecordEntity> spec = RecordSpecification.hasGenre(primaryGenreId)
+                .and((root, query, cb) -> cb.notEqual(root.get("id"), sourceRecordId));
+        if (effectiveType != null) spec = spec.and(RecordSpecification.hasType(effectiveType));
+
+        return recordRepository.findIdsBySpecification(spec, pageable);
+    }
+
+    /**
+     * Resolves the source record for a "Because you watched" rail. Returns null when
+     * the user is unauthenticated or has no progress yet.
+     */
+    Long pickBecauseYouWatchedSource() {
+        Long userId;
+        try {
+            userId = userContext.userId();
+        } catch (Exception e) {
+            return null;
+        }
+        List<Long> sources = watchProgressRepository.findMostRecentRecordIdsByUser(
+                userId, PageRequest.of(0, 1));
+        return sources.isEmpty() ? null : sources.get(0);
+    }
+
+    /** Primary (first) genre ID for a record, or null if record/genres are missing. */
+    private Long primaryGenreIdOf(Long recordId) {
+        RecordEntity rec = recordRepository.findByIdWithTmdb(recordId).orElse(null);
+        if (rec == null || rec.getTmdb() == null) return null;
+        var genres = rec.getTmdb().getGenres();
+        if (genres == null || genres.isEmpty()) return null;
+        return genres.get(0).getId();
+    }
 
     private Slice<Long> resolveContinueWatchingIds(RecordType effectiveType, Pageable pageable) {
         Long userId;

@@ -37,13 +37,14 @@ import { TAG_COLORS, TAG_LABELS, AUTO_TAGS, ALL_TAGS } from '../records/tagConst
 
 const PAGE_TYPES  = ['HOME', 'MOVIES', 'SERIES'];
 const RULE_TYPES  = [
-  { value: 'tag',              label: 'Tag'                 },
-  { value: 'genre',            label: 'Genre'               },
-  { value: 'language',         label: 'Language'            },
-  { value: 'filter',           label: 'Filter'              },
-  { value: 'manual',           label: 'Manual'              },
-  { value: 'watchlist',        label: 'My List (Watchlist)' },
-  { value: 'continueWatching', label: 'Continue Watching'   },
+  { value: 'tag',               label: 'Tag'                 },
+  { value: 'genre',             label: 'Genre'               },
+  { value: 'language',          label: 'Language'            },
+  { value: 'filter',            label: 'Filter'              },
+  { value: 'manual',            label: 'Manual'              },
+  { value: 'watchlist',         label: 'My List (Watchlist)' },
+  { value: 'continueWatching',  label: 'Continue Watching'   },
+  { value: 'becauseYouWatched', label: 'Because You Watched' },
 ];
 const BLANK_RULE = { type: 'tag', tag: 'TRENDING', genreId: null, languages: [], field: '', value: '', recordType: '', sort: 'popularity', direction: 'DESC' };
 const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], rule: { ...BLANK_RULE } };
@@ -736,14 +737,15 @@ function RailRow({ rail, onEdit, onDelete, onToggle, dragControls }) {
 
   const ruleChip = () => {
     switch (rule.type) {
-      case 'tag':              return TAG_LABELS[rule.tag] ?? rule.tag ?? '—';
-      case 'genre':            return `Genre ${rule.genreId ?? '?'}`;
-      case 'language':         return (rule.languages ?? []).join(', ') || '—';
-      case 'filter':           return `${rule.field ?? '?'} ${rule.value ?? ''}`.trim();
-      case 'manual':           return 'Manual list';
-      case 'watchlist':        return 'User watchlist';
-      case 'continueWatching': return 'User progress';
-      default:                 return rule.type ?? '—';
+      case 'tag':               return TAG_LABELS[rule.tag] ?? rule.tag ?? '—';
+      case 'genre':             return `Genre ${rule.genreId ?? '?'}`;
+      case 'language':          return (rule.languages ?? []).join(', ') || '—';
+      case 'filter':            return `${rule.field ?? '?'} ${rule.value ?? ''}`.trim();
+      case 'manual':            return 'Manual list';
+      case 'watchlist':         return 'User watchlist';
+      case 'continueWatching':  return 'User progress';
+      case 'becauseYouWatched': return 'Recommended (same genre)';
+      default:                  return rule.type ?? '—';
     }
   };
 
@@ -1036,7 +1038,18 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
           </Alert>
         )}
 
-        {rule.type !== 'watchlist' && rule.type !== 'continueWatching' && (<>
+        {/* BECAUSE YOU WATCHED */}
+        {rule.type === 'becauseYouWatched' && (
+          <Alert severity="info" sx={{ bgcolor: `${T.teal}12`, color: T.textMuted,
+            border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
+            <strong>Because You Watched</strong> looks at the user&apos;s most recent watched record and recommends others
+            sharing its primary genre. The rail title is appended with the source title at render time — e.g. set the
+            title to <em>&quot;Because you watched&quot;</em> and users see <em>&quot;Because you watched Inception&quot;</em>.
+            Leave the page selector on the page where you want the rail to appear (set MOVIES / SERIES to auto-filter type).
+          </Alert>
+        )}
+
+        {rule.type !== 'watchlist' && rule.type !== 'continueWatching' && rule.type !== 'becauseYouWatched' && (<>
           <Divider sx={{ borderColor: T.border }} />
 
           {/* ── Sorting & record type ─────────────────────────── */}
