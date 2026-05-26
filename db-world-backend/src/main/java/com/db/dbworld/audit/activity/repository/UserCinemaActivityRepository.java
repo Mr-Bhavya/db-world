@@ -730,4 +730,71 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
             LIMIT :limit
             """, nativeQuery = true)
     List<com.db.dbworld.app.admin.analytics.dto.TopUserProjection> findTopUsers(@Param("limit") int limit);
+
+    /* =========================================================================
+       PHASE 5 — recommendation signals (added 2026-05-26)
+       ========================================================================= */
+
+    /**
+     * Top genres for a user by count of distinct engaged records. A record is
+     * "engaged" when completion_status = COMPLETED, completion_percent ≥ threshold,
+     * or download_count ≥ 1. Joins records → tmdb_data → genres.
+     */
+    @Query(value = """
+            SELECT g.id AS genreId
+            FROM user_cinema_activity uca
+            JOIN records r        ON r.id = uca.record_id
+            JOIN tmdb_genres tg   ON tg.tmdb_id = r.tmdb_id
+            JOIN genres g         ON g.id = tg.genre_id
+            WHERE uca.user_id = :userId
+              AND uca.record_id IS NOT NULL
+              AND (uca.completion_status = 'COMPLETED'
+                   OR uca.completion_percent >= :completionThreshold
+                   OR uca.download_count >= 1)
+            GROUP BY g.id
+            ORDER BY COUNT(DISTINCT uca.record_id) DESC, MAX(uca.last_updated) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findTopEngagedGenreIdsByUser(
+            @Param("userId")              Long userId,
+            @Param("completionThreshold") int completionThreshold,
+            @Param("limit")               int limit
+    );
+
+    /** Count of distinct engaged records for a user — used as the cold-start guard. */
+    @Query(value = """
+            SELECT COUNT(DISTINCT record_id)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND record_id IS NOT NULL
+              AND (completion_status = 'COMPLETED'
+                   OR completion_percent >= :completionThreshold
+                   OR download_count >= 1)
+            """, nativeQuery = true)
+    long countEngagedRecordsByUser(
+            @Param("userId")              Long userId,
+            @Param("completionThreshold") int completionThreshold
+    );
+
+    /**
+     * Site-wide top-rewatched record IDs in the last :windowDays days. Score is
+     * SUM(download_count + stream_count) over COMPLETED rows. Refreshed by
+     * {@code RewatchTrendService} on a schedule and cached in memory.
+     */
+    @Query(value = """
+            SELECT record_id
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :windowDays DAY)
+              AND completion_status = 'COMPLETED'
+              AND record_id IS NOT NULL
+            GROUP BY record_id
+            HAVING SUM(download_count + stream_count) >= :minScore
+            ORDER BY SUM(download_count + stream_count) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findTopRewatchedRecordIds(
+            @Param("windowDays") int windowDays,
+            @Param("minScore")   int minScore,
+            @Param("limit")      int limit
+    );
 }
