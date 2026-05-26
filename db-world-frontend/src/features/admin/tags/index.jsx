@@ -37,15 +37,37 @@ import { TAG_COLORS, TAG_LABELS, AUTO_TAGS, ALL_TAGS } from '../records/tagConst
 
 const PAGE_TYPES  = ['HOME', 'MOVIES', 'SERIES'];
 const RULE_TYPES  = [
-  { value: 'tag',       label: 'Tag'              },
-  { value: 'genre',     label: 'Genre'            },
-  { value: 'language',  label: 'Language'         },
-  { value: 'filter',    label: 'Filter'           },
-  { value: 'manual',    label: 'Manual'           },
-  { value: 'watchlist', label: 'My List (Watchlist)' },
+  { value: 'tag',               label: 'Tag'                 },
+  { value: 'genre',             label: 'Genre'               },
+  { value: 'language',          label: 'Language'            },
+  { value: 'filter',            label: 'Filter'              },
+  { value: 'manual',            label: 'Manual'              },
+  { value: 'watchlist',         label: 'My List (Watchlist)' },
+  { value: 'continueWatching',  label: 'Continue Watching'   },
+  { value: 'becauseYouWatched', label: 'Because You Watched' },
 ];
 const BLANK_RULE = { type: 'tag', tag: 'TRENDING', genreId: null, languages: [], field: '', value: '', recordType: '', sort: 'popularity', direction: 'DESC' };
-const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageType: 'HOME', rule: { ...BLANK_RULE } };
+const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], rule: { ...BLANK_RULE } };
+
+// Sub-tab keys for the Rails Tab. ALL = rails configured for >1 page.
+const RAIL_SCOPE_TABS = [
+  { key: 'HOME',   label: 'Home'   },
+  { key: 'MOVIES', label: 'Movies' },
+  { key: 'SERIES', label: 'Series' },
+  { key: 'ALL',    label: 'All'    },
+];
+
+/** Returns the rail's pageTypes array (or empty when missing). */
+function railPageTypes(rail) {
+  return Array.isArray(rail?.pageTypes) ? rail.pageTypes : [];
+}
+
+/** Which sub-tab a rail belongs to: its single page, or ALL if it spans more than one. */
+function railScopeKey(rail) {
+  const pages = railPageTypes(rail);
+  if (pages.length > 1) return 'ALL';
+  return pages[0] ?? 'HOME';
+}
 
 // ── Pagination bar ────────────────────────────────────────────────────────────
 function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPageSize, isFetching }) {
@@ -710,15 +732,19 @@ function RailRow({ rail, onEdit, onDelete, onToggle, dragControls }) {
 
   const ruleChip = () => {
     switch (rule.type) {
-      case 'tag':       return TAG_LABELS[rule.tag] ?? rule.tag ?? '—';
-      case 'genre':     return `Genre ${rule.genreId ?? '?'}`;
-      case 'language':  return (rule.languages ?? []).join(', ') || '—';
-      case 'filter':    return `${rule.field ?? '?'} ${rule.value ?? ''}`.trim();
-      case 'manual':    return 'Manual list';
-      case 'watchlist': return 'User watchlist';
-      default:          return rule.type ?? '—';
+      case 'tag':               return TAG_LABELS[rule.tag] ?? rule.tag ?? '—';
+      case 'genre':             return `Genre ${rule.genreId ?? '?'}`;
+      case 'language':          return (rule.languages ?? []).join(', ') || '—';
+      case 'filter':            return `${rule.field ?? '?'} ${rule.value ?? ''}`.trim();
+      case 'manual':            return 'Manual list';
+      case 'watchlist':         return 'User watchlist';
+      case 'continueWatching':  return 'User progress';
+      case 'becauseYouWatched': return 'Recommended (same genre)';
+      default:                  return rule.type ?? '—';
     }
   };
+
+  const pages = railPageTypes(rail);
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.2, px: 1.5,
@@ -742,10 +768,10 @@ function RailRow({ rail, onEdit, onDelete, onToggle, dragControls }) {
             sx={{ height: 16, fontSize: '0.6rem', bgcolor: `${T.teal}18`, color: T.teal, fontWeight: 700 }} />
           <Chip label={ruleChip()} size="small"
             sx={{ height: 16, fontSize: '0.6rem', bgcolor: T.glass, color: T.textMuted }} />
-          {rail.pageType && (
-            <Chip label={rail.pageType} size="small"
+          {pages.map(p => (
+            <Chip key={p} label={p} size="small"
               sx={{ height: 16, fontSize: '0.6rem', bgcolor: T.glass, color: T.textFaint }} />
-          )}
+          ))}
           {rule.sort && (
             <Chip label={`${rule.sort} ${rule.direction ?? 'DESC'}`} size="small"
               sx={{ height: 16, fontSize: '0.6rem', bgcolor: T.glass, color: T.textFaint }} />
@@ -790,11 +816,11 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
 
   useEffect(() => {
     if (data) {
-      setForm({
-        ...BLANK_RAIL,
-        ...data,
-        rule: { ...BLANK_RULE, ...(data.rule ?? {}) },
-      });
+      // Normalize pageType (legacy) → pageTypes (current) at load time so the form
+      // owns a single source of truth.
+      const incoming = { ...BLANK_RAIL, ...data, rule: { ...BLANK_RULE, ...(data.rule ?? {}) } };
+      const pageTypes = railPageTypes(incoming);
+      setForm({ ...incoming, pageTypes: pageTypes.length ? pageTypes : ['HOME'] });
       setLangInput('');
     }
   }, [data]);
@@ -803,6 +829,17 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
   const setCheck = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.checked }));
   const setRule  = (k) => (e) => setForm(p => ({ ...p, rule: { ...p.rule, [k]: e.target.value } }));
   const setRuleV = (k, v)     => setForm(p => ({ ...p, rule: { ...p.rule, [k]: v } }));
+
+  const togglePage = (page) => setForm(p => {
+    const next = new Set(p.pageTypes ?? []);
+    if (next.has(page)) {
+      // never let the set become empty
+      if (next.size > 1) next.delete(page);
+    } else {
+      next.add(page);
+    }
+    return { ...p, pageTypes: PAGE_TYPES.filter(t => next.has(t)) };
+  });
 
   const addLang = () => {
     const lang = langInput.trim().toLowerCase();
@@ -847,14 +884,30 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
         <TextField label="Title" value={form.title ?? ''} onChange={setField('title')}
           fullWidth size="small" sx={inputSx} />
 
+        <Box>
+          <Typography sx={{ fontSize: 11, fontWeight: 600, color: T.textMuted, mb: 0.75 }}>
+            Pages — select one or more
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+            {PAGE_TYPES.map(p => {
+              const selected = (form.pageTypes ?? []).includes(p);
+              return (
+                <Chip key={p} label={p} size="small" clickable
+                  onClick={() => togglePage(p)}
+                  variant={selected ? 'filled' : 'outlined'}
+                  sx={{
+                    fontSize: '0.7rem', fontWeight: 600, height: 26,
+                    bgcolor: selected ? `${T.teal}20` : 'transparent',
+                    color: selected ? T.teal : T.textMuted,
+                    borderColor: selected ? T.teal : T.glassBorder,
+                    '&:hover': { bgcolor: selected ? `${T.teal}30` : T.hoverBg },
+                  }} />
+              );
+            })}
+          </Box>
+        </Box>
+
         <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <FormControl size="small" fullWidth sx={inputSx}>
-            <InputLabel>Page</InputLabel>
-            <Select value={form.pageType ?? 'HOME'} onChange={setField('pageType')} label="Page"
-              MenuProps={getSelectMenuProps(T)}>
-              {PAGE_TYPES.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-            </Select>
-          </FormControl>
           <TextField label="Priority" type="number" value={form.priority ?? 0} onChange={setField('priority')}
             size="small" inputProps={{ min: 0 }} sx={{ minWidth: 88, ...inputSx }} />
           <TextField label="Limit" type="number" value={form.limitSize ?? 20} onChange={setField('limitSize')}
@@ -971,7 +1024,27 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
           </Alert>
         )}
 
-        {rule.type !== 'watchlist' && (<>
+        {/* CONTINUE WATCHING */}
+        {rule.type === 'continueWatching' && (
+          <Alert severity="info" sx={{ bgcolor: `${T.teal}12`, color: T.textMuted,
+            border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
+            <strong>Continue Watching</strong> shows each user the records they&apos;ve recently watched, most-recent first.
+            On the Movies / Series pages the rail auto-filters to that record type — no manual override needed.
+          </Alert>
+        )}
+
+        {/* BECAUSE YOU WATCHED */}
+        {rule.type === 'becauseYouWatched' && (
+          <Alert severity="info" sx={{ bgcolor: `${T.teal}12`, color: T.textMuted,
+            border: `1px solid ${T.teal}30`, '& .MuiAlert-icon': { color: T.teal }, fontSize: 12 }}>
+            <strong>Because You Watched</strong> looks at the user&apos;s most recent watched record and recommends others
+            sharing its primary genre. The rail title is appended with the source title at render time — e.g. set the
+            title to <em>&quot;Because you watched&quot;</em> and users see <em>&quot;Because you watched Inception&quot;</em>.
+            Leave the page selector on the page where you want the rail to appear (set MOVIES / SERIES to auto-filter type).
+          </Alert>
+        )}
+
+        {rule.type !== 'watchlist' && rule.type !== 'continueWatching' && rule.type !== 'becauseYouWatched' && (<>
           <Divider sx={{ borderColor: T.border }} />
 
           {/* ── Sorting & record type ─────────────────────────── */}
@@ -1042,6 +1115,7 @@ function RailsTab() {
   const qc                  = useQueryClient();
   const [railDialog,   setRailDialog]   = useState({ open: false, data: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, rail: null });
+  const [scope,        setScope]        = useState('HOME'); // sub-tab key
 
   const { data: rails = [], isLoading } = useQuery({
     queryKey: ['adminRails'],
@@ -1049,7 +1123,7 @@ function RailsTab() {
     staleTime: 30_000,
   });
 
-  // Local ordered state for drag-to-reorder
+  // Local ordered state for drag-to-reorder (full list, globally ordered by priority)
   const [orderedRails, setOrderedRails] = useState([]);
   const [orderDirty,   setOrderDirty]   = useState(false);
 
@@ -1059,8 +1133,31 @@ function RailsTab() {
     }
   }, [rails, orderDirty]);
 
-  const handleReorder = (newOrder) => {
-    setOrderedRails(newOrder);
+  // Sub-tab counts — drives the chip on each tab label
+  const scopeCounts = useMemo(() => {
+    const counts = { HOME: 0, MOVIES: 0, SERIES: 0, ALL: 0 };
+    for (const r of orderedRails) counts[railScopeKey(r)]++;
+    return counts;
+  }, [orderedRails]);
+
+  // Rails visible in the current sub-tab. Maintains the globally-sorted order so
+  // drag-reorder yields sensible priority deltas.
+  const visibleRails = useMemo(
+    () => orderedRails.filter(r => railScopeKey(r) === scope),
+    [orderedRails, scope],
+  );
+
+  /**
+   * Drag-reorder only rearranges within the current sub-tab. We splice the reordered
+   * subset back into the global list at the same positions the visible rails occupied,
+   * so off-tab rails keep their priority untouched.
+   */
+  const handleReorder = (newSubset) => {
+    const visibleIndexes = [];
+    orderedRails.forEach((r, idx) => { if (railScopeKey(r) === scope) visibleIndexes.push(idx); });
+    const next = [...orderedRails];
+    visibleIndexes.forEach((globalIdx, i) => { next[globalIdx] = newSubset[i]; });
+    setOrderedRails(next);
     setOrderDirty(true);
   };
 
@@ -1101,6 +1198,13 @@ function RailsTab() {
     onError: () => enqueueSnackbar('Failed to save order', { variant: 'error' }),
   });
 
+  // Default pageTypes for new rails depends on which sub-tab the user is on.
+  // ALL tab seeds with all three pages, single-page tabs seed with just that page.
+  const newRailSeed = () => ({
+    ...BLANK_RAIL,
+    pageTypes: scope === 'ALL' ? [...PAGE_TYPES] : [scope],
+  });
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Sub-toolbar */}
@@ -1108,7 +1212,7 @@ function RailsTab() {
         flexShrink: 0, borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
         <PlaylistPlayIcon sx={{ color: T.teal, fontSize: 18 }} />
         <Typography sx={{ fontSize: 12, color: T.textMuted, flex: 1 }}>
-          Configure homepage rails — drag handle to reorder, toggle to show/hide
+          Configure rails per page — drag handle to reorder within the active tab
         </Typography>
         {orderDirty && (
           <Button size="small" variant="contained" disabled={reordering}
@@ -1118,11 +1222,31 @@ function RailsTab() {
           </Button>
         )}
         <Button size="small" variant="contained" startIcon={<AddIcon />}
-          onClick={() => setRailDialog({ open: true, data: { ...BLANK_RAIL } })}
+          onClick={() => setRailDialog({ open: true, data: newRailSeed() })}
           sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600, fontSize: 12 }}>
-          New Rail
+          {scope === 'ALL' ? 'New Multi-Page Rail' : `New ${RAIL_SCOPE_TABS.find(t => t.key === scope)?.label} Rail`}
         </Button>
       </Box>
+
+      {/* Sub-tabs: Home / Movies / Series / All */}
+      <Tabs value={scope} onChange={(_, v) => setScope(v)} variant="scrollable" scrollButtons={false}
+        sx={{ minHeight: 36, borderBottom: `1px solid ${T.border}`, flexShrink: 0,
+          '& .MuiTab-root': { fontSize: 12, color: T.textMuted, textTransform: 'none', minHeight: 36, px: 1.75 },
+          '& .Mui-selected': { color: T.teal },
+          '& .MuiTabs-indicator': { bgcolor: T.teal } }}>
+        {RAIL_SCOPE_TABS.map(t => (
+          <Tab key={t.key} value={t.key}
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {t.label}
+                <Box component="span" sx={{ fontSize: 10, color: T.textFaint, bgcolor: T.glass,
+                  px: 0.6, py: 0.1, borderRadius: 1, minWidth: 18, textAlign: 'center' }}>
+                  {scopeCounts[t.key] ?? 0}
+                </Box>
+              </Box>
+            } />
+        ))}
+      </Tabs>
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, p: { xs: 1, md: 1.5 },
         '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 3 } }}>
@@ -1130,22 +1254,26 @@ function RailsTab() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, p: 1 }}>
             {[...Array(5)].map((_, i) => <Skeleton key={i} variant="rectangular" height={52} sx={{ borderRadius: 1.5, bgcolor: T.glass }} />)}
           </Box>
-        ) : orderedRails.length === 0 ? (
+        ) : visibleRails.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <PlaylistPlayIcon sx={{ fontSize: 48, color: T.textFaint, mb: 1 }} />
-            <Typography sx={{ color: T.textFaint, fontSize: '0.85rem' }}>No rails configured</Typography>
+            <Typography sx={{ color: T.textFaint, fontSize: '0.85rem' }}>
+              {scope === 'ALL'
+                ? 'No multi-page rails yet — these appear on more than one page'
+                : `No rails configured for ${RAIL_SCOPE_TABS.find(t => t.key === scope)?.label}`}
+            </Typography>
             <Button size="small" variant="outlined" startIcon={<AddIcon />}
-              onClick={() => setRailDialog({ open: true, data: { ...BLANK_RAIL } })}
+              onClick={() => setRailDialog({ open: true, data: newRailSeed() })}
               sx={{ mt: 2, borderColor: T.teal, color: T.teal, '&:hover': { bgcolor: T.tealBg } }}>
               Create first rail
             </Button>
           </Box>
         ) : (
           <Box sx={{ border: `1px solid ${T.glassBorder}`, borderRadius: 2, overflow: 'hidden', bgcolor: T.glass }}>
-            <Reorder.Group axis="y" values={orderedRails} onReorder={handleReorder}
+            <Reorder.Group axis="y" values={visibleRails} onReorder={handleReorder}
               style={{ padding: 0, margin: 0 }}>
               <AnimatePresence>
-                {orderedRails.map((rail, i) => (
+                {visibleRails.map((rail, i) => (
                   <Box key={rail.id ?? i}>
                     {i > 0 && <Divider sx={{ borderColor: T.border }} />}
                     <DraggableRailRow

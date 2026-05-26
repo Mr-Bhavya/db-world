@@ -409,7 +409,7 @@ public class RailBootstrapService {
                 RailEntity.builder()
                         .title(title)
                         .rule(rule)
-                        .pageType(pageType)
+                        .pageTypes(java.util.EnumSet.of(pageType))
                         .priority(priority)
                         .limitSize(limit)
                         .active(true)

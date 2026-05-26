@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Builder
@@ -32,7 +33,8 @@ public class RailDto {
 
     private boolean infiniteScroll;
 
-    private PageType pageType;
+    /** Pages this rail appears on. */
+    private Set<PageType> pageTypes;
 
     private RailRule rule;
 
