@@ -12,6 +12,7 @@ import {
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home, TableChart,
+  Insights,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
@@ -53,6 +54,7 @@ const NAV = [
       { id: 'downloads',        label: 'Download Manager', icon: <Download />,    path: 'downloads' },
       { id: 'ingestion',        label: 'Media Ingestion',  icon: <Folder />,      path: 'ingestion' },
       { id: 'activity-center',  label: 'Activity Center',  icon: <TableChart />,  path: 'activity-center', badge: 'Live' },
+      { id: 'analytics',        label: 'Analytics',        icon: <Insights />,    path: 'analytics' },
     ],
   },
   {

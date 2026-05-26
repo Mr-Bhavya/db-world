@@ -67,6 +67,8 @@ const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/medi
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
+const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
+const LazyAnalyticsDashboard  = lazy(() => import('@features/admin/analytics/index.jsx'));
 
 // Loading Component
 const LoadingFallback = () => (
@@ -222,6 +224,7 @@ const routeConfig = {
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
+    { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: [
@@ -322,6 +325,7 @@ const ThemedApp = () => {
                     <Route path="redis"         element={<LazyRedisManager />} />
                     <Route path="files"         element={<LazyFileManager />} />
                     <Route path="scheduler"     element={<LazySchedulerPanel />} />
+                    <Route path="analytics"     element={<LazyAnalyticsDashboard />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<ErrorPage />} />

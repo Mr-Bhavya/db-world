@@ -548,4 +548,186 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
             @Param("limit")        int limit,
             @Param("offset")       int offset
     );
+
+    /* =========================================================================
+       PHASE 4 — /me/activity aggregates (added 2026-05-26)
+       ========================================================================= */
+
+    /** Total watch_progress.duration_ms across the user's COMPLETED streams. */
+    @Query(value = """
+            SELECT COALESCE(SUM(wp.duration_ms), 0)
+            FROM user_cinema_activity uca
+            JOIN watch_progress wp ON wp.id = uca.watch_progress_id
+            WHERE uca.user_id = :userId
+              AND uca.activity_type = 'STREAM'
+              AND uca.completion_status = 'COMPLETED'
+            """, nativeQuery = true)
+    long sumStreamDurationMsByUser(@Param("userId") Long userId);
+
+    /** Total file_size summed across the user's COMPLETED downloads. */
+    @Query(value = """
+            SELECT COALESCE(SUM(file_size), 0)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND activity_type = 'DOWNLOAD'
+              AND completion_status = 'COMPLETED'
+              AND file_size IS NOT NULL
+            """, nativeQuery = true)
+    long sumCompletedDownloadBytesByUser(@Param("userId") Long userId);
+
+    /** Count of COMPLETED sessions (any type) for the user. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND completion_status = 'COMPLETED'
+            """, nativeQuery = true)
+    long countCompletedTransferSessions(@Param("userId") Long userId);
+
+    /** Count of STREAM + DOWNLOAD sessions (any status) for the user. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+            """, nativeQuery = true)
+    long countTotalTransferSessions(@Param("userId") Long userId);
+
+    /** Top records the user rewatches, ordered by total (download + stream) count desc. */
+    @Query(value = """
+            SELECT
+                uca.record_id   AS recordId,
+                r.name          AS title,
+                r.type          AS recordType,
+                SUM(uca.download_count) AS downloadCount,
+                SUM(uca.stream_count)   AS streamCount,
+                (SUM(uca.download_count) + SUM(uca.stream_count)) AS totalCount,
+                MAX(uca.last_completed_at) AS lastCompletedAt
+            FROM user_cinema_activity uca
+            JOIN records r ON r.id = uca.record_id
+            WHERE uca.user_id = :userId
+              AND uca.record_id IS NOT NULL
+            GROUP BY uca.record_id, r.name, r.type
+            HAVING totalCount >= 1
+            ORDER BY totalCount DESC, lastCompletedAt DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.cinema.me.activity.dto.TopRewatchProjection> findTopRewatchesByUser(
+            @Param("userId") Long userId,
+            @Param("limit")  int limit
+    );
+
+    /* =========================================================================
+       PHASE 4 — admin analytics aggregates
+       ========================================================================= */
+
+    /** Distinct active users in the last :sinceDays days. */
+    @Query(value = """
+            SELECT COUNT(DISTINCT user_id)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+            """, nativeQuery = true)
+    long countActiveUsersSince(@Param("sinceDays") int sinceDays);
+
+    /** Total bytes transferred (sum of bytes_transferred) over the last :sinceDays days. */
+    @Query(value = """
+            SELECT COALESCE(SUM(bytes_transferred), 0)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND bytes_transferred IS NOT NULL
+            """, nativeQuery = true)
+    long sumBytesTransferredSince(@Param("sinceDays") int sinceDays);
+
+    /** Count of COMPLETED sessions across all users over the last :sinceDays days. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND completion_status = 'COMPLETED'
+            """, nativeQuery = true)
+    long countCompletedTransfersSince(@Param("sinceDays") int sinceDays);
+
+    /** Count of ABORTED sessions across all users over the last :sinceDays days. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND completion_status = 'ABORTED'
+            """, nativeQuery = true)
+    long countAbortedSince(@Param("sinceDays") int sinceDays);
+
+    /** Daily activity trend for the trend chart. */
+    @Query(value = """
+            SELECT
+                DATE(last_updated)            AS date,
+                SUM(CASE WHEN activity_type = 'STREAM'   THEN 1 ELSE 0 END) AS streams,
+                SUM(CASE WHEN activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END) AS downloads,
+                COALESCE(SUM(bytes_transferred), 0) AS bytesTransferred
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :days DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+            GROUP BY DATE(last_updated)
+            ORDER BY DATE(last_updated)
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.DailyActivityProjection> findDailyActivityTrend(
+            @Param("days") int days
+    );
+
+    /** Breakdown of recent activity by client_type. */
+    @Query(value = """
+            SELECT
+                client_type AS clientType,
+                COUNT(*)    AS count
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL 30 DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND client_type IS NOT NULL
+            GROUP BY client_type
+            ORDER BY count DESC
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.ClientBreakdownProjection> findClientBreakdown();
+
+    /** Top records by combined activity (streams + downloads), last 30 days. */
+    @Query(value = """
+            SELECT
+                uca.record_id            AS recordId,
+                r.name                   AS title,
+                r.type                   AS recordType,
+                SUM(CASE WHEN uca.activity_type = 'STREAM'   THEN 1 ELSE 0 END) AS streamCount,
+                SUM(CASE WHEN uca.activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END) AS downloadCount,
+                COUNT(DISTINCT uca.user_id)                                     AS uniqueUsers
+            FROM user_cinema_activity uca
+            JOIN records r ON r.id = uca.record_id
+            WHERE uca.last_updated >= (NOW() - INTERVAL 30 DAY)
+              AND uca.activity_type IN ('STREAM', 'DOWNLOAD')
+              AND uca.record_id IS NOT NULL
+            GROUP BY uca.record_id, r.name, r.type
+            ORDER BY (SUM(CASE WHEN uca.activity_type = 'STREAM' THEN 1 ELSE 0 END)
+                    + SUM(CASE WHEN uca.activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END)) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.TopRecordProjection> findTopRecords(@Param("limit") int limit);
+
+    /** Top users by total activity and bytes transferred, last 30 days. */
+    @Query(value = """
+            SELECT
+                u.id                          AS userId,
+                u.email                       AS email,
+                MAX(uca.last_updated)         AS lastActive,
+                COUNT(uca.id)                 AS totalActivities,
+                COALESCE(SUM(uca.bytes_transferred), 0) AS totalBytes
+            FROM user_cinema_activity uca
+            JOIN users u ON u.id = uca.user_id
+            WHERE uca.last_updated >= (NOW() - INTERVAL 30 DAY)
+              AND uca.activity_type IN ('STREAM', 'DOWNLOAD')
+            GROUP BY u.id, u.email
+            ORDER BY totalActivities DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.TopUserProjection> findTopUsers(@Param("limit") int limit);
 }

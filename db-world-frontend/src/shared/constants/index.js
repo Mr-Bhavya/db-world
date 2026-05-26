@@ -83,6 +83,9 @@ export const USER_PROFILE_ROUTE =
 export const EDIT_USER_PROFILE_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/user-profile-edit`;
 
+export const DB_MY_ACTIVITY_ROUTE =
+  `${DB_WORLD_HOME_ROUTE}/me/activity`;
+
 export const DB_ADMIN_TOOLS_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/admin-tools`;
 
@@ -212,6 +215,7 @@ export default {
 
   USER_PROFILE_ROUTE,
   EDIT_USER_PROFILE_ROUTE,
+  DB_MY_ACTIVITY_ROUTE,
 
   DB_ADMIN_TOOLS_ROUTE,
   DB_ADMIN_BASE_ROUTE,
