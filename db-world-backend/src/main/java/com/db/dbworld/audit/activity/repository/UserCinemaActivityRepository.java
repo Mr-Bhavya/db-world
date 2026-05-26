@@ -368,4 +368,77 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
             WHERE a.user.userId = :userId AND a.recordId = :recordId
             """)
     long countCompletedByUserAndRecord(@Param("userId") Long userId, @Param("recordId") Long recordId);
+
+    /* =========================================================================
+       LOG SHIPPER — bulk update from nginx-log aggregation (added 2026-05-26)
+       ========================================================================= */
+
+    /**
+     * Update a (user, file, type) row from the log shipper's per-download_id aggregate.
+     * Writes are absolute values (idempotent on re-read after restart). Lifetime counters
+     * are bumped only on the first transition into COMPLETED — guarded by the
+     * {@code completion_status &lt;&gt; 'COMPLETED'} predicate at update time.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET bytes_transferred  = :bytesTransferred,
+                file_size          = COALESCE(:fileSize, file_size),
+                completion_percent = COALESCE(:completionPercent, completion_percent),
+                avg_speed_bps      = COALESCE(:avgSpeedBps, avg_speed_bps),
+                connection_count   = GREATEST(COALESCE(connection_count, 1), :connectionCount),
+                client_type        = CASE WHEN client_type = 'UNKNOWN' OR client_type IS NULL
+                                          THEN :clientType ELSE client_type END,
+                remote_addr        = COALESCE(:remoteAddr, remote_addr),
+                last_updated       = :lastUpdated,
+                last_completed_at  = CASE
+                    WHEN :completionStatus = 'COMPLETED' AND last_completed_at IS NULL THEN :lastUpdated
+                    ELSE last_completed_at
+                END,
+                download_count = download_count + CASE
+                    WHEN :completionStatus = 'COMPLETED'
+                     AND completion_status <> 'COMPLETED'
+                     AND activity_type = 'DOWNLOAD' THEN 1 ELSE 0
+                END,
+                stream_count = stream_count + CASE
+                    WHEN :completionStatus = 'COMPLETED'
+                     AND completion_status <> 'COMPLETED'
+                     AND activity_type = 'STREAM' THEN 1 ELSE 0
+                END,
+                completion_status  = :completionStatus
+            WHERE download_id = :downloadId
+            """, nativeQuery = true)
+    int updateFromShipper(
+            @Param("downloadId")        String downloadId,
+            @Param("bytesTransferred")  long bytesTransferred,
+            @Param("fileSize")          Long fileSize,
+            @Param("completionPercent") java.math.BigDecimal completionPercent,
+            @Param("avgSpeedBps")       Long avgSpeedBps,
+            @Param("connectionCount")   int connectionCount,
+            @Param("clientType")        String clientType,
+            @Param("remoteAddr")        String remoteAddr,
+            @Param("lastUpdated")       Instant lastUpdated,
+            @Param("completionStatus")  String completionStatus
+    );
+
+    /**
+     * Mark stalled (user, file, type) rows as ABORTED. One call per ActivityType so the
+     * timeout threshold can differ for STREAM vs DOWNLOAD. Skipped rows that are already
+     * COMPLETED or that have reached ≥95% coverage.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET completion_status = 'ABORTED',
+                last_updated      = :now
+            WHERE completion_status IN ('STARTED', 'IN_PROGRESS')
+              AND COALESCE(completion_percent, 0) < 95
+              AND activity_type = :activityType
+              AND last_updated < :timeoutCutoff
+            """, nativeQuery = true)
+    int sweepAbortedByType(
+            @Param("activityType")  String activityType,
+            @Param("timeoutCutoff") Instant timeoutCutoff,
+            @Param("now")           Instant now
+    );
 }

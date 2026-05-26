@@ -127,6 +127,22 @@ springdoc:
     path: /docs
 
 # =========================================================
+# db-world feature configs
+# =========================================================
+dbworld:
+  log-shipper:
+    enabled: true
+    log-file-path: ${CDN_ACCESS_LOG:/var/log/nginx/cdn_access.json}
+    rotated-suffix: ".1"
+    batch-tick-ms: 5000
+    max-accumulator-entries: 10000
+    max-bytes-per-tick: 5242880
+  aborted-sweeper:
+    enabled: true
+    stream-timeout-min: 15
+    download-timeout-min: 30
+
+# =========================================================
 # Logging
 # =========================================================
 logging:
