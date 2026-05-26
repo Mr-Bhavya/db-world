@@ -104,9 +104,6 @@ public class UserCinemaActivityEntity {
     @Column(nullable = false)
     private Instant lastUpdated;  // updated on each activity
 
-    @Column
-    private Integer updateCount;
-
     /** CDN download-session ID returned by the resolve endpoint — links this DB record to nginx CDN logs. */
     @Column(length = 255)
     private String downloadId;
@@ -161,22 +158,6 @@ public class UserCinemaActivityEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "client_type", length = 16)
     private ClientType clientType = ClientType.UNKNOWN;
-
-    /** HTTP protocol used: HTTP/1.1, HTTP/2, HTTP/3. */
-    @Column(name = "http_protocol", length = 8)
-    private String httpProtocol;
-
-    /** HTTP Referer header. */
-    @Column(name = "referer", length = 512)
-    private String referer;
-
-    /** ISO-3166-1 alpha-2 country code (optional — populated when geo lookup is available). */
-    @Column(name = "country_code", length = 2)
-    private String countryCode;
-
-    /** Last error code if completionStatus == ABORTED. */
-    @Column(name = "error_code", length = 64)
-    private String errorCode;
 
     /** Average transfer speed for the current/last session, bytes/sec. */
     @Column(name = "avg_speed_bps")

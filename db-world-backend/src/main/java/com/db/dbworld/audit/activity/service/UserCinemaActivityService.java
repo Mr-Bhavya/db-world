@@ -36,7 +36,6 @@ import java.util.regex.Pattern;
  * makes one row per (user, file, type). Multi-connection downloaders (aria2, IDM) hit
  * the same row via {@code INSERT … ON DUPLICATE KEY UPDATE}, which:
  * <ul>
- *   <li>increments {@code update_count},</li>
  *   <li>accumulates {@code bytes_transferred} across parallel range requests,</li>
  *   <li>tracks peak {@code connection_count} via {@code GREATEST(...)},</li>
  *   <li>refreshes {@code completion_status} / {@code completion_percent} / {@code last_updated}.</li>
@@ -207,9 +206,6 @@ public class UserCinemaActivityService {
                 status.name(),
                 percent,
                 clientType.name(),
-                null,                                    // httpProtocol — could be wired from request later
-                null,                                    // referer — same
-                null,                                    // countryCode — geo lookup is a follow-up
                 s.downloadId(),
                 s.cdnUrl(),
                 Instant.now()

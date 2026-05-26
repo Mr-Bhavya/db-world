@@ -259,7 +259,6 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
     /**
      * Atomic upsert into user_cinema_activity. Insert if no row exists for
      * (user, file_path, activity_type); otherwise:
-     *   - bump update_count
      *   - accumulate bytes_transferred (parallel range requests sum)
      *   - take MAX(connection_count) — peak parallelism for this session
      *   - refresh last_updated, completion_status, completion_percent
@@ -269,33 +268,29 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
     @Query(value = """
             INSERT INTO user_cinema_activity
               (user_id, activity_type, activity_value, session_id, file_path, file_size,
-               user_agent, remote_addr, bytes_transferred, update_count,
+               user_agent, remote_addr, bytes_transferred,
                record_id, media_file_id, connection_count,
                completion_status, completion_percent,
-               client_type, http_protocol, referer, country_code,
+               client_type,
                download_id, cdn_url, first_seen_at, created_time, last_updated,
                download_count, stream_count)
             VALUES
               (:userId, :activityType, :activityValue, :sessionId, :filePath, :fileSize,
-               :userAgent, :remoteAddr, :bytesTransferred, 1,
+               :userAgent, :remoteAddr, :bytesTransferred,
                :recordId, :mediaFileId, :connectionCount,
                :completionStatus, :completionPercent,
-               :clientType, :httpProtocol, :referer, :countryCode,
+               :clientType,
                :downloadId, :cdnUrl, :now, :now, :now,
                0, 0)
             ON DUPLICATE KEY UPDATE
               activity_value     = VALUES(activity_value),
               bytes_transferred  = COALESCE(bytes_transferred, 0) + COALESCE(VALUES(bytes_transferred), 0),
-              update_count       = COALESCE(update_count, 0) + 1,
               connection_count   = GREATEST(COALESCE(connection_count, 1), VALUES(connection_count)),
               user_agent         = COALESCE(VALUES(user_agent), user_agent),
               remote_addr        = COALESCE(VALUES(remote_addr), remote_addr),
               completion_status  = VALUES(completion_status),
               completion_percent = VALUES(completion_percent),
               client_type        = VALUES(client_type),
-              http_protocol      = COALESCE(VALUES(http_protocol), http_protocol),
-              referer            = COALESCE(VALUES(referer), referer),
-              country_code       = COALESCE(VALUES(country_code), country_code),
               record_id          = COALESCE(VALUES(record_id), record_id),
               media_file_id      = COALESCE(VALUES(media_file_id), media_file_id),
               download_id        = COALESCE(VALUES(download_id), download_id),
@@ -322,9 +317,6 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
             @Param("completionStatus")   String completionStatus,
             @Param("completionPercent")  java.math.BigDecimal completionPercent,
             @Param("clientType")         String clientType,
-            @Param("httpProtocol")       String httpProtocol,
-            @Param("referer")            String referer,
-            @Param("countryCode")        String countryCode,
             @Param("downloadId")         String downloadId,
             @Param("cdnUrl")             String cdnUrl,
             @Param("now")                Instant now
