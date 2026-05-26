@@ -441,4 +441,111 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
             @Param("timeoutCutoff") Instant timeoutCutoff,
             @Param("now")           Instant now
     );
+
+    /* =========================================================================
+       PHASE 3 — watch_progress bridge (added 2026-05-26)
+       ========================================================================= */
+
+    /**
+     * Set {@code watch_progress_id} on the row identified by the natural key
+     * (user_id, file_path, activity_type), only if the FK is currently NULL.
+     * Concurrency-safe: a parallel writer that already set the FK is a no-op here.
+     * Used at {@code /resolve} time when the watch_progress row already exists.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET watch_progress_id = :watchProgressId
+            WHERE user_id        = :userId
+              AND file_path      = :filePath
+              AND activity_type  = :activityType
+              AND watch_progress_id IS NULL
+            """, nativeQuery = true)
+    int setWatchProgressIdByKey(
+            @Param("userId")          Long userId,
+            @Param("filePath")        String filePath,
+            @Param("activityType")    String activityType,
+            @Param("watchProgressId") Long watchProgressId
+    );
+
+    /**
+     * Set {@code watch_progress_id} by row id, only if currently NULL. Used at
+     * watch_progress save time after the FK was unset at /resolve (race-safe).
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET watch_progress_id = :watchProgressId
+            WHERE id = :id
+              AND watch_progress_id IS NULL
+            """, nativeQuery = true)
+    int setWatchProgressIdById(
+            @Param("id")              Long id,
+            @Param("watchProgressId") Long watchProgressId
+    );
+
+    /**
+     * Find the canonical STREAM-or-DOWNLOAD activity row for a given media file. Used by
+     * the watch-progress save path to backfill {@code watch_progress_id} on the activity
+     * row when the {@code /resolve} call happened before the watch_progress row existed.
+     */
+    @Query("""
+            SELECT a FROM UserCinemaActivityEntity a
+            WHERE a.user.userId   = :userId
+              AND a.mediaFileId   = :mediaFileId
+              AND a.activityType  = :activityType
+            """)
+    Optional<UserCinemaActivityEntity> findByUserIdAndMediaFileIdAndActivityType(
+            @Param("userId")        Long userId,
+            @Param("mediaFileId")   String mediaFileId,
+            @Param("activityType") UserCinemaActivityEntity.ActivityType activityType
+    );
+
+    /**
+     * Paginated activity view joining watch_progress (live cursor for streams) and
+     * records (catalog title/type). LEFT JOINs because:
+     * <ul>
+     *   <li>watch_progress is null for DOWNLOAD rows and for streams the user hasn't
+     *       ticked yet — both legitimate;</li>
+     *   <li>records is null for legacy rows whose record_id backfill found no match.</li>
+     * </ul>
+     *
+     * <p>Phase 4 wires this to {@code GET /api/me/activity}.
+     */
+    @Query(value = """
+            SELECT
+                uca.id                    AS id,
+                uca.activity_type         AS activityType,
+                uca.record_id             AS recordId,
+                r.name                    AS recordTitle,
+                r.type                    AS recordType,
+                uca.file_path             AS filePath,
+                uca.file_size             AS fileSize,
+                uca.media_file_id         AS mediaFileId,
+                uca.completion_status     AS completionStatus,
+                uca.completion_percent    AS completionPercent,
+                uca.download_count        AS downloadCount,
+                uca.stream_count          AS streamCount,
+                uca.client_type           AS clientType,
+                uca.avg_speed_bps         AS avgSpeedBps,
+                uca.last_updated          AS lastUpdated,
+                uca.last_completed_at     AS lastCompletedAt,
+                wp.position_ms            AS positionMs,
+                wp.duration_ms            AS durationMs,
+                wp.audio_lang             AS audioLang,
+                wp.sub_lang               AS subLang
+            FROM user_cinema_activity uca
+            LEFT JOIN watch_progress wp ON wp.id = uca.watch_progress_id
+            LEFT JOIN records r ON r.id = uca.record_id
+            WHERE uca.user_id = :userId
+              AND (:activityType IS NULL OR uca.activity_type = :activityType)
+            ORDER BY uca.last_updated DESC
+            LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
+    List<com.db.dbworld.audit.activity.dto.UserActivityProjection> findUserActivityView(
+            @Param("userId")       Long userId,
+            @Param("activityType") String activityType,
+            @Param("limit")        int limit,
+            @Param("offset")       int offset
+    );
 }

@@ -1,5 +1,6 @@
 package com.db.dbworld.audit.activity.service;
 
+import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.audit.activity.enrich.ActivityEnricher;
 import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity;
 import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity.ActivityType;
@@ -47,6 +48,7 @@ public class UserCinemaActivityService {
     private final UserService                    userService;
     private final UserCinemaActivityRepository   userCinemaActivityRepository;
     private final ActivityEnricher               activityEnricher;
+    private final WatchProgressRepository        watchProgressRepository;
 
     /* =====================================================================
        WRITE PATH — one entry point
@@ -67,6 +69,8 @@ public class UserCinemaActivityService {
         if (user == null) { log.warn("trackResolveActivity: user not found: {}", userEmail); return; }
 
         ActivityType type = isStream ? ActivityType.STREAM : ActivityType.DOWNLOAD;
+        ActivityEnricher.Enrichment enriched = activityEnricher.resolve(filePath);
+
         upsert(UpsertSpec.builder()
                 .user(user)
                 .type(type)
@@ -81,12 +85,20 @@ public class UserCinemaActivityService {
                 .status(CompletionStatus.STARTED)
                 .sessionId(downloadId != null ? downloadId
                         : sessionId(userEmail, filePath, type))
-                .build());
+                .build(), enriched);
+
+        // Phase 3 — bind the activity row to the user's live watch_progress cursor for
+        // STREAM activities. No-op if the user hasn't watched this file before; the
+        // watch-progress save path will backfill the FK on the first tick.
+        if (type == ActivityType.STREAM && enriched.mediaFileId() != null) {
+            watchProgressRepository.findByUserIdAndFileId(user.getUserId(), enriched.mediaFileId())
+                    .ifPresent(wp -> userCinemaActivityRepository.setWatchProgressIdByKey(
+                            user.getUserId(), filePath, type.name(), wp.getId()));
+        }
     }
 
-    /** Upsert wrapper — enrichment, UA classification, hand-off to the native query. */
-    private void upsert(UpsertSpec s) {
-        ActivityEnricher.Enrichment e = activityEnricher.resolve(s.filePath());
+    /** Upsert wrapper — pre-resolved enrichment, UA classification, hand-off to the native query. */
+    private void upsert(UpsertSpec s, ActivityEnricher.Enrichment e) {
         ClientType clientType = UserAgentClassifier.classify(s.userAgent());
         BigDecimal percent = computeCompletionPercent(s.bytesIncrement(), s.fileSize());
         CompletionStatus status = percent != null && percent.compareTo(BigDecimal.valueOf(100)) >= 0

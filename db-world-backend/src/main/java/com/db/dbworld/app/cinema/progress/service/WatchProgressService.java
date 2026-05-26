@@ -2,6 +2,8 @@ package com.db.dbworld.app.cinema.progress.service;
 
 import com.db.dbworld.app.cinema.progress.entity.WatchProgressEntity;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
+import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity.ActivityType;
+import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
@@ -19,7 +21,8 @@ import java.util.stream.Collectors;
 @Transactional
 public class WatchProgressService {
 
-    private final WatchProgressRepository repository;
+    private final WatchProgressRepository       repository;
+    private final UserCinemaActivityRepository  userCinemaActivityRepository;
 
     @Value
     @Builder
@@ -46,6 +49,16 @@ public class WatchProgressService {
                 audioLang, subLang,
                 Instant.now()
         );
+
+        // Phase 3 — backfill user_cinema_activity.watch_progress_id for STREAM rows
+        // whose /resolve happened before the user first ticked progress. Idempotent:
+        // the setter no-ops when the FK is already populated.
+        repository.findByUserIdAndFileId(userId, fileId).ifPresent(wp ->
+                userCinemaActivityRepository
+                        .findByUserIdAndMediaFileIdAndActivityType(userId, fileId, ActivityType.STREAM)
+                        .filter(uca -> uca.getWatchProgressId() == null)
+                        .ifPresent(uca -> userCinemaActivityRepository
+                                .setWatchProgressIdById(uca.getId(), wp.getId())));
     }
 
     public Optional<ProgressDto> getProgress(Long userId, String fileId) {
