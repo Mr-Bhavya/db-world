@@ -19,31 +19,24 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * Tracks user download/stream/search activity with production-grade de-duplication.
+ * Tracks user activity sessions for the cinema CDN.
  *
- * <p>The {@code uk_user_file_activity} unique key on (user_id, file_path, activity_type)
- * makes one row per (user, file, type). Multi-connection downloaders (aria2, IDM) hit
- * the same row via {@code INSERT … ON DUPLICATE KEY UPDATE}, which:
- * <ul>
- *   <li>accumulates {@code bytes_transferred} across parallel range requests,</li>
- *   <li>tracks peak {@code connection_count} via {@code GREATEST(...)},</li>
- *   <li>refreshes {@code completion_status} / {@code completion_percent} / {@code last_updated}.</li>
- * </ul>
+ * <p>Writes go through exactly one entry point: {@link #trackResolveActivity}. It creates
+ * (or refreshes) the canonical row for {@code (user, file_path, activity_type)}, which is
+ * then progressively updated by {@code LogShipperService} as nginx writes JSON access-log
+ * lines for the matching {@code downloadId}.
  *
- * <p>A small in-memory window dedups identical requests within 1 second to reduce DB
- * write pressure when range clients fire many tiny chunks; the DB still enforces
- * correctness if the window fails to suppress.
+ * <p>The unique key {@code uk_user_file_activity (user_id, file_path, activity_type)}
+ * guarantees one row per session. Multi-connection downloaders (aria2, IDM) all share
+ * the same row because they all hit {@code /resolve} once and then issue many CDN
+ * requests under the same {@code downloadId}; the shipper aggregates those into one
+ * absolute-value UPDATE.
  */
 @Log4j2
 @Service
@@ -55,21 +48,14 @@ public class UserCinemaActivityService {
     private final UserCinemaActivityRepository   userCinemaActivityRepository;
     private final ActivityEnricher               activityEnricher;
 
-    /** Soft request-coalescing window. The DB enforces correctness regardless. */
-    private static final Duration WRITE_COALESCE_WINDOW = Duration.ofSeconds(1);
-
-    private static final Pattern RANGE_PATTERN = Pattern.compile("bytes=(\\d+)-(\\d*)");
-
-    /** Key: userEmail|filePath|type|rangeHeader → ts of last write. Bounded eviction below. */
-    private final Map<String, Instant> writeCoalesceMap = new ConcurrentHashMap<>();
-
     /* =====================================================================
-       PUBLIC TRACKING ENTRY POINTS
+       WRITE PATH — one entry point
        ===================================================================== */
 
     /**
-     * One-time tracking for a CDN /resolve call. Establishes the session row with the
-     * download_id / cdn_url so nginx CDN logs can be correlated by matching downloadId.
+     * Establishes (or refreshes) the session row for a CDN {@code /resolve} call.
+     * Records the {@code downloadId} / {@code cdnUrl} so nginx access-log lines can be
+     * correlated by the shipper. Progress and completion are written later by the shipper.
      */
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -91,97 +77,14 @@ public class UserCinemaActivityService {
                 .remoteAddr(remoteAddr)
                 .downloadId(downloadId)
                 .cdnUrl(cdnUrl)
-                .bytesIncrement(0L)                       // resolve = no bytes yet
+                .bytesIncrement(0L)
                 .status(CompletionStatus.STARTED)
                 .sessionId(downloadId != null ? downloadId
                         : sessionId(userEmail, filePath, type))
                 .build());
     }
 
-    /** Range or full-file download request — accumulates bytes on the canonical row. */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void trackDownloadActivity(String userEmail, String filePath, String fileName,
-                                      Long fileSize, String rangeHeader, String remoteAddr,
-                                      String userAgent) {
-        trackTransfer(userEmail, filePath, fileName, fileSize, rangeHeader, remoteAddr, userAgent,
-                ActivityType.DOWNLOAD);
-    }
-
-    /** Range or full-file stream request. */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void trackStreamActivity(String userEmail, String filePath, String fileName,
-                                    Long fileSize, String rangeHeader, String remoteAddr,
-                                    String userAgent) {
-        trackTransfer(userEmail, filePath, fileName, fileSize, rangeHeader, remoteAddr, userAgent,
-                ActivityType.STREAM);
-    }
-
-    /** Marks the canonical session row as COMPLETED and bumps lifetime counters. */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markDownloadComplete(String userEmail, String filePath, Long totalBytes) {
-        markComplete(userEmail, filePath, totalBytes, ActivityType.DOWNLOAD);
-    }
-
-    /** Same as {@link #markDownloadComplete} for streams. */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markStreamComplete(String userEmail, String filePath, Long totalBytes) {
-        markComplete(userEmail, filePath, totalBytes, ActivityType.STREAM);
-    }
-
-    /* =====================================================================
-       CORE — single upsert path used by every tracking entry point
-       ===================================================================== */
-
-    private void trackTransfer(String userEmail, String filePath, String fileName,
-                               Long fileSize, String rangeHeader, String remoteAddr,
-                               String userAgent, ActivityType type) {
-        if (userEmail == null || filePath == null) return;
-
-        // Coalesce identical (user|file|range) writes within 1s — the DB still enforces
-        // correctness if the window fails to suppress (concurrent JVMs / restart).
-        String coalesceKey = userEmail + "|" + filePath + "|" + type + "|"
-                + (rangeHeader != null ? rangeHeader : "full");
-        if (isCoalesced(coalesceKey)) return;
-        writeCoalesceMap.put(coalesceKey, Instant.now());
-        evictOldCoalesceEntries();
-
-        UserEntity user = userService.getUserEntityByEmail(userEmail);
-        if (user == null) { log.warn("trackTransfer: user not found: {}", userEmail); return; }
-
-        long bytesIncrement = computeBytesIncrement(rangeHeader, fileSize);
-
-        upsert(UpsertSpec.builder()
-                .user(user)
-                .type(type)
-                .filePath(filePath)
-                .fileName(fileName)
-                .fileSize(fileSize)
-                .userAgent(userAgent)
-                .remoteAddr(remoteAddr)
-                .bytesIncrement(bytesIncrement)
-                .status(CompletionStatus.IN_PROGRESS)
-                .sessionId(sessionId(userEmail, filePath, type))
-                .build());
-    }
-
-    private void markComplete(String userEmail, String filePath, Long totalBytes, ActivityType type) {
-        if (userEmail == null || filePath == null) return;
-        UserEntity user = userService.getUserEntityByEmail(userEmail);
-        if (user == null) return;
-        Long avgBps = computeAvgSpeedBps(user.getUserId(), filePath, type, totalBytes);
-        int updated = userCinemaActivityRepository.markCompleted(
-                user.getUserId(), filePath, type.name(), avgBps, Instant.now());
-        if (updated == 0) {
-            log.warn("markComplete: no row matched for user={}, file={}, type={}",
-                    userEmail, filePath, type);
-        }
-    }
-
-    /** Upsert wrapper — fills enrichment, classifies UA, hands off to the native query. */
+    /** Upsert wrapper — enrichment, UA classification, hand-off to the native query. */
     private void upsert(UpsertSpec s) {
         ActivityEnricher.Enrichment e = activityEnricher.resolve(s.filePath());
         ClientType clientType = UserAgentClassifier.classify(s.userAgent());
@@ -202,7 +105,7 @@ public class UserCinemaActivityService {
                 s.bytesIncrement(),
                 e.recordId(),
                 e.mediaFileId(),
-                1,                                       // connection_count seed; GREATEST keeps the max
+                1,
                 status.name(),
                 percent,
                 clientType.name(),
@@ -216,24 +119,6 @@ public class UserCinemaActivityService {
        HELPERS
        ===================================================================== */
 
-    /** Bytes implied by a Range header — falls back to full fileSize when no range. */
-    private long computeBytesIncrement(String rangeHeader, Long fileSize) {
-        if (rangeHeader == null || rangeHeader.isBlank()) {
-            return fileSize != null ? fileSize : 0L;
-        }
-        Matcher m = RANGE_PATTERN.matcher(rangeHeader.trim());
-        if (!m.matches()) return 0L;
-        try {
-            long start = Long.parseLong(m.group(1));
-            String endStr = m.group(2);
-            long end = (endStr != null && !endStr.isEmpty()) ? Long.parseLong(endStr)
-                                                              : (fileSize != null ? fileSize - 1 : -1);
-            return end >= start ? (end - start + 1) : 0L;
-        } catch (NumberFormatException ex) {
-            return 0L;
-        }
-    }
-
     private BigDecimal computeCompletionPercent(long bytesIncrement, Long fileSize) {
         if (fileSize == null || fileSize <= 0 || bytesIncrement <= 0) return null;
         return BigDecimal.valueOf(bytesIncrement * 100.0 / fileSize)
@@ -241,34 +126,7 @@ public class UserCinemaActivityService {
                 .min(BigDecimal.valueOf(100));
     }
 
-    private Long computeAvgSpeedBps(Long userId, String filePath, ActivityType type, Long totalBytes) {
-        if (totalBytes == null || totalBytes <= 0) return null;
-        // best-effort: query elapsed since firstSeenAt by the existing repo
-        var sessions = userCinemaActivityRepository.findMostRecentActiveSession(
-                userId, filePath, type, Instant.EPOCH, PageRequest.of(0, 1));
-        if (sessions.isEmpty()) return null;
-        Instant start = sessions.get(0).getFirstSeenAt() != null
-                ? sessions.get(0).getFirstSeenAt() : sessions.get(0).getCreatedTime();
-        if (start == null) return null;
-        long elapsedSec = Math.max(1, Duration.between(start, Instant.now()).getSeconds());
-        return totalBytes / elapsedSec;
-    }
-
-    private boolean isCoalesced(String key) {
-        Instant last = writeCoalesceMap.get(key);
-        return last != null && Duration.between(last, Instant.now()).compareTo(WRITE_COALESCE_WINDOW) < 0;
-    }
-
-    private void evictOldCoalesceEntries() {
-        // Keep the map bounded; called on every write but cheap when small.
-        if (writeCoalesceMap.size() <= 1024) return;
-        Instant cutoff = Instant.now().minus(WRITE_COALESCE_WINDOW.multipliedBy(10));
-        writeCoalesceMap.entrySet().removeIf(en -> en.getValue().isBefore(cutoff));
-    }
-
     private String sessionId(String userEmail, String filePath, ActivityType type) {
-        // Stable per (user, file, type) — collisions are fine because the unique key
-        // already enforces one row, and the session_id is purely informational here.
         return userEmail + "_" + Integer.toHexString(filePath.hashCode()) + "_" + type;
     }
 
@@ -305,7 +163,7 @@ public class UserCinemaActivityService {
     }
 
     /* =====================================================================
-       READ-ONLY API (unchanged) — pass-throughs to the repository.
+       READ-ONLY API — pass-throughs to the repository.
        ===================================================================== */
 
     public List<UserCinemaActivityEntity> getRecentActivities(UserEntity user, Instant cutoffTime, int limit) {
@@ -377,17 +235,5 @@ public class UserCinemaActivityService {
 
     public List<Map<String, Object>> getPeakUsageHours(Instant cutoffTime) {
         return userCinemaActivityRepository.getPeakUsageHours(cutoffTime);
-    }
-
-    /** Monitoring hook. The DB-side upsert means the in-memory map is purely a write-coalescer. */
-    public Map<String, Object> getSessionStats() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("writeCoalesceMapSize", writeCoalesceMap.size());
-        return stats;
-    }
-
-    public void clearCaches() {
-        writeCoalesceMap.clear();
-        log.info("Activity write-coalesce map cleared");
     }
 }

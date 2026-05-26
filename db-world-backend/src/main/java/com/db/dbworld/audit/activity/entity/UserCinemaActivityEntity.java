@@ -183,11 +183,4 @@ public class UserCinemaActivityEntity {
             this.firstSeenAt = this.createdTime;
         }
     }
-
-    // Helper methods
-    public void updateActivity(String value, Long bytesTransferred) {
-        this.activityValue = value;
-        this.bytesTransferred = bytesTransferred;
-        this.lastUpdated = Instant.now();
-    }
 }
