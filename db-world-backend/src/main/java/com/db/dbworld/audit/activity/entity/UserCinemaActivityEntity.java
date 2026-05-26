@@ -22,6 +22,7 @@ import java.time.Instant;
                 @Index(name = "idx_uca_record_type",   columnList = "record_id, activityType, lastUpdated"),
                 @Index(name = "idx_uca_media_file",    columnList = "media_file_id"),
                 @Index(name = "idx_uca_user_completed",columnList = "user_id, completion_status, lastUpdated"),
+                @Index(name = "idx_uca_watch_progress", columnList = "watch_progress_id"),
         },
         uniqueConstraints = {
                 /*
@@ -180,6 +181,15 @@ public class UserCinemaActivityEntity {
     /** Average transfer speed for the current/last session, bytes/sec. */
     @Column(name = "avg_speed_bps")
     private Long avgSpeedBps;
+
+    /**
+     * FK to watch_progress.id, populated for STREAM activities only.
+     * Plain Long (not @ManyToOne) to avoid lazy proxy overhead — read-time joins
+     * happen via repository queries with explicit LEFT JOIN. FK constraint is
+     * added by user_cinema_activity_v3_phase2_postdeploy.sql.
+     */
+    @Column(name = "watch_progress_id")
+    private Long watchProgressId;
 
     @PrePersist
     @PreUpdate
