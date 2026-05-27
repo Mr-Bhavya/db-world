@@ -152,12 +152,15 @@ export const markNotificationsRead = () =>
   axiosInstance.put('/api/notifications/mark-read').then(unwrap);
 
 // ─── Media Requests ───────────────────────────────────────────────────────────
+// Kinds: NEW_FILES (empty state), HIGHER_QUALITY, LOWER_QUALITY.
 
-/** POST /api/cinema/media-requests/{recordId}/vote → { recordId, voteCount, hasMyVote } */
-export const toggleMediaRequestVote = (recordId) =>
-  axiosInstance.post(`${BASE}/media-requests/${recordId}/vote`).then(unwrap);
+/** POST /api/cinema/media-requests/{recordId}/vote?kind=KIND → { recordId, kind, voteCount, hasMyVote } */
+export const toggleMediaRequestVote = (recordId, kind = 'NEW_FILES') =>
+  axiosInstance
+    .post(`${BASE}/media-requests/${recordId}/vote`, null, { params: { kind } })
+    .then(unwrap);
 
-/** GET /api/cinema/media-requests/mine → Long[] (recordIds the caller voted for) */
+/** GET /api/cinema/media-requests/mine → [{ recordId, kind }] pending requests caller voted for */
 export const fetchMyMediaRequests = () =>
   axiosInstance.get(`${BASE}/media-requests/mine`).then(unwrap);
 

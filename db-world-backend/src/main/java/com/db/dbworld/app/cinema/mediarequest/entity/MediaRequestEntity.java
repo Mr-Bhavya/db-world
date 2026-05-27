@@ -19,8 +19,8 @@ import java.util.Set;
         name = "media_requests",
         schema = "new_db_world",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_media_request_record",
-                columnNames = {"record_id"}
+                name = "uk_media_request_record_kind",
+                columnNames = {"record_id", "kind"}
         )
 )
 public class MediaRequestEntity implements Serializable {
@@ -37,6 +37,11 @@ public class MediaRequestEntity implements Serializable {
 
     @Column(name = "record_type", nullable = false, length = 30)
     private String recordType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, length = 30)
+    @Builder.Default
+    private MediaRequestKind kind = MediaRequestKind.NEW_FILES;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

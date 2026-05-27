@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Typography, Chip, IconButton, Button, Collapse,
   CircularProgress, useTheme, useMediaQuery, alpha, Tooltip, Stack,
+  Menu, MenuItem, ListItemIcon, ListItemText,
 } from '@mui/material';
 import {
   PlayArrow, Download, ContentCopy, Check, Audiotrack,
   ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, InfoOutlined, SubtitlesOutlined,
-  NotificationsActive, NotificationsActiveOutlined
+  NotificationsActive, NotificationsActiveOutlined,
+  HighQuality, MobileFriendly,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -774,32 +776,44 @@ const LoadingState = () => (
   </Box>
 );
 
-// ─── Request button (shared) ─────────────────────────────────────────────────
-// Used both inline in the empty state (recordHasFiles=false) and in the
-// header when files exist (recordHasFiles=true) to let users ask for a
-// higher quality version. Backed by the same vote endpoint either way —
-// admins see the title + current file count and decide.
+// ─── Request voting (shared hook) ────────────────────────────────────────────
+// Tracks which kinds (NEW_FILES / HIGHER_QUALITY / LOWER_QUALITY) the user has
+// pending for a given record. One fetch on mount; per-kind toggle thereafter.
 
 function useMediaRequestVote(recordId) {
   const { enqueueSnackbar } = useSnackbar();
-  const [requested, setRequested] = useState(false);
+  const [requestedKinds, setRequestedKinds] = useState(() => new Set());
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!recordId) return;
     let alive = true;
+    const rid = Number(recordId);
     fetchMyMediaRequests()
-      .then(ids => { if (alive) setRequested(Array.isArray(ids) && ids.includes(Number(recordId))); })
+      .then(entries => {
+        if (!alive || !Array.isArray(entries)) return;
+        const next = new Set(
+          entries
+            .filter(e => Number(e?.recordId) === rid)
+            .map(e => e.kind)
+        );
+        setRequestedKinds(next);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, [recordId]);
 
-  const toggle = useCallback(async (successCopy, undoCopy) => {
+  const toggle = useCallback(async (kind, successCopy, undoCopy) => {
     if (!recordId || submitting) return;
     setSubmitting(true);
     try {
-      const res = await toggleMediaRequestVote(recordId);
-      setRequested(!!res?.hasMyVote);
+      const res = await toggleMediaRequestVote(recordId, kind);
+      setRequestedKinds(prev => {
+        const next = new Set(prev);
+        if (res?.hasMyVote) next.add(kind);
+        else next.delete(kind);
+        return next;
+      });
       enqueueSnackbar(
         res?.hasMyVote ? successCopy : undoCopy,
         { variant: res?.hasMyVote ? 'success' : 'info' }
@@ -811,15 +825,17 @@ function useMediaRequestVote(recordId) {
     }
   }, [recordId, submitting, enqueueSnackbar]);
 
-  return { requested, submitting, toggle };
+  return { requestedKinds, submitting, toggle };
 }
 
 // Compact inline notice shown when no media files exist for the record.
 const EmptyState = ({ recordId }) => {
   const theme = useTheme();
-  const { requested, submitting, toggle } = useMediaRequestVote(recordId);
+  const { requestedKinds, submitting, toggle } = useMediaRequestVote(recordId);
+  const requested = requestedKinds.has('NEW_FILES');
 
   const onClick = () => toggle(
+    'NEW_FILES',
     'Request sent — we\'ll notify you when files are added.',
     'Request withdrawn.'
   );
@@ -866,41 +882,100 @@ const EmptyState = ({ recordId }) => {
   );
 };
 
-// Small chip-style button shown in the Available Files header when files
-// exist. Lets users flag that they want a higher-quality copy added.
-const RequestHigherQualityButton = ({ recordId }) => {
-  const { requested, submitting, toggle } = useMediaRequestVote(recordId);
+// Header menu button — shown when files exist. Lets users vote for either a
+// higher-quality copy (e.g. 4K) or a lower-quality copy (e.g. 480p for slow
+// connections). Both options are independent and share the vote endpoint.
+const RequestQualityMenu = ({ recordId }) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const { requestedKinds, submitting, toggle } = useMediaRequestVote(recordId);
   if (!recordId) return null;
 
-  const onClick = () => toggle(
-    'Quality request sent — we\'ll notify you when better files are available.',
-    'Quality request withdrawn.'
-  );
+  const open = Boolean(anchorEl);
+  const hqRequested = requestedKinds.has('HIGHER_QUALITY');
+  const lqRequested = requestedKinds.has('LOWER_QUALITY');
+  const anyRequested = hqRequested || lqRequested;
+
+  const onPick = (kind) => async () => {
+    setAnchorEl(null);
+    if (kind === 'HIGHER_QUALITY') {
+      await toggle(
+        'HIGHER_QUALITY',
+        'Higher-quality request sent — we\'ll notify you when a better copy is added.',
+        'Higher-quality request withdrawn.'
+      );
+    } else {
+      await toggle(
+        'LOWER_QUALITY',
+        'Lower-quality request sent — we\'ll notify you when a lighter copy is added.',
+        'Lower-quality request withdrawn.'
+      );
+    }
+  };
 
   return (
-    <Tooltip title={requested ? 'You requested a higher-quality copy. Tap to undo.' : 'Ask admins to upload a higher-quality copy.'}>
-      <Button
-        size="small"
-        variant={requested ? 'outlined' : 'text'}
-        color={requested ? 'primary' : 'inherit'}
-        disabled={submitting}
-        startIcon={requested
-          ? <NotificationsActive sx={{ fontSize: 15 }} />
-          : <NotificationsActiveOutlined sx={{ fontSize: 15 }} />}
-        onClick={onClick}
-        sx={{
-          ml: 'auto',
-          textTransform: 'none',
-          fontWeight: 700,
-          fontSize: '0.72rem',
-          borderRadius: 2,
-          py: 0.4, px: 1.2,
-          color: requested ? 'primary.main' : 'text.secondary',
-        }}
+    <>
+      <Tooltip title="Request a different-quality copy">
+        <Button
+          size="small"
+          variant={anyRequested ? 'outlined' : 'text'}
+          color={anyRequested ? 'primary' : 'inherit'}
+          disabled={submitting}
+          endIcon={<ExpandMore sx={{ fontSize: 14 }} />}
+          startIcon={anyRequested
+            ? <NotificationsActive sx={{ fontSize: 15 }} />
+            : <NotificationsActiveOutlined sx={{ fontSize: 15 }} />}
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+          sx={{
+            ml: 'auto',
+            textTransform: 'none',
+            fontWeight: 700,
+            fontSize: '0.72rem',
+            borderRadius: 2,
+            py: 0.4, px: 1.2,
+            color: anyRequested ? 'primary.main' : 'text.secondary',
+          }}
+        >
+          {anyRequested
+            ? `Requested · ${[hqRequested && 'HQ', lqRequested && 'LQ'].filter(Boolean).join(' + ')}`
+            : 'Request other quality'}
+        </Button>
+      </Tooltip>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{ sx: { mt: 0.5, minWidth: 220 } }}
       >
-        {requested ? 'Requested HQ' : 'Request higher quality'}
-      </Button>
-    </Tooltip>
+        <MenuItem onClick={onPick('HIGHER_QUALITY')} disabled={submitting}>
+          <ListItemIcon>
+            {hqRequested
+              ? <Check sx={{ fontSize: 18, color: 'primary.main' }} />
+              : <HighQuality sx={{ fontSize: 18 }} />}
+          </ListItemIcon>
+          <ListItemText
+            primary={hqRequested ? 'Higher quality · requested' : 'Higher quality'}
+            secondary="e.g. 1080p → 4K"
+            primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: hqRequested ? 700 : 500 }}
+            secondaryTypographyProps={{ fontSize: '0.7rem' }}
+          />
+        </MenuItem>
+        <MenuItem onClick={onPick('LOWER_QUALITY')} disabled={submitting}>
+          <ListItemIcon>
+            {lqRequested
+              ? <Check sx={{ fontSize: 18, color: 'primary.main' }} />
+              : <MobileFriendly sx={{ fontSize: 18 }} />}
+          </ListItemIcon>
+          <ListItemText
+            primary={lqRequested ? 'Lower quality · requested' : 'Lower quality'}
+            secondary="lighter for slow connections"
+            primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: lqRequested ? 700 : 500 }}
+            secondaryTypographyProps={{ fontSize: '0.7rem' }}
+          />
+        </MenuItem>
+      </Menu>
+    </>
   );
 };
 
@@ -958,7 +1033,7 @@ const MediaFilesPage = (props) => {
           />
         )}
         {!loading && mediaFileList.length > 0 && (
-          <RequestHigherQualityButton recordId={resolvedRecordId} />
+          <RequestQualityMenu recordId={resolvedRecordId} />
         )}
       </Box>
 

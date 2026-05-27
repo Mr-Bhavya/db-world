@@ -4,7 +4,9 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestDto;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestVoteResponse;
+import com.db.dbworld.app.cinema.mediarequest.dto.MyMediaRequestEntry;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
+import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestStatus;
 import com.db.dbworld.app.cinema.mediarequest.repository.MediaRequestRepository;
 import com.db.dbworld.app.cinema.mediarequest.service.MediaRequestService;
@@ -31,8 +33,9 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
     @Override
     @Transactional
-    public MediaRequestVoteResponse toggleVote(Long recordId, Long userId) {
-        MediaRequestEntity request = requestRepo.findByRecordId(recordId).orElse(null);
+    public MediaRequestVoteResponse toggleVote(Long recordId, Long userId, MediaRequestKind kindIn) {
+        MediaRequestKind kind = kindIn == null ? MediaRequestKind.NEW_FILES : kindIn;
+        MediaRequestEntity request = requestRepo.findByRecordIdAndKind(recordId, kind).orElse(null);
 
         if (request == null) {
             RecordEntity record = recordRepo.findById(recordId)
@@ -45,6 +48,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                     .recordId(recordId)
                     .recordTitle(record.getName())
                     .recordType(record.getType().name())
+                    .kind(kind)
                     .status(MediaRequestStatus.PENDING)
                     .voterUserIds(voters)
                     .build();
@@ -52,12 +56,14 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
             return MediaRequestVoteResponse.builder()
                     .recordId(recordId)
+                    .kind(kind)
                     .voteCount(1)
                     .hasMyVote(true)
                     .build();
         }
 
-        // If previously fulfilled or dismissed, treat a new vote as re-opening the request.
+        // Fulfilled/dismissed → a fresh vote re-opens it. Old voters are reset so the
+        // new PENDING run starts clean; admins get a new aggregated count.
         if (request.getStatus() != MediaRequestStatus.PENDING) {
             request.setStatus(MediaRequestStatus.PENDING);
             request.setFulfilledAt(null);
@@ -81,6 +87,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
         return MediaRequestVoteResponse.builder()
                 .recordId(recordId)
+                .kind(kind)
                 .voteCount(voteCount)
                 .hasMyVote(hasMyVote)
                 .build();
@@ -88,8 +95,8 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Long> getMyPendingRecordIds(Long userId) {
-        return requestRepo.findPendingRecordIdsVotedBy(userId);
+    public List<MyMediaRequestEntry> getMyPendingRequests(Long userId) {
+        return requestRepo.findPendingRequestsVotedBy(userId);
     }
 
     @Override
@@ -159,6 +166,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                 .recordId(e.getRecordId())
                 .recordTitle(e.getRecordTitle())
                 .recordType(e.getRecordType())
+                .kind(e.getKind())
                 .status(e.getStatus())
                 .voteCount(voters == null ? 0 : voters.size())
                 .hasMyVote(callerUserId != null && voters != null && voters.contains(callerUserId))

@@ -7,6 +7,7 @@ import {
 import {
   CheckCircle, Cancel, NotificationsActive, Movie, LiveTv,
   HourglassEmpty, DoneAll, Block, OpenInNew, Restore,
+  HighQuality, MobileFriendly, AddCircleOutline,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -23,8 +24,23 @@ const STATUS_META = {
   DISMISSED: { color: '#6b7280', bg: 'rgba(107,114,128,0.12)', icon: <Block sx={{ fontSize: 13 }} />,         label: 'Dismissed' },
 };
 
+const KIND_META = {
+  NEW_FILES:      { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  icon: <AddCircleOutline sx={{ fontSize: 13 }} />, label: 'Needs files' },
+  HIGHER_QUALITY: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)',  icon: <HighQuality sx={{ fontSize: 13 }} />,      label: 'Higher quality' },
+  LOWER_QUALITY:  { color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)',  icon: <MobileFriendly sx={{ fontSize: 13 }} />,   label: 'Lower quality' },
+};
+
 function StatusChip({ status }) {
   const m = STATUS_META[status] ?? STATUS_META.PENDING;
+  return (
+    <Chip label={m.label} size="small" icon={m.icon}
+      sx={{ bgcolor: m.bg, color: m.color, fontWeight: 700, fontSize: 10, height: 22,
+        '& .MuiChip-icon': { color: m.color, ml: 0.5 } }} />
+  );
+}
+
+function KindChip({ kind }) {
+  const m = KIND_META[kind] ?? KIND_META.NEW_FILES;
   return (
     <Chip label={m.label} size="small" icon={m.icon}
       sx={{ bgcolor: m.bg, color: m.color, fontWeight: 700, fontSize: 10, height: 22,
@@ -127,6 +143,7 @@ export default function MediaRequestsAdminPage() {
             <TableRow sx={{ '& th': { fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.textMuted, borderBottom: `1px solid ${T.glassBorder}` } }}>
               <TableCell>Title</TableCell>
               <TableCell>Type</TableCell>
+              <TableCell>Request</TableCell>
               <TableCell align="center">Voters</TableCell>
               <TableCell>Created</TableCell>
               <TableCell>Status</TableCell>
@@ -136,14 +153,14 @@ export default function MediaRequestsAdminPage() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && requests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6, color: T.textFaint }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 6, color: T.textFaint }}>
                   No {statusFilter.toLowerCase()} requests.
                 </TableCell>
               </TableRow>
@@ -171,6 +188,9 @@ export default function MediaRequestsAdminPage() {
                       label={isMovie ? 'Movie' : 'TV'}
                       sx={{ height: 22, fontWeight: 600, bgcolor: 'transparent', border: `1px solid ${T.glassBorder}`, color: T.textMuted }}
                     />
+                  </TableCell>
+                  <TableCell>
+                    <KindChip kind={r.kind} />
                   </TableCell>
                   <TableCell align="center">
                     <Avatar sx={{
