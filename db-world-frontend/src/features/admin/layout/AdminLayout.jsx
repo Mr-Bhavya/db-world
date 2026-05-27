@@ -12,7 +12,7 @@ import {
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home,
-  Insights, NotificationsActive, Inventory,
+  Insights, Inbox,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
@@ -43,8 +43,7 @@ const NAV = [
     items: [
       { id: 'records',     label: 'Records',       icon: <Movie />,        path: 'records' },
       { id: 'media-files', label: 'Media Files',   icon: <VideoLibrary />, path: 'media-files' },
-      { id: 'media-requests', label: 'Media Requests', icon: <NotificationsActive />, path: 'media-requests' },
-      { id: 'catalog-requests', label: 'Catalog Requests', icon: <Inventory />, path: 'catalog-requests' },
+      { id: 'requests', label: 'Requests', icon: <Inbox />, path: 'requests' },
       { id: 'tag-management', label: 'Tags & Rails', icon: <LocalOffer />, path: 'tag-management' },
       { id: 'tmdb-sync',   label: 'TMDB Sync',     icon: <Sync />,         path: 'tmdb-sync' },
     ],

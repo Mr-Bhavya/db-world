@@ -6,7 +6,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
 } from '@mui/material';
 import {
-  CheckCircle, Cancel, NotificationsActive, Movie, LiveTv,
+  CheckCircle, Cancel, Movie, LiveTv,
   HourglassEmpty, DoneAll, Block, OpenInNew, Restore,
   HighQuality, MobileFriendly, AddCircleOutline,
 } from '@mui/icons-material';
@@ -120,14 +120,8 @@ export default function MediaRequestsAdminPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-        <NotificationsActive sx={{ color: T.teal, fontSize: 26 }} />
-        <Typography variant="h5" sx={{ fontWeight: 800, color: T.text, letterSpacing: '-0.01em' }}>
-          Media Requests
-        </Typography>
-      </Box>
-      <Typography variant="body2" sx={{ color: T.textMuted, mb: 3 }}>
+    <Box>
+      <Typography variant="body2" sx={{ color: T.textMuted, mb: 2 }}>
         Users vote on titles they want added. Mark as fulfilled once media files are uploaded — voters get notified automatically.
       </Typography>
 

@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   CloudUpload, Cancel, Movie, LiveTv, Restore, OpenInNew,
-  HourglassEmpty, DoneAll, Block, Inventory,
+  HourglassEmpty, DoneAll, Block,
 } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -112,14 +112,8 @@ export default function CatalogRequestsAdminPage() {
   );
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-        <Inventory sx={{ color: T.teal, fontSize: 26 }} />
-        <Typography variant="h5" sx={{ fontWeight: 800, color: T.text, letterSpacing: '-0.01em' }}>
-          Catalog Requests
-        </Typography>
-      </Box>
-      <Typography variant="body2" sx={{ color: T.textMuted, mb: 3 }}>
+    <Box>
+      <Typography variant="body2" sx={{ color: T.textMuted, mb: 2 }}>
         Titles users want added to the catalog. Ingest pulls TMDB metadata and creates the record; voters get notified with a link to the new record.
       </Typography>
 
