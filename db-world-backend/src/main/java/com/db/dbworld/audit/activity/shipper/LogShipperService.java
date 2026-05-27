@@ -5,6 +5,7 @@ import com.db.dbworld.audit.activity.shipper.DownloadAccumulator.Aggregate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -56,8 +57,10 @@ public class LogShipperService {
     private final UserCinemaActivityRepository activityRepo;
     private final LogLineParser               parser;
 
-    /** Self-injected handle so @Transactional aspect wraps the flush call. */
+    /** Self-injected handle so @Transactional aspect wraps the flush call. {@code @Lazy} avoids
+     *  the startup-time self-cycle that Spring 2.6+ rejects by default. */
     @Autowired
+    @Lazy
     private LogShipperService self;
 
     @Scheduled(fixedDelayString = "${dbworld.log-shipper.batch-tick-ms:5000}")
