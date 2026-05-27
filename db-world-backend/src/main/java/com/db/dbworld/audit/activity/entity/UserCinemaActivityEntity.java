@@ -22,6 +22,7 @@ import java.time.Instant;
                 @Index(name = "idx_uca_record_type",   columnList = "record_id, activityType, lastUpdated"),
                 @Index(name = "idx_uca_media_file",    columnList = "media_file_id"),
                 @Index(name = "idx_uca_user_completed",columnList = "user_id, completion_status, lastUpdated"),
+                @Index(name = "idx_uca_watch_progress", columnList = "watch_progress_id"),
         },
         uniqueConstraints = {
                 /*
@@ -103,9 +104,6 @@ public class UserCinemaActivityEntity {
     @Column(nullable = false)
     private Instant lastUpdated;  // updated on each activity
 
-    @Column
-    private Integer updateCount;
-
     /** CDN download-session ID returned by the resolve endpoint — links this DB record to nginx CDN logs. */
     @Column(length = 255)
     private String downloadId;
@@ -161,25 +159,18 @@ public class UserCinemaActivityEntity {
     @Column(name = "client_type", length = 16)
     private ClientType clientType = ClientType.UNKNOWN;
 
-    /** HTTP protocol used: HTTP/1.1, HTTP/2, HTTP/3. */
-    @Column(name = "http_protocol", length = 8)
-    private String httpProtocol;
-
-    /** HTTP Referer header. */
-    @Column(name = "referer", length = 512)
-    private String referer;
-
-    /** ISO-3166-1 alpha-2 country code (optional — populated when geo lookup is available). */
-    @Column(name = "country_code", length = 2)
-    private String countryCode;
-
-    /** Last error code if completionStatus == ABORTED. */
-    @Column(name = "error_code", length = 64)
-    private String errorCode;
-
     /** Average transfer speed for the current/last session, bytes/sec. */
     @Column(name = "avg_speed_bps")
     private Long avgSpeedBps;
+
+    /**
+     * FK to watch_progress.id, populated for STREAM activities only.
+     * Plain Long (not @ManyToOne) to avoid lazy proxy overhead — read-time joins
+     * happen via repository queries with explicit LEFT JOIN. FK constraint is
+     * added by user_cinema_activity_v3_phase2_postdeploy.sql.
+     */
+    @Column(name = "watch_progress_id")
+    private Long watchProgressId;
 
     @PrePersist
     @PreUpdate
@@ -191,12 +182,5 @@ public class UserCinemaActivityEntity {
         if (this.firstSeenAt == null) {
             this.firstSeenAt = this.createdTime;
         }
-    }
-
-    // Helper methods
-    public void updateActivity(String value, Long bytesTransferred) {
-        this.activityValue = value;
-        this.bytesTransferred = bytesTransferred;
-        this.lastUpdated = Instant.now();
     }
 }

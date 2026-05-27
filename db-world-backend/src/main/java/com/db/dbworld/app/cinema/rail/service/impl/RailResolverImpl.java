@@ -9,6 +9,8 @@ import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
+import com.db.dbworld.audit.activity.recommend.GenreAffinityService;
+import com.db.dbworld.audit.activity.recommend.RewatchTrendService;
 import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import com.db.dbworld.app.cinema.rail.entity.RailItemEntity;
@@ -36,6 +38,8 @@ public class RailResolverImpl implements RailResolver {
     private final WatchProgressRepository watchProgressRepository;
     private final UserCinemaActivityRepository activityRepository;
     private final UserContext userContext;
+    private final GenreAffinityService genreAffinityService;
+    private final RewatchTrendService rewatchTrendService;
 
     /**
      * Legacy resolver (non paginated).
@@ -140,9 +144,51 @@ public class RailResolverImpl implements RailResolver {
             case "watchlist"         -> new SliceImpl<>(List.of(), pageable, false); // resolved by RailServiceImpl
             case "continueWatching"  -> resolveContinueWatchingIds(effectiveType, pageable);
             case "becauseYouWatched" -> resolveBecauseYouWatchedIds(effectiveType, sortedPageable);
+            case "forYou"            -> resolveForYouIds(effectiveType, sortedPageable);
+            case "rewatchTrending"   -> resolveRewatchTrendingIds(effectiveType, pageable);
 
             default -> new SliceImpl<>(List.of(), pageable, false);
         };
+    }
+
+    /* ================================================================
+       PHASE 5 — RECOMMENDATION RAILS
+    ================================================================= */
+
+    /**
+     * "Picks for you" — surfaces records in the user's top engaged genre. Source
+     * genre is picked by {@link GenreAffinityService} (cached per-user). Returns an
+     * empty slice when the user has too few engaged records to pick reliably.
+     */
+    private Slice<Long> resolveForYouIds(RecordType effectiveType, Pageable pageable) {
+        Long userId;
+        try { userId = userContext.userId(); }
+        catch (Exception e) { return new SliceImpl<>(List.of(), pageable, false); }
+
+        Long genreId = genreAffinityService.pickGenreFor(userId);
+        if (genreId == null) return new SliceImpl<>(List.of(), pageable, false);
+
+        return effectiveType != null
+                ? recordRepository.findIdsByGenreAndType(genreId, effectiveType, pageable)
+                : recordRepository.findIdsByGenre(genreId, pageable);
+    }
+
+    /**
+     * "Popular rewatches this week" — site-wide top rewatched records served from
+     * the in-memory snapshot refreshed by {@link RewatchTrendService}. Pageable
+     * slices the snapshot; type filtering is intentionally NOT applied here so the
+     * snapshot stays a single shared list. Rails that want type-scoped trending
+     * should configure pageTypes accordingly.
+     */
+    private Slice<Long> resolveRewatchTrendingIds(RecordType effectiveType, Pageable pageable) {
+        List<Long> snapshot = rewatchTrendService.snapshot();
+        if (snapshot.isEmpty()) return new SliceImpl<>(List.of(), pageable, false);
+
+        int from = (int) pageable.getOffset();
+        if (from >= snapshot.size()) return new SliceImpl<>(List.of(), pageable, false);
+        int to = Math.min(from + pageable.getPageSize(), snapshot.size());
+        boolean hasNext = to < snapshot.size();
+        return new SliceImpl<>(snapshot.subList(from, to), pageable, hasNext);
     }
 
     /* ================================================================
