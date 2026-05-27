@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Box, Chip, Paper, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
@@ -8,13 +8,53 @@ import SectionHeading from '../shared/SectionHeading';
 import StatRow from '../shared/StatRow';
 import { formatCurrency, formatDate, formatRuntime } from '../helpers';
 
+// Best-effort region detection. navigator.language returns "en-IN" / "en-US"
+// etc.; pull the country half. Falls back to IN.
+function detectUserRegion() {
+  try {
+    const lang = navigator.language || (navigator.languages && navigator.languages[0]) || '';
+    const region = lang.split('-')[1]?.toUpperCase();
+    if (region && region.length === 2) return region;
+  } catch { /* ignore */ }
+  return 'IN';
+}
+
 export default function OverviewSection({ record }) {
   const T = useT();
   const tmdb = record?.tmdb ?? {};
   const isMovie = record?.type === 'MOVIE';
   const providers = tmdb.providers ?? [];
 
-  const grouped = providers.reduce((acc, p) => {
+  // Available regions from the record's provider list, sorted with the
+  // user's region first, then IN, then US, then alphabetic.
+  const availableRegions = useMemo(() => {
+    const set = new Set(providers.map((p) => p.regionCode).filter(Boolean));
+    return Array.from(set);
+  }, [providers]);
+
+  const userRegion = useMemo(detectUserRegion, []);
+
+  // Pick the region we actually want to show. Preference order:
+  //   1. user's detected region (if the title has providers there)
+  //   2. India (if available)
+  //   3. US (common fallback)
+  //   4. first region in the list
+  const defaultRegion = useMemo(() => {
+    if (availableRegions.includes(userRegion)) return userRegion;
+    if (availableRegions.includes('IN')) return 'IN';
+    if (availableRegions.includes('US')) return 'US';
+    return availableRegions[0] ?? null;
+  }, [availableRegions, userRegion]);
+
+  const [selectedRegion, setSelectedRegion] = useState(defaultRegion);
+
+  // Only show providers for the chosen region.
+  const regionalProviders = useMemo(
+    () => (selectedRegion ? providers.filter((p) => p.regionCode === selectedRegion) : []),
+    [providers, selectedRegion],
+  );
+
+  const grouped = regionalProviders.reduce((acc, p) => {
     const type = p.providerType ?? 'OTHER';
     if (!acc[type]) acc[type] = [];
     acc[type].push(p);
@@ -29,6 +69,17 @@ export default function OverviewSection({ record }) {
     ...providerOrder.filter((k) => grouped[k]),
     ...Object.keys(grouped).filter((k) => !providerOrder.includes(k)),
   ];
+
+  // Order region chips: user's region first, then IN, US, then alphabetic.
+  const sortedRegionChips = useMemo(() => {
+    const priority = (r) => {
+      if (r === userRegion) return 0;
+      if (r === 'IN') return 1;
+      if (r === 'US') return 2;
+      return 3;
+    };
+    return [...availableRegions].sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
+  }, [availableRegions, userRegion]);
 
   const chipSx    = { bgcolor: alpha(T.teal, 0.12), color: T.teal, fontSize: '0.72rem', border: `1px solid ${alpha(T.teal, 0.2)}` };
   const subChipSx = { bgcolor: T.glass, color: T.textMuted, fontSize: '0.72rem' };
@@ -150,34 +201,65 @@ export default function OverviewSection({ record }) {
             </Box>
           )}
 
-          {sortedProviderKeys.length > 0 && (
+          {availableRegions.length > 0 && (
             <Box>
               <SectionHeading>Where to Watch</SectionHeading>
-              {sortedProviderKeys.map((type) => (
-                <Box key={type} sx={{ mb: 2 }}>
-                  <Typography variant="caption" sx={{ color: T.textFaint, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, display: 'block', mb: 0.75 }}>
-                    {typeLabel[type] ?? type}
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {grouped[type].map((p, i) => {
-                      const logoUrl = tmdbImg(p.provider?.logoPath, 'w92');
-                      return (
-                        <Box key={i} sx={{
-                          display: 'flex', alignItems: 'center', gap: 1,
-                          bgcolor: T.glass, border: `1px solid ${alpha(T.text, 0.08)}`,
-                          borderRadius: 1.5, px: 1.25, py: 0.75,
-                          transition: 'border-color .15s, transform .15s',
-                          '&:hover': { borderColor: alpha(T.teal, 0.4), transform: 'translateY(-1px)' },
-                        }}>
-                          {logoUrl && <Box component="img" src={logoUrl} alt={p.provider?.name} sx={{ width: 26, height: 26, borderRadius: 0.75, objectFit: 'cover' }} />}
-                          <Typography variant="body2" sx={{ color: T.textMuted, fontWeight: 500, fontSize: '0.82rem' }}>{p.provider?.name}</Typography>
-                          {p.regionCode && <Chip label={p.regionCode} size="small" sx={{ bgcolor: 'transparent', color: T.textFaint, fontSize: '0.6rem', height: 16 }} />}
-                        </Box>
-                      );
-                    })}
-                  </Box>
+
+              {/* Region selector — only shown when the title is available in 2+ regions */}
+              {sortedRegionChips.length > 1 && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
+                  {sortedRegionChips.map((r) => {
+                    const isActive = r === selectedRegion;
+                    return (
+                      <Chip
+                        key={r}
+                        label={r === userRegion ? `${r} (you)` : r}
+                        size="small"
+                        onClick={() => setSelectedRegion(r)}
+                        sx={{
+                          height: 22, fontSize: '0.7rem', fontWeight: 700,
+                          bgcolor: isActive ? T.teal : alpha(T.text, 0.06),
+                          color:   isActive ? '#fff' : T.textMuted,
+                          border:  `1px solid ${isActive ? T.teal : alpha(T.text, 0.1)}`,
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: isActive ? T.teal : alpha(T.teal, 0.15), color: isActive ? '#fff' : T.teal },
+                        }}
+                      />
+                    );
+                  })}
                 </Box>
-              ))}
+              )}
+
+              {sortedProviderKeys.length > 0 ? (
+                sortedProviderKeys.map((type) => (
+                  <Box key={type} sx={{ mb: 2 }}>
+                    <Typography variant="caption" sx={{ color: T.textFaint, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, display: 'block', mb: 0.75 }}>
+                      {typeLabel[type] ?? type}
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {grouped[type].map((p, i) => {
+                        const logoUrl = tmdbImg(p.provider?.logoPath, 'w92');
+                        return (
+                          <Box key={i} sx={{
+                            display: 'flex', alignItems: 'center', gap: 1,
+                            bgcolor: T.glass, border: `1px solid ${alpha(T.text, 0.08)}`,
+                            borderRadius: 1.5, px: 1.25, py: 0.75,
+                            transition: 'border-color .15s, transform .15s',
+                            '&:hover': { borderColor: alpha(T.teal, 0.4), transform: 'translateY(-1px)' },
+                          }}>
+                            {logoUrl && <Box component="img" src={logoUrl} alt={p.provider?.name} sx={{ width: 26, height: 26, borderRadius: 0.75, objectFit: 'cover' }} />}
+                            <Typography variant="body2" sx={{ color: T.textMuted, fontWeight: 500, fontSize: '0.82rem' }}>{p.provider?.name}</Typography>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </Box>
+                ))
+              ) : (
+                <Typography variant="body2" sx={{ color: T.textFaint }}>
+                  Not available in {selectedRegion}.
+                </Typography>
+              )}
             </Box>
           )}
         </Box>
