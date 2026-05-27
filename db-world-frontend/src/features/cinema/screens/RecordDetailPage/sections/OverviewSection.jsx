@@ -132,51 +132,69 @@ export default function OverviewSection({ record }) {
             </>
           )}
 
-          {(tmdb.productionCompanies ?? []).length > 0 && (
-            <Box sx={{ mt: 3 }}>
-              <SectionHeading sx={{ fontSize: '0.9rem' }}>Companies</SectionHeading>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                {(tmdb.productionCompanies ?? []).map((c, i) => (
-                  <Chip key={i} label={`${c.name}${c.originCountry ? ` (${c.originCountry})` : ''}`} size="small" sx={subChipSx} />
-                ))}
+          {(() => {
+            const companies = (tmdb.productionCompanies ?? []).filter((c) => c?.name);
+            if (!companies.length) return null;
+            return (
+              <Box sx={{ mt: 3 }}>
+                <SectionHeading sx={{ fontSize: '0.9rem' }}>Companies</SectionHeading>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {companies.map((c, i) => (
+                    <Chip key={i} label={`${c.name}${c.originCountry ? ` (${c.originCountry})` : ''}`} size="small" sx={subChipSx} />
+                  ))}
+                </Box>
               </Box>
-            </Box>
-          )}
+            );
+          })()}
         </Box>
 
         <Box>
-          {(tmdb.productionCountries ?? []).length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <SectionHeading sx={{ fontSize: '0.9rem' }}>Countries</SectionHeading>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                {(tmdb.productionCountries ?? []).map((c, i) => (
-                  <Chip key={i} label={c.name} size="small" sx={subChipSx} />
-                ))}
+          {(() => {
+            const countries = (tmdb.productionCountries ?? []).filter((c) => c?.name);
+            if (!countries.length) return null;
+            return (
+              <Box sx={{ mb: 3 }}>
+                <SectionHeading sx={{ fontSize: '0.9rem' }}>Countries</SectionHeading>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {countries.map((c, i) => (
+                    <Chip key={i} label={c.name} size="small" sx={subChipSx} />
+                  ))}
+                </Box>
               </Box>
-            </Box>
-          )}
+            );
+          })()}
 
-          {(tmdb.spokenLanguages ?? []).length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <SectionHeading sx={{ fontSize: '0.9rem' }}>Languages</SectionHeading>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                {(tmdb.spokenLanguages ?? []).map((l, i) => (
-                  <Chip key={i} label={l.englishName ?? l.name} size="small" sx={subChipSx} />
-                ))}
+          {(() => {
+            const langs = (tmdb.spokenLanguages ?? [])
+              .map((l) => ({ ...l, _label: l.englishName ?? l.name }))
+              .filter((l) => l._label);
+            if (!langs.length) return null;
+            return (
+              <Box sx={{ mb: 3 }}>
+                <SectionHeading sx={{ fontSize: '0.9rem' }}>Languages</SectionHeading>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {langs.map((l, i) => (
+                    <Chip key={i} label={l._label} size="small" sx={subChipSx} />
+                  ))}
+                </Box>
               </Box>
-            </Box>
-          )}
+            );
+          })()}
 
-          {!isMovie && (tmdb.createdBy ?? []).length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <SectionHeading sx={{ fontSize: '0.9rem' }}>Created By</SectionHeading>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                {(tmdb.createdBy ?? []).map((c, i) => (
-                  <Chip key={i} label={c.name} size="small" sx={chipSx} />
-                ))}
+          {!isMovie && (() => {
+            const creators = (tmdb.createdBy ?? []).filter((c) => c?.name);
+            if (!creators.length) return null;
+            return (
+              <Box sx={{ mb: 3 }}>
+                <SectionHeading sx={{ fontSize: '0.9rem' }}>Created By</SectionHeading>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {creators.map((c, i) => (
+                    <Chip key={i} label={c.name} size="small" sx={chipSx} />
+                  ))}
+                </Box>
               </Box>
-            </Box>
-          )}
+            );
+          })()}
 
           {!isMovie && (tmdb.lastEpisodeToAir || tmdb.nextEpisodeToAir) && (
             <Box sx={{ mb: 3 }}>

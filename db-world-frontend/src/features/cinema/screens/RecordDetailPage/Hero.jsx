@@ -126,7 +126,13 @@ export default function Hero({
           pb: { xs: 3, md: 5 },
         }}
       >
-        <Box sx={{ display: 'flex', gap: { xs: 2, md: 3.5 }, alignItems: 'flex-end', width: '100%', maxWidth: 1000 }}>
+        <Box sx={{
+          display: 'flex', gap: { xs: 2, md: 3.5 }, alignItems: 'flex-end',
+          // Match the section Container's max-width below so the Hero content
+          // and the rest of the page share the same horizontal rhythm and
+          // both sit centered on big screens.
+          width: '100%', maxWidth: { xs: '100%', lg: 1200 }, mx: 'auto',
+        }}>
 
           {/* Poster */}
           {posterUrl && !isXs && (
@@ -216,23 +222,27 @@ export default function Hero({
               </Box>
             </Box>
 
-            {/* Genres */}
-            {(tmdb.genres ?? []).length > 0 && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: 1.5 }}>
-                {(tmdb.genres ?? []).map((g) => (
-                  <Chip
-                    key={g.id}
-                    label={g.name}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha('#fff', 0.08), color: '#e0e0e0',
-                      fontSize: '0.7rem', height: 22, backdropFilter: 'blur(4px)',
-                      border: `1px solid ${alpha('#fff', 0.1)}`,
-                    }}
-                  />
-                ))}
-              </Box>
-            )}
+            {/* Genres — filter out entries without a name so we never render an empty pill */}
+            {(() => {
+              const genres = (tmdb.genres ?? []).filter((g) => g?.name);
+              if (!genres.length) return null;
+              return (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: 1.5 }}>
+                  {genres.map((g) => (
+                    <Chip
+                      key={g.id}
+                      label={g.name}
+                      size="small"
+                      sx={{
+                        bgcolor: alpha('#fff', 0.08), color: '#e0e0e0',
+                        fontSize: '0.7rem', height: 22, backdropFilter: 'blur(4px)',
+                        border: `1px solid ${alpha('#fff', 0.1)}`,
+                      }}
+                    />
+                  ))}
+                </Box>
+              );
+            })()}
 
             {/* Tagline */}
             {tmdb.tagline && (

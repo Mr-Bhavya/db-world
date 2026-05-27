@@ -27,14 +27,19 @@ const POPUP_W = 450; // wider popup
 export const RecordCardSkeleton = ({ wide, top10, prime }) => (
   <Box sx={{
     flexShrink: 0,
-    pl: top10 ? { xs: 3, md: 4 } : 0,
+    // top10 jumbo reserves more left space for the giant rank number that
+    // overlaps the poster's left edge in the real card.
+    pl: top10 ? { xs: 6, md: 10 } : 0,
     // Prime mobile: landscape (matches always-expanded display).
     // Prime desktop: portrait (collapsed/idle state — avoids layout jump on hover).
+    // Top 10 jumbo: larger portrait poster than the regular card.
     width: prime
       ? { xs: 249, sm: 320, md: 158 }
-      : wide
-        ? { xs: 200, md: 280 }
-        : { xs: 110, md: 150 },
+      : top10
+        ? { xs: 130, sm: 170, md: 210 }
+        : wide
+          ? { xs: 200, md: 280 }
+          : { xs: 110, md: 150 },
     ...(prime
       ? { height: { xs: 140, sm: 180, md: 280 } }
       : { aspectRatio: wide ? '16/9' : '2/3' }),
@@ -82,6 +87,7 @@ const fmtRuntime = (mins) => {
 
 const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onWatched, anchorRect, onClose }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [muted, setMuted] = useState(true);
   const isMovie = record.type === 'MOVIE';
@@ -121,20 +127,22 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
         setMuted(prev => !prev);
     };
 
+  // HoverPopup is desktop-only (the parent skips it when isMobile), so we
+  // always pass the background location — this triggers the Netflix-style
+  // modal overlay in App.jsx instead of a full-page navigation.
   const goDetail = (e) => {
     e?.stopPropagation();
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
-    navigate(base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`));
+    const path = base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`);
+    navigate(path, { state: { background: location } });
     onClose();
   };
 
   const goPlay = (e) => {
     e?.stopPropagation();
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
-    navigate(
-      base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`),
-      { state: { defaultTab: 'Watch' } }
-    );
+    const path = base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`);
+    navigate(path, { state: { defaultTab: 'Watch', background: location } });
     onClose();
   };
 
@@ -430,11 +438,16 @@ const RecordCard = ({
     });
   }, [isMobile, navigate, record?.id, record?.title, location]);
 
-  if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} />;
+  if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} top10={rank != null} />;
 
   // Mobile has no hover, so prime cards always show in the featured landscape
   // state (otherwise they shrink to a tiny 9:16 portrait and look broken).
   const isExpanded = expandOnHover && (hovered || isMobile);
+
+  // Top 10 jumbo mode: a Netflix-style featured row. The rank prop being set
+  // means the parent RailRow already detected this as a Top 10 rail; we then
+  // render a bigger portrait poster and an enormous stroked rank number.
+  const isTopTen = rank != null;
 
   // ── image ──────────────────────────────────────────────────────────────────
   const imgPath = isExpanded
@@ -443,11 +456,11 @@ const RecordCard = ({
       ? (record.backdropPath ?? record.posterPath)
       : (record.posterPath ?? record.backdropPath);
 
-  const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || wide ? 'w780' : 'w342');
+  const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || wide || isTopTen ? 'w780' : 'w342');
 
   // ── dimensions ────────────────────────────────────────────────────────────
   // Prime rail uses a FIXED height — only width changes on hover (true horizontal expand).
-  // Wide rail uses 16:9 aspect ratio.  Poster rail uses 2:3.
+  // Wide rail uses 16:9 aspect ratio.  Top 10 jumbo + Poster rails use 2:3.
   const PRIME_HEIGHT = { xs: 140, sm: 180, md: 280 };
 
   const cardWidth = expandOnHover
@@ -458,9 +471,11 @@ const RecordCard = ({
         // Desktop: portrait when idle, landscape when hovered (true horizontal expand).
         md: isExpanded ? `calc(280px * ${16/9})` : `calc(280px * ${9/16})`,
       }
-    : wide
-      ? { xs: 200, sm: 240, md: 280 }
-      : { xs: 110, sm: 130, md: 150 };
+    : isTopTen
+      ? { xs: 130, sm: 170, md: 210 }
+      : wide
+        ? { xs: 200, sm: 240, md: 280 }
+        : { xs: 110, sm: 130, md: 150 };
 
   const aspectRatio = expandOnHover
     ? (isExpanded ? '16 / 9' : '9 / 16')   // 👈 MAGIC
@@ -483,14 +498,32 @@ const RecordCard = ({
       transition={{ duration: 0.2, ease: 'easeOut' }}
       style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'flex-end' }}
     >
-      {/* ── Top 10 rank badge ── */}
+      {/* ── Top 10 jumbo rank ── Netflix-style stroked numeral that sits
+          alongside the poster and tucks behind the left edge for depth. */}
       {rank != null && (
         <Typography sx={{
-          fontSize: { xs: '5.5rem', md: '8rem' }, fontWeight: 900,
-          lineHeight: 0.85, color: 'transparent',
-          WebkitTextStroke: { xs: '2px rgba(255,255,255,0.55)', md: '3px rgba(255,255,255,0.6)' },
-          mr: -1.5, zIndex: 0, userSelect: 'none', flexShrink: 0,
-          textShadow: '2px 2px 8px rgba(0,0,0,0.8)',
+          fontSize: { xs: '9rem', sm: '12rem', md: '16rem' },
+          fontWeight: 900,
+          fontFamily: '"Bebas Neue", "Helvetica Neue", Arial, sans-serif',
+          lineHeight: 0.78,
+          letterSpacing: { xs: '-0.06em', md: '-0.08em' },
+          color: 'transparent',
+          WebkitTextStroke: {
+            xs: '3px rgba(255,255,255,0.92)',
+            md: '5px rgba(255,255,255,0.92)',
+          },
+          mr: { xs: -2.5, sm: -3.5, md: -5 },
+          zIndex: 0,
+          userSelect: 'none',
+          flexShrink: 0,
+          textShadow: '4px 4px 18px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)',
+          // Subtle entrance — fade-in plus a tiny rise so the numeral feels
+          // like it slides in from the bottom alongside the poster.
+          animation: 'topTenIn 0.45s ease-out both',
+          '@keyframes topTenIn': {
+            from: { opacity: 0, transform: 'translateY(8px)' },
+            to:   { opacity: 1, transform: 'translateY(0)' },
+          },
         }}>
           {rank}
         </Typography>
