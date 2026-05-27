@@ -28,9 +28,15 @@ export const RecordCardSkeleton = ({ wide, top10, prime }) => (
   <Box sx={{
     flexShrink: 0,
     pl: top10 ? { xs: 3, md: 4 } : 0,
-    width: prime ? { xs: 285, md: 390 } : wide ? { xs: 200, md: 280 } : { xs: 110, md: 150 },
+    // Prime mobile: landscape (matches always-expanded display).
+    // Prime desktop: portrait (collapsed/idle state — avoids layout jump on hover).
+    width: prime
+      ? { xs: 249, sm: 320, md: 158 }
+      : wide
+        ? { xs: 200, md: 280 }
+        : { xs: 110, md: 150 },
     ...(prime
-      ? { height: { xs: 160, md: 220 } }
+      ? { height: { xs: 140, sm: 180, md: 280 } }
       : { aspectRatio: wide ? '16/9' : '2/3' }),
     borderRadius: 1.5,
     overflow: 'hidden',
@@ -419,7 +425,9 @@ const RecordCard = ({
 
   if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} />;
 
-  const isExpanded = expandOnHover && hovered;
+  // Mobile has no hover, so prime cards always show in the featured landscape
+  // state (otherwise they shrink to a tiny 9:16 portrait and look broken).
+  const isExpanded = expandOnHover && (hovered || isMobile);
 
   // ── image ──────────────────────────────────────────────────────────────────
   const imgPath = isExpanded
@@ -433,13 +441,15 @@ const RecordCard = ({
   // ── dimensions ────────────────────────────────────────────────────────────
   // Prime rail uses a FIXED height — only width changes on hover (true horizontal expand).
   // Wide rail uses 16:9 aspect ratio.  Poster rail uses 2:3.
-  const PRIME_HEIGHT = { xs: 160, sm: 190, md: 420 };
+  const PRIME_HEIGHT = { xs: 140, sm: 180, md: 280 };
 
   const cardWidth = expandOnHover
     ? {
-        xs: isExpanded ? `calc(160px * ${16/9})` : `calc(160px * ${9/16})`,
-        sm: isExpanded ? `calc(190px * ${16/9})` : `calc(190px * ${9/16})`,
-        md: isExpanded ? `calc(420px * ${16/9})` : `calc(420px * ${9/16})`,
+        // Mobile: always landscape — fills more of the screen and shows the backdrop properly.
+        xs: `calc(140px * ${16/9})`,
+        sm: `calc(180px * ${16/9})`,
+        // Desktop: portrait when idle, landscape when hovered (true horizontal expand).
+        md: isExpanded ? `calc(280px * ${16/9})` : `calc(280px * ${9/16})`,
       }
     : wide
       ? { xs: 200, sm: 240, md: 280 }
