@@ -174,23 +174,15 @@ export default function RecordDetailContent({
     { id: SECTION_IDS.related,  label: 'More Like This' },
   ], [isTv]);
 
-  // Shared scroll helper that handles both modal (custom scroll container)
-  // and page (window) modes. el.offsetTop is relative to the offsetParent,
-  // which is NOT the Dialog Paper in modal mode — use getBoundingClientRect
-  // against the scrollRoot's viewport to compute the true scroll target.
+  // Use native scrollIntoView so the browser picks the nearest scrolling
+  // ancestor automatically — works for both modal and page modes without
+  // us having to identify which node actually scrolls. Each section has
+  // scroll-margin-top set so the landing position accounts for the sticky
+  // pill nav.
   const scrollToSection = useCallback((sectionId) => {
     const el = document.getElementById(sectionId);
-    if (!el) return;
-    if (scrollRoot) {
-      const elRect   = el.getBoundingClientRect();
-      const rootRect = scrollRoot.getBoundingClientRect();
-      const top = scrollRoot.scrollTop + (elRect.top - rootRect.top) - stickyOffset - 12;
-      scrollRoot.scrollTo({ top, behavior: 'smooth' });
-    } else {
-      const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset - 12;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    }
-  }, [scrollRoot, stickyOffset]);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   // ── Deep-link to Watch when navigated via Play button ──────────────────
   const didAutoJump = useRef(false);

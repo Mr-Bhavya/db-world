@@ -58,19 +58,12 @@ export default function PillNav({ sections, scrollRoot = null, stickyOffset = 0 
     setActive(id);
     const el = document.getElementById(id);
     if (!el) return;
-    if (scrollRoot) {
-      // el.offsetTop is relative to the section's offsetParent, which is NOT
-      // the Dialog Paper in modal mode — so the old math overshot or missed.
-      // Use getBoundingClientRect against the scrollRoot's own viewport rect
-      // to compute the true scroll target.
-      const elRect   = el.getBoundingClientRect();
-      const rootRect = scrollRoot.getBoundingClientRect();
-      const top = scrollRoot.scrollTop + (elRect.top - rootRect.top) - stickyOffset - 12;
-      scrollRoot.scrollTo({ top, behavior: 'smooth' });
-    } else {
-      const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset - 12;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    }
+    // Use native scrollIntoView so the browser picks the nearest scrolling
+    // ancestor automatically — works for both the window (full-page mode)
+    // and the Dialog's scroll container (modal mode) without us guessing
+    // which DOM node actually scrolls. Each section already has
+    // scroll-margin-top set, which scrollIntoView respects.
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (

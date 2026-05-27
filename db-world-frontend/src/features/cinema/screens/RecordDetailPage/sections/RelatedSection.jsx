@@ -22,9 +22,24 @@ function RelatedCard({ record, isMobile }) {
   const onClick = useCallback(() => {
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
     const path = base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`);
-    // Mirror RecordCard.goDetail: pass background on desktop so the click
-    // opens in the modal overlay, but full-page on mobile.
-    navigate(path, isMobile ? undefined : { state: { background: location } });
+
+    if (isMobile) {
+      // Mobile always navigates full page — modal UX is bad on small screens.
+      navigate(path);
+      return;
+    }
+
+    // Desktop: preserve the ORIGINAL background if we're already inside a
+    // modal. Without this, clicking a related card inside modal A would set
+    // A's URL as the new background, so closing the new modal would strand
+    // the user on a full-page A instead of returning to the original page
+    // (e.g. cinema browse).
+    //
+    // From a full-page detail (no existing background), use the current
+    // location as the background so the new record still opens as a modal
+    // overlay — closing it returns to the current page.
+    const existingBackground = location.state?.background;
+    navigate(path, { state: { background: existingBackground || location } });
   }, [isMovie, isMobile, navigate, record.id, record.title, location]);
 
   return (
