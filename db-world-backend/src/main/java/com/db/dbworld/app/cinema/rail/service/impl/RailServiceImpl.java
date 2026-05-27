@@ -170,13 +170,24 @@ public class RailServiceImpl implements RailService {
                 return false;
             }
         }
-        if ("continueWatching".equals(ruleType) || "becauseYouWatched".equals(ruleType)) {
+        if ("continueWatching".equals(ruleType)) {
             try {
                 // existsByUserId alone would return true for users whose only progress
                 // rows have a null recordId — the rail would render empty. Restrict to
-                // entries that can actually populate the rail. For becauseYouWatched
-                // this is a necessary precondition (no source → no recommendations).
+                // entries that can actually populate the rail.
                 return watchProgressRepository.existsByUserIdAndRecordIdNotNull(userContext.userId());
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        if ("becauseYouWatched".equals(ruleType)) {
+            try {
+                // Mirror RailResolverImpl.pickBecauseYouWatchedSource: source can come
+                // from watch_progress OR user_cinema_activity (downloads/completed streams),
+                // so download-only users still get the rail.
+                Long userId = userContext.userId();
+                if (watchProgressRepository.existsByUserIdAndRecordIdNotNull(userId)) return true;
+                return !activityRepository.findMostRecentRecordIdsByUser(userId, PageRequest.of(0, 1)).isEmpty();
             } catch (Exception e) {
                 return false;
             }
