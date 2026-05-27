@@ -132,7 +132,7 @@ springdoc:
 dbworld:
   log-shipper:
     enabled: true
-    log-file-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.json}
+    log-file-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}
     rotated-suffix: ".1"
     batch-tick-ms: 5000
     max-accumulator-entries: 10000
