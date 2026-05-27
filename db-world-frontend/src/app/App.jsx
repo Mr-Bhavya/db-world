@@ -29,7 +29,6 @@ import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
-import FlmngrStandalone from '@features/admin/FileExplorer/FlmngrStandalone.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { SnackbarProvider } from 'notistack';
@@ -228,9 +227,7 @@ const routeConfig = {
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
-  admin: [
-    { path: Constants.DB_FILE_MANAGER_ROUTE, element: <FlmngrStandalone /> },
-  ]
+  admin: []
 };
 
 // ─── Inner app — reads mode from ThemeTokensContext ──────────────────────────

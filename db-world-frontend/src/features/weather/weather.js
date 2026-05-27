@@ -12,6 +12,7 @@ import CommonServices from '@shared/services/CommonServices';
 import Map from './Map';
 import { toast } from '@shared/components/ui/Toast';
 import { useT, getFieldSx, getGlowProps } from '@shared/theme';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 const WEATHER_ICONS = {
   '01d': '☀️', '01n': '🌙',
@@ -57,15 +58,24 @@ function Weather() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [showDialog,       setShowDialog]       = useState(false);
 
+  // Backend proxy at /api/weather hides the OpenWeather API key (which used
+  // to ship in the JS bundle) and caches responses for 5 min. Response shape
+  // matches OpenWeatherMap's so the rest of this component is unchanged.
+  const fetchWeather = async (params) => {
+    const res = await axiosInstance.get('/api/weather', { params });
+    return res.data?.data ?? res.data;
+  };
+
   const fetchByCity = async () => {
     setRefreshing(true);
     try {
-      const res  = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=5ac693a87e8bebb7c7b40655e85dde50`);
-      const data = await res.json();
-      if (res.status === 200) setWeatherData(data);
-      else toast.error('City not found. Please try another location.');
-    } catch {
-      toast.error('Failed to fetch weather data. Please check your connection.');
+      setWeatherData(await fetchWeather({ city }));
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        toast.error('City not found. Please try another location.');
+      } else {
+        toast.error('Failed to fetch weather data. Please check your connection.');
+      }
     }
     setRefreshing(false);
     setLoading(false);
@@ -74,10 +84,8 @@ function Weather() {
   const fetchByCoords = async (coords) => {
     setLoading(true);
     try {
-      const res  = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${coords.latitude}&lon=${coords.longitude}&appid=5ac693a87e8bebb7c7b40655e85dde50`);
-      const data = await res.json();
-      if (res.status === 200) { setWeatherData(data); setPermissionDenied(false); }
-      else { toast.error('Unable to get location data.'); fetchByCity(); }
+      setWeatherData(await fetchWeather({ lat: coords.latitude, lon: coords.longitude }));
+      setPermissionDenied(false);
     } catch {
       toast.error('Failed to fetch location data.');
       fetchByCity();
