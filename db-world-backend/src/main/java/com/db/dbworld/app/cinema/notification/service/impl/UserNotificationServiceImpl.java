@@ -6,7 +6,7 @@ import com.db.dbworld.app.cinema.notification.dto.UserNotificationDto;
 import com.db.dbworld.app.cinema.notification.entity.UserNotificationEntity;
 import com.db.dbworld.app.cinema.notification.repository.UserNotificationRepository;
 import com.db.dbworld.app.cinema.notification.service.UserNotificationService;
-import com.db.dbworld.app.cinema.review.repository.UserReviewRepository;
+import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -21,7 +21,7 @@ import java.util.List;
 public class UserNotificationServiceImpl implements UserNotificationService {
 
     private final UserNotificationRepository notifRepo;
-    private final UserReviewRepository       reviewRepo;
+    private final UserRepository             userRepo;
     private final RecordRepository           recordRepo;
 
     @Override
@@ -35,7 +35,10 @@ public class UserNotificationServiceImpl implements UserNotificationService {
             return;
         }
 
-        List<Long> recipients = reviewRepo.findOtherReviewerIdsForRecord(actorUserId, recordId);
+        // Broadcast: every active user except the actor. Dedup at the top of this
+        // method ensures the actor only triggers one fan-out per record even if
+        // they edit their review repeatedly.
+        List<Long> recipients = userRepo.findActiveUserIdsExcept(actorUserId);
         if (recipients.isEmpty()) return;
 
         String title      = record.getName();
