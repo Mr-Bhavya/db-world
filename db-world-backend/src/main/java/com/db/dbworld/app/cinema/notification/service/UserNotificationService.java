@@ -36,6 +36,20 @@ public interface UserNotificationService {
             Collection<Long> recipientUserIds
     );
 
+    /**
+     * Notify voters that the TMDB title they requested has been ingested into the
+     * catalog. The notification deep-links to the newly created record so the user
+     * can immediately browse or request media files.
+     */
+    void createCatalogIngestedNotifications(
+            Long actorUserId,
+            String actorUsername,
+            Long createdRecordId,
+            String recordTitle,
+            String recordType,
+            Collection<Long> recipientUserIds
+    );
+
     List<UserNotificationDto> getForUser(Long userId, int limit);
     long getUnreadCount(Long userId);
     void markAllRead(Long userId);

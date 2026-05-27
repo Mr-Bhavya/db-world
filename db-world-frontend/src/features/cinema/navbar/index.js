@@ -255,39 +255,53 @@ function Navbar({ coverColor, onGenreSelect }) {
               } catch { seen = []; }
               const fresh = list.filter(n =>
                 !n.read
-                && (n.type === 'REQUEST_FULFILLED' || n.type === 'REQUEST_DISMISSED')
+                && ['REQUEST_FULFILLED', 'REQUEST_DISMISSED', 'CATALOG_INGESTED'].includes(n.type)
                 && !seen.includes(n.id)
               );
               if (fresh.length === 0) return;
 
               fresh.forEach(n => {
+                const isCatalogIn = n.type === 'CATALOG_INGESTED';
                 const isFulfilled = n.type === 'REQUEST_FULFILLED';
-                const message = isFulfilled
-                  ? `"${n.recordTitle}" is now available — your request was fulfilled.`
-                  : (n.message
-                      ? `Your request for "${n.recordTitle}" was dismissed: ${n.message}`
-                      : `Your request for "${n.recordTitle}" was dismissed by an admin.`);
+                const isDismissed = n.type === 'REQUEST_DISMISSED';
+
+                let message;
+                if (isCatalogIn) {
+                  message = `"${n.recordTitle}" has been added to the catalog — your request was fulfilled.`;
+                } else if (isFulfilled) {
+                  message = `"${n.recordTitle}" is now available — your request was fulfilled.`;
+                } else {
+                  message = n.message
+                    ? `Your request for "${n.recordTitle}" was dismissed: ${n.message}`
+                    : `Your request for "${n.recordTitle}" was dismissed by an admin.`;
+                }
+
+                // Dismissed catalog requests don't have a record yet (recordId is 0 sentinel).
+                const canRoute = !(isDismissed && (!n.recordId || n.recordId === 0));
+
                 enqueueSnackbar(message, {
-                  variant: isFulfilled ? 'success' : 'warning',
-                  autoHideDuration: isFulfilled ? 6000 : 8000,
-                  action: () => (
-                    <Button
-                      size="small"
-                      color="inherit"
-                      onClick={() => {
-                        const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
-                        const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
-                        const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
-                        const route = (isSeries
-                          ? Constants.DB_SERIES_DETIALS_ROUTE
-                          : Constants.DB_MOVIE_DETIALS_ROUTE
-                        ).replace(':title', param);
-                        navigate(route);
-                      }}
-                    >
-                      View
-                    </Button>
-                  ),
+                  variant: isDismissed ? 'warning' : 'success',
+                  autoHideDuration: isDismissed ? 8000 : 6000,
+                  action: canRoute
+                    ? () => (
+                        <Button
+                          size="small"
+                          color="inherit"
+                          onClick={() => {
+                            const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
+                            const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
+                            const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
+                            const route = (isSeries
+                              ? Constants.DB_SERIES_DETIALS_ROUTE
+                              : Constants.DB_MOVIE_DETIALS_ROUTE
+                            ).replace(':title', param);
+                            navigate(route);
+                          }}
+                        >
+                          View
+                        </Button>
+                      )
+                    : undefined,
                 });
               });
 

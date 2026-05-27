@@ -93,6 +93,36 @@ public class UserNotificationServiceImpl implements UserNotificationService {
 
     @Override
     @Transactional
+    public void createCatalogIngestedNotifications(
+            Long actorUserId,
+            String actorUsername,
+            Long createdRecordId,
+            String recordTitle,
+            String recordType,
+            Collection<Long> recipientUserIds
+    ) {
+        if (recipientUserIds == null || recipientUserIds.isEmpty()) return;
+
+        List<UserNotificationEntity> notifications = recipientUserIds.stream()
+                .distinct()
+                .map(recipientId -> UserNotificationEntity.builder()
+                        .recipientUserId(recipientId)
+                        .actorUserId(actorUserId)
+                        .actorUsername(actorUsername)
+                        .recordId(createdRecordId)
+                        .recordTitle(recordTitle)
+                        .recordType(recordType)
+                        .type("CATALOG_INGESTED")
+                        .read(false)
+                        .build())
+                .toList();
+
+        notifRepo.saveAll(notifications);
+        log.info("Created {} catalog-ingested notifications for record {} by admin {}", notifications.size(), createdRecordId, actorUserId);
+    }
+
+    @Override
+    @Transactional
     public void createRequestDismissedNotifications(
             Long actorUserId,
             String actorUsername,

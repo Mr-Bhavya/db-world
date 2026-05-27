@@ -4,7 +4,7 @@ import {
   Popover, Drawer, List, ListItemButton,
   alpha, useTheme, useMediaQuery,
 } from '@mui/material';
-import { Close, RateReview, NotificationsNone, NotificationsActive, Block } from '@mui/icons-material';
+import { Close, RateReview, NotificationsNone, NotificationsActive, Block, NewReleases } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, markNotificationsRead } from '../../api/cinemaApi';
 import Constants from '@shared/constants';
@@ -31,12 +31,13 @@ const NotificationItem = ({ notif, onNavigate }) => {
   const theme = useTheme();
   const isFulfilled = notif.type === 'REQUEST_FULFILLED';
   const isDismissed = notif.type === 'REQUEST_DISMISSED';
-  const accent = isFulfilled
+  const isCatalogIn = notif.type === 'CATALOG_INGESTED';
+  const accent = isFulfilled || isCatalogIn
     ? theme.palette.success.main
     : isDismissed
       ? theme.palette.warning.main
       : theme.palette.primary.main;
-  const Icon = isFulfilled ? NotificationsActive : isDismissed ? Block : RateReview;
+  const Icon = isCatalogIn ? NewReleases : isFulfilled ? NotificationsActive : isDismissed ? Block : RateReview;
 
   return (
     <ListItemButton
@@ -58,7 +59,13 @@ const NotificationItem = ({ notif, onNavigate }) => {
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: '0.83rem', lineHeight: 1.45, fontWeight: notif.read ? 400 : 600 }}>
-          {isFulfilled && (
+          {isCatalogIn && (
+            <>
+              <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
+              {' has been added to the catalog — your request was fulfilled.'}
+            </>
+          )}
+          {isFulfilled && !isCatalogIn && (
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
               {' is now available — your request was fulfilled.'}
@@ -71,7 +78,7 @@ const NotificationItem = ({ notif, onNavigate }) => {
               {' was dismissed by an admin.'}
             </>
           )}
-          {!isFulfilled && !isDismissed && (
+          {!isFulfilled && !isDismissed && !isCatalogIn && (
             <>
               <Box component="span" sx={{ color: accent, fontWeight: 700 }}>
                 {notif.actorUsername}
@@ -115,6 +122,9 @@ const PanelContent = ({ onClose, onUnreadClear }) => {
   }, [onUnreadClear]);
 
   const handleNavigate = useCallback((notif) => {
+    // Catalog-request dismissals have no record yet (recordId is the 0 sentinel)
+    // so there's nowhere to navigate to — keep the panel open and do nothing.
+    if (!notif.recordId || notif.recordId === 0) return;
     onClose();
     navigate(getRecordRoute(notif.recordType, notif.recordTitle, notif.recordId));
   }, [onClose, navigate]);

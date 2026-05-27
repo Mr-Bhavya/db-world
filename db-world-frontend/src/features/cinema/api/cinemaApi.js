@@ -170,6 +170,43 @@ export const fetchMyMediaRequests = () =>
 export const fetchPersonDetail = (id) =>
   axiosInstance.get(`${BASE}/persons/${id}`).then(unwrap);
 
+// ─── Catalog Ingest Requests (new titles not yet in the catalog) ─────────────
+
+/** GET /api/cinema/tmdb/search?type=MOVIE&query=... → TmdbSearchItemDto[] */
+export const searchTmdbForRequest = (type, query, year) =>
+  axiosInstance
+    .get(`${BASE}/tmdb/search`, { params: { type, query, year } })
+    .then(unwrap);
+
+/**
+ * POST /api/cinema/catalog-requests/vote
+ * body: { tmdbId, mediaType: 'MOVIE'|'TV_SERIES', title, posterPath?, releaseYear?, note? }
+ */
+export const toggleCatalogIngestVote = (payload) =>
+  axiosInstance.post(`${BASE}/catalog-requests/vote`, payload).then(unwrap);
+
+/** GET /api/cinema/catalog-requests/mine → [{ tmdbId, mediaType }] */
+export const fetchMyCatalogRequests = () =>
+  axiosInstance.get(`${BASE}/catalog-requests/mine`).then(unwrap);
+
+// ─── Admin: Catalog Ingest Requests ──────────────────────────────────────────
+
+export const fetchAdminCatalogRequests = (status) =>
+  axiosInstance
+    .get(`${BASE}/admin/catalog-requests`, { params: status ? { status } : {} })
+    .then(unwrap);
+
+export const ingestCatalogRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/ingest`).then(unwrap);
+
+export const dismissCatalogRequest = (id, reason) =>
+  axiosInstance
+    .post(`${BASE}/admin/catalog-requests/${id}/dismiss`, { reason: reason ?? null })
+    .then(unwrap);
+
+export const reopenCatalogRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/reopen`).then(unwrap);
+
 // ─── Admin: Media Requests ────────────────────────────────────────────────────
 
 /** GET /api/cinema/admin/media-requests?status=PENDING → MediaRequestDto[] */
