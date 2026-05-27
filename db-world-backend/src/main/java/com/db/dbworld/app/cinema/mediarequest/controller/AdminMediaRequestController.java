@@ -39,4 +39,10 @@ public class AdminMediaRequestController {
     public ApiResponse<MediaRequestDto> dismiss(@PathVariable Long id) {
         return ApiResponse.success(service.dismiss(id));
     }
+
+    /** POST /api/cinema/admin/media-requests/{id}/reopen — undo fulfill/dismiss, voters preserved. */
+    @PostMapping("/{id}/reopen")
+    public ApiResponse<MediaRequestDto> reopen(@PathVariable Long id) {
+        return ApiResponse.success(service.reopen(id));
+    }
 }

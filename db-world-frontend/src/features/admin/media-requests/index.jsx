@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   CheckCircle, Cancel, NotificationsActive, Movie, LiveTv,
-  HourglassEmpty, DoneAll, Block, OpenInNew,
+  HourglassEmpty, DoneAll, Block, OpenInNew, Restore,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -14,7 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import {
-  fetchAdminMediaRequests, fulfillMediaRequest, dismissMediaRequest,
+  fetchAdminMediaRequests, fulfillMediaRequest, dismissMediaRequest, reopenMediaRequest,
 } from '@features/cinema/api/cinemaApi';
 
 const STATUS_META = {
@@ -79,6 +79,15 @@ export default function MediaRequestsAdminPage() {
       enqueueSnackbar('Request dismissed.', { variant: 'info' });
     },
     onError: () => enqueueSnackbar('Could not dismiss request.', { variant: 'error' }),
+  });
+
+  const reopenMut = useMutation({
+    mutationFn: reopenMediaRequest,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-media-requests'] });
+      enqueueSnackbar('Request reopened — back to pending.', { variant: 'info' });
+    },
+    onError: () => enqueueSnackbar('Could not reopen request.', { variant: 'error' }),
   });
 
   const openRecord = (req) => {
@@ -200,10 +209,30 @@ export default function MediaRequestsAdminPage() {
                         </Tooltip>
                       </>
                     )}
-                    {r.status === 'FULFILLED' && r.fulfilledByUsername && (
-                      <Typography variant="caption" sx={{ color: T.textFaint }}>
-                        by {r.fulfilledByUsername}
-                      </Typography>
+                    {r.status === 'FULFILLED' && (
+                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                        {r.fulfilledByUsername && (
+                          <Typography variant="caption" sx={{ color: T.textFaint }}>
+                            by {r.fulfilledByUsername}
+                          </Typography>
+                        )}
+                        <Tooltip title="Reopen (undo fulfill)">
+                          <span>
+                            <IconButton size="small" disabled={reopenMut.isPending} onClick={() => reopenMut.mutate(r.id)} sx={{ color: T.textMuted }}>
+                              <Restore sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Box>
+                    )}
+                    {r.status === 'DISMISSED' && (
+                      <Tooltip title="Reopen (undo dismiss)">
+                        <span>
+                          <IconButton size="small" disabled={reopenMut.isPending} onClick={() => reopenMut.mutate(r.id)} sx={{ color: T.textMuted }}>
+                            <Restore sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     )}
                   </TableCell>
                 </TableRow>

@@ -774,12 +774,13 @@ const LoadingState = () => (
   </Box>
 );
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
-// Compact one-line notice with a Request CTA. Users can vote to request the title;
-// admins see aggregated requests in the admin dashboard and notify voters when fulfilled.
+// ─── Request button (shared) ─────────────────────────────────────────────────
+// Used both inline in the empty state (recordHasFiles=false) and in the
+// header when files exist (recordHasFiles=true) to let users ask for a
+// higher quality version. Backed by the same vote endpoint either way —
+// admins see the title + current file count and decide.
 
-const EmptyState = ({ recordId }) => {
-  const theme = useTheme();
+function useMediaRequestVote(recordId) {
   const { enqueueSnackbar } = useSnackbar();
   const [requested, setRequested] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -793,16 +794,14 @@ const EmptyState = ({ recordId }) => {
     return () => { alive = false; };
   }, [recordId]);
 
-  const handleRequest = useCallback(async () => {
+  const toggle = useCallback(async (successCopy, undoCopy) => {
     if (!recordId || submitting) return;
     setSubmitting(true);
     try {
       const res = await toggleMediaRequestVote(recordId);
       setRequested(!!res?.hasMyVote);
       enqueueSnackbar(
-        res?.hasMyVote
-          ? 'Request sent — we\'ll notify you when files are added.'
-          : 'Request withdrawn.',
+        res?.hasMyVote ? successCopy : undoCopy,
         { variant: res?.hasMyVote ? 'success' : 'info' }
       );
     } catch {
@@ -811,6 +810,19 @@ const EmptyState = ({ recordId }) => {
       setSubmitting(false);
     }
   }, [recordId, submitting, enqueueSnackbar]);
+
+  return { requested, submitting, toggle };
+}
+
+// Compact inline notice shown when no media files exist for the record.
+const EmptyState = ({ recordId }) => {
+  const theme = useTheme();
+  const { requested, submitting, toggle } = useMediaRequestVote(recordId);
+
+  const onClick = () => toggle(
+    'Request sent — we\'ll notify you when files are added.',
+    'Request withdrawn.'
+  );
 
   return (
     <Box
@@ -844,13 +856,51 @@ const EmptyState = ({ recordId }) => {
           disableElevation
           disabled={submitting}
           startIcon={requested ? <NotificationsActive sx={{ fontSize: 16 }} /> : <NotificationsActiveOutlined sx={{ fontSize: 16 }} />}
-          onClick={handleRequest}
+          onClick={onClick}
           sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
         >
           {requested ? 'Requested' : 'Request'}
         </Button>
       )}
     </Box>
+  );
+};
+
+// Small chip-style button shown in the Available Files header when files
+// exist. Lets users flag that they want a higher-quality copy added.
+const RequestHigherQualityButton = ({ recordId }) => {
+  const { requested, submitting, toggle } = useMediaRequestVote(recordId);
+  if (!recordId) return null;
+
+  const onClick = () => toggle(
+    'Quality request sent — we\'ll notify you when better files are available.',
+    'Quality request withdrawn.'
+  );
+
+  return (
+    <Tooltip title={requested ? 'You requested a higher-quality copy. Tap to undo.' : 'Ask admins to upload a higher-quality copy.'}>
+      <Button
+        size="small"
+        variant={requested ? 'outlined' : 'text'}
+        color={requested ? 'primary' : 'inherit'}
+        disabled={submitting}
+        startIcon={requested
+          ? <NotificationsActive sx={{ fontSize: 15 }} />
+          : <NotificationsActiveOutlined sx={{ fontSize: 15 }} />}
+        onClick={onClick}
+        sx={{
+          ml: 'auto',
+          textTransform: 'none',
+          fontWeight: 700,
+          fontSize: '0.72rem',
+          borderRadius: 2,
+          py: 0.4, px: 1.2,
+          color: requested ? 'primary.main' : 'text.secondary',
+        }}
+      >
+        {requested ? 'Requested HQ' : 'Request higher quality'}
+      </Button>
+    </Tooltip>
   );
 };
 
@@ -906,6 +956,9 @@ const MediaFilesPage = (props) => {
               height: 22,
             }}
           />
+        )}
+        {!loading && mediaFileList.length > 0 && (
+          <RequestHigherQualityButton recordId={resolvedRecordId} />
         )}
       </Box>
 

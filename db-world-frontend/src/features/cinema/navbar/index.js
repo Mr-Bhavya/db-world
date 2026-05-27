@@ -270,10 +270,12 @@ function Navbar({ coverColor, onGenreSelect }) {
                         color="inherit"
                         onClick={() => {
                           const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
+                          const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
+                          const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
                           const route = (isSeries
                             ? Constants.DB_SERIES_DETIALS_ROUTE
                             : Constants.DB_MOVIE_DETIALS_ROUTE
-                          ).replace(':title', encodeURIComponent(n.recordTitle));
+                          ).replace(':title', param);
                           navigate(route);
                         }}
                       >

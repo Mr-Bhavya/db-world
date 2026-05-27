@@ -139,6 +139,19 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         return toDto(request, null);
     }
 
+    @Override
+    @Transactional
+    public MediaRequestDto reopen(Long requestId) {
+        MediaRequestEntity request = requestRepo.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("MediaRequest", "id", requestId));
+        request.setStatus(MediaRequestStatus.PENDING);
+        request.setFulfilledAt(null);
+        request.setFulfilledByUserId(null);
+        request.setFulfilledByUsername(null);
+        requestRepo.save(request);
+        return toDto(request, null);
+    }
+
     private MediaRequestDto toDto(MediaRequestEntity e, Long callerUserId) {
         Set<Long> voters = e.getVoterUserIds();
         return MediaRequestDto.builder()

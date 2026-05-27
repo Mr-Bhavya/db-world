@@ -182,3 +182,7 @@ export const fulfillMediaRequest = (id) =>
 /** POST /api/cinema/admin/media-requests/{id}/dismiss */
 export const dismissMediaRequest = (id) =>
   axiosInstance.post(`${BASE}/admin/media-requests/${id}/dismiss`).then(unwrap);
+
+/** POST /api/cinema/admin/media-requests/{id}/reopen — undo fulfill/dismiss. */
+export const reopenMediaRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/media-requests/${id}/reopen`).then(unwrap);

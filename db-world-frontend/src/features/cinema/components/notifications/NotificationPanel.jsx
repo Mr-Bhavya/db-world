@@ -19,11 +19,12 @@ function relativeTime(iso) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function getRecordRoute(recordType, recordTitle) {
-  const encoded = encodeURIComponent(recordTitle);
+function getRecordRoute(recordType, recordTitle, recordId) {
+  const slug = (recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
+  const param = recordId ? `${recordId}-${slug}` : encodeURIComponent(recordTitle ?? '');
   const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((recordType ?? '').toUpperCase());
-  if (isSeries) return Constants.DB_SERIES_DETIALS_ROUTE.replace(':title', encoded);
-  return Constants.DB_MOVIE_DETIALS_ROUTE.replace(':title', encoded);
+  if (isSeries) return Constants.DB_SERIES_DETIALS_ROUTE.replace(':title', param);
+  return Constants.DB_MOVIE_DETIALS_ROUTE.replace(':title', param);
 }
 
 const NotificationItem = ({ notif, onNavigate }) => {
@@ -98,7 +99,7 @@ const PanelContent = ({ onClose, onUnreadClear }) => {
 
   const handleNavigate = useCallback((notif) => {
     onClose();
-    navigate(getRecordRoute(notif.recordType, notif.recordTitle));
+    navigate(getRecordRoute(notif.recordType, notif.recordTitle, notif.recordId));
   }, [onClose, navigate]);
 
   return (

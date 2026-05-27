@@ -18,11 +18,13 @@ public interface UserReviewRepository extends JpaRepository<UserReviewEntity, St
 
     boolean existsByUserIdAndRecordId(Long userId, Long recordId);
 
+    /**
+     * Find users who have reviewed this record (other than the actor).
+     * Used to notify peers when a new review lands on a title they also reviewed.
+     */
     @Query("SELECT DISTINCT r.userId FROM UserReviewEntity r " +
-           "WHERE r.userId != :actorId " +
-           "AND r.userId NOT IN " +
-           "(SELECT r2.userId FROM UserReviewEntity r2 WHERE r2.recordId = :recordId)")
-    List<Long> findReviewerIdsExcludingRecordAndActor(
+           "WHERE r.recordId = :recordId AND r.userId != :actorId")
+    List<Long> findOtherReviewerIdsForRecord(
             @Param("actorId") Long actorId,
             @Param("recordId") Long recordId);
 }

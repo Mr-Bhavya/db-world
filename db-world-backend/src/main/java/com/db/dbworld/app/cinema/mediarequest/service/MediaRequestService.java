@@ -22,4 +22,11 @@ public interface MediaRequestService {
 
     /** Admin: dismiss a request without notifying. */
     MediaRequestDto dismiss(Long requestId);
+
+    /**
+     * Admin: reopen a fulfilled or dismissed request — flips status back to PENDING
+     * and clears the fulfilled-by metadata. Voters are preserved so the original
+     * demand survives an accidental fulfill/dismiss.
+     */
+    MediaRequestDto reopen(Long requestId);
 }

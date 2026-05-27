@@ -35,7 +35,7 @@ public class UserNotificationServiceImpl implements UserNotificationService {
             return;
         }
 
-        List<Long> recipients = reviewRepo.findReviewerIdsExcludingRecordAndActor(actorUserId, recordId);
+        List<Long> recipients = reviewRepo.findOtherReviewerIdsForRecord(actorUserId, recordId);
         if (recipients.isEmpty()) return;
 
         String title      = record.getName();
