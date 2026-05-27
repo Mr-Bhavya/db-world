@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Box, Typography, IconButton, Chip, Skeleton, Tooltip,
@@ -376,6 +376,7 @@ const RecordCard = ({
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [hovered,    setHovered]    = useState(false);
   const [imgError,   setImgError]   = useState(false);
@@ -408,20 +409,26 @@ const RecordCard = ({
   }, []);
 
   // ── navigation ────────────────────────────────────────────────────────────
+  // On desktop, set location.state.background so App.jsx renders the detail
+  // page as a Netflix-style modal overlay instead of a full page navigation.
+  // On mobile, full-page nav as before (modal UX is bad on small screens).
   const goDetail = useCallback((e) => {
     e?.stopPropagation();
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
-    navigate(base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`));
-  }, [isMovie, navigate, record?.id, record?.title]);
+    const path = base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`);
+    navigate(path, isMobile ? undefined : { state: { background: location } });
+  }, [isMobile, navigate, record?.id, record?.title, location]);
 
   const goPlay = useCallback((e) => {
     e?.stopPropagation();
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
-    navigate(
-      base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`),
-      { state: { defaultTab: 'Watch' } }
-    );
-  }, [isMovie, navigate, record?.id, record?.title]);
+    const path = base.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`);
+    navigate(path, {
+      state: isMobile
+        ? { defaultTab: 'Watch' }
+        : { defaultTab: 'Watch', background: location },
+    });
+  }, [isMobile, navigate, record?.id, record?.title, location]);
 
   if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} />;
 

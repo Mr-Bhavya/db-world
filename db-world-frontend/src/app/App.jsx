@@ -1,7 +1,7 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import Header from '@shared/components/layout/Header';
 import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
@@ -64,7 +64,8 @@ const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
 const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer.jsx'));
 const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
-const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
+const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage/index.jsx'));
+const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
@@ -236,6 +237,11 @@ const ThemedApp = () => {
   const { mode } = useThemeMode();
   const [loading, setLoading] = useState(true);
   const muiTheme = useMemo(() => buildMuiTheme(mode), [mode]);
+  const location = useLocation();
+  // When set, the user clicked a record card in-app on desktop. The main
+  // <Routes> renders against this background location so the underlying
+  // cinema page stays visible; a second <Routes> mounts the modal on top.
+  const background = location.state?.background;
 
   const renderRoutes = (routes) =>
     routes.map((route, i) => (
@@ -297,7 +303,7 @@ const ThemedApp = () => {
             <BackButtonHandler />
             <Header />
             <Suspense fallback={<LoadingFallback />}>
-              <Routes>
+              <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
                 <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
                   {renderRoutes(routeConfig.protected)}
@@ -329,6 +335,19 @@ const ThemedApp = () => {
                 </Route>
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
+
+              {/* Netflix-style modal overlay — only mounted when the user
+                  navigated to a detail route IN-APP (location.state.background
+                  is set). Cold loads, shared URLs, and refreshes render the
+                  full RecordDetailPage instead via the main Routes above. */}
+              {background && (
+                <Routes>
+                  <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                    <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={<LazyRecordDetailModal />} />
+                    <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<LazyRecordDetailModal />} />
+                  </Route>
+                </Routes>
+              )}
             </Suspense>
           </div>
         </CategoryProvider>
