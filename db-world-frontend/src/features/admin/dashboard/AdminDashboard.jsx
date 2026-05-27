@@ -9,7 +9,7 @@ import {
   Refresh, Label, Storage, Analytics, ArrowForward,
   Movie as MovieIcon, Tv, CheckCircle, Error, HourglassEmpty,
   Folder, Schedule, LocalOffer, ManageAccounts,
-  Dashboard as DashboardIcon, TableChart, WbSunny, NightsStay,
+  Dashboard as DashboardIcon, Insights, WbSunny, NightsStay,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -42,7 +42,7 @@ const NAV_SECTIONS = [
   { id: 'tag-management', label: 'Tags & Rails',     icon: LocalOffer,     path: 'tag-management', color: A.amber,   group: 'Content'  },
   { id: 'tmdb-sync',      label: 'TMDB Sync',        icon: Sync,           path: 'tmdb-sync',      color: A.emerald, group: 'Content'  },
   { id: 'ingestion',      label: 'Media Ingestion',  icon: Folder,         path: 'ingestion',      color: A.orange,  group: 'Activity' },
-  { id: 'activity-center',label: 'Activity',         icon: TableChart,     path: 'activity-center',color: A.red,     group: 'Activity', badge: 'Live' },
+  { id: 'activity-center',label: 'Activity & Insights', icon: Insights,    path: 'activity-center',color: A.red,     group: 'Activity', badge: 'Live' },
   { id: 'system-info',    label: 'System Info',      icon: Computer,       path: 'system-info',    color: A.indigo,  group: 'System'   },
   { id: 'logs',           label: 'Log Viewer',       icon: Analytics,      path: 'logs',           color: A.violet,  group: 'System'   },
   { id: 'redis',          label: 'Redis Cache',      icon: Storage,        path: 'redis',          color: A.emerald, group: 'System'   },

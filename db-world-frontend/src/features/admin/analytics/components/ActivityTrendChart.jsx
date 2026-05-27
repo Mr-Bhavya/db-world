@@ -1,8 +1,12 @@
 import React, { useMemo } from 'react';
-import { Card, CardContent, Typography, Skeleton, Box } from '@mui/material';
+import { Box, Typography, Skeleton } from '@mui/material';
 import { LineChart } from '@mui/x-charts/LineChart';
+import { useT, useThemeMode } from '@shared/theme/ThemeContext';
 
-const ActivityTrendChart = ({ data, loading, days = 30 }) => {
+export default function ActivityTrendChart({ data, loading, days = 30 }) {
+  const T = useT();
+  const { mode } = useThemeMode();
+
   const series = useMemo(() => {
     if (!data?.length) return { dates: [], streams: [], downloads: [] };
     return {
@@ -12,33 +16,46 @@ const ActivityTrendChart = ({ data, loading, days = 30 }) => {
     };
   }, [data]);
 
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography sx={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'text.secondary', letterSpacing: '0.04em', mb: 1 }}>
-          Activity trend (last {days} days)
-        </Typography>
-        {loading ? (
-          <Skeleton variant="rounded" height={240} />
-        ) : !series.dates.length ? (
-          <Box sx={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Typography sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>No activity yet.</Typography>
-          </Box>
-        ) : (
-          <LineChart
-            height={240}
-            xAxis={[{ data: series.dates, scaleType: 'band' }]}
-            series={[
-              { data: series.streams,   label: 'Streams' },
-              { data: series.downloads, label: 'Downloads' },
-            ]}
-            margin={{ left: 50, right: 16, top: 16, bottom: 30 }}
-            sx={{ '.MuiChartsAxis-tickLabel': { fontSize: '0.7rem' } }}
-          />
-        )}
-      </CardContent>
-    </Card>
-  );
-};
+  const axisColor  = mode === 'dark' ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.55)';
+  const gridColor  = mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
 
-export default ActivityTrendChart;
+  return (
+    <Box sx={{
+      bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2,
+      p: { xs: 1.5, sm: 2 }, display: 'flex', flexDirection: 'column',
+      minHeight: 280,
+    }}>
+      <Typography sx={{
+        fontSize: 11, color: T.textFaint, textTransform: 'uppercase',
+        letterSpacing: '0.08em', fontWeight: 700, mb: 1,
+      }}>
+        Activity trend · last {days} days
+      </Typography>
+
+      {loading ? (
+        <Skeleton variant="rounded" height={240} sx={{ bgcolor: T.glass }} />
+      ) : !series.dates.length ? (
+        <Box sx={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ color: T.textFaint, fontSize: 13 }}>No activity yet.</Typography>
+        </Box>
+      ) : (
+        <LineChart
+          height={240}
+          xAxis={[{ data: series.dates, scaleType: 'band' }]}
+          series={[
+            { data: series.streams,   label: 'Streams',   color: '#3b82f6', area: false, curve: 'monotoneX' },
+            { data: series.downloads, label: 'Downloads', color: '#0d9488', area: false, curve: 'monotoneX' },
+          ]}
+          margin={{ left: 48, right: 16, top: 16, bottom: 28 }}
+          sx={{
+            '.MuiChartsAxis-tickLabel':    { fill: axisColor, fontSize: 10 },
+            '.MuiChartsAxis-line':         { stroke: gridColor },
+            '.MuiChartsAxis-tick':         { stroke: gridColor },
+            '.MuiChartsLegend-mark':       { rx: 2 },
+            '.MuiChartsLegend-label':      { fill: T.textMuted, fontSize: 11 },
+          }}
+        />
+      )}
+    </Box>
+  );
+}

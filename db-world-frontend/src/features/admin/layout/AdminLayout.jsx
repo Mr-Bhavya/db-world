@@ -8,10 +8,10 @@ import {
 import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
   Dashboard, Movie, VideoLibrary,
-  LocalOffer, Sync, Download, Computer, Analytics,
+  LocalOffer, Sync, Computer, Analytics,
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
-  Circle, ManageAccounts, Home, TableChart,
+  Circle, ManageAccounts, Home,
   Insights,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -51,10 +51,8 @@ const NAV = [
     id: 'activity',
     label: 'Activity',
     items: [
-      { id: 'downloads',        label: 'Download Manager', icon: <Download />,    path: 'downloads' },
       { id: 'ingestion',        label: 'Media Ingestion',  icon: <Folder />,      path: 'ingestion' },
-      { id: 'activity-center',  label: 'Activity Center',  icon: <TableChart />,  path: 'activity-center', badge: 'Live' },
-      { id: 'analytics',        label: 'Analytics',        icon: <Insights />,    path: 'analytics' },
+      { id: 'activity-center',  label: 'Activity & Insights', icon: <Insights />, path: 'activity-center', badge: 'Live' },
     ],
   },
   {
