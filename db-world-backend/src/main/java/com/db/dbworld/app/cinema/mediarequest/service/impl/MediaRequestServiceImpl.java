@@ -138,12 +138,30 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
     @Override
     @Transactional
-    public MediaRequestDto dismiss(Long requestId) {
+    public MediaRequestDto dismiss(Long requestId, String reason, Long adminUserId, String adminUsername) {
         MediaRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("MediaRequest", "id", requestId));
+
+        if (request.getStatus() == MediaRequestStatus.DISMISSED) {
+            return toDto(request, adminUserId);
+        }
+
+        String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
         request.setStatus(MediaRequestStatus.DISMISSED);
+        request.setDismissReason(trimmed);
         requestRepo.save(request);
-        return toDto(request, null);
+
+        notifService.createRequestDismissedNotifications(
+                adminUserId,
+                adminUsername,
+                request.getRecordId(),
+                request.getRecordTitle(),
+                request.getRecordType(),
+                trimmed,
+                request.getVoterUserIds()
+        );
+
+        return toDto(request, adminUserId);
     }
 
     @Override
@@ -155,6 +173,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         request.setFulfilledAt(null);
         request.setFulfilledByUserId(null);
         request.setFulfilledByUsername(null);
+        request.setDismissReason(null);
         requestRepo.save(request);
         return toDto(request, null);
     }
@@ -173,6 +192,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                 .createdAt(e.getCreatedAt())
                 .fulfilledAt(e.getFulfilledAt())
                 .fulfilledByUsername(e.getFulfilledByUsername())
+                .dismissReason(e.getDismissReason())
                 .build();
     }
 }

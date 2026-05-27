@@ -20,6 +20,22 @@ public interface UserNotificationService {
             Collection<Long> recipientUserIds
     );
 
+    /**
+     * Notify voters that their media-file request was dismissed by an admin. The optional
+     * {@code reason} is stored on the notification as a human-readable explanation
+     * (e.g. "Not available in higher quality"); voters see it on the notification panel
+     * and the next-login toast.
+     */
+    void createRequestDismissedNotifications(
+            Long actorUserId,
+            String actorUsername,
+            Long recordId,
+            String recordTitle,
+            String recordType,
+            String reason,
+            Collection<Long> recipientUserIds
+    );
+
     List<UserNotificationDto> getForUser(Long userId, int limit);
     long getUnreadCount(Long userId);
     void markAllRead(Long userId);

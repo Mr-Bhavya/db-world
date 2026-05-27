@@ -21,4 +21,5 @@ public class MediaRequestDto {
     private Instant createdAt;
     private Instant fulfilledAt;
     private String fulfilledByUsername;
+    private String dismissReason;
 }

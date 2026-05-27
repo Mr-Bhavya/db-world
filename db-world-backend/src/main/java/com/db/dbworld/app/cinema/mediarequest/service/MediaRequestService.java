@@ -22,8 +22,12 @@ public interface MediaRequestService {
     /** Admin: mark a request fulfilled and notify all voters. */
     MediaRequestDto fulfill(Long requestId, Long adminUserId, String adminUsername);
 
-    /** Admin: dismiss a request without notifying. */
-    MediaRequestDto dismiss(Long requestId);
+    /**
+     * Admin: dismiss a request and notify all voters with an optional reason
+     * (e.g. "Not available in higher quality"). Pass {@code null} or blank to
+     * dismiss with no explanatory message.
+     */
+    MediaRequestDto dismiss(Long requestId, String reason, Long adminUserId, String adminUsername);
 
     /**
      * Admin: reopen a fulfilled or dismissed request — flips status back to PENDING

@@ -3,6 +3,7 @@ import {
   Box, Typography, Chip, IconButton, Tooltip, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   ToggleButton, ToggleButtonGroup, Avatar,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
 } from '@mui/material';
 import {
   CheckCircle, Cancel, NotificationsActive, Movie, LiveTv,
@@ -89,13 +90,18 @@ export default function MediaRequestsAdminPage() {
   });
 
   const dismissMut = useMutation({
-    mutationFn: dismissMediaRequest,
+    mutationFn: ({ id, reason }) => dismissMediaRequest(id, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-media-requests'] });
-      enqueueSnackbar('Request dismissed.', { variant: 'info' });
+      enqueueSnackbar('Request dismissed — voters notified.', { variant: 'info' });
+      setDismissTarget(null);
+      setDismissReason('');
     },
     onError: () => enqueueSnackbar('Could not dismiss request.', { variant: 'error' }),
   });
+
+  const [dismissTarget, setDismissTarget] = useState(null); // the request row being dismissed
+  const [dismissReason, setDismissReason] = useState('');
 
   const reopenMut = useMutation({
     mutationFn: reopenMediaRequest,
@@ -176,9 +182,20 @@ export default function MediaRequestsAdminPage() {
                           <OpenInNew sx={{ fontSize: 16 }} />
                         </IconButton>
                       </Tooltip>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: T.text }}>
-                        {r.recordTitle}
-                      </Typography>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: T.text }}>
+                          {r.recordTitle}
+                        </Typography>
+                        {r.status === 'DISMISSED' && r.dismissReason && (
+                          <Typography variant="caption" sx={{
+                            color: T.textFaint, fontStyle: 'italic', display: 'block',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            maxWidth: 320,
+                          }}>
+                            “{r.dismissReason}”
+                          </Typography>
+                        )}
+                      </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
@@ -220,9 +237,9 @@ export default function MediaRequestsAdminPage() {
                             </IconButton>
                           </span>
                         </Tooltip>
-                        <Tooltip title="Dismiss">
+                        <Tooltip title="Dismiss (with optional message to voters)">
                           <span>
-                            <IconButton size="small" disabled={dismissMut.isPending} onClick={() => dismissMut.mutate(r.id)} sx={{ color: T.textMuted }}>
+                            <IconButton size="small" disabled={dismissMut.isPending} onClick={() => { setDismissTarget(r); setDismissReason(''); }} sx={{ color: T.textMuted }}>
                               <Cancel sx={{ fontSize: 20 }} />
                             </IconButton>
                           </span>
@@ -261,6 +278,54 @@ export default function MediaRequestsAdminPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Dismiss dialog */}
+      <Dialog
+        open={Boolean(dismissTarget)}
+        onClose={() => { if (!dismissMut.isPending) setDismissTarget(null); }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Dismiss request</DialogTitle>
+        <DialogContent dividers>
+          {dismissTarget && (
+            <>
+              <Typography variant="body2" sx={{ mb: 0.5 }}>
+                <strong>{dismissTarget.recordTitle}</strong>
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 2 }}>
+                {dismissTarget.voteCount} voter{dismissTarget.voteCount === 1 ? '' : 's'} will be notified.
+              </Typography>
+              <TextField
+                autoFocus
+                fullWidth
+                multiline
+                minRows={3}
+                label="Reason (optional)"
+                placeholder="e.g. Not available in higher quality, will retry next month"
+                value={dismissReason}
+                onChange={(e) => setDismissReason(e.target.value.slice(0, 500))}
+                helperText={`${dismissReason.length}/500`}
+                FormHelperTextProps={{ sx: { textAlign: 'right' } }}
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setDismissTarget(null)} disabled={dismissMut.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            disabled={dismissMut.isPending || !dismissTarget}
+            onClick={() => dismissMut.mutate({ id: dismissTarget.id, reason: dismissReason })}
+            disableElevation
+          >
+            Dismiss & notify
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -254,36 +254,41 @@ function Navbar({ coverColor, onGenreSelect }) {
                 seen = JSON.parse(sessionStorage.getItem('dbw.fulfilledSeen') || '[]');
               } catch { seen = []; }
               const fresh = list.filter(n =>
-                !n.read && n.type === 'REQUEST_FULFILLED' && !seen.includes(n.id)
+                !n.read
+                && (n.type === 'REQUEST_FULFILLED' || n.type === 'REQUEST_DISMISSED')
+                && !seen.includes(n.id)
               );
               if (fresh.length === 0) return;
 
               fresh.forEach(n => {
-                enqueueSnackbar(
-                  `"${n.recordTitle}" is now available — your request was fulfilled.`,
-                  {
-                    variant: 'success',
-                    autoHideDuration: 6000,
-                    action: () => (
-                      <Button
-                        size="small"
-                        color="inherit"
-                        onClick={() => {
-                          const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
-                          const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
-                          const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
-                          const route = (isSeries
-                            ? Constants.DB_SERIES_DETIALS_ROUTE
-                            : Constants.DB_MOVIE_DETIALS_ROUTE
-                          ).replace(':title', param);
-                          navigate(route);
-                        }}
-                      >
-                        View
-                      </Button>
-                    ),
-                  }
-                );
+                const isFulfilled = n.type === 'REQUEST_FULFILLED';
+                const message = isFulfilled
+                  ? `"${n.recordTitle}" is now available — your request was fulfilled.`
+                  : (n.message
+                      ? `Your request for "${n.recordTitle}" was dismissed: ${n.message}`
+                      : `Your request for "${n.recordTitle}" was dismissed by an admin.`);
+                enqueueSnackbar(message, {
+                  variant: isFulfilled ? 'success' : 'warning',
+                  autoHideDuration: isFulfilled ? 6000 : 8000,
+                  action: () => (
+                    <Button
+                      size="small"
+                      color="inherit"
+                      onClick={() => {
+                        const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
+                        const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
+                        const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
+                        const route = (isSeries
+                          ? Constants.DB_SERIES_DETIALS_ROUTE
+                          : Constants.DB_MOVIE_DETIALS_ROUTE
+                        ).replace(':title', param);
+                        navigate(route);
+                      }}
+                    >
+                      View
+                    </Button>
+                  ),
+                });
               });
 
               try {

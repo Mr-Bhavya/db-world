@@ -89,6 +89,39 @@ public class UserNotificationServiceImpl implements UserNotificationService {
     }
 
     @Override
+    @Transactional
+    public void createRequestDismissedNotifications(
+            Long actorUserId,
+            String actorUsername,
+            Long recordId,
+            String recordTitle,
+            String recordType,
+            String reason,
+            Collection<Long> recipientUserIds
+    ) {
+        if (recipientUserIds == null || recipientUserIds.isEmpty()) return;
+        String trimmedReason = (reason == null || reason.isBlank()) ? null : reason.trim();
+
+        List<UserNotificationEntity> notifications = recipientUserIds.stream()
+                .distinct()
+                .map(recipientId -> UserNotificationEntity.builder()
+                        .recipientUserId(recipientId)
+                        .actorUserId(actorUserId)
+                        .actorUsername(actorUsername)
+                        .recordId(recordId)
+                        .recordTitle(recordTitle)
+                        .recordType(recordType)
+                        .type("REQUEST_DISMISSED")
+                        .message(trimmedReason)
+                        .read(false)
+                        .build())
+                .toList();
+
+        notifRepo.saveAll(notifications);
+        log.info("Created {} dismissal notifications for record {} by admin {}", notifications.size(), recordId, actorUserId);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<UserNotificationDto> getForUser(Long userId, int limit) {
         return notifRepo.findByRecipientUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, limit))
@@ -117,6 +150,7 @@ public class UserNotificationServiceImpl implements UserNotificationService {
                 .recordTitle(e.getRecordTitle())
                 .recordType(e.getRecordType())
                 .type(e.getType() != null ? e.getType() : "REVIEW")
+                .message(e.getMessage())
                 .read(e.isRead())
                 .createdAt(e.getCreatedAt())
                 .build();

@@ -34,11 +34,23 @@ public class AdminMediaRequestController {
         );
     }
 
-    /** POST /api/cinema/admin/media-requests/{id}/dismiss — mark dismissed without notifying. */
+    /**
+     * POST /api/cinema/admin/media-requests/{id}/dismiss
+     * — mark dismissed and notify voters. Body: {@code { "reason": "..." }} optional.
+     */
     @PostMapping("/{id}/dismiss")
-    public ApiResponse<MediaRequestDto> dismiss(@PathVariable Long id) {
-        return ApiResponse.success(service.dismiss(id));
+    public ApiResponse<MediaRequestDto> dismiss(
+            @PathVariable Long id,
+            @RequestBody(required = false) DismissRequest body
+    ) {
+        String reason = body != null ? body.reason() : null;
+        return ApiResponse.success(
+                service.dismiss(id, reason, userContext.userId(), userContext.email())
+        );
     }
+
+    /** Minimal request body for the dismiss endpoint. */
+    public record DismissRequest(String reason) {}
 
     /** POST /api/cinema/admin/media-requests/{id}/reopen — undo fulfill/dismiss, voters preserved. */
     @PostMapping("/{id}/reopen")

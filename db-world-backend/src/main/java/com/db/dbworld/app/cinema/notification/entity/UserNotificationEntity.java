@@ -43,6 +43,14 @@ public class UserNotificationEntity {
     @Column(name = "notification_type", length = 30)
     private String type;
 
+    /**
+     * Optional free-text message attached to the notification. Used for things like an
+     * admin's dismiss reason ("Not available in higher quality") so the recipient sees
+     * context, not just a generic "request dismissed" line.
+     */
+    @Column(name = "message", length = 500)
+    private String message;
+
     @Builder.Default
     @Column(name = "is_read", nullable = false)
     private boolean read = false;

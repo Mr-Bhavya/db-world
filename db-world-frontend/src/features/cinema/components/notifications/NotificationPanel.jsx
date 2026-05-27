@@ -4,7 +4,7 @@ import {
   Popover, Drawer, List, ListItemButton,
   alpha, useTheme, useMediaQuery,
 } from '@mui/material';
-import { Close, RateReview, NotificationsNone, NotificationsActive } from '@mui/icons-material';
+import { Close, RateReview, NotificationsNone, NotificationsActive, Block } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, markNotificationsRead } from '../../api/cinemaApi';
 import Constants from '@shared/constants';
@@ -30,7 +30,14 @@ function getRecordRoute(recordType, recordTitle, recordId) {
 const NotificationItem = ({ notif, onNavigate }) => {
   const theme = useTheme();
   const isFulfilled = notif.type === 'REQUEST_FULFILLED';
-  const accent = isFulfilled ? theme.palette.success.main : theme.palette.primary.main;
+  const isDismissed = notif.type === 'REQUEST_DISMISSED';
+  const accent = isFulfilled
+    ? theme.palette.success.main
+    : isDismissed
+      ? theme.palette.warning.main
+      : theme.palette.primary.main;
+  const Icon = isFulfilled ? NotificationsActive : isDismissed ? Block : RateReview;
+
   return (
     <ListItemButton
       onClick={() => onNavigate(notif)}
@@ -47,19 +54,24 @@ const NotificationItem = ({ notif, onNavigate }) => {
         bgcolor: alpha(accent, 0.15),
         display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.25,
       }}>
-        {isFulfilled
-          ? <NotificationsActive sx={{ fontSize: 15, color: accent }} />
-          : <RateReview sx={{ fontSize: 15, color: accent }} />
-        }
+        <Icon sx={{ fontSize: 15, color: accent }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: '0.83rem', lineHeight: 1.45, fontWeight: notif.read ? 400 : 600 }}>
-          {isFulfilled ? (
+          {isFulfilled && (
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
               {' is now available — your request was fulfilled.'}
             </>
-          ) : (
+          )}
+          {isDismissed && (
+            <>
+              {'Your request for '}
+              <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
+              {' was dismissed by an admin.'}
+            </>
+          )}
+          {!isFulfilled && !isDismissed && (
             <>
               <Box component="span" sx={{ color: accent, fontWeight: 700 }}>
                 {notif.actorUsername}
@@ -71,6 +83,11 @@ const NotificationItem = ({ notif, onNavigate }) => {
             </>
           )}
         </Typography>
+        {isDismissed && notif.message && (
+          <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', mt: 0.4, fontStyle: 'italic' }}>
+            “{notif.message}”
+          </Typography>
+        )}
         <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled', mt: 0.3 }}>
           {relativeTime(notif.createdAt)}
         </Typography>

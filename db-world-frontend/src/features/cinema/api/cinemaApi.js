@@ -182,9 +182,11 @@ export const fetchAdminMediaRequests = (status) =>
 export const fulfillMediaRequest = (id) =>
   axiosInstance.post(`${BASE}/admin/media-requests/${id}/fulfill`).then(unwrap);
 
-/** POST /api/cinema/admin/media-requests/{id}/dismiss */
-export const dismissMediaRequest = (id) =>
-  axiosInstance.post(`${BASE}/admin/media-requests/${id}/dismiss`).then(unwrap);
+/** POST /api/cinema/admin/media-requests/{id}/dismiss — body: { reason?: string } */
+export const dismissMediaRequest = (id, reason) =>
+  axiosInstance
+    .post(`${BASE}/admin/media-requests/${id}/dismiss`, { reason: reason ?? null })
+    .then(unwrap);
 
 /** POST /api/cinema/admin/media-requests/{id}/reopen — undo fulfill/dismiss. */
 export const reopenMediaRequest = (id) =>

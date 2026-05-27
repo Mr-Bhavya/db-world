@@ -61,6 +61,10 @@ public class MediaRequestEntity implements Serializable {
     @Column(name = "fulfilled_by_username", length = 150)
     private String fulfilledByUsername;
 
+    /** Optional reason captured when an admin dismisses the request; mirrored into voter notifications. */
+    @Column(name = "dismiss_reason", length = 500)
+    private String dismissReason;
+
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "media_request_voters",
