@@ -150,3 +150,35 @@ export const fetchUnreadCount = () =>
 /** PUT /api/notifications/mark-read */
 export const markNotificationsRead = () =>
   axiosInstance.put('/api/notifications/mark-read').then(unwrap);
+
+// ─── Media Requests ───────────────────────────────────────────────────────────
+
+/** POST /api/cinema/media-requests/{recordId}/vote → { recordId, voteCount, hasMyVote } */
+export const toggleMediaRequestVote = (recordId) =>
+  axiosInstance.post(`${BASE}/media-requests/${recordId}/vote`).then(unwrap);
+
+/** GET /api/cinema/media-requests/mine → Long[] (recordIds the caller voted for) */
+export const fetchMyMediaRequests = () =>
+  axiosInstance.get(`${BASE}/media-requests/mine`).then(unwrap);
+
+// ─── Persons ──────────────────────────────────────────────────────────────────
+
+/** GET /api/cinema/persons/{id} → PersonDetailDto (bio + filmography) */
+export const fetchPersonDetail = (id) =>
+  axiosInstance.get(`${BASE}/persons/${id}`).then(unwrap);
+
+// ─── Admin: Media Requests ────────────────────────────────────────────────────
+
+/** GET /api/cinema/admin/media-requests?status=PENDING → MediaRequestDto[] */
+export const fetchAdminMediaRequests = (status) =>
+  axiosInstance
+    .get(`${BASE}/admin/media-requests`, { params: status ? { status } : {} })
+    .then(unwrap);
+
+/** POST /api/cinema/admin/media-requests/{id}/fulfill */
+export const fulfillMediaRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/media-requests/${id}/fulfill`).then(unwrap);
+
+/** POST /api/cinema/admin/media-requests/{id}/dismiss */
+export const dismissMediaRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/media-requests/${id}/dismiss`).then(unwrap);

@@ -36,6 +36,13 @@ public class UserNotificationEntity {
     @Column(name = "record_type", nullable = false, length = 30)
     private String recordType;
 
+    /**
+     * Notification kind. Nullable for backward-compat with rows created before this column existed
+     * — treat null as {@code REVIEW} on read.
+     */
+    @Column(name = "notification_type", length = 30)
+    private String type;
+
     @Builder.Default
     @Column(name = "is_read", nullable = false)
     private boolean read = false;

@@ -4,7 +4,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { alpha } from '@mui/material/styles';
 import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
-import { fetchPageCategories, fetchUnreadCount } from '../api/cinemaApi';
+import { fetchPageCategories, fetchUnreadCount, fetchNotifications } from '../api/cinemaApi';
+import { useSnackbar } from 'notistack';
 import DB_WORLD_TEAL_SVG from '@assets/images/db-circle-icon.webp';
 
 import {
@@ -233,11 +234,68 @@ function Navbar({ coverColor, onGenreSelect }) {
       .catch(() => setCategoryList([]));
   }, []);
 
-  // Load unread notification count once on mount
+  // Load unread notification count once on mount.
+  // Also surface a one-shot snackbar for REQUEST_FULFILLED notifications — admins
+  // mark a media request fulfilled on the admin side and the user sees a toast
+  // the next time they load the app. sessionStorage dedupes so the same toast
+  // does not fire on every navbar remount within a session.
+  const { enqueueSnackbar } = useSnackbar();
   useEffect(() => {
     fetchUnreadCount()
-      .then(count => setUnreadCount(Number(count) || 0))
+      .then(count => {
+        const c = Number(count) || 0;
+        setUnreadCount(c);
+        if (c > 0) {
+          fetchNotifications(30)
+            .then(list => {
+              if (!Array.isArray(list)) return;
+              let seen = [];
+              try {
+                seen = JSON.parse(sessionStorage.getItem('dbw.fulfilledSeen') || '[]');
+              } catch { seen = []; }
+              const fresh = list.filter(n =>
+                !n.read && n.type === 'REQUEST_FULFILLED' && !seen.includes(n.id)
+              );
+              if (fresh.length === 0) return;
+
+              fresh.forEach(n => {
+                enqueueSnackbar(
+                  `"${n.recordTitle}" is now available — your request was fulfilled.`,
+                  {
+                    variant: 'success',
+                    autoHideDuration: 6000,
+                    action: () => (
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => {
+                          const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
+                          const route = (isSeries
+                            ? Constants.DB_SERIES_DETIALS_ROUTE
+                            : Constants.DB_MOVIE_DETIALS_ROUTE
+                          ).replace(':title', encodeURIComponent(n.recordTitle));
+                          navigate(route);
+                        }}
+                      >
+                        View
+                      </Button>
+                    ),
+                  }
+                );
+              });
+
+              try {
+                sessionStorage.setItem(
+                  'dbw.fulfilledSeen',
+                  JSON.stringify([...seen, ...fresh.map(n => n.id)])
+                );
+              } catch { /* storage full or disabled */ }
+            })
+            .catch(() => {});
+        }
+      })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────

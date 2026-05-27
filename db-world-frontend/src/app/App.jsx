@@ -53,6 +53,7 @@ import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 const LazyAdminDashboard       = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
 const LazyActivityCenter       = lazy(() => import('@features/admin/activity-center'));
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/mediafiles'));
+const LazyMediaRequestsAdmin   = lazy(() => import('@features/admin/media-requests'));
 const LazyTmdbSyncManager      = lazy(() => import('@features/admin/tmdb-sync'));
 const LazyIngestionPage        = lazy(() => import('@features/admin/ingestion'));
 const LazyServerInfo           = lazy(() => import('@features/admin/system-info'));
@@ -323,6 +324,7 @@ const ThemedApp = () => {
                     <Route path="analytics"      element={<Navigate to="../activity-center" replace />} />
                     <Route path="records"       element={<LazyRecordManagement />} />
                     <Route path="media-files"   element={<LazyMediaFilesManagement />} />
+                    <Route path="media-requests" element={<LazyMediaRequestsAdmin />} />
                     <Route path="tag-management" element={<LazyTagManagement />} />
                     <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
                     <Route path="ingestion"     element={<LazyIngestionPage />} />

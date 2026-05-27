@@ -5,11 +5,12 @@ import { motion } from 'framer-motion';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
+import PersonDetailModal from '../PersonDetailModal';
 
 const CREW_VISIBLE_DEFAULT = 8;
 
 // ─── Per-department card (with show more / show less) ────────────────────────
-function CrewDept({ dept, members }) {
+function CrewDept({ dept, members, onPersonClick }) {
   const T = useT();
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? members : members.slice(0, CREW_VISIBLE_DEFAULT);
@@ -18,9 +19,6 @@ function CrewDept({ dept, members }) {
   return (
     <Box
       sx={{
-        // Each dept is its own self-contained card so a long list in one dept
-        // can't drag a neighbouring dept's height. alignSelf:start keeps each
-        // card glued to the top of its grid track.
         alignSelf: 'start',
         bgcolor: T.glass,
         border: `1px solid ${alpha(T.text, 0.06)}`,
@@ -39,24 +37,37 @@ function CrewDept({ dept, members }) {
         </Typography>
       </Box>
 
-      {visible.map((m, i) => (
-        <Box key={m.creditId ?? i} sx={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-          gap: 1.5, py: 0.55,
-          borderBottom: `1px solid ${alpha(T.text, 0.05)}`,
-          '&:last-of-type': { borderBottom: 'none' },
-        }}>
-          <Typography variant="body2" sx={{ color: T.textMuted, fontSize: '0.85rem' }}>
-            {m.person?.name}
-          </Typography>
-          <Typography variant="body2" sx={{
-            color: T.textFaint, fontSize: '0.78rem', textAlign: 'right',
-            flexShrink: 0, maxWidth: '55%',
-          }}>
-            {m.job}
-          </Typography>
-        </Box>
-      ))}
+      {visible.map((m, i) => {
+        const personId = m.person?.id;
+        const clickable = Boolean(personId);
+        return (
+          <Box
+            key={m.creditId ?? i}
+            onClick={clickable ? () => onPersonClick(personId) : undefined}
+            sx={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+              gap: 1.5, py: 0.55,
+              borderBottom: `1px solid ${alpha(T.text, 0.05)}`,
+              '&:last-of-type': { borderBottom: 'none' },
+              cursor: clickable ? 'pointer' : 'default',
+              transition: 'background-color .12s',
+              borderRadius: 0.75,
+              mx: -0.5, px: 0.5,
+              '&:hover': clickable ? { bgcolor: alpha(T.teal, 0.08) } : undefined,
+            }}
+          >
+            <Typography variant="body2" sx={{ color: T.textMuted, fontSize: '0.85rem' }}>
+              {m.person?.name}
+            </Typography>
+            <Typography variant="body2" sx={{
+              color: T.textFaint, fontSize: '0.78rem', textAlign: 'right',
+              flexShrink: 0, maxWidth: '55%',
+            }}>
+              {m.job}
+            </Typography>
+          </Box>
+        );
+      })}
 
       {overflow > 0 && (
         <Button
@@ -74,6 +85,7 @@ function CrewDept({ dept, members }) {
 // ─── CastCrewSection ─────────────────────────────────────────────────────────
 export default function CastCrewSection({ record }) {
   const T = useT();
+  const [openPersonId, setOpenPersonId] = useState(null);
   const tmdb = record?.tmdb ?? {};
   const credits = tmdb.credits ?? [];
 
@@ -88,9 +100,6 @@ export default function CastCrewSection({ record }) {
     return acc;
   }, {});
 
-  // Sort departments by size (most members first) — Directing/Writing tend to
-  // be small and important, but a huge "Crew" or "Production" dept usually
-  // drowns the page; size-first ordering keeps the layout balanced.
   const sortedDepts = Object.entries(crewByDept)
     .sort((a, b) => b[1].length - a[1].length);
 
@@ -115,13 +124,20 @@ export default function CastCrewSection({ record }) {
             {cast.map((c, i) => {
               const imgUrl = tmdbImg(c.person?.profilePath, 'w185');
               const initials = (c.person?.name ?? '?').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+              const personId = c.person?.id;
+              const clickable = Boolean(personId);
               return (
                 <Box
                   key={c.creditId ?? i}
                   component={motion.div}
-                  whileHover={{ y: -3 }}
+                  whileHover={clickable ? { y: -3 } : undefined}
                   transition={{ duration: 0.15 }}
-                  sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 92, gap: 0.75, cursor: 'default' }}
+                  onClick={clickable ? () => setOpenPersonId(personId) : undefined}
+                  sx={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    flexShrink: 0, width: 92, gap: 0.75,
+                    cursor: clickable ? 'pointer' : 'default',
+                  }}
                 >
                   <Box sx={{ position: 'relative' }}>
                     <Avatar
@@ -132,7 +148,7 @@ export default function CastCrewSection({ record }) {
                         bgcolor: alpha(T.teal, 0.3), fontSize: '1rem', fontWeight: 700,
                         border: `2px solid ${alpha(T.text, 0.1)}`,
                         transition: 'border-color .15s, box-shadow .15s',
-                        '&:hover': { borderColor: alpha(T.teal, 0.6), boxShadow: `0 0 0 4px ${alpha(T.teal, 0.15)}` },
+                        '&:hover': clickable ? { borderColor: alpha(T.teal, 0.6), boxShadow: `0 0 0 4px ${alpha(T.teal, 0.15)}` } : undefined,
                       }}
                     >
                       {!imgUrl && initials}
@@ -154,9 +170,6 @@ export default function CastCrewSection({ record }) {
       {sortedDepts.length > 0 && (
         <>
           <SectionHeading>Crew</SectionHeading>
-          {/* Auto-fill grid: columns size themselves to content; rows pack
-              independently. alignSelf:start on the cards prevents a single
-              tall dept from stretching all its row neighbours. */}
           <Box sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(280px, 1fr))' },
@@ -164,7 +177,7 @@ export default function CastCrewSection({ record }) {
             alignItems: 'start',
           }}>
             {sortedDepts.map(([dept, members]) => (
-              <CrewDept key={dept} dept={dept} members={members} />
+              <CrewDept key={dept} dept={dept} members={members} onPersonClick={setOpenPersonId} />
             ))}
           </Box>
         </>
@@ -173,6 +186,8 @@ export default function CastCrewSection({ record }) {
       {cast.length === 0 && sortedDepts.length === 0 && (
         <Typography variant="body2" sx={{ color: T.textFaint }}>No cast or crew information available.</Typography>
       )}
+
+      <PersonDetailModal personId={openPersonId} onClose={() => setOpenPersonId(null)} />
     </Box>
   );
 }

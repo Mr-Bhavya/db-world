@@ -12,6 +12,7 @@ public class UserNotificationDto {
     private Long    recordId;
     private String  recordTitle;
     private String  recordType;
+    private String  type;
     private boolean read;
     private Instant createdAt;
 }

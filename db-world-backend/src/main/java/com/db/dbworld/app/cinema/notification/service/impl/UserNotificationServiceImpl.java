@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Collection;
 import java.util.List;
 
 @Slf4j
@@ -48,12 +49,43 @@ public class UserNotificationServiceImpl implements UserNotificationService {
                         .recordId(recordId)
                         .recordTitle(title)
                         .recordType(recordType)
+                        .type("REVIEW")
                         .read(false)
                         .build())
                 .toList();
 
         notifRepo.saveAll(notifications);
         log.info("Created {} review notifications for record {} by user {}", notifications.size(), recordId, actorUserId);
+    }
+
+    @Override
+    @Transactional
+    public void createRequestFulfilledNotifications(
+            Long actorUserId,
+            String actorUsername,
+            Long recordId,
+            String recordTitle,
+            String recordType,
+            Collection<Long> recipientUserIds
+    ) {
+        if (recipientUserIds == null || recipientUserIds.isEmpty()) return;
+
+        List<UserNotificationEntity> notifications = recipientUserIds.stream()
+                .distinct()
+                .map(recipientId -> UserNotificationEntity.builder()
+                        .recipientUserId(recipientId)
+                        .actorUserId(actorUserId)
+                        .actorUsername(actorUsername)
+                        .recordId(recordId)
+                        .recordTitle(recordTitle)
+                        .recordType(recordType)
+                        .type("REQUEST_FULFILLED")
+                        .read(false)
+                        .build())
+                .toList();
+
+        notifRepo.saveAll(notifications);
+        log.info("Created {} fulfillment notifications for record {} by admin {}", notifications.size(), recordId, actorUserId);
     }
 
     @Override
@@ -84,6 +116,7 @@ public class UserNotificationServiceImpl implements UserNotificationService {
                 .recordId(e.getRecordId())
                 .recordTitle(e.getRecordTitle())
                 .recordType(e.getRecordType())
+                .type(e.getType() != null ? e.getType() : "REVIEW")
                 .read(e.isRead())
                 .createdAt(e.getCreatedAt())
                 .build();

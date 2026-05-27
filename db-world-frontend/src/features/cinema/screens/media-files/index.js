@@ -5,7 +5,8 @@ import {
 } from '@mui/material';
 import {
   PlayArrow, Download, ContentCopy, Check, Audiotrack,
-  ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, InfoOutlined, SubtitlesOutlined
+  ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, InfoOutlined, SubtitlesOutlined,
+  NotificationsActive, NotificationsActiveOutlined
 } from '@mui/icons-material';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,7 +20,7 @@ import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { QUALITY_ORDER, QUALITY_META } from '../../media/constants';
-import { tmdbImg } from '../../api/cinemaApi';
+import { tmdbImg, toggleMediaRequestVote, fetchMyMediaRequests } from '../../api/cinemaApi';
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 
@@ -774,14 +775,84 @@ const LoadingState = () => (
 );
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
+// Compact one-line notice with a Request CTA. Users can vote to request the title;
+// admins see aggregated requests in the admin dashboard and notify voters when fulfilled.
 
-const EmptyState = () => (
-  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 14, gap: 2, color: 'text.disabled' }}>
-    <VideoSettings sx={{ fontSize: 52, opacity: 0.25 }} />
-    <Typography variant="body1" sx={{ fontWeight: 600, opacity: 0.5 }}>No media files available</Typography>
-    <Typography variant="body2" sx={{ opacity: 0.4 }}>Files will appear here once media is added to the server</Typography>
-  </Box>
-);
+const EmptyState = ({ recordId }) => {
+  const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
+  const [requested, setRequested] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!recordId) return;
+    let alive = true;
+    fetchMyMediaRequests()
+      .then(ids => { if (alive) setRequested(Array.isArray(ids) && ids.includes(Number(recordId))); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [recordId]);
+
+  const handleRequest = useCallback(async () => {
+    if (!recordId || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await toggleMediaRequestVote(recordId);
+      setRequested(!!res?.hasMyVote);
+      enqueueSnackbar(
+        res?.hasMyVote
+          ? 'Request sent — we\'ll notify you when files are added.'
+          : 'Request withdrawn.',
+        { variant: res?.hasMyVote ? 'success' : 'info' }
+      );
+    } catch {
+      enqueueSnackbar('Could not save request. Please try again.', { variant: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [recordId, submitting, enqueueSnackbar]);
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        px: 2,
+        py: 1.5,
+        borderRadius: 2,
+        bgcolor: alpha(theme.palette.text.primary, 0.04),
+        border: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+      }}
+    >
+      <VideoSettings sx={{ fontSize: 22, color: 'text.secondary', flexShrink: 0 }} />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+          No media files yet
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          {requested
+            ? 'You\'ll be notified when files are added.'
+            : 'Request and we\'ll notify you when it\'s available.'}
+        </Typography>
+      </Box>
+      {recordId && (
+        <Button
+          size="small"
+          variant={requested ? 'outlined' : 'contained'}
+          color="primary"
+          disableElevation
+          disabled={submitting}
+          startIcon={requested ? <NotificationsActive sx={{ fontSize: 16 }} /> : <NotificationsActiveOutlined sx={{ fontSize: 16 }} />}
+          onClick={handleRequest}
+          sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
+        >
+          {requested ? 'Requested' : 'Request'}
+        </Button>
+      )}
+    </Box>
+  );
+};
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
@@ -841,7 +912,7 @@ const MediaFilesPage = (props) => {
       {loading ? (
         <LoadingState />
       ) : mediaFileList.length === 0 ? (
-        <EmptyState />
+        <EmptyState recordId={resolvedRecordId} />
       ) : isSeries ? (
         <SeriesView files={mediaFileList} record={record} />
       ) : (
