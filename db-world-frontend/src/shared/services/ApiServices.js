@@ -1,6 +1,7 @@
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { handleApiError } from '@shared/components/ui/utils/errorHandler';
-const REACT_APP_BASEURL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
+const REACT_APP_BASEURL = getApiBaseUrl();
 
 /**
  * Register a new user.
