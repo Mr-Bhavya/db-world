@@ -1,9 +1,17 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Box, Dialog, IconButton, useMediaQuery } from '@mui/material';
+import { Box, Dialog, IconButton, Slide, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
 import RecordDetailContent from './RecordDetailContent';
+
+// Slide-up transition for the modal entrance — feels like the detail panel
+// is rising into view from below, closer to the Netflix detail pop than
+// MUI's default fade. timeout is intentionally a touch longer (300ms in)
+// so the motion reads as deliberate, not snappy.
+const Transition = React.forwardRef(function ModalTransition(props, ref) {
+  return <Slide direction="up" ref={ref} timeout={{ enter: 300, exit: 220 }} {...props} />;
+});
 
 /**
  * Netflix-style modal overlay rendered when a card click on /cinema (or any
@@ -54,6 +62,7 @@ export default function RecordDetailModal() {
       fullScreen={fullScreen}
       maxWidth={false}
       scroll="paper"
+      TransitionComponent={Transition}
       PaperProps={{
         ref: setScrollerRef,
         sx: {

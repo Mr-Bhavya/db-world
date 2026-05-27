@@ -51,6 +51,12 @@ export const fetchRailPage = (railId, page = 0, size = 20, category) =>
 export const fetchRecord = (id) =>
   axiosInstance.get(`${BASE}/catalog/${id}`).then(unwrap);
 
+/** GET /api/cinema/catalog/{id}/similar?limit=  → List<SearchRecordDto>
+ *  Lightweight "More Like This" — records sharing the primary genre,
+ *  excluding the source record. */
+export const fetchSimilarRecords = (id, limit = 12) =>
+  axiosInstance.get(`${BASE}/catalog/${id}/similar`, { params: { limit } }).then(unwrap);
+
 /** GET /api/cinema/catalog/search?q=&page=&size=  → Page<RecordDto> */
 export const searchRecords = (q, page = 0, size = 20) =>
   axiosInstance

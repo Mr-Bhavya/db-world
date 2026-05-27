@@ -2,6 +2,7 @@ package com.db.dbworld.app.cinema.catalog.service.impl;
 
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.dto.SearchRecordDto;
 import com.db.dbworld.app.cinema.catalog.dto.request.AddTagRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
@@ -14,6 +15,7 @@ import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
 import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
@@ -35,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -147,6 +150,66 @@ public class CatalogServiceImpl implements CatalogService {
         }
 
         return recordMapper.toDto(record);
+    }
+
+    /**
+     * "More Like This" — returns lightweight records sharing the primary
+     * genre of {@code recordId}, excluding the source record. Order matches
+     * {@code RecordRepository.findIdsByGenre}'s natural ordering (popularity).
+     *
+     * <p>Cost: ~4 queries total (record by id, genres, ids-by-genre, rail
+     * projection). Returns at most {@code limit} entries.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<SearchRecordDto> getSimilar(Long recordId, int limit) {
+        if (limit <= 0) return List.of();
+
+        RecordEntity record = getRecordOrThrow(recordId);
+        if (record.getTmdb() == null) return List.of();
+
+        // findByIdWithTmdb doesn't fetch genres — load them in the same session.
+        Long tmdbId = record.getTmdb().getId();
+        tmdbRepository.findWithGenres(tmdbId);
+
+        var genres = record.getTmdb().getGenres();
+        if (genres == null || genres.isEmpty()) return List.of();
+
+        Long primaryGenreId = genres.get(0).getId();
+
+        // Fetch limit+1 so excluding the source record still leaves us at
+        // most `limit` results.
+        Pageable pageable = PageRequest.of(0, limit + 1);
+        List<Long> ids = recordRepository.findIdsByGenre(primaryGenreId, pageable)
+                .getContent()
+                .stream()
+                .filter(id -> !id.equals(recordId))
+                .limit(limit)
+                .toList();
+
+        if (ids.isEmpty()) return List.of();
+
+        // findRailRecordProjection uses IN :ids — MySQL doesn't guarantee
+        // result order matches input order, so re-sort by the original ids
+        // to keep popularity ordering intact.
+        List<RailRecordProjection> projections = recordRepository.findRailRecordProjection(ids);
+        Map<Long, RailRecordProjection> byId = projections.stream()
+                .collect(Collectors.toMap(RailRecordProjection::getId, p -> p, (a, b) -> a));
+
+        return ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(p -> SearchRecordDto.builder()
+                        .id(p.getId())
+                        .title(p.getTitle())
+                        .type(p.getType())
+                        .tmdbId(p.getTmdbId())
+                        .posterPath(p.getPosterPath())
+                        .voteAverage(p.getVoteAverage() != null ? p.getVoteAverage() : 0.0)
+                        .releaseDate(p.getReleaseDate())
+                        .overview(p.getOverview())
+                        .build())
+                .toList();
     }
 
     @Override

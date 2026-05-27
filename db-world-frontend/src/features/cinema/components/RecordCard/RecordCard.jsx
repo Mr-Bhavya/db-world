@@ -461,7 +461,9 @@ const RecordCard = ({
   // ── dimensions ────────────────────────────────────────────────────────────
   // Prime rail uses a FIXED height — only width changes on hover (true horizontal expand).
   // Wide rail uses 16:9 aspect ratio.  Top 10 jumbo + Poster rails use 2:3.
-  const PRIME_HEIGHT = { xs: 140, sm: 180, md: 280 };
+  // Desktop prime height bumped to make it jumbo so it stands out as the
+  // featured row in the page (was 280, now 380).
+  const PRIME_HEIGHT = { xs: 140, sm: 180, md: 380 };
 
   const cardWidth = expandOnHover
     ? {
@@ -469,7 +471,7 @@ const RecordCard = ({
         xs: `calc(140px * ${16/9})`,
         sm: `calc(180px * ${16/9})`,
         // Desktop: portrait when idle, landscape when hovered (true horizontal expand).
-        md: isExpanded ? `calc(280px * ${16/9})` : `calc(280px * ${9/16})`,
+        md: isExpanded ? `calc(380px * ${16/9})` : `calc(380px * ${9/16})`,
       }
     : isTopTen
       ? { xs: 130, sm: 170, md: 210 }
@@ -484,9 +486,16 @@ const RecordCard = ({
       : '2 / 3';
 
   // ── motion ────────────────────────────────────────────────────────────────
+  // Prime cards lift slightly on hover in addition to the width expand, so
+  // the transition feels like the card is rising toward the viewer (not just
+  // stretching). Non-prime cards keep the simple scale-on-hover behaviour.
   const motionAnimate = expandOnHover
-    ? { zIndex: hovered ? 10 : 1 }
+    ? { zIndex: hovered ? 10 : 1, y: hovered ? -6 : 0 }
     : hovered ? { scale: 1.05, zIndex: 10 } : { scale: 1, zIndex: 1 };
+
+  const motionTransition = expandOnHover
+    ? { type: 'spring', stiffness: 280, damping: 28, mass: 0.7 }
+    : { duration: 0.2, ease: 'easeOut' };
 
   return (
     <motion.div
@@ -495,7 +504,7 @@ const RecordCard = ({
       onMouseLeave={onMouseLeave}
       onClick={isMobile ? goDetail : undefined}
       animate={motionAnimate}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      transition={motionTransition}
       style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'flex-end' }}
     >
       {/* ── Top 10 jumbo rank ── Netflix-style stroked numeral that sits
@@ -539,8 +548,13 @@ const RecordCard = ({
           overflow: 'hidden',
           bgcolor: 'rgba(255,255,255,.06)',
           position: 'relative',
-          boxShadow: hovered ? '0 16px 48px rgba(0,0,0,.75)' : '0 2px 8px rgba(0,0,0,.3)',
-          transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1), transform 0.2s',
+          boxShadow: hovered
+            ? (expandOnHover ? '0 24px 64px rgba(0,0,0,0.8), 0 0 0 1px rgba(13,148,136,0.35)' : '0 16px 48px rgba(0,0,0,.75)')
+            : '0 2px 8px rgba(0,0,0,.3)',
+          // Width animates with a smoother spring-like curve when the prime
+          // card expands. Box-shadow gets its own transition so the teal-tinted
+          // glow eases in alongside the width change.
+          transition: 'width 0.42s cubic-bezier(0.32,0.72,0,1), box-shadow 0.32s ease',
         }}
       >
         {/* Skeleton */}
@@ -574,8 +588,43 @@ const RecordCard = ({
           />
         )}
 
-        {/* Prime expand: info bar */}
-        {isExpanded && (
+        {/* Prime expand: info bar.
+            Mobile renders a simplified bar (title + rating + year only) — the
+            whole card is tappable to open the detail page where all the
+            interaction buttons live in the Hero. Desktop renders the full
+            netflix-style bar with the interaction row, but only when actually
+            hovered (not when the card just happens to be mounted at md). */}
+        {isExpanded && isMobile && (
+          <Box sx={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            background: 'linear-gradient(to top, rgba(0,0,0,.95) 0%, rgba(0,0,0,.45) 70%, transparent 100%)',
+            p: 1, pt: 2.5,
+          }}>
+            <Typography sx={{
+              color: '#fff', fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.2,
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            }}>
+              {record.title}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.75, mt: 0.4, alignItems: 'center' }}>
+              {record.voteAverage > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                  <Star sx={{ fontSize: 11, color: '#46d369' }} />
+                  <Typography sx={{ color: '#46d369', fontSize: '0.7rem', fontWeight: 700 }}>
+                    {Number(record.voteAverage).toFixed(1)}
+                  </Typography>
+                </Box>
+              )}
+              {year(record.releaseDate) && (
+                <Typography sx={{ color: 'rgba(255,255,255,.55)', fontSize: '0.7rem' }}>
+                  {year(record.releaseDate)}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        )}
+
+        {isExpanded && !isMobile && (
           <Box sx={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
             background: 'linear-gradient(to top, rgba(0,0,0,.97) 0%, rgba(0,0,0,.4) 75%, transparent 100%)',
@@ -604,7 +653,7 @@ const RecordCard = ({
                 {record.genres.slice(0, 3).join(' · ')}
               </Typography>
             )}
-            {/* Full interaction row for Prime expand */}
+            {/* Full interaction row — desktop only */}
             <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
               <Tooltip title="Play">
                 <IconButton size="small" onClick={goPlay}

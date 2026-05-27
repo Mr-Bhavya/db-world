@@ -59,7 +59,13 @@ export default function PillNav({ sections, scrollRoot = null, stickyOffset = 0 
     const el = document.getElementById(id);
     if (!el) return;
     if (scrollRoot) {
-      const top = el.offsetTop - stickyOffset - 12;
+      // el.offsetTop is relative to the section's offsetParent, which is NOT
+      // the Dialog Paper in modal mode — so the old math overshot or missed.
+      // Use getBoundingClientRect against the scrollRoot's own viewport rect
+      // to compute the true scroll target.
+      const elRect   = el.getBoundingClientRect();
+      const rootRect = scrollRoot.getBoundingClientRect();
+      const top = scrollRoot.scrollTop + (elRect.top - rootRect.top) - stickyOffset - 12;
       scrollRoot.scrollTo({ top, behavior: 'smooth' });
     } else {
       const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset - 12;

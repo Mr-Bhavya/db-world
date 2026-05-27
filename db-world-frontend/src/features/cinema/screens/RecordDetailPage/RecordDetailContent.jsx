@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Container, Skeleton,
+  Alert, Box, Button, Container, Skeleton, useMediaQuery,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -24,15 +24,17 @@ import GallerySection from './sections/GallerySection';
 import SeasonsSection from './sections/SeasonsSection';
 import ReviewsSection from './sections/ReviewsSection';
 import WatchSection from './sections/WatchSection';
+import RelatedSection from './sections/RelatedSection';
 import { getUserId } from './helpers';
 
 const SECTION_IDS = {
   overview: 'rd-overview',
+  watch:    'rd-watch',
+  seasons:  'rd-seasons',
   cast:     'rd-cast',
   gallery:  'rd-gallery',
-  seasons:  'rd-seasons',
   reviews:  'rd-reviews',
-  watch:    'rd-watch',
+  related:  'rd-related',
 };
 
 const actionMap = {
@@ -61,6 +63,8 @@ export default function RecordDetailContent({
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const T = useT();
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
 
   const [interactionState, setInteractionState] = useState(null);
   const [trailerVideo, setTrailerVideo] = useState(null);
@@ -167,7 +171,26 @@ export default function RecordDetailContent({
     { id: SECTION_IDS.cast,     label: 'Cast & Crew' },
     { id: SECTION_IDS.gallery,  label: 'Gallery' },
     { id: SECTION_IDS.reviews,  label: 'Reviews' },
+    { id: SECTION_IDS.related,  label: 'More Like This' },
   ], [isTv]);
+
+  // Shared scroll helper that handles both modal (custom scroll container)
+  // and page (window) modes. el.offsetTop is relative to the offsetParent,
+  // which is NOT the Dialog Paper in modal mode — use getBoundingClientRect
+  // against the scrollRoot's viewport to compute the true scroll target.
+  const scrollToSection = useCallback((sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (!el) return;
+    if (scrollRoot) {
+      const elRect   = el.getBoundingClientRect();
+      const rootRect = scrollRoot.getBoundingClientRect();
+      const top = scrollRoot.scrollTop + (elRect.top - rootRect.top) - stickyOffset - 12;
+      scrollRoot.scrollTo({ top, behavior: 'smooth' });
+    } else {
+      const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset - 12;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  }, [scrollRoot, stickyOffset]);
 
   // ── Deep-link to Watch when navigated via Play button ──────────────────
   const didAutoJump = useRef(false);
@@ -175,17 +198,9 @@ export default function RecordDetailContent({
     if (location.state?.defaultTab === 'Watch' && record && !didAutoJump.current) {
       didAutoJump.current = true;
       // Wait one tick so the section is mounted.
-      setTimeout(() => {
-        const el = document.getElementById(SECTION_IDS.watch);
-        if (!el) return;
-        if (scrollRoot) {
-          scrollRoot.scrollTo({ top: el.offsetTop - stickyOffset - 12, behavior: 'smooth' });
-        } else {
-          window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - stickyOffset - 12, behavior: 'smooth' });
-        }
-      }, 80);
+      setTimeout(() => scrollToSection(SECTION_IDS.watch), 80);
     }
-  }, [record, location.state, scrollRoot, stickyOffset]);
+  }, [record, location.state, scrollToSection]);
 
   // ── Loading / error states ─────────────────────────────────────────────
   if (recordLoading) {
@@ -229,15 +244,7 @@ export default function RecordDetailContent({
 
   const currentInteraction = interactionState ?? interaction;
 
-  const scrollToWatch = () => {
-    const el = document.getElementById(SECTION_IDS.watch);
-    if (!el) return;
-    if (scrollRoot) {
-      scrollRoot.scrollTo({ top: el.offsetTop - stickyOffset - 12, behavior: 'smooth' });
-    } else {
-      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - stickyOffset - 12, behavior: 'smooth' });
-    }
-  };
+  const scrollToWatch = () => scrollToSection(SECTION_IDS.watch);
 
   return (
     <Box ref={contentRef} sx={{ bgcolor: T.bg }}>
@@ -274,6 +281,9 @@ export default function RecordDetailContent({
         </Box>
         <Box id={SECTION_IDS.reviews} sx={{ scrollMarginTop: stickyOffset + 80 }}>
           <ReviewsSection record={record} recordId={id} />
+        </Box>
+        <Box id={SECTION_IDS.related} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+          <RelatedSection recordId={id} isMobile={isMobile} />
         </Box>
       </Container>
 
