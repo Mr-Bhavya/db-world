@@ -21,8 +21,15 @@ import {
 const MIN_QUERY_LEN = 2;
 const DEBOUNCE_MS   = 350;
 
+// TmdbSearchItemDto serialises poster_path / release_date / first_air_date via
+// @JsonProperty (matches TMDB's own field names). We tolerate the camelCase form
+// too so future DTO cleanups don't break this component.
+const posterFrom = (item) => item?.poster_path ?? item?.posterPath ?? null;
+
 const yearFrom = (item, mediaType) => {
-  const raw = mediaType === 'MOVIE' ? item.releaseDate : item.firstAirDate;
+  const raw = mediaType === 'MOVIE'
+    ? (item.release_date ?? item.releaseDate)
+    : (item.first_air_date ?? item.firstAirDate);
   if (!raw || raw.length < 4) return null;
   return raw.slice(0, 4);
 };
@@ -35,7 +42,7 @@ function ResultRow({ item, mediaType, requested, submitting, onToggle }) {
   const T = useT();
   const title = titleFrom(item, mediaType);
   const year = yearFrom(item, mediaType);
-  const poster = tmdbImg(item.posterPath, 'w185');
+  const poster = tmdbImg(posterFrom(item), 'w185');
 
   return (
     <Box sx={{
@@ -147,7 +154,7 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
         tmdbId,
         mediaType,
         title: titleFrom(item, mediaType),
-        posterPath: item.posterPath ?? null,
+        posterPath: posterFrom(item),
         releaseYear: yearFrom(item, mediaType),
         note: null,
       });
