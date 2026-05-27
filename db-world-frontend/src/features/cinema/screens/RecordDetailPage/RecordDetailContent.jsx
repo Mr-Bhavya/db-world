@@ -157,14 +157,16 @@ export default function RecordDetailContent({
   }, [record, inModal]);
 
   // ── Compose section list (Seasons only for TV) ─────────────────────────
+  // Watch sits right after Overview — users come here primarily to watch, so
+  // surface the files near the top instead of burying them at the bottom.
   const isTv = record?.type === 'TV_SERIES';
   const sectionList = useMemo(() => [
     { id: SECTION_IDS.overview, label: 'Overview' },
+    { id: SECTION_IDS.watch,    label: 'Watch' },
+    ...(isTv ? [{ id: SECTION_IDS.seasons, label: 'Seasons' }] : []),
     { id: SECTION_IDS.cast,     label: 'Cast & Crew' },
     { id: SECTION_IDS.gallery,  label: 'Gallery' },
-    ...(isTv ? [{ id: SECTION_IDS.seasons, label: 'Seasons' }] : []),
     { id: SECTION_IDS.reviews,  label: 'Reviews' },
-    { id: SECTION_IDS.watch,    label: 'Watch' },
   ], [isTv]);
 
   // ── Deep-link to Watch when navigated via Play button ──────────────────
@@ -256,22 +258,22 @@ export default function RecordDetailContent({
         <Box id={SECTION_IDS.overview} sx={{ scrollMarginTop: stickyOffset + 80 }}>
           <OverviewSection record={record} />
         </Box>
-        <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <CastCrewSection record={record} />
-        </Box>
-        <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <GallerySection record={record} />
+        <Box id={SECTION_IDS.watch} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+          <WatchSection recordId={id} record={record} />
         </Box>
         {isTv && (
           <Box id={SECTION_IDS.seasons} sx={{ scrollMarginTop: stickyOffset + 80 }}>
             <SeasonsSection record={record} />
           </Box>
         )}
+        <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+          <CastCrewSection record={record} />
+        </Box>
+        <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
+          <GallerySection record={record} />
+        </Box>
         <Box id={SECTION_IDS.reviews} sx={{ scrollMarginTop: stickyOffset + 80 }}>
           <ReviewsSection record={record} recordId={id} />
-        </Box>
-        <Box id={SECTION_IDS.watch} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <WatchSection recordId={id} record={record} />
         </Box>
       </Container>
 

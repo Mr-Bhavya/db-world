@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Box, Dialog, IconButton, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -36,20 +36,16 @@ export default function RecordDetailModal() {
 
   const handleClose = useCallback(() => {
     setOpen(false);
-    // Wait for exit animation, then navigate back to the underlying page.
+    // Wait for the Dialog's exit transition (MUI default ~225ms) before
+    // navigating. MUI manages body scroll lock and padding internally — we
+    // intentionally do NOT also lock body.style.overflow ourselves; two
+    // mechanisms competing was causing scroll to stay locked after close.
     setTimeout(() => {
       const background = location.state?.background;
       if (background) navigate(background.pathname + (background.search ?? ''), { replace: true });
       else navigate(-1);
-    }, 180);
+    }, 230);
   }, [navigate, location.state]);
-
-  // Lock background scroll while the modal is open.
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
 
   return (
     <Dialog

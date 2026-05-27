@@ -1,11 +1,77 @@
-import React from 'react';
-import { Avatar, Box, Typography } from '@mui/material';
+import React, { useState } from 'react';
+import { Avatar, Box, Button, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
 
+const CREW_VISIBLE_DEFAULT = 8;
+
+// ─── Per-department card (with show more / show less) ────────────────────────
+function CrewDept({ dept, members }) {
+  const T = useT();
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? members : members.slice(0, CREW_VISIBLE_DEFAULT);
+  const overflow = members.length - CREW_VISIBLE_DEFAULT;
+
+  return (
+    <Box
+      sx={{
+        // Each dept is its own self-contained card so a long list in one dept
+        // can't drag a neighbouring dept's height. alignSelf:start keeps each
+        // card glued to the top of its grid track.
+        alignSelf: 'start',
+        bgcolor: T.glass,
+        border: `1px solid ${alpha(T.text, 0.06)}`,
+        borderRadius: 1.5,
+        p: { xs: 1.5, sm: 2 },
+        display: 'flex', flexDirection: 'column',
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+        <Typography variant="caption" sx={{ color: T.teal, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+          {dept}
+        </Typography>
+        <Box sx={{ flex: 1 }} />
+        <Typography variant="caption" sx={{ color: T.textFaint, fontVariantNumeric: 'tabular-nums' }}>
+          {members.length}
+        </Typography>
+      </Box>
+
+      {visible.map((m, i) => (
+        <Box key={m.creditId ?? i} sx={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+          gap: 1.5, py: 0.55,
+          borderBottom: `1px solid ${alpha(T.text, 0.05)}`,
+          '&:last-of-type': { borderBottom: 'none' },
+        }}>
+          <Typography variant="body2" sx={{ color: T.textMuted, fontSize: '0.85rem' }}>
+            {m.person?.name}
+          </Typography>
+          <Typography variant="body2" sx={{
+            color: T.textFaint, fontSize: '0.78rem', textAlign: 'right',
+            flexShrink: 0, maxWidth: '55%',
+          }}>
+            {m.job}
+          </Typography>
+        </Box>
+      ))}
+
+      {overflow > 0 && (
+        <Button
+          size="small"
+          onClick={() => setExpanded((v) => !v)}
+          sx={{ mt: 1, alignSelf: 'flex-start', color: T.teal, textTransform: 'none', fontSize: '0.78rem', p: 0, minWidth: 0 }}
+        >
+          {expanded ? 'Show less' : `Show ${overflow} more`}
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+// ─── CastCrewSection ─────────────────────────────────────────────────────────
 export default function CastCrewSection({ record }) {
   const T = useT();
   const tmdb = record?.tmdb ?? {};
@@ -21,6 +87,12 @@ export default function CastCrewSection({ record }) {
     acc[dept].push(c);
     return acc;
   }, {});
+
+  // Sort departments by size (most members first) — Directing/Writing tend to
+  // be small and important, but a huge "Crew" or "Production" dept usually
+  // drowns the page; size-first ordering keeps the layout balanced.
+  const sortedDepts = Object.entries(crewByDept)
+    .sort((a, b) => b[1].length - a[1].length);
 
   return (
     <Box
@@ -79,28 +151,26 @@ export default function CastCrewSection({ record }) {
         </>
       )}
 
-      {Object.keys(crewByDept).length > 0 && (
+      {sortedDepts.length > 0 && (
         <>
           <SectionHeading>Crew</SectionHeading>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
-            {Object.entries(crewByDept).map(([dept, members]) => (
-              <Box key={dept}>
-                <Typography variant="caption" sx={{ color: T.teal, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, display: 'block', mb: 1 }}>
-                  {dept}
-                </Typography>
-                {members.map((m, i) => (
-                  <Box key={m.creditId ?? i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: `1px solid ${alpha(T.text, 0.05)}` }}>
-                    <Typography variant="body2" sx={{ color: T.textMuted }}>{m.person?.name}</Typography>
-                    <Typography variant="body2" sx={{ color: T.textFaint, fontSize: '0.8rem' }}>{m.job}</Typography>
-                  </Box>
-                ))}
-              </Box>
+          {/* Auto-fill grid: columns size themselves to content; rows pack
+              independently. alignSelf:start on the cards prevents a single
+              tall dept from stretching all its row neighbours. */}
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(280px, 1fr))' },
+            gap: { xs: 1.5, sm: 2 },
+            alignItems: 'start',
+          }}>
+            {sortedDepts.map(([dept, members]) => (
+              <CrewDept key={dept} dept={dept} members={members} />
             ))}
           </Box>
         </>
       )}
 
-      {cast.length === 0 && Object.keys(crewByDept).length === 0 && (
+      {cast.length === 0 && sortedDepts.length === 0 && (
         <Typography variant="body2" sx={{ color: T.textFaint }}>No cast or crew information available.</Typography>
       )}
     </Box>

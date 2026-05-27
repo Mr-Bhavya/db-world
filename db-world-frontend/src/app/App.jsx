@@ -336,19 +336,27 @@ const ThemedApp = () => {
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
 
-              {/* Netflix-style modal overlay — only mounted when the user
-                  navigated to a detail route IN-APP (location.state.background
-                  is set). Cold loads, shared URLs, and refreshes render the
-                  full RecordDetailPage instead via the main Routes above. */}
-              {background && (
+            </Suspense>
+
+            {/* Netflix-style modal overlay — only mounted when the user
+                navigated to a detail route IN-APP (location.state.background
+                is set). Cold loads, shared URLs, and refreshes render the
+                full RecordDetailPage instead via the main Routes above.
+
+                NOTE: wrapped in its own Suspense with a `null` fallback so
+                that when the lazy modal chunk loads on first open, the
+                fallback does not replace the underlying cinema page (which
+                would lose scroll position and trigger a full re-fetch). */}
+            {background && (
+              <Suspense fallback={null}>
                 <Routes>
                   <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
                     <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={<LazyRecordDetailModal />} />
                     <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<LazyRecordDetailModal />} />
                   </Route>
                 </Routes>
-              )}
-            </Suspense>
+              </Suspense>
+            )}
           </div>
         </CategoryProvider>
       </SnackbarProvider>
