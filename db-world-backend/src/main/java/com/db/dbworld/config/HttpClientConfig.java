@@ -1,6 +1,6 @@
 package com.db.dbworld.config;
 
-import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -30,9 +30,10 @@ public class HttpClientConfig {
             return ex.execute(req, body);
         };
 
+        // Spring Boot 4 renamed setConnectTimeout/setReadTimeout to connectTimeout/readTimeout.
         return builder
-                .setConnectTimeout(Duration.ofSeconds(5))
-                .setReadTimeout(Duration.ofSeconds(15))
+                .connectTimeout(Duration.ofSeconds(5))
+                .readTimeout(Duration.ofSeconds(15))
                 .additionalInterceptors(auth)
                 .build();
     }
@@ -40,8 +41,8 @@ public class HttpClientConfig {
     @Bean("aria2RestTemplate")
     RestTemplate aria2RestTemplate(RestTemplateBuilder builder) {
         return builder
-                .setConnectTimeout(Duration.ofSeconds(10))
-                .setReadTimeout(Duration.ofSeconds(20))
+                .connectTimeout(Duration.ofSeconds(10))
+                .readTimeout(Duration.ofSeconds(20))
                 .build();
     }
 }

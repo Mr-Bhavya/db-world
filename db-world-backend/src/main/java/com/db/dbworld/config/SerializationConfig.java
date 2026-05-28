@@ -4,16 +4,23 @@ import com.db.dbworld.payloads.dbcinema.stream.PathAdapter;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamWriteConstraints;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonPrimitive;
-import jakarta.persistence.*;
-import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Page;
 
 import java.io.IOException;
@@ -22,17 +29,32 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * Jackson 2 + Gson configuration.
+ *
+ * <p><b>Spring Boot 4 migration note:</b> SB4 switched its HTTP layer to Jackson 3
+ * ({@code tools.jackson.*} namespace) and removed {@code Jackson2ObjectMapperBuilderCustomizer}.
+ * We still ship Jackson 2 (transitive) and use it directly for: WebSocket payloads,
+ * Aria2 RPC, ffprobe parsing, log parsing, and anywhere code injects ObjectMapper.
+ * HTTP request/response serialization now uses SB4's default Jackson 3 mapper — that
+ * configuration is intentionally untouched in this migration pass; we'll port the
+ * customisations (date format, stream constraints, page wrapper) to the Jackson 3
+ * builder in a follow-up session along with the rest of the Jackson 2 → 3 sweep.
+ */
 @Configuration
 public class SerializationConfig {
 
-    // ── Jackson (HTTP responses) ──────────────────────────────────────────────
-
+    /**
+     * Application-wide Jackson 2 mapper. Marked {@code @Primary} so the 30+ direct
+     * injections of {@code ObjectMapper} keep getting the configured Jackson 2
+     * instance, not whatever proxy SB4's Jackson 3 auto-config might expose.
+     */
     @Bean
+    @Primary
     @SuppressWarnings({"rawtypes", "unchecked"})
-    Jackson2ObjectMapperBuilderCustomizer jacksonCustomizer() {
-        // Jackson 2.15+ introduced StreamReadConstraints / StreamWriteConstraints with a
-        // default maxNestingDepth of 1000. Large TV-series responses (seasons + episodes)
-        // can exceed this. Override globally so all factories share the relaxed limits.
+    ObjectMapper objectMapper() {
+        // Jackson 2.15+ default nesting depth (1000) trips on TV-series payloads
+        // (seasons × episodes × providers). Relax globally so every factory shares.
         StreamReadConstraints.overrideDefaultStreamReadConstraints(
                 StreamReadConstraints.builder()
                         .maxNestingDepth(Integer.MAX_VALUE)
@@ -47,11 +69,13 @@ public class SerializationConfig {
         extras.addSerializer(Page.class, new PageJacksonSerializer());
         extras.addSerializer(Path.class, new PathJacksonSerializer());
 
-        return builder -> builder
-                .modules(new JavaTimeModule(), extras)
-                .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-                .featuresToDisable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .featuresToDisable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.registerModule(extras);
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+        return mapper;
     }
 
     @SuppressWarnings("rawtypes")
@@ -79,7 +103,7 @@ public class SerializationConfig {
         }
     }
 
-    // ── Gson (internal use only: log parsers, JWT, utilities) ────────────────
+    // ── Gson (internal use: log parsers, utilities) ───────────────────────────
 
     @Bean
     Gson gson() {

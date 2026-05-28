@@ -55,7 +55,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(@Nonnull HttpServletRequest request, @Nonnull HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        ContentCachingRequestWrapper cachingRequest = new ContentCachingRequestWrapper(request);
+        // Spring 7 removed the no-arg-limit constructor — the cache limit (bytes) is now
+        // mandatory. 64 KB matches the previous default and covers our biggest JSON bodies.
+        ContentCachingRequestWrapper cachingRequest = new ContentCachingRequestWrapper(request, 64 * 1024);
         long startTime = System.currentTimeMillis();
 
         try {

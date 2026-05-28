@@ -11,7 +11,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.13</version>
+        <version>4.0.6</version>
         <relativePath/>
     </parent>
 
@@ -29,6 +29,9 @@
     <!-- Properties                                                        -->
     <!-- ================================================================ -->
     <properties>
+        <!-- Java 25 LTS. Runs on aarch64 (Raspberry Pi 5) via OpenJDK 25 aarch64 build.
+             TEMPORARY: dropped to 21 to verify the SB4 migration on current Temurin 21.
+             Flip back to 25 once JDK 25 is installed locally and on the Pi. -->
         <java.version>21</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -38,14 +41,16 @@
         <!-- Default — overridden per profile -->
         <skipTests>false</skipTests>
 
-        <!-- Versions not in Spring Boot BOM -->
+        <!-- Versions not in Spring Boot 4 BOM. -->
         <disruptor.version>4.0.0</disruptor.version>
-        <jjwt.version>0.11.5</jjwt.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <jasypt.version>3.0.5</jasypt.version>
-        <springdoc.version>2.6.0</springdoc.version>
+        <springdoc.version>3.0.3</springdoc.version>
         <metrics-dropwizard.version>4.2.33</metrics-dropwizard.version>
-        <commons-io.version>2.18.0</commons-io.version>
+        <commons-io.version>2.20.0</commons-io.version>
+
+        <!-- Explicit so MapStruct's annotation processor picks up a Java 25 compatible build. -->
+        <lombok.version>1.18.42</lombok.version>
     </properties>
 
     <!-- ================================================================ -->
@@ -68,6 +73,12 @@
                     <artifactId>spring-boot-starter-logging</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <!-- ── RestClient / RestTemplate support (separated from spring-boot-starter-web in SB4) ─ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-restclient</artifactId>
         </dependency>
 
         <!-- ── Jetty ─────────────────────────────────────────────────── -->
@@ -151,7 +162,7 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-layout-template-json</artifactId>
         </dependency>
-        <!-- Async logging via LMAX Disruptor -->
+        <!-- Async logging via LMAX Disruptor. SB4 BOM does not manage this artifact. -->
         <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
@@ -165,24 +176,8 @@
             <version>${springdoc.version}</version>
         </dependency>
 
-        <!-- ── JWT ───────────────────────────────────────────────────── -->
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>${jjwt.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>${jjwt.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-gson</artifactId>
-            <version>${jjwt.version}</version>
-            <scope>runtime</scope>
-        </dependency>
+        <!-- JWT handling is done via Spring Security OAuth2 + Nimbus (see JwtConfig).
+             JJwt was declared here but unused — removed during the SB4 migration. -->
 
         <!-- ── Encryption ────────────────────────────────────────────── -->
         <dependency>
