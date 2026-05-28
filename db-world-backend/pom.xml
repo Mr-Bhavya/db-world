@@ -172,6 +172,22 @@
             </exclusions>
         </dependency>
 
+        <!-- ── Cache ─────────────────────────────────────────────────────
+             Spring Boot 4 split cache auto-configuration (CacheAutoConfiguration,
+             RedisCacheAutoConfiguration, etc.) out of spring-boot-autoconfigure
+             into its own module. Without this, @EnableCaching has no CacheManager
+             to wire up, even when spring.cache.type=redis is set. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <!-- ── Validation ────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
