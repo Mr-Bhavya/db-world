@@ -5,22 +5,26 @@ import VideoFileIcon from '@mui/icons-material/VideoFile';
 import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
 import { useTagDefs } from './useTagDefs';
+import { useRecordVisibility } from './useRecordVisibility';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w185';
 
 const parseTags = (tags) => tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-function RecordCard({ record, onDelete, index }) {
+function RecordCard({ record, onDelete, index, visibilityMut }) {
   const T = useT();
   const { openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
   const { tagColor, tagLabel } = useTagDefs();
   const poster = record.tmdb?.posterPath ?? record.tmdb?.backdropPath;
   const isMovie = record.type === 'MOVIE';
   const tags = parseTags(record.tags);
+  const hidden = Boolean(record.hideFromRails);
 
   return (
     <motion.div
@@ -59,6 +63,23 @@ function RecordCard({ record, onDelete, index }) {
             '& .MuiChip-label': { px: 1 },
           }} />
 
+          {/* Hidden-from-rails badge — always visible when set so admin spots them at a glance */}
+          {hidden && (
+            <Tooltip title="Hidden from rails (still searchable)">
+              <Chip
+                icon={<VisibilityOffIcon sx={{ fontSize: 11, color: '#fff !important' }} />}
+                label="Hidden"
+                size="small"
+                sx={{
+                  position: 'absolute', top: 6, right: 6, height: 18, fontSize: 9, fontWeight: 800,
+                  bgcolor: 'rgba(239,68,68,0.92)', color: '#fff',
+                  '& .MuiChip-label': { px: 0.75 },
+                  '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
+                }}
+              />
+            </Tooltip>
+          )}
+
           {/* Action overlay */}
           <Box className="card-actions" sx={{
             position: 'absolute', inset: 0, display: 'flex',
@@ -76,6 +97,24 @@ function RecordCard({ record, onDelete, index }) {
                 sx={{ bgcolor: 'rgba(0,0,0,0.45)', color: '#fff', '&:hover': { bgcolor: T.teal } }}>
                 <VideoFileIcon sx={{ fontSize: 16 }} />
               </IconButton>
+            </Tooltip>
+            <Tooltip title={hidden ? 'Show on rails' : 'Hide from rails'}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={visibilityMut.isPending}
+                  onClick={() => visibilityMut.mutate({ id: record.recordId, hideFromRails: !hidden })}
+                  sx={{
+                    bgcolor: 'rgba(0,0,0,0.45)',
+                    color: hidden ? '#f87171' : '#fff',
+                    '&:hover': { bgcolor: hidden ? T.success : T.error },
+                  }}
+                >
+                  {hidden
+                    ? <VisibilityIcon sx={{ fontSize: 16 }} />
+                    : <VisibilityOffIcon sx={{ fontSize: 16 }} />}
+                </IconButton>
+              </span>
             </Tooltip>
             <Tooltip title="Delete">
               <IconButton size="small" onClick={() => onDelete(record.recordId)}
@@ -157,9 +196,22 @@ function RecordCard({ record, onDelete, index }) {
 
 export default function RecordGrid({ rows, loading, onDelete }) {
   const T = useT();
+  const visibilityMut = useRecordVisibility();
+
+  // Responsive: smaller cards on phones (2–3 per row), full 170 px on md+.
+  const gridSx = {
+    display: 'grid',
+    gridTemplateColumns: {
+      xs: 'repeat(auto-fill, minmax(130px, 1fr))',
+      sm: 'repeat(auto-fill, minmax(150px, 1fr))',
+      md: 'repeat(auto-fill, minmax(170px, 1fr))',
+    },
+    gap: { xs: 1, sm: 1.5 },
+    p: { xs: 1.25, sm: 2 },
+  };
 
   if (loading && rows.length === 0) return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5, p: 2 }}>
+    <Box sx={gridSx}>
       {Array.from({ length: 16 }).map((_, i) => (
         <Box key={i}>
           <Skeleton variant="rounded" sx={{ aspectRatio: '2/3', bgcolor: T.glass }} />
@@ -171,9 +223,9 @@ export default function RecordGrid({ rows, loading, onDelete }) {
   );
 
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5, p: 2 }}>
+    <Box sx={gridSx}>
       {rows.map((r, i) => (
-        <RecordCard key={r.recordId} record={r} onDelete={onDelete} index={i} />
+        <RecordCard key={r.recordId} record={r} onDelete={onDelete} index={i} visibilityMut={visibilityMut} />
       ))}
     </Box>
   );

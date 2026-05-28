@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { Box, TextField, ToggleButton, ToggleButtonGroup, InputAdornment, IconButton, Tooltip, MenuItem, Select } from '@mui/material';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Box, TextField, ToggleButton, ToggleButtonGroup, InputAdornment, IconButton, Tooltip, MenuItem, Select, Popover, useMediaQuery, useTheme } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import GridViewIcon from '@mui/icons-material/GridView';
 import FilterListOffIcon from '@mui/icons-material/FilterListOff';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import AddIcon from '@mui/icons-material/Add';
 import SortIcon from '@mui/icons-material/Sort';
 import { useT, getSelectMenuProps } from '@shared/theme';
@@ -20,6 +21,8 @@ const SORT_OPTIONS = [
 
 export default function RecordFilters({ onAdd }) {
   const T = useT();
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const { filters, setFilter, clearFilters, viewMode, setViewMode, sortModel, setSortModel } = useRecordStore();
   const sortKey = sortModel.length > 0 ? `${sortModel[0].field},${sortModel[0].sort}` : 'recordId,desc';
   const handleSortChange = (e) => {
@@ -27,6 +30,7 @@ export default function RecordFilters({ onAdd }) {
     setSortModel([{ field, sort }]);
   };
   const searchTimer = useRef(null);
+  const [moreAnchor, setMoreAnchor] = useState(null);
 
   useEffect(() => () => clearTimeout(searchTimer.current), []);
 
@@ -36,6 +40,9 @@ export default function RecordFilters({ onAdd }) {
   }, [setFilter]);
 
   const hasFilters = Object.values(filters).some(v => v !== '');
+  // Year + TMDB ID are uncommon filters — on phones they go behind a popover
+  // to keep the toolbar to a single line.
+  const hasMoreFilters = filters.year !== '' || filters.tmdbId !== '';
 
   const inputSx = {
     minWidth: 110,
@@ -81,12 +88,48 @@ export default function RecordFilters({ onAdd }) {
         <MenuItem value="TV_SERIES">Series</MenuItem>
       </TextField>
 
-      <TextField size="small" label="Year" type="number" defaultValue={filters.year}
-        onChange={e => debouncedSet('year', e.target.value)} sx={{ ...inputSx, width: 90 }}
-        inputProps={{ min: 1900, max: 2100 }} />
+      {/* Year + TMDB ID — inline on sm+, behind a "More filters" popover on xs. */}
+      <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 1 }}>
+        <TextField size="small" label="Year" type="number" defaultValue={filters.year}
+          onChange={e => debouncedSet('year', e.target.value)} sx={{ ...inputSx, width: 90 }}
+          inputProps={{ min: 1900, max: 2100 }} />
 
-      <TextField size="small" label="TMDB ID" type="number" defaultValue={filters.tmdbId}
-        onChange={e => debouncedSet('tmdbId', e.target.value)} sx={{ ...inputSx, width: 100 }} />
+        <TextField size="small" label="TMDB ID" type="number" defaultValue={filters.tmdbId}
+          onChange={e => debouncedSet('tmdbId', e.target.value)} sx={{ ...inputSx, width: 100 }} />
+      </Box>
+
+      {isXs && (
+        <>
+          <Tooltip title="More filters">
+            <IconButton
+              size="small"
+              onClick={(e) => setMoreAnchor(e.currentTarget)}
+              sx={{
+                color: hasMoreFilters ? T.teal : T.textMuted,
+                bgcolor: hasMoreFilters ? T.tealBg : 'transparent',
+                border: `1px solid ${hasMoreFilters ? T.teal + '40' : T.glassBorder}`,
+                borderRadius: 1.5,
+                '&:hover': { bgcolor: T.tealBg, color: T.teal },
+              }}
+            >
+              <FilterAltIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Popover
+            open={Boolean(moreAnchor)}
+            anchorEl={moreAnchor}
+            onClose={() => setMoreAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, p: 1.5, mt: 0.5, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 220 } }}
+          >
+            <TextField size="small" label="Year" type="number" defaultValue={filters.year}
+              onChange={e => debouncedSet('year', e.target.value)} sx={inputSx}
+              inputProps={{ min: 1900, max: 2100 }} />
+            <TextField size="small" label="TMDB ID" type="number" defaultValue={filters.tmdbId}
+              onChange={e => debouncedSet('tmdbId', e.target.value)} sx={inputSx} />
+          </Popover>
+        </>
+      )}
 
       {hasFilters && (
         <Tooltip title="Clear filters">
@@ -100,9 +143,10 @@ export default function RecordFilters({ onAdd }) {
         size="small"
         value={sortKey}
         onChange={handleSortChange}
-        startAdornment={<SortIcon sx={{ fontSize: 14, color: T.textFaint, mr: 0.5 }} />}
+        startAdornment={<SortIcon sx={{ fontSize: 14, color: T.textFaint, mr: 0.5, display: { xs: 'none', sm: 'inline-flex' } }} />}
         sx={{
           color: T.textPrimary, fontSize: 12, height: 32,
+          minWidth: { xs: 90, sm: 110 },
           bgcolor: T.inputBg,
           '& .MuiOutlinedInput-notchedOutline': { borderColor: T.glassBorder },
           '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },
@@ -121,8 +165,15 @@ export default function RecordFilters({ onAdd }) {
         <ToggleButton value="grid"  sx={toggleSx}><Tooltip title="Grid"><GridViewIcon fontSize="small" /></Tooltip></ToggleButton>
       </ToggleButtonGroup>
 
+      {/* Add icon is redundant on mobile (a FAB handles it from the parent) but
+          stays on sm+ where the header button is also hidden in the same range. */}
       <Tooltip title="Add Record">
-        <IconButton onClick={onAdd} sx={{ bgcolor: T.teal, color: '#fff', borderRadius: 2, '&:hover': { bgcolor: T.tealHover } }}>
+        <IconButton onClick={onAdd}
+          sx={{
+            bgcolor: T.teal, color: '#fff', borderRadius: 2,
+            '&:hover': { bgcolor: T.tealHover },
+            display: { xs: 'none', sm: 'inline-flex' },
+          }}>
           <AddIcon fontSize="small" />
         </IconButton>
       </Tooltip>

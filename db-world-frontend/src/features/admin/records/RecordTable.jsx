@@ -10,11 +10,9 @@ import VideoFileIcon from '@mui/icons-material/VideoFile';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { formatDistanceToNow } from 'date-fns';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
-import { setRecordVisibility } from '../api/adminApi';
+import { useRecordVisibility } from './useRecordVisibility';
 import RecordTagsInline from './RecordTagsInline';
 
 const SORT_FIELD_MAP = {
@@ -24,21 +22,9 @@ const SORT_FIELD_MAP = {
 
 export default function RecordTable({ rows, totalElements, loading, onDelete }) {
   const T = useT();
-  const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { sortModel, setSortModel, setSelectedRows, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
 
-  const visibilityMut = useMutation({
-    mutationFn: ({ id, hideFromRails }) => setRecordVisibility(id, hideFromRails),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['records'] });
-      enqueueSnackbar(
-        vars.hideFromRails ? 'Record hidden from rails (still in search).' : 'Record visible on rails again.',
-        { variant: 'info', autoHideDuration: 2500 }
-      );
-    },
-    onError: () => enqueueSnackbar('Could not toggle visibility.', { variant: 'error' }),
-  });
+  const visibilityMut = useRecordVisibility();
 
   const gridSx = useMemo(() => ({
     // v8 CSS variables override container/pinned backgrounds
