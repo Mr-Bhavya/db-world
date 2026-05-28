@@ -255,19 +255,22 @@ function Navbar({ coverColor, onGenreSelect }) {
               } catch { seen = []; }
               const fresh = list.filter(n =>
                 !n.read
-                && ['REQUEST_FULFILLED', 'REQUEST_DISMISSED', 'CATALOG_INGESTED'].includes(n.type)
+                && ['REQUEST_FULFILLED', 'REQUEST_DISMISSED', 'CATALOG_INGESTED', 'CATALOG_FULFILLED_BY_SEARCH'].includes(n.type)
                 && !seen.includes(n.id)
               );
               if (fresh.length === 0) return;
 
               fresh.forEach(n => {
                 const isCatalogIn = n.type === 'CATALOG_INGESTED';
+                const isCatalogBySearch = n.type === 'CATALOG_FULFILLED_BY_SEARCH';
                 const isFulfilled = n.type === 'REQUEST_FULFILLED';
                 const isDismissed = n.type === 'REQUEST_DISMISSED';
 
                 let message;
                 if (isCatalogIn) {
                   message = `"${n.recordTitle}" has been added to the catalog. We'll notify you again when media files arrive.`;
+                } else if (isCatalogBySearch) {
+                  message = `"${n.recordTitle}" is now available — use search to download the file.`;
                 } else if (isFulfilled) {
                   message = `"${n.recordTitle}" is now available — your request was fulfilled.`;
                 } else {

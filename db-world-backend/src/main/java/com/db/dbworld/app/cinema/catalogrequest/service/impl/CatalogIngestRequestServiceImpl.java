@@ -267,6 +267,37 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
 
     @Override
     @Transactional
+    public CatalogIngestRequestDto markFulfilledNoIngest(Long requestId, Long adminUserId, String adminUsername) {
+        CatalogIngestRequestEntity request = requestRepo.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("CatalogIngestRequest", "id", requestId));
+
+        if (request.getStatus() == CatalogIngestRequestStatus.INGESTED) {
+            return toDto(request, adminUserId);
+        }
+
+        // Reuse the INGESTED status so the row leaves the pending queue, but leave
+        // createdRecordId null — the frontend knows this means "fulfilled without a
+        // record, find via search".
+        request.setStatus(CatalogIngestRequestStatus.INGESTED);
+        request.setIngestedAt(Instant.now());
+        request.setIngestedByUserId(adminUserId);
+        request.setIngestedByUsername(adminUsername);
+        request.setCreatedRecordId(null);
+        requestRepo.save(request);
+
+        notifService.createCatalogFulfilledBySearchNotifications(
+                adminUserId,
+                adminUsername,
+                request.getTitle(),
+                request.getMediaType().name(),
+                request.getVoterUserIds()
+        );
+
+        return toDto(request, adminUserId);
+    }
+
+    @Override
+    @Transactional
     public CatalogIngestRequestDto dismiss(Long requestId, String reason, Long adminUserId, String adminUsername) {
         CatalogIngestRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("CatalogIngestRequest", "id", requestId));

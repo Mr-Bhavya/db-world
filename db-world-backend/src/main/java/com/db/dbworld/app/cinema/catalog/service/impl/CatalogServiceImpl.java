@@ -23,9 +23,12 @@ import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
 
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
+import org.hibernate.Session;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -59,6 +62,9 @@ public class CatalogServiceImpl implements CatalogService {
     private static final String TMDB_ALREADY_EXISTS = "Record already exists for TMDB id: ";
     private static final String UNSUPPORTED_TYPE = "Unsupported record type: ";
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /* ===============================
        CREATE
        =============================== */
@@ -76,6 +82,7 @@ public class CatalogServiceImpl implements CatalogService {
         );
 
         RecordEntity record = buildRecord(request.getType(), tmdb);
+        record.setHideFromRails(request.isHideFromRails());
 
         recordTaggingService.assignTags(record);
 
@@ -84,6 +91,13 @@ public class CatalogServiceImpl implements CatalogService {
         publishEvent(record.getId());
 
         return dto;
+    }
+
+    @Override
+    public RecordDto setHideFromRails(Long recordId, boolean hide) {
+        RecordEntity record = getRecordOrThrow(recordId);
+        record.setHideFromRails(hide);
+        return saveAndMap(record);
     }
 
     /* ===============================
@@ -164,6 +178,9 @@ public class CatalogServiceImpl implements CatalogService {
     @Transactional(readOnly = true)
     public List<SearchRecordDto> getSimilar(Long recordId, int limit) {
         if (limit <= 0) return List.of();
+
+        // "More Like This" is a rail — exclude hide_from_rails records.
+        entityManager.unwrap(Session.class).enableFilter("excludeHidden");
 
         RecordEntity record = getRecordOrThrow(recordId);
         if (record.getTmdb() == null) return List.of();
@@ -389,12 +406,18 @@ public class CatalogServiceImpl implements CatalogService {
         record.setTmdb(tmdb);
         record.setType(request.getType());
         record.setName(extractTitle(tmdb));
+        if (request.getHideFromRails() != null) {
+            record.setHideFromRails(request.getHideFromRails());
+        }
     }
 
     private boolean isUnchanged(RecordEntity record, UpdateRecordRequest request) {
+        boolean hideUnchanged = request.getHideFromRails() == null
+                || record.isHideFromRails() == request.getHideFromRails();
         return record.getTmdb() != null &&
                 Objects.equals(record.getTmdb().getId(), request.getTmdbId()) &&
-                record.getType() == request.getType();
+                record.getType() == request.getType() &&
+                hideUnchanged;
     }
 
     private String extractTitle(TmdbEntity tmdb) {

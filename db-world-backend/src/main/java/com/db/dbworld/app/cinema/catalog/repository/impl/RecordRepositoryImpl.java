@@ -84,7 +84,8 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 cb.function("STRING_AGG",
                         String.class,
                         tags.get("tagType"),
-                        cb.literal(","))
+                        cb.literal(",")),
+                record.get("hideFromRails")
         ));
 
         query.where(predicates.toArray(new Predicate[0]));
@@ -96,7 +97,8 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                 tmdb.get("id"),
                 tmdb.get("year"),
                 record.get("createdAt"),
-                record.get("updatedAt")
+                record.get("updatedAt"),
+                record.get("hideFromRails")
         );
 
         TypedQuery<RecordAdminRowDto> typedQuery = em.createQuery(query);

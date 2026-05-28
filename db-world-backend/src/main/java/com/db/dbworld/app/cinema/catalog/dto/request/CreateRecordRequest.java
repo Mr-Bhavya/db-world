@@ -14,4 +14,7 @@ public class CreateRecordRequest {
 
     @NotNull
     private Long tmdbId;
+
+    /** Optional — when true, the record is excluded from rails (still appears in search). */
+    private boolean hideFromRails = false;
 }

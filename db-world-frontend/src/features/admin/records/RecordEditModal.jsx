@@ -3,6 +3,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, MenuItem, Box, Typography,
   CircularProgress, IconButton, Chip, Divider, Alert,
+  FormControlLabel, Checkbox,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
@@ -38,12 +39,13 @@ export default function RecordEditModal({ open, record, onClose }) {
     '& .MuiSelect-icon':                 { color: T.textMuted },
   };
 
-  const [query,       setQuery]       = useState('');
-  const [year,        setYear]        = useState('');
-  const [results,     setResults]     = useState([]);
-  const [selected,    setSelected]    = useState(null);
-  const [searching,   setSearching]   = useState(false);
-  const [searchError, setSearchError] = useState('');
+  const [query,         setQuery]         = useState('');
+  const [year,          setYear]          = useState('');
+  const [results,       setResults]       = useState([]);
+  const [selected,      setSelected]      = useState(null);
+  const [searching,     setSearching]     = useState(false);
+  const [searchError,   setSearchError]   = useState('');
+  const [hideFromRails, setHideFromRails] = useState(false);
   const searchTimer = useRef(null);
 
   const { control, handleSubmit, watch, reset, formState: { errors } } = useForm({
@@ -61,6 +63,7 @@ export default function RecordEditModal({ open, record, onClose }) {
       setResults([]);
       setSelected(null);
       setSearchError('');
+      setHideFromRails(Boolean(record.hideFromRails));
       if (record.name) {
         clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => doSearch(record.name, record.type, ''), 300);
@@ -124,7 +127,7 @@ export default function RecordEditModal({ open, record, onClose }) {
   const onSubmit = (d) => {
     const tmdbId = selected?.id ?? record?.tmdbId;
     if (!tmdbId) { enqueueSnackbar('Please select a TMDB result', { variant: 'warning' }); return; }
-    doUpdate({ type: d.type, tmdbId });
+    doUpdate({ type: d.type, tmdbId, hideFromRails });
   };
 
   if (!record) return null;
@@ -257,6 +260,28 @@ export default function RecordEditModal({ open, record, onClose }) {
               </Box>
             )}
           </Box>
+
+          <FormControlLabel
+            sx={{ color: T.textMuted, mx: 0, mt: 1 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={hideFromRails}
+                onChange={(e) => setHideFromRails(e.target.checked)}
+                sx={{ color: T.textMuted, '&.Mui-checked': { color: T.teal } }}
+              />
+            }
+            label={
+              <Box>
+                <Typography sx={{ fontSize: 13, color: T.textPrimary, fontWeight: 600 }}>
+                  Hide from rails / home page
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: T.textFaint }}>
+                  Record still appears in search results. Useful for 18+ titles or library-only deep cuts.
+                </Typography>
+              </Box>
+            }
+          />
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>

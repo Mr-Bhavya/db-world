@@ -50,6 +50,19 @@ public interface UserNotificationService {
             Collection<Long> recipientUserIds
     );
 
+    /**
+     * Notify voters that their catalog request was fulfilled without an ingest
+     * (admin uploaded files directly to the unassigned bucket). Users should use
+     * search to locate the file — there's no RecordEntity to deep-link to.
+     */
+    void createCatalogFulfilledBySearchNotifications(
+            Long actorUserId,
+            String actorUsername,
+            String recordTitle,
+            String recordType,
+            Collection<Long> recipientUserIds
+    );
+
     List<UserNotificationDto> getForUser(Long userId, int limit);
     long getUnreadCount(Long userId);
     void markAllRead(Long userId);

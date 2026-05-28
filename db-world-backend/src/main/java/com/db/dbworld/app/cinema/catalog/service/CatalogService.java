@@ -20,6 +20,9 @@ public interface CatalogService {
 
     RecordDto createRecord(CreateRecordRequest request);
 
+    /** Toggle whether a record is hidden from rails (search visibility unchanged). */
+    RecordDto setHideFromRails(Long recordId, boolean hide);
+
     RecordDto updateRecord(Long id, UpdateRecordRequest request);
 
     RecordDto getRecord(Long recordId);

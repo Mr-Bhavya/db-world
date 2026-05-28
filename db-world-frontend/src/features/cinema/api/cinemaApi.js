@@ -199,6 +199,10 @@ export const fetchAdminCatalogRequests = (status) =>
 export const ingestCatalogRequest = (id) =>
   axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/ingest`).then(unwrap);
 
+/** Mark fulfilled without ingesting TMDB metadata — voters find the file via search. */
+export const markCatalogRequestFulfilledNoIngest = (id) =>
+  axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/fulfill-no-ingest`).then(unwrap);
+
 export const dismissCatalogRequest = (id, reason) =>
   axiosInstance
     .post(`${BASE}/admin/catalog-requests/${id}/dismiss`, { reason: reason ?? null })

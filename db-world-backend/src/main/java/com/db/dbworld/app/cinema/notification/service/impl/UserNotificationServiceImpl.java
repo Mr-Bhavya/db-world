@@ -123,6 +123,37 @@ public class UserNotificationServiceImpl implements UserNotificationService {
 
     @Override
     @Transactional
+    public void createCatalogFulfilledBySearchNotifications(
+            Long actorUserId,
+            String actorUsername,
+            String recordTitle,
+            String recordType,
+            Collection<Long> recipientUserIds
+    ) {
+        if (recipientUserIds == null || recipientUserIds.isEmpty()) return;
+
+        // recordId = 0L sentinel — there's no RecordEntity. The notification renderer
+        // suppresses the View action when recordId is missing.
+        List<UserNotificationEntity> notifications = recipientUserIds.stream()
+                .distinct()
+                .map(recipientId -> UserNotificationEntity.builder()
+                        .recipientUserId(recipientId)
+                        .actorUserId(actorUserId)
+                        .actorUsername(actorUsername)
+                        .recordId(0L)
+                        .recordTitle(recordTitle)
+                        .recordType(recordType)
+                        .type("CATALOG_FULFILLED_BY_SEARCH")
+                        .read(false)
+                        .build())
+                .toList();
+
+        notifRepo.saveAll(notifications);
+        log.info("Created {} catalog-fulfilled-by-search notifications for \"{}\" by admin {}", notifications.size(), recordTitle, actorUserId);
+    }
+
+    @Override
+    @Transactional
     public void createRequestDismissedNotifications(
             Long actorUserId,
             String actorUsername,

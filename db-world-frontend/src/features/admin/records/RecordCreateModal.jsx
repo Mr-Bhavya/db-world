@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, Box, Typography, CircularProgress, IconButton, Chip, Alert } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, Box, Typography, CircularProgress, IconButton, Chip, Alert, FormControlLabel, Checkbox } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -31,12 +31,13 @@ export default function RecordCreateModal({ open, onClose }) {
     '& .MuiSelect-icon':                 { color: T.textMuted },
   };
 
-  const [query,       setQuery]       = useState('');
-  const [year,        setYear]        = useState('');
-  const [results,     setResults]     = useState([]);
-  const [selected,    setSelected]    = useState(null);
-  const [searching,   setSearching]   = useState(false);
-  const [searchError, setSearchError] = useState('');
+  const [query,         setQuery]         = useState('');
+  const [year,          setYear]          = useState('');
+  const [results,       setResults]       = useState([]);
+  const [selected,      setSelected]      = useState(null);
+  const [searching,     setSearching]     = useState(false);
+  const [searchError,   setSearchError]   = useState('');
+  const [hideFromRails, setHideFromRails] = useState(false);
   const searchTimer = useRef(null);
 
   useEffect(() => () => clearTimeout(searchTimer.current), []);
@@ -70,18 +71,19 @@ export default function RecordCreateModal({ open, onClose }) {
   };
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (d) => createRecord({ type: d.type, tmdbId: d.tmdbId }),
+    mutationFn: (d) => createRecord({ type: d.type, tmdbId: d.tmdbId, hideFromRails: d.hideFromRails }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); enqueueSnackbar('Record created', { variant: 'success' }); handleClose(); },
     onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Create failed', { variant: 'error' }),
   });
 
   const onSubmit = (d) => {
     if (!selected) { enqueueSnackbar('Please select a TMDB result', { variant: 'warning' }); return; }
-    mutate({ type: d.type, tmdbId: selected.id });
+    mutate({ type: d.type, tmdbId: selected.id, hideFromRails });
   };
 
   const handleClose = () => {
     setQuery(''); setYear(''); setResults([]); setSelected(null); setSearchError('');
+    setHideFromRails(false);
     reset({ type: 'MOVIE' });
     onClose();
   };
@@ -155,6 +157,28 @@ export default function RecordCreateModal({ open, onClose }) {
               Selected: <b>{selected.title ?? selected.name}</b> (TMDB ID: {selected.id})
             </Alert>
           )}
+
+          <FormControlLabel
+            sx={{ color: T.textMuted, mx: 0, mt: -0.5 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={hideFromRails}
+                onChange={(e) => setHideFromRails(e.target.checked)}
+                sx={{ color: T.textMuted, '&.Mui-checked': { color: T.teal } }}
+              />
+            }
+            label={
+              <Box>
+                <Typography sx={{ fontSize: 13, color: T.textPrimary, fontWeight: 600 }}>
+                  Hide from rails / home page
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: T.textFaint }}>
+                  Record still appears in search results. Useful for 18+ titles or library-only deep cuts.
+                </Typography>
+              </Box>
+            }
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleClose} sx={{ color: T.textMuted }}>Cancel</Button>

@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   CloudUpload, Cancel, Movie, LiveTv, Restore, OpenInNew,
-  HourglassEmpty, DoneAll, Block,
+  HourglassEmpty, DoneAll, Block, CheckCircle,
 } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import {
-  fetchAdminCatalogRequests, ingestCatalogRequest,
+  fetchAdminCatalogRequests, ingestCatalogRequest, markCatalogRequestFulfilledNoIngest,
   dismissCatalogRequest, reopenCatalogRequest, tmdbImg,
 } from '@features/cinema/api/cinemaApi';
 
@@ -71,6 +71,15 @@ export default function CatalogRequestsAdminPage() {
       const msg = e?.response?.data?.message || 'Could not ingest. Check the logs.';
       enqueueSnackbar(msg, { variant: 'error' });
     },
+  });
+
+  const fulfillNoIngestMut = useMutation({
+    mutationFn: markCatalogRequestFulfilledNoIngest,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-catalog-requests'] });
+      enqueueSnackbar('Marked fulfilled — voters will find the file via search.', { variant: 'success' });
+    },
+    onError: () => enqueueSnackbar('Could not mark fulfilled.', { variant: 'error' }),
   });
 
   const dismissMut = useMutation({
@@ -238,6 +247,13 @@ export default function CatalogRequestsAdminPage() {
                           <span>
                             <IconButton size="small" disabled={ingestMut.isPending} onClick={() => ingestMut.mutate(r.id)} sx={{ color: '#10b981' }}>
                               <CloudUpload sx={{ fontSize: 20 }} />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Mark fulfilled (file already uploaded — voters find it via search)">
+                          <span>
+                            <IconButton size="small" disabled={fulfillNoIngestMut.isPending} onClick={() => fulfillNoIngestMut.mutate(r.id)} sx={{ color: T.teal }}>
+                              <CheckCircle sx={{ fontSize: 20 }} />
                             </IconButton>
                           </span>
                         </Tooltip>

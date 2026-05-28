@@ -21,4 +21,6 @@ public interface RecordAdminRowDto {
     Instant getUpdatedAt();
 
     String getTags();
+
+    Boolean getHideFromRails();
 }

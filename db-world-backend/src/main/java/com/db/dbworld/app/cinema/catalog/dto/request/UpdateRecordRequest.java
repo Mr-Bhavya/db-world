@@ -15,4 +15,6 @@ public class UpdateRecordRequest {
     @NotNull
     private Long tmdbId;
 
+    /** Optional — when present, sync the record's hide-from-rails flag. */
+    private Boolean hideFromRails;
 }

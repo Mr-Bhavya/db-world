@@ -4,7 +4,7 @@ import {
   Popover, Drawer, List, ListItemButton,
   alpha, useTheme, useMediaQuery,
 } from '@mui/material';
-import { Close, RateReview, NotificationsNone, NotificationsActive, Block, NewReleases } from '@mui/icons-material';
+import { Close, RateReview, NotificationsNone, NotificationsActive, Block, NewReleases, Search as SearchIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, markNotificationsRead } from '../../api/cinemaApi';
 import Constants from '@shared/constants';
@@ -32,12 +32,17 @@ const NotificationItem = ({ notif, onNavigate }) => {
   const isFulfilled = notif.type === 'REQUEST_FULFILLED';
   const isDismissed = notif.type === 'REQUEST_DISMISSED';
   const isCatalogIn = notif.type === 'CATALOG_INGESTED';
-  const accent = isFulfilled || isCatalogIn
+  const isCatalogBySearch = notif.type === 'CATALOG_FULFILLED_BY_SEARCH';
+  const accent = isFulfilled || isCatalogIn || isCatalogBySearch
     ? theme.palette.success.main
     : isDismissed
       ? theme.palette.warning.main
       : theme.palette.primary.main;
-  const Icon = isCatalogIn ? NewReleases : isFulfilled ? NotificationsActive : isDismissed ? Block : RateReview;
+  const Icon = isCatalogBySearch ? SearchIcon
+    : isCatalogIn ? NewReleases
+    : isFulfilled ? NotificationsActive
+    : isDismissed ? Block
+    : RateReview;
 
   return (
     <ListItemButton
@@ -65,7 +70,13 @@ const NotificationItem = ({ notif, onNavigate }) => {
               {' has been added to the catalog. We’ll notify you again when media files are uploaded.'}
             </>
           )}
-          {isFulfilled && !isCatalogIn && (
+          {isCatalogBySearch && (
+            <>
+              <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
+              {' is now available — use search to download the file.'}
+            </>
+          )}
+          {isFulfilled && !isCatalogIn && !isCatalogBySearch && (
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
               {' is now available — your request was fulfilled.'}
@@ -78,7 +89,7 @@ const NotificationItem = ({ notif, onNavigate }) => {
               {' was dismissed by an admin.'}
             </>
           )}
-          {!isFulfilled && !isDismissed && !isCatalogIn && (
+          {!isFulfilled && !isDismissed && !isCatalogIn && !isCatalogBySearch && (
             <>
               <Box component="span" sx={{ color: accent, fontWeight: 700 }}>
                 {notif.actorUsername}

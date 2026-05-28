@@ -7,9 +7,14 @@ import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { formatDistanceToNow } from 'date-fns';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
+import { setRecordVisibility } from '../api/adminApi';
 import RecordTagsInline from './RecordTagsInline';
 
 const SORT_FIELD_MAP = {
@@ -19,7 +24,21 @@ const SORT_FIELD_MAP = {
 
 export default function RecordTable({ rows, totalElements, loading, onDelete }) {
   const T = useT();
+  const qc = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
   const { sortModel, setSortModel, setSelectedRows, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
+
+  const visibilityMut = useMutation({
+    mutationFn: ({ id, hideFromRails }) => setRecordVisibility(id, hideFromRails),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['records'] });
+      enqueueSnackbar(
+        vars.hideFromRails ? 'Record hidden from rails (still in search).' : 'Record visible on rails again.',
+        { variant: 'info', autoHideDuration: 2500 }
+      );
+    },
+    onError: () => enqueueSnackbar('Could not toggle visibility.', { variant: 'error' }),
+  });
 
   const gridSx = useMemo(() => ({
     // v8 CSS variables override container/pinned backgrounds
@@ -172,6 +191,29 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       ),
     },
     {
+      field: 'hideFromRails', headerName: 'On Rails', width: 80, sortable: false,
+      renderCell: ({ row }) => {
+        const hidden = Boolean(row.hideFromRails);
+        return (
+          <Tooltip title={hidden ? 'Hidden from rails (click to show)' : 'Visible on rails (click to hide)'}>
+            <span>
+              <IconButton
+                size="small"
+                disabled={visibilityMut.isPending}
+                onClick={() => visibilityMut.mutate({ id: row.recordId, hideFromRails: !hidden })}
+                sx={{
+                  color: hidden ? T.error : T.success,
+                  '&:hover': { bgcolor: hidden ? T.errorBg : `${T.success}15` },
+                }}
+              >
+                {hidden ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> : <VisibilityIcon sx={{ fontSize: 16 }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        );
+      },
+    },
+    {
       field: 'actions', headerName: '', width: 72, sortable: false,
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', gap: .5 }}>
@@ -180,7 +222,7 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
         </Box>
       ),
     },
-  ], [T, onDelete, openModal, openTmdbModal, openRecordDetail, openMediaFiles]);
+  ], [T, onDelete, openModal, openTmdbModal, openRecordDetail, openMediaFiles, visibilityMut]);
 
   return (
     <DataGrid

@@ -29,4 +29,6 @@ public class RecordDto {
 
     private List<RecordTagDto> tags;
 
+    private boolean hideFromRails;
+
 }

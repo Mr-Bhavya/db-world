@@ -33,6 +33,17 @@ public class AdminCatalogIngestRequestController {
         );
     }
 
+    /**
+     * Mark fulfilled without ingesting TMDB metadata — admin uploaded the file directly
+     * and voters can find it via search. No record is created.
+     */
+    @PostMapping("/{id}/fulfill-no-ingest")
+    public ApiResponse<CatalogIngestRequestDto> fulfillNoIngest(@PathVariable Long id) {
+        return ApiResponse.success(
+                service.markFulfilledNoIngest(id, userContext.userId(), userContext.email())
+        );
+    }
+
     /** Dismiss with optional reason — voters are notified. Body: {@code { "reason": "..." }} optional. */
     @PostMapping("/{id}/dismiss")
     public ApiResponse<CatalogIngestRequestDto> dismiss(

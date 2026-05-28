@@ -28,6 +28,14 @@ public interface CatalogIngestRequestService {
      */
     CatalogIngestRequestDto ingest(Long requestId, Long adminUserId, String adminUsername);
 
+    /**
+     * Admin: mark the request fulfilled without ingesting TMDB metadata. Used when the
+     * admin has uploaded the file directly to the unassigned bucket — voters get a
+     * notification pointing them at search ("the file is now searchable"). No record
+     * is created and no media-files carryover request is opened.
+     */
+    CatalogIngestRequestDto markFulfilledNoIngest(Long requestId, Long adminUserId, String adminUsername);
+
     /** Admin: dismiss the request and notify voters with an optional reason. */
     CatalogIngestRequestDto dismiss(Long requestId, String reason, Long adminUserId, String adminUsername);
 
