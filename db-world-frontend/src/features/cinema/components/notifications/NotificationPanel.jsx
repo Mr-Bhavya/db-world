@@ -62,7 +62,7 @@ const NotificationItem = ({ notif, onNavigate }) => {
           {isCatalogIn && (
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
-              {' has been added to the catalog — your request was fulfilled.'}
+              {' has been added to the catalog. We’ll notify you again when media files are uploaded.'}
             </>
           )}
           {isFulfilled && !isCatalogIn && (

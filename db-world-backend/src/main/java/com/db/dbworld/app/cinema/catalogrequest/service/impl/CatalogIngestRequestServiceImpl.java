@@ -1,7 +1,9 @@
 package com.db.dbworld.app.cinema.catalogrequest.service.impl;
 
+import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.catalogrequest.dto.CatalogIngestRequestDto;
 import com.db.dbworld.app.cinema.catalogrequest.dto.CatalogIngestRequestSubmission;
 import com.db.dbworld.app.cinema.catalogrequest.dto.CatalogIngestRequestVoteResponse;
@@ -11,8 +13,14 @@ import com.db.dbworld.app.cinema.catalogrequest.entity.CatalogIngestRequestStatu
 import com.db.dbworld.app.cinema.catalogrequest.repository.CatalogIngestRequestRepository;
 import com.db.dbworld.app.cinema.catalogrequest.service.CatalogIngestRequestService;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
+import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
+import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestStatus;
+import com.db.dbworld.app.cinema.mediarequest.repository.MediaRequestRepository;
 import com.db.dbworld.app.cinema.notification.service.UserNotificationService;
+import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
+import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +39,9 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
 
     private final CatalogIngestRequestRepository requestRepo;
     private final RecordRepository recordRepo;
+    private final TmdbRepository tmdbRepo;
+    private final CatalogService catalogService;
+    private final MediaRequestRepository mediaRequestRepo;
     private final TmdbIngestionService ingestionService;
     private final UserNotificationService notifService;
 
@@ -141,19 +152,17 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
             return toDto(request, adminUserId);
         }
 
-        // Drive the existing TMDB ingestion pipeline. ingestMovie/ingestTvSeries creates
-        // both the TMDB entity and its linked RecordEntity in the catalog.
-        Long tmdbId = request.getTmdbId();
-        if (request.getMediaType() == RecordType.MOVIE) {
-            ingestionService.ingestMovie(tmdbId);
-        } else {
-            ingestionService.ingestTvSeries(tmdbId);
-        }
+        // Drive the existing catalog pipeline so both the TMDB metadata row AND the
+        // catalog RecordEntity are created. Handles the recovery case where a previous
+        // attempt left a stray TMDB entity without a paired RecordEntity.
+        Long createdRecordId = resolveOrCreateRecord(request);
 
-        Long createdRecordId = recordRepo.findByTmdb_Id(tmdbId)
-                .map(RecordEntity::getId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "TMDB ingest finished but no RecordEntity was found for tmdbId=" + tmdbId));
+        // Carry voters over to a NEW_FILES media-files request on the freshly-created
+        // record. A "new title" request is really an ask for media files — this keeps
+        // their demand alive in the Media Requests queue so the admin's next step
+        // (uploading files) is tracked and voters get a second notification when files
+        // actually land.
+        carryVotersToMediaRequest(createdRecordId, request);
 
         request.setStatus(CatalogIngestRequestStatus.INGESTED);
         request.setIngestedAt(Instant.now());
@@ -172,6 +181,88 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         );
 
         return toDto(request, adminUserId);
+    }
+
+    /**
+     * Get a RecordEntity id for the requested TMDB title, creating one if needed.
+     * Three states are tolerated:
+     *   1. A RecordEntity already exists → return its id (idempotent re-ingest).
+     *   2. Only a TMDB row exists (orphaned by a prior failed ingest) → wrap it in a
+     *      RecordEntity so the catalog flow can proceed without re-fetching TMDB.
+     *   3. Neither exists → delegate to CatalogService.createRecord which fetches
+     *      TMDB metadata and creates both rows in one transaction.
+     */
+    private Long resolveOrCreateRecord(CatalogIngestRequestEntity request) {
+        Long tmdbId = request.getTmdbId();
+
+        var existing = recordRepo.findByTmdb_Id(tmdbId);
+        if (existing.isPresent()) {
+            return existing.get().getId();
+        }
+
+        if (tmdbRepo.existsById(tmdbId)) {
+            // Recover from the prior bug: TMDB row exists but no RecordEntity. Re-wrap.
+            TmdbEntity tmdb = tmdbRepo.findById(tmdbId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "TMDB row vanished mid-recovery for tmdbId=" + tmdbId));
+            String title = tmdb.getTitle() != null && !tmdb.getTitle().isBlank()
+                    ? tmdb.getTitle()
+                    : safeTitle(request.getTitle());
+            RecordEntity record = RecordEntity.builder()
+                    .name(title)
+                    .type(request.getMediaType())
+                    .tmdb(tmdb)
+                    .build();
+            record = recordRepo.save(record);
+            log.info("Recovered orphan TMDB row {} into RecordEntity {} for catalog ingest", tmdbId, record.getId());
+            return record.getId();
+        }
+
+        CreateRecordRequest req = new CreateRecordRequest();
+        req.setTmdbId(tmdbId);
+        req.setType(request.getMediaType());
+        return catalogService.createRecord(req).getId();
+    }
+
+    /**
+     * Bridge catalog-ingest voters into the media-files queue. If a NEW_FILES
+     * MediaRequest already exists for this record (e.g. someone separately
+     * requested files), merge the voter sets — otherwise create a fresh PENDING
+     * request seeded with the catalog-ingest voters.
+     */
+    private void carryVotersToMediaRequest(Long recordId, CatalogIngestRequestEntity src) {
+        Set<Long> voters = src.getVoterUserIds();
+        if (voters == null || voters.isEmpty()) return;
+
+        RecordEntity record = recordRepo.findById(recordId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Record vanished mid-carryover for id=" + recordId));
+
+        MediaRequestEntity mr = mediaRequestRepo
+                .findByRecordIdAndKind(recordId, MediaRequestKind.NEW_FILES)
+                .orElse(null);
+
+        if (mr == null) {
+            mr = MediaRequestEntity.builder()
+                    .recordId(recordId)
+                    .recordTitle(record.getName())
+                    .recordType(record.getType().name())
+                    .kind(MediaRequestKind.NEW_FILES)
+                    .status(MediaRequestStatus.PENDING)
+                    .voterUserIds(new HashSet<>(voters))
+                    .build();
+        } else {
+            // Re-open if it was fulfilled/dismissed — fresh demand survives.
+            if (mr.getStatus() != MediaRequestStatus.PENDING) {
+                mr.setStatus(MediaRequestStatus.PENDING);
+                mr.setFulfilledAt(null);
+                mr.setFulfilledByUserId(null);
+                mr.setFulfilledByUsername(null);
+                mr.setDismissReason(null);
+            }
+            mr.getVoterUserIds().addAll(voters);
+        }
+        mediaRequestRepo.save(mr);
     }
 
     @Override

@@ -267,7 +267,7 @@ function Navbar({ coverColor, onGenreSelect }) {
 
                 let message;
                 if (isCatalogIn) {
-                  message = `"${n.recordTitle}" has been added to the catalog — your request was fulfilled.`;
+                  message = `"${n.recordTitle}" has been added to the catalog. We'll notify you again when media files arrive.`;
                 } else if (isFulfilled) {
                   message = `"${n.recordTitle}" is now available — your request was fulfilled.`;
                 } else {
