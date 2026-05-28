@@ -2,6 +2,7 @@ package com.db.dbworld.app.cinema.catalog.service;
 
 import com.db.dbworld.app.cinema.catalog.dto.RecordAdminRowDto;
 import com.db.dbworld.app.cinema.catalog.dto.RecordDto;
+import com.db.dbworld.app.cinema.catalog.dto.SearchRecordDto;
 import com.db.dbworld.app.cinema.catalog.dto.request.AddTagRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.CreateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
@@ -19,9 +20,20 @@ public interface CatalogService {
 
     RecordDto createRecord(CreateRecordRequest request);
 
+    /** Toggle whether a record is hidden from rails (search visibility unchanged). */
+    RecordDto setHideFromRails(Long recordId, boolean hide);
+
     RecordDto updateRecord(Long id, UpdateRecordRequest request);
 
     RecordDto getRecord(Long recordId);
+
+    /**
+     * Returns up to {@code limit} records sharing the primary genre of
+     * {@code recordId}, excluding the source record itself. Used by the detail
+     * page's "More Like This" section. Lightweight DTOs only — no nested
+     * TMDB collections.
+     */
+    List<SearchRecordDto> getSimilar(Long recordId, int limit);
 
     List<RecordDto> getAllRecords();
 

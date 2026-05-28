@@ -36,6 +36,19 @@ public class CatalogController {
     }
 
     /* =========================
+       MORE LIKE THIS
+       ========================= */
+
+    @AnyRole
+    @GetMapping("/{id}/similar")
+    public ApiResponse<List<SearchRecordDto>> getSimilar(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "12") int limit
+    ) {
+        return ApiResponse.success(catalogService.getSimilar(id, Math.min(Math.max(limit, 1), 30)));
+    }
+
+    /* =========================
        SEARCH
        ========================= */
 

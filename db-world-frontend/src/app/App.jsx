@@ -1,7 +1,7 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import Header from '@shared/components/layout/Header';
 import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
@@ -29,7 +29,6 @@ import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
-import FlmngrStandalone from '@features/admin/FileExplorer/FlmngrStandalone.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { SnackbarProvider } from 'notistack';
@@ -53,6 +52,7 @@ import AdminLayout from '@features/admin/layout/AdminLayout.jsx';
 const LazyAdminDashboard       = lazy(() => import('@features/admin/dashboard/AdminDashboard.jsx'));
 const LazyActivityCenter       = lazy(() => import('@features/admin/activity-center'));
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/mediafiles'));
+const LazyRequestsAdmin        = lazy(() => import('@features/admin/requests'));
 const LazyTmdbSyncManager      = lazy(() => import('@features/admin/tmdb-sync'));
 const LazyIngestionPage        = lazy(() => import('@features/admin/ingestion'));
 const LazyServerInfo           = lazy(() => import('@features/admin/system-info'));
@@ -64,7 +64,8 @@ const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
 const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer.jsx'));
 const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
-const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage.jsx'));
+const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage/index.jsx'));
+const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
@@ -226,9 +227,7 @@ const routeConfig = {
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
-  admin: [
-    { path: Constants.DB_FILE_MANAGER_ROUTE, element: <FlmngrStandalone /> },
-  ]
+  admin: []
 };
 
 // ─── Inner app — reads mode from ThemeTokensContext ──────────────────────────
@@ -236,6 +235,11 @@ const ThemedApp = () => {
   const { mode } = useThemeMode();
   const [loading, setLoading] = useState(true);
   const muiTheme = useMemo(() => buildMuiTheme(mode), [mode]);
+  const location = useLocation();
+  // When set, the user clicked a record card in-app on desktop. The main
+  // <Routes> renders against this background location so the underlying
+  // cinema page stays visible; a second <Routes> mounts the modal on top.
+  const background = location.state?.background;
 
   const renderRoutes = (routes) =>
     routes.map((route, i) => (
@@ -297,7 +301,7 @@ const ThemedApp = () => {
             <BackButtonHandler />
             <Header />
             <Suspense fallback={<LoadingFallback />}>
-              <Routes>
+              <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
                 <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
                   {renderRoutes(routeConfig.protected)}
@@ -317,6 +321,10 @@ const ThemedApp = () => {
                     <Route path="analytics"      element={<Navigate to="../activity-center" replace />} />
                     <Route path="records"       element={<LazyRecordManagement />} />
                     <Route path="media-files"   element={<LazyMediaFilesManagement />} />
+                    <Route path="requests"       element={<LazyRequestsAdmin />} />
+                    {/* legacy redirects — keep links to the old split pages working */}
+                    <Route path="media-requests"   element={<Navigate to="../requests?tab=media" replace />} />
+                    <Route path="catalog-requests" element={<Navigate to="../requests?tab=catalog" replace />} />
                     <Route path="tag-management" element={<LazyTagManagement />} />
                     <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
                     <Route path="ingestion"     element={<LazyIngestionPage />} />
@@ -329,7 +337,28 @@ const ThemedApp = () => {
                 </Route>
                 <Route path="*" element={<ErrorPage />} />
               </Routes>
+
             </Suspense>
+
+            {/* Netflix-style modal overlay — only mounted when the user
+                navigated to a detail route IN-APP (location.state.background
+                is set). Cold loads, shared URLs, and refreshes render the
+                full RecordDetailPage instead via the main Routes above.
+
+                NOTE: wrapped in its own Suspense with a `null` fallback so
+                that when the lazy modal chunk loads on first open, the
+                fallback does not replace the underlying cinema page (which
+                would lose scroll position and trigger a full re-fetch). */}
+            {background && (
+              <Suspense fallback={null}>
+                <Routes>
+                  <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
+                    <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={<LazyRecordDetailModal />} />
+                    <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<LazyRecordDetailModal />} />
+                  </Route>
+                </Routes>
+              </Suspense>
+            )}
           </div>
         </CategoryProvider>
       </SnackbarProvider>

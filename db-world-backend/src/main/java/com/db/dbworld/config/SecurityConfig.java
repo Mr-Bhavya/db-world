@@ -77,6 +77,7 @@ public class SecurityConfig {
                 "http://10.*",            // local network (corporate)
                 "http://172.16.*",        // local network (docker/office)
                 "https://db-world.in",
+                "https://www.db-world.in",
                 "https://api.db-world.in",
                 "https://cdn.db-world.in"
         ));

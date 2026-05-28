@@ -71,9 +71,6 @@ export const DB_ADD_PASSWORD_ROUTE =
 export const DB_VIEW_PASSWORD_ROUTE =
   `${DB_PASSWORD_MANAGER_ROUTE}/view-password`;
 
-export const DB_FILE_MANAGER_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/db-file-manager`;
-
 export const LOGIN_ROUTE = `${DB_WORLD_HOME_ROUTE}/login`;
 export const LOGOUT_ROUTE = `${DB_WORLD_HOME_ROUTE}/logout`;
 export const REGISTRATION_ROUTE = `${DB_WORLD_HOME_ROUTE}/registration`;
@@ -206,8 +203,6 @@ export default {
   DB_GENERATE_PASSWORD_ROUTE,
   DB_ADD_PASSWORD_ROUTE,
   DB_VIEW_PASSWORD_ROUTE,
-
-  DB_FILE_MANAGER_ROUTE,
 
   LOGIN_ROUTE,
   LOGOUT_ROUTE,

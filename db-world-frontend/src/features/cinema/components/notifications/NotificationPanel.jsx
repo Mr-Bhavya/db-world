@@ -4,7 +4,7 @@ import {
   Popover, Drawer, List, ListItemButton,
   alpha, useTheme, useMediaQuery,
 } from '@mui/material';
-import { Close, RateReview, NotificationsNone } from '@mui/icons-material';
+import { Close, RateReview, NotificationsNone, NotificationsActive, Block, NewReleases, Search as SearchIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, markNotificationsRead } from '../../api/cinemaApi';
 import Constants from '@shared/constants';
@@ -19,43 +19,93 @@ function relativeTime(iso) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function getRecordRoute(recordType, recordTitle) {
-  const encoded = encodeURIComponent(recordTitle);
+function getRecordRoute(recordType, recordTitle, recordId) {
+  const slug = (recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
+  const param = recordId ? `${recordId}-${slug}` : encodeURIComponent(recordTitle ?? '');
   const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((recordType ?? '').toUpperCase());
-  if (isSeries) return Constants.DB_SERIES_DETIALS_ROUTE.replace(':title', encoded);
-  return Constants.DB_MOVIE_DETIALS_ROUTE.replace(':title', encoded);
+  if (isSeries) return Constants.DB_SERIES_DETIALS_ROUTE.replace(':title', param);
+  return Constants.DB_MOVIE_DETIALS_ROUTE.replace(':title', param);
 }
 
 const NotificationItem = ({ notif, onNavigate }) => {
   const theme = useTheme();
+  const isFulfilled = notif.type === 'REQUEST_FULFILLED';
+  const isDismissed = notif.type === 'REQUEST_DISMISSED';
+  const isCatalogIn = notif.type === 'CATALOG_INGESTED';
+  const isCatalogBySearch = notif.type === 'CATALOG_FULFILLED_BY_SEARCH';
+  const accent = isFulfilled || isCatalogIn || isCatalogBySearch
+    ? theme.palette.success.main
+    : isDismissed
+      ? theme.palette.warning.main
+      : theme.palette.primary.main;
+  const Icon = isCatalogBySearch ? SearchIcon
+    : isCatalogIn ? NewReleases
+    : isFulfilled ? NotificationsActive
+    : isDismissed ? Block
+    : RateReview;
+
   return (
     <ListItemButton
       onClick={() => onNavigate(notif)}
       sx={{
         py: 1.5, px: 2, gap: 1.5,
         alignItems: 'flex-start',
-        bgcolor: notif.read ? 'transparent' : alpha(theme.palette.primary.main, 0.07),
-        borderLeft: `3px solid ${notif.read ? 'transparent' : theme.palette.primary.main}`,
-        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.12) },
+        bgcolor: notif.read ? 'transparent' : alpha(accent, 0.07),
+        borderLeft: `3px solid ${notif.read ? 'transparent' : accent}`,
+        '&:hover': { bgcolor: alpha(accent, 0.12) },
       }}
     >
       <Box sx={{
         width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-        bgcolor: alpha(theme.palette.primary.main, 0.15),
+        bgcolor: alpha(accent, 0.15),
         display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.25,
       }}>
-        <RateReview sx={{ fontSize: 15, color: theme.palette.primary.main }} />
+        <Icon sx={{ fontSize: 15, color: accent }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: '0.83rem', lineHeight: 1.45, fontWeight: notif.read ? 400 : 600 }}>
-          <Box component="span" sx={{ color: theme.palette.primary.main, fontWeight: 700 }}>
-            {notif.actorUsername}
-          </Box>
-          {' reviewed '}
-          <Box component="span" sx={{ fontWeight: 700 }}>
-            {notif.recordTitle}
-          </Box>
+          {isCatalogIn && (
+            <>
+              <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
+              {' has been added to the catalog. We’ll notify you again when media files are uploaded.'}
+            </>
+          )}
+          {isCatalogBySearch && (
+            <>
+              <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
+              {' is now available — use search to download the file.'}
+            </>
+          )}
+          {isFulfilled && !isCatalogIn && !isCatalogBySearch && (
+            <>
+              <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
+              {' is now available — your request was fulfilled.'}
+            </>
+          )}
+          {isDismissed && (
+            <>
+              {'Your request for '}
+              <Box component="span" sx={{ fontWeight: 700 }}>{notif.recordTitle}</Box>
+              {' was dismissed by an admin.'}
+            </>
+          )}
+          {!isFulfilled && !isDismissed && !isCatalogIn && !isCatalogBySearch && (
+            <>
+              <Box component="span" sx={{ color: accent, fontWeight: 700 }}>
+                {notif.actorUsername}
+              </Box>
+              {' reviewed '}
+              <Box component="span" sx={{ fontWeight: 700 }}>
+                {notif.recordTitle}
+              </Box>
+            </>
+          )}
         </Typography>
+        {isDismissed && notif.message && (
+          <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', mt: 0.4, fontStyle: 'italic' }}>
+            “{notif.message}”
+          </Typography>
+        )}
         <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled', mt: 0.3 }}>
           {relativeTime(notif.createdAt)}
         </Typography>
@@ -83,8 +133,11 @@ const PanelContent = ({ onClose, onUnreadClear }) => {
   }, [onUnreadClear]);
 
   const handleNavigate = useCallback((notif) => {
+    // Catalog-request dismissals have no record yet (recordId is the 0 sentinel)
+    // so there's nowhere to navigate to — keep the panel open and do nothing.
+    if (!notif.recordId || notif.recordId === 0) return;
     onClose();
-    navigate(getRecordRoute(notif.recordType, notif.recordTitle));
+    navigate(getRecordRoute(notif.recordType, notif.recordTitle, notif.recordId));
   }, [onClose, navigate]);
 
   return (

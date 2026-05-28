@@ -4,7 +4,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { alpha } from '@mui/material/styles';
 import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
-import { fetchPageCategories, fetchUnreadCount } from '../api/cinemaApi';
+import { fetchPageCategories, fetchUnreadCount, fetchNotifications } from '../api/cinemaApi';
+import { useSnackbar } from 'notistack';
 import DB_WORLD_TEAL_SVG from '@assets/images/db-circle-icon.webp';
 
 import {
@@ -233,11 +234,92 @@ function Navbar({ coverColor, onGenreSelect }) {
       .catch(() => setCategoryList([]));
   }, []);
 
-  // Load unread notification count once on mount
+  // Load unread notification count once on mount.
+  // Also surface a one-shot snackbar for REQUEST_FULFILLED notifications — admins
+  // mark a media request fulfilled on the admin side and the user sees a toast
+  // the next time they load the app. sessionStorage dedupes so the same toast
+  // does not fire on every navbar remount within a session.
+  const { enqueueSnackbar } = useSnackbar();
   useEffect(() => {
     fetchUnreadCount()
-      .then(count => setUnreadCount(Number(count) || 0))
+      .then(count => {
+        const c = Number(count) || 0;
+        setUnreadCount(c);
+        if (c > 0) {
+          fetchNotifications(30)
+            .then(list => {
+              if (!Array.isArray(list)) return;
+              let seen = [];
+              try {
+                seen = JSON.parse(sessionStorage.getItem('dbw.fulfilledSeen') || '[]');
+              } catch { seen = []; }
+              const fresh = list.filter(n =>
+                !n.read
+                && ['REQUEST_FULFILLED', 'REQUEST_DISMISSED', 'CATALOG_INGESTED', 'CATALOG_FULFILLED_BY_SEARCH'].includes(n.type)
+                && !seen.includes(n.id)
+              );
+              if (fresh.length === 0) return;
+
+              fresh.forEach(n => {
+                const isCatalogIn = n.type === 'CATALOG_INGESTED';
+                const isCatalogBySearch = n.type === 'CATALOG_FULFILLED_BY_SEARCH';
+                const isFulfilled = n.type === 'REQUEST_FULFILLED';
+                const isDismissed = n.type === 'REQUEST_DISMISSED';
+
+                let message;
+                if (isCatalogIn) {
+                  message = `"${n.recordTitle}" has been added to the catalog. We'll notify you again when media files arrive.`;
+                } else if (isCatalogBySearch) {
+                  message = `"${n.recordTitle}" is now available — use search to download the file.`;
+                } else if (isFulfilled) {
+                  message = `"${n.recordTitle}" is now available — your request was fulfilled.`;
+                } else {
+                  message = n.message
+                    ? `Your request for "${n.recordTitle}" was dismissed: ${n.message}`
+                    : `Your request for "${n.recordTitle}" was dismissed by an admin.`;
+                }
+
+                // Dismissed catalog requests don't have a record yet (recordId is 0 sentinel).
+                const canRoute = !(isDismissed && (!n.recordId || n.recordId === 0));
+
+                enqueueSnackbar(message, {
+                  variant: isDismissed ? 'warning' : 'success',
+                  autoHideDuration: isDismissed ? 8000 : 6000,
+                  action: canRoute
+                    ? () => (
+                        <Button
+                          size="small"
+                          color="inherit"
+                          onClick={() => {
+                            const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
+                            const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
+                            const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
+                            const route = (isSeries
+                              ? Constants.DB_SERIES_DETIALS_ROUTE
+                              : Constants.DB_MOVIE_DETIALS_ROUTE
+                            ).replace(':title', param);
+                            navigate(route);
+                          }}
+                        >
+                          View
+                        </Button>
+                      )
+                    : undefined,
+                });
+              });
+
+              try {
+                sessionStorage.setItem(
+                  'dbw.fulfilledSeen',
+                  JSON.stringify([...seen, ...fresh.map(n => n.id)])
+                );
+              } catch { /* storage full or disabled */ }
+            })
+            .catch(() => {});
+        }
+      })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────

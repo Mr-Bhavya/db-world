@@ -24,10 +24,13 @@ import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.core.context.UserContext;
 
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.hibernate.Session;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +64,19 @@ public class RailServiceImpl implements RailService {
     private final GenreMapper genreMapper;
 
     private static final int MAX_PAGE_SIZE = 50;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    /**
+     * Enable the "excludeHidden" Hibernate filter for the current session so all
+     * subsequent record queries in this transaction skip records with
+     * hide_from_rails = true. Search and admin endpoints don't call this, so
+     * hidden records still surface there (e.g. 18+ titles searchable but off rails).
+     */
+    private void hideRailHiddenRecords() {
+        entityManager.unwrap(Session.class).enableFilter("excludeHidden");
+    }
 
     /* ---------------------------------------------------
        Categories (Genre dropdown)
@@ -237,6 +253,8 @@ public class RailServiceImpl implements RailService {
     @Transactional(readOnly = true)
     public RailPageDto getRailRecords(Long railId, int page, Integer size, Long category, PageType requestedPage) {
 
+        hideRailHiddenRecords();
+
         RailEntity rail = railRepository.findById(railId)
                 .orElseThrow(() -> new EntityNotFoundException("Rail not found " + railId));
 
@@ -328,6 +346,7 @@ public class RailServiceImpl implements RailService {
     @Override
     @Transactional(readOnly = true)
     public RailPageDto getWatchlistRecords(Long userId, int page, int size) {
+        hideRailHiddenRecords();
         int pageSize = Math.min(size, MAX_PAGE_SIZE);
         org.springframework.data.domain.Page<?> interactionPage =
                 interactionRepository.findByUserIdAndInteractionTypeOrderByIdDesc(

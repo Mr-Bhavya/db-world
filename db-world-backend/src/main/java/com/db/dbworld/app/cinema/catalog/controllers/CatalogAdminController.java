@@ -45,6 +45,23 @@ public class CatalogAdminController {
     }
 
     /* =========================
+       VISIBILITY (hide from rails)
+       ========================= */
+
+    @AdminAccess
+    @PatchMapping("/{id}/visibility")
+    public ApiResponse<RecordDto> setVisibility(
+            @PathVariable Long id,
+            @RequestParam boolean hideFromRails
+    ) {
+
+        return ApiResponse.success(
+                hideFromRails ? "Record hidden from rails" : "Record visible on rails",
+                catalogService.setHideFromRails(id, hideFromRails)
+        );
+    }
+
+    /* =========================
        UPDATE RECORD
        ========================= */
 

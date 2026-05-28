@@ -46,4 +46,16 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
     List<UserSearchProjection> searchUsers(@Param("query") String query, Pageable pageable);
 
     long countByRoleName(Role roleName);
+
+    /**
+     * Every active user id except the actor. Used to broadcast review notifications
+     * across the whole user base (small home-server scale, not 10k+ users).
+     */
+    @Query("""
+           SELECT u.userId FROM UserEntity u
+           WHERE u.userId <> :actorId
+             AND u.enabled = true
+             AND u.accountNonLocked = true
+           """)
+    List<Long> findActiveUserIdsExcept(@Param("actorId") Long actorId);
 }

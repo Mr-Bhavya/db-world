@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useAuth } from '@features/auth/context/Authentication';
+import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 
 // ─── Accent palette ────────────────────────────────────────────────────────────
@@ -59,13 +60,10 @@ function getGreeting() {
 
 
 async function fetchDashboardStats() {
-  const token = localStorage.getItem('token') ?? sessionStorage.getItem('token') ?? '';
-  const res = await fetch('/api/admin/dashboard/stats', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error('Failed to fetch stats');
-  const json = await res.json();
-  return json.data;
+  // axiosInstance carries the JWT, picks up the api.db-world.in base URL,
+  // and handles silent refresh on 401 — no need to repeat that here.
+  const res = await axiosInstance.get('/api/admin/dashboard/stats');
+  return res.data?.data;
 }
 
 // ─── Animation variants ────────────────────────────────────────────────────────

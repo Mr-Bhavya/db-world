@@ -4,6 +4,8 @@ import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -20,6 +22,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
+@FilterDef(name = "excludeHidden")
+@Filter(name = "excludeHidden", condition = "hide_from_rails = false")
 @Table(
         name = "records",
         schema = "new_db_world"
@@ -76,5 +80,14 @@ public class RecordEntity implements Serializable {
     )
     @Builder.Default
     private List<RecordTagEntity> tags = new ArrayList<>();
+
+    /**
+     * Hide this record from rails (home page, category rails, "more like this").
+     * Search still returns it — useful for 18+ titles, library-only deep cuts, etc.
+     * Default false. Filtering applied via the {@code excludeHidden} Hibernate filter.
+     */
+    @Column(name = "hide_from_rails", nullable = false)
+    @Builder.Default
+    private boolean hideFromRails = false;
 
 }

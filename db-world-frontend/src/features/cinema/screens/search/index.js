@@ -7,12 +7,15 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
 import {
   Box,
+  Button,
   IconButton,
   InputBase,
   Skeleton,
   Typography,
   styled,
 } from '@mui/material';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import CatalogRequestModal from '../../components/catalog-request/CatalogRequestModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
@@ -277,6 +280,9 @@ function SearchOverlay({ onClose }) {
   // Modal
   const [showFileModal, setShowFileModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+
+  // Catalog request modal — opened from the "no results" empty state.
+  const [catalogRequestOpen, setCatalogRequestOpen] = useState(false);
 
   // ── Debounced search trigger ────────────────────────────────────────────────
   const debouncedSearch = useCallback(
@@ -554,8 +560,19 @@ function SearchOverlay({ onClose }) {
                         No results for &ldquo;{term}&rdquo;
                       </Typography>
                       <Typography sx={{ fontSize: '0.8rem', opacity: 0.6 }}>
-                        Try a different spelling or keyword
+                        Try a different spelling, or request this title to be added.
                       </Typography>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        disableElevation
+                        startIcon={<AddCircleOutlineIcon sx={{ fontSize: 18 }} />}
+                        onClick={() => setCatalogRequestOpen(true)}
+                        sx={{ mt: 1.5, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
+                      >
+                        Request this title
+                      </Button>
                     </EmptyState>
                   ) : (
                     <>
@@ -693,6 +710,13 @@ function SearchOverlay({ onClose }) {
         onClose={handleCloseModal}
         fileId={selectedFile?.fileId}
         filePath={selectedFile?.filePath}
+      />
+
+      {/* Catalog ingest request modal */}
+      <CatalogRequestModal
+        open={catalogRequestOpen}
+        onClose={() => setCatalogRequestOpen(false)}
+        initialQuery={term}
       />
     </>
   );
