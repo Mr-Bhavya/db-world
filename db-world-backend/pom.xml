@@ -29,10 +29,8 @@
     <!-- Properties                                                        -->
     <!-- ================================================================ -->
     <properties>
-        <!-- Java 25 LTS. Runs on aarch64 (Raspberry Pi 5) via OpenJDK 25 aarch64 build.
-             TEMPORARY: dropped to 21 to verify the SB4 migration on current Temurin 21.
-             Flip back to 25 once JDK 25 is installed locally and on the Pi. -->
-        <java.version>21</java.version>
+        <!-- Java 25 LTS. Runs on aarch64 (Raspberry Pi 5) via OpenJDK 25 aarch64 build. -->
+        <java.version>25</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
