@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, styled, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import { ScrollContainer, SectionTitle } from './CustomComponents';
 
 const VideoTrailers = ({ videos }) => {

@@ -109,6 +109,16 @@ public class TmdbRecordSyncService {
     private TmdbRecordSyncEntity getOrCreate(Long tmdbId, RecordType type) {
 
         return repository.findByTmdbIdAndRecordType(tmdbId, type)
+                .map(existing -> {
+                    // Self-heal legacy rows: recordId was only set on create, so rows
+                    // that pre-date the population logic (or were created before their
+                    // RecordEntity existed) stay null forever. Populate on first touch.
+                    if (existing.getRecordId() == null) {
+                        recordRepository.findByTmdb_Id(tmdbId)
+                                .ifPresent(r -> existing.setRecordId(r.getId()));
+                    }
+                    return existing;
+                })
                 .orElseGet(() -> {
                     Long recordId = recordRepository.findByTmdb_Id(tmdbId)
                             .map(r -> r.getId())

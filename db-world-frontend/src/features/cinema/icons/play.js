@@ -2,9 +2,7 @@ import React from "react";
 import { Button } from "@mui/material";
 import { PlayArrow } from "@mui/icons-material";
 import { Capacitor } from "@capacitor/core";
-import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
-import { CapacitorVideoPlayer } from "capacitor-video-player"; // Ensure this is installed and linked properly
 import { toast } from '@shared/components/ui/Toast';
 
 const Play = ({

@@ -17,7 +17,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import Constants from '@shared/constants';
-import db_world_icon from '@assets/images/db-world-circle.png';
+import db_world_icon from '@assets/images/db-circle-icon.webp';
 import { useT, getFieldSx, getGlowProps } from '@shared/theme';
 
 const Login = () => {

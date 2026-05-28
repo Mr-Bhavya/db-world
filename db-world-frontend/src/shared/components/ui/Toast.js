@@ -4,7 +4,6 @@ import {
   Alert,
   AlertTitle,
   Slide,
-  Zoom,
   Fade,
   Grow,
   useTheme
@@ -67,8 +66,8 @@ export const ToastProvider = ({ children }) => {
 
   const getTransition = (position) => {
     if (isMobile()) return Slide;
-    
-    const [vertical, horizontal] = position.split('-');
+
+    const [_vertical, horizontal] = position.split('-');
     switch (horizontal) {
       case 'left':
         return (props) => <Slide {...props} direction="right" />;

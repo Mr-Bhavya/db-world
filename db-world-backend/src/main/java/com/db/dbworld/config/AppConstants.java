@@ -53,7 +53,23 @@ public final class AppConstants {
     // ── YT-DLP ────────────────────────────────────────────────────────────────
 
     public static final String YTDLP_COOKIES_CMD = "--cookies";
-    public static final String HOTSTAR_COM       = "hotstar.com";
+    public static final String HOTSTAR_COM        = "hotstar.com";
+
+    /**
+     * Platforms that typically require cookies for format listing and download.
+     * Used by AppProperties.getCookieForUrl() and YtFormatService.
+     * Cookie files must live at: <cookiesDir>/<domain-prefix>.txt
+     */
+    public static final java.util.List<String> YTDLP_COOKIE_DOMAINS = java.util.List.of(
+            "hotstar.com",
+            "sonyliv.com",
+            "zee5.com",
+            "jiocinema.com",
+            "voot.com",
+            "primevideo.com",
+            "netflix.com",
+            "disneyplus.com"
+    );
 
     // ── Authorization expressions (must be compile-time constants for @PreAuthorize) ──
 

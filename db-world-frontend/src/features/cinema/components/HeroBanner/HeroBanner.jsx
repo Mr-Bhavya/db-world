@@ -69,7 +69,7 @@ const HeroBannerSkeleton = ({ isMobile }) => (
     // Mobile skeleton: large poster card + buttons below
     <Box sx={{ minHeight: '82svh', display: 'flex', flexDirection: 'column', alignItems: 'center', pt: '16px', pb: 1, px: 4 }}>
       {/* Poster card skeleton */}
-      <Box sx={{ position: 'relative', width: '74vw', maxWidth: 300, aspectRatio: '2/3', borderRadius: 3, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.07)', width: '74vw' }}>
+      <Box sx={{ position: 'relative', width: '74vw', maxWidth: 300, aspectRatio: '2/3', borderRadius: 3, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.07)' }}>
         <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: 'rgba(255,255,255,.07)' }} />
         {/* Bottom overlay skeleton */}
         <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 2, background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)' }}>

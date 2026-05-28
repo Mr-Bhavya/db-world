@@ -10,11 +10,10 @@ import {
   Button,
   Chip,
   Stack,
-  Tooltip,
-  Divider
+  Tooltip
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { Close, Download, PlayArrow, ContentCopy, CheckCircle } from '@mui/icons-material';
+import { Close, Download, ContentCopy, CheckCircle } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { loadStreamFileInfoByFiledId, resolveMediaUrl } from '@shared/services/ApiServices';
 import Constants from '@shared/constants';

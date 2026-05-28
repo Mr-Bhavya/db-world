@@ -4,6 +4,8 @@ import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import lombok.Data;
 
+import java.util.Set;
+
 @Data
 public class RailRequest {
 
@@ -17,7 +19,8 @@ public class RailRequest {
 
     private boolean infiniteScroll;
 
-    private PageType pageType;
+    /** Pages this rail should appear on. Must contain at least one entry. */
+    private Set<PageType> pageTypes;
 
     /**
      * JSON rule string used by resolver

@@ -1,6 +1,7 @@
-import { Box, Chip, IconButton, Menu, MenuItem, ListItemIcon, Skeleton, Divider } from '@mui/material';
+import { Box, Chip, IconButton, Menu, MenuItem, ListItemIcon, Skeleton, Divider, Tooltip } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MovieIcon from '@mui/icons-material/Movie';
@@ -11,15 +12,17 @@ import VideoFileIcon from '@mui/icons-material/VideoFile';
 import { useState } from 'react';
 import { useT } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
+import { useRecordVisibility } from './useRecordVisibility';
 import { formatDistanceToNow } from 'date-fns';
 
 const TMDB_THUMB = 'https://image.tmdb.org/t/p/w92';
 
-function RecordRow({ record, onDelete }) {
+function RecordRow({ record, onDelete, visibilityMut }) {
   const T = useT();
   const { openDrawer, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
   const [anchor, setAnchor] = useState(null);
   const poster = record.tmdb?.posterPath;
+  const hidden = Boolean(record.hideFromRails);
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: '10px 16px', borderBottom: `1px solid ${T.border}`, bgcolor: T.sidebar }}>
@@ -32,7 +35,14 @@ function RecordRow({ record, onDelete }) {
         }
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Box sx={{ fontWeight: 600, fontSize: 14, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.name}</Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box sx={{ fontWeight: 600, fontSize: 14, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{record.name}</Box>
+          {hidden && (
+            <Tooltip title="Hidden from rails (still searchable)">
+              <VisibilityOffIcon sx={{ fontSize: 14, color: T.error, flexShrink: 0 }} />
+            </Tooltip>
+          )}
+        </Box>
         <Box sx={{ display: 'flex', gap: 1, mt: .25, flexWrap: 'wrap', alignItems: 'center' }}>
           <Chip label={record.type === 'MOVIE' ? 'Movie' : 'Series'} size="small" sx={{
             height: 15, fontSize: 9, fontWeight: 700,
@@ -69,6 +79,22 @@ function RecordRow({ record, onDelete }) {
           <Box sx={{ color: T.textPrimary }}>Media Files</Box>
         </MenuItem>
         <Divider sx={{ borderColor: T.border, my: .5 }} />
+        <MenuItem
+          onClick={() => {
+            visibilityMut.mutate({ id: record.recordId, hideFromRails: !hidden });
+            setAnchor(null);
+          }}
+          sx={{ '&:hover': { bgcolor: hidden ? `${T.success}15` : T.errorBg } }}
+        >
+          <ListItemIcon>
+            {hidden
+              ? <VisibilityIcon fontSize="small" sx={{ color: T.success }} />
+              : <VisibilityOffIcon fontSize="small" sx={{ color: T.error }} />}
+          </ListItemIcon>
+          <Box sx={{ color: T.textPrimary }}>
+            {hidden ? 'Show on rails' : 'Hide from rails'}
+          </Box>
+        </MenuItem>
         <MenuItem onClick={() => { openModal('edit', record.recordId); setAnchor(null); }} sx={{ '&:hover': { bgcolor: T.tealBg } }}>
           <ListItemIcon><EditIcon fontSize="small" sx={{ color: T.success }} /></ListItemIcon>
           <Box sx={{ color: T.textPrimary }}>Edit</Box>
@@ -84,10 +110,11 @@ function RecordRow({ record, onDelete }) {
 
 export default function RecordMobileList({ rows, loading, onDelete }) {
   const T = useT();
+  const visibilityMut = useRecordVisibility();
   if (loading && rows.length === 0) return (
     <Box>{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} height={70} sx={{ bgcolor: T.glass, mx: 2, mb: .5 }} />)}</Box>
   );
   return (
-    <Box>{rows.map(r => <RecordRow key={r.recordId} record={r} onDelete={onDelete} />)}</Box>
+    <Box>{rows.map(r => <RecordRow key={r.recordId} record={r} onDelete={onDelete} visibilityMut={visibilityMut} />)}</Box>
   );
 }

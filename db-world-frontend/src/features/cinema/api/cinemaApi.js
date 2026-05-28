@@ -51,6 +51,12 @@ export const fetchRailPage = (railId, page = 0, size = 20, category) =>
 export const fetchRecord = (id) =>
   axiosInstance.get(`${BASE}/catalog/${id}`).then(unwrap);
 
+/** GET /api/cinema/catalog/{id}/similar?limit=  → List<SearchRecordDto>
+ *  Lightweight "More Like This" — records sharing the primary genre,
+ *  excluding the source record. */
+export const fetchSimilarRecords = (id, limit = 12) =>
+  axiosInstance.get(`${BASE}/catalog/${id}/similar`, { params: { limit } }).then(unwrap);
+
 /** GET /api/cinema/catalog/search?q=&page=&size=  → Page<RecordDto> */
 export const searchRecords = (q, page = 0, size = 20) =>
   axiosInstance
@@ -144,3 +150,85 @@ export const fetchUnreadCount = () =>
 /** PUT /api/notifications/mark-read */
 export const markNotificationsRead = () =>
   axiosInstance.put('/api/notifications/mark-read').then(unwrap);
+
+// ─── Media Requests ───────────────────────────────────────────────────────────
+// Kinds: NEW_FILES (empty state), HIGHER_QUALITY, LOWER_QUALITY.
+
+/** POST /api/cinema/media-requests/{recordId}/vote?kind=KIND → { recordId, kind, voteCount, hasMyVote } */
+export const toggleMediaRequestVote = (recordId, kind = 'NEW_FILES') =>
+  axiosInstance
+    .post(`${BASE}/media-requests/${recordId}/vote`, null, { params: { kind } })
+    .then(unwrap);
+
+/** GET /api/cinema/media-requests/mine → [{ recordId, kind }] pending requests caller voted for */
+export const fetchMyMediaRequests = () =>
+  axiosInstance.get(`${BASE}/media-requests/mine`).then(unwrap);
+
+// ─── Persons ──────────────────────────────────────────────────────────────────
+
+/** GET /api/cinema/persons/{id} → PersonDetailDto (bio + filmography) */
+export const fetchPersonDetail = (id) =>
+  axiosInstance.get(`${BASE}/persons/${id}`).then(unwrap);
+
+// ─── Catalog Ingest Requests (new titles not yet in the catalog) ─────────────
+
+/** GET /api/cinema/tmdb/search?type=MOVIE&query=... → TmdbSearchItemDto[] */
+export const searchTmdbForRequest = (type, query, year) =>
+  axiosInstance
+    .get(`${BASE}/tmdb/search`, { params: { type, query, year } })
+    .then(unwrap);
+
+/**
+ * POST /api/cinema/catalog-requests/vote
+ * body: { tmdbId, mediaType: 'MOVIE'|'TV_SERIES', title, posterPath?, releaseYear?, note? }
+ */
+export const toggleCatalogIngestVote = (payload) =>
+  axiosInstance.post(`${BASE}/catalog-requests/vote`, payload).then(unwrap);
+
+/** GET /api/cinema/catalog-requests/mine → [{ tmdbId, mediaType }] */
+export const fetchMyCatalogRequests = () =>
+  axiosInstance.get(`${BASE}/catalog-requests/mine`).then(unwrap);
+
+// ─── Admin: Catalog Ingest Requests ──────────────────────────────────────────
+
+export const fetchAdminCatalogRequests = (status) =>
+  axiosInstance
+    .get(`${BASE}/admin/catalog-requests`, { params: status ? { status } : {} })
+    .then(unwrap);
+
+export const ingestCatalogRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/ingest`).then(unwrap);
+
+/** Mark fulfilled without ingesting TMDB metadata — voters find the file via search. */
+export const markCatalogRequestFulfilledNoIngest = (id) =>
+  axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/fulfill-no-ingest`).then(unwrap);
+
+export const dismissCatalogRequest = (id, reason) =>
+  axiosInstance
+    .post(`${BASE}/admin/catalog-requests/${id}/dismiss`, { reason: reason ?? null })
+    .then(unwrap);
+
+export const reopenCatalogRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/reopen`).then(unwrap);
+
+// ─── Admin: Media Requests ────────────────────────────────────────────────────
+
+/** GET /api/cinema/admin/media-requests?status=PENDING → MediaRequestDto[] */
+export const fetchAdminMediaRequests = (status) =>
+  axiosInstance
+    .get(`${BASE}/admin/media-requests`, { params: status ? { status } : {} })
+    .then(unwrap);
+
+/** POST /api/cinema/admin/media-requests/{id}/fulfill */
+export const fulfillMediaRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/media-requests/${id}/fulfill`).then(unwrap);
+
+/** POST /api/cinema/admin/media-requests/{id}/dismiss — body: { reason?: string } */
+export const dismissMediaRequest = (id, reason) =>
+  axiosInstance
+    .post(`${BASE}/admin/media-requests/${id}/dismiss`, { reason: reason ?? null })
+    .then(unwrap);
+
+/** POST /api/cinema/admin/media-requests/{id}/reopen — undo fulfill/dismiss. */
+export const reopenMediaRequest = (id) =>
+  axiosInstance.post(`${BASE}/admin/media-requests/${id}/reopen`).then(unwrap);

@@ -24,11 +24,11 @@ import ArrowUpwardIcon         from '@mui/icons-material/ArrowUpward';
 import { useQuery }         from '@tanstack/react-query';
 import { useThemeMode }     from '@shared/theme';
 import {
-  LOG_SOURCES_CONFIG, getSourceConfig, getSubTypeConfig,
-  fetchLogs, fetchAvailableDates,
+  LOG_SOURCES_CONFIG, getSourceConfig, fetchLogs, fetchAvailableDates
 } from './logApi';
+import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 
-const BASE = import.meta.env.VITE_API_BASE_URL || '';
+const BASE = getApiBaseUrl();
 const MAX_LIVE      = 1000;
 const PRELOAD_LINES = 150;
 const LOAD_MORE_STEP = 500;
@@ -415,7 +415,6 @@ export default function LogViewer() {
 
   // ── Derived ──
   const srcCfg  = getSourceConfig(sourceId);
-  const stCfg   = getSubTypeConfig(sourceId, subType);
   const supJson = srcCfg?.supportsJson ?? false;
   const supHist = srcCfg?.supportsHistory ?? false;
   const fmt     = viewMode === 'json' && supJson ? 'JSON' : 'RAW';

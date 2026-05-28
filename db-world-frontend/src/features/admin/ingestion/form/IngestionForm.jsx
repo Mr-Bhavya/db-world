@@ -10,13 +10,13 @@ import {
 import { useT } from '@shared/theme';
 import {
   Add, Delete, Link as LinkIcon, MusicNote, Lock, LockOutlined, Archive,
-  Send, Clear, VideoSettings, Info, CloudDownload, FolderOpen,
-  UploadFile, Close, Tv,
+  Send, Clear, VideoSettings, UploadFile, Close, Tv, PlaylistPlay,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSnackbar } from 'notistack';
 import RecordSearch from './RecordSearch';
 import YtFormatPicker from './YtFormatPicker';
+import PlaylistPicker from './PlaylistPicker';
 import { detectUrlType, isYtDlp, sourceLabel } from './UrlDetector';
 import { startIngestion } from '../services/ingestionApi';
 import { useYtFormats } from '../hooks/useYtFormats';
@@ -79,7 +79,7 @@ function SourceBadge({ type }) {
 
 // ── Single URL row ─────────────────────────────────────────────────────────
 
-function UrlRow({ index, control, watch, remove, isOnly, isYtMode, isTvRecord, showEpisode }) {
+function UrlRow({ index, control, watch, remove, isOnly, isYtMode, isTvRecord: _isTvRecord, showEpisode }) {
   const T   = useT();
   const url = watch(`urls.${index}.url`);
   const type = detectUrlType(url);
@@ -209,12 +209,13 @@ function UrlRow({ index, control, watch, remove, isOnly, isYtMode, isTvRecord, s
 // ── Main form ──────────────────────────────────────────────────────────────
 
 export default function IngestionForm({ onSubmitted }) {
+  const T = useT();
   const { enqueueSnackbar } = useSnackbar();
-  const setFormOpen  = useIngestionStore((s) => s.setFormOpen);
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
   const torrentInputRef = useRef(null);
-  const [torrentFile,   setTorrentFile]   = useState(null);
-  const [torrentBase64, setTorrentBase64] = useState(null);
+  const [torrentFile,      setTorrentFile]      = useState(null);
+  const [torrentBase64,    setTorrentBase64]    = useState(null);
+  const [playlistSelected, setPlaylistSelected] = useState(new Set());
 
   const { control, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } =
     useForm({
@@ -269,6 +270,17 @@ export default function IngestionForm({ onSubmitted }) {
   const { data: formatsData, isFetching: formatsLoading, error: formatsError } =
     useYtFormats(fetchUrl);
 
+  const isPlaylist = isYtMode && !!formatsData?.isPlaylist;
+
+  // Auto-select all entries when a playlist loads; clear when URL changes
+  useEffect(() => {
+    if (formatsData?.isPlaylist && formatsData?.playlistEntries?.length) {
+      setPlaylistSelected(new Set(formatsData.playlistEntries.map((e) => e.index)));
+    } else {
+      setPlaylistSelected(new Set());
+    }
+  }, [formatsData]);
+
   const handleTorrentFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -315,6 +327,45 @@ export default function IngestionForm({ onSubmitted }) {
       audioITag:       isYtMode ? data.audioITag : undefined,
       ...(torrentBase64 && { torrentBase64 }),
     };
+
+    // Playlist mode: one job per selected entry
+    if (isPlaylist) {
+      const entries = formatsData?.playlistEntries ?? [];
+      const toDownload = entries.filter((e) => playlistSelected.has(e.index));
+
+      if (toDownload.length === 0) {
+        enqueueSnackbar('Select at least one playlist item', { variant: 'warning' });
+        return;
+      }
+
+      const season    = data.season  ? Number(data.season)  : null;
+      const epBase    = data.episode ? Number(data.episode) : null;
+
+      let ok = 0, bad = 0;
+      for (let i = 0; i < toDownload.length; i++) {
+        const entry   = toDownload[i];
+        const episode = isTvRecord
+          ? (epBase != null ? epBase + i : entry.index)
+          : null;
+        try {
+          await startIngestion({ ...sharedOptions, uris: [entry.url], season, episode });
+          ok++;
+        } catch {
+          bad++;
+        }
+      }
+
+      enqueueSnackbar(
+        `${ok} job(s) queued${bad ? `, ${bad} failed` : ''}`,
+        { variant: ok > 0 ? 'success' : 'error' }
+      );
+      if (ok > 0) {
+        reset(); setFetchUrl(''); setPlaylistSelected(new Set());
+        setTorrentFile(null); setTorrentBase64(null);
+        setActiveTab(1); onSubmitted?.();
+      }
+      return;
+    }
 
     // TV series + multiple URLs → fire one job per URL with its own episode (sequential)
     if (showPerUrlEpisode && uris.length > 1) {
@@ -374,7 +425,8 @@ export default function IngestionForm({ onSubmitted }) {
     } catch (e) {
       enqueueSnackbar(e?.response?.data?.message ?? 'Network error', { variant: 'error' });
     }
-  }, [isYtMode, showPerUrlEpisode, enqueueSnackbar, reset, setActiveTab, onSubmitted, torrentBase64]);
+  }, [isYtMode, isPlaylist, playlistSelected, formatsData, isTvRecord,
+      showPerUrlEpisode, enqueueSnackbar, reset, setActiveTab, onSubmitted, torrentBase64]);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -466,49 +518,79 @@ export default function IngestionForm({ onSubmitted }) {
           </Box>
         </Box>
 
-        {/* ── YouTube Format Picker ──────────────────────────────────────── */}
+        {/* ── YouTube Format / Playlist Picker ──────────────────────────── */}
         {isYtMode && fetchUrl && (
           <Paper variant="outlined" sx={{ p: 2, borderRadius: 1.5 }}>
-            <Stack direction="row" alignItems="center" spacing={1} mb={1.5}>
-              <VideoSettings sx={{ fontSize: 18, color: 'error.main' }} />
-              <Typography variant="subtitle2" fontWeight={600}>Format Selection</Typography>
-              {formatsLoading && <CircularProgress size={14} />}
-            </Stack>
-
-            {formatsError && (
-              <Alert severity="error" sx={{ mb: 1 }}>
-                Failed to fetch formats. Check URL or try again.
-              </Alert>
-            )}
-
-            <FormControlLabel
-              control={
-                <Controller
-                  name="audioOnly"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch {...field} checked={field.value} size="small" color="secondary" />
+            {isPlaylist ? (
+              <>
+                <Stack direction="row" alignItems="center" spacing={1} mb={1.5}>
+                  <PlaylistPlay sx={{ fontSize: 18, color: T.teal }} />
+                  <Typography variant="subtitle2" fontWeight={600}>Playlist</Typography>
+                  {formatsLoading && <CircularProgress size={14} />}
+                  {formatsData?.title && (
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      noWrap
+                      sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    >
+                      {formatsData.title}
+                    </Typography>
                   )}
-                />
-              }
-              label={
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <MusicNote sx={{ fontSize: 15 }} />
-                  <Typography variant="caption">Audio only (extract audio)</Typography>
                 </Stack>
-              }
-              sx={{ mb: 1.5 }}
-            />
-
-            <YtFormatPicker
-              formatsData={formatsData}
-              loading={formatsLoading}
-              audioOnly={audioOnly}
-              selectedVideo={videoITag}
-              selectedAudio={audioITag}
-              onSelectVideo={(id) => setValue('videoITag', id)}
-              onSelectAudio={(id) => setValue('audioITag', id)}
-            />
+                {formatsError && (
+                  <Alert severity="error" sx={{ mb: 1 }}>
+                    Failed to fetch playlist. Check URL or try again.
+                  </Alert>
+                )}
+                <PlaylistPicker
+                  entries={formatsData?.playlistEntries ?? []}
+                  selected={playlistSelected}
+                  onChange={setPlaylistSelected}
+                  loading={formatsLoading}
+                />
+              </>
+            ) : (
+              <>
+                <Stack direction="row" alignItems="center" spacing={1} mb={1.5}>
+                  <VideoSettings sx={{ fontSize: 18, color: 'error.main' }} />
+                  <Typography variant="subtitle2" fontWeight={600}>Format Selection</Typography>
+                  {formatsLoading && <CircularProgress size={14} />}
+                </Stack>
+                {formatsError && (
+                  <Alert severity="error" sx={{ mb: 1 }}>
+                    Failed to fetch formats. Check URL or try again.
+                  </Alert>
+                )}
+                <FormControlLabel
+                  control={
+                    <Controller
+                      name="audioOnly"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch {...field} checked={field.value} size="small" color="secondary" />
+                      )}
+                    />
+                  }
+                  label={
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <MusicNote sx={{ fontSize: 15 }} />
+                      <Typography variant="caption">Audio only (extract audio)</Typography>
+                    </Stack>
+                  }
+                  sx={{ mb: 1.5 }}
+                />
+                <YtFormatPicker
+                  formatsData={formatsData}
+                  loading={formatsLoading}
+                  audioOnly={audioOnly}
+                  selectedVideo={videoITag}
+                  selectedAudio={audioITag}
+                  onSelectVideo={(id) => setValue('videoITag', id)}
+                  onSelectAudio={(id) => setValue('audioITag', id)}
+                />
+              </>
+            )}
           </Paper>
         )}
 
@@ -685,7 +767,7 @@ export default function IngestionForm({ onSubmitted }) {
           <Button
             variant="outlined"
             startIcon={<Clear />}
-            onClick={() => { reset(); setFetchUrl(''); }}
+            onClick={() => { reset(); setFetchUrl(''); setPlaylistSelected(new Set()); }}
             disabled={isSubmitting}
           >
             Clear
@@ -697,7 +779,10 @@ export default function IngestionForm({ onSubmitted }) {
             disabled={isSubmitting}
             sx={{ px: 3 }}
           >
-            {isSubmitting ? 'Starting…' : `Start ${fields.length > 1 ? `${fields.length} Jobs` : 'Job'}`}
+            {isSubmitting ? 'Starting…'
+              : isPlaylist
+                ? `Start ${playlistSelected.size} Job${playlistSelected.size !== 1 ? 's' : ''}`
+                : `Start ${fields.length > 1 ? `${fields.length} Jobs` : 'Job'}`}
           </Button>
         </Stack>
 

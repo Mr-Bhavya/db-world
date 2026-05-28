@@ -9,9 +9,19 @@ const YT_DOMAINS = [
 ];
 
 const YTDLP_DOMAINS = [
+  // Western streaming / social
   'vimeo.com', 'dailymotion.com', 'twitch.tv',
   'twitter.com', 'x.com', 'reddit.com', 'instagram.com',
   'tiktok.com', 'bilibili.com',
+  // Indian OTT — all require yt-dlp (and cookies for authenticated content)
+  'jiohotstar.com', 'disneyplus.com', 'hotstar.com',
+  'sonyliv.com',
+  'zee5.com',
+  'jiocinema.com', 'jio.com',
+  'voot.com',
+  'primevideo.com',
+  'mxplayer.in',
+  'netflix.com',
 ];
 
 export function detectUrlType(url) {

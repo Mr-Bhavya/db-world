@@ -11,12 +11,11 @@ import SearchIcon      from '@mui/icons-material/Search';
 import ExpandMoreIcon  from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon  from '@mui/icons-material/ExpandLess';
 import LinkIcon        from '@mui/icons-material/Link';
-import PersonIcon      from '@mui/icons-material/Person';
 import { useQuery }    from '@tanstack/react-query';
 import { useT }        from '@shared/theme/ThemeContext';
 import {
   fetchCinemaRecent, fetchCinemaUsers, fetchUserActivities,
-  ACTIVITY_TYPES, TYPE_META, fmtBytes, fmtAgo, fileName,
+  TYPE_META, fmtBytes, fmtAgo, fileName
 } from './activityApi';
 
 // ─── Type chip ────────────────────────────────────────────────────────────────
@@ -315,13 +314,13 @@ function KeywordsPanel({ keywords = [], loading }) {
 }
 
 // ─── CinemaFeed main export ───────────────────────────────────────────────────
-export default function CinemaFeed({ hours, activityType, onHoursChange, onTypeChange }) {
+export default function CinemaFeed({ hours, activityType, onHoursChange: _onHoursChange, onTypeChange: _onTypeChange }) {
   const T    = useT();
   const [subTab, setSubTab]   = useState('feed');
   const [search, setSearch]   = useState('');
   const [limit, setLimit]     = useState(100);
 
-  const { data: recent, isLoading: rLoading, refetch } = useQuery({
+  const { data: recent, isLoading: rLoading } = useQuery({
     queryKey: ['cinema-recent', hours, activityType, limit],
     queryFn:  () => fetchCinemaRecent({ limit, activityType, hours }),
     staleTime: 15_000,

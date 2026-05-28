@@ -236,16 +236,10 @@
 
         <plugins>
 
-            <!-- Spring Boot WAR — output to project root for Jenkins pickup -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <!--
-                        WAR lands at project root (same folder as pom.xml).
-                        Jenkins copies it from here to staging dir.
-                    -->
-                    <outputDirectory>${project.basedir}</outputDirectory>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>

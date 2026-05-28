@@ -224,7 +224,7 @@ public class Aria2WebSocketClientService {
         if (total != null && total > 0 && completed != null) {
             long eta = (speed != null && speed > 0) ? (total - completed) / speed : 0L;
             trackingService.updateProgress(jobId,
-                    new ProgressSnapshot(completed, total,
+                    ProgressSnapshot.downloading(completed, total,
                             speed != null ? speed.doubleValue() : 0.0, eta));
         }
     }

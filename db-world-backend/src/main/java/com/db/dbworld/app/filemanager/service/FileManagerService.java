@@ -43,7 +43,7 @@ public class FileManagerService {
     }
 
     private Path baseDir() {
-        return runtimeProperties.getBasePath().toAbsolutePath().normalize();
+        return runtimeProperties.getDataPath().toAbsolutePath().normalize();
     }
 
     // â”€â”€ Path jail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

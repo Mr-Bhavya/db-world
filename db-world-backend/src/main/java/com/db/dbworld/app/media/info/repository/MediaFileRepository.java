@@ -21,6 +21,14 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
     @EntityGraph(attributePaths = "tracks")
     Optional<MediaFileEntity> findByFilePath(String filePath);
 
+    /**
+     * Lean lookup used by activity tracking — returns just {id, recordId} so we don't
+     * drag tracks into a high-volume insert path. Returns array {String id, Long recordId}
+     * or empty if no row matches.
+     */
+    @Query("SELECT m.id, m.record.id FROM MediaFileEntity m WHERE m.filePath = :filePath")
+    Optional<Object[]> findIdAndRecordIdByFilePath(@Param("filePath") String filePath);
+
     List<MediaFileEntity> findByIngestionJobId(String ingestionJobId);
 
     @Query("SELECT m FROM MediaFileEntity m WHERE m.record.id = :recordId")

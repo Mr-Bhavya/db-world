@@ -4,7 +4,9 @@ import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity;
 import com.db.dbworld.core.user.entity.UserEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -244,4 +246,555 @@ public interface UserCinemaActivityRepository extends JpaRepository<UserCinemaAc
             @Param("sessionIdPattern") String sessionIdPattern,
             @Param("cutoffTime") Instant cutoffTime,
             Pageable pageable);
+
+    /* =========================================================================
+       PRODUCTION TRACKING — upsert + helpers (added 2026-05-21)
+       =========================================================================
+       The canonical key (user_id, file_path, activity_type) makes one row per
+       (user, file, type). Multi-connection downloaders no longer create dupes —
+       parallel range requests increment counters on the same row via the
+       MySQL ON DUPLICATE KEY UPDATE branch below.
+    */
+
+    /**
+     * Atomic upsert into user_cinema_activity. Insert if no row exists for
+     * (user, file_path, activity_type); otherwise:
+     *   - accumulate bytes_transferred (parallel range requests sum)
+     *   - take MAX(connection_count) — peak parallelism for this session
+     *   - refresh last_updated, completion_status, completion_percent
+     *   - leave first_seen_at and download_count/stream_count alone (set elsewhere)
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO user_cinema_activity
+              (user_id, activity_type, activity_value, session_id, file_path, file_size,
+               user_agent, remote_addr, bytes_transferred,
+               record_id, media_file_id, connection_count,
+               completion_status, completion_percent,
+               client_type,
+               download_id, cdn_url, first_seen_at, created_time, last_updated,
+               download_count, stream_count)
+            VALUES
+              (:userId, :activityType, :activityValue, :sessionId, :filePath, :fileSize,
+               :userAgent, :remoteAddr, :bytesTransferred,
+               :recordId, :mediaFileId, :connectionCount,
+               :completionStatus, :completionPercent,
+               :clientType,
+               :downloadId, :cdnUrl, :now, :now, :now,
+               0, 0)
+            ON DUPLICATE KEY UPDATE
+              activity_value     = VALUES(activity_value),
+              bytes_transferred  = COALESCE(bytes_transferred, 0) + COALESCE(VALUES(bytes_transferred), 0),
+              connection_count   = GREATEST(COALESCE(connection_count, 1), VALUES(connection_count)),
+              user_agent         = COALESCE(VALUES(user_agent), user_agent),
+              remote_addr        = COALESCE(VALUES(remote_addr), remote_addr),
+              completion_status  = VALUES(completion_status),
+              completion_percent = VALUES(completion_percent),
+              client_type        = VALUES(client_type),
+              record_id          = COALESCE(VALUES(record_id), record_id),
+              media_file_id      = COALESCE(VALUES(media_file_id), media_file_id),
+              download_id        = COALESCE(VALUES(download_id), download_id),
+              cdn_url            = COALESCE(VALUES(cdn_url), cdn_url),
+              session_id         = COALESCE(session_id, VALUES(session_id)),
+              file_size          = COALESCE(VALUES(file_size), file_size),
+              last_updated       = VALUES(last_updated)
+              -- download_count / stream_count intentionally untouched here; they are
+              -- only bumped by markCompleted() once a transfer fully finishes.
+            """, nativeQuery = true)
+    void upsertSession(
+            @Param("userId")             Long userId,
+            @Param("activityType")       String activityType,
+            @Param("activityValue")      String activityValue,
+            @Param("sessionId")          String sessionId,
+            @Param("filePath")           String filePath,
+            @Param("fileSize")           Long fileSize,
+            @Param("userAgent")          String userAgent,
+            @Param("remoteAddr")         String remoteAddr,
+            @Param("bytesTransferred")   Long bytesTransferred,
+            @Param("recordId")           Long recordId,
+            @Param("mediaFileId")        String mediaFileId,
+            @Param("connectionCount")    Integer connectionCount,
+            @Param("completionStatus")   String completionStatus,
+            @Param("completionPercent")  java.math.BigDecimal completionPercent,
+            @Param("clientType")         String clientType,
+            @Param("downloadId")         String downloadId,
+            @Param("cdnUrl")             String cdnUrl,
+            @Param("now")                Instant now
+    );
+
+    /**
+     * Mark a (user, file, type) session as completed and increment the type-specific
+     * lifetime counter. Called at the end of a successful transfer (e.g. nginx CDN
+     * webhook or final 200/206 with full Content-Range).
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET completion_status = 'COMPLETED',
+                completion_percent = 100.00,
+                last_completed_at = :now,
+                last_updated = :now,
+                download_count = download_count + CASE WHEN activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END,
+                stream_count   = stream_count   + CASE WHEN activity_type = 'STREAM'   THEN 1 ELSE 0 END,
+                avg_speed_bps = :avgSpeedBps
+            WHERE user_id = :userId
+              AND file_path = :filePath
+              AND activity_type = :activityType
+            """, nativeQuery = true)
+    int markCompleted(
+            @Param("userId")       Long userId,
+            @Param("filePath")     String filePath,
+            @Param("activityType") String activityType,
+            @Param("avgSpeedBps")  Long avgSpeedBps,
+            @Param("now")          Instant now);
+
+    /**
+     * Most recent records the user actually completed or substantially watched/downloaded.
+     * Used by {@code becauseYouWatched} as a richer source signal than watch_progress alone.
+     */
+    @Query("""
+            SELECT a.recordId FROM UserCinemaActivityEntity a
+            WHERE a.user.userId = :userId
+              AND a.recordId IS NOT NULL
+              AND a.activityType IN ('STREAM', 'DOWNLOAD')
+            ORDER BY a.lastUpdated DESC
+            """)
+    List<Long> findMostRecentRecordIdsByUser(@Param("userId") Long userId, Pageable pageable);
+
+    /** Total times this user has actually completed (downloaded fully OR finished streaming) the given record. */
+    @Query("""
+            SELECT COALESCE(SUM(a.downloadCount + a.streamCount), 0)
+            FROM UserCinemaActivityEntity a
+            WHERE a.user.userId = :userId AND a.recordId = :recordId
+            """)
+    long countCompletedByUserAndRecord(@Param("userId") Long userId, @Param("recordId") Long recordId);
+
+    /* =========================================================================
+       LOG SHIPPER — bulk update from nginx-log aggregation (added 2026-05-26)
+       ========================================================================= */
+
+    /**
+     * Update a (user, file, type) row from the log shipper's per-download_id aggregate.
+     * Writes are absolute values (idempotent on re-read after restart). Lifetime counters
+     * are bumped only on the first transition into COMPLETED — guarded by the
+     * {@code completion_status &lt;&gt; 'COMPLETED'} predicate at update time.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET bytes_transferred  = :bytesTransferred,
+                file_size          = COALESCE(:fileSize, file_size),
+                completion_percent = COALESCE(:completionPercent, completion_percent),
+                avg_speed_bps      = COALESCE(:avgSpeedBps, avg_speed_bps),
+                connection_count   = GREATEST(COALESCE(connection_count, 1), :connectionCount),
+                client_type        = CASE WHEN client_type = 'UNKNOWN' OR client_type IS NULL
+                                          THEN :clientType ELSE client_type END,
+                remote_addr        = COALESCE(:remoteAddr, remote_addr),
+                last_updated       = :lastUpdated,
+                last_completed_at  = CASE
+                    WHEN :completionStatus = 'COMPLETED' AND last_completed_at IS NULL THEN :lastUpdated
+                    ELSE last_completed_at
+                END,
+                download_count = download_count + CASE
+                    WHEN :completionStatus = 'COMPLETED'
+                     AND completion_status <> 'COMPLETED'
+                     AND activity_type = 'DOWNLOAD' THEN 1 ELSE 0
+                END,
+                stream_count = stream_count + CASE
+                    WHEN :completionStatus = 'COMPLETED'
+                     AND completion_status <> 'COMPLETED'
+                     AND activity_type = 'STREAM' THEN 1 ELSE 0
+                END,
+                completion_status  = :completionStatus
+            WHERE download_id = :downloadId
+            """, nativeQuery = true)
+    int updateFromShipper(
+            @Param("downloadId")        String downloadId,
+            @Param("bytesTransferred")  long bytesTransferred,
+            @Param("fileSize")          Long fileSize,
+            @Param("completionPercent") java.math.BigDecimal completionPercent,
+            @Param("avgSpeedBps")       Long avgSpeedBps,
+            @Param("connectionCount")   int connectionCount,
+            @Param("clientType")        String clientType,
+            @Param("remoteAddr")        String remoteAddr,
+            @Param("lastUpdated")       Instant lastUpdated,
+            @Param("completionStatus")  String completionStatus
+    );
+
+    /**
+     * Mark stalled (user, file, type) rows as ABORTED. One call per ActivityType so the
+     * timeout threshold can differ for STREAM vs DOWNLOAD. Skipped rows that are already
+     * COMPLETED or that have reached ≥95% coverage.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET completion_status = 'ABORTED',
+                last_updated      = :now
+            WHERE completion_status IN ('STARTED', 'IN_PROGRESS')
+              AND COALESCE(completion_percent, 0) < 95
+              AND activity_type = :activityType
+              AND last_updated < :timeoutCutoff
+            """, nativeQuery = true)
+    int sweepAbortedByType(
+            @Param("activityType")  String activityType,
+            @Param("timeoutCutoff") Instant timeoutCutoff,
+            @Param("now")           Instant now
+    );
+
+    /* =========================================================================
+       PHASE 3 — watch_progress bridge (added 2026-05-26)
+       ========================================================================= */
+
+    /**
+     * Set {@code watch_progress_id} on the row identified by the natural key
+     * (user_id, file_path, activity_type), only if the FK is currently NULL.
+     * Concurrency-safe: a parallel writer that already set the FK is a no-op here.
+     * Used at {@code /resolve} time when the watch_progress row already exists.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET watch_progress_id = :watchProgressId
+            WHERE user_id        = :userId
+              AND file_path      = :filePath
+              AND activity_type  = :activityType
+              AND watch_progress_id IS NULL
+            """, nativeQuery = true)
+    int setWatchProgressIdByKey(
+            @Param("userId")          Long userId,
+            @Param("filePath")        String filePath,
+            @Param("activityType")    String activityType,
+            @Param("watchProgressId") Long watchProgressId
+    );
+
+    /**
+     * Set {@code watch_progress_id} by row id, only if currently NULL. Used at
+     * watch_progress save time after the FK was unset at /resolve (race-safe).
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE user_cinema_activity
+            SET watch_progress_id = :watchProgressId
+            WHERE id = :id
+              AND watch_progress_id IS NULL
+            """, nativeQuery = true)
+    int setWatchProgressIdById(
+            @Param("id")              Long id,
+            @Param("watchProgressId") Long watchProgressId
+    );
+
+    /**
+     * Find the canonical STREAM-or-DOWNLOAD activity row for a given media file. Used by
+     * the watch-progress save path to backfill {@code watch_progress_id} on the activity
+     * row when the {@code /resolve} call happened before the watch_progress row existed.
+     */
+    @Query("""
+            SELECT a FROM UserCinemaActivityEntity a
+            WHERE a.user.userId   = :userId
+              AND a.mediaFileId   = :mediaFileId
+              AND a.activityType  = :activityType
+            """)
+    Optional<UserCinemaActivityEntity> findByUserIdAndMediaFileIdAndActivityType(
+            @Param("userId")        Long userId,
+            @Param("mediaFileId")   String mediaFileId,
+            @Param("activityType") UserCinemaActivityEntity.ActivityType activityType
+    );
+
+    /**
+     * Paginated activity view joining watch_progress (live cursor for streams) and
+     * records (catalog title/type). LEFT JOINs because:
+     * <ul>
+     *   <li>watch_progress is null for DOWNLOAD rows and for streams the user hasn't
+     *       ticked yet — both legitimate;</li>
+     *   <li>records is null for legacy rows whose record_id backfill found no match.</li>
+     * </ul>
+     *
+     * <p>Phase 4 wires this to {@code GET /api/me/activity}.
+     */
+    @Query(value = """
+            SELECT
+                uca.id                    AS id,
+                uca.activity_type         AS activityType,
+                uca.record_id             AS recordId,
+                r.name                    AS recordTitle,
+                r.type                    AS recordType,
+                uca.file_path             AS filePath,
+                uca.file_size             AS fileSize,
+                uca.media_file_id         AS mediaFileId,
+                uca.completion_status     AS completionStatus,
+                uca.completion_percent    AS completionPercent,
+                uca.download_count        AS downloadCount,
+                uca.stream_count          AS streamCount,
+                uca.client_type           AS clientType,
+                uca.avg_speed_bps         AS avgSpeedBps,
+                uca.last_updated          AS lastUpdated,
+                uca.last_completed_at     AS lastCompletedAt,
+                wp.position_ms            AS positionMs,
+                wp.duration_ms            AS durationMs,
+                wp.audio_lang             AS audioLang,
+                wp.sub_lang               AS subLang
+            FROM user_cinema_activity uca
+            LEFT JOIN watch_progress wp ON wp.id = uca.watch_progress_id
+            LEFT JOIN records r ON r.id = uca.record_id
+            WHERE uca.user_id = :userId
+              AND (:activityType IS NULL OR uca.activity_type = :activityType)
+            ORDER BY uca.last_updated DESC
+            LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
+    List<com.db.dbworld.audit.activity.dto.UserActivityProjection> findUserActivityView(
+            @Param("userId")       Long userId,
+            @Param("activityType") String activityType,
+            @Param("limit")        int limit,
+            @Param("offset")       int offset
+    );
+
+    /* =========================================================================
+       PHASE 4 — /me/activity aggregates (added 2026-05-26)
+       ========================================================================= */
+
+    /** Total watch_progress.duration_ms across the user's COMPLETED streams. */
+    @Query(value = """
+            SELECT COALESCE(SUM(wp.duration_ms), 0)
+            FROM user_cinema_activity uca
+            JOIN watch_progress wp ON wp.id = uca.watch_progress_id
+            WHERE uca.user_id = :userId
+              AND uca.activity_type = 'STREAM'
+              AND uca.completion_status = 'COMPLETED'
+            """, nativeQuery = true)
+    long sumStreamDurationMsByUser(@Param("userId") Long userId);
+
+    /** Total file_size summed across the user's COMPLETED downloads. */
+    @Query(value = """
+            SELECT COALESCE(SUM(file_size), 0)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND activity_type = 'DOWNLOAD'
+              AND completion_status = 'COMPLETED'
+              AND file_size IS NOT NULL
+            """, nativeQuery = true)
+    long sumCompletedDownloadBytesByUser(@Param("userId") Long userId);
+
+    /** Count of COMPLETED sessions (any type) for the user. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND completion_status = 'COMPLETED'
+            """, nativeQuery = true)
+    long countCompletedTransferSessions(@Param("userId") Long userId);
+
+    /** Count of STREAM + DOWNLOAD sessions (any status) for the user. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+            """, nativeQuery = true)
+    long countTotalTransferSessions(@Param("userId") Long userId);
+
+    /** Top records the user rewatches, ordered by total (download + stream) count desc. */
+    @Query(value = """
+            SELECT
+                uca.record_id   AS recordId,
+                r.name          AS title,
+                r.type          AS recordType,
+                SUM(uca.download_count) AS downloadCount,
+                SUM(uca.stream_count)   AS streamCount,
+                (SUM(uca.download_count) + SUM(uca.stream_count)) AS totalCount,
+                MAX(uca.last_completed_at) AS lastCompletedAt
+            FROM user_cinema_activity uca
+            JOIN records r ON r.id = uca.record_id
+            WHERE uca.user_id = :userId
+              AND uca.record_id IS NOT NULL
+            GROUP BY uca.record_id, r.name, r.type
+            HAVING totalCount >= 1
+            ORDER BY totalCount DESC, lastCompletedAt DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.cinema.me.activity.dto.TopRewatchProjection> findTopRewatchesByUser(
+            @Param("userId") Long userId,
+            @Param("limit")  int limit
+    );
+
+    /* =========================================================================
+       PHASE 4 — admin analytics aggregates
+       ========================================================================= */
+
+    /** Distinct active users in the last :sinceDays days. */
+    @Query(value = """
+            SELECT COUNT(DISTINCT user_id)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+            """, nativeQuery = true)
+    long countActiveUsersSince(@Param("sinceDays") int sinceDays);
+
+    /** Total bytes transferred (sum of bytes_transferred) over the last :sinceDays days. */
+    @Query(value = """
+            SELECT COALESCE(SUM(bytes_transferred), 0)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND bytes_transferred IS NOT NULL
+            """, nativeQuery = true)
+    long sumBytesTransferredSince(@Param("sinceDays") int sinceDays);
+
+    /** Count of COMPLETED sessions across all users over the last :sinceDays days. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND completion_status = 'COMPLETED'
+            """, nativeQuery = true)
+    long countCompletedTransfersSince(@Param("sinceDays") int sinceDays);
+
+    /** Count of ABORTED sessions across all users over the last :sinceDays days. */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :sinceDays DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND completion_status = 'ABORTED'
+            """, nativeQuery = true)
+    long countAbortedSince(@Param("sinceDays") int sinceDays);
+
+    /** Daily activity trend for the trend chart. */
+    @Query(value = """
+            SELECT
+                DATE(last_updated)            AS date,
+                SUM(CASE WHEN activity_type = 'STREAM'   THEN 1 ELSE 0 END) AS streams,
+                SUM(CASE WHEN activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END) AS downloads,
+                COALESCE(SUM(bytes_transferred), 0) AS bytesTransferred
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :days DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+            GROUP BY DATE(last_updated)
+            ORDER BY DATE(last_updated)
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.DailyActivityProjection> findDailyActivityTrend(
+            @Param("days") int days
+    );
+
+    /** Breakdown of recent activity by client_type. */
+    @Query(value = """
+            SELECT
+                client_type AS clientType,
+                COUNT(*)    AS count
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL 30 DAY)
+              AND activity_type IN ('STREAM', 'DOWNLOAD')
+              AND client_type IS NOT NULL
+            GROUP BY client_type
+            ORDER BY count DESC
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.ClientBreakdownProjection> findClientBreakdown();
+
+    /** Top records by combined activity (streams + downloads), last 30 days. */
+    @Query(value = """
+            SELECT
+                uca.record_id            AS recordId,
+                r.name                   AS title,
+                r.type                   AS recordType,
+                SUM(CASE WHEN uca.activity_type = 'STREAM'   THEN 1 ELSE 0 END) AS streamCount,
+                SUM(CASE WHEN uca.activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END) AS downloadCount,
+                COUNT(DISTINCT uca.user_id)                                     AS uniqueUsers
+            FROM user_cinema_activity uca
+            JOIN records r ON r.id = uca.record_id
+            WHERE uca.last_updated >= (NOW() - INTERVAL 30 DAY)
+              AND uca.activity_type IN ('STREAM', 'DOWNLOAD')
+              AND uca.record_id IS NOT NULL
+            GROUP BY uca.record_id, r.name, r.type
+            ORDER BY (SUM(CASE WHEN uca.activity_type = 'STREAM' THEN 1 ELSE 0 END)
+                    + SUM(CASE WHEN uca.activity_type = 'DOWNLOAD' THEN 1 ELSE 0 END)) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.TopRecordProjection> findTopRecords(@Param("limit") int limit);
+
+    /** Top users by total activity and bytes transferred, last 30 days. */
+    @Query(value = """
+            SELECT
+                u.id                          AS userId,
+                u.email                       AS email,
+                MAX(uca.last_updated)         AS lastActive,
+                COUNT(uca.id)                 AS totalActivities,
+                COALESCE(SUM(uca.bytes_transferred), 0) AS totalBytes
+            FROM user_cinema_activity uca
+            JOIN users u ON u.id = uca.user_id
+            WHERE uca.last_updated >= (NOW() - INTERVAL 30 DAY)
+              AND uca.activity_type IN ('STREAM', 'DOWNLOAD')
+            GROUP BY u.id, u.email
+            ORDER BY totalActivities DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<com.db.dbworld.app.admin.analytics.dto.TopUserProjection> findTopUsers(@Param("limit") int limit);
+
+    /* =========================================================================
+       PHASE 5 — recommendation signals (added 2026-05-26)
+       ========================================================================= */
+
+    /**
+     * Top genres for a user by count of distinct engaged records. A record is
+     * "engaged" when completion_status = COMPLETED, completion_percent ≥ threshold,
+     * or download_count ≥ 1. Joins records → tmdb_data → genres.
+     */
+    @Query(value = """
+            SELECT g.id AS genreId
+            FROM user_cinema_activity uca
+            JOIN records r        ON r.id = uca.record_id
+            JOIN tmdb_genres tg   ON tg.tmdb_id = r.tmdb_id
+            JOIN genres g         ON g.id = tg.genre_id
+            WHERE uca.user_id = :userId
+              AND uca.record_id IS NOT NULL
+              AND (uca.completion_status = 'COMPLETED'
+                   OR uca.completion_percent >= :completionThreshold
+                   OR uca.download_count >= 1)
+            GROUP BY g.id
+            ORDER BY COUNT(DISTINCT uca.record_id) DESC, MAX(uca.last_updated) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findTopEngagedGenreIdsByUser(
+            @Param("userId")              Long userId,
+            @Param("completionThreshold") int completionThreshold,
+            @Param("limit")               int limit
+    );
+
+    /** Count of distinct engaged records for a user — used as the cold-start guard. */
+    @Query(value = """
+            SELECT COUNT(DISTINCT record_id)
+            FROM user_cinema_activity
+            WHERE user_id = :userId
+              AND record_id IS NOT NULL
+              AND (completion_status = 'COMPLETED'
+                   OR completion_percent >= :completionThreshold
+                   OR download_count >= 1)
+            """, nativeQuery = true)
+    long countEngagedRecordsByUser(
+            @Param("userId")              Long userId,
+            @Param("completionThreshold") int completionThreshold
+    );
+
+    /**
+     * Site-wide top-rewatched record IDs in the last :windowDays days. Score is
+     * SUM(download_count + stream_count) over COMPLETED rows. Refreshed by
+     * {@code RewatchTrendService} on a schedule and cached in memory.
+     */
+    @Query(value = """
+            SELECT record_id
+            FROM user_cinema_activity
+            WHERE last_updated >= (NOW() - INTERVAL :windowDays DAY)
+              AND completion_status = 'COMPLETED'
+              AND record_id IS NOT NULL
+            GROUP BY record_id
+            HAVING SUM(download_count + stream_count) >= :minScore
+            ORDER BY SUM(download_count + stream_count) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findTopRewatchedRecordIds(
+            @Param("windowDays") int windowDays,
+            @Param("minScore")   int minScore,
+            @Param("limit")      int limit
+    );
 }

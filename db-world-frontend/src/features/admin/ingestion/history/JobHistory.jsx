@@ -13,7 +13,7 @@ import {
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
 import { useJobHistory } from '../hooks/useJobHistory';
-import { rerunJob, deleteJob, getJobReport } from '../services/ingestionApi';
+import { rerunJob, deleteJob } from '../services/ingestionApi';
 import LogViewerDrawer from '../jobs/LogViewerDrawer';
 
 const STATUS_COLORS = {

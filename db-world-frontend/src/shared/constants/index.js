@@ -36,7 +36,7 @@ export const DELETE_ICON_URL =
 export const VIEW_USER_ICON_URL =
   "https://img.icons8.com/material-sharp/24/null/contract-job.png";
 
-export const DB_WORLD_TEAL_SVG_ICON = "@assets/images/db-world-circle.png";
+export const DB_WORLD_TEAL_SVG_ICON = "@assets/images/db-circle-icon.webp";
 
 /* =========================
  * ROUTES
@@ -71,9 +71,6 @@ export const DB_ADD_PASSWORD_ROUTE =
 export const DB_VIEW_PASSWORD_ROUTE =
   `${DB_PASSWORD_MANAGER_ROUTE}/view-password`;
 
-export const DB_FILE_MANAGER_ROUTE =
-  `${DB_WORLD_HOME_ROUTE}/db-file-manager`;
-
 export const LOGIN_ROUTE = `${DB_WORLD_HOME_ROUTE}/login`;
 export const LOGOUT_ROUTE = `${DB_WORLD_HOME_ROUTE}/logout`;
 export const REGISTRATION_ROUTE = `${DB_WORLD_HOME_ROUTE}/registration`;
@@ -82,6 +79,9 @@ export const USER_PROFILE_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/user-profile`;
 export const EDIT_USER_PROFILE_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/user-profile-edit`;
+
+export const DB_MY_ACTIVITY_ROUTE =
+  `${DB_WORLD_HOME_ROUTE}/me/activity`;
 
 export const DB_ADMIN_TOOLS_ROUTE =
   `${DB_WORLD_HOME_ROUTE}/admin-tools`;
@@ -204,14 +204,13 @@ export default {
   DB_ADD_PASSWORD_ROUTE,
   DB_VIEW_PASSWORD_ROUTE,
 
-  DB_FILE_MANAGER_ROUTE,
-
   LOGIN_ROUTE,
   LOGOUT_ROUTE,
   REGISTRATION_ROUTE,
 
   USER_PROFILE_ROUTE,
   EDIT_USER_PROFILE_ROUTE,
+  DB_MY_ACTIVITY_ROUTE,
 
   DB_ADMIN_TOOLS_ROUTE,
   DB_ADMIN_BASE_ROUTE,

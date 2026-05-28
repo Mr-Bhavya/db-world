@@ -21,6 +21,7 @@ public class YtDlpSourceHandler implements SourceHandler {
             "youtube.com",
             "youtu.be",
             "m.youtube.com",
+            "jiohotstar.com",
             "hotstar.com",
             "primevideo.com",
             "netflix.com",

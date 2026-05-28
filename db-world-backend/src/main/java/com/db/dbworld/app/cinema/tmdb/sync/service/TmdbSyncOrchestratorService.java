@@ -61,10 +61,14 @@ public class TmdbSyncOrchestratorService {
 
         log.info("{} changes fetched: {}", type, changedIds.size());
 
+        // Filter by RecordType: TMDB movie IDs and TV IDs are independent numeric
+        // spaces. Without this, movie sync would pick up TV records that happen to
+        // share a numeric ID, causing SINGLE_TABLE discriminator mismatch and the
+        // "Duplicate entry … for key 'tmdb_data.PRIMARY'" insert.
         Map<Long, RecordEntity> recordMap =
-                recordRepository.findByTmdbIdIn(changedIds)
+                recordRepository.findByTmdbIdInAndType(changedIds, type)
                         .stream()
-                        .collect(Collectors.toMap(RecordEntity::getTmdbId, r -> r));
+                        .collect(Collectors.toMap(RecordEntity::getTmdbId, r -> r, (a, b) -> a));
 
         Flux.fromIterable(changedIds)
                 .filter(recordMap::containsKey)

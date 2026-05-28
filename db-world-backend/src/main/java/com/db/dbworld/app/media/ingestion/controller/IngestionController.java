@@ -292,8 +292,8 @@ public class IngestionController {
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Fetch available video/audio formats for a YouTube (or compatible) URL.
-     * The frontend uses this to populate the format picker before submitting.
+     * Fetch available video/audio formats for a single video URL.
+     * If the URL is a playlist/series, returns isPlaylist=true with playlistEntries instead.
      */
     @GetMapping("/yt/formats")
     public ApiResponse<YtFormatsResponse> getYtFormats(@RequestParam String url) {
@@ -302,6 +302,21 @@ public class IngestionController {
         } catch (Exception e) {
             log.error("Failed to fetch yt formats for url={}", url, e);
             return ApiResponse.error(500, "Failed to fetch formats: " + e.getMessage(), (YtFormatsResponse) null);
+        }
+    }
+
+    /**
+     * Fetch all entries for a playlist or series URL.
+     * Returns a list of items the user can individually select before downloading.
+     * To download selected items, POST their individual URLs to /api/ingestion with uris=[...].
+     */
+    @GetMapping("/yt/playlist")
+    public ApiResponse<YtFormatsResponse> getYtPlaylist(@RequestParam String url) {
+        try {
+            return ApiResponse.success(ytFormatService.fetchPlaylist(url));
+        } catch (Exception e) {
+            log.error("Failed to fetch playlist for url={}", url, e);
+            return ApiResponse.error(500, "Failed to fetch playlist: " + e.getMessage(), (YtFormatsResponse) null);
         }
     }
 

@@ -11,7 +11,7 @@ function loadStored() {
 }
 
 function persist(list) {
-  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch {}
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* ignore */ }
 }
 
 class MyDownloadManagerWeb extends WebPlugin {

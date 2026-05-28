@@ -8,8 +8,8 @@ import {
 } from '@mui/material';
 import { useT } from '@shared/theme';
 import {
-  Folder, FolderOpen, InsertDriveFile, NavigateNext,
-  Home, CheckCircle, CreateNewFolder,
+  FolderOpen, InsertDriveFile, NavigateNext,
+  Home, CheckCircle, CreateNewFolder
 } from '@mui/icons-material';
 import { useFileBrowser } from '../hooks/useFileBrowser';
 

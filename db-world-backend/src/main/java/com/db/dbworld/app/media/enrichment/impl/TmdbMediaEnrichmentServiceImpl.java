@@ -629,7 +629,7 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                 long processedMs = parseLong(line.substring("out_time_ms=".length()));
                 if (processedMs > 0 && totalDurationMs > 0) {
                     long etaSeconds = Math.max(0L, (totalDurationMs - processedMs) / 1000L);
-                    trackingService.updateProgress(jobId, new ProgressSnapshot(processedMs, totalDurationMs, 0.0, etaSeconds));
+                    trackingService.updateProgress(jobId, new ProgressSnapshot(processedMs, totalDurationMs, 0.0, etaSeconds, "processing"));
                 }
                 return;
             }

@@ -3,15 +3,16 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText,
   Typography, Divider, IconButton, Tooltip, Avatar, Chip,
-  useTheme, useMediaQuery, alpha, Collapse,
+  useTheme, useMediaQuery, Collapse
 } from '@mui/material';
 import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
   Dashboard, Movie, VideoLibrary,
-  LocalOffer, Sync, Download, Computer, Analytics,
+  LocalOffer, Sync, Computer, Analytics,
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
-  Circle, ManageAccounts, Home, TableChart,
+  Circle, ManageAccounts, Home,
+  Insights, Inbox,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
@@ -42,6 +43,7 @@ const NAV = [
     items: [
       { id: 'records',     label: 'Records',       icon: <Movie />,        path: 'records' },
       { id: 'media-files', label: 'Media Files',   icon: <VideoLibrary />, path: 'media-files' },
+      { id: 'requests', label: 'Requests', icon: <Inbox />, path: 'requests' },
       { id: 'tag-management', label: 'Tags & Rails', icon: <LocalOffer />, path: 'tag-management' },
       { id: 'tmdb-sync',   label: 'TMDB Sync',     icon: <Sync />,         path: 'tmdb-sync' },
     ],
@@ -50,9 +52,8 @@ const NAV = [
     id: 'activity',
     label: 'Activity',
     items: [
-      { id: 'downloads',        label: 'Download Manager', icon: <Download />,    path: 'downloads' },
       { id: 'ingestion',        label: 'Media Ingestion',  icon: <Folder />,      path: 'ingestion' },
-      { id: 'activity-center',  label: 'Activity Center',  icon: <TableChart />,  path: 'activity-center', badge: 'Live' },
+      { id: 'activity-center',  label: 'Activity & Insights', icon: <Insights />, path: 'activity-center', badge: 'Live' },
     ],
   },
   {

@@ -65,7 +65,8 @@ public class AppProperties {
     private String ffmpeg;
     private String sevenZip;
     private String mediaInfo;
-    private Path hsCookies;
+    private Path   hsCookies;
+    private Path   cookiesDir;
 
     private String tmdbApiKey;
     private String tmdbAccessToken;
@@ -98,11 +99,12 @@ public class AppProperties {
         }
 
         if (tools != null) {
-            ytDlp    = tools.ytDlp();
-            ffmpeg   = tools.ffmpeg();
-            sevenZip = tools.sevenZip();
-            mediaInfo= tools.mediainfo();
-            hsCookies= norm(tools.hsCookies());
+            ytDlp      = tools.ytDlp();
+            ffmpeg     = tools.ffmpeg();
+            sevenZip   = tools.sevenZip();
+            mediaInfo  = tools.mediainfo();
+            hsCookies  = norm(tools.hsCookies());
+            cookiesDir = norm(tools.cookiesDir());
         }
 
         tmdbApiKey      = apiKeys  != null ? apiKeys.tmdb()  : null;
@@ -146,7 +148,29 @@ public class AppProperties {
     public String       getFfmpeg()             { return ffmpeg; }
     public String       getSevenZip()           { return sevenZip; }
     public String       getMediaInfo()          { return mediaInfo; }
-    public Path         getHsCookies()          { return hsCookies; }
+    public Path         getHsCookies()           { return hsCookies; }
+    public Path         getCookiesDir()          { return cookiesDir; }
+
+    /**
+     * Returns the cookie file for the given URL, or null if none is configured.
+     * Checks cookiesDir/<domain-prefix>.txt first, then legacy hsCookies for hotstar.
+     */
+    public Path getCookieForUrl(String url) {
+        if (url == null) return null;
+        String lower = url.toLowerCase();
+        if (cookiesDir != null) {
+            for (String domain : AppConstants.YTDLP_COOKIE_DOMAINS) {
+                if (lower.contains(domain)) {
+                    String prefix = domain.replace(".com", "").replace(".in", "");
+                    Path candidate = cookiesDir.resolve(prefix + ".txt");
+                    if (java.nio.file.Files.exists(candidate)) return candidate;
+                }
+            }
+        }
+        // Legacy fallback for hotstar
+        if (lower.contains(AppConstants.HOTSTAR_COM) && hsCookies != null) return hsCookies;
+        return null;
+    }
 
     public String       getTmdbApiKey()         { return tmdbApiKey; }
     public String       getTmdbAccessToken()    { return tmdbAccessToken; }
@@ -186,7 +210,14 @@ public class AppProperties {
             @NotBlank String ffmpeg,
             @NotBlank String sevenZip,
             @NotBlank String mediainfo,
-            String hsCookies
+            /** Legacy: Hotstar cookie file. Prefer cookiesDir for new platforms. */
+            String hsCookies,
+            /**
+             * Directory containing per-platform cookie files.
+             * Naming convention: <domain-prefix>.txt
+             * e.g. /etc/dbworld/cookies/hotstar.txt, sonyliv.txt, zee5.txt
+             */
+            String cookiesDir
     ) {}
 
     public record ApiKeys(String tmdb) {}

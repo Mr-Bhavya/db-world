@@ -471,4 +471,13 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     List<RailRecordProjection> findRailRecordProjection(List<Long> ids);
 
     List<RecordEntity> findByTmdbIdIn(List<Long> tmdbIds);
+
+    /**
+     * Used by the TMDB sync orchestrator. Filtering by {@link RecordType} is essential
+     * because movies and TV in TMDB use independent numeric ID spaces — a movie #1930
+     * and TV series #1930 are unrelated. Without this filter, refreshing a movie can
+     * load a TV record (or vice versa), causing the SINGLE_TABLE discriminator mismatch
+     * that surfaces as "Duplicate entry 'X' for key 'tmdb_data.PRIMARY'".
+     */
+    List<RecordEntity> findByTmdbIdInAndType(List<Long> tmdbIds, RecordType type);
 }

@@ -82,13 +82,15 @@ public class SymlinkService {
                 log.debug("{} Created symlink {} -> {}", TAG, symlink, relativeTarget);
                 return;
             } catch (Exception ex) {
-                if (!shouldFallbackToHardLink(ex, symlink, realFile)) {
-                    throw ex;
+                if (shouldFallbackToHardLink(ex, symlink, realFile)) {
+                    Files.createLink(symlink, realFile);
+                    log.warn("{} Symlink privilege unavailable for fileId={}; created hard link {} -> {}",
+                            TAG, fileId, symlink, realFile);
+                    return;
                 }
-                Files.createLink(symlink, realFile);
-                log.warn("{} Symlink privilege unavailable for fileId={}; created hard link {} -> {}",
-                        TAG, fileId, symlink, realFile);
-                return;
+                // ntfs-3g EROFS on symlink creation — log the real error and re-throw
+                log.error("{} createSymbolicLink failed for fileId={}: {}", TAG, fileId, ex.getMessage());
+                throw ex;
             }
 
         } catch (Exception ex) {
@@ -117,7 +119,7 @@ public class SymlinkService {
                 log.info("{} Deleted {}", TAG, symlink);
             }
         } catch (Exception ex) {
-            log.warn("{} Failed to delete symlink for fileId={}", TAG, fileId, ex);
+            log.warn("{} Failed to delete symlink for fileId={}: {}", TAG, fileId, ex.getMessage());
         }
     }
 
@@ -239,7 +241,7 @@ public class SymlinkService {
                         }
                     } catch (Exception ex) {
                         failed.incrementAndGet();
-                        log.warn("{} Failed to remove orphan {}", TAG, path, ex);
+                        log.warn("{} Failed to remove orphan {}: {}", TAG, path, ex.getMessage());
                     }
                 });
             } catch (Exception ex) {

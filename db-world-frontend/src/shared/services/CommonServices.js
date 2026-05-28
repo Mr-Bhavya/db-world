@@ -1,19 +1,17 @@
 import Constants from '@shared/constants';
-import { addUser, moviePageNumber_b, moviePageNumber_g, moviePageNumber_h, moviePageNumber_k, moviePageNumber_s, seriesPageNumber, seriesPageNumber_b, seriesPageNumber_g, seriesPageNumber_h, seriesPageNumber_k, seriesPageNumber_s } from '@app/redux/action/allActions';
-import { useDispatch } from "react-redux";
 import { Capacitor } from "@capacitor/core";
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 
 class CommonServices {
   // ========== TIME & DATE UTILITIES ==========
-  
-  static getTimeDateFromTimeStamp = (timestamp, timezone) => {
+
+  static getTimeDateFromTimeStamp = (timestamp, _timezone) => {
     timestamp = parseInt(timestamp);
     let date = new Date(timestamp);
-    
-    return { 
-      date: date.toLocaleDateString() || null, 
-      time: date.toLocaleTimeString() || null 
+
+    return {
+      date: date.toLocaleDateString() || null,
+      time: date.toLocaleTimeString() || null
     };
   }
 
@@ -28,7 +26,7 @@ class CommonServices {
   }
 
   // ========== DATA FORMATTING UTILITIES ==========
-  
+
   static bytesToReadbleFormat = (bytes) => {
     if (bytes == null || typeof bytes === "undefined") {
       return { value: 0, suffix: "Bytes" };
@@ -39,14 +37,14 @@ class CommonServices {
     }
 
     if (bytes === 0) return { value: 0, suffix: "Bytes" };
-    
+
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return { 
-      value: parseFloat((bytes / Math.pow(k, i)).toFixed(2)), 
-      suffix: sizes[i] 
+
+    return {
+      value: parseFloat((bytes / Math.pow(k, i)).toFixed(2)),
+      suffix: sizes[i]
     };
   }
 
@@ -75,7 +73,7 @@ class CommonServices {
   }
 
   // ========== COPY & DOWNLOAD UTILITIES ==========
-  
+
   /**
    * Enhanced copy to clipboard with multiple fallback methods
    * @param {string} text - Text to copy
@@ -114,7 +112,7 @@ class CommonServices {
           });
           this._handleCopyFeedback(true, "Content shared", showToast, toastCallback);
           return { success: true, message: "Content shared", method: "web-share" };
-        } catch (shareError) {
+        } catch (_shareError) {
           // Web Share was cancelled or failed, continue to fallback
           //console.log("Web Share cancelled or failed, trying fallback...");
         }
@@ -157,15 +155,15 @@ class CommonServices {
         opacity: 0;
         pointer-events: none;
       `;
-      
+
       document.body.appendChild(textarea);
       textarea.focus();
       textarea.select();
-      
+
       const successful = document.execCommand("copy");
       document.body.removeChild(textarea);
-      
-      return successful 
+
+      return successful
         ? { success: true, message: "Copied using fallback method" }
         : { success: false, message: "Fallback copy method failed" };
     } catch (error) {
@@ -181,7 +179,7 @@ class CommonServices {
     if (showToast && toastCallback && typeof toastCallback === "function") {
       toastCallback(success, message);
     }
-    
+
     if (import.meta.env.MODE === "development") {
       //console.log(`Copy ${success ? "success" : "error"}:`, message);
     }
@@ -193,7 +191,7 @@ class CommonServices {
    */
   static _isMobileDevice = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   }
 
   /**
@@ -234,10 +232,10 @@ class CommonServices {
 
     } catch (error) {
       console.error("Download error:", error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         message: `Download failed: ${error.message}`,
-        error: error 
+        error: error
       };
     }
   }
@@ -280,13 +278,13 @@ class CommonServices {
       if (useBrowser && openInNewTab) {
         // Open in new tab (for streaming or direct access)
         const newWindow = window.open(url, "_blank", "noopener,noreferrer");
-        
+
         if (!newWindow) {
           throw new Error("Popup blocked. Please allow popups for this site.");
         }
-        
-        return { 
-          success: true, 
+
+        return {
+          success: true,
           message: "Opened in new tab",
           platform: "web",
           method: "new-tab"
@@ -295,21 +293,21 @@ class CommonServices {
         // Traditional download with filename
         const link = document.createElement("a");
         link.href = url;
-        
+
         if (fileName) {
           link.download = fileName;
         }
-        
+
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.style.display = "none";
-        
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        return { 
-          success: true, 
+
+        return {
+          success: true,
           message: fileName ? "Download started" : "Opening file",
           platform: "web",
           method: "anchor-download",
@@ -318,11 +316,11 @@ class CommonServices {
       }
     } catch (error) {
       console.error("Web download failed:", error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         message: `Web download failed: ${error.message}`,
         platform: "web",
-        error: error 
+        error: error
       };
     }
   }
@@ -334,13 +332,13 @@ class CommonServices {
   static _validateUrl = async (url) => {
     try {
       const urlPattern = new URL(url);
-      
+
       // For same-origin requests, we can do a HEAD request
       if (urlPattern.origin === window.location.origin) {
         const response = await fetch(url, { method: "HEAD" });
         return response.ok;
       }
-      
+
       // For cross-origin, return true and let browser handle it
       return true;
     } catch (error) {
@@ -367,7 +365,7 @@ class CommonServices {
   }
 
   // ========== STRING & URL UTILITIES ==========
-  
+
   static modifySearchQuery = (query) => {
     return query.replace(/[:.\-_]/g, " ");
   }
@@ -380,17 +378,17 @@ class CommonServices {
   static slugify = (str) => {
     return str
       ? str.toString()
-          .toLowerCase()
-          .replace(/\s+/g, "-")
-          .replace(/[^\w\-]+/g, "")
-          .replace(/\-\-+/g, "-")
-          .replace(/^-+/, "")
-          .replace(/-+$/, "")
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^\w-]+/g, "")
+        .replace(/--+/g, "-")
+        .replace(/^-+/, "")
+        .replace(/-+$/, "")
       : "";
   }
 
   // ========== STORAGE UTILITIES ==========
-  
+
   static getCurrentUser = () => {
     try {
       const user = JSON.parse(localStorage.getItem("user"));
@@ -413,8 +411,8 @@ class CommonServices {
   }
 
   // ========== MEDIA INFO CONVERSION ==========
-  
-  static convertMediaInfoToCustomFormat = (id, data, isSearchedFile) => {
+
+  static convertMediaInfoToCustomFormat = (id, data, _isSearchedFile) => {
     if (!data) return [];
 
     const dataArray = Array.isArray(data) ? data : [data];
@@ -480,10 +478,13 @@ class CommonServices {
             encodedLibrary: track?.encodedLibrary ?? raw?.Encoded_Library,
             isStreamable: track?.isStreamable === 'Yes' || raw?.IsStreamable === 'Yes',
           };
-        } else if (type === 'Video') {
+        } else if (this.isRealVideoTrack(track, raw) && !mediaDetails.video?.format) {
           const durSecs = toSecs(track?.duration);
+
           mediaDetails.video = {
-            resolution: (track?.width && track?.height) ? `${track.width}x${track.height}` : null,
+            resolution: (track?.width && track?.height)
+              ? `${track.width}x${track.height}`
+              : null,
             aspectRatio: track?.displayAspectRatio ?? raw?.DisplayAspectRatio_String ?? 'N/A',
             format: fmtStr(track, raw),
             formatProfile: track?.formatProfile ?? raw?.Format_Profile,
@@ -501,11 +502,13 @@ class CommonServices {
             matrixCoefficients: track?.matrixCoefficients ?? raw?.matrix_coefficients,
             size: bytesToReadable(track?.streamSize),
             duration: durSecs ? this.formatDuration(durSecs) : null,
-            hdrDetails: track?.hdrFormat ? [
-              track.hdrFormat,
-              track?.hdrFormatVersion ?? raw?.HDR_Format_Version,
-              track?.hdrFormatCompatibility,
-            ].filter(Boolean).join(' | ') : null,
+            hdrDetails: track?.hdrFormat
+              ? [
+                track.hdrFormat,
+                track?.hdrFormatVersion ?? raw?.HDR_Format_Version,
+                track?.hdrFormatCompatibility,
+              ].filter(Boolean).join(' | ')
+              : null,
           };
         } else if (type === 'Audio') {
           mediaDetails.audio.push({
@@ -538,8 +541,23 @@ class CommonServices {
     });
   };
 
+  static isRealVideoTrack = (track, raw) => {
+    if (!track || track.type !== 'Video') return false;
+
+    // Exclude image/attachments (cover.jpg, poster, etc.)
+    if (raw?.extra?.FILENAME) return false;
+
+    // MJPEG video attachments
+    if (track.codecID === 'V_MJPEG' || track.format === 'V_MJPEG') return false;
+
+    // Zero duration is a strong signal of image
+    if (!track.duration || track.duration <= 0) return false;
+
+    return true;
+  };
+
   // ========== HELPER FUNCTIONS ==========
-  
+
   static getLanguageName = (code) => {
     const languages = {
       "hi": "Hindi",
@@ -582,7 +600,7 @@ class CommonServices {
   }
 
   // ========== OTHER UTILITIES ==========
-  
+
   static rgbaToHex = (rgba) => {
     const parts = rgba.substring(rgba.indexOf("(")).split(",");
     const r = parseInt(parts[0].substring(1).trim());
@@ -665,7 +683,7 @@ class CommonServices {
   };
 
   // ========== LEGACY METHODS (for backward compatibility) ==========
-  
+
   static convertKiBTobytes = (KiB) => {
     return parseFloat(parseFloat(KiB) * 1024).toFixed(2);
   }

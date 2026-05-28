@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Typography, Chip, IconButton, Button, Collapse,
   CircularProgress, useTheme, useMediaQuery, alpha, Tooltip, Stack,
+  Menu, MenuItem, ListItemIcon, ListItemText,
 } from '@mui/material';
 import {
   PlayArrow, Download, ContentCopy, Check, Audiotrack,
-  ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, Tv,
-  InfoOutlined, SubtitlesOutlined,
+  ExpandMore, ExpandLess, VideoSettings, LiveTv, Movie, InfoOutlined, SubtitlesOutlined,
+  NotificationsActive, NotificationsActiveOutlined,
+  HighQuality, MobileFriendly,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,7 +22,7 @@ import Constants from '@shared/constants';
 import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { QUALITY_ORDER, QUALITY_META } from '../../media/constants';
-import { tmdbImg } from '../../api/cinemaApi';
+import { tmdbImg, toggleMediaRequestVote, fetchMyMediaRequests } from '../../api/cinemaApi';
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 
@@ -384,7 +386,6 @@ const MovieFileCard = ({ file, allFiles, record }) => {
 // ─── Episode quality variant row (compact, inside episode expand) ─────────────
 
 const EpisodeQualityRow = ({ file, allEpisodeFiles, record, index }) => {
-  const theme = useTheme();
   const { general, video, audio, subtitle } = file;
   const quality = getQuality(video, general?.fileName);
   const codec   = getCodec(video?.format);
@@ -427,7 +428,7 @@ const EpisodeQualityRow = ({ file, allEpisodeFiles, record, index }) => {
 
 // ─── Episode row (collapsible) ────────────────────────────────────────────────
 
-const EpisodeRow = ({ episodeNum, files, allSeasonFiles, record }) => {
+const EpisodeRow = ({ episodeNum, files, allSeasonFiles: _allSeasonFiles, record }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -775,15 +776,208 @@ const LoadingState = () => (
   </Box>
 );
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
+// ─── Request voting (shared hook) ────────────────────────────────────────────
+// Tracks which kinds (NEW_FILES / HIGHER_QUALITY / LOWER_QUALITY) the user has
+// pending for a given record. One fetch on mount; per-kind toggle thereafter.
 
-const EmptyState = () => (
-  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 14, gap: 2, color: 'text.disabled' }}>
-    <VideoSettings sx={{ fontSize: 52, opacity: 0.25 }} />
-    <Typography variant="body1" sx={{ fontWeight: 600, opacity: 0.5 }}>No media files available</Typography>
-    <Typography variant="body2" sx={{ opacity: 0.4 }}>Files will appear here once media is added to the server</Typography>
-  </Box>
-);
+function useMediaRequestVote(recordId) {
+  const { enqueueSnackbar } = useSnackbar();
+  const [requestedKinds, setRequestedKinds] = useState(() => new Set());
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!recordId) return;
+    let alive = true;
+    const rid = Number(recordId);
+    fetchMyMediaRequests()
+      .then(entries => {
+        if (!alive || !Array.isArray(entries)) return;
+        const next = new Set(
+          entries
+            .filter(e => Number(e?.recordId) === rid)
+            .map(e => e.kind)
+        );
+        setRequestedKinds(next);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [recordId]);
+
+  const toggle = useCallback(async (kind, successCopy, undoCopy) => {
+    if (!recordId || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await toggleMediaRequestVote(recordId, kind);
+      setRequestedKinds(prev => {
+        const next = new Set(prev);
+        if (res?.hasMyVote) next.add(kind);
+        else next.delete(kind);
+        return next;
+      });
+      enqueueSnackbar(
+        res?.hasMyVote ? successCopy : undoCopy,
+        { variant: res?.hasMyVote ? 'success' : 'info' }
+      );
+    } catch {
+      enqueueSnackbar('Could not save request. Please try again.', { variant: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [recordId, submitting, enqueueSnackbar]);
+
+  return { requestedKinds, submitting, toggle };
+}
+
+// Compact inline notice shown when no media files exist for the record.
+const EmptyState = ({ recordId }) => {
+  const theme = useTheme();
+  const { requestedKinds, submitting, toggle } = useMediaRequestVote(recordId);
+  const requested = requestedKinds.has('NEW_FILES');
+
+  const onClick = () => toggle(
+    'NEW_FILES',
+    'Request sent — we\'ll notify you when files are added.',
+    'Request withdrawn.'
+  );
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        px: 2,
+        py: 1.5,
+        borderRadius: 2,
+        bgcolor: alpha(theme.palette.text.primary, 0.04),
+        border: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+      }}
+    >
+      <VideoSettings sx={{ fontSize: 22, color: 'text.secondary', flexShrink: 0 }} />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+          No media files yet
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          {requested
+            ? 'You\'ll be notified when files are added.'
+            : 'Request and we\'ll notify you when it\'s available.'}
+        </Typography>
+      </Box>
+      {recordId && (
+        <Button
+          size="small"
+          variant={requested ? 'outlined' : 'contained'}
+          color="primary"
+          disableElevation
+          disabled={submitting}
+          startIcon={requested ? <NotificationsActive sx={{ fontSize: 16 }} /> : <NotificationsActiveOutlined sx={{ fontSize: 16 }} />}
+          onClick={onClick}
+          sx={{ flexShrink: 0, textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
+        >
+          {requested ? 'Requested' : 'Request'}
+        </Button>
+      )}
+    </Box>
+  );
+};
+
+// Header menu button — shown when files exist. Lets users vote for either a
+// higher-quality copy (e.g. 4K) or a lower-quality copy (e.g. 480p for slow
+// connections). Both options are independent and share the vote endpoint.
+const RequestQualityMenu = ({ recordId }) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const { requestedKinds, submitting, toggle } = useMediaRequestVote(recordId);
+  if (!recordId) return null;
+
+  const open = Boolean(anchorEl);
+  const hqRequested = requestedKinds.has('HIGHER_QUALITY');
+  const lqRequested = requestedKinds.has('LOWER_QUALITY');
+  const anyRequested = hqRequested || lqRequested;
+
+  const onPick = (kind) => async () => {
+    setAnchorEl(null);
+    if (kind === 'HIGHER_QUALITY') {
+      await toggle(
+        'HIGHER_QUALITY',
+        'Higher-quality request sent — we\'ll notify you when a better copy is added.',
+        'Higher-quality request withdrawn.'
+      );
+    } else {
+      await toggle(
+        'LOWER_QUALITY',
+        'Lower-quality request sent — we\'ll notify you when a lighter copy is added.',
+        'Lower-quality request withdrawn.'
+      );
+    }
+  };
+
+  return (
+    <>
+      <Tooltip title="Request a different-quality copy">
+        <Button
+          size="small"
+          variant={anyRequested ? 'outlined' : 'text'}
+          color={anyRequested ? 'primary' : 'inherit'}
+          disabled={submitting}
+          endIcon={<ExpandMore sx={{ fontSize: 14 }} />}
+          startIcon={anyRequested
+            ? <NotificationsActive sx={{ fontSize: 15 }} />
+            : <NotificationsActiveOutlined sx={{ fontSize: 15 }} />}
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+          sx={{
+            ml: 'auto',
+            textTransform: 'none',
+            fontWeight: 700,
+            fontSize: '0.72rem',
+            borderRadius: 2,
+            py: 0.4, px: 1.2,
+            color: anyRequested ? 'primary.main' : 'text.secondary',
+          }}
+        >
+          {anyRequested
+            ? `Requested · ${[hqRequested && 'HQ', lqRequested && 'LQ'].filter(Boolean).join(' + ')}`
+            : 'Request other quality'}
+        </Button>
+      </Tooltip>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{ sx: { mt: 0.5, minWidth: 220 } }}
+      >
+        <MenuItem onClick={onPick('HIGHER_QUALITY')} disabled={submitting}>
+          <ListItemIcon>
+            {hqRequested
+              ? <Check sx={{ fontSize: 18, color: 'primary.main' }} />
+              : <HighQuality sx={{ fontSize: 18 }} />}
+          </ListItemIcon>
+          <ListItemText
+            primary={hqRequested ? 'Higher quality · requested' : 'Higher quality'}
+            secondary="e.g. 1080p → 4K"
+            primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: hqRequested ? 700 : 500 }}
+            secondaryTypographyProps={{ fontSize: '0.7rem' }}
+          />
+        </MenuItem>
+        <MenuItem onClick={onPick('LOWER_QUALITY')} disabled={submitting}>
+          <ListItemIcon>
+            {lqRequested
+              ? <Check sx={{ fontSize: 18, color: 'primary.main' }} />
+              : <MobileFriendly sx={{ fontSize: 18 }} />}
+          </ListItemIcon>
+          <ListItemText
+            primary={lqRequested ? 'Lower quality · requested' : 'Lower quality'}
+            secondary="lighter for slow connections"
+            primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: lqRequested ? 700 : 500 }}
+            secondaryTypographyProps={{ fontSize: '0.7rem' }}
+          />
+        </MenuItem>
+      </Menu>
+    </>
+  );
+};
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
@@ -838,12 +1032,15 @@ const MediaFilesPage = (props) => {
             }}
           />
         )}
+        {!loading && mediaFileList.length > 0 && (
+          <RequestQualityMenu recordId={resolvedRecordId} />
+        )}
       </Box>
 
       {loading ? (
         <LoadingState />
       ) : mediaFileList.length === 0 ? (
-        <EmptyState />
+        <EmptyState recordId={resolvedRecordId} />
       ) : isSeries ? (
         <SeriesView files={mediaFileList} record={record} />
       ) : (

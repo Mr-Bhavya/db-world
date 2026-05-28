@@ -10,9 +10,9 @@ app:
   name: db-world
   version: 3.0.0
   base-path: /app/db_world
-  data-path: /ext_hdisk/dbworld
-  stream-path: /ext_hdisk/videos
-  symlink-path: /ext_hdisk/video_symlink
+  data-path: /srv/dbworld
+  stream-path: /srv/dbworld/streams
+  symlink-path: /srv/dbworld/symlinks
 
 
   paths:
@@ -23,7 +23,7 @@ app:
     temp: ${app.data-path}/temp
     downloads: ${app.data-path}/downloads
     integration: ${app.data-path}/integration
-    torrents: ${app.videos-path}/Torrent Download
+    torrents: ${app.stream-path}/Torrent Download
     archived-logs: ${app.paths.logs}/archived
     external-videos: /home/dbworld_admin/ext_hdisk_1/videos
 
@@ -36,6 +36,7 @@ app:
     seven-zip: 7z
     mediainfo: mediainfo
     hs-cookies: ${app.paths.config}/HS_COOKIES.txt
+    cookies-dir: /etc/dbworld/cookies
 
 server:
   port: ${SERVER_PORT:9090}

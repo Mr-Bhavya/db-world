@@ -40,13 +40,13 @@ function fmtSize(b) {
 
 // ── File mode ──────────────────────────────────────────────────────────────
 
-function FileModeForm({ onDone }) {
+function FileModeForm({ onDone: _onDone }) {
   const { enqueueSnackbar } = useSnackbar();
   const qc           = useQueryClient();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
   const [browserOpen, setBrowserOpen] = useState(false);
 
-  const { control, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } =
+  const { control, handleSubmit, watch, setValue, reset, formState: { isSubmitting } } =
     useForm({
       resolver: zodResolver(fileSchema),
       defaultValues: { localFilePath: '', record: null, season: null, episode: null },
@@ -138,7 +138,7 @@ function FileModeForm({ onDone }) {
           />
           {!record && (
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-              If left empty the file will be saved as "unassigned" and can be linked later.
+              If left empty the file will be saved as &quot;unassigned&quot; and can be linked later.
             </Typography>
           )}
           {isTvRecord && (
@@ -351,7 +351,7 @@ function FolderModeForm() {
             {!filesLoading && files.length > 0 && (
               <Paper variant="outlined" sx={{ maxHeight: 320, overflow: 'auto', borderRadius: 1.5 }}>
                 <List dense disablePadding>
-                  {files.map((file, idx) => {
+                  {files.map((file) => {
                     const isChecked = checked.has(file.path);
                     const checkedIdx = checkedFiles.findIndex((f) => f.path === file.path);
                     const epNum = isTvRecord && isChecked && checkedIdx >= 0
@@ -447,7 +447,6 @@ function FolderModeForm() {
 // ── Root component ─────────────────────────────────────────────────────────
 
 export default function LinkFileForm() {
-  const T = useT();
   const [mode, setMode] = useState('file');
 
   return (

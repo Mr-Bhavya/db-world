@@ -2,6 +2,8 @@ package com.db.dbworld.app.cinema.progress.service;
 
 import com.db.dbworld.app.cinema.progress.entity.WatchProgressEntity;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
+import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity.ActivityType;
+import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
@@ -19,7 +21,8 @@ import java.util.stream.Collectors;
 @Transactional
 public class WatchProgressService {
 
-    private final WatchProgressRepository repository;
+    private final WatchProgressRepository       repository;
+    private final UserCinemaActivityRepository  userCinemaActivityRepository;
 
     @Value
     @Builder
@@ -36,16 +39,26 @@ public class WatchProgressService {
     public void saveProgress(Long userId, String fileId, Long recordId,
                               Long positionMs, Long durationMs,
                               String audioLang, String subLang) {
-        WatchProgressEntity entity = repository
-                .findByUserIdAndFileId(userId, fileId)
-                .orElseGet(() -> WatchProgressEntity.builder()
-                        .userId(userId).fileId(fileId).build());
-        entity.setRecordId(recordId);
-        entity.setPositionMs(positionMs);
-        entity.setDurationMs(durationMs);
-        entity.setAudioLang(audioLang);
-        entity.setSubLang(subLang);
-        repository.save(entity);
+        // Atomic upsert: the player can fire two saves for the same (user, file) within
+        // milliseconds. The prior find-then-insert flow raced and surfaced the
+        // uk_user_file_progress duplicate-key error. ON DUPLICATE KEY UPDATE resolves it
+        // server-side without us needing locking or retries.
+        repository.upsert(
+                userId, fileId, recordId,
+                positionMs, durationMs,
+                audioLang, subLang,
+                Instant.now()
+        );
+
+        // Phase 3 — backfill user_cinema_activity.watch_progress_id for STREAM rows
+        // whose /resolve happened before the user first ticked progress. Idempotent:
+        // the setter no-ops when the FK is already populated.
+        repository.findByUserIdAndFileId(userId, fileId).ifPresent(wp ->
+                userCinemaActivityRepository
+                        .findByUserIdAndMediaFileIdAndActivityType(userId, fileId, ActivityType.STREAM)
+                        .filter(uca -> uca.getWatchProgressId() == null)
+                        .ifPresent(uca -> userCinemaActivityRepository
+                                .setWatchProgressIdById(uca.getId(), wp.getId())));
     }
 
     public Optional<ProgressDto> getProgress(Long userId, String fileId) {

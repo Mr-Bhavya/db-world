@@ -1,9 +1,7 @@
-import axios from 'axios'
-import CommonServices from './CommonServices';
-import Constants from '@shared/constants';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { handleApiError } from '@shared/components/ui/utils/errorHandler';
-const REACT_APP_BASEURL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
+const REACT_APP_BASEURL = getApiBaseUrl();
 
 /**
  * Register a new user.
@@ -666,7 +664,7 @@ export const deleteTempFile = async () => {
 };
 
 // Event Tracking
-export const saveUserEventInfo = async (event, value) => {
+export const saveUserEventInfo = async (_event, _value) => {
 return;
 //  try {
 //    const response = await axiosInstance.post('/api/event-info/', { event, value });

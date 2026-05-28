@@ -303,7 +303,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                 long remaining = total - completed;
                 long eta = (speed != null && speed > 0) ? remaining / speed : 0;
                 trackingService.updateProgress(ctx.getJobId(),
-                        new ProgressSnapshot(completed, total,
+                        ProgressSnapshot.downloading(completed, total,
                                 speed != null ? speed.doubleValue() : 0.0, eta));
             }
         } catch (Exception ignored) {}

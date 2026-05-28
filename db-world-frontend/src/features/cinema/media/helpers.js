@@ -1,9 +1,17 @@
 // ─── Media helper functions shared across all media components ─────────────────
 import { QUALITY_ORDER } from './constants';
 
-export function getQuality(video, fileName) {
-  if (video?.resolution) {
-    const [w, h] = video.resolution.split('x').map(Number);
+export function getQuality({ resolution, width, height } = {}, fileName) {
+  let w, h;
+
+  if (resolution) {
+    [w, h] = resolution.split('x').map(Number);
+  } else if (width && height) {
+    w = width;
+    h = height;
+  }
+
+  if (w && h) {
     if (h >= 4320 || w >= 7680) return '8K';
     if (h >= 2160 || w >= 3840) return '4K';
     if (h >= 1440 || w >= 2560) return '1440p';
@@ -12,13 +20,16 @@ export function getQuality(video, fileName) {
     if (h >= 480  || w >= 854)  return '480p';
     if (h > 0) return 'SD';
   }
+
+  // Fallback to filename
   if (fileName) {
     const m = fileName.match(/(\d{3,4}p|4K|8K)/i);
     if (m) {
-      const v = m[1].toLowerCase();
-      return v === '4k' ? '4K' : v === '8k' ? '8K' : m[1];
+      const v = m[1].toUpperCase();
+      return v === '4K' || v === '8K' ? v : m[1];
     }
   }
+
   return 'Unknown';
 }
 

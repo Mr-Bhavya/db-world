@@ -1,11 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Box, Chip, Grid, Typography, Button, IconButton, Tooltip, useTheme, useMediaQuery } from '@mui/material';
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
   PlayArrow, BookmarkAdd, BookmarkAdded,
   ThumbUp, ThumbUpOutlined, Favorite, FavoriteBorder,
-  Visibility, VisibilityOff, Info,
-} from '@mui/icons-material';
+  Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import {
   addWatchlist, removeWatchlist,
@@ -151,7 +150,7 @@ const BackdropSection = ({ record }) => {
                         </Typography>
                         {tmdb.tagline && (
                             <Typography variant="subtitle1" sx={{ fontStyle: 'italic', mb: 2 }}>
-                                "{tmdb.tagline}"
+                                &quot;{tmdb.tagline}&quot;
                             </Typography>
                         )}
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>

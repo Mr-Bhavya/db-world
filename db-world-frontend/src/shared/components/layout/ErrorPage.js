@@ -85,7 +85,7 @@ export default function ErrorPage() {
 
             <motion.div variants={itemVariants}>
               <Typography sx={{ color: T.textMuted, mb: 3 }}>
-                This page doesn't exist in any dimension.
+                This page doesn&apos;t exist in any dimension.
               </Typography>
             </motion.div>
 

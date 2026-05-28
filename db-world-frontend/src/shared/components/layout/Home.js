@@ -405,7 +405,7 @@ const Home = () => {
     const [recent, setRecent] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [scrolled, setScrolled] = useState(false);
-    const [showAbout, setShowAbout] = useState(false);
+    const [_showAbout, _setShowAbout] = useState(false);
 
     useEffect(() => {
         setRecent(getRecent());

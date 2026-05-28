@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export const useFileManagerStore = create((set, get) => ({
+export const useFileManagerStore = create((set, _get) => ({
   // Navigation
   currentPath: '/',
   navigate:    (path) => set({ currentPath: path, selectedItems: new Set() }),

@@ -15,6 +15,13 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class TmdbServiceImpl implements TmdbService {
 
+    /**
+     * Max in-flight TMDB page requests when paginating /movie/changes, /tv/changes,
+     * or /reviews. TMDB enforces ~50 req/sec; even with the WebClient's 429-retry
+     * filter, unbounded parallelism wastes budget on retries. Keep this small.
+     */
+    private static final int TMDB_PAGE_CONCURRENCY = 3;
+
     private final TmdbClient tmdbClient;
 
     /* =====================================
@@ -39,10 +46,11 @@ public class TmdbServiceImpl implements TmdbService {
                             // page 1
                             Mono.just(firstPage),
 
-                            // remaining pages
+                            // remaining pages — cap concurrency so we don't flood TMDB and get 429'd
                             Flux.range(2, Math.max(totalPages - 1, 0))
                                     .flatMap(page ->
-                                            tmdbClient.getMovieChanges(startDate, endDate, page)
+                                            tmdbClient.getMovieChanges(startDate, endDate, page),
+                                            TMDB_PAGE_CONCURRENCY
                                     )
                     );
                 })
@@ -74,7 +82,8 @@ public class TmdbServiceImpl implements TmdbService {
 
                             Flux.range(2, Math.max(totalPages - 1, 0))
                                     .flatMap(page ->
-                                            tmdbClient.getTvChanges(startDate, endDate, page)
+                                            tmdbClient.getTvChanges(startDate, endDate, page),
+                                            TMDB_PAGE_CONCURRENCY
                                     )
                     );
                 })

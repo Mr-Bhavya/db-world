@@ -1,4 +1,4 @@
-import { Box, Typography, IconButton, Tooltip, Checkbox } from '@mui/material';
+import { Box, Typography, IconButton, Checkbox } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -8,7 +8,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from './useFileManagerStore';
-import { getFileColor, getFileEmoji } from './fileIcons';
+import { getFileColor } from './fileIcons';
 import { downloadFile } from './fileManagerApi';
 
 function FileCard({ item, onNavigate, onDelete }) {

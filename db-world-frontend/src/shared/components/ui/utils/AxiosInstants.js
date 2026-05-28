@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const BASE_URL = getApiBaseUrl();
 
 /**
  * Paths that must NOT carry a Bearer token.
