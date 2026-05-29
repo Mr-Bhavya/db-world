@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -85,6 +86,21 @@ public class FileWatcherService {
     private final AtomicBoolean   running           = new AtomicBoolean(true);
     private final AtomicLong      processedCount    = new AtomicLong();
     private final AtomicLong      errorCount        = new AtomicLong();
+
+    /**
+     * Paths the watcher must ignore the NEXT delete/rename event for, with a
+     * deadline-epoch-millis value (after which the marker auto-expires).
+     *
+     * Used by admin code paths that delete files themselves and handle the DB
+     * cleanup in-band — without the marker, the OS-level delete event would
+     * cause FileWatcherService to redundantly call deleteByFilePath on a row
+     * the request transaction is mid-deleting, racing into a
+     * StaleObjectStateException (cascade on `media_tracks`).
+     *
+     * 5 seconds is plenty of headroom for inotify event latency on the Pi.
+     */
+    private final Map<String, Long> intentionalEvents = new ConcurrentHashMap<>();
+    private static final Duration DEFAULT_INTENT_TTL = Duration.ofSeconds(5);
 
     @Getter @Setter
     private volatile boolean dryRun = false;
@@ -382,6 +398,11 @@ public class FileWatcherService {
 
     private void processDeleteEvent(Path file) {
         String filePath = file.toString();
+        if (consumeIntentional(filePath)) {
+            log.debug("{} Skipping delete event for {} — handled by admin/in-band path",
+                    TAG, filePath);
+            return;
+        }
         mediaInfoService.getByFilePath(filePath).ifPresent(dto -> {
             log.warn("{} File deleted: {} (id={})", TAG, filePath, dto.getId());
             if (!dryRun) {
@@ -393,6 +414,41 @@ public class FileWatcherService {
             }
             processedCount.incrementAndGet();
         });
+    }
+
+    // ── Intentional-event registry (public API) ────────────────────────────────
+
+    /**
+     * Tells the watcher to ignore the next delete/rename event for {@code path}
+     * within {@code ttl}. Use this from in-band admin code that mutates a file
+     * itself (delete, move, rename) and is going to do the DB cleanup
+     * synchronously — without it, the OS-level event would race the same
+     * cleanup on the watcher thread and you'd get
+     * StaleObjectStateException / IncorrectResultSizeDataAccessException.
+     *
+     * Markers are single-use (consumed by the first matching event) and
+     * auto-expire after {@code ttl} so a slow or missed OS event can't leave
+     * the path permanently ignored.
+     */
+    public void markIntentional(String path, Duration ttl) {
+        if (path == null || path.isBlank()) return;
+        intentionalEvents.put(path, System.currentTimeMillis() + ttl.toMillis());
+    }
+
+    /** Convenience: 5-second TTL, covers normal OS event latency. */
+    public void markIntentional(String path) {
+        markIntentional(path, DEFAULT_INTENT_TTL);
+    }
+
+    /** Returns true and removes the marker if a fresh one exists for this path. */
+    private boolean consumeIntentional(String path) {
+        Long until = intentionalEvents.remove(path);
+        if (until == null) return false;
+        if (System.currentTimeMillis() > until) {
+            // Marker expired — treat the event as genuine.
+            return false;
+        }
+        return true;
     }
 
     private void ensureSystemLink(String fileId, String filePath) {
