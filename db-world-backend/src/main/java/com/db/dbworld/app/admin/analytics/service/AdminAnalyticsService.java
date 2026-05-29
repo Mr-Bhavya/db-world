@@ -85,7 +85,7 @@ public class AdminAnalyticsService {
     private DailyActivityDto toDailyDto(DailyActivityProjection p) {
         BigDecimal gb = BigDecimal.valueOf(p.getBytesTransferred())
                 .divide(BYTES_PER_GB, 3, RoundingMode.HALF_UP);
-        return new DailyActivityDto(p.getDate().toLocalDate(), p.getStreams(), p.getDownloads(), gb);
+        return new DailyActivityDto(p.getDate(), p.getStreams(), p.getDownloads(), gb);
     }
 
     private TopRecordDto toTopRecordDto(TopRecordProjection p) {
