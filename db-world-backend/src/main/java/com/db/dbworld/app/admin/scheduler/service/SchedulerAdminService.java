@@ -13,6 +13,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class SchedulerAdminService {
     private final TmdbSyncScheduler             tmdbSyncScheduler;
     private final PersonSyncScheduler           personSyncScheduler;
     private final MediaSyncService              mediaSyncService;
+    private final JdbcTemplate                  jdbcTemplate;
 
     private static final List<SchedulerJobConfigEntity> DEFAULTS = List.of(
             SchedulerJobConfigEntity.builder().jobId("TagScheduler")
@@ -64,8 +66,32 @@ public class SchedulerAdminService {
 
     @PostConstruct
     public void init() {
+        relaxLegacyConstraints();
         seedDefaults();
         scheduleAll();
+    }
+
+    /**
+     * One-shot schema fix: the original {@code scheduler_job_config} table was
+     * created with {@code cron_expression VARCHAR(100) NOT NULL} when every job
+     * was cron-based. FIXED_DELAY jobs (MediaSync) leave that column null, and
+     * Hibernate's {@code ddl-auto=update} doesn't relax existing NOT NULL
+     * constraints — only Flyway/Liquibase would.
+     *
+     * <p>The {@code ALTER TABLE ... MODIFY} is idempotent on MySQL: if the
+     * column is already nullable, this is a no-op (it just rewrites the column
+     * metadata to match). Wrapped in try/catch so an unexpected DB layout
+     * doesn't block boot.
+     */
+    private void relaxLegacyConstraints() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE scheduler_job_config " +
+                    "MODIFY COLUMN cron_expression VARCHAR(100) NULL");
+        } catch (Exception e) {
+            log.debug("scheduler_job_config.cron_expression NOT NULL relax skipped: {}",
+                    e.getMessage());
+        }
     }
 
     @Transactional
