@@ -16,10 +16,12 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -102,14 +104,55 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Override
     @Transactional(readOnly = true)
     public Optional<MediaFileDto> getByFilePath(String filePath) {
-        return mediaFileRepository.findByFilePath(filePath).map(this::toDto);
+        // Tolerant lookup — `findByFilePath` returns Optional<> and Spring Data
+        // throws IncorrectResultSizeDataAccessException when the DB happens to
+        // hold duplicate rows for the same path (a buggy ingestion run can
+        // produce them). Fall back to the list variant and take the newest.
+        try {
+            return mediaFileRepository.findByFilePath(filePath).map(this::toDto);
+        } catch (IncorrectResultSizeDataAccessException e) {
+            List<MediaFileEntity> dupes = mediaFileRepository.findAllByFilePath(filePath);
+            log.warn("getByFilePath: {} duplicate rows for path {} — returning newest",
+                    dupes.size(), filePath);
+            return dupes.stream()
+                    .max(Comparator.comparing(MediaFileEntity::getCreatedAt))
+                    .map(this::toDto);
+        }
     }
 
     @Override
     @Transactional
     public void deleteByFilePath(String filePath) {
         log.info("deleteByFilePath path={}", filePath);
-        mediaFileRepository.deleteByFilePath(filePath);
+        // Two race scenarios this method has to survive:
+        //  1. Admin HTTP delete and FileWatcherService's OS-event handler
+        //     fire on the same path concurrently. Hibernate cascades through
+        //     `tracks` (cascade=ALL + orphanRemoval), so whichever transaction
+        //     commits second tries to DELETE FROM media_tracks WHERE id=? for
+        //     rows the first tx already removed, gets row-count 0, and throws
+        //     StaleObjectStateException.
+        //  2. Multiple MediaFile rows exist for the same filePath (legacy data
+        //     from the torrent-metadata-confused-as-payload bug). Spring
+        //     Data's `deleteByFilePath` loads all matches and cascades each;
+        //     pre-loading with our list variant gives us per-entity
+        //     control + a clear log line.
+        List<MediaFileEntity> matches = mediaFileRepository.findAllByFilePath(filePath);
+        if (matches.isEmpty()) {
+            log.debug("deleteByFilePath: nothing to delete (already gone) — {}", filePath);
+            return;
+        }
+        if (matches.size() > 1) {
+            log.warn("deleteByFilePath: {} duplicate rows for path {} — deleting all",
+                    matches.size(), filePath);
+        }
+        for (MediaFileEntity entity : matches) {
+            try {
+                mediaFileRepository.delete(entity);
+            } catch (ObjectOptimisticLockingFailureException e) {
+                log.debug("deleteByFilePath: row id={} concurrently deleted (race) — {}",
+                        entity.getId(), filePath);
+            }
+        }
     }
 
     @Override

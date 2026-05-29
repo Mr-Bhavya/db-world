@@ -22,6 +22,16 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
     Optional<MediaFileEntity> findByFilePath(String filePath);
 
     /**
+     * Tolerant variant: returns all rows matching this path. Used by the
+     * service layer because a buggy ingestion run can leave duplicate
+     * MediaFile rows pointing at the same filePath, and Optional<>'s
+     * single-result enforcement throws IncorrectResultSizeDataAccessException
+     * when there are 2+.
+     */
+    @EntityGraph(attributePaths = "tracks")
+    List<MediaFileEntity> findAllByFilePath(String filePath);
+
+    /**
      * Lean lookup used by activity tracking — returns just {id, recordId} so we don't
      * drag tracks into a high-volume insert path. Returns array {String id, Long recordId}
      * or empty if no row matches.
