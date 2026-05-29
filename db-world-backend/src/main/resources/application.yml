@@ -158,6 +158,15 @@ springdoc:
 # db-world feature configs
 # =========================================================
 dbworld:
+  # ── Filesystem ↔ DB reconciliation ────────────────────────────────────────
+  # Periodic scan that keeps `media_files` in sync with the on-disk state of
+  # `app.stream-path`. Replaces the old FileWatcherService (kernel inotify),
+  # which couldn't see SMB / NFS changes and dropped events under load.
+  media-sync:
+    enabled: true
+    interval: 60s          # how often the scan runs (fixedDelay semantics)
+    stability-window: 5s   # ignore files modified within the last N seconds
+
   log-shipper:
     enabled: true
     log-file-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}

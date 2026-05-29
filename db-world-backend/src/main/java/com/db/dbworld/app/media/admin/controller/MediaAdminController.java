@@ -5,7 +5,6 @@ import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
 import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.link.SymlinkService;
-import com.db.dbworld.app.media.watch.FileWatcherService;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.config.AppConstants;
@@ -31,11 +30,6 @@ public class MediaAdminController {
 
     private final MediaInfoService    mediaInfoService;
     private final SymlinkService      symlinkService;
-    /** Used to suppress the OS-level delete event that follows
-     *  {@link #deleteActualFile} — we handle the DB cleanup in-band here,
-     *  so the watcher's redundant attempt would race into a
-     *  StaleObjectStateException on cascade(media_tracks). */
-    private final FileWatcherService  fileWatcherService;
 
     /* â”€â”€ File info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
@@ -146,13 +140,12 @@ public class MediaAdminController {
 
     private void deleteActualFile(String filePath, String id) {
         if (filePath == null || filePath.isBlank()) return;
-        // Tell FileWatcher to ignore the upcoming OS-level delete event for
-        // this path — we drop the file then immediately clean up the DB row
-        // ourselves (see callers). Without this, the watcher fires its own
-        // deleteByFilePath on the same row a few ms later and the cascade on
-        // media_tracks races into StaleObjectStateException.
-        fileWatcherService.markIntentional(filePath);
         try {
+            // With the WatchService retired and the reconciliation scan as the
+            // single filesystem→DB writer, there's no concurrent watcher event
+            // for this delete; the next scan tick simply sees no diff. The
+            // deleteByFilePath idempotency safety net (27bfb35) stays in place
+            // for any other concurrent paths but isn't load-bearing here.
             boolean deleted = Files.deleteIfExists(Path.of(filePath));
             log.info("[ADMIN] File {} (id={}) deleted from disk: {}", filePath, id, deleted);
         } catch (Exception e) {
