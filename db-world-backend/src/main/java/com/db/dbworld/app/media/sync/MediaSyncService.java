@@ -1,5 +1,9 @@
 package com.db.dbworld.app.media.sync;
 
+import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobHistoryEntity;
+import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobConfigRepository;
+import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobHistoryRepository;
+import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
@@ -20,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -84,11 +89,16 @@ import java.util.stream.Stream;
 @EnableConfigurationProperties(MediaSyncProperties.class)
 public class MediaSyncService {
 
-    private final MediaSyncProperties   props;
-    private final MediaInfoService      mediaInfoService;
-    private final MediaFileRepository   mediaFileRepository;
-    private final SymlinkService        symlinkService;
-    private final AppProperties         appProperties;
+    /** Scheduler job id used both in scheduler_job_config and scheduler_job_history. */
+    public static final String JOB_ID = "MediaSync";
+
+    private final MediaSyncProperties           props;
+    private final MediaInfoService              mediaInfoService;
+    private final MediaFileRepository           mediaFileRepository;
+    private final SymlinkService                symlinkService;
+    private final AppProperties                 appProperties;
+    private final SchedulerJobConfigRepository  schedulerConfigRepo;
+    private final SchedulerJobHistoryRepository schedulerHistoryRepo;
 
     /** Wall-clock millis when the most recent scan finished — exposed for diagnostics. */
     private final AtomicLong lastScanCompletedAt = new AtomicLong(0);
@@ -120,7 +130,17 @@ public class MediaSyncService {
      */
     @Scheduled(fixedDelayString = "${dbworld.media-sync.interval:60s}")
     public void scheduledScan() {
+        // application.yml gate first (compile-time off-switch); then live
+        // DB-driven gate so the admin scheduler UI's enable/disable toggle
+        // takes effect without a restart.
         if (!props.enabled()) return;
+        boolean enabledInDb = schedulerConfigRepo.findById(JOB_ID)
+                .map(c -> c.isEnabled())
+                .orElse(true); // first boot: row may not be seeded yet
+        if (!enabledInDb) {
+            log.debug("MediaSync: disabled in scheduler_job_config; skipping tick");
+            return;
+        }
         scan();
     }
 
@@ -132,13 +152,17 @@ public class MediaSyncService {
      */
     public SyncReport scan() {
         ThreadContext.put("traceId", "media-sync-" + UUID.randomUUID());
+        LocalDateTime startedAt = LocalDateTime.now();
         long start = System.currentTimeMillis();
+        SyncReport report;
 
         try {
             Path root = appProperties.getStreamPath();
             if (root == null || !Files.isDirectory(root)) {
                 log.warn("MediaSync: stream root not a directory ({}); skipping", root);
-                return new SyncReport(0, 0, 0, System.currentTimeMillis() - start, true);
+                report = new SyncReport(0, 0, 0, System.currentTimeMillis() - start, true);
+                persistHistory(startedAt, report, "stream root not a directory: " + root);
+                return report;
             }
 
             var onDisk = walkRoot(root);
@@ -151,7 +175,7 @@ public class MediaSyncService {
             int removed = applyRemovals(toRemove, inDb);
 
             long duration = System.currentTimeMillis() - start;
-            var report = new SyncReport(added, removed, onDisk.size(), duration, false);
+            report = new SyncReport(added, removed, onDisk.size(), duration, false);
 
             if (report.changed()) {
                 log.info("MediaSync: added={} removed={} total-on-disk={} took={}ms",
@@ -160,14 +184,37 @@ public class MediaSyncService {
                 log.debug("MediaSync: no changes (total-on-disk={}, took {}ms)",
                         onDisk.size(), duration);
             }
+            persistHistory(startedAt, report,
+                    report.changed() ? "added=" + added + ", removed=" + removed : null);
             return report;
 
         } catch (Exception e) {
             log.error("MediaSync: scan failed: {}", e.getMessage(), e);
-            return new SyncReport(0, 0, 0, System.currentTimeMillis() - start, true);
+            report = new SyncReport(0, 0, 0, System.currentTimeMillis() - start, true);
+            persistHistory(startedAt, report, e.getMessage());
+            return report;
         } finally {
             lastScanCompletedAt.set(System.currentTimeMillis());
             ThreadContext.clearAll();
+        }
+    }
+
+    /**
+     * Writes a row to scheduler_job_history so the admin UI's per-job history
+     * drawer surfaces the scan outcome alongside cron-job runs. Best-effort —
+     * a history-write failure must not crash the scan itself.
+     */
+    private void persistHistory(LocalDateTime startedAt, SyncReport report, String message) {
+        try {
+            schedulerHistoryRepo.save(SchedulerJobHistoryEntity.builder()
+                    .jobName(JOB_ID)
+                    .startedAt(startedAt)
+                    .durationMs(report.durationMs())
+                    .status(report.failed() ? "FAILED" : "SUCCESS")
+                    .message(message)
+                    .build());
+        } catch (Exception e) {
+            log.warn("MediaSync: failed to write history row: {}", e.getMessage());
         }
     }
 
@@ -241,8 +288,22 @@ public class MediaSyncService {
                 continue;
             }
             try {
-                mediaInfoService.collectAndPersist(snap.path(), null, null);
-                log.info("MediaSync: added {}", pathStr);
+                MediaFileDto dto = mediaInfoService.collectAndPersist(snap.path(), null, null);
+                // collectAndPersist writes media_files + media_tracks but does
+                // NOT create the /symlinks/<id> system link — that's a
+                // separate concern owned by SymlinkService. The retired
+                // FileWatcherService used to call ensureSystemLink right
+                // here; keep parity so files surfaced by the scan are
+                // immediately streamable via the symlink URL.
+                if (dto != null && dto.getId() != null) {
+                    try {
+                        symlinkService.ensure(dto.getId(), dto.getFilePath());
+                    } catch (Exception linkErr) {
+                        log.warn("MediaSync: symlink creation failed for id={} path={}: {}",
+                                dto.getId(), pathStr, linkErr.getMessage());
+                    }
+                }
+                log.info("MediaSync: added {} (id={})", pathStr, dto != null ? dto.getId() : "?");
                 count++;
             } catch (Exception e) {
                 log.warn("MediaSync: failed to add {}: {}", pathStr, e.getMessage(), e);

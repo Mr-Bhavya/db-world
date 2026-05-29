@@ -30,8 +30,12 @@ public class SchedulerAdminController {
     @GetMapping("/history")
     @AdminAccess
     public ApiResponse<List<Map<String, Object>>> getHistory(
-            @RequestParam(defaultValue = "50") int limit) {
-        return ApiResponse.success(schedulerAdminService.getHistory(limit));
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) String jobName) {
+        List<Map<String, Object>> rows = (jobName == null || jobName.isBlank())
+                ? schedulerAdminService.getHistory(limit)
+                : schedulerAdminService.getHistoryForJob(jobName, limit);
+        return ApiResponse.success(rows);
     }
 
     @PostMapping("/trigger/{jobName}")

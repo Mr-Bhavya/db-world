@@ -10,11 +10,17 @@ import java.time.LocalDateTime;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SchedulerJobConfigEntity {
 
+    /** CRON: scheduled via Spring TaskScheduler using {@link #cronExpression}.
+     *  FIXED_DELAY: the job runs itself via {@code @Scheduled(fixedDelay...)};
+     *               admin only controls enable/manual trigger and visibility. */
+    public enum JobType { CRON, FIXED_DELAY }
+
     @Id
     @Column(name = "job_id", length = 100)
     private String jobId;
 
-    @Column(name = "cron_expression", length = 100, nullable = false)
+    /** Required for CRON jobs; ignored for FIXED_DELAY. */
+    @Column(name = "cron_expression", length = 100)
     private String cronExpression;
 
     @Column(name = "timezone", length = 50)
@@ -27,6 +33,16 @@ public class SchedulerJobConfigEntity {
     @Column(name = "display_order", nullable = false)
     @Builder.Default
     private int displayOrder = 0;
+
+    /** CRON (default for backward compat) or FIXED_DELAY. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "job_type", length = 20, nullable = false)
+    @Builder.Default
+    private JobType jobType = JobType.CRON;
+
+    /** Required for FIXED_DELAY; ignored for CRON. */
+    @Column(name = "interval_seconds")
+    private Integer intervalSeconds;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
