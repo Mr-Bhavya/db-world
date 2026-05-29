@@ -3,8 +3,8 @@ import {
   Box, Typography, Card, CardContent, Button, Chip,
   IconButton, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Tooltip,
   LinearProgress, Switch, alpha, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Alert, Drawer,
-  ToggleButton, ToggleButtonGroup, Divider, MenuItem, Stack,
+  DialogContent, DialogActions, TextField, Alert,
+  ToggleButton, ToggleButtonGroup, Divider, MenuItem, Stack, Grow,
 } from '@mui/material';
 import {
   Schedule, PlayArrow, Refresh, CheckCircle,
@@ -551,8 +551,17 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
   );
 }
 
-// ─── Per-job history drawer ───────────────────────────────────────────────────
-function HistoryDrawer({ job, onClose }) {
+// ─── Per-job history modal ────────────────────────────────────────────────────
+/**
+ * Forwarded-ref wrapper so MUI's transitions can target the motion'd content.
+ * Grow gives a scale-from-center + fade entrance that pairs naturally with the
+ * "click button → modal pops up" interaction (vs Slide which feels drawery).
+ */
+const GrowTransition = React.forwardRef(function GrowTransition(props, ref) {
+  return <Grow ref={ref} timeout={{ enter: 260, exit: 200 }} style={{ transformOrigin: 'center top' }} {...props} />;
+});
+
+function HistoryModal({ job, onClose }) {
   const T = useT();
   const open = !!job;
   const { data: rows = [], isLoading } = useQuery({
@@ -567,23 +576,51 @@ function HistoryDrawer({ job, onClose }) {
   const fmtMs = (ms)  => ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 
   return (
-    <Drawer
-      anchor="right"
+    <Dialog
       open={open}
       onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      TransitionComponent={GrowTransition}
       PaperProps={{
         sx: {
           bgcolor: T.bg, color: T.text,
-          width: { xs: '100%', sm: 480, md: 560 },
-          borderLeft: `1px solid ${T.border}`,
+          border: `1px solid ${T.border}`,
+          borderRadius: 2,
+          // Cap height so a long history is internally scrollable rather than
+          // pushing the dialog off-screen.
+          maxHeight: { xs: '92vh', sm: '85vh' },
+          // Subtle coloured ring matching the job's accent — reinforces which
+          // job's history you're looking at when the modal floats over the
+          // panel.
+          boxShadow: `0 0 0 1px ${alpha(meta.color, 0.18)}, 0 24px 60px rgba(0,0,0,0.45)`,
+          m: { xs: 1, sm: 2 },
+        },
+      }}
+      slotProps={{
+        backdrop: {
+          sx: {
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(2px)',
+          },
         },
       }}
     >
       {!!job && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 240 }}>
           {/* Header */}
-          <Box sx={{ p: 2, borderBottom: `1px solid ${T.border}`,
-            display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            p: 2,
+            borderBottom: `1px solid ${T.border}`,
+            display: 'flex', alignItems: 'center', gap: 1.5,
+            // Faint accent stripe at top to echo the job color.
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute', left: 0, right: 0, top: 0, height: 2,
+              background: `linear-gradient(90deg, ${meta.color}, ${alpha(meta.color, 0)})`,
+            },
+          }}>
             <History sx={{ color: meta.color, fontSize: 22 }} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: T.text }}>
@@ -677,7 +714,7 @@ function HistoryDrawer({ job, onClose }) {
           </Box>
         </Box>
       )}
-    </Drawer>
+    </Dialog>
   );
 }
 
@@ -1012,8 +1049,8 @@ export default function SchedulerPanel() {
         onSave={(jobId, body) => saveMutation.mutate({ jobId, body })}
       />
 
-      {/* ── Per-job History Drawer ── */}
-      <HistoryDrawer
+      {/* ── Per-job History Modal ── */}
+      <HistoryModal
         job={historyJob}
         onClose={() => setHistoryJob(null)}
       />
