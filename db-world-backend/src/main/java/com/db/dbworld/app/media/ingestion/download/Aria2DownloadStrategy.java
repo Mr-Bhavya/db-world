@@ -9,6 +9,7 @@ import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
+import com.db.dbworld.app.media.aria2.Aria2StatusKeys;
 import com.db.dbworld.app.media.aria2.model.Aria2AddDownloadResponse;
 import com.db.dbworld.app.media.aria2.model.Aria2StatusParam;
 import lombok.RequiredArgsConstructor;
@@ -201,11 +202,27 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                 String aria2Status = status.getStatus();
 
                 if ("complete".equals(aria2Status)) {
-                    if (status.isMetadataDownload()) {
+                    // The default tellStatus payload uses BASIC_KEYS — no
+                    // `bittorrent` and no `followedBy`. isMetadataDownload()
+                    // checks both, so without them every torrent's metadata-
+                    // download GID looked like a real completion and FFmpeg
+                    // got fired on the 239-byte .torrent / control file
+                    // before the actual payload had even started. Re-fetch
+                    // with FINAL_STATUS_KEYS here so the metadata check has
+                    // the fields it needs. One extra RPC per torrent — rare
+                    // event, dwarfed by the actual download time.
+                    Aria2StatusParam complete = aria2RpcService.tellStatus(
+                            activeGid, Aria2StatusKeys.FINAL_STATUS_KEYS);
+                    Aria2StatusParam effective = complete != null ? complete : status;
+
+                    if (effective.isMetadataDownload()) {
                         ctx.log("ARIA2", "Metadata complete, waiting for actual payload download...");
+                        // The WS handler observes the same onDownloadComplete
+                        // event and remaps jobStore's GID to followedBy[0],
+                        // so the next poll iteration picks up the real GID.
                         continue;
                     }
-                    return handleComplete(ctx, activeGid, status, tempDir);
+                    return handleComplete(ctx, activeGid, effective, tempDir);
                 }
 
                 if ("error".equals(aria2Status)) {
