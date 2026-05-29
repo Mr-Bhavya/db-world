@@ -2,6 +2,16 @@ spring:
   application:
     name: db-world
 
+  # =========================================================
+  # Startup-time tunings (prod-safe)
+  # =========================================================
+  main:
+    # Banner adds nothing in production logs and costs a few ms.
+    banner-mode: off
+  # Most JMX exporters are unused; disabling skips MBean registration.
+  jmx:
+    enabled: false
+
   config:
     # [.properties] hint tells Spring Boot to parse this shell-style env file as
     # java.util.Properties — without it, SB ignores unknown extensions silently.
@@ -36,6 +46,16 @@ spring:
       hibernate.jdbc.batch_size: 25
       hibernate.order_inserts: true
       hibernate.order_updates: true
+      # Skip the JDBC metadata round-trip during boot — saves ~1s. Safe because
+      # we pin the dialect explicitly below; Hibernate doesn't need to probe.
+      hibernate.boot.allow_jdbc_metadata_access: false
+      hibernate.dialect: org.hibernate.dialect.MySQLDialect
+      # Pad IN-clause parameters to a power of 2 → fewer distinct
+      # PreparedStatements → better query plan cache hit rate.
+      hibernate.query.in_clause_parameter_padding: true
+      # We never autocommit individual statements; tells Hibernate it can skip
+      # the JDBC autocommit toggle around each unit of work.
+      hibernate.connection.provider_disables_autocommit: true
     naming:
       physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
 

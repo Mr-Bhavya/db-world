@@ -3,6 +3,14 @@ spring:
     activate:
       on-profile: local
 
+  # Lazy-init every bean — they're created on first use rather than at boot.
+  # @Scheduled / @EventListener processors still register eagerly via bean
+  # post-processors so background work isn't broken. Local-only because the
+  # first request after boot pays the bean-creation cost; in prod we keep
+  # everything eager so health checks see a fully-warm context.
+  main:
+    lazy-initialization: true
+
   jpa:
     show-sql: false
     hibernate:
