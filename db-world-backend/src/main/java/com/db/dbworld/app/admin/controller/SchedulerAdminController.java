@@ -73,6 +73,27 @@ public class SchedulerAdminController {
         return ApiResponse.success("Cron updated for " + jobName);
     }
 
+    /**
+     * Update the interval of a FIXED_DELAY job (e.g. MediaSync). The new
+     * value is read from the DB on the next scheduling decision — no app
+     * restart needed.
+     */
+    @PatchMapping("/interval/{jobName}")
+    @AdminAccess
+    public ApiResponse<Void> updateInterval(
+            @PathVariable String jobName,
+            @RequestBody Map<String, Object> body) {
+        Object raw = body.get("intervalSeconds");
+        if (!(raw instanceof Number n) || n.intValue() <= 0) {
+            log.warn("updateInterval rejected: missing/invalid intervalSeconds for job={}", jobName);
+            return ApiResponse.error(HttpStatus.BAD_REQUEST,
+                    "intervalSeconds (positive integer) is required");
+        }
+        log.info("Admin updating interval for job={} to {}s", jobName, n.intValue());
+        schedulerAdminService.updateInterval(jobName, n.intValue());
+        return ApiResponse.success("Interval updated for " + jobName);
+    }
+
     @PatchMapping("/reorder")
     @AdminAccess
     public ApiResponse<Void> reorder(@RequestBody List<Map<String, Object>> orders) {

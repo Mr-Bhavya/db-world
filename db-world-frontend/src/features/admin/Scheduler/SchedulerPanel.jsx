@@ -23,10 +23,11 @@ const api = {
   history: (jobName, limit = 50) => axiosInstance
         .get('/api/admin/scheduler/history', { params: { limit, jobName } })
         .then(r => r.data?.data ?? []),
-  trigger: (jobId)          => axiosInstance.post(`/api/admin/scheduler/trigger/${jobId}`),
-  toggle:  (jobId)          => axiosInstance.patch(`/api/admin/scheduler/toggle/${jobId}`),
-  updateCron: (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/cron/${jobId}`, body),
-  reorder: (orders)         => axiosInstance.patch('/api/admin/scheduler/reorder', orders),
+  trigger: (jobId)              => axiosInstance.post(`/api/admin/scheduler/trigger/${jobId}`),
+  toggle:  (jobId)              => axiosInstance.patch(`/api/admin/scheduler/toggle/${jobId}`),
+  updateCron:     (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/cron/${jobId}`,     body),
+  updateInterval: (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/interval/${jobId}`, body),
+  reorder: (orders)             => axiosInstance.patch('/api/admin/scheduler/reorder', orders),
 };
 
 // ─── Per-job display metadata ─────────────────────────────────────────────────
@@ -139,6 +140,105 @@ function EditCronDialog({ open, job, onClose, onSave }) {
         <Button variant="contained" onClick={handleSave}
           sx={{ bgcolor: meta.color, '&:hover': { bgcolor: meta.color }, fontWeight: 600 }}>
           Save Schedule
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ─── Edit Interval Dialog (FIXED_DELAY jobs only) ─────────────────────────────
+function EditIntervalDialog({ open, job, onClose, onSave }) {
+  const T = useT();
+  const [seconds, setSeconds] = useState(60);
+  const [error, setError]     = useState('');
+
+  useEffect(() => {
+    if (open && job) {
+      setSeconds(job.intervalSeconds ?? 60);
+      setError('');
+    }
+  }, [open, job]);
+
+  const validate = () => {
+    const n = parseInt(seconds, 10);
+    if (!Number.isFinite(n) || n <= 0) { setError('Interval must be a positive integer'); return false; }
+    if (n > 86400) { setError('Interval over 24 hours — use a cron job instead'); return false; }
+    setError('');
+    return true;
+  };
+
+  const handleSave = () => {
+    if (!validate()) return;
+    onSave(job.id, { intervalSeconds: parseInt(seconds, 10) });
+  };
+
+  if (!job) return null;
+  const meta = JOB_META[job.id] ?? { color: T.teal };
+
+  const inputSx = {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
+      '& fieldset': { borderColor: T.glassBorder },
+      '&:hover fieldset': { borderColor: meta.color },
+      '&.Mui-focused fieldset': { borderColor: meta.color },
+    },
+    '& .MuiInputLabel-root': { color: T.textMuted },
+    '& .MuiInputLabel-root.Mui-focused': { color: meta.color },
+    '& .MuiFormHelperText-root': { color: T.error },
+  };
+
+  const human = (() => {
+    const n = parseInt(seconds, 10);
+    if (!Number.isFinite(n) || n <= 0) return '—';
+    if (n < 60) return `Every ${n} seconds`;
+    if (n % 60 === 0) {
+      const m = n / 60;
+      return m === 1 ? 'Every minute' : `Every ${m} minutes`;
+    }
+    return `Every ${n}s`;
+  })();
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth
+      PaperProps={{ sx: { bgcolor: T.sidebar ?? T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2 } }}>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.text }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Autorenew sx={{ color: meta.color, fontSize: 20 }} />
+          Edit Interval — {JOB_META[job.id]?.label ?? job.id}
+        </Box>
+        <IconButton size="small" onClick={onClose} sx={{ color: T.textFaint }}>
+          <CloseIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+        <Alert severity="info" sx={{ bgcolor: `${meta.color}14`, color: T.textMuted,
+          border: `1px solid ${meta.color}33`, fontSize: 12,
+          '& .MuiAlert-icon': { color: meta.color } }}>
+          Fixed-delay job. Change takes effect on the next tick — no restart.
+        </Alert>
+        <TextField size="small" label="Interval (seconds)" type="number" value={seconds}
+          onChange={e => { setSeconds(e.target.value); setError(''); }}
+          inputProps={{ min: 1, max: 86400, step: 1 }}
+          sx={inputSx} error={!!error} helperText={error || human} autoFocus />
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+          {[30, 60, 120, 300, 600, 1800].map(s => (
+            <Chip key={s} label={`${s}s`} size="small" clickable
+              onClick={() => { setSeconds(s); setError(''); }}
+              sx={{
+                bgcolor: parseInt(seconds, 10) === s ? `${meta.color}22` : T.glass,
+                color:   parseInt(seconds, 10) === s ? meta.color : T.textMuted,
+                border: `1px solid ${parseInt(seconds, 10) === s ? meta.color + '55' : T.border}`,
+                fontSize: '0.7rem', height: 22,
+                '&:hover': { bgcolor: `${meta.color}18` },
+              }} />
+          ))}
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
+        <Button variant="contained" onClick={handleSave}
+          sx={{ bgcolor: meta.color, '&:hover': { bgcolor: meta.color }, fontWeight: 600 }}>
+          Save Interval
         </Button>
       </DialogActions>
     </Dialog>
@@ -351,15 +451,12 @@ function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, tri
                   {describeSchedule(job)}
                 </Typography>
               </Tooltip>
-              {/* Edit cron disabled for fixed-delay jobs */}
-              {!isFixedDelay && (
-                <Tooltip title="Edit schedule">
-                  <IconButton size="small" onClick={() => onEdit(job)}
-                    sx={{ p: 0.25, color: T.textFaint, '&:hover': { color: meta.color } }}>
-                    <EditIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              )}
+              <Tooltip title={isFixedDelay ? 'Edit interval' : 'Edit cron schedule'}>
+                <IconButton size="small" onClick={() => onEdit(job)}
+                  sx={{ p: 0.25, color: T.textFaint, '&:hover': { color: meta.color } }}>
+                  <EditIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
               {/* History button — opens per-job drawer */}
               <Tooltip title="View history">
                 <IconButton size="small" onClick={() => onShowHistory(job)}
@@ -477,6 +574,16 @@ export default function SchedulerPanel() {
     onError: () => enqueueSnackbar('Failed to update schedule', { variant: 'error' }),
   });
 
+  const intervalMutation = useMutation({
+    mutationFn: ({ jobId, body }) => api.updateInterval(jobId, body),
+    onSuccess: () => {
+      enqueueSnackbar('Interval updated — effective next tick', { variant: 'success' });
+      setEditJob(null);
+      qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
+    },
+    onError: () => enqueueSnackbar('Failed to update interval', { variant: 'error' }),
+  });
+
   const reorderMutation = useMutation({
     mutationFn: (orders) => api.reorder(orders),
     onSuccess:  () => {
@@ -558,12 +665,18 @@ export default function SchedulerPanel() {
         </AnimatePresence>
       </Reorder.Group>
 
-      {/* ── Edit Cron Dialog ── */}
+      {/* ── Edit dialog — branches on jobType ── */}
       <EditCronDialog
-        open={!!editJob}
-        job={editJob}
+        open={!!editJob && editJob?.jobType !== 'FIXED_DELAY'}
+        job={editJob?.jobType !== 'FIXED_DELAY' ? editJob : null}
         onClose={() => setEditJob(null)}
         onSave={(jobId, body) => cronMutation.mutate({ jobId, body })}
+      />
+      <EditIntervalDialog
+        open={!!editJob && editJob?.jobType === 'FIXED_DELAY'}
+        job={editJob?.jobType === 'FIXED_DELAY' ? editJob : null}
+        onClose={() => setEditJob(null)}
+        onSave={(jobId, body) => intervalMutation.mutate({ jobId, body })}
       />
 
       {/* ── Per-job History Drawer ── */}

@@ -160,11 +160,12 @@ springdoc:
 dbworld:
   # ── Filesystem ↔ DB reconciliation ────────────────────────────────────────
   # Periodic scan that keeps `media_files` in sync with the on-disk state of
-  # `app.stream-path`. Replaces the old FileWatcherService (kernel inotify),
-  # which couldn't see SMB / NFS changes and dropped events under load.
+  # `app.stream-path`. The dynamic knobs (enabled, interval) live in the
+  # scheduler_job_config table — the admin Scheduler page edits them and
+  # changes take effect on the next tick without a restart. Only the
+  # stability window stays here because it depends on storage characteristics
+  # (USB vs SSD vs NFS) and rarely changes at runtime.
   media-sync:
-    enabled: true
-    interval: 60s          # how often the scan runs (fixedDelay semantics)
     stability-window: 5s   # ignore files modified within the last N seconds
 
   log-shipper:

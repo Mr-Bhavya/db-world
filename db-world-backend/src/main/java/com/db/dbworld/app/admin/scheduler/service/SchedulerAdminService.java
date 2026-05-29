@@ -218,11 +218,36 @@ public class SchedulerAdminService {
     public void updateCron(String jobId, String cronExpression, String timezone) {
         SchedulerJobConfigEntity config = configRepo.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown job: " + jobId));
+        if (config.getJobType() == JobType.FIXED_DELAY) {
+            throw new IllegalArgumentException(
+                    "Job " + jobId + " is FIXED_DELAY — use /interval/{jobName} to change its cadence");
+        }
         config.setCronExpression(cronExpression);
         if (timezone != null && !timezone.isBlank()) config.setTimezone(timezone);
         configRepo.save(config);
         scheduleJob(config);
         log.info("Job {} rescheduled with cron '{}'", jobId, cronExpression);
+    }
+
+    /**
+     * Update the run interval of a FIXED_DELAY job. The change is picked up
+     * by the job's SchedulingConfigurer on its next scheduling decision —
+     * no restart, no re-register. CRON jobs reject this path.
+     */
+    @Transactional
+    public void updateInterval(String jobId, int intervalSeconds) {
+        if (intervalSeconds <= 0) {
+            throw new IllegalArgumentException("intervalSeconds must be > 0");
+        }
+        SchedulerJobConfigEntity config = configRepo.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown job: " + jobId));
+        if (config.getJobType() != JobType.FIXED_DELAY) {
+            throw new IllegalArgumentException(
+                    "Job " + jobId + " is CRON — use /cron/{jobName} to change its schedule");
+        }
+        config.setIntervalSeconds(intervalSeconds);
+        configRepo.save(config);
+        log.info("Job {} interval updated to {}s (effective next tick)", jobId, intervalSeconds);
     }
 
     @Transactional

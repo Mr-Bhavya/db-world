@@ -16,7 +16,6 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -113,27 +112,18 @@ public class MediaSyncService {
     @EventListener(ApplicationReadyEvent.class)
     @Order(Integer.MAX_VALUE - 100)
     public void scanOnStartup() {
-        if (!props.enabled()) {
-            log.info("MediaSync disabled (dbworld.media-sync.enabled=false) — skipping cold-start scan");
-            return;
-        }
-        log.info("MediaSync: cold-start reconciliation starting (interval={}, stability-window={})",
-                props.interval(), props.stabilityWindow());
+        log.info("MediaSync: cold-start reconciliation starting (stability-window={})",
+                props.stabilityWindow());
         scan();
     }
 
     /**
-     * Periodic reconciliation. {@code fixedDelay} guarantees no overlap with
-     * the previous run — if a scan takes 2 minutes on a slow filesystem, the
-     * next scan starts {@link MediaSyncProperties#interval()} after the prior
-     * one finished, not 2 minutes earlier.
+     * Periodic reconciliation. Registered as a trigger task in
+     * {@link MediaSyncSchedulingConfig}, which reads the interval live from
+     * {@code scheduler_job_config.interval_seconds} on every scheduling
+     * decision — admin UI edits take effect on the next tick.
      */
-    @Scheduled(fixedDelayString = "${dbworld.media-sync.interval:60s}")
     public void scheduledScan() {
-        // application.yml gate first (compile-time off-switch); then live
-        // DB-driven gate so the admin scheduler UI's enable/disable toggle
-        // takes effect without a restart.
-        if (!props.enabled()) return;
         boolean enabledInDb = schedulerConfigRepo.findById(JOB_ID)
                 .map(c -> c.isEnabled())
                 .orElse(true); // first boot: row may not be seeded yet

@@ -6,36 +6,23 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import java.time.Duration;
 
 /**
- * Configuration for the filesystem ↔ database reconciliation scan.
+ * Static (boot-time) tuning for the media reconciliation scan.
  *
- * <p>Bound from {@code dbworld.media-sync.*} in application.yml. Spring Boot
- * 3.0+ supports {@link DefaultValue} on record components, so the canonical
- * record constructor doubles as the binding target with sensible fallbacks.
+ * <p>The dynamic knobs — {@code enabled} flag and scan {@code interval} — are
+ * NOT here; they're stored in {@code scheduler_job_config} so the admin
+ * scheduler UI can edit them at runtime. This record only carries the
+ * stability window, which controls how long after a file's mtime we wait
+ * before indexing it (defends against half-written files being probed by
+ * ffmpeg). Tuning it requires understanding the storage stack, so a restart
+ * to change it is fine.
  *
- * <p>Typical config (already in application.yml):
  * <pre>
  * dbworld:
  *   media-sync:
- *     enabled: true
- *     interval: 60s
  *     stability-window: 5s
  * </pre>
- *
- * @param enabled         master switch — set false to disable scanning entirely
- *                        (useful in dev when you don't want the Pi periodically
- *                        spinning up disk to walk the tree).
- * @param interval        delay between consecutive scans. The scheduler uses
- *                        {@code fixedDelay} semantics — the next tick starts
- *                        {@code interval} after the previous scan completes,
- *                        never overlapping.
- * @param stabilityWindow files whose mtime is newer than {@code now - stabilityWindow}
- *                        are skipped this tick. Catches files still being
- *                        written (FFmpeg one-pass, partial download, etc.) so
- *                        we don't try to probe a half-written file.
  */
 @ConfigurationProperties(prefix = "dbworld.media-sync")
 public record MediaSyncProperties(
-        @DefaultValue("true")  boolean  enabled,
-        @DefaultValue("60s")   Duration interval,
-        @DefaultValue("5s")    Duration stabilityWindow
+        @DefaultValue("5s") Duration stabilityWindow
 ) {}
