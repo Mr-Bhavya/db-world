@@ -9,7 +9,7 @@ spring:
   # first request after boot pays the bean-creation cost; in prod we keep
   # everything eager so health checks see a fully-warm context.
   main:
-    lazy-initialization: true
+    lazy-initialization: false
 
   jpa:
     show-sql: false
