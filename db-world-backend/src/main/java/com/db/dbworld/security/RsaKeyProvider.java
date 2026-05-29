@@ -1,6 +1,8 @@
 package com.db.dbworld.security;
 
 import com.db.dbworld.config.JwtProperties;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
@@ -14,6 +16,8 @@ import java.util.Objects;
 
 @Component
 public class RsaKeyProvider {
+
+    private static final Logger log = LogManager.getLogger();
 
     private static final String RSA = "RSA";
 
@@ -48,9 +52,12 @@ public class RsaKeyProvider {
         try {
             String pem = resolveKey(props.publicKey(), props.publicKeyPath());
             byte[] decoded = Base64.getDecoder().decode(strip(pem));
-            return (RSAPublicKey) KeyFactory.getInstance(RSA)
+            RSAPublicKey key = (RSAPublicKey) KeyFactory.getInstance(RSA)
                     .generatePublic(new X509EncodedKeySpec(decoded));
+            log.info("RSA public key loaded (modulus bits={})", key.getModulus().bitLength());
+            return key;
         } catch (Exception e) {
+            log.error("Failed to load RSA public key: {}", e.getMessage(), e);
             throw new IllegalStateException("Failed to load RSA public key", e);
         }
     }
@@ -59,9 +66,12 @@ public class RsaKeyProvider {
         try {
             String pem = resolveKey(props.privateKey(), props.privateKeyPath());
             byte[] decoded = Base64.getDecoder().decode(strip(pem));
-            return (RSAPrivateKey) KeyFactory.getInstance(RSA)
+            RSAPrivateKey key = (RSAPrivateKey) KeyFactory.getInstance(RSA)
                     .generatePrivate(new PKCS8EncodedKeySpec(decoded));
+            log.info("RSA private key loaded (modulus bits={})", key.getModulus().bitLength());
+            return key;
         } catch (Exception e) {
+            log.error("Failed to load RSA private key: {}", e.getMessage(), e);
             throw new IllegalStateException("Failed to load RSA private key", e);
         }
     }

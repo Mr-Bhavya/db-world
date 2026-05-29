@@ -93,6 +93,8 @@ public class IngestionController {
                 .filter(l -> !l.isEmpty())
                 .orElseGet(() -> Collections.singletonList(request.getUri()));
 
+        log.debug("ingest invoked — {} uri(s), recordId={}", uris.size(), request.getRecordId());
+
         List<String> jobIds = new ArrayList<>();
         List<String> errors = new ArrayList<>();
 
@@ -105,6 +107,8 @@ public class IngestionController {
                 errors.add(uri + " → " + e.getMessage());
             }
         }
+
+        log.info("ingest result — started={}, failed={}", jobIds.size(), errors.size());
 
         String msg = errors.isEmpty()
                 ? "All jobs started (" + jobIds.size() + ")"

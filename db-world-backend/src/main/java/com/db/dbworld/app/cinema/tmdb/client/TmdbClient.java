@@ -6,16 +6,29 @@ import com.db.dbworld.app.cinema.tmdb.discover.dto.DiscoverResponseDto;
 import com.db.dbworld.app.cinema.tmdb.trending.dto.TrendingResponseDto;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
+@Log4j2
 @Component
 @RequiredArgsConstructor
 public class TmdbClient {
 
     private final WebClient webClient;
+
+    /**
+     * Logs HTTP errors with status + URI but never the bearer token (it lives on a default
+     * header set by the WebClient config; request.url() does not include it).
+     */
+    private <T> Mono<T> logHttpFailure(String uri, Mono<T> mono) {
+        return mono.doOnError(WebClientResponseException.class, e -> log.warn(
+                "TMDB HTTP failure; status={} uri={} message={}",
+                e.getStatusCode().value(), uri, e.getMessage()));
+    }
 
     /* =====================================
        GENERIC GET HELPERS
@@ -23,21 +36,21 @@ public class TmdbClient {
 
     private <T> Mono<T> get(String uri, Class<T> responseType) {
 
-        return webClient.get()
+        return logHttpFailure(uri, webClient.get()
                 .uri(uri)
                 .retrieve()
-                .bodyToMono(responseType);
+                .bodyToMono(responseType));
     }
 
     private <T> Mono<T> get(String uri, String paramName, Object paramValue, Class<T> responseType) {
 
-        return webClient.get()
+        return logHttpFailure(uri, webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path(uri)
                         .queryParam(paramName, paramValue)
                         .build())
                 .retrieve()
-                .bodyToMono(responseType);
+                .bodyToMono(responseType));
     }
 
     /* =====================================

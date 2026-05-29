@@ -7,6 +7,7 @@ import com.db.dbworld.audit.activity.dto.UserActivityProjection;
 import com.db.dbworld.audit.activity.dto.UserActivityViewDto;
 import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -26,6 +28,7 @@ public class MyActivityService {
     private final UserCinemaActivityRepository activityRepository;
 
     public MyActivitySummaryDto getSummary(Long userId) {
+        log.debug("getSummary: userId={}", userId);
         long streamMs       = activityRepository.sumStreamDurationMsByUser(userId);
         long downloadBytes  = activityRepository.sumCompletedDownloadBytesByUser(userId);
         long completedCount = activityRepository.countCompletedTransferSessions(userId);
@@ -44,12 +47,15 @@ public class MyActivityService {
     }
 
     public List<TopRewatchDto> getTopRewatches(Long userId, int limit) {
+        log.debug("getTopRewatches: userId={}, limit={}", userId, limit);
         return activityRepository.findTopRewatchesByUser(userId, limit).stream()
                 .map(this::toRewatchDto)
                 .toList();
     }
 
     public List<UserActivityViewDto> getActivities(Long userId, String activityType, int page, int size) {
+        log.debug("getActivities: userId={}, activityType={}, page={}, size={}",
+                userId, activityType, page, size);
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(size, 100));
         return activityRepository

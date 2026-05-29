@@ -79,7 +79,7 @@ public class SymlinkService {
             Path relativeTarget = symlinkRoot.relativize(realFile);
             try {
                 Files.createSymbolicLink(symlink, relativeTarget);
-                log.debug("{} Created symlink {} -> {}", TAG, symlink, relativeTarget);
+                log.info("{} Created symlink {} -> {}", TAG, symlink, relativeTarget);
                 return;
             } catch (Exception ex) {
                 if (shouldFallbackToHardLink(ex, symlink, realFile)) {

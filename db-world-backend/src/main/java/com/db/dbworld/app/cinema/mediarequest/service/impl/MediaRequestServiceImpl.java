@@ -35,6 +35,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
     @Transactional
     public MediaRequestVoteResponse toggleVote(Long recordId, Long userId, MediaRequestKind kindIn) {
         MediaRequestKind kind = kindIn == null ? MediaRequestKind.NEW_FILES : kindIn;
+        log.debug("toggleVote: recordId={}, userId={}, kind={}", recordId, userId, kind);
         MediaRequestEntity request = requestRepo.findByRecordIdAndKind(recordId, kind).orElse(null);
 
         if (request == null) {
@@ -53,6 +54,8 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                     .voterUserIds(voters)
                     .build();
             request = requestRepo.save(request);
+            log.info("Media request created: id={}, recordId={}, kind={}, firstVoter={}",
+                    request.getId(), recordId, kind, userId);
 
             return MediaRequestVoteResponse.builder()
                     .recordId(recordId)
@@ -65,6 +68,8 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         // Fulfilled/dismissed → a fresh vote re-opens it. Old voters are reset so the
         // new PENDING run starts clean; admins get a new aggregated count.
         if (request.getStatus() != MediaRequestStatus.PENDING) {
+            log.info("Media request reopened by fresh vote: id={}, recordId={}, kind={}, prevStatus={}, userId={}",
+                    request.getId(), recordId, kind, request.getStatus(), userId);
             request.setStatus(MediaRequestStatus.PENDING);
             request.setFulfilledAt(null);
             request.setFulfilledByUserId(null);
@@ -83,6 +88,11 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         // If everyone unvoted, prune the empty request to keep the queue clean.
         if (voteCount == 0) {
             requestRepo.delete(request);
+            log.info("Media request pruned (no voters): id={}, recordId={}, kind={}",
+                    request.getId(), recordId, kind);
+        } else {
+            log.info("Media request vote {}: requestId={}, recordId={}, kind={}, userId={}, voteCount={}",
+                    removed ? "removed" : "cast", request.getId(), recordId, kind, userId, voteCount);
         }
 
         return MediaRequestVoteResponse.builder()
@@ -111,10 +121,12 @@ public class MediaRequestServiceImpl implements MediaRequestService {
     @Override
     @Transactional
     public MediaRequestDto fulfill(Long requestId, Long adminUserId, String adminUsername) {
+        log.debug("fulfill: requestId={}, adminUserId={}", requestId, adminUserId);
         MediaRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("MediaRequest", "id", requestId));
 
         if (request.getStatus() == MediaRequestStatus.FULFILLED) {
+            log.warn("Media request already fulfilled, skipping: id={}", requestId);
             return toDto(request, adminUserId);
         }
 
@@ -123,6 +135,10 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         request.setFulfilledByUserId(adminUserId);
         request.setFulfilledByUsername(adminUsername);
         requestRepo.save(request);
+        log.info("Media request fulfilled: id={}, recordId={}, voters={}, adminUserId={}",
+                requestId, request.getRecordId(),
+                request.getVoterUserIds() == null ? 0 : request.getVoterUserIds().size(),
+                adminUserId);
 
         notifService.createRequestFulfilledNotifications(
                 adminUserId,
@@ -139,10 +155,12 @@ public class MediaRequestServiceImpl implements MediaRequestService {
     @Override
     @Transactional
     public MediaRequestDto dismiss(Long requestId, String reason, Long adminUserId, String adminUsername) {
+        log.debug("dismiss: requestId={}, adminUserId={}", requestId, adminUserId);
         MediaRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("MediaRequest", "id", requestId));
 
         if (request.getStatus() == MediaRequestStatus.DISMISSED) {
+            log.warn("Media request already dismissed, skipping: id={}", requestId);
             return toDto(request, adminUserId);
         }
 
@@ -150,6 +168,10 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         request.setStatus(MediaRequestStatus.DISMISSED);
         request.setDismissReason(trimmed);
         requestRepo.save(request);
+        log.info("Media request dismissed: id={}, recordId={}, voters={}, hasReason={}, adminUserId={}",
+                requestId, request.getRecordId(),
+                request.getVoterUserIds() == null ? 0 : request.getVoterUserIds().size(),
+                trimmed != null, adminUserId);
 
         notifService.createRequestDismissedNotifications(
                 adminUserId,
@@ -167,14 +189,17 @@ public class MediaRequestServiceImpl implements MediaRequestService {
     @Override
     @Transactional
     public MediaRequestDto reopen(Long requestId) {
+        log.debug("reopen: requestId={}", requestId);
         MediaRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("MediaRequest", "id", requestId));
+        MediaRequestStatus prev = request.getStatus();
         request.setStatus(MediaRequestStatus.PENDING);
         request.setFulfilledAt(null);
         request.setFulfilledByUserId(null);
         request.setFulfilledByUsername(null);
         request.setDismissReason(null);
         requestRepo.save(request);
+        log.info("Media request reopened by admin: id={}, prevStatus={}", requestId, prev);
         return toDto(request, null);
     }
 

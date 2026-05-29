@@ -14,11 +14,13 @@ import com.db.dbworld.app.cinema.tmdb.providers.mapper.TmdbProviderMapper;
 import com.db.dbworld.app.cinema.tmdb.providers.repository.TmdbProviderRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.*;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class RailAggregationServiceImpl implements RailAggregationService {
@@ -52,6 +54,8 @@ public class RailAggregationServiceImpl implements RailAggregationService {
         if (tmdbIds == null || tmdbIds.isEmpty()) {
             return RailAggregationResult.empty();
         }
+
+        log.debug("RailAggregation entry; tmdbIdCount={}", tmdbIds.size());
 
         CompletableFuture<Map<Long, List<String>>> genreFuture =
                 CompletableFuture.supplyAsync(() -> fetchGenres(tmdbIds), executor);

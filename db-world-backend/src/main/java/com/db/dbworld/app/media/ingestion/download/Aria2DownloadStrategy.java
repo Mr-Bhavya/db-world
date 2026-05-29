@@ -241,17 +241,20 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     private DownloadResult handleComplete(IngestionContext ctx, String gid,
                                           Aria2StatusParam status, Path tempDir) {
         String jobId = ctx.getJobId();
+        log.info("[{}] Aria2 download complete — GID: {}", jobId, gid);
         ctx.log("ARIA2", "Complete (GID: " + gid + ")");
 
         Path downloadedFile = resolveDownloadedFile(status, tempDir);
 
         if (downloadedFile == null || !Files.exists(downloadedFile)) {
+            log.error("[{}] Aria2 reported complete but file missing in {}", jobId, tempDir);
             ctx.logError("ARIA2", "Downloaded file missing in: " + tempDir);
             return DownloadResult.failure(jobId, "File missing after download");
         }
 
         try {
             long size = Files.size(downloadedFile);
+            log.info("[{}] Aria2 file ready — {} ({} bytes)", jobId, downloadedFile.getFileName(), size);
             ctx.log("ARIA2", "File ready: " + downloadedFile.getFileName() + " (" + size + " bytes)");
 
             DownloadResult result = DownloadResult.success(
@@ -260,6 +263,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             return result;
 
         } catch (Exception e) {
+            log.error("[{}] Error reading downloaded file size for {}", jobId, downloadedFile, e);
             return DownloadResult.failure(jobId, "Error reading file: " + e.getMessage());
         }
     }
@@ -306,7 +310,9 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                         ProgressSnapshot.downloading(completed, total,
                                 speed != null ? speed.doubleValue() : 0.0, eta));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.debug("[{}] updateProgress skipped: {}", ctx.getJobId(), e.getMessage());
+        }
     }
 
     private boolean isMagnet(IngestionContext ctx) {

@@ -45,11 +45,15 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
 
     @Override
     public ProcessingResult process(IngestionContext ctx) {
+        log.debug("[{}] ExtractionProcessingStrategy.process — sourceFile={}",
+                ctx.getJobId(),
+                ctx.getDownload() != null ? ctx.getDownload().getFilePath() : null);
         ProcessingResult result = new ProcessingResult();
 
         Path archivePath = ctx.getDownload().getFilePath();
         Path extractDir = archivePath.getParent().resolve(stripExtension(archivePath.getFileName().toString()));
 
+        log.info("[{}] Extracting {} → {}", ctx.getJobId(), archivePath.getFileName(), extractDir);
         ctx.log("EXTRACT", "Extracting: " + archivePath + " → " + extractDir);
 
         StringBuilder stderrAccumulator = new StringBuilder();
@@ -71,6 +75,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
             );
 
             trackingService.updateProgress(ctx.getJobId(), new ProgressSnapshot(100, 100, 0.0, 0, "processing"));
+            log.info("[{}] Extraction complete → {}", ctx.getJobId(), extractDir);
             ctx.log("EXTRACT", "Extraction complete → " + extractDir);
 
             result.setFinalFile(extractDir);

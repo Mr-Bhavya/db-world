@@ -5,6 +5,7 @@ import com.db.dbworld.infrastructure.logging.dto.LogSource;
 import com.db.dbworld.infrastructure.logging.dto.LogType;
 import com.db.dbworld.infrastructure.logging.parser.*;
 import com.db.dbworld.config.AppProperties;
+import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
+@Log4j2
 @Service
 public class LogsService {
 
@@ -54,6 +56,7 @@ public class LogsService {
 
     public LogResponse getLogs(LogType type, LogFormat format, Integer lines, Integer minutes)
             throws IOException {
+        log.debug("getLogs type={} format={} lines={} minutes={}", type, format, lines, minutes);
         Path file = resolveActivePath("app", type.name().toLowerCase(), format);
         if (!Files.exists(file)) return new LogResponse(Collections.emptyList(), 0);
 
@@ -86,6 +89,8 @@ public class LogsService {
     public LogResponse getLogsForSource(String source, String subType,
                                         LogFormat format, Integer lines, LocalDate date)
             throws IOException {
+        log.debug("getLogsForSource source={} subType={} format={} lines={} date={}",
+                source, subType, format, lines, date);
 
         int max = (lines != null && lines > 0) ? lines : DEFAULT_MAX_LINES;
         List<String> rawLines = new ArrayList<>();
@@ -167,8 +172,11 @@ public class LogsService {
     public FollowSession followLogsForSource(String source, String subType,
                                              LogFormat format, String sessionId,
                                              Consumer<String> consumer) throws IOException {
+        log.info("Starting log follow session sessionId={} source={} subType={} format={}",
+                sessionId, source, subType, format);
         Path file = resolveActivePath(source, subType, format);
         if (!Files.exists(file)) {
+            log.warn("followLogsForSource: log file not found {}", file);
             throw new FileNotFoundException("Log file not found: " + file);
         }
 
@@ -181,6 +189,7 @@ public class LogsService {
     }
 
     public void stopFollowing(String sessionId) {
+        log.debug("stopFollowing sessionId={}", sessionId);
         FollowSession s = followSessions.remove(sessionId);
         if (s != null && s.getThread() != null) s.getThread().interrupt();
     }
@@ -267,10 +276,21 @@ public class LogsService {
         if (parser == null) throw new IllegalArgumentException("No parser for type: " + type);
 
         List<Object> parsed = new ArrayList<>(lines.size());
+        int failures = 0;
         for (String line : lines) {
             try {
                 parsed.add(parser.parse(line));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                failures++;
+                if (failures <= 3) {
+                    String sample = line.length() > 200 ? line.substring(0, 200) : line;
+                    log.warn("Failed to parse {} log line (sample='{}')", type, sample, e);
+                }
+            }
+        }
+        if (failures > 0) {
+            log.warn("Parsed {} of {} lines ({} failed) for type={}",
+                    parsed.size(), lines.size(), failures, type);
         }
         return new LogResponse(parsed, parsed.size());
     }
@@ -336,7 +356,7 @@ public class LogsService {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (IOException e) {
-                System.err.println("[LogsService] Fatal in follow thread " + sessionId + ": " + e.getMessage());
+                log.error("Fatal IO in follow thread sessionId={}", sessionId, e);
             } finally {
                 if (raf != null) try { raf.close(); } catch (IOException ignored) {}
                 followSessions.remove(sessionId);

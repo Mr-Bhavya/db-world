@@ -12,6 +12,7 @@ import com.db.dbworld.payloads.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@Log4j2
 @RestController
 @RequestMapping("/api/admin/file-manager")
 @RequiredArgsConstructor
@@ -90,6 +92,7 @@ public class FileManagerController {
 
     @DeleteMapping("/delete")
     public ApiResponse<Void> delete(@RequestParam String path) throws IOException {
+        log.info("Admin delete request path={}", path);
         service.deleteItem(path);
         return ApiResponse.success("Deleted successfully");
     }

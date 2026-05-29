@@ -8,11 +8,13 @@ import com.db.dbworld.app.cinema.tmdb.sync.entity.TmdbRecordSyncEntity;
 import com.db.dbworld.app.cinema.tmdb.sync.repository.TmdbRecordSyncRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class TmdbRecordSyncService {
@@ -48,6 +50,7 @@ public class TmdbRecordSyncService {
     }
 
     public void markFailed(Long tmdbId, RecordType type, String errorMessage) {
+        log.debug("markFailed: tmdbId={}, type={}, error={}", tmdbId, type, errorMessage);
         TmdbRecordSyncEntity entity = getOrCreate(tmdbId, type);
         entity.setLastCheckedAt(Instant.now());
         entity.setStatus(SyncStatus.FAILED);

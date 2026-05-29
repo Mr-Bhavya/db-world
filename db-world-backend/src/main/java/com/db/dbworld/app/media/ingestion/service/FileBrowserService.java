@@ -35,6 +35,7 @@ public class FileBrowserService {
      * @param subPath relative sub-path within root, e.g. "" or "Movies/Action"
      */
     public List<FileBrowserItem> browse(String root, String subPath) throws IOException {
+        log.debug("browse root={} subPath={}", root, subPath);
         Path base = resolveRoot(root);
         Path target = subPath == null || subPath.isBlank()
                 ? base
@@ -42,10 +43,12 @@ public class FileBrowserService {
 
         // Security: reject paths outside root
         if (!target.startsWith(base)) {
+            log.warn("Rejecting path traversal attempt — root={}, subPath={}, target={}", root, subPath, target);
             throw new SecurityException("Path traversal attempt: " + subPath);
         }
 
         if (!Files.exists(target)) {
+            log.warn("Browse path missing — root={}, target={}", root, target);
             throw new IllegalArgumentException("Path does not exist: " + target);
         }
 

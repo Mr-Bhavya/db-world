@@ -2,6 +2,7 @@ package com.db.dbworld.audit.activity.shipper;
 
 import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import com.db.dbworld.audit.activity.shipper.DownloadAccumulator.Aggregate;
+import com.db.dbworld.infrastructure.logging.backoff.FailureBackoff;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -63,21 +65,57 @@ public class LogShipperService {
     @Lazy
     private LogShipperService self;
 
+    /**
+     * Throttles WARN noise when the cdn_access log isn't present (dev box, fresh
+     * install, nginx not yet writing). After 3 WARNs the rest go to DEBUG, and
+     * after 10 consecutive misses we pause polling for 5 minutes — the file
+     * still gets picked up when nginx finally creates it, just less frantically.
+     */
+    private final FailureBackoff missingFileBackoff =
+            new FailureBackoff(3, 60, 10, Duration.ofMinutes(5));
+
+    /** Mirrors {@link #missingFileBackoff} but for tick-level exceptions. */
+    private final FailureBackoff tickFailureBackoff = FailureBackoff.defaults();
+
     @Scheduled(fixedDelayString = "${dbworld.log-shipper.batch-tick-ms:5000}")
     public void tick() {
         if (!props.isEnabled()) return;
+        if (!tickFailureBackoff.shouldAttempt() && !missingFileBackoff.shouldAttempt()) {
+            // Both circuits open — fully silent until either cools down.
+            return;
+        }
         try {
             runOneTick();
+            tickFailureBackoff.recordSuccess();
         } catch (Exception ex) {
-            log.error("LogShipperService tick failed", ex);
+            int streak = tickFailureBackoff.recordFailure();
+            if (tickFailureBackoff.shouldLogWarn()) {
+                log.error("LogShipperService tick failed (consecutive={}): {}", streak, ex.getMessage(), ex);
+            } else {
+                log.debug("LogShipperService tick failed (consecutive={}): {}", streak, ex.getMessage());
+            }
         }
     }
 
     private void runOneTick() throws IOException {
         Path path = Paths.get(props.getLogFilePath());
         if (!Files.exists(path)) {
-            log.warn("LogShipperService: log file not found: {}", path);
+            int streak = missingFileBackoff.recordFailure();
+            if (missingFileBackoff.shouldLogWarn()) {
+                log.warn("LogShipperService: cdn access log not present at {} (consecutive misses={}); " +
+                        "will keep polling but suppress WARN until it appears", path, streak);
+            } else {
+                log.debug("LogShipperService: cdn access log still missing at {} (consecutive misses={})",
+                        path, streak);
+            }
             return;
+        }
+        // File exists this tick — if we'd previously WARNed about it being gone,
+        // surface a one-shot INFO so operators see the recovery in the log.
+        if (missingFileBackoff.consecutiveFailures() > 0) {
+            log.info("LogShipperService: cdn access log re-appeared at {} after {} missed ticks",
+                    path, missingFileBackoff.consecutiveFailures());
+            missingFileBackoff.recordSuccess();
         }
 
         LogShipperStateEntity state = loadOrInitState();

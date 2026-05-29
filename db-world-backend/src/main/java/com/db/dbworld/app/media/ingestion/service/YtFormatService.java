@@ -4,8 +4,8 @@ import com.db.dbworld.app.media.ingestion.model.YtFormat;
 import com.db.dbworld.app.media.ingestion.model.YtFormatsResponse;
 import com.db.dbworld.app.media.ingestion.model.YtPlaylistEntry;
 import com.db.dbworld.config.AppProperties;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -34,6 +34,7 @@ public class YtFormatService {
      * (videoFormats/audioFormats will be empty; caller should use playlistEntries).
      */
     public YtFormatsResponse fetchFormats(String url) throws Exception {
+        log.debug("fetchFormats url={}", url);
         String ytDlp = ytDlpBin();
         Path cookie = runtimeProperties.getCookieForUrl(url);
 
@@ -45,9 +46,11 @@ public class YtFormatService {
 
         // Playlist detected
         if ("playlist".equals(textOrNull(root, "_type"))) {
+            log.info("fetchFormats: url {} resolved to playlist — returning entries", url);
             return parsePlaylist(root);
         }
 
+        log.info("fetchFormats: parsed formats for url={}", url);
         return parseFormats(root);
     }
 
@@ -56,6 +59,7 @@ public class YtFormatService {
      * Returns all entries so the frontend can show a selection list.
      */
     public YtFormatsResponse fetchPlaylist(String url) throws Exception {
+        log.debug("fetchPlaylist url={}", url);
         String ytDlp = ytDlpBin();
         Path cookie = runtimeProperties.getCookieForUrl(url);
 
@@ -63,7 +67,10 @@ public class YtFormatService {
         String stdout = runBlocking(cmd, 120);
 
         JsonNode root = objectMapper.readTree(stdout);
-        return parsePlaylist(root);
+        YtFormatsResponse resp = parsePlaylist(root);
+        log.info("fetchPlaylist: parsed {} entries for url={}",
+                resp.getPlaylistEntries() != null ? resp.getPlaylistEntries().size() : 0, url);
+        return resp;
     }
 
     // ── Command builder ───────────────────────────────────────────────────────
@@ -99,10 +106,12 @@ public class YtFormatService {
         boolean finished = proc.waitFor(timeoutSec, TimeUnit.SECONDS);
         if (!finished) {
             proc.destroyForcibly();
+            log.error("yt-dlp probe timed out after {}s for: {}", timeoutSec, cmd.getLast());
             throw new RuntimeException("yt-dlp timed out after " + timeoutSec + "s for: " + cmd.getLast());
         }
         if (proc.exitValue() != 0) {
             // Capture stderr for better error messages
+            log.error("yt-dlp probe exited with code {} for: {}", proc.exitValue(), cmd.getLast());
             throw new RuntimeException("yt-dlp exited with code " + proc.exitValue());
         }
         return stdout;

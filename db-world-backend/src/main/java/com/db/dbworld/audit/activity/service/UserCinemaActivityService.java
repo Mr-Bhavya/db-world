@@ -64,8 +64,20 @@ public class UserCinemaActivityService {
     public void trackResolveActivity(String userEmail, String filePath, String fileName,
                                      Long fileSize, String remoteAddr, String userAgent,
                                      boolean isStream, String downloadId, String cdnUrl) {
-        if (userEmail == null || filePath == null) return;
-        UserEntity user = userService.getUserEntityByEmail(userEmail);
+        log.debug("trackResolveActivity called: user={} file={} stream={} downloadId={}",
+                userEmail, filePath, isStream, downloadId);
+        if (userEmail == null || filePath == null) {
+            log.warn("trackResolveActivity skipped: userEmail or filePath null (user={}, file={})",
+                    userEmail, filePath);
+            return;
+        }
+        UserEntity user;
+        try {
+            user = userService.getUserEntityByEmail(userEmail);
+        } catch (Exception ex) {
+            log.warn("trackResolveActivity: user lookup failed for {}: {}", userEmail, ex.getMessage());
+            return;
+        }
         if (user == null) { log.warn("trackResolveActivity: user not found: {}", userEmail); return; }
 
         ActivityType type = isStream ? ActivityType.STREAM : ActivityType.DOWNLOAD;

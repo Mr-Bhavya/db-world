@@ -89,12 +89,15 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
     @Override
     public Path enrich(Path inputFile, Long recordId, Integer season, Integer episode,
                        TrackFilter trackFilter, String jobId) {
+        log.debug("[{}] enrich input={} recordId={} season={} episode={} hasFilter={}",
+                jobId, inputFile != null ? inputFile.getFileName() : null,
+                recordId, season, episode, trackFilter != null && trackFilter.hasAnyFilter());
         // Call through self-proxy so @Transactional on resolveNamingInfo opens a real session.
         // The transaction is closed when resolveNamingInfo returns (short-lived, read-only).
         // FFmpeg then runs outside any DB transaction.
         Optional<MediaNamingInfo> namingInfo = self.resolveNamingInfo(recordId, season, episode, jobId);
         if (namingInfo.isEmpty()) {
-            log.debug("[{}] No recordId — skipping TMDB enrichment", jobId);
+            log.info("[{}] No naming info resolved (recordId={}) — skipping TMDB enrichment", jobId, recordId);
             return inputFile;
         }
         return doEnrich(inputFile, namingInfo.get(), season, episode, trackFilter, jobId);

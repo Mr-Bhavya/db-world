@@ -5,7 +5,7 @@ import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
 import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.security.auth.JwtService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;

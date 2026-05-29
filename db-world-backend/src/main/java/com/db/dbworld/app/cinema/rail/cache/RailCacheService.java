@@ -2,6 +2,7 @@ package com.db.dbworld.app.cinema.rail.cache;
 
 import com.db.dbworld.app.cinema.rail.dto.RailPageDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +10,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class RailCacheService {
@@ -101,6 +103,9 @@ public class RailCacheService {
 
         // cleanup index
         redisTemplate.delete(indexKey);
+
+        log.info("Rail cache invalidated; reason=recordChanged; recordId={}; railKeysEvicted={}",
+                recordId, keys.size());
     }
 
     /* =========================================================
@@ -111,8 +116,12 @@ public class RailCacheService {
 
         Set<String> keys = redisTemplate.keys("rail:*");
 
-        if (keys == null || keys.isEmpty()) return;
+        if (keys == null || keys.isEmpty()) {
+            log.info("Rail cache invalidated; reason=evictAll; railKeysEvicted=0");
+            return;
+        }
 
         redisTemplate.delete(keys);
+        log.info("Rail cache invalidated; reason=evictAll; railKeysEvicted={}", keys.size());
     }
 }

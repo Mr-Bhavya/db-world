@@ -1,7 +1,7 @@
 package com.db.dbworld.app.media.download.ws;
 
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.CloseStatus;
@@ -46,13 +46,14 @@ public class MirrorStatusHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.add(session);
-        log.debug("WS connected: {}", session.getId());
+        log.debug("WS connected: {} (active sessions={})", session.getId(), sessions.size());
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session);
-        log.debug("WS disconnected: {}", session.getId());
+        log.debug("WS disconnected: {} status={} (active sessions={})",
+                session.getId(), status, sessions.size());
     }
 
     @Override

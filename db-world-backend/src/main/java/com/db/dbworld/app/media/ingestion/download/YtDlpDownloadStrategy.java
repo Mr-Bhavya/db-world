@@ -10,8 +10,8 @@ import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.processor.StreamProcessor;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
@@ -49,6 +49,10 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
     @Override
     public DownloadResult download(IngestionContext ctx) {
         String jobId = ctx.getJobId();
+        log.debug("[{}] download uri={} videoITag={} audioITag={} onlyAudio={}",
+                jobId, ctx.getRequest().getUri(),
+                ctx.getRequest().getVideoITag(), ctx.getRequest().getAudioITag(),
+                ctx.getRequest().isOnlyAudio());
         AtomicBoolean cancellation = new AtomicBoolean(false);
         cancellationFlags.put(jobId, cancellation);
 
@@ -58,6 +62,12 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             String outputTemplate = tempDir.resolve(ctx.getJobId() + ".%(ext)s").toString();
 
             List<String> cmd = buildCommand(ctx, outputTemplate);
+            String formatSelector = buildFormatSelector(
+                    ctx.getRequest().getVideoITag(),
+                    ctx.getRequest().getAudioITag(),
+                    ctx.getRequest().isOnlyAudio());
+            log.info("[{}] yt-dlp starting — uri={}, format={}, tempDir={}",
+                    jobId, ctx.getRequest().getUri(), formatSelector, tempDir);
             ctx.log("YTDLP", "Running yt-dlp for: " + ctx.getRequest().getUri());
 
             AtomicReference<String> capturedFilename = new AtomicReference<>();
@@ -75,15 +85,19 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             Path downloadedFile = resolveDownloadedFile(tempDir, ctx.getJobId(), fileName);
 
             if (downloadedFile == null || !Files.exists(downloadedFile)) {
+                log.error("[{}] yt-dlp completed but file missing in {} (expected name={})",
+                        jobId, tempDir, fileName);
                 return DownloadResult.failure(jobId, "Downloaded file not found in temp dir: " + tempDir);
             }
 
             long size = Files.size(downloadedFile);
+            log.info("[{}] yt-dlp completed — file={}, size={} bytes",
+                    jobId, downloadedFile.getFileName(), size);
             ctx.log("YTDLP", "Download complete: " + downloadedFile.getFileName() + " (" + size + " bytes)");
             return DownloadResult.success(jobId, downloadedFile, downloadedFile.getFileName().toString(), size);
 
         } catch (Exception e) {
-            log.error("[{}] yt-dlp download failed", jobId, e);
+            log.error("[{}] yt-dlp download failed (exit/error): {}", jobId, e.getMessage(), e);
             ctx.logError("YTDLP", "Download failed: " + e.getMessage());
             return DownloadResult.failure(jobId, e.getMessage());
         } finally {

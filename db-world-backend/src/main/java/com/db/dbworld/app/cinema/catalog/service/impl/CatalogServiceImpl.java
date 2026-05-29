@@ -27,6 +27,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 import org.hibernate.Session;
 import org.springframework.context.ApplicationEventPublisher;
@@ -45,6 +46,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -72,6 +74,8 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     public RecordDto createRecord(CreateRecordRequest request) {
 
+        log.debug("createRecord entry; tmdbId={}, type={}", request.getTmdbId(), request.getType());
+
         validateTmdbUniqueness(request.getTmdbId(), null);
 
         TmdbEntity tmdb = ingestTmdbByType(
@@ -90,6 +94,9 @@ public class CatalogServiceImpl implements CatalogService {
 
         publishEvent(record.getId());
 
+        log.info("Record created; recordId={}, tmdbId={}, type={}",
+                record.getId(), request.getTmdbId(), request.getType());
+
         return dto;
     }
 
@@ -106,6 +113,9 @@ public class CatalogServiceImpl implements CatalogService {
 
     @Override
     public RecordDto updateRecord(Long id, UpdateRecordRequest request) {
+
+        log.debug("updateRecord entry; recordId={}, tmdbId={}, type={}",
+                id, request.getTmdbId(), request.getType());
 
         RecordEntity record = getRecordOrThrow(id);
 
@@ -130,6 +140,8 @@ public class CatalogServiceImpl implements CatalogService {
         RecordDto dto = saveAndMap(record);
 
         publishEvent(record.getId());
+
+        log.info("Record updated; recordId={}, tmdbId={}", record.getId(), request.getTmdbId());
 
         return dto;
     }
@@ -288,11 +300,15 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     public void deleteRecord(Long recordId) {
 
+        log.debug("deleteRecord entry; recordId={}", recordId);
+
         RecordEntity record = getRecordOrThrow(recordId);
 
         recordRepository.delete(record);
 
         publishEvent(recordId);
+
+        log.info("Record deleted; recordId={}", recordId);
     }
 
     /* ===============================
@@ -301,6 +317,8 @@ public class CatalogServiceImpl implements CatalogService {
 
     @Override
     public RecordDto refreshRecord(Long recordId) {
+
+        log.debug("refreshRecord entry; recordId={}", recordId);
 
         RecordEntity record = getRecordOrThrow(recordId);
 
@@ -319,6 +337,8 @@ public class CatalogServiceImpl implements CatalogService {
         RecordDto dto = saveAndMap(record);
 
         publishEvent(record.getId());
+
+        log.info("Record refreshed; recordId={}, tmdbId={}", record.getId(), record.getTmdbId());
 
         return dto;
     }

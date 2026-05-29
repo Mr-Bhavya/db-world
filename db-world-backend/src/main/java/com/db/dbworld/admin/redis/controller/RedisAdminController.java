@@ -5,11 +5,13 @@ import com.db.dbworld.admin.redis.service.RedisAdminService;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
+@Log4j2
 @RestController
 @RequestMapping("/api/admin/redis")
 @RequiredArgsConstructor
@@ -105,8 +107,10 @@ public class RedisAdminController {
             @RequestParam(defaultValue = "false") boolean confirm
     ) {
         if (!confirm) {
+            log.warn("Redis flush rejected: confirm=false pattern='{}'", pattern);
             throw new IllegalArgumentException("Set confirm=true to proceed with flush");
         }
+        log.info("Admin Redis flush pattern='{}' confirmed", pattern);
         long count = service.flushByPattern(pattern);
         return ApiResponse.success(Map.of("deleted", count));
     }

@@ -2,8 +2,8 @@ package com.db.dbworld.app.media.enrichment;
 
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.core.processor.ProcessExecutor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -46,10 +46,17 @@ public class SmartTrackFilterService {
      * @return effective TrackFilter to use, or {@code null} if no filtering is needed
      */
     public TrackFilter resolve(Path mediaFile, TrackFilter userFilter) {
+        log.debug("resolve mediaFile={} userFilter={}",
+                mediaFile != null ? mediaFile.getFileName() : null,
+                userFilter != null && userFilter.hasAnyFilter());
         TrackLanguages langs = probeLanguages(mediaFile);
 
         if (userFilter != null && userFilter.hasAnyFilter()) {
             // Preserve the user's filter settings; only augment with track infos for title generation
+            log.info("Using user-supplied track filter for {} (keepAudio={}, keepSubs={})",
+                    mediaFile.getFileName(),
+                    userFilter.getKeepAudioLanguages(),
+                    userFilter.getKeepSubtitleLanguages());
             return userFilter.toBuilder()
                     .allAudioTracks(langs.allAudioTracks())
                     .allSubTracks(langs.allSubTracks())
@@ -63,8 +70,12 @@ public class SmartTrackFilterService {
         List<String> keepAudio = buildCodeList(langs.audio());
         List<String> keepSubs  = buildCodeList(langs.subtitles());
 
+        int totalAudio = langs.allAudioTracks() != null ? langs.allAudioTracks().size() : 0;
+        int totalSubs  = langs.allSubTracks() != null ? langs.allSubTracks().size() : 0;
+
         if (keepAudio.isEmpty() && keepSubs.isEmpty()) {
-            log.debug("No priority languages found in {} — no lang filter, track titles only", mediaFile.getFileName());
+            log.info("Smart filter: no priority languages in {} — keeping all {} audio + {} subtitle tracks",
+                    mediaFile.getFileName(), totalAudio, totalSubs);
             return TrackFilter.builder()
                     .allAudioTracks(langs.allAudioTracks())
                     .allSubTracks(langs.allSubTracks())
@@ -73,7 +84,8 @@ public class SmartTrackFilterService {
                     .build();
         }
 
-        log.debug("Smart filter for {}: audio={}, subs={}", mediaFile.getFileName(), keepAudio, keepSubs);
+        log.info("Smart filter for {}: kept audio={} (of {} total), kept subs={} (of {} total)",
+                mediaFile.getFileName(), keepAudio, totalAudio, keepSubs, totalSubs);
 
         return TrackFilter.builder()
                 .keepAudioLanguages(keepAudio.isEmpty() ? null : keepAudio)
@@ -176,7 +188,7 @@ public class SmartTrackFilterService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to probe track languages for {}: {}", file.getFileName(), e.getMessage());
+            log.warn("Failed to probe track languages for {}: {}", file.getFileName(), e.getMessage(), e);
         }
         return new TrackLanguages(audioLangs, subLangs, audioCounts, subCounts, allAudio, allSubs, audioByLang, subByLang);
     }

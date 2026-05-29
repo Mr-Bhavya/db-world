@@ -51,6 +51,7 @@ public class PasswordManagerController {
             passwordManagerService.addCredential(host, credential);
             return ApiResponse.success("Credential is added.");
         } catch (MalformedURLException ex) {
+            log.warn("Rejected addCredential: malformed url={}", addCredential.getUrl(), ex);
             throw new DbWorldException("Invalid URL format: " + ex.getMessage());
         }
     }
@@ -59,6 +60,7 @@ public class PasswordManagerController {
     @AnyRole
     public ApiResponse<Map<String, Object>> addCredentialsByUser(
             @RequestBody List<RequestPayloads.AddCredential> addCredentials) {
+        log.info("Bulk addCredentials: count={}", addCredentials.size());
         Map<String, String> failed  = new HashMap<>();
         List<String>        success = new ArrayList<>();
         addCredentials.forEach(c -> {
@@ -68,10 +70,13 @@ public class PasswordManagerController {
                 passwordManagerService.addCredential(host, credential);
                 success.add(c.getUrl() + " / " + c.getUsername());
             } catch (Exception ex) {
-                failed.put(c.toString(), ex.getMessage());
-                log.error("Failed to add credential {} : {}", c, ex.getMessage());
+                // Log url + username only — c.toString() may include the password.
+                failed.put(c.getUrl() + " / " + c.getUsername(), ex.getMessage());
+                log.error("Failed to add credential: url={}, username={}, reason={}",
+                        c.getUrl(), c.getUsername(), ex.getMessage(), ex);
             }
         });
+        log.info("Bulk addCredentials complete: success={}, failed={}", success.size(), failed.size());
         return ApiResponse.success(Map.of("success", success, "failed", failed));
     }
 

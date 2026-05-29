@@ -3,9 +3,11 @@ package com.db.dbworld.app.cinema.catalog.tags.scheduler;
 import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.apache.logging.log4j.ThreadContext;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Tag refresh job. Cron schedule and enabled state are managed by
@@ -20,6 +22,7 @@ public class TagScheduler {
 
     public void updateTags() {
 
+        ThreadContext.put("traceId", UUID.randomUUID().toString());
         Instant start = Instant.now();
         log.info("Starting catalog tag recalculation");
 
@@ -30,6 +33,8 @@ public class TagScheduler {
         } catch (Exception ex) {
             log.error("Tag recalculation failed after {}ms: {}",
                     Instant.now().toEpochMilli() - start.toEpochMilli(), ex.getMessage(), ex);
+        } finally {
+            ThreadContext.clearAll();
         }
     }
 }

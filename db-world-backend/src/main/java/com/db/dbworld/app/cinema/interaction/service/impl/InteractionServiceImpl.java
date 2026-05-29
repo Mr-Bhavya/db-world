@@ -9,10 +9,12 @@ import com.db.dbworld.app.cinema.interaction.repository.InteractionRepository;
 import com.db.dbworld.app.cinema.interaction.service.InteractionService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -76,6 +78,7 @@ public class InteractionServiceImpl implements InteractionService {
 
     @Override
     public void updateProgress(Long userId, Long recordId, Integer progress) {
+        log.debug("updateProgress: userId={}, recordId={}, progress={}", userId, recordId, progress);
 
         UserInteractionEntity interaction =
                 repository.findByUserIdAndRecordIdAndInteractionType(
@@ -186,6 +189,10 @@ public class InteractionServiceImpl implements InteractionService {
 
             // ✅ Direct cache update
             cacheService.updateField(userId, recordId, type, true, null);
+            log.info("Interaction added: type={}, userId={}, recordId={}", type, userId, recordId);
+        } else {
+            log.debug("Interaction already exists, skipping: type={}, userId={}, recordId={}",
+                    type, userId, recordId);
         }
     }
 
@@ -197,6 +204,7 @@ public class InteractionServiceImpl implements InteractionService {
 
                     // ✅ Direct cache update
                     cacheService.updateField(userId, recordId, type, false, null);
+                    log.info("Interaction removed: type={}, userId={}, recordId={}", type, userId, recordId);
                 });
     }
 

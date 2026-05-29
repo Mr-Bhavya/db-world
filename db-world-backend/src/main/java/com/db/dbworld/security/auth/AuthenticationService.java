@@ -43,10 +43,19 @@ public class AuthenticationService {
             String email,
             String password
     ) {
+        log.debug("authenticate called for email={} (userAgent={})", email, userAgent);
 
         var authToken = UsernamePasswordAuthenticationToken.unauthenticated(email, password);
 
-        authenticationManager.authenticate(authToken);
+        try {
+            authenticationManager.authenticate(authToken);
+        } catch (BadCredentialsException ex) {
+            log.warn("Login attempt rejected for email={} — bad credentials", email);
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Authentication failed for email={}: {}", email, ex.getMessage(), ex);
+            throw ex;
+        }
 
         UserEntity user = userService.getUserEntityByEmail(email);
 
@@ -61,12 +70,18 @@ public class AuthenticationService {
     // 🔄 REFRESH TOKEN
     // ==============================
     public AuthToken refreshToken(String refreshToken) {
+        log.debug("refreshToken called (token ref={})", tokenRef(refreshToken));
 
+        UUID tokenId = parseToken(refreshToken);
         RefreshTokenEntity entity = refreshTokenRepository
-                .findByIdAndExpiryAfter(parseToken(refreshToken), Instant.now())
-                .orElseThrow(() -> new BadCredentialsException("Invalid or expired refresh token"));
+                .findByIdAndExpiryAfter(tokenId, Instant.now())
+                .orElseThrow(() -> {
+                    log.warn("Refresh token rejected: invalid or expired (token ref={})", tokenRef(refreshToken));
+                    return new BadCredentialsException("Invalid or expired refresh token");
+                });
 
         String newAccessToken = jwtService.generateToken(entity.getUser());
+        log.info("Access token refreshed for user [{}]", entity.getUser().getEmail());
 
         return new AuthToken(
                 newAccessToken,
@@ -80,7 +95,10 @@ public class AuthenticationService {
     // 🚪 LOGOUT
     // ==============================
     public void revokeRefreshToken(String refreshToken) {
-        refreshTokenRepository.deleteById(parseToken(refreshToken));
+        log.debug("revokeRefreshToken called (token ref={})", tokenRef(refreshToken));
+        UUID tokenId = parseToken(refreshToken);
+        refreshTokenRepository.deleteById(tokenId);
+        log.info("Refresh token revoked (token ref={})", tokenRef(refreshToken));
     }
 
     // ==============================
@@ -95,6 +113,8 @@ public class AuthenticationService {
         refreshToken.setExpiry(Instant.now().plus(refreshTokenTtl));
 
         refreshTokenRepository.save(refreshToken);
+
+        log.info("Refresh token issued for user [{}], ttl={}d", user.getEmail(), refreshTokenTtl.toDays());
 
         return new AuthToken(
                 accessToken,
@@ -118,7 +138,15 @@ public class AuthenticationService {
         try {
             return UUID.fromString(token);
         } catch (Exception e) {
+            log.warn("Refresh token parse failed (token ref={}): {}", tokenRef(token), e.getMessage());
             throw new BadCredentialsException("Invalid refresh token");
         }
+    }
+
+    /** Mask a token for logging — first 8 chars + ellipsis. Returns "<null>" / "<blank>" when absent. */
+    private static String tokenRef(String token) {
+        if (token == null) return "<null>";
+        if (token.isBlank()) return "<blank>";
+        return token.length() > 8 ? token.substring(0, 8) + "..." : token + "...";
     }
 }

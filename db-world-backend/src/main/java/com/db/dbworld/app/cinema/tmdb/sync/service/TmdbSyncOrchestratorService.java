@@ -20,6 +20,7 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,15 +33,24 @@ public class TmdbSyncOrchestratorService {
     private final TmdbRecordSyncService syncService;
     private final TmdbIngestionService ingestionService;
 
+    /**
+     * After this many per-record WARN logs in a single sync run, the orchestrator
+     * stops emitting individual warnings and tracks an aggregate count so a flood
+     * of TMDB failures cannot blow out the log volume.
+     */
+    private static final int PER_RECORD_WARN_SAMPLE = 50;
+
     /* =====================================
        PUBLIC ENTRY
      ===================================== */
 
     public SyncMetrics syncMovies(SyncWindow window) {
+        log.debug("syncMovies entry; window={}", window);
         return sync(window, RecordType.MOVIE);
     }
 
     public SyncMetrics syncTv(SyncWindow window) {
+        log.debug("syncTv entry; window={}", window);
         return sync(window, RecordType.TV_SERIES);
     }
 
@@ -51,6 +61,7 @@ public class TmdbSyncOrchestratorService {
     private SyncMetrics sync(SyncWindow window, RecordType type) {
 
         SyncMetrics metrics = new SyncMetrics();
+        AtomicInteger warnCount = new AtomicInteger();
 
         List<Long> changedIds = fetchTmdbChangedIds(window.startDate(), window.endDate(), type);
 
@@ -59,7 +70,7 @@ public class TmdbSyncOrchestratorService {
             return metrics;
         }
 
-        log.info("{} changes fetched: {}", type, changedIds.size());
+        log.info("{} changes fetched: count={}", type, changedIds.size());
 
         // Filter by RecordType: TMDB movie IDs and TV IDs are independent numeric
         // spaces. Without this, movie sync would pick up TV records that happen to
@@ -70,14 +81,23 @@ public class TmdbSyncOrchestratorService {
                         .stream()
                         .collect(Collectors.toMap(RecordEntity::getTmdbId, r -> r, (a, b) -> a));
 
+        log.debug("{} sync matched {} local records from {} TMDB changes",
+                type, recordMap.size(), changedIds.size());
+
         Flux.fromIterable(changedIds)
                 .filter(recordMap::containsKey)
                 .doOnNext(id -> metrics.incrementTotal())
                 .delayElements(Duration.ofMillis(TmdbSync.DELAY_MS))
-                .flatMap(id -> processSingle(id, recordMap.get(id), type, metrics),
+                .flatMap(id -> processSingle(id, recordMap.get(id), type, metrics, warnCount),
                         TmdbSync.PARALLELISM)
-                .doOnError(e -> log.error("Sync pipeline error", e))
+                .doOnError(e -> log.error("{} sync pipeline error", type, e))
                 .blockLast();
+
+        int suppressed = Math.max(0, warnCount.get() - PER_RECORD_WARN_SAMPLE);
+        if (suppressed > 0) {
+            log.warn("{} sync: suppressed {} additional per-record failure warnings (total failures={})",
+                    type, suppressed, warnCount.get());
+        }
 
         return metrics;
     }
@@ -112,7 +132,8 @@ public class TmdbSyncOrchestratorService {
     private Mono<Void> processSingle(Long tmdbId,
                                      RecordEntity record,
                                      RecordType type,
-                                     SyncMetrics metrics) {
+                                     SyncMetrics metrics,
+                                     AtomicInteger warnCount) {
 
         if (record == null) return Mono.empty();
 
@@ -138,7 +159,13 @@ public class TmdbSyncOrchestratorService {
                 metrics.incrementSuccess();
 
             } catch (Exception e) {
-                log.error("{} sync failed: {}", type, tmdbId, e);
+                int n = warnCount.incrementAndGet();
+                if (n <= PER_RECORD_WARN_SAMPLE) {
+                    log.warn("{} sync failed; tmdbId={}", type, tmdbId, e);
+                } else if (n == PER_RECORD_WARN_SAMPLE + 1) {
+                    log.warn("{} sync: per-record failure log suppressed after {} entries; further failures aggregated",
+                            type, PER_RECORD_WARN_SAMPLE);
+                }
 
                 syncService.markFailed(tmdbId, type, e);
                 metrics.incrementFailed();

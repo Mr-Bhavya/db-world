@@ -15,6 +15,7 @@ import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
+import org.apache.logging.log4j.ThreadContext;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.stereotype.Service;
@@ -231,22 +232,41 @@ public class FileWatcherService {
     // â”€â”€ Event dispatch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void handleCreateOrModifyEvent(Path path) {
+        log.debug("{} FS event CREATE/MODIFY: {}", TAG, path);
         if (Files.isDirectory(path)) {
-            try { registerAll(path); } catch (IOException e) {
+            try {
+                registerAll(path);
+                log.info("{} Registered new directory: {}", TAG, path);
+            } catch (IOException e) {
                 log.error("{} Cannot register new dir {}", TAG, path, e);
             }
         } else if (Files.isRegularFile(path)) {
             fileProcessingExecutor.submit(() -> {
-                try   { processFileEvent(path); }
-                catch (Exception e) { errorCount.incrementAndGet(); log.error("{} File event error: {}", TAG, path, e); }
+                ThreadContext.put("traceId", "fwatch-" + UUID.randomUUID());
+                try {
+                    processFileEvent(path);
+                } catch (Exception e) {
+                    errorCount.incrementAndGet();
+                    log.error("{} File event error: {}", TAG, path, e);
+                } finally {
+                    ThreadContext.clearAll();
+                }
             });
         }
     }
 
     private void handleDeleteEvent(Path path) {
+        log.debug("{} FS event DELETE: {}", TAG, path);
         fileProcessingExecutor.submit(() -> {
-            try   { processDeleteEvent(path); }
-            catch (Exception e) { errorCount.incrementAndGet(); log.error("{} Delete event error: {}", TAG, path, e); }
+            ThreadContext.put("traceId", "fwatch-" + UUID.randomUUID());
+            try {
+                processDeleteEvent(path);
+            } catch (Exception e) {
+                errorCount.incrementAndGet();
+                log.error("{} Delete event error: {}", TAG, path, e);
+            } finally {
+                ThreadContext.clearAll();
+            }
         });
     }
 

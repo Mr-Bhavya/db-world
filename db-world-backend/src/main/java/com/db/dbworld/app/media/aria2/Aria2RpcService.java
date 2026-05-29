@@ -5,10 +5,10 @@ import com.db.dbworld.app.media.aria2.model.Aria2AddDownloadResponse;
 import com.db.dbworld.app.media.aria2.model.Aria2GlobalStat;
 import com.db.dbworld.app.media.aria2.model.Aria2StatusParam;
 import com.db.dbworld.app.media.aria2.model.Aria2Version;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -100,6 +100,7 @@ public class Aria2RpcService {
             ObjectNode resp = buildAndSend(buildTellStatusRequest("aria2.tellStatus", gid, keys));
             return responseMapper.mapToDownloadStatus(extractResult(resp));
         } catch (Exception e) {
+            log.warn("tellStatus failed for GID {}: {}", gid, e.getMessage(), e);
             throw new DbWorldException("tellStatus failed for GID " + gid + ": " + e.getMessage(), e);
         }
     }
@@ -127,7 +128,9 @@ public class Aria2RpcService {
         try {
             String realGid = resolveRealGid(gid);
             callRpc("aria2.pause", new Object[]{realGid}, mappingService.getJobIdByGid(gid));
+            log.info("Paused Aria2 GID {} (real GID {})", gid, realGid);
         } catch (Exception e) {
+            log.error("pause failed for GID {}", gid, e);
             throw new DbWorldException("pause failed for GID " + gid + ": " + e.getMessage(), e);
         }
     }
@@ -136,7 +139,9 @@ public class Aria2RpcService {
     public void unpause(String gid) {
         try {
             callRpc("aria2.unpause", new Object[]{gid}, mappingService.getJobIdByGid(gid));
+            log.info("Unpaused Aria2 GID {}", gid);
         } catch (Exception e) {
+            log.error("unpause failed for GID {}", gid, e);
             throw new DbWorldException("unpause failed for GID " + gid + ": " + e.getMessage(), e);
         }
     }
@@ -146,6 +151,7 @@ public class Aria2RpcService {
         try {
             callRpc("aria2.forceRemove", new Object[]{gid}, mappingService.getJobIdByGid(gid));
             mappingService.removeByGid(gid);
+            log.info("Force-removed Aria2 GID {}", gid);
         } catch (Exception e) {
             if (isGidNotFound(e)) {
                 log.warn("forceRemove skipped for missing GID {}", gid);
@@ -184,6 +190,7 @@ public class Aria2RpcService {
             JsonNode result = callRpc("aria2.getGlobalStat", new Object[]{}, null);
             return responseMapper.mapToGlobalStat(result);
         } catch (Exception e) {
+            log.warn("getGlobalStat failed: {}", e.getMessage(), e);
             throw new DbWorldException("getGlobalStat failed: " + e.getMessage(), e);
         }
     }
@@ -225,9 +232,27 @@ public class Aria2RpcService {
         } catch (Exception e) {
             Throwable root = ("Self-suppression not permitted".equals(e.getMessage()) && e.getCause() != null)
                     ? e.getCause() : e;
-            log.error("RPC call failed — method={}, jobId={}", method, jobId, root);
+            // Connection refused / unreachable means aria2 isn't running. Logging
+            // the full stack on every poll dominates the log file; a compact
+            // WARN at this layer + the caller's own throttled WARN is enough.
+            // Other errors (timeouts, malformed responses, auth) keep the stack.
+            if (isAria2Unreachable(root)) {
+                log.warn("Aria2 RPC unreachable — method={}, jobId={}: {}",
+                        method, jobId, root.getMessage());
+            } else {
+                log.error("RPC call failed — method={}, jobId={}", method, jobId, root);
+            }
             throw new DbWorldException("RPC call failed [" + method + "]: " + root.getMessage(), root);
         }
+    }
+
+    private static boolean isAria2Unreachable(Throwable t) {
+        for (Throwable cur = t; cur != null; cur = cur.getCause()) {
+            if (cur instanceof java.net.ConnectException) return true;
+            if (cur instanceof java.net.SocketTimeoutException) return true;
+            if (cur instanceof java.net.UnknownHostException) return true;
+        }
+        return false;
     }
 
     private ObjectNode buildAndSend(ObjectNode request) throws Exception {

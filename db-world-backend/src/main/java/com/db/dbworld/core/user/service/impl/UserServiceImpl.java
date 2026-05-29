@@ -48,6 +48,7 @@ public class UserServiceImpl implements UserService {
     // ==============================
     @Override
     public UserDto createUser(CreateUserRequest request) {
+        log.debug("createUser called for email={} (roleId={})", request.getEmail(), request.getRoleId());
 
         UserEntity entity = userMapper.toEntity(request);
 
@@ -56,26 +57,36 @@ public class UserServiceImpl implements UserService {
         RoleEntity role;
         if (request.getRoleId() != null) {
             role = roleRepository.findById(Math.toIntExact(request.getRoleId()))
-                    .orElseThrow(() -> new ResourceNotFoundException("Role", "id", request.getRoleId()));
+                    .orElseThrow(() -> {
+                        log.warn("createUser: role not found by id {} for email={}",
+                                request.getRoleId(), request.getEmail());
+                        return new ResourceNotFoundException("Role", "id", request.getRoleId());
+                    });
         } else {
             role = roleRepository.findByName(Role.VIEWER);
             if (role == null) {
+                log.error("createUser: default VIEWER role missing — initialization broken");
                 throw new ResourceNotFoundException("Role", "name", Role.VIEWER.name());
             }
         }
 
         entity.setRole(role);
 
-        return userMapper.toDto(userRepository.save(entity));
+        UserEntity saved = userRepository.save(entity);
+        log.info("Created user [{}] (id={}, role={})",
+                saved.getEmail(), saved.getUserId(), role.getName().name());
+        return userMapper.toDto(saved);
     }
 
     @Override
     public List<UserDto> createUsers(List<CreateUserRequest> requests) {
 
         if (requests == null || requests.isEmpty()) {
+            log.debug("createUsers called with empty/null list");
             return List.of();
         }
 
+        log.info("Bulk createUsers requested for {} accounts", requests.size());
         return requests.stream()
                 .map(this::createUser)
                 .toList();
@@ -193,16 +204,21 @@ public class UserServiceImpl implements UserService {
     // ==============================
     @Override
     public UserDto updateUser(UpdateUserRequest request, Long userId) {
+        log.debug("updateUser called for userId={}", userId);
 
         UserEntity entity = getUserEntityById(userId);
 
         userMapper.updateUserFromRequest(request, entity);
 
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+        boolean passwordChanged = request.getPassword() != null && !request.getPassword().isBlank();
+        if (passwordChanged) {
             entity.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        return userMapper.toDto(userRepository.save(entity));
+        UserEntity saved = userRepository.save(entity);
+        log.info("Updated user [{}] (id={}, passwordChanged={})",
+                saved.getEmail(), userId, passwordChanged);
+        return userMapper.toDto(saved);
     }
 
     // ==============================
@@ -210,16 +226,19 @@ public class UserServiceImpl implements UserService {
     // ==============================
     @Override
     public void changePassword(ChangePasswordRequest request) {
+        log.debug("changePassword called");
 
         UserEntity user = getCurrentUser();
 
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            log.warn("changePassword rejected: invalid old password for user [{}]", user.getEmail());
             throw new DbWorldException("Invalid old password");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
 
         userRepository.save(user);
+        log.info("Password changed for user [{}]", user.getEmail());
     }
 
     // ==============================
@@ -240,6 +259,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto updateUserRole(Long userId, Long roleId) {
+        log.debug("updateUserRole called: userId={} roleId={}", userId, roleId);
 
         UserEntity user = getUserEntityById(userId);
 
@@ -248,12 +268,18 @@ public class UserServiceImpl implements UserService {
 
         // avoid unnecessary DB update
         if (user.getRole() != null && user.getRole().getId() == role.getId()) {
+            log.debug("updateUserRole no-op: user [{}] already has role {}",
+                    user.getEmail(), role.getName().name());
             return userMapper.toDto(user);
         }
 
+        String previousRole = user.getRole() != null ? user.getRole().getName().name() : "<none>";
         user.setRole(role);
 
-        return userMapper.toDto(userRepository.save(user));
+        UserEntity saved = userRepository.save(user);
+        log.info("Role changed for user [{}] (id={}): {} → {}",
+                saved.getEmail(), userId, previousRole, role.getName().name());
+        return userMapper.toDto(saved);
     }
 
     // ==============================
@@ -261,11 +287,13 @@ public class UserServiceImpl implements UserService {
     // ==============================
     @Override
     public void deleteUserById(Long userId) {
+        log.debug("deleteUserById called for userId={}", userId);
 
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (userId.equals(userContext.userId())) {
+            log.warn("deleteUserById rejected: user [{}] attempted self-delete", userId);
             throw new DbWorldException("You cannot delete yourself");
         }
 
@@ -274,6 +302,7 @@ public class UserServiceImpl implements UserService {
             long adminCount = userRepository.countByRoleName(Role.ADMIN);
 
             if (adminCount <= 1) {
+                log.warn("deleteUserById rejected: cannot delete last ADMIN (userId={})", userId);
                 throw new DbWorldException("Cannot delete the last admin user");
             }
         }
@@ -302,9 +331,11 @@ public class UserServiceImpl implements UserService {
     // ==============================
     @Override
     public void updateDob(Date dob) {
+        log.debug("updateDob called: dob={}", dob);
         UserEntity user = getCurrentUser();
         user.setDob(dob);
         userRepository.save(user);
+        log.info("DOB updated for user [{}]", user.getEmail());
     }
 
     // ==============================

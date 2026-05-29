@@ -10,6 +10,7 @@ import com.db.dbworld.app.admin.analytics.dto.TopUserDto;
 import com.db.dbworld.app.admin.analytics.dto.TopUserProjection;
 import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -29,6 +31,7 @@ public class AdminAnalyticsService {
     private final UserCinemaActivityRepository activityRepository;
 
     public AnalyticsOverviewDto getOverview() {
+        log.debug("getOverview window={} days", OVERVIEW_WINDOW_DAYS);
         long activeUsers = activityRepository.countActiveUsersSince(OVERVIEW_WINDOW_DAYS);
         long bytes       = activityRepository.sumBytesTransferredSince(OVERVIEW_WINDOW_DAYS);
         long completed   = activityRepository.countCompletedTransfersSince(OVERVIEW_WINDOW_DAYS);
@@ -48,24 +51,28 @@ public class AdminAnalyticsService {
 
     public List<DailyActivityDto> getDailyTrend(int days) {
         int safeDays = Math.max(1, Math.min(days, 365));
+        log.debug("getDailyTrend days={} (clamped={})", days, safeDays);
         return activityRepository.findDailyActivityTrend(safeDays).stream()
                 .map(this::toDailyDto)
                 .toList();
     }
 
     public List<ClientBreakdownDto> getClientBreakdown() {
+        log.debug("getClientBreakdown called");
         return activityRepository.findClientBreakdown().stream()
                 .map(p -> new ClientBreakdownDto(p.getClientType(), p.getCount()))
                 .toList();
     }
 
     public List<TopRecordDto> getTopRecords(int limit) {
+        log.debug("getTopRecords limit={}", limit);
         return activityRepository.findTopRecords(safeLimit(limit)).stream()
                 .map(this::toTopRecordDto)
                 .toList();
     }
 
     public List<TopUserDto> getTopUsers(int limit) {
+        log.debug("getTopUsers limit={}", limit);
         return activityRepository.findTopUsers(safeLimit(limit)).stream()
                 .map(this::toTopUserDto)
                 .toList();

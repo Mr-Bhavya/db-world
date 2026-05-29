@@ -10,17 +10,21 @@ import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.MirrorStatus;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
+import com.db.dbworld.infrastructure.logging.backoff.FailureBackoff;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.apache.logging.log4j.ThreadContext;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Reconciles non-terminal DB jobs with Aria2's live state on server restart,
@@ -41,28 +45,53 @@ public class IngestionRecoveryService {
     private final TrackingService        trackingService;
     private final IngestionJobStore      jobStore;
 
+    /**
+     * When aria2 isn't reachable (typical dev box without aria2c running), the
+     * 15-second {@link #surfaceExternalDownloads} tick would otherwise log a
+     * full ConnectException stack every 15s forever. Backoff: 3 WARNs, then
+     * every 40th, and after 10 consecutive failures pause the poll for 5
+     * minutes — so a missing aria2 produces ~3 warns and then silence.
+     */
+    private final FailureBackoff aria2ReachableBackoff =
+            new FailureBackoff(3, 40, 10, Duration.ofMinutes(5));
+
     // ──────────────────────────────────────────────────────────────────────────
     // Startup recovery
     // ──────────────────────────────────────────────────────────────────────────
 
     @EventListener(ApplicationReadyEvent.class)
     public void recoverOnStartup() {
-        List<IngestionJobEntity> nonTerminal = jobRepository.findByStatusNotIn(TERMINAL_STATUSES);
-        if (nonTerminal.isEmpty()) return;
+        ThreadContext.put("traceId", "recovery-" + UUID.randomUUID());
+        try {
+            log.debug("recoverOnStartup invoked");
+            List<IngestionJobEntity> nonTerminal = jobRepository.findByStatusNotIn(TERMINAL_STATUSES);
+            if (nonTerminal.isEmpty()) {
+                log.info("Recovery: no non-terminal jobs found at startup");
+                return;
+            }
 
-        log.info("Recovery: {} non-terminal job(s) found — reconciling with Aria2", nonTerminal.size());
-        nonTerminal.forEach(this::recoverJob);
+            log.info("Recovery: {} non-terminal job(s) found — reconciling with Aria2", nonTerminal.size());
+            nonTerminal.forEach(this::recoverJob);
+            log.info("Recovery: completed reconciliation of {} job(s)", nonTerminal.size());
+        } catch (Exception e) {
+            log.error("Recovery: startup reconciliation failed", e);
+        } finally {
+            ThreadContext.clearAll();
+        }
     }
 
     private void recoverJob(IngestionJobEntity job) {
         try {
+            log.debug("recoverJob jobId={} gid={} status={}",
+                    job.getJobId(), job.getGid(), job.getStatus());
             if (job.getGid() != null) {
                 recoverAria2Job(job);
             } else {
+                log.warn("[{}] Non-Aria2 job cannot be auto-recovered (no GID) — marking FAILED", job.getJobId());
                 markFailed(job, "Server restarted; non-Aria2 job cannot be automatically recovered");
             }
         } catch (Exception e) {
-            log.warn("[{}] Recovery failed: {}", job.getJobId(), e.getMessage());
+            log.error("[{}] Recovery failed", job.getJobId(), e);
             markFailed(job, "Recovery error: " + e.getMessage());
         }
     }
@@ -72,19 +101,21 @@ public class IngestionRecoveryService {
         try {
             status = aria2RpcService.tellStatus(job.getGid());
         } catch (Exception e) {
-            log.warn("[{}] Cannot reach Aria2 for GID {}: {}", job.getJobId(), job.getGid(), e.getMessage());
+            log.error("[{}] Cannot reach Aria2 for GID {} during recovery", job.getJobId(), job.getGid(), e);
             markFailed(job, "Server restarted; Aria2 unreachable: " + e.getMessage());
             return;
         }
 
         String aria2Status = status.getStatus();
+        log.debug("[{}] Aria2 reports GID {} status={}", job.getJobId(), job.getGid(), aria2Status);
 
         if ("active".equals(aria2Status) || "waiting".equals(aria2Status) || "paused".equals(aria2Status)) {
             // Aria2 still has the download — start a new job (Aria2 will resume via partial file)
             IngestionRequest req = reconstructRequest(job);
             String newJobId = pipeline.start(req);
             markFailed(job, "Server restarted; recovery job: " + newJobId);
-            log.info("[{}] GID {} still active → recovery job {}", job.getJobId(), job.getGid(), newJobId);
+            log.info("[{}] GID {} still {} → spawned recovery job {}",
+                    job.getJobId(), job.getGid(), aria2Status, newJobId);
 
         } else if ("complete".equals(aria2Status)) {
             // Download finished while server was down — skip download, run processing only
@@ -92,13 +123,18 @@ public class IngestionRecoveryService {
             String filePath = resolveFilePath(status);
             if (filePath != null) {
                 req.setLocalFilePath(filePath);
+            } else {
+                log.warn("[{}] Aria2 reports complete but no file path resolvable from status", job.getJobId());
             }
             String newJobId = pipeline.start(req);
             markFailed(job, "Server restarted; processing-only recovery job: " + newJobId);
-            log.info("[{}] GID {} was complete → processing job {}", job.getJobId(), job.getGid(), newJobId);
+            log.info("[{}] GID {} was complete → spawned processing-only job {} (path={})",
+                    job.getJobId(), job.getGid(), newJobId, filePath);
 
         } else {
             // error / removed
+            log.warn("[{}] Aria2 GID {} in terminal state {} — marking original job FAILED",
+                    job.getJobId(), job.getGid(), aria2Status);
             markFailed(job, "Server restarted; Aria2 reported status: " + aria2Status);
         }
     }
@@ -109,8 +145,21 @@ public class IngestionRecoveryService {
 
     @Scheduled(fixedDelay = 15_000)
     public void surfaceExternalDownloads() {
+        // Skip the RPC entirely while in cooldown — protects against logging
+        // the same ConnectException every 15 seconds when aria2 isn't running.
+        if (!aria2ReachableBackoff.shouldAttempt()) {
+            return;
+        }
         try {
             List<Aria2StatusParam> active = aria2RpcService.getActiveDownloads();
+            // First success after a streak of failures → one-shot recovery INFO
+            // so operators see aria2 came back without grepping for absence.
+            if (aria2ReachableBackoff.consecutiveFailures() > 0) {
+                log.info("Aria2 reachable again after {} failed attempts",
+                        aria2ReachableBackoff.consecutiveFailures());
+            }
+            aria2ReachableBackoff.recordSuccess();
+
             Set<String> knownGids = new HashSet<>(jobStore.getAllActiveGids().values());
 
             for (Aria2StatusParam download : active) {
@@ -136,7 +185,14 @@ public class IngestionRecoveryService {
                 }
             }
         } catch (Exception e) {
-            log.debug("External download surface check failed: {}", e.getMessage());
+            int streak = aria2ReachableBackoff.recordFailure();
+            if (aria2ReachableBackoff.shouldLogWarn()) {
+                // Compact message — no stack — once we know aria2 isn't there,
+                // the stack adds nothing and dominates the log volume.
+                log.warn("Aria2 unreachable (consecutive={}): {}", streak, e.getMessage());
+            } else {
+                log.debug("Aria2 still unreachable (consecutive={}): {}", streak, e.getMessage());
+            }
         }
     }
 
@@ -164,8 +220,9 @@ public class IngestionRecoveryService {
         job.setCompletedAt(Instant.now());
         try {
             jobRepository.save(job);
+            log.info("[{}] Recovery marked FAILED — {}", job.getJobId(), reason);
         } catch (Exception e) {
-            log.warn("[{}] Failed to persist FAILED status during recovery: {}", job.getJobId(), e.getMessage());
+            log.error("[{}] Failed to persist FAILED status during recovery", job.getJobId(), e);
         }
     }
 }

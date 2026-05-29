@@ -6,11 +6,13 @@ import com.db.dbworld.app.cinema.rail.repository.RailRepository;
 import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -18,10 +20,26 @@ public class RailBootstrapService {
 
     private final RailRepository railRepository;
 
+    private int created;
+    private int updated;
+
     public void generateRails() {
-        createHomeRails();
-        createMovieRails();
-        createSeriesRails();
+        long start = System.currentTimeMillis();
+        created = 0;
+        updated = 0;
+        log.info("Rail bootstrap started");
+
+        try {
+            createHomeRails();
+            createMovieRails();
+            createSeriesRails();
+            log.info("Rail bootstrap completed; created={}, updated={}, took={}ms",
+                    created, updated, System.currentTimeMillis() - start);
+        } catch (Exception e) {
+            log.error("Rail bootstrap failed; created={}, updated={}, took={}ms",
+                    created, updated, System.currentTimeMillis() - start, e);
+            throw e;
+        }
     }
 
     /* ================================================================
@@ -402,6 +420,7 @@ public class RailBootstrapService {
                 }
             }
             railRepository.save(existing);
+            updated++;
             return;
         }
 
@@ -416,5 +435,6 @@ public class RailBootstrapService {
                         .infiniteScroll(infiniteScroll)
                         .build()
         );
+        created++;
     }
 }

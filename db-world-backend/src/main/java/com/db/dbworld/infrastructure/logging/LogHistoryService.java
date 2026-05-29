@@ -1,7 +1,7 @@
 package com.db.dbworld.infrastructure.logging;
 
 import com.db.dbworld.config.AppProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -92,6 +92,7 @@ public class LogHistoryService {
             String level,
             int limit
     ) {
+        log.info("streamHistory session={} since={} level={} limit={}", session.getId(), since, level, limit);
         cancelStream(session.getId());
 
         scheduler.scheduleAtFixedRate(
@@ -138,9 +139,10 @@ public class LogHistoryService {
                 }
 
                 sendComplete(session, sent);
+                log.info("streamHistory complete session={} sent={}", session.getId(), sent);
 
             } catch (Exception e) {
-                log.warn("history stream failed", e);
+                log.warn("history stream failed session={}", session.getId(), e);
             } finally {
                 activeStreams.remove(session.getId());
                 streamStart.remove(session.getId());
@@ -245,7 +247,7 @@ public class LogHistoryService {
             }
 
         } catch (Exception e) {
-            log.debug("gzip read fail {}", gz);
+            log.warn("gzip read failed {}", gz, e);
         }
     }
 

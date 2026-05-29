@@ -13,10 +13,12 @@ import com.db.dbworld.app.cinema.tmdb.sync.service.TmdbSyncOrchestratorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
+import org.apache.logging.log4j.ThreadContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.*;
+import java.util.UUID;
 
 
 @Component
@@ -42,21 +44,33 @@ public class TmdbSyncScheduler {
 
     private void runSync(RecordType type) {
 
-        SyncWindow window = computeWindow(type);
+        ThreadContext.put("traceId", UUID.randomUUID().toString());
+        long start = System.currentTimeMillis();
 
-        log.info("{} Sync Window: {}", type, window);
+        try {
+            SyncWindow window = computeWindow(type);
 
-        SyncMetrics metrics;
+            log.info("TMDB sync run started; type={}; window={}", type, window);
 
-        if (type == RecordType.MOVIE) {
-            metrics = syncService.syncMovies(window);
-        } else {
-            metrics = syncService.syncTv(window);
+            SyncMetrics metrics;
+
+            if (type == RecordType.MOVIE) {
+                metrics = syncService.syncMovies(window);
+            } else {
+                metrics = syncService.syncTv(window);
+            }
+
+            long elapsed = System.currentTimeMillis() - start;
+            log.info("TMDB sync completed; type={}; summary={}; took={}ms", type, metrics.summary(), elapsed);
+
+            applicationEventPublisher.publishEvent(new BulkRecordChangedEvent());
+        } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - start;
+            log.error("TMDB sync aborted; type={}; took={}ms", type, elapsed, e);
+            throw e;
+        } finally {
+            ThreadContext.clearAll();
         }
-
-        log.info("{} Sync Completed → {}", type, metrics.summary());
-
-        applicationEventPublisher.publishEvent(new BulkRecordChangedEvent());
     }
 
     /* =====================================

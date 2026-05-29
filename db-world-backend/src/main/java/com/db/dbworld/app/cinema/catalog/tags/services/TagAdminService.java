@@ -12,6 +12,7 @@ import com.db.dbworld.app.cinema.catalog.tags.strategy.TagStrategyExecutor;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class TagAdminService {
@@ -68,6 +70,8 @@ public class TagAdminService {
 
     @Transactional
     public int bulkAdd(RecordTagType tagType, List<Long> recordIds, int priority) {
+        log.debug("bulkAdd entry; tagType={}, recordCount={}, priority={}",
+                tagType, recordIds != null ? recordIds.size() : 0, priority);
         int added = 0;
         for (Long id : recordIds) {
             RecordEntity record = recordRepository.findById(id)
@@ -84,6 +88,8 @@ public class TagAdminService {
                 added++;
             }
         }
+        log.info("Tag bulkAdd completed; tagType={}, requested={}, added={}",
+                tagType, recordIds != null ? recordIds.size() : 0, added);
         return added;
     }
 
@@ -91,6 +97,8 @@ public class TagAdminService {
 
     @Transactional
     public int bulkRemove(RecordTagType tagType, List<Long> recordIds) {
+        log.debug("bulkRemove entry; tagType={}, recordCount={}",
+                tagType, recordIds != null ? recordIds.size() : 0);
         int removed = 0;
         for (Long id : recordIds) {
             RecordEntity record = recordRepository.findById(id)
@@ -102,6 +110,8 @@ public class TagAdminService {
                 removed++;
             }
         }
+        log.info("Tag bulkRemove completed; tagType={}, requested={}, removed={}",
+                tagType, recordIds != null ? recordIds.size() : 0, removed);
         return removed;
     }
 
@@ -133,11 +143,13 @@ public class TagAdminService {
 
     @Transactional
     public void recalculateOne(RecordTagType tagType) {
+        log.info("Tag recalculate (single) triggered; tagType={}", tagType);
         tagStrategyExecutor.execute(tagType);
     }
 
     @Transactional
     public void recalculateAll() {
+        log.info("Tag recalculate (all) triggered");
         tagStrategyExecutor.executeAll();
     }
 }

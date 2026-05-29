@@ -169,8 +169,10 @@ public class RailServiceImpl implements RailService {
                         : dto.getTitle();
                 dto.setTitle(prefix + " " + source.getName());
             });
-        } catch (Exception ignored) {
+        } catch (Exception e) {
             // Unauthenticated or lookup failure — keep the static title.
+            log.debug("applyDynamicTitle: keeping static title for railId={}; reason={}",
+                    dto.getId(), e.getMessage());
         }
         return dto;
     }
@@ -183,6 +185,8 @@ public class RailServiceImpl implements RailService {
                 Long userId = userContext.userId();
                 return interactionRepository.existsByUserIdAndInteractionType(userId, InteractionType.WATCHLIST);
             } catch (Exception e) {
+                log.debug("hasContent watchlist check failed for railId={}; reason={}",
+                        rail.getId(), e.getMessage());
                 return false;
             }
         }
@@ -193,6 +197,8 @@ public class RailServiceImpl implements RailService {
                 // entries that can actually populate the rail.
                 return watchProgressRepository.existsByUserIdAndRecordIdNotNull(userContext.userId());
             } catch (Exception e) {
+                log.debug("hasContent continueWatching check failed for railId={}; reason={}",
+                        rail.getId(), e.getMessage());
                 return false;
             }
         }
@@ -205,6 +211,8 @@ public class RailServiceImpl implements RailService {
                 if (watchProgressRepository.existsByUserIdAndRecordIdNotNull(userId)) return true;
                 return !activityRepository.findMostRecentRecordIdsByUser(userId, PageRequest.of(0, 1)).isEmpty();
             } catch (Exception e) {
+                log.debug("hasContent becauseYouWatched check failed for railId={}; reason={}",
+                        rail.getId(), e.getMessage());
                 return false;
             }
         }
@@ -253,6 +261,9 @@ public class RailServiceImpl implements RailService {
     @Transactional(readOnly = true)
     public RailPageDto getRailRecords(Long railId, int page, Integer size, Long category, PageType requestedPage) {
 
+        log.debug("getRailRecords entry; railId={}, page={}, size={}, category={}, requestedPage={}",
+                railId, page, size, category, requestedPage);
+
         hideRailHiddenRecords();
 
         RailEntity rail = railRepository.findById(railId)
@@ -277,6 +288,9 @@ public class RailServiceImpl implements RailService {
         if (category == null && !userScoped) {
             RailPageDto cached = cacheService.get(railId, page, pageSize);
             if (cached != null) return cached;
+            // Cache miss on a shared (non-user-scoped) rail — useful signal for hot rails.
+            log.debug("Rail cache miss; railId={}, page={}, size={}, ruleType={}",
+                    railId, page, pageSize, ruleType);
         }
 
         Pageable pageable = PageRequest.of(page, pageSize);
@@ -447,17 +461,22 @@ public class RailServiceImpl implements RailService {
 
     @Override
     public RailDto createRail(RailRequest request) {
+        log.debug("createRail entry; title={}", request != null ? request.getTitle() : null);
         RailEntity rail = railMapper.toEntity(request);
         normalizePageTypes(rail);
-        return railMapper.toDto(railRepository.save(rail));
+        RailEntity saved = railRepository.save(rail);
+        log.info("Rail created; railId={}, title={}", saved.getId(), saved.getTitle());
+        return railMapper.toDto(saved);
     }
 
     @Override
     public RailDto updateRail(Long railId, RailRequest request) {
+        log.debug("updateRail entry; railId={}", railId);
         RailEntity rail = railRepository.findById(railId)
                 .orElseThrow(() -> new EntityNotFoundException("Rail not found"));
         railMapper.updateEntity(request, rail);
         normalizePageTypes(rail);
+        log.info("Rail updated; railId={}", railId);
         return railMapper.toDto(rail);
     }
 
@@ -470,9 +489,11 @@ public class RailServiceImpl implements RailService {
 
     @Override
     public void deleteRail(Long railId) {
+        log.debug("deleteRail entry; railId={}", railId);
         if (!railRepository.existsById(railId))
             throw new EntityNotFoundException("Rail not found");
         railRepository.deleteById(railId);
+        log.info("Rail deleted; railId={}", railId);
     }
 
     @Override

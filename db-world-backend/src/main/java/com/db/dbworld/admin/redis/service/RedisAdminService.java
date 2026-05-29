@@ -1,8 +1,8 @@
 package com.db.dbworld.admin.redis.service;
 
 import com.db.dbworld.admin.redis.dto.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -100,6 +100,7 @@ public class RedisAdminService {
     /* ── Set key ──────────────────────────────────────────────── */
 
     public void setKey(RedisSetRequest req) {
+        log.info("Admin setKey key={} ttlSec={}", req.key(), req.ttlSeconds());
         if (req.ttlSeconds() != null && req.ttlSeconds() > 0) {
             template.opsForValue().set(req.key(), req.value(), Duration.ofSeconds(req.ttlSeconds()));
         } else {
@@ -110,7 +111,9 @@ public class RedisAdminService {
     /* ── Update value (preserve TTL) ─────────────────────────── */
 
     public void updateKey(String key, String newValue) {
+        log.info("Admin updateKey key={}", key);
         if (Boolean.FALSE.equals(template.hasKey(key))) {
+            log.warn("updateKey rejected: key not found '{}'", key);
             throw new EntityNotFoundException("Key not found: " + key);
         }
         Long existing = template.getExpire(key, TimeUnit.SECONDS);
@@ -124,7 +127,9 @@ public class RedisAdminService {
     /* ── Update TTL ───────────────────────────────────────────── */
 
     public void updateTtl(String key, Long ttlSeconds) {
+        log.info("Admin updateTtl key={} ttlSec={}", key, ttlSeconds);
         if (Boolean.FALSE.equals(template.hasKey(key))) {
+            log.warn("updateTtl rejected: key not found '{}'", key);
             throw new EntityNotFoundException("Key not found: " + key);
         }
         if (ttlSeconds == null || ttlSeconds <= 0) {
@@ -137,17 +142,23 @@ public class RedisAdminService {
     /* ── Delete ───────────────────────────────────────────────── */
 
     public boolean deleteKey(String key) {
+        log.info("Admin deleteKey key={}", key);
         return Boolean.TRUE.equals(template.delete(key));
     }
 
     public long deleteKeys(List<String> keys) {
+        log.info("Admin deleteKeys bulk count={}", keys != null ? keys.size() : 0);
         Long count = template.delete(keys);
         return count != null ? count : 0;
     }
 
     public long flushByPattern(String pattern) {
+        log.info("Admin flushByPattern pattern='{}'", pattern);
         List<String> keys = scanKeys(pattern, MAX_SCAN_KEYS);
-        if (keys.isEmpty()) return 0;
+        if (keys.isEmpty()) {
+            log.info("flushByPattern matched no keys for pattern='{}'", pattern);
+            return 0;
+        }
         Long deleted = template.delete(keys);
         log.info("Flushed {} keys matching pattern '{}'", deleted, pattern);
         return deleted != null ? deleted : 0;
@@ -164,7 +175,7 @@ public class RedisAdminService {
                     collected.add(new String(cursor.next(), StandardCharsets.UTF_8));
                 }
             } catch (Exception e) {
-                log.error("SCAN error for pattern '{}': {}", pattern, e.getMessage());
+                log.error("SCAN error for pattern '{}'", pattern, e);
             }
             return collected;
         });
@@ -193,7 +204,7 @@ public class RedisAdminService {
                 default     -> "[" + type.code() + " — not displayable]";
             };
         } catch (Exception e) {
-            log.warn("Failed to read value for key '{}': {}", key, e.getMessage());
+            log.warn("Failed to read value for key '{}'", key, e);
             return "[error reading value]";
         }
     }
@@ -201,7 +212,7 @@ public class RedisAdminService {
     private static String toJson(Object obj) {
         try {
             return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return String.valueOf(obj);
         }
     }

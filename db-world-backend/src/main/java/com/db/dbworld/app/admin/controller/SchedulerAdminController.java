@@ -48,6 +48,7 @@ public class SchedulerAdminController {
     @PatchMapping("/toggle/{jobName}")
     @AdminAccess
     public ApiResponse<Void> toggle(@PathVariable String jobName) {
+        log.info("Admin toggling scheduler job: {}", jobName);
         boolean nowEnabled = schedulerAdminService.toggle(jobName);
         return ApiResponse.success("Job " + jobName + (nowEnabled ? " enabled" : " disabled"));
     }
@@ -60,8 +61,10 @@ public class SchedulerAdminController {
         String cron     = body.get("cronExpression");
         String timezone = body.get("timezone");
         if (cron == null || cron.isBlank()) {
+            log.warn("updateCron rejected: missing cronExpression for job={}", jobName);
             return ApiResponse.error(HttpStatus.BAD_REQUEST, "cronExpression is required");
         }
+        log.info("Admin updating cron for job={} to '{}' (tz={})", jobName, cron, timezone);
         schedulerAdminService.updateCron(jobName, cron, timezone);
         return ApiResponse.success("Cron updated for " + jobName);
     }
@@ -69,6 +72,7 @@ public class SchedulerAdminController {
     @PatchMapping("/reorder")
     @AdminAccess
     public ApiResponse<Void> reorder(@RequestBody List<Map<String, Object>> orders) {
+        log.info("Admin reordering scheduler jobs (count={})", orders != null ? orders.size() : 0);
         schedulerAdminService.reorder(orders);
         return ApiResponse.success("Order saved");
     }

@@ -12,8 +12,8 @@ import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
@@ -47,17 +47,23 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Override
     @Transactional
     public MediaFileDto collectAndPersist(Path filePath, Long recordId, String ingestionJobId) {
+        log.debug("collectAndPersist filePath={} recordId={} ingestionJobId={}",
+                filePath, recordId, ingestionJobId);
         String json = getRawJson(filePath);
 
         // Delete existing entry for this path to avoid duplicates
         mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString())
-                .ifPresent(mediaFileRepository::delete);
+                .ifPresent(existing -> {
+                    log.info("Replacing existing MediaInfo entry for {} (id={})",
+                            filePath.getFileName(), existing.getId());
+                    mediaFileRepository.delete(existing);
+                });
 
         MediaFileEntity entity = buildEntity(filePath, json, recordId, ingestionJobId);
         MediaFileEntity saved = mediaFileRepository.save(entity);
 
-        log.info("MediaInfo persisted: id={}, file={}, tracks={}",
-                saved.getId(), filePath.getFileName(), saved.getTracks().size());
+        log.info("MediaInfo persisted: id={}, file={}, tracks={}, recordId={}",
+                saved.getId(), filePath.getFileName(), saved.getTracks().size(), recordId);
 
         return toDto(saved);
     }
@@ -65,6 +71,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Override
     @Transactional
     public MediaFileDto rescan(String mediaFileId) {
+        log.debug("rescan mediaFileId={}", mediaFileId);
         MediaFileEntity existing = mediaFileRepository.findById(mediaFileId)
                 .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + mediaFileId));
 
@@ -72,6 +79,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         Long recordId = existing.getRecord() != null ? existing.getRecord().getId() : null;
         String jobId = existing.getIngestionJobId();
 
+        log.info("Rescan deleting id={} before re-collecting path={}", mediaFileId, filePath);
         mediaFileRepository.delete(existing);
 
         return collectAndPersist(filePath, recordId, jobId);
@@ -100,12 +108,14 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Override
     @Transactional
     public void deleteByFilePath(String filePath) {
+        log.info("deleteByFilePath path={}", filePath);
         mediaFileRepository.deleteByFilePath(filePath);
     }
 
     @Override
     @Transactional
     public void deleteByRecordId(Long recordId) {
+        log.info("deleteByRecordId recordId={}", recordId);
         mediaFileRepository.deleteAllByRecord_Id(recordId);
     }
 
@@ -259,7 +269,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         try {
             return processExecutor.runMediaInfoCommand(filePath);
         } catch (Exception e) {
-            log.error("MediaInfo command failed for path={}: {}", filePath, e.getMessage());
+            log.warn("MediaInfo probe failed for path={}: {}", filePath, e.getMessage(), e);
             throw new RuntimeException("MediaInfo failed: " + e.getMessage(), e);
         }
     }
@@ -347,7 +357,10 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             JsonNode root = objectMapper.readTree(json);
             JsonNode tracks = root.path("media").path("track");
 
-            if (!tracks.isArray()) return;
+            if (!tracks.isArray()) {
+                log.warn("MediaInfo JSON has no track array for {}", entity.getFileName());
+                return;
+            }
 
             int streamOrder = 0;
             for (JsonNode trackNode : tracks) {
@@ -356,7 +369,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 if (track != null) entity.addTrack(track);
             }
         } catch (Exception e) {
-            log.warn("Failed to parse MediaInfo JSON for {}: {}", entity.getFileName(), e.getMessage());
+            log.warn("Failed to parse MediaInfo JSON for {}: {}", entity.getFileName(), e.getMessage(), e);
         }
     }
 

@@ -27,7 +27,11 @@ public class UserNotificationServiceImpl implements UserNotificationService {
     @Override
     @Transactional
     public void createReviewNotifications(Long actorUserId, String actorUsername, Long recordId) {
-        if (notifRepo.existsByActorUserIdAndRecordId(actorUserId, recordId)) return;
+        log.debug("createReviewNotifications: actorUserId={}, recordId={}", actorUserId, recordId);
+        if (notifRepo.existsByActorUserIdAndRecordId(actorUserId, recordId)) {
+            log.debug("Review notifications already dispatched for actor={} record={}, skipping", actorUserId, recordId);
+            return;
+        }
 
         RecordEntity record = recordRepo.findById(recordId).orElse(null);
         if (record == null) {
@@ -204,6 +208,7 @@ public class UserNotificationServiceImpl implements UserNotificationService {
     @Transactional
     public void markAllRead(Long userId) {
         notifRepo.markAllReadByRecipientUserId(userId);
+        log.info("Marked all notifications as read for user {}", userId);
     }
 
     private UserNotificationDto toDto(UserNotificationEntity e) {

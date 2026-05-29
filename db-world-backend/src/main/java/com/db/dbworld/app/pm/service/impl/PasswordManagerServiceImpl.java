@@ -17,6 +17,7 @@ import com.db.dbworld.core.exception.ResourceNotFoundException;
 import com.db.dbworld.core.user.service.UserService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ import java.util.List;
 
 @Service
 @Transactional
+@Log4j2
 @RequiredArgsConstructor
 public class PasswordManagerServiceImpl implements PasswordManagerService {
 
@@ -41,6 +43,8 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     // ─────────────────────────────────────────────
     @Override
     public void addCredential(String host, CredentialDto credentialDto) {
+        // PII rule: never log credentialDto.password — only host + username.
+        log.debug("addCredential: host={}, username={}", host, credentialDto.getUsername());
 
         String finalHost = normalizeHost(host);
 
@@ -67,6 +71,8 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
                 .anyMatch(c -> c.getUsername().equalsIgnoreCase(credential.getUsername()));
 
         if (exists) {
+            log.warn("Duplicate credential rejected: host={}, username={}, userId={}",
+                    finalHost, credential.getUsername(), userContext.userId());
             throw new DbWorldException(HttpStatus.BAD_REQUEST,
                     "Username already exists for this host");
         }
@@ -74,6 +80,8 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         pm.getCredentials().add(credential);
 
         passwordManagerRepository.save(pm);
+        log.info("Credential added: host={}, username={}, userId={}",
+                finalHost, credential.getUsername(), userContext.userId());
     }
 
     private PasswordManagerEntity createNewPasswordManager(HostEntity host) {
@@ -106,6 +114,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     // ─────────────────────────────────────────────
     @Override
     public void deletePasswordManagerById(String pmId) {
+        log.info("Deleting password manager: pmId={}, userId={}", pmId, userContext.userId());
         passwordManagerRepository.deleteByIdAndUserEntityUserId(pmId, userContext.userId());
     }
 
@@ -115,6 +124,9 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     @Override
     @Transactional
     public CredentialDto getCredentialById(String credentialId) {
+        // INFO, not DEBUG: decrypting a credential is an audit-worthy event.
+        // We log the id only — never the decrypted password.
+        log.info("Credential read: credentialId={}, userId={}", credentialId, userContext.userId());
 
         CredentialEntity entity = credentialsRepository.findById(credentialId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -129,6 +141,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     // ─────────────────────────────────────────────
     @Override
     public void deleteCredentialById(String credentialId) {
+        log.info("Deleting credential: credentialId={}, userId={}", credentialId, userContext.userId());
         credentialsRepository.deleteByIdAndPasswordManagerUserEntityUserId(
                 credentialId, userContext.userId()
         );
@@ -139,6 +152,7 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
     // ─────────────────────────────────────────────
     @Override
     public PasswordManagerDto updateCredential(String pmId, CredentialDto credentialDto) {
+        log.debug("updateCredential: pmId={}, credentialId={}", pmId, credentialDto.getId());
 
         PasswordManagerEntity pm = passwordManagerRepository
                 .findByIdAndUserEntityUserIdAndCredentialsId(
@@ -169,6 +183,8 @@ public class PasswordManagerServiceImpl implements PasswordManagerService {
         }
 
         credentialsRepository.save(credential);
+        log.info("Credential updated: pmId={}, credentialId={}, userId={}",
+                pmId, credential.getId(), userContext.userId());
 
         return new PasswordManagerDto(
                 pm.getId(),

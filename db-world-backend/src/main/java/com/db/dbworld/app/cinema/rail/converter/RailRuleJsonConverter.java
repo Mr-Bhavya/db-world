@@ -1,7 +1,7 @@
 package com.db.dbworld.app.cinema.rail.converter;
 
 import com.db.dbworld.app.cinema.rail.rule.RailRule;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 

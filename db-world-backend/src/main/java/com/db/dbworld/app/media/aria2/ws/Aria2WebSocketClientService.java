@@ -6,8 +6,9 @@ import com.db.dbworld.app.media.aria2.model.*;
 import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.db.dbworld.infrastructure.logging.backoff.FailureBackoff;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.log4j.Log4j2;
@@ -22,6 +23,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +69,15 @@ public class Aria2WebSocketClientService {
 
     private final WebSocketClient         webSocketClient  = new StandardWebSocketClient();
     private final WebSocketConnectionState connectionState = new WebSocketConnectionState();
+
+    /**
+     * Throttles WARNs when aria2 isn't reachable (typical on dev box where
+     * aria2c isn't installed). After 3 WARNs the rest go to DEBUG, and after
+     * 10 consecutive failures the poll loop stops attempting reconnects for
+     * 5 minutes — when aria2 comes up, the next tick reconnects cleanly.
+     */
+    private final FailureBackoff connectBackoff =
+            new FailureBackoff(3, 60, 10, Duration.ofMinutes(5));
 
     public Aria2WebSocketClientService(
             @Value("${aria2.ws-url}") String aria2WsUrl,
@@ -114,6 +125,13 @@ public class Aria2WebSocketClientService {
             return;
         }
 
+        // If aria2 has been unreachable for a sustained streak, skip the
+        // connect attempt entirely until the cooldown elapses. Without this,
+        // an aria2-not-installed dev box logs a WARN every 2s forever.
+        if (!connectBackoff.shouldAttempt()) {
+            return;
+        }
+
         connectIfNeeded();
 
         if (!connectionState.getIsConnected().get()) return;
@@ -153,9 +171,25 @@ public class Aria2WebSocketClientService {
             connectionState.resetReconnectAttempts();
             connectionState.setConnectionTime(LocalDateTime.now());
             connectionState.updateActivity();
-            log.info("{} Connected to Aria2", TAG);
+            // If we'd previously logged failures, surface a one-shot INFO so
+            // operators can see aria2 came back without scrolling through logs.
+            if (connectBackoff.consecutiveFailures() > 0) {
+                log.info("{} Connected to Aria2 at {} (recovered after {} failed attempts)",
+                        TAG, aria2WsUrl, connectBackoff.consecutiveFailures());
+            } else {
+                log.info("{} Connected to Aria2 at {}", TAG, aria2WsUrl);
+            }
+            connectBackoff.recordSuccess();
         } catch (Exception e) {
-            log.debug("{} Connection failed: {}", TAG, e.getMessage());
+            int streak = connectBackoff.recordFailure();
+            if (connectBackoff.shouldLogWarn()) {
+                log.warn("{} Connection to {} failed (consecutive={}); suppressing WARN after {} more failures: {}",
+                        TAG, aria2WsUrl, streak,
+                        Math.max(0, 10 - streak), e.getMessage());
+            } else {
+                log.debug("{} Connection to {} failed (consecutive={}): {}",
+                        TAG, aria2WsUrl, streak, e.getMessage());
+            }
             scheduleReconnect();
         }
     }
@@ -169,7 +203,7 @@ public class Aria2WebSocketClientService {
         int attempt = connectionState.getReconnectAttempts().get();
         long delay  = (long) Aria2WebSocketConfig.RECONNECT_DELAY_MS * Math.min(attempt, 5);
 
-        log.debug("{} Scheduling reconnect in {}ms (attempt {})", TAG, delay, attempt);
+        log.warn("{} Scheduling Aria2 WebSocket reconnect in {}ms (attempt {})", TAG, delay, attempt);
         Thread t = new Thread(() -> {
             try { Thread.sleep(delay); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
             connectWithRetry();
@@ -207,7 +241,7 @@ public class Aria2WebSocketClientService {
             connectionState.getSession().sendMessage(new TextMessage(objectMapper.writeValueAsString(req)));
             mappingService.touchGid(gid);
         } catch (IOException e) {
-            log.debug("{} Failed to request status for GID {}: {}", TAG, gid, e.getMessage());
+            log.warn("{} Failed to request status for GID {}: {}", TAG, gid, e.getMessage());
         }
     }
 
@@ -292,14 +326,14 @@ public class Aria2WebSocketClientService {
 
         @Override
         public void handleTransportError(WebSocketSession session, Throwable ex) {
-            log.debug("{} Transport error: {}", TAG, ex.getMessage());
+            log.warn("{} Transport error: {}", TAG, ex.getMessage(), ex);
             connectionState.getIsConnected().set(false);
             if (!jobStore.getAllActiveGids().isEmpty()) scheduleReconnect();
         }
 
         @Override
         public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-            log.debug("{} Connection closed: {}", TAG, status);
+            log.info("{} Connection closed: {}", TAG, status);
             connectionState.getIsConnected().set(false);
             if (!jobStore.getAllActiveGids().isEmpty()) scheduleReconnect();
         }
@@ -321,7 +355,7 @@ public class Aria2WebSocketClientService {
                     handleResponse(ctx.getResponse());
                 }
             } catch (Exception e) {
-                log.debug("{} Message handling error", TAG, e);
+                log.warn("{} Message handling error", TAG, e);
             }
         }
 

@@ -40,6 +40,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public ApiResponse<UserDto> register(@Valid @RequestBody CreateUserRequest request) {
+        log.debug("register called for email={}", request.getEmail());
         UserDto createdUser = userService.createUser(request);
         log.info("New user registered: {}", createdUser.getEmail());
         return ApiResponse.success("User registered successfully", createdUser);
@@ -83,6 +84,7 @@ public class AuthController {
             @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken
     ) {
         if (refreshToken == null || refreshToken.isBlank()) {
+            log.warn("Refresh-token request missing cookie");
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error(HttpStatus.UNAUTHORIZED, "No refresh token cookie"));
@@ -101,6 +103,7 @@ public class AuthController {
     public ApiResponse<Map<String, Object>> verifyToken(Authentication authentication) {
 
         if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("Verify endpoint hit without authenticated principal");
             throw new RuntimeException("Invalid authentication");
         }
 
@@ -108,6 +111,8 @@ public class AuthController {
                 .stream()
                 .map(GrantedAuthority::getAuthority)
                 .toList();
+
+        log.debug("verify ok for user [{}], roles={}", authentication.getName(), roles);
 
         return ApiResponse.success(Map.of(
                 "username", authentication.getName(),
@@ -121,6 +126,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout(
             @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken
     ) {
+        log.debug("logout called (hasRefreshCookie={})", refreshToken != null && !refreshToken.isBlank());
         if (refreshToken != null && !refreshToken.isBlank()) {
             try {
                 authenticationService.revokeRefreshToken(refreshToken);
@@ -128,6 +134,7 @@ public class AuthController {
                 log.warn("Logout: refresh token revocation skipped — {}", e.getMessage());
             }
         }
+        log.info("User logged out");
 
         return ResponseEntity.ok()
                 .header(SET_COOKIE, removeCookie(REFRESH_TOKEN_COOKIE_NAME).toString())

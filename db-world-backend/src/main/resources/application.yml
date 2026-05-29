@@ -3,7 +3,9 @@ spring:
     name: db-world
 
   config:
-    import: optional:file:../runtime/backend.env
+    # [.properties] hint tells Spring Boot to parse this shell-style env file as
+    # java.util.Properties — without it, SB ignores unknown extensions silently.
+    import: optional:file:../runtime/backend.env[.properties]
 
   # =========================================================
   # Database

@@ -7,6 +7,7 @@ import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +17,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class WatchProgressService {
+
+    /** Threshold (fraction) above which a save is treated as a "completed" milestone. */
+    private static final double COMPLETION_THRESHOLD = 0.95;
 
     private final WatchProgressRepository       repository;
     private final UserCinemaActivityRepository  userCinemaActivityRepository;
@@ -53,12 +58,28 @@ public class WatchProgressService {
         // Phase 3 — backfill user_cinema_activity.watch_progress_id for STREAM rows
         // whose /resolve happened before the user first ticked progress. Idempotent:
         // the setter no-ops when the FK is already populated.
-        repository.findByUserIdAndFileId(userId, fileId).ifPresent(wp ->
+        // We also reuse this read for milestone logging (avoid a second DB hit on the
+        // hot per-second-save path).
+        Optional<WatchProgressEntity> saved = repository.findByUserIdAndFileId(userId, fileId);
+        saved.ifPresent(wp ->
                 userCinemaActivityRepository
                         .findByUserIdAndMediaFileIdAndActivityType(userId, fileId, ActivityType.STREAM)
                         .filter(uca -> uca.getWatchProgressId() == null)
                         .ifPresent(uca -> userCinemaActivityRepository
                                 .setWatchProgressIdById(uca.getId(), wp.getId())));
+
+        // Milestone logging — keep per-second ticks at DEBUG; promote to INFO only when
+        // the user has reached the ≥95% completion threshold (will fire repeatedly on
+        // subsequent saves near the end of a file — acceptable for "completed" status).
+        boolean completed = durationMs != null && durationMs > 0 && positionMs != null
+                && ((double) positionMs / (double) durationMs) >= COMPLETION_THRESHOLD;
+        if (completed) {
+            log.info("Watch progress at completion (≥95%): userId={}, fileId={}, recordId={}, positionMs={}, durationMs={}",
+                    userId, fileId, recordId, positionMs, durationMs);
+        } else {
+            log.debug("Watch progress saved: userId={}, fileId={}, positionMs={}, durationMs={}",
+                    userId, fileId, positionMs, durationMs);
+        }
     }
 
     public Optional<ProgressDto> getProgress(Long userId, String fileId) {

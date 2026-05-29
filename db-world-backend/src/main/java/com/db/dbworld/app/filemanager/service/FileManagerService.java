@@ -60,6 +60,7 @@ public class FileManagerService {
             resolved = rel.isEmpty() ? base : base.resolve(rel).normalize();
         }
         if (!resolved.startsWith(base)) {
+            log.warn("Path traversal attempt blocked: {}", rawPath);
             throw new SecurityException("Path traversal attempt blocked: " + rawPath);
         }
         return resolved;
@@ -138,6 +139,7 @@ public class FileManagerService {
     // â”€â”€ API methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public FileListDto listDirectory(String path, String sortBy, String order) throws IOException {
+        log.debug("listDirectory path={} sortBy={} order={}", path, sortBy, order);
         Path dir = jailed(path);
         if (!Files.isDirectory(dir)) throw new IllegalArgumentException("Not a directory: " + path);
 
@@ -178,6 +180,7 @@ public class FileManagerService {
     }
 
     public List<FileItemDto> searchFiles(String path, String query, boolean recursive) throws IOException {
+        log.debug("searchFiles path={} query={} recursive={}", path, query, recursive);
         Path root = jailed(path);
         if (query == null || query.isBlank()) {
             return List.of();
@@ -217,6 +220,7 @@ public class FileManagerService {
     }
 
     public void downloadFile(String path, HttpServletResponse response) throws IOException {
+        log.info("downloadFile path={}", path);
         Path file = jailed(path);
         if (!Files.isRegularFile(file)) throw new IllegalArgumentException("Not a file: " + path);
         String filename = URLEncoder.encode(file.getFileName().toString(), StandardCharsets.UTF_8)
@@ -227,10 +231,14 @@ public class FileManagerService {
         try (InputStream in = Files.newInputStream(file);
              OutputStream out = response.getOutputStream()) {
             in.transferTo(out);
+        } catch (IOException e) {
+            log.error("Failed to stream download for path={}", path, e);
+            throw e;
         }
     }
 
     public FileUploadResultDto uploadFiles(String path, MultipartFile[] files) throws IOException {
+        log.info("uploadFiles path={} fileCount={}", path, files != null ? files.length : 0);
         Path dir = jailed(path);
         if (!Files.isDirectory(dir)) throw new IllegalArgumentException("Upload target is not a directory");
 
@@ -250,6 +258,7 @@ public class FileManagerService {
             Path dest = jailed(path + "/" + name);
             try {
                 f.transferTo(dest);
+                log.info("Uploaded file '{}' to {} ({} bytes)", name, path, f.getSize());
                 uploaded.add(toDto(dest));
             } catch (java.nio.file.AccessDeniedException e) {
                 errors.add(FileUploadErrorDto.builder()
@@ -262,7 +271,7 @@ public class FileManagerService {
                     .fileName(name)
                     .error(e.getMessage() != null ? e.getMessage() : "Upload failed")
                     .build());
-                log.error("Failed to upload {} to {}: {}", name, path, e.getMessage());
+                log.error("Failed to upload {} to {}", name, path, e);
             }
         }
 
@@ -277,6 +286,7 @@ public class FileManagerService {
 
     /** Issues a one-time download ticket valid for {@value TICKET_TTL_MS}ms. */
     public String issueDownloadTicket(String path) {
+        log.debug("issueDownloadTicket path={}", path);
         // Validate path exists and is a file before issuing a ticket
         Path file = jailed(path);
         if (!Files.isRegularFile(file)) throw new IllegalArgumentException("Not a file: " + path);
@@ -287,6 +297,7 @@ public class FileManagerService {
 
         String ticketId = UUID.randomUUID().toString();
         downloadTickets.put(ticketId, new DownloadTicket(path, now.plusMillis(TICKET_TTL_MS)));
+        log.info("Issued download ticket for path={} (ttlMs={})", path, TICKET_TTL_MS);
         return ticketId;
     }
 
@@ -294,6 +305,7 @@ public class FileManagerService {
     public void downloadFileWithTicket(String ticketId, HttpServletResponse response) throws IOException {
         DownloadTicket ticket = downloadTickets.remove(ticketId);
         if (ticket == null || ticket.expiresAt().isBefore(Instant.now())) {
+            log.warn("Download ticket expired or invalid: {}", ticketId);
             response.sendError(HttpServletResponse.SC_GONE, "Download ticket expired or invalid");
             return;
         }
@@ -301,19 +313,28 @@ public class FileManagerService {
     }
 
     public FileItemDto createDirectory(String parentPath, String name) throws IOException {
+        log.info("createDirectory parent={} name={}", parentPath, name);
         Path parent = jailed(parentPath); // validates parentPath is within jail and exists
         if (!Files.isDirectory(parent)) throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
         if (name.contains("/") || name.contains("\\") || name.contains("..")) {
+            log.warn("createDirectory rejected invalid name: {}", name);
             throw new IllegalArgumentException("Invalid folder name: " + name);
         }
         Path newDir = jailed(parentPath + "/" + name);
-        Files.createDirectory(newDir);
+        try {
+            Files.createDirectory(newDir);
+        } catch (IOException e) {
+            log.error("Failed to create directory {} under {}", name, parentPath, e);
+            throw e;
+        }
         return toDto(newDir);
     }
 
     public FileItemDto renameItem(String path, String newName) throws IOException {
+        log.info("renameItem path={} newName={}", path, newName);
         Path source = jailed(path);
         if (newName.contains("/") || newName.contains("\\") || newName.contains("..")) {
+            log.warn("renameItem rejected invalid name: {}", newName);
             throw new IllegalArgumentException("Invalid name: " + newName);
         }
         Path dest = jailed(toRelative(source.getParent()) + "/" + newName);
@@ -322,11 +343,15 @@ public class FileManagerService {
             Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(source, dest);
+        } catch (IOException e) {
+            log.error("renameItem failed path={} newName={}", path, newName, e);
+            throw e;
         }
         return toDto(dest);
     }
 
     public FileItemDto moveItem(String sourcePath, String destinationPath) throws IOException {
+        log.info("moveItem source={} dest={}", sourcePath, destinationPath);
         Path source = jailed(sourcePath);
         Path destDir = jailed(destinationPath);
         if (!Files.isDirectory(destDir)) throw new IllegalArgumentException("Destination must be a directory");
@@ -336,20 +361,29 @@ public class FileManagerService {
             Files.move(source, dest, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(source, dest);
+        } catch (IOException e) {
+            log.error("moveItem failed source={} dest={}", sourcePath, destinationPath, e);
+            throw e;
         }
         return toDto(dest);
     }
 
     public FileItemDto copyItem(String sourcePath, String destinationPath) throws IOException {
+        log.info("copyItem source={} dest={}", sourcePath, destinationPath);
         Path source = jailed(sourcePath);
         Path destDir = jailed(destinationPath);
         if (!Files.isDirectory(destDir)) throw new IllegalArgumentException("Destination must be a directory");
         Path dest = jailed(destinationPath + "/" + source.getFileName().toString());
-        if (Files.isDirectory(source)) {
-            copyDirRecursive(source, dest);
-        } else {
-            if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
-            Files.copy(source, dest);
+        try {
+            if (Files.isDirectory(source)) {
+                copyDirRecursive(source, dest);
+            } else {
+                if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
+                Files.copy(source, dest);
+            }
+        } catch (IOException e) {
+            log.error("copyItem failed source={} dest={}", sourcePath, destinationPath, e);
+            throw e;
         }
         return toDto(dest);
     }
@@ -374,12 +408,18 @@ public class FileManagerService {
     }
 
     public void deleteItem(String path) throws IOException {
+        log.info("deleteItem path={}", path);
         Path target = jailed(path);
         if (!Files.exists(target)) throw new NoSuchFileException(path);
-        if (Files.isDirectory(target)) {
-            deleteDirectoryRecursive(target);
-        } else {
-            Files.delete(target);
+        try {
+            if (Files.isDirectory(target)) {
+                deleteDirectoryRecursive(target);
+            } else {
+                Files.delete(target);
+            }
+        } catch (IOException e) {
+            log.error("deleteItem failed path={}", path, e);
+            throw e;
         }
     }
 
@@ -390,7 +430,7 @@ public class FileManagerService {
                 try {
                     Files.delete(p);
                 } catch (IOException e) {
-                    log.warn("Could not delete {}: {}", p, e.getMessage());
+                    log.warn("Could not delete {}", p, e);
                     throw new IOException("Failed to delete " + p + ": " + e.getMessage(), e);
                 }
             }

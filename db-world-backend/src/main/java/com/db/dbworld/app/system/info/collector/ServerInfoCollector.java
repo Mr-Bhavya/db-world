@@ -3,8 +3,8 @@ package com.db.dbworld.app.system.info.collector;
 import com.db.dbworld.core.processor.GenericStreamProcessor;
 import com.db.dbworld.core.processor.ProcessExecutor;
 import com.db.dbworld.app.system.info.dto.*;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 
 import java.io.File;
@@ -277,9 +277,10 @@ public abstract class ServerInfoCollector {
     }
 
     protected JsonNode parseJson(String json) {
+        // Jackson 3's JacksonException no longer extends IOException — explicit catch.
         try {
             return OBJECT_MAPPER.readTree(json);
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             return OBJECT_MAPPER.createObjectNode();
         }
     }

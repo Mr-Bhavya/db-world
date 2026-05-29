@@ -5,6 +5,7 @@ import com.db.dbworld.infrastructure.logging.dto.LogFormat;
 import com.db.dbworld.infrastructure.logging.dto.LogType;
 import com.db.dbworld.payloads.ApiResponse;
 import com.db.dbworld.config.AppConstants;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Log4j2
 @RestController
 @RequestMapping("/api/logs")
 @EnableMethodSecurity
@@ -45,9 +47,11 @@ public class LogsController {
             LogsService.LogResponse response = logsService.getLogs(type, format, lines, minutes);
             return ResponseEntity.ok(ApiResponse.success(response.getData()));
         } catch (IllegalArgumentException e) {
+            log.warn("Invalid logs request source={} type={}: {}", source, type, e.getMessage());
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(HttpStatus.BAD_REQUEST, "Invalid parameters: " + e.getMessage()));
         } catch (IOException e) {
+            log.error("Error reading logs source={} type={}", source, type, e);
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error reading logs: " + e.getMessage()));
         }
@@ -120,6 +124,7 @@ public class LogsController {
             emitter.onError((e)     -> cleanup(sessionId));
 
         } catch (Exception e) {
+            log.error("SSE follow setup failed sessionId={} source={} type={}", sessionId, source, type, e);
             cleanup(sessionId);
             emitter.completeWithError(e);
         }

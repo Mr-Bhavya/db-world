@@ -53,7 +53,7 @@ public class InMemoryTrackingService implements TrackingService {
             if (isTerminal(newStatus)) {
                 markFinished(jobId, state);
             }
-            log.debug("[{}] Status: {} → {}", jobId, current, newStatus);
+            log.info("[{}] Status transition {} → {}", jobId, current, newStatus);
         } else {
             log.warn("[{}] Illegal transition {} → {} ignored", jobId, current, newStatus);
         }
@@ -62,9 +62,10 @@ public class InMemoryTrackingService implements TrackingService {
     @Override
     public void updateStep(String jobId, PipelineStepType step) {
         JobState state = getOrCreate(jobId);
+        PipelineStepType previous = state.step.get();
         state.step.set(step);
         state.logCollector.info(step.name(), "Step → " + step);
-        log.debug("[{}] Step → {}", jobId, step);
+        log.info("[{}] Step transition {} → {}", jobId, previous, step);
     }
 
     @Override

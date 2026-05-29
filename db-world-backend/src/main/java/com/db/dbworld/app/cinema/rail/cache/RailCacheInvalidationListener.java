@@ -3,9 +3,11 @@ package com.db.dbworld.app.cinema.rail.cache;
 import com.db.dbworld.app.cinema.common.events.BulkRecordChangedEvent;
 import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+@Log4j2
 @Component
 @RequiredArgsConstructor
 public class RailCacheInvalidationListener {
@@ -18,6 +20,7 @@ public class RailCacheInvalidationListener {
 
     @EventListener
     public void handleRecordChange(RecordChangedEvent event) {
+        log.debug("RecordChangedEvent received; recordId={}", event.recordId());
         cacheService.evictByRecord(event.recordId());
     }
 
@@ -27,6 +30,7 @@ public class RailCacheInvalidationListener {
 
     @EventListener
     public void handleBulkChange(BulkRecordChangedEvent event) {
+        log.debug("BulkRecordChangedEvent received");
         cacheService.evictAll();
     }
 }

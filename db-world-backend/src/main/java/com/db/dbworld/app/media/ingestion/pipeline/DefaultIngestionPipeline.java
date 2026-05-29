@@ -10,6 +10,7 @@ import com.db.dbworld.app.media.ingestion.tracking.*;
 import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.apache.logging.log4j.ThreadContext;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,6 +58,11 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
     @Override
     public String start(IngestionRequest request) {
         String jobId = UUID.randomUUID().toString();
+        log.debug("start jobId={} uri={} recordId={} localFilePath={}",
+                jobId,
+                request != null ? request.getUri() : null,
+                request != null ? request.getRecordId() : null,
+                request != null ? request.getLocalFilePath() : null);
 
         IngestionContext ctx = new IngestionContext();
         ctx.setJobId(jobId);
@@ -69,6 +75,11 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
         jobStore.register(jobId, request);
         trackingService.updateStatus(jobId, MirrorStatus.QUEUED);
         ctx.setLogCollector(trackingService.getLogCollector(jobId));
+
+        log.info("[{}] Pipeline submitted — uri={}, recordId={}",
+                jobId,
+                request != null ? request.getUri() : null,
+                request != null ? request.getRecordId() : null);
 
         jobExecutor.submit(() -> execute(ctx));
         return jobId;
@@ -92,11 +103,14 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
 
     private void execute(IngestionContext ctx) {
         String jobId = ctx.getJobId();
+        ThreadContext.put("traceId", "job-" + jobId);
         final String recordName = resolveRecordName(ctx.getRequest().getRecordId());
         try {
             trackingService.updateStatus(jobId, MirrorStatus.STARTED);
             ctx.setStatus(MirrorStatus.STARTED);
             ctx.log("PIPELINE", "Job started: " + jobId);
+            log.info("[{}] Pipeline execute START — recordName={}, recordId={}",
+                    jobId, recordName, ctx.getRequest().getRecordId());
 
             // ── Local file shortcut (link-existing) ──────────────────────────
             String localFilePath = ctx.getRequest().getLocalFilePath();
@@ -184,6 +198,8 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                 downloadQueue.signalComplete(jobId);
             }
             jobStore.remove(jobId);
+            log.debug("[{}] Pipeline execute END", jobId);
+            ThreadContext.clearAll();
         }
     }
 

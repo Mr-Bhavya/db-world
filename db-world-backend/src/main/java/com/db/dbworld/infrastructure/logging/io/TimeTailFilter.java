@@ -1,9 +1,12 @@
 package com.db.dbworld.infrastructure.logging.io;
 
+import lombok.extern.log4j.Log4j2;
+
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Log4j2
 public class TimeTailFilter {
 
     public static List<String> filterByCutoff(
@@ -20,11 +23,16 @@ public class TimeTailFilter {
             int end = line.indexOf('"', start);
             if (end < 0) continue;
 
-            OffsetDateTime ts =
-                    OffsetDateTime.parse(line.substring(start, end));
+            try {
+                OffsetDateTime ts =
+                        OffsetDateTime.parse(line.substring(start, end));
 
-            if (ts.isAfter(cutoff)) {
-                out.add(line);
+                if (ts.isAfter(cutoff)) {
+                    out.add(line);
+                }
+            } catch (Exception e) {
+                String sample = line.length() > 200 ? line.substring(0, 200) : line;
+                log.debug("Skipping line with unparseable timestamp (sample='{}')", sample, e);
             }
         }
 

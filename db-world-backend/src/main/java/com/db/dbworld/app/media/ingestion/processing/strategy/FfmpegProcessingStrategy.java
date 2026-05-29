@@ -66,6 +66,9 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     @Override
     public ProcessingResult process(IngestionContext ctx) {
+        log.debug("[{}] FfmpegProcessingStrategy.process — sourceFile={}",
+                ctx.getJobId(),
+                ctx.getDownload() != null ? ctx.getDownload().getFilePath() : null);
         ProcessingResult result = new ProcessingResult();
         try {
             Path sourceFile = ctx.getDownload().getFilePath();
@@ -202,6 +205,8 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             latestDto = finalDto;
 
             symlinkService.create(finalDto.getId(), finalDto.getFilePath());
+            log.info("[{}] FFmpeg processing complete — finalFile={}, mediaFileId={}",
+                    ctx.getJobId(), finalFile.getFileName(), finalDto.getId());
 
             result.setFinalFile(finalFile);
             result.setSuccess(true);
@@ -212,8 +217,17 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             // Roll back the persisted media-file record so it doesn't appear as an orphan in the UI
             String orphanPath = latestDto.getFilePath();
             if (orphanPath != null) {
+                log.error("[{}] FFmpeg processing failed — rolling back orphan media-file record: {}",
+                        ctx.getJobId(), orphanPath, e);
                 ctx.logError("FFMPEG", "Rolling back orphan media-file record: " + orphanPath);
-                try { mediaInfoService.deleteByFilePath(orphanPath); } catch (Exception ignored) {}
+                try {
+                    mediaInfoService.deleteByFilePath(orphanPath);
+                } catch (Exception rollbackEx) {
+                    log.warn("[{}] Rollback of orphan record failed for {}: {}",
+                            ctx.getJobId(), orphanPath, rollbackEx.getMessage(), rollbackEx);
+                }
+            } else {
+                log.error("[{}] FFmpeg processing failed (no orphan to roll back)", ctx.getJobId(), e);
             }
             if (e instanceof IOException) throw (IOException) e;
             throw new IOException(e);
