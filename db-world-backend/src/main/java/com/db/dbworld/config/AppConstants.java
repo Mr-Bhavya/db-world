@@ -18,10 +18,6 @@ public final class AppConstants {
 
     public enum RecordType { MOVIE, SERIES }
 
-    /** @deprecated Use {@link RecordType} */
-    @Deprecated(forRemoval = true)
-    public enum RECORD_TYE { MOVIE, SERIES }
-
     // ── File access ───────────────────────────────────────────────────────────
 
     public enum FileAccessType { STREAM, DOWNLOAD }
