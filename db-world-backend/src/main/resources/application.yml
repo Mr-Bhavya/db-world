@@ -6,8 +6,9 @@ spring:
   # Startup-time tunings (prod-safe)
   # =========================================================
   main:
-    # Banner adds nothing in production logs and costs a few ms.
-    banner-mode: off
+    # Banner adds nothing in production logs and costs a few ms. Quoted so
+    # YAML doesn't coerce `off` to the boolean false (Spring Boot 4 strict).
+    banner-mode: "off"
   # Most JMX exporters are unused; disabling skips MBean registration.
   jmx:
     enabled: false
@@ -46,16 +47,15 @@ spring:
       hibernate.jdbc.batch_size: 25
       hibernate.order_inserts: true
       hibernate.order_updates: true
-      # Skip the JDBC metadata round-trip during boot — saves ~1s. Safe because
-      # we pin the dialect explicitly below; Hibernate doesn't need to probe.
-      hibernate.boot.allow_jdbc_metadata_access: false
-      hibernate.dialect: org.hibernate.dialect.MySQLDialect
       # Pad IN-clause parameters to a power of 2 → fewer distinct
       # PreparedStatements → better query plan cache hit rate.
       hibernate.query.in_clause_parameter_padding: true
-      # We never autocommit individual statements; tells Hibernate it can skip
-      # the JDBC autocommit toggle around each unit of work.
-      hibernate.connection.provider_disables_autocommit: true
+      # NOTE: removed `hibernate.dialect` and `hibernate.boot.allow_jdbc_metadata_access`
+      # — Hibernate 7 auto-detects MySQL from the URL and the explicit dialect
+      # produced HHH90000025 (deprecation). Also removed
+      # `hibernate.connection.provider_disables_autocommit=true` — HikariCP
+      # defaults to auto-commit=true, so claiming the provider disables it
+      # broke transactional commits with "Can't call commit when autocommit=true".
     naming:
       physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
 
@@ -191,6 +191,12 @@ logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
     org.hibernate: ${HIBERNATE_LOG_LEVEL:WARN}
+    # ddl-auto=update re-issues all CREATE INDEX / ADD CONSTRAINT statements on
+    # every boot; once the schema is established MySQL rejects them as
+    # "Duplicate key name" / "Duplicate foreign key constraint". Hibernate logs
+    # each at WARN with a full stack — pure boot noise. Bumping just this logger
+    # to ERROR keeps real schema-tool failures visible while silencing the spam.
+    org.hibernate.tool.schema.internal.ExceptionHandlerLoggedImpl: ERROR
     org.springframework: ${SPRING_LOG_LEVEL:INFO}
     com.db.dbworld: ${APP_LOG_LEVEL:DEBUG}
 

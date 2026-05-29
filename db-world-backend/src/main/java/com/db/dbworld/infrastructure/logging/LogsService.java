@@ -240,14 +240,19 @@ public class LogsService {
     /** Efficient reverse-tail using ReversedLinesFileReader, returns chronological order */
     private List<String> tailLines(Path path, int max) throws IOException {
         List<String> result = new ArrayList<>(Math.min(max, 4096));
-        try (ReversedLinesFileReader reader = new ReversedLinesFileReader(
-                path.toFile(), BUFFER_SIZE, StandardCharsets.UTF_8)) {
+        // commons-io 2.20+ replaced the constructor with a builder; the old
+        // ctor is @Deprecated and produces a warning under -Xlint:deprecation.
+        try (ReversedLinesFileReader reader = ReversedLinesFileReader.builder()
+                .setPath(path)
+                .setBufferSize(BUFFER_SIZE)
+                .setCharset(StandardCharsets.UTF_8)
+                .get()) {
             String line;
             while ((line = reader.readLine()) != null && result.size() < max) {
                 if (!line.isBlank()) result.add(line);
             }
         }
-        Collections.reverse(result); // oldest â†’ newest
+        Collections.reverse(result); // oldest -> newest
         return result;
     }
 

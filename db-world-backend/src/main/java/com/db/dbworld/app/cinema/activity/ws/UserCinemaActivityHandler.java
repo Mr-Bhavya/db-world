@@ -5,6 +5,7 @@ import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
 import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.security.auth.JwtService;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
@@ -101,7 +102,10 @@ public class UserCinemaActivityHandler extends TextWebSocketHandler {
                 return;
             }
 
-            Map<String, Object> request = objectMapper.readValue(payload, Map.class);
+            // TypeReference (not raw Map.class) gives the deserializer a proper
+            // parameterized target and silences the unchecked-cast warning.
+            Map<String, Object> request = objectMapper.readValue(
+                    payload, new TypeReference<Map<String, Object>>() {});
             String action = (String) request.get("action");
 
             if (isAdmin(userRole)) {

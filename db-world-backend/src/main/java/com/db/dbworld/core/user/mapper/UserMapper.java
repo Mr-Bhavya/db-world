@@ -5,7 +5,12 @@ import com.db.dbworld.core.user.dto.*;
 import com.db.dbworld.core.user.entity.UserEntity;
 import org.mapstruct.*;
 
-@Mapper(componentModel = "spring")
+// unmappedTargetPolicy=IGNORE — UserEntity has many fields that are populated
+// by the persistence layer (audit dates, refresh tokens, password manager
+// entries) or computed (age, login counts) and never come from request DTOs.
+// Listing them all as @Mapping(ignore=true) adds 10+ lines per method without
+// changing behavior.
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserMapper {
 
     // ✅ Entity → Response DTO

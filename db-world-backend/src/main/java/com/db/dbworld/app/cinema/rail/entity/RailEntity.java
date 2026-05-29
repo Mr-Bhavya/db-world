@@ -26,11 +26,14 @@ public class RailEntity {
 
     private Integer priority;
 
+    @Builder.Default
     private Integer limitSize = 20;
 
+    @Builder.Default
     private boolean active = true;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean infiniteScroll = true;
 
     /**
