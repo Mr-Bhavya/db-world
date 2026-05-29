@@ -55,6 +55,7 @@ public class SchedulerAdminService {
             // TaskScheduler path is skipped for FIXED_DELAY jobs.
             SchedulerJobConfigEntity.builder().jobId("MediaSync")
                     .jobType(JobType.FIXED_DELAY).intervalSeconds(60)
+                    .stabilityWindowSeconds(5)
                     .enabled(true).displayOrder(4).build()
     );
 
@@ -168,11 +169,19 @@ public class SchedulerAdminService {
                 .map(c -> {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("id",              c.getJobId());
-                    m.put("name",            displayName(c.getJobId()));
+                    // Admin-overridden displayName wins; fall back to the
+                    // hardcoded default for the job id so legacy rows /
+                    // newly-seeded jobs still render a sensible label.
+                    m.put("name", (c.getDisplayName() != null && !c.getDisplayName().isBlank())
+                            ? c.getDisplayName()
+                            : displayName(c.getJobId()));
+                    m.put("defaultName",     displayName(c.getJobId()));
                     m.put("jobType",         c.getJobType().name());
-                    if (c.getCronExpression() != null) m.put("cronExpression", c.getCronExpression());
-                    if (c.getIntervalSeconds() != null) m.put("intervalSeconds", c.getIntervalSeconds());
-                    if (c.getTimezone() != null)        m.put("timezone",       c.getTimezone());
+                    if (c.getCronExpression() != null)        m.put("cronExpression",        c.getCronExpression());
+                    if (c.getIntervalSeconds() != null)       m.put("intervalSeconds",       c.getIntervalSeconds());
+                    if (c.getStabilityWindowSeconds() != null) m.put("stabilityWindowSeconds", c.getStabilityWindowSeconds());
+                    if (c.getTimezone() != null)              m.put("timezone",              c.getTimezone());
+                    if (c.getNotes() != null && !c.getNotes().isBlank()) m.put("notes", c.getNotes());
                     m.put("enabled",         c.isEnabled());
                     m.put("status",          jobStatus.getOrDefault(c.getJobId(), "IDLE"));
                     m.put("description",     description(c.getJobId(), unsyncedPersons));
@@ -248,6 +257,51 @@ public class SchedulerAdminService {
         config.setIntervalSeconds(intervalSeconds);
         configRepo.save(config);
         log.info("Job {} interval updated to {}s (effective next tick)", jobId, intervalSeconds);
+    }
+
+    /**
+     * Partial update — any subset of {@code displayName}, {@code notes}, or
+     * {@code stabilityWindowSeconds} may be set. Null/missing values leave the
+     * existing column untouched; empty strings clear the override and fall
+     * back to defaults. Used by the consolidated PATCH endpoint so the admin
+     * UI doesn't need a separate request per field.
+     */
+    @Transactional
+    public void updateSettings(String jobId,
+                               String displayName,
+                               String notes,
+                               Integer stabilityWindowSeconds) {
+        SchedulerJobConfigEntity config = configRepo.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown job: " + jobId));
+
+        if (displayName != null) {
+            // Empty string → clear override (fall back to code-side default).
+            config.setDisplayName(displayName.isBlank() ? null : displayName);
+        }
+        if (notes != null) {
+            config.setNotes(notes.isBlank() ? null : notes);
+        }
+        if (stabilityWindowSeconds != null) {
+            if (stabilityWindowSeconds < 0) {
+                throw new IllegalArgumentException("stabilityWindowSeconds must be >= 0");
+            }
+            config.setStabilityWindowSeconds(stabilityWindowSeconds);
+        }
+        configRepo.save(config);
+        log.info("Job {} settings updated (displayName={}, notes={}chars, stabilityWindow={}s)",
+                jobId,
+                config.getDisplayName(),
+                config.getNotes() != null ? config.getNotes().length() : 0,
+                config.getStabilityWindowSeconds());
+    }
+
+    /** Reads the stability window for a job, falling back to {@code defaultSec} if unset. */
+    public int stabilityWindowSeconds(String jobId, int defaultSec) {
+        return configRepo.findById(jobId)
+                .map(SchedulerJobConfigEntity::getStabilityWindowSeconds)
+                .filter(java.util.Objects::nonNull)
+                .filter(i -> i >= 0)
+                .orElse(defaultSec);
     }
 
     @Transactional

@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, Chip,
   IconButton, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Tooltip,
   LinearProgress, Switch, alpha, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Alert, Drawer,
+  ToggleButton, ToggleButtonGroup, Divider, MenuItem, Stack,
 } from '@mui/material';
 import {
   Schedule, PlayArrow, Refresh, CheckCircle,
   Error as ErrorIcon, History, Timer, Code,
   Edit as EditIcon, DragIndicator, Close as CloseIcon,
-  Autorenew, Sync,
+  Autorenew, Sync, StickyNote2,
 } from '@mui/icons-material';
 import { Reorder, useDragControls, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -27,6 +28,7 @@ const api = {
   toggle:  (jobId)              => axiosInstance.patch(`/api/admin/scheduler/toggle/${jobId}`),
   updateCron:     (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/cron/${jobId}`,     body),
   updateInterval: (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/interval/${jobId}`, body),
+  updateSettings: (jobId, body) => axiosInstance.patch(`/api/admin/scheduler/jobs/${jobId}`,     body),
   reorder: (orders)             => axiosInstance.patch('/api/admin/scheduler/reorder', orders),
 };
 
@@ -68,48 +70,296 @@ function describeSchedule(job) {
   return expr;
 }
 
+// ─── Cron expression parser / builder ────────────────────────────────────────
+/**
+ * Parses a Spring 6-field cron expression into a "kind + parameters" shape
+ * the visual builder can edit. Falls back to {kind:'CUSTOM', raw} for
+ * anything we don't recognise so the user can still hand-edit.
+ *
+ * Spring layout: second minute hour day-of-month month day-of-week
+ */
+function parseCron(expr) {
+  const parts = (expr ?? '').trim().split(/\s+/);
+  if (parts.length !== 6) return { kind: 'CUSTOM', raw: expr ?? '' };
+  const [sec, min, hour, dom, month, dow] = parts;
+  const isNum = (v) => /^\d+$/.test(v);
+
+  // Hourly: every N hours at minute M  →  `0 M */N * * *`
+  if (sec === '0' && isNum(min) && /^\*\/\d+$/.test(hour) && dom === '*' && month === '*' && dow === '*') {
+    return { kind: 'HOURLY', everyHours: parseInt(hour.split('/')[1], 10), minute: parseInt(min, 10) };
+  }
+  // Daily at HH:MM
+  if (sec === '0' && isNum(min) && isNum(hour) && dom === '*' && month === '*' && dow === '*') {
+    return { kind: 'DAILY', hour: parseInt(hour, 10), minute: parseInt(min, 10) };
+  }
+  // Weekly: comma-separated DOW names or numbers
+  if (sec === '0' && isNum(min) && isNum(hour) && dom === '*' && month === '*' && dow !== '*') {
+    return { kind: 'WEEKLY', hour: parseInt(hour, 10), minute: parseInt(min, 10), days: dow.split(',').map(d => d.trim()) };
+  }
+  // Monthly on day D
+  if (sec === '0' && isNum(min) && isNum(hour) && isNum(dom) && month === '*' && dow === '*') {
+    return { kind: 'MONTHLY', hour: parseInt(hour, 10), minute: parseInt(min, 10), day: parseInt(dom, 10) };
+  }
+  return { kind: 'CUSTOM', raw: expr };
+}
+
+function buildCron(parsed) {
+  switch (parsed.kind) {
+    case 'HOURLY':  return `0 ${parsed.minute} */${parsed.everyHours} * * *`;
+    case 'DAILY':   return `0 ${parsed.minute} ${parsed.hour} * * *`;
+    case 'WEEKLY':  return `0 ${parsed.minute} ${parsed.hour} * * ${(parsed.days ?? []).join(',') || 'MON'}`;
+    case 'MONTHLY': return `0 ${parsed.minute} ${parsed.hour} ${parsed.day} * *`;
+    case 'CUSTOM':  return parsed.raw;
+    default:        return '';
+  }
+}
+
+const DOW_OPTIONS = [
+  { value: 'MON', label: 'Mon' }, { value: 'TUE', label: 'Tue' },
+  { value: 'WED', label: 'Wed' }, { value: 'THU', label: 'Thu' },
+  { value: 'FRI', label: 'Fri' }, { value: 'SAT', label: 'Sat' },
+  { value: 'SUN', label: 'Sun' },
+];
+
+/**
+ * Preset-driven cron builder. Renders mode tabs (Hourly / Daily / Weekly /
+ * Monthly / Custom) with the appropriate inputs per mode, plus the raw
+ * expression + a live human description below for verification.
+ */
+function CronBuilder({ value, onChange, color }) {
+  const T = useT();
+  const [parsed, setParsed] = useState(() => parseCron(value));
+
+  // Reconcile if parent value changes externally (e.g. when the dialog re-opens).
+  useEffect(() => { setParsed(parseCron(value)); }, [value]);
+
+  const update = (next) => {
+    setParsed(next);
+    onChange(buildCron(next));
+  };
+
+  const human = useMemo(() => {
+    const expr = buildCron(parsed);
+    return describeSchedule({ cronExpression: expr, jobType: 'CRON' });
+  }, [parsed]);
+
+  const inputSx = {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
+      '& fieldset':             { borderColor: T.glassBorder },
+      '&:hover fieldset':       { borderColor: color },
+      '&.Mui-focused fieldset': { borderColor: color },
+    },
+    '& .MuiInputLabel-root': { color: T.textMuted },
+    '& .MuiInputLabel-root.Mui-focused': { color: color },
+  };
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <ToggleButtonGroup
+        value={parsed.kind} exclusive size="small"
+        onChange={(_, kind) => {
+          if (!kind) return;
+          // Sensible defaults per mode so swapping doesn't produce garbage cron.
+          const fresh = (
+            kind === 'HOURLY'  ? { kind, everyHours: 1, minute: 0 } :
+            kind === 'DAILY'   ? { kind, hour: 2, minute: 0 } :
+            kind === 'WEEKLY'  ? { kind, hour: 2, minute: 0, days: ['MON'] } :
+            kind === 'MONTHLY' ? { kind, hour: 2, minute: 0, day: 1 } :
+                                 { kind: 'CUSTOM', raw: buildCron(parsed) }
+          );
+          update(fresh);
+        }}
+        sx={{ flexWrap: 'wrap',
+          '& .MuiToggleButton-root': {
+            fontSize: '0.72rem', textTransform: 'none', px: 1.5, py: 0.4,
+            color: T.textMuted, borderColor: T.border,
+            '&.Mui-selected': { bgcolor: `${color}1f`, color, borderColor: `${color}55` },
+          } }}>
+        <ToggleButton value="HOURLY">Hourly</ToggleButton>
+        <ToggleButton value="DAILY">Daily</ToggleButton>
+        <ToggleButton value="WEEKLY">Weekly</ToggleButton>
+        <ToggleButton value="MONTHLY">Monthly</ToggleButton>
+        <ToggleButton value="CUSTOM">Custom</ToggleButton>
+      </ToggleButtonGroup>
+
+      {parsed.kind === 'HOURLY' && (
+        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>Every</Typography>
+          <TextField select size="small" value={parsed.everyHours}
+            onChange={e => update({ ...parsed, everyHours: parseInt(e.target.value, 10) })}
+            sx={{ width: 90, ...inputSx }}>
+            {[1, 2, 3, 4, 6, 8, 12].map(n => <MenuItem key={n} value={n}>{n} hour{n>1?'s':''}</MenuItem>)}
+          </TextField>
+          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>at minute</Typography>
+          <TextField select size="small" value={parsed.minute}
+            onChange={e => update({ ...parsed, minute: parseInt(e.target.value, 10) })}
+            sx={{ width: 90, ...inputSx }}>
+            {[0, 5, 10, 15, 20, 30, 45].map(n => <MenuItem key={n} value={n}>:{String(n).padStart(2,'0')}</MenuItem>)}
+          </TextField>
+        </Stack>
+      )}
+
+      {parsed.kind === 'DAILY' && (
+        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>At</Typography>
+          <TextField select size="small" value={parsed.hour}
+            onChange={e => update({ ...parsed, hour: parseInt(e.target.value, 10) })}
+            sx={{ width: 90, ...inputSx }}>
+            {Array.from({ length: 24 }, (_, i) => <MenuItem key={i} value={i}>{String(i).padStart(2,'0')}</MenuItem>)}
+          </TextField>
+          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>:</Typography>
+          <TextField select size="small" value={parsed.minute}
+            onChange={e => update({ ...parsed, minute: parseInt(e.target.value, 10) })}
+            sx={{ width: 90, ...inputSx }}>
+            {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(n => <MenuItem key={n} value={n}>{String(n).padStart(2,'0')}</MenuItem>)}
+          </TextField>
+        </Stack>
+      )}
+
+      {parsed.kind === 'WEEKLY' && (
+        <Stack sx={{ gap: 1 }}>
+          <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
+            {DOW_OPTIONS.map(d => {
+              const on = parsed.days?.includes(d.value);
+              return (
+                <Chip key={d.value} label={d.label} size="small" clickable
+                  onClick={() => {
+                    const next = on
+                        ? (parsed.days ?? []).filter(x => x !== d.value)
+                        : [...(parsed.days ?? []), d.value];
+                    update({ ...parsed, days: next.length ? next : ['MON'] });
+                  }}
+                  sx={{ fontSize: '0.72rem', height: 26,
+                    bgcolor: on ? `${color}22` : T.glass,
+                    color:   on ? color : T.textMuted,
+                    border: `1px solid ${on ? color + '55' : T.border}` }} />
+              );
+            })}
+          </Stack>
+          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>at</Typography>
+            <TextField select size="small" value={parsed.hour}
+              onChange={e => update({ ...parsed, hour: parseInt(e.target.value, 10) })}
+              sx={{ width: 90, ...inputSx }}>
+              {Array.from({ length: 24 }, (_, i) => <MenuItem key={i} value={i}>{String(i).padStart(2,'0')}</MenuItem>)}
+            </TextField>
+            <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>:</Typography>
+            <TextField select size="small" value={parsed.minute}
+              onChange={e => update({ ...parsed, minute: parseInt(e.target.value, 10) })}
+              sx={{ width: 90, ...inputSx }}>
+              {[0, 15, 30, 45].map(n => <MenuItem key={n} value={n}>{String(n).padStart(2,'0')}</MenuItem>)}
+            </TextField>
+          </Stack>
+        </Stack>
+      )}
+
+      {parsed.kind === 'MONTHLY' && (
+        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>Day</Typography>
+          <TextField select size="small" value={parsed.day}
+            onChange={e => update({ ...parsed, day: parseInt(e.target.value, 10) })}
+            sx={{ width: 90, ...inputSx }}>
+            {Array.from({ length: 28 }, (_, i) => <MenuItem key={i+1} value={i+1}>{i+1}</MenuItem>)}
+          </TextField>
+          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>at</Typography>
+          <TextField select size="small" value={parsed.hour}
+            onChange={e => update({ ...parsed, hour: parseInt(e.target.value, 10) })}
+            sx={{ width: 90, ...inputSx }}>
+            {Array.from({ length: 24 }, (_, i) => <MenuItem key={i} value={i}>{String(i).padStart(2,'0')}</MenuItem>)}
+          </TextField>
+          <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>:</Typography>
+          <TextField select size="small" value={parsed.minute}
+            onChange={e => update({ ...parsed, minute: parseInt(e.target.value, 10) })}
+            sx={{ width: 90, ...inputSx }}>
+            {[0, 15, 30, 45].map(n => <MenuItem key={n} value={n}>{String(n).padStart(2,'0')}</MenuItem>)}
+          </TextField>
+        </Stack>
+      )}
+
+      {parsed.kind === 'CUSTOM' && (
+        <TextField size="small" label="Cron Expression"
+          value={parsed.raw ?? ''} onChange={e => update({ kind: 'CUSTOM', raw: e.target.value })}
+          sx={{ ...inputSx, '& .MuiOutlinedInput-root': { ...inputSx['& .MuiOutlinedInput-root'], fontFamily: 'monospace' } }}
+          helperText="second minute hour day-of-month month day-of-week" />
+      )}
+
+      {/* Preview */}
+      <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 1, p: 1 }}>
+        <Typography sx={{ fontSize: '0.66rem', color: T.textFaint, textTransform: 'uppercase',
+          letterSpacing: '0.08em', mb: 0.25 }}>
+          Result
+        </Typography>
+        <Typography sx={{ fontSize: '0.78rem', color, fontFamily: 'monospace' }}>
+          {buildCron(parsed)}
+        </Typography>
+        <Typography sx={{ fontSize: '0.72rem', color: T.textMuted, mt: 0.25 }}>
+          {human}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+// ─── Shared settings section (displayName + notes) ────────────────────────────
+function SettingsSection({ displayName, notes, defaultName, onDisplayName, onNotes, color }) {
+  const T = useT();
+  const inputSx = {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
+      '& fieldset':             { borderColor: T.glassBorder },
+      '&:hover fieldset':       { borderColor: color },
+      '&.Mui-focused fieldset': { borderColor: color },
+    },
+    '& .MuiInputLabel-root': { color: T.textMuted },
+    '& .MuiInputLabel-root.Mui-focused': { color: color },
+  };
+  return (
+    <Stack sx={{ gap: 1.5 }}>
+      <TextField size="small" label="Display name" value={displayName ?? ''}
+        onChange={e => onDisplayName(e.target.value)}
+        placeholder={defaultName ?? ''}
+        helperText={`Leave empty to use the default${defaultName ? ` ("${defaultName}")` : ''}`}
+        sx={inputSx} />
+      <TextField size="small" label="Notes" value={notes ?? ''}
+        onChange={e => onNotes(e.target.value)}
+        multiline minRows={2} maxRows={4}
+        helperText="Your own annotation, shown beneath the system description"
+        sx={inputSx} />
+    </Stack>
+  );
+}
+
 // ─── Edit Cron Dialog (CRON jobs only) ────────────────────────────────────────
 function EditCronDialog({ open, job, onClose, onSave }) {
   const T = useT();
-  const [cron, setCron]   = useState('');
-  const [tz, setTz]       = useState('');
-  const [error, setError] = useState('');
+  const [cron, setCron]               = useState('');
+  const [tz, setTz]                   = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [notes, setNotes]             = useState('');
 
   useEffect(() => {
     if (open && job) {
       setCron(job.cronExpression ?? '');
       setTz(job.timezone ?? '');
-      setError('');
+      setDisplayName(job.name && job.name !== job.defaultName ? job.name : '');
+      setNotes(job.notes ?? '');
     }
   }, [open, job]);
 
-  const validate = () => {
-    const parts = cron.trim().split(/\s+/);
-    if (parts.length !== 6) { setError('Spring cron needs 6 parts: second minute hour day month weekday'); return false; }
-    setError('');
-    return true;
-  };
-
   const handleSave = () => {
-    if (!validate()) return;
-    onSave(job.id, { cronExpression: cron.trim(), timezone: tz.trim() || undefined });
+    const parts = (cron ?? '').trim().split(/\s+/);
+    if (parts.length !== 6) return; // builder won't normally produce invalid expr, but defend
+    onSave(job.id, {
+      cronExpression: cron.trim(),
+      timezone:       tz.trim() || undefined,
+      displayName,
+      notes,
+    });
   };
 
   if (!job) return null;
   const meta = JOB_META[job.id] ?? { color: T.teal };
-
-  const inputSx = {
-    '& .MuiOutlinedInput-root': {
-      bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
-      fontFamily: 'monospace',
-      '& fieldset': { borderColor: T.glassBorder },
-      '&:hover fieldset': { borderColor: meta.color },
-      '&.Mui-focused fieldset': { borderColor: meta.color },
-    },
-    '& .MuiInputLabel-root': { color: T.textMuted },
-    '& .MuiInputLabel-root.Mui-focused': { color: meta.color },
-    '& .MuiFormHelperText-root': { color: T.error },
-  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
@@ -117,29 +367,47 @@ function EditCronDialog({ open, job, onClose, onSave }) {
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.text }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Schedule sx={{ color: meta.color, fontSize: 20 }} />
-          Edit Schedule — {JOB_META[job.id]?.label ?? job.id}
+          Edit — {JOB_META[job.id]?.label ?? job.id}
         </Box>
         <IconButton size="small" onClick={onClose} sx={{ color: T.textFaint }}>
           <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <Alert severity="info" sx={{ bgcolor: `${meta.color}14`, color: T.textMuted, border: `1px solid ${meta.color}33`, fontSize: 12,
-          '& .MuiAlert-icon': { color: meta.color } }}>
-          Spring cron: <code>second minute hour day-of-month month day-of-week</code><br />
-          Examples: <code>0 0 2 * * *</code> = daily 2AM &nbsp;·&nbsp; <code>0 0 */6 * * *</code> = every 6h
-        </Alert>
-        <TextField size="small" label="Cron Expression" value={cron} onChange={e => { setCron(e.target.value); setError(''); }}
-          sx={inputSx} error={!!error} helperText={error || describeSchedule({ ...job, cronExpression: cron, timezone: tz || job.timezone })} />
+        <Typography sx={{ fontSize: '0.7rem', color: T.textFaint, textTransform: 'uppercase',
+          letterSpacing: '0.08em', fontWeight: 700 }}>Schedule</Typography>
+
+        <CronBuilder value={cron} onChange={setCron} color={meta.color} />
+
         <TextField size="small" label="Timezone (optional)" value={tz} onChange={e => setTz(e.target.value)}
-          placeholder="Asia/Kolkata" sx={{ ...inputSx, '& .MuiOutlinedInput-root': { ...inputSx['& .MuiOutlinedInput-root'], fontFamily: 'inherit' } }}
-          helperText="Leave blank to keep current timezone" />
+          placeholder="Asia/Kolkata"
+          helperText="Leave blank to keep current timezone"
+          sx={{
+            '& .MuiOutlinedInput-root': { bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
+              '& fieldset': { borderColor: T.glassBorder },
+              '&:hover fieldset': { borderColor: meta.color },
+              '&.Mui-focused fieldset': { borderColor: meta.color } },
+            '& .MuiInputLabel-root': { color: T.textMuted },
+            '& .MuiInputLabel-root.Mui-focused': { color: meta.color },
+          }} />
+
+        <Divider sx={{ borderColor: T.border }} />
+
+        <Typography sx={{ fontSize: '0.7rem', color: T.textFaint, textTransform: 'uppercase',
+          letterSpacing: '0.08em', fontWeight: 700 }}>Labels</Typography>
+
+        <SettingsSection
+          displayName={displayName} notes={notes}
+          defaultName={job.defaultName ?? JOB_META[job.id]?.label ?? job.id}
+          onDisplayName={setDisplayName} onNotes={setNotes}
+          color={meta.color}
+        />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
         <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
         <Button variant="contained" onClick={handleSave}
           sx={{ bgcolor: meta.color, '&:hover': { bgcolor: meta.color }, fontWeight: 600 }}>
-          Save Schedule
+          Save Changes
         </Button>
       </DialogActions>
     </Dialog>
@@ -149,27 +417,34 @@ function EditCronDialog({ open, job, onClose, onSave }) {
 // ─── Edit Interval Dialog (FIXED_DELAY jobs only) ─────────────────────────────
 function EditIntervalDialog({ open, job, onClose, onSave }) {
   const T = useT();
-  const [seconds, setSeconds] = useState(60);
-  const [error, setError]     = useState('');
+  const [seconds, setSeconds]             = useState(60);
+  const [stability, setStability]         = useState(5);
+  const [displayName, setDisplayName]     = useState('');
+  const [notes, setNotes]                 = useState('');
+  const [error, setError]                 = useState('');
 
   useEffect(() => {
     if (open && job) {
       setSeconds(job.intervalSeconds ?? 60);
+      setStability(job.stabilityWindowSeconds ?? 5);
+      setDisplayName(job.name && job.name !== job.defaultName ? job.name : '');
+      setNotes(job.notes ?? '');
       setError('');
     }
   }, [open, job]);
 
-  const validate = () => {
-    const n = parseInt(seconds, 10);
-    if (!Number.isFinite(n) || n <= 0) { setError('Interval must be a positive integer'); return false; }
-    if (n > 86400) { setError('Interval over 24 hours — use a cron job instead'); return false; }
-    setError('');
-    return true;
-  };
-
   const handleSave = () => {
-    if (!validate()) return;
-    onSave(job.id, { intervalSeconds: parseInt(seconds, 10) });
+    const n = parseInt(seconds, 10);
+    if (!Number.isFinite(n) || n <= 0)  { setError('Interval must be a positive integer'); return; }
+    if (n > 86400) { setError('Interval over 24 hours — use a cron job instead'); return; }
+    const sw = parseInt(stability, 10);
+    if (!Number.isFinite(sw) || sw < 0) { setError('Stability window must be 0 or a positive integer'); return; }
+    onSave(job.id, {
+      intervalSeconds:        n,
+      stabilityWindowSeconds: sw,
+      displayName,
+      notes,
+    });
   };
 
   if (!job) return null;
@@ -178,8 +453,8 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
   const inputSx = {
     '& .MuiOutlinedInput-root': {
       bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
-      '& fieldset': { borderColor: T.glassBorder },
-      '&:hover fieldset': { borderColor: meta.color },
+      '& fieldset':             { borderColor: T.glassBorder },
+      '&:hover fieldset':       { borderColor: meta.color },
       '&.Mui-focused fieldset': { borderColor: meta.color },
     },
     '& .MuiInputLabel-root': { color: T.textMuted },
@@ -199,12 +474,12 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
   })();
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
       PaperProps={{ sx: { bgcolor: T.sidebar ?? T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.text }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Autorenew sx={{ color: meta.color, fontSize: 20 }} />
-          Edit Interval — {JOB_META[job.id]?.label ?? job.id}
+          Edit — {JOB_META[job.id]?.label ?? job.id}
         </Box>
         <IconButton size="small" onClick={onClose} sx={{ color: T.textFaint }}>
           <CloseIcon sx={{ fontSize: 18 }} />
@@ -214,12 +489,16 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
         <Alert severity="info" sx={{ bgcolor: `${meta.color}14`, color: T.textMuted,
           border: `1px solid ${meta.color}33`, fontSize: 12,
           '& .MuiAlert-icon': { color: meta.color } }}>
-          Fixed-delay job. Change takes effect on the next tick — no restart.
+          Fixed-delay job. Interval &amp; stability window read live from DB on each tick — no restart.
         </Alert>
+
+        <Typography sx={{ fontSize: '0.7rem', color: T.textFaint, textTransform: 'uppercase',
+          letterSpacing: '0.08em', fontWeight: 700 }}>Schedule</Typography>
+
         <TextField size="small" label="Interval (seconds)" type="number" value={seconds}
           onChange={e => { setSeconds(e.target.value); setError(''); }}
           inputProps={{ min: 1, max: 86400, step: 1 }}
-          sx={inputSx} error={!!error} helperText={error || human} autoFocus />
+          sx={inputSx} error={!!error && error.includes('Interval')} helperText={error.includes('Interval') ? error : human} autoFocus />
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {[30, 60, 120, 300, 600, 1800].map(s => (
             <Chip key={s} label={`${s}s`} size="small" clickable
@@ -233,12 +512,39 @@ function EditIntervalDialog({ open, job, onClose, onSave }) {
               }} />
           ))}
         </Box>
+
+        {/* Stability window — only shown for MediaSync-style jobs that use it.
+            The field on the job is null for jobs that don't, so we only show it
+            when the job already has a value or when this is MediaSync. */}
+        {(job.id === 'MediaSync' || job.stabilityWindowSeconds != null) && (
+          <>
+            <TextField size="small" label="Stability window (seconds)" type="number" value={stability}
+              onChange={e => { setStability(e.target.value); setError(''); }}
+              inputProps={{ min: 0, max: 600, step: 1 }}
+              sx={inputSx}
+              error={!!error && error.includes('Stability')}
+              helperText={error.includes('Stability') ? error
+                : 'Files modified within the last N seconds are skipped this tick (defends against half-written files)'} />
+          </>
+        )}
+
+        <Divider sx={{ borderColor: T.border }} />
+
+        <Typography sx={{ fontSize: '0.7rem', color: T.textFaint, textTransform: 'uppercase',
+          letterSpacing: '0.08em', fontWeight: 700 }}>Labels</Typography>
+
+        <SettingsSection
+          displayName={displayName} notes={notes}
+          defaultName={job.defaultName ?? JOB_META[job.id]?.label ?? job.id}
+          onDisplayName={setDisplayName} onNotes={setNotes}
+          color={meta.color}
+        />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
         <Button onClick={onClose} sx={{ color: T.textMuted }}>Cancel</Button>
         <Button variant="contained" onClick={handleSave}
           sx={{ bgcolor: meta.color, '&:hover': { bgcolor: meta.color }, fontWeight: 600 }}>
-          Save Interval
+          Save Changes
         </Button>
       </DialogActions>
     </Dialog>
@@ -428,6 +734,18 @@ function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, tri
                   <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.72rem' }, color: T.textFaint, mt: 0.3, lineHeight: 1.4 }}>
                     {job.description}
                   </Typography>
+                  {job.notes && (
+                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, alignItems: 'flex-start',
+                      bgcolor: alpha(meta.color, 0.06),
+                      border: `1px solid ${alpha(meta.color, 0.18)}`,
+                      borderRadius: 0.75, px: 0.75, py: 0.5 }}>
+                      <StickyNote2 sx={{ fontSize: 12, color: meta.color, mt: 0.15, flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: '0.7rem', color: T.textMuted,
+                        lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                        {job.notes}
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
               </Box>
               <Tooltip title={job.enabled !== false ? 'Disable job' : 'Enable job'}>
@@ -564,24 +882,39 @@ export default function SchedulerPanel() {
     onError: () => enqueueSnackbar('Toggle failed', { variant: 'error' }),
   });
 
-  const cronMutation = useMutation({
-    mutationFn: ({ jobId, body }) => api.updateCron(jobId, body),
+  /**
+   * Composite save: writes any of (cron|interval) + (displayName/notes/stability)
+   * in parallel. The backend has separate endpoints because cron/interval
+   * trigger re-scheduling and the settings endpoint doesn't, but the UI
+   * presents one Save action.
+   */
+  const saveMutation = useMutation({
+    mutationFn: async ({ jobId, body }) => {
+      const tasks = [];
+      if (body.cronExpression !== undefined) {
+        tasks.push(api.updateCron(jobId, {
+          cronExpression: body.cronExpression,
+          timezone:       body.timezone,
+        }));
+      }
+      if (body.intervalSeconds !== undefined) {
+        tasks.push(api.updateInterval(jobId, { intervalSeconds: body.intervalSeconds }));
+      }
+      const settings = {};
+      if (body.displayName            !== undefined) settings.displayName            = body.displayName;
+      if (body.notes                  !== undefined) settings.notes                  = body.notes;
+      if (body.stabilityWindowSeconds !== undefined) settings.stabilityWindowSeconds = body.stabilityWindowSeconds;
+      if (Object.keys(settings).length > 0) {
+        tasks.push(api.updateSettings(jobId, settings));
+      }
+      return Promise.all(tasks);
+    },
     onSuccess: () => {
-      enqueueSnackbar('Schedule updated', { variant: 'success' });
+      enqueueSnackbar('Saved — changes take effect on next tick', { variant: 'success' });
       setEditJob(null);
       qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
     },
-    onError: () => enqueueSnackbar('Failed to update schedule', { variant: 'error' }),
-  });
-
-  const intervalMutation = useMutation({
-    mutationFn: ({ jobId, body }) => api.updateInterval(jobId, body),
-    onSuccess: () => {
-      enqueueSnackbar('Interval updated — effective next tick', { variant: 'success' });
-      setEditJob(null);
-      qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
-    },
-    onError: () => enqueueSnackbar('Failed to update interval', { variant: 'error' }),
+    onError: () => enqueueSnackbar('Save failed', { variant: 'error' }),
   });
 
   const reorderMutation = useMutation({
@@ -665,18 +998,18 @@ export default function SchedulerPanel() {
         </AnimatePresence>
       </Reorder.Group>
 
-      {/* ── Edit dialog — branches on jobType ── */}
+      {/* ── Edit dialog — branches on jobType, single save mutation ── */}
       <EditCronDialog
         open={!!editJob && editJob?.jobType !== 'FIXED_DELAY'}
         job={editJob?.jobType !== 'FIXED_DELAY' ? editJob : null}
         onClose={() => setEditJob(null)}
-        onSave={(jobId, body) => cronMutation.mutate({ jobId, body })}
+        onSave={(jobId, body) => saveMutation.mutate({ jobId, body })}
       />
       <EditIntervalDialog
         open={!!editJob && editJob?.jobType === 'FIXED_DELAY'}
         job={editJob?.jobType === 'FIXED_DELAY' ? editJob : null}
         onClose={() => setEditJob(null)}
-        onSave={(jobId, body) => intervalMutation.mutate({ jobId, body })}
+        onSave={(jobId, body) => saveMutation.mutate({ jobId, body })}
       />
 
       {/* ── Per-job History Drawer ── */}

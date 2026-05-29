@@ -99,6 +99,22 @@ public class MediaSyncService {
     private final SchedulerJobConfigRepository  schedulerConfigRepo;
     private final SchedulerJobHistoryRepository schedulerHistoryRepo;
 
+    /**
+     * Live stability window. Read from {@code scheduler_job_config.stability_window_seconds}
+     * on each scan; falls back to {@link MediaSyncProperties#stabilityWindow()}
+     * if the column is null (admin hasn't set it). Code-side default is the
+     * one bound from {@code dbworld.media-sync.stability-window} in
+     * application.yml (5s).
+     */
+    private long currentStabilityWindowMs() {
+        return schedulerConfigRepo.findById(JOB_ID)
+                .map(c -> c.getStabilityWindowSeconds())
+                .filter(java.util.Objects::nonNull)
+                .filter(i -> i >= 0)
+                .map(i -> i * 1000L)
+                .orElseGet(() -> props.stabilityWindow().toMillis());
+    }
+
     /** Wall-clock millis when the most recent scan finished — exposed for diagnostics. */
     private final AtomicLong lastScanCompletedAt = new AtomicLong(0);
 
@@ -268,7 +284,7 @@ public class MediaSyncService {
     private int applyAdditions(Set<String> paths, Map<String, FileSnapshot> snapshots) {
         if (paths.isEmpty()) return 0;
         int count = 0;
-        long stabilityCutoff = System.currentTimeMillis() - props.stabilityWindow().toMillis();
+        long stabilityCutoff = System.currentTimeMillis() - currentStabilityWindowMs();
 
         for (String pathStr : paths) {
             var snap = snapshots.get(pathStr);

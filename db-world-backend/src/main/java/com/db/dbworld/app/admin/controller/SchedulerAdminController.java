@@ -94,6 +94,34 @@ public class SchedulerAdminController {
         return ApiResponse.success("Interval updated for " + jobName);
     }
 
+    /**
+     * Consolidated partial-update endpoint. Accepts any combination of
+     * {@code displayName} (string, "" to clear override),
+     * {@code notes} (string, "" to clear), and
+     * {@code stabilityWindowSeconds} (non-negative int).
+     * Cron and interval each have their own dedicated endpoint above —
+     * they trigger re-scheduling and deserve separate paths.
+     */
+    @PatchMapping("/jobs/{jobName}")
+    @AdminAccess
+    public ApiResponse<Void> updateSettings(
+            @PathVariable String jobName,
+            @RequestBody Map<String, Object> body) {
+        String displayName = body.containsKey("displayName") ? String.valueOf(body.get("displayName")) : null;
+        String notes       = body.containsKey("notes")       ? String.valueOf(body.get("notes"))       : null;
+        Integer stability  = null;
+        if (body.get("stabilityWindowSeconds") instanceof Number n) {
+            stability = n.intValue();
+        } else if (body.containsKey("stabilityWindowSeconds") && body.get("stabilityWindowSeconds") != null) {
+            return ApiResponse.error(HttpStatus.BAD_REQUEST,
+                    "stabilityWindowSeconds must be a non-negative integer");
+        }
+        log.info("Admin updating job={} settings (displayName={}, notes={}chars, stability={})",
+                jobName, displayName, notes != null ? notes.length() : 0, stability);
+        schedulerAdminService.updateSettings(jobName, displayName, notes, stability);
+        return ApiResponse.success("Settings updated for " + jobName);
+    }
+
     @PatchMapping("/reorder")
     @AdminAccess
     public ApiResponse<Void> reorder(@RequestBody List<Map<String, Object>> orders) {

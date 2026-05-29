@@ -44,6 +44,34 @@ public class SchedulerJobConfigEntity {
     @Column(name = "interval_seconds")
     private Integer intervalSeconds;
 
+    /**
+     * Job-specific stability window (currently used by MediaSync — number of
+     * seconds since mtime that a file is considered "still being written" and
+     * skipped). Null falls back to a code-side default. Stored on this entity
+     * rather than a per-job parameters table because we have exactly one
+     * consumer; promote to a JSON parameters column if a second consumer ever
+     * needs its own knob.
+     */
+    @Column(name = "stability_window_seconds")
+    private Integer stabilityWindowSeconds;
+
+    /**
+     * Admin-supplied display label override. When null, the service falls
+     * back to the hardcoded {@code displayName(jobId)} switch. Lets the admin
+     * rename "TmdbMovieSync" to "🎬 Movies Sync" without touching code.
+     */
+    @Column(name = "display_name", length = 200)
+    private String displayName;
+
+    /**
+     * Admin's own notes — free-text annotation surfaced beneath the
+     * code-generated description in the UI. Kept separate from the
+     * description so PersonSync's dynamic "(N pending)" suffix stays
+     * intact.
+     */
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
