@@ -59,4 +59,7 @@ springdoc:
 logging:
   level:
     root: INFO
-    com.db.dbworld: INFO
+    # DEBUG so com.db.dbworld DEBUG events reach log4j2's LevelRangeFilter and
+    # land in db-world-debug.log. INFO+ still routes to db-world-info.log
+    # (different appender filter), so this does not inflate info-log volume.
+    com.db.dbworld: DEBUG
