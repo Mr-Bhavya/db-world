@@ -14,6 +14,8 @@ public class TmdbChangeResponse {
     @Data
     public static class ChangeItem {
         private Long id;
-        private boolean adult;
+        // TMDB occasionally returns null for `adult` on /tv/changes and /movie/changes;
+        // keep this as the boxed type so a null payload doesn't fail the whole batch.
+        private Boolean adult;
     }
 }
