@@ -19,6 +19,9 @@ public interface MediaRequestService {
     /** Admin: list requests filtered by status (or all if null). */
     List<MediaRequestDto> listAll(MediaRequestStatus status, Long callerUserId);
 
+    /** Admin: cheap counter for the sidebar/dashboard pending-request badge. */
+    long countByStatus(MediaRequestStatus status);
+
     /** Admin: mark a request fulfilled and notify all voters. */
     MediaRequestDto fulfill(Long requestId, Long adminUserId, String adminUsername);
 

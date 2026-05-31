@@ -15,6 +15,8 @@ public interface CatalogIngestRequestRepository extends JpaRepository<CatalogIng
 
     Optional<CatalogIngestRequestEntity> findByTmdbIdAndMediaType(Long tmdbId, RecordType mediaType);
 
+    long countByStatus(CatalogIngestRequestStatus status);
+
     @Query("""
            SELECT r FROM CatalogIngestRequestEntity r
            LEFT JOIN FETCH r.voterUserIds

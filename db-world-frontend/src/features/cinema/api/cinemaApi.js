@@ -211,6 +211,10 @@ export const dismissCatalogRequest = (id, reason) =>
 export const reopenCatalogRequest = (id) =>
   axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/reopen`).then(unwrap);
 
+/** Cheap counter for sidebar/dashboard badge: { count: number }. */
+export const fetchAdminCatalogRequestsPendingCount = () =>
+  axiosInstance.get(`${BASE}/admin/catalog-requests/pending-count`).then(unwrap);
+
 // ─── Admin: Media Requests ────────────────────────────────────────────────────
 
 /** GET /api/cinema/admin/media-requests?status=PENDING → MediaRequestDto[] */
@@ -232,3 +236,7 @@ export const dismissMediaRequest = (id, reason) =>
 /** POST /api/cinema/admin/media-requests/{id}/reopen — undo fulfill/dismiss. */
 export const reopenMediaRequest = (id) =>
   axiosInstance.post(`${BASE}/admin/media-requests/${id}/reopen`).then(unwrap);
+
+/** Cheap counter for sidebar/dashboard badge: { count: number }. */
+export const fetchAdminMediaRequestsPendingCount = () =>
+  axiosInstance.get(`${BASE}/admin/media-requests/pending-count`).then(unwrap);

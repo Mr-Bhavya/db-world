@@ -10,6 +10,7 @@ import {
   Movie as MovieIcon, Tv, CheckCircle, Error, HourglassEmpty,
   Folder, Schedule, LocalOffer, ManageAccounts,
   Dashboard as DashboardIcon, Insights, WbSunny, NightsStay,
+  Inbox,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +18,7 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useAuth } from '@features/auth/context/Authentication';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
 
 
 // ─── Accent palette ────────────────────────────────────────────────────────────
@@ -71,7 +73,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
-const StatCard = ({ icon, label, value, sub, color, onClick, loading, badge }) => {
+const StatCard = ({ icon, label, value, sub, color, onClick, loading, badge, pulse }) => {
   const T = useT();
   const IconEl = icon;
   return (
@@ -83,12 +85,17 @@ const StatCard = ({ icon, label, value, sub, color, onClick, loading, badge }) =
       onClick={onClick}
       sx={{
         bgcolor: T.glass,
-        border: `1px solid ${T.border}`,
+        border: `1px solid ${pulse ? alpha(color, 0.45) : T.border}`,
         borderRadius: 3,
         cursor: onClick ? 'pointer' : 'default',
         backdropFilter: 'blur(12px)',
         overflow: 'hidden',
         position: 'relative',
+        animation: pulse ? 'statPulse 2.4s ease-in-out infinite' : 'none',
+        '@keyframes statPulse': {
+          '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(color, 0.35)}` },
+          '50%':      { boxShadow: `0 0 0 8px ${alpha(color, 0)}` },
+        },
         '&::before': {
           content: '""',
           position: 'absolute',
@@ -237,6 +244,9 @@ const AdminDashboard = () => {
   const [error,   setError]   = useState(null);
   const [now,     setNow]     = useState(new Date());
 
+  // Live pending counts (media + catalog) — drives the Pending Requests KPI card.
+  const pending = usePendingRequestCounts();
+
   const nav = useCallback((path) => navigate(`${Constants.DB_ADMIN_BASE_ROUTE}/${path}`), [navigate]);
 
   const load = useCallback(() => {
@@ -343,7 +353,16 @@ const AdminDashboard = () => {
         variants={stagger}
         initial="hidden"
         animate="show"
-        sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: 'repeat(2, 1fr)',
+            sm: 'repeat(3, 1fr)',
+            md: 'repeat(5, 1fr)',
+          },
+          gap: 2,
+          mb: 3,
+        }}
       >
         <StatCard
           icon={People} color={A.indigo}
@@ -376,6 +395,18 @@ const AdminDashboard = () => {
           badge={s?.sync?.failed > 0 ? `${s.sync.failed} failed` : null}
           loading={loading}
           onClick={() => nav('tmdb-sync')}
+        />
+        <StatCard
+          icon={Inbox} color={A.red}
+          label="Pending Requests"
+          value={pending.total}
+          sub={pending.total > 0
+            ? `${pending.media} media · ${pending.catalog} new titles`
+            : 'All caught up'}
+          badge={pending.total > 0 ? `${pending.total} new` : null}
+          loading={pending.isLoading}
+          onClick={() => nav('requests')}
+          pulse={pending.total > 0}
         />
       </Box>
 

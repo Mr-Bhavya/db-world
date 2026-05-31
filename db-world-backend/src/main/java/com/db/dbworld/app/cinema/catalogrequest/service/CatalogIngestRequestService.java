@@ -22,6 +22,9 @@ public interface CatalogIngestRequestService {
     /** Admin: list catalog ingest requests filtered by status (or all if null). */
     List<CatalogIngestRequestDto> listAll(CatalogIngestRequestStatus status, Long callerUserId);
 
+    /** Admin: cheap counter for the sidebar/dashboard pending-request badge. */
+    long countByStatus(CatalogIngestRequestStatus status);
+
     /**
      * Admin: ingest the TMDB title into the catalog. Calls TmdbIngestionService, marks
      * the request INGESTED, and notifies voters with a link to the newly created record.

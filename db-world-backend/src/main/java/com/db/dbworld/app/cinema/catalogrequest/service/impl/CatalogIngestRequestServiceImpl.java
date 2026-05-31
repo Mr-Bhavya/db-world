@@ -12,6 +12,8 @@ import com.db.dbworld.app.cinema.catalogrequest.entity.CatalogIngestRequestEntit
 import com.db.dbworld.app.cinema.catalogrequest.entity.CatalogIngestRequestStatus;
 import com.db.dbworld.app.cinema.catalogrequest.repository.CatalogIngestRequestRepository;
 import com.db.dbworld.app.cinema.catalogrequest.service.CatalogIngestRequestService;
+import com.db.dbworld.app.cinema.common.dto.VoterSummary;
+import com.db.dbworld.app.cinema.common.support.VoterListSupport;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
@@ -22,15 +24,19 @@ import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
+import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,6 +50,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
     private final MediaRequestRepository mediaRequestRepo;
     private final TmdbIngestionService ingestionService;
     private final UserNotificationService notifService;
+    private final UserRepository userRepo;
 
     @Override
     @Transactional
@@ -153,7 +160,21 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         List<CatalogIngestRequestEntity> rows = (status == null)
                 ? requestRepo.findAllWithVoters()
                 : requestRepo.findAllByStatusWithVoters(status);
-        return rows.stream().map(r -> toDto(r, callerUserId)).toList();
+
+        Set<Long> allVoterIds = rows.stream()
+                .map(CatalogIngestRequestEntity::getVoterUserIds)
+                .filter(s -> s != null && !s.isEmpty())
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+        Map<Long, VoterSummary> voterCache = loadVoterCache(allVoterIds);
+
+        return rows.stream().map(r -> toDto(r, callerUserId, voterCache)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByStatus(CatalogIngestRequestStatus status) {
+        return requestRepo.countByStatus(status);
     }
 
     @Override
@@ -165,7 +186,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
 
         if (request.getStatus() == CatalogIngestRequestStatus.INGESTED) {
             log.warn("Catalog ingest request already ingested, skipping: id={}", requestId);
-            return toDto(request, adminUserId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         // Drive the existing catalog pipeline so both the TMDB metadata row AND the
@@ -200,7 +221,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     /**
@@ -294,7 +315,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
 
         if (request.getStatus() == CatalogIngestRequestStatus.INGESTED) {
             log.warn("Catalog ingest request already ingested, skipping markFulfilledNoIngest: id={}", requestId);
-            return toDto(request, adminUserId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         // Reuse the INGESTED status so the row leaves the pending queue, but leave
@@ -319,7 +340,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     @Override
@@ -331,7 +352,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
 
         if (request.getStatus() == CatalogIngestRequestStatus.DISMISSED) {
             log.warn("Catalog ingest request already dismissed, skipping: id={}", requestId);
-            return toDto(request, adminUserId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         String trimmed = trimmedOrNull(reason);
@@ -358,7 +379,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     @Override
@@ -376,10 +397,10 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         request.setDismissReason(null);
         requestRepo.save(request);
         log.info("Catalog ingest request reopened by admin: id={}, prevStatus={}", requestId, prev);
-        return toDto(request, null);
+        return toDto(request, null, loadVoterCache(request.getVoterUserIds()));
     }
 
-    private CatalogIngestRequestDto toDto(CatalogIngestRequestEntity e, Long callerUserId) {
+    private CatalogIngestRequestDto toDto(CatalogIngestRequestEntity e, Long callerUserId, Map<Long, VoterSummary> voterCache) {
         Set<Long> voters = e.getVoterUserIds();
         return CatalogIngestRequestDto.builder()
                 .id(e.getId())
@@ -392,12 +413,17 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 .status(e.getStatus())
                 .voteCount(voters == null ? 0 : voters.size())
                 .hasMyVote(callerUserId != null && voters != null && voters.contains(callerUserId))
+                .voters(VoterListSupport.buildVoterList(voters, voterCache))
                 .createdAt(e.getCreatedAt())
                 .ingestedAt(e.getIngestedAt())
                 .ingestedByUsername(e.getIngestedByUsername())
                 .createdRecordId(e.getCreatedRecordId())
                 .dismissReason(e.getDismissReason())
                 .build();
+    }
+
+    private Map<Long, VoterSummary> loadVoterCache(Collection<Long> userIds) {
+        return VoterListSupport.loadVoterCache(userIds, userRepo);
     }
 
     private static String safeTitle(String raw) {

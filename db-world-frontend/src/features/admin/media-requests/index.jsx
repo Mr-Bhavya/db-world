@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   Box, Typography, Chip, IconButton, Tooltip, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  ToggleButton, ToggleButtonGroup, Avatar,
+  ToggleButton, ToggleButtonGroup,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
 } from '@mui/material';
 import {
@@ -18,6 +18,7 @@ import Constants from '@shared/constants';
 import {
   fetchAdminMediaRequests, fulfillMediaRequest, dismissMediaRequest, reopenMediaRequest,
 } from '@features/cinema/api/cinemaApi';
+import VotersPopover from '@features/admin/requests/components/VotersPopover';
 
 const STATUS_META = {
   PENDING:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: <HourglassEmpty sx={{ fontSize: 13 }} />, label: 'Pending' },
@@ -204,14 +205,7 @@ export default function MediaRequestsAdminPage() {
                     <KindChip kind={r.kind} />
                   </TableCell>
                   <TableCell align="center">
-                    <Avatar sx={{
-                      width: 28, height: 28, mx: 'auto',
-                      bgcolor: r.voteCount >= 5 ? '#10b98122' : r.voteCount >= 2 ? '#f59e0b22' : `${T.text}11`,
-                      color: r.voteCount >= 5 ? '#10b981' : r.voteCount >= 2 ? '#f59e0b' : T.textMuted,
-                      fontSize: 12, fontWeight: 800,
-                    }}>
-                      {r.voteCount}
-                    </Avatar>
+                    <VotersPopover voters={r.voters} voteCount={r.voteCount} />
                   </TableCell>
                   <TableCell>
                     <Tooltip title={r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}>

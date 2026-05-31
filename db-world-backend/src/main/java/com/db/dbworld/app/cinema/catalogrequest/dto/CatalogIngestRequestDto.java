@@ -1,11 +1,13 @@
 package com.db.dbworld.app.cinema.catalogrequest.dto;
 
 import com.db.dbworld.app.cinema.catalogrequest.entity.CatalogIngestRequestStatus;
+import com.db.dbworld.app.cinema.common.dto.VoterSummary;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @Builder
@@ -20,6 +22,7 @@ public class CatalogIngestRequestDto {
     private CatalogIngestRequestStatus status;
     private int voteCount;
     private boolean hasMyVote;
+    private List<VoterSummary> voters;
     private Instant createdAt;
     private Instant ingestedAt;
     private String ingestedByUsername;

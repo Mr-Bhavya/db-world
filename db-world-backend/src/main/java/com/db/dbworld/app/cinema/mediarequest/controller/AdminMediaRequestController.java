@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/cinema/admin/media-requests")
@@ -24,6 +25,15 @@ public class AdminMediaRequestController {
             @RequestParam(required = false) MediaRequestStatus status
     ) {
         return ApiResponse.success(service.listAll(status, userContext.userId()));
+    }
+
+    /**
+     * GET /api/cinema/admin/media-requests/pending-count — cheap counter for the
+     * sidebar/dashboard badge. Returns {@code { "count": N }}.
+     */
+    @GetMapping("/pending-count")
+    public ApiResponse<Map<String, Long>> pendingCount() {
+        return ApiResponse.success(Map.of("count", service.countByStatus(MediaRequestStatus.PENDING)));
     }
 
     /** POST /api/cinema/admin/media-requests/{id}/fulfill — mark fulfilled and notify voters. */

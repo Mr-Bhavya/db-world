@@ -15,6 +15,8 @@ public interface MediaRequestRepository extends JpaRepository<MediaRequestEntity
 
     Optional<MediaRequestEntity> findByRecordIdAndKind(Long recordId, MediaRequestKind kind);
 
+    long countByStatus(MediaRequestStatus status);
+
     @Query("""
            SELECT r FROM MediaRequestEntity r
            LEFT JOIN FETCH r.voterUserIds

@@ -2,6 +2,8 @@ package com.db.dbworld.app.cinema.mediarequest.service.impl;
 
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
+import com.db.dbworld.app.cinema.common.dto.VoterSummary;
+import com.db.dbworld.app.cinema.common.support.VoterListSupport;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestDto;
 import com.db.dbworld.app.cinema.mediarequest.dto.MediaRequestVoteResponse;
 import com.db.dbworld.app.cinema.mediarequest.dto.MyMediaRequestEntry;
@@ -12,15 +14,19 @@ import com.db.dbworld.app.cinema.mediarequest.repository.MediaRequestRepository;
 import com.db.dbworld.app.cinema.mediarequest.service.MediaRequestService;
 import com.db.dbworld.app.cinema.notification.service.UserNotificationService;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
+import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -29,6 +35,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
     private final MediaRequestRepository requestRepo;
     private final RecordRepository recordRepo;
+    private final UserRepository userRepo;
     private final UserNotificationService notifService;
 
     @Override
@@ -115,7 +122,21 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         List<MediaRequestEntity> rows = (status == null)
                 ? requestRepo.findAllWithVoters()
                 : requestRepo.findAllByStatusWithVoters(status);
-        return rows.stream().map(r -> toDto(r, callerUserId)).toList();
+
+        Set<Long> allVoterIds = rows.stream()
+                .map(MediaRequestEntity::getVoterUserIds)
+                .filter(s -> s != null && !s.isEmpty())
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+        Map<Long, VoterSummary> voterCache = loadVoterCache(allVoterIds);
+
+        return rows.stream().map(r -> toDto(r, callerUserId, voterCache)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByStatus(MediaRequestStatus status) {
+        return requestRepo.countByStatus(status);
     }
 
     @Override
@@ -127,7 +148,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
         if (request.getStatus() == MediaRequestStatus.FULFILLED) {
             log.warn("Media request already fulfilled, skipping: id={}", requestId);
-            return toDto(request, adminUserId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         request.setStatus(MediaRequestStatus.FULFILLED);
@@ -149,7 +170,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     @Override
@@ -161,7 +182,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
 
         if (request.getStatus() == MediaRequestStatus.DISMISSED) {
             log.warn("Media request already dismissed, skipping: id={}", requestId);
-            return toDto(request, adminUserId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         String trimmed = (reason == null || reason.isBlank()) ? null : reason.trim();
@@ -183,7 +204,7 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     @Override
@@ -200,10 +221,10 @@ public class MediaRequestServiceImpl implements MediaRequestService {
         request.setDismissReason(null);
         requestRepo.save(request);
         log.info("Media request reopened by admin: id={}, prevStatus={}", requestId, prev);
-        return toDto(request, null);
+        return toDto(request, null, loadVoterCache(request.getVoterUserIds()));
     }
 
-    private MediaRequestDto toDto(MediaRequestEntity e, Long callerUserId) {
+    private MediaRequestDto toDto(MediaRequestEntity e, Long callerUserId, Map<Long, VoterSummary> voterCache) {
         Set<Long> voters = e.getVoterUserIds();
         return MediaRequestDto.builder()
                 .id(e.getId())
@@ -214,10 +235,15 @@ public class MediaRequestServiceImpl implements MediaRequestService {
                 .status(e.getStatus())
                 .voteCount(voters == null ? 0 : voters.size())
                 .hasMyVote(callerUserId != null && voters != null && voters.contains(callerUserId))
+                .voters(VoterListSupport.buildVoterList(voters, voterCache))
                 .createdAt(e.getCreatedAt())
                 .fulfilledAt(e.getFulfilledAt())
                 .fulfilledByUsername(e.getFulfilledByUsername())
                 .dismissReason(e.getDismissReason())
                 .build();
+    }
+
+    private Map<Long, VoterSummary> loadVoterCache(Collection<Long> userIds) {
+        return VoterListSupport.loadVoterCache(userIds, userRepo);
     }
 }
