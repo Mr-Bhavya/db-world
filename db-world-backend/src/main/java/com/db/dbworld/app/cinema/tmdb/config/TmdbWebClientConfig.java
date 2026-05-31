@@ -13,10 +13,15 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.http.codec.json.JacksonJsonDecoder;
+import org.springframework.http.codec.json.JacksonJsonEncoder;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 
@@ -46,12 +51,25 @@ public class TmdbWebClientConfig {
                                 log.debug("TMDB connection established: {}", conn.channel().id())
                         );
 
+        // TMDB regularly returns `null` for primitive numeric/boolean fields
+        // (runtime, vote_count, adult, etc.) on ChangeItem, EpisodeTmdbResponse,
+        // and other endpoints. Without this relaxation, a single null primitive
+        // anywhere in the payload fails the whole batch decode. Scope is limited
+        // to this WebClient so app-internal JSON contracts stay strict.
+        JsonMapper tmdbJsonMapper = JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+                .build();
+
         ExchangeStrategies strategies =
                 ExchangeStrategies.builder()
-                        .codecs(configurer ->
-                                configurer.defaultCodecs()
-                                        .maxInMemorySize(10 * 1024 * 1024) // 10MB buffer
-                        )
+                        .codecs(configurer -> {
+                            configurer.defaultCodecs()
+                                    .maxInMemorySize(10 * 1024 * 1024); // 10MB buffer
+                            configurer.defaultCodecs()
+                                    .jacksonJsonDecoder(new JacksonJsonDecoder(tmdbJsonMapper));
+                            configurer.defaultCodecs()
+                                    .jacksonJsonEncoder(new JacksonJsonEncoder(tmdbJsonMapper));
+                        })
                         .build();
 
         return WebClient.builder()
