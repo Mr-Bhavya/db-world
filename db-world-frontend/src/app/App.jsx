@@ -33,6 +33,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { SnackbarProvider } from 'notistack';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
+import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -125,18 +126,41 @@ const LoadingFallback = () => (
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, reloading: false };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+    // For stale-chunk failures (old hashes 404 after a deploy) show a brief
+    // "updating" screen instead of the generic error card — componentDidCatch
+    // triggers the actual reload, or clears this flag if the loop guard fires.
+    return { hasError: true, error, reloading: isChunkLoadError(error) };
   }
 
   componentDidCatch(error, errorInfo) {
+    if (isChunkLoadError(error)) {
+      // New build deployed while this page was open — reload once to fetch the
+      // current chunks. If the guard suppresses it, fall through to the error UI.
+      if (reloadForStaleChunks()) return;
+      this.setState({ reloading: false });
+      return;
+    }
     console.error('Error caught by boundary:', error, errorInfo);
   }
 
   render() {
+    if (this.state.reloading) {
+      const isDark = localStorage.getItem('dbworld-theme') !== 'light';
+      return (
+        <div style={{ minHeight: '100vh', background: isDark ? '#000000' : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid rgba(13,148,136,0.25)', borderTopColor: '#0d9488', animation: 'spin 0.9s linear infinite' }} />
+          <div style={{ color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontSize: '0.875rem', letterSpacing: 0.5 }}>
+            Updating to the latest version…
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      );
+    }
+
     if (this.state.hasError) {
       const isDark = localStorage.getItem('dbworld-theme') !== 'light';
       const bg     = isDark ? '#000000' : '#ffffff';
