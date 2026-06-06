@@ -29,7 +29,6 @@ import com.tonyodev.fetch2.NetworkType;
 import com.tonyodev.fetch2.Priority;
 import com.tonyodev.fetch2.Request;
 import com.tonyodev.fetch2.Status;
-import com.tonyodev.fetch2.DefaultFetchNotificationManager;
 import com.tonyodev.fetch2core.Extras;
 import com.tonyodev.fetch2okhttp.OkHttpDownloader;
 
@@ -93,19 +92,19 @@ public class DbWorldDownloadPlugin extends Plugin {
                     .followSslRedirects(true)
                     .build();
 
+            // NOTE: deliberately NOT using Fetch's DefaultFetchNotificationManager.
+            // On targetSdk 34+ it crashes in registerBroadcastReceiver() because
+            // Fetch 3.1.6 (2021) calls the 2-arg Context.registerReceiver without
+            // RECEIVER_EXPORTED/NOT_EXPORTED. Core downloading works without it; the
+            // DownloadForegroundService shows a summary notification. Rich per-download
+            // notifications with action buttons are a follow-up (custom, SDK-34-safe
+            // FetchNotificationManager).
             FetchConfiguration config = new FetchConfiguration.Builder(getContext())
                     .setNamespace(NAMESPACE)
                     .setDownloadConcurrentLimit(CONCURRENT_LIMIT)
                     .setHttpDownloader(new OkHttpDownloader(client))
                     .enableRetryOnNetworkGain(true)          // auto-resume on reconnect
                     .setAutoRetryMaxAttempts(AUTO_RETRY_MAX) // retry transient failures
-                    .setNotificationManager(new DefaultFetchNotificationManager(getContext()) {
-                        @NonNull
-                        @Override
-                        public Fetch getFetchInstanceForNamespace(@NonNull String namespace) {
-                            return fetch; // assigned just below; called lazily on notif events
-                        }
-                    })
                     .build();
 
             fetch = Fetch.Impl.getInstance(config);
