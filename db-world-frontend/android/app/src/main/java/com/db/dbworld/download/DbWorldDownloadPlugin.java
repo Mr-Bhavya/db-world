@@ -82,6 +82,7 @@ public class DbWorldDownloadPlugin extends Plugin {
     @Override
     public void load() {
         super.load();
+        android.util.Log.e(TAG, "BUILD_MARKER=no-notif-v1 load() starting");
         // IMPORTANT: never let initialization throw out of load(). If it does,
         // Capacitor drops the plugin registration and every call fails with the
         // opaque "plugin is not implemented on android". On failure we keep the
