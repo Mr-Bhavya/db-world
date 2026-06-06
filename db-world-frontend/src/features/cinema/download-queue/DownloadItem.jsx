@@ -6,6 +6,7 @@ import PauseIcon        from '@mui/icons-material/Pause';
 import PlayArrowIcon    from '@mui/icons-material/PlayArrow';
 import CancelIcon       from '@mui/icons-material/Close';
 import DeleteIcon       from '@mui/icons-material/Delete';
+import ReplayIcon       from '@mui/icons-material/Replay';
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle';
 import ErrorIcon        from '@mui/icons-material/Error';
 import HourglassTopIcon from '@mui/icons-material/HourglassTop';
@@ -85,6 +86,7 @@ export default function DownloadItem({ item, onPlay, onSelect, selected, actions
   const isActive = item.status === 'running' || item.status === 'pending';
   const isPaused = item.status === 'paused';
   const canPlay  = item.status === 'success' && item.canPlay && item.playableUri;
+  const canRetry = item.status === 'failed' || item.status === 'cancelled';
   const color    = STATUS_COLOR[item.status] ?? STATUS_COLOR.unknown;
   const speed    = fmtSpeed(item.speedBytesPerSec);
   const eta      = fmtEta(item.etaSeconds);
@@ -182,6 +184,14 @@ export default function DownloadItem({ item, onPlay, onSelect, selected, actions
             <IconButton size="small"
               onClick={e => { e.stopPropagation(); actions.cancel(item.downloadId); }}>
               <CancelIcon sx={{ fontSize: 17, color: T.textMuted }} />
+            </IconButton>
+          </Tooltip>
+        )}
+        {canRetry && (
+          <Tooltip title="Redownload">
+            <IconButton size="small"
+              onClick={e => { e.stopPropagation(); actions.retry(item.downloadId); }}>
+              <ReplayIcon sx={{ fontSize: 17, color: '#2196f3' }} />
             </IconButton>
           </Tooltip>
         )}

@@ -73,6 +73,10 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
           fileName: mediaInfo.general?.fileName || 'download',
           title: record?.tmdb?.title || record?.title || mediaInfo.general?.fileName || 'Download',
           thumbnailUrl: tmdbImg(record?.tmdb?.posterPath, 'w185') || '',
+          // Persisted in Fetch extras so history survives restarts and can deep-link back.
+          mediaFileId: String(mediaInfo.mediaFileId || mediaInfo.id || ''),
+          recordId: String(record?.id || record?.recordId || res?.data?.recordId || ''),
+          mimeType: res?.data?.mimeType || '',
         });
         if (dlResult?.alreadyDownloaded) {
           enqueueSnackbar(`Already downloaded: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'info', autoHideDuration: 3000 });

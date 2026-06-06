@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import {
   Box, Typography, Chip, CircularProgress, IconButton, Tooltip, Tabs, Tab, Divider, Button,
-  useMediaQuery, useTheme
+  Switch, FormControlLabel, useMediaQuery, useTheme
 } from '@mui/material';
 import RefreshIcon         from '@mui/icons-material/Refresh';
 import PlayArrowIcon       from '@mui/icons-material/PlayArrow';
 import DeleteIcon          from '@mui/icons-material/Delete';
 import CancelIcon          from '@mui/icons-material/Close';
+import ReplayIcon          from '@mui/icons-material/Replay';
+import WifiIcon            from '@mui/icons-material/Wifi';
 import PauseIcon           from '@mui/icons-material/Pause';
 import DownloadDoneIcon    from '@mui/icons-material/DownloadDone';
 import DownloadingIcon     from '@mui/icons-material/Downloading';
@@ -44,6 +46,7 @@ function DetailPanel({ item, actions, onPlay }) {
 
   const canPlay  = item.status === 'success' && item.canPlay && item.playableUri;
   const isActive = item.status === 'running' || item.status === 'pending';
+  const canRetry = item.status === 'failed' || item.status === 'cancelled';
 
   return (
     <Box sx={{
@@ -127,6 +130,16 @@ function DetailPanel({ item, actions, onPlay }) {
             Cancel
           </Button>
         )}
+        {canRetry && (
+          <Button
+            variant="outlined"
+            startIcon={<ReplayIcon />}
+            onClick={() => actions.retry(item.downloadId)}
+            sx={{ borderColor: '#2196f355', color: '#2196f3' }}
+          >
+            Redownload
+          </Button>
+        )}
         <Button
           variant="outlined"
           startIcon={<DeleteIcon />}
@@ -146,7 +159,7 @@ export default function DownloadsPage() {
   const theme   = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
-  const { downloads, loading, refresh, actions } = useDownloads();
+  const { downloads, loading, refresh, actions, wifiOnly, toggleWifiOnly } = useDownloads();
   const [tab,      setTab]      = useState('all');
   const [selected, setSelected] = useState(null);
 
@@ -229,6 +242,25 @@ export default function DownloadsPage() {
               sx={{ bgcolor: '#2196f322', color: '#2196f3', fontWeight: 700, mr: 1 }}
             />
           )}
+          <Tooltip title="Only download on Wi-Fi (pauses on mobile data)">
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={wifiOnly}
+                  onChange={(_, v) => toggleWifiOnly(v)}
+                  sx={{ '& .Mui-checked': { color: '#2196f3' } }}
+                />
+              }
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: T.textFaint }}>
+                  <WifiIcon sx={{ fontSize: 16 }} />
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Wi-Fi only</Typography>
+                </Box>
+              }
+              sx={{ mr: 1, ml: 0 }}
+            />
+          </Tooltip>
           <Tooltip title="Refresh">
             <IconButton size="small" onClick={refresh} sx={{ color: T.textFaint }}>
               <RefreshIcon fontSize="small" />

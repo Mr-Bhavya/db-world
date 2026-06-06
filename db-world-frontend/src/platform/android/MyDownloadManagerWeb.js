@@ -60,6 +60,9 @@ class MyDownloadManagerWeb extends WebPlugin {
 
   async pauseDownload()  {}
   async resumeDownload() {}
+  async retryDownload({ downloadId }) { return { downloadId }; }
+  async setNetworkPolicy() {}
+  async getSettings() { return { wifiOnly: false, concurrentLimit: 2 }; }
 
   async cancelDownload({ downloadId }) {
     this.downloads = this.downloads.filter(d => d.downloadId !== downloadId);

@@ -33,6 +33,7 @@ function upsert(items, incoming) {
 export function useDownloads() {
   const [downloads, setDownloads] = useState([]);
   const [loading,   setLoading]   = useState(true);
+  const [wifiOnly,  setWifiOnly]  = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -45,8 +46,16 @@ export function useDownloads() {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch + load settings
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await DbWorldDownload.getSettings();
+        setWifiOnly(Boolean(s?.wifiOnly));
+      } catch { /* web stub / older native — ignore */ }
+    })();
+  }, []);
 
   // Real-time events
   useEffect(() => {
@@ -61,6 +70,10 @@ export function useDownloads() {
           setDownloads(prev => upsert(prev, { ...d, status: 'success', progress: 100 }))),
         await DbWorldDownload.addListener('downloadError', d =>
           setDownloads(prev => upsert(prev, { ...d, status: 'failed' }))),
+        await DbWorldDownload.addListener('downloadAdded', d =>
+          setDownloads(prev => upsert(prev, { ...d, status: d.status || 'pending' }))),
+        await DbWorldDownload.addListener('downloadRemoved', d =>
+          setDownloads(prev => prev.filter(x => x.downloadId !== d.downloadId))),
       );
     })();
     return () => listeners.forEach(l => l?.remove());
@@ -103,5 +116,23 @@ export function useDownloads() {
     setDownloads(prev => prev.filter(d => d.downloadId !== id));
   }, []);
 
-  return { downloads, loading, refresh, actions: { pause, resume, cancel, remove } };
+  const retry = useCallback(async (id) => {
+    await DbWorldDownload.retryDownload({ downloadId: id });
+    setDownloads(prev => prev.map(d => d.downloadId === id ? { ...d, status: 'pending' } : d));
+  }, []);
+
+  const toggleWifiOnly = useCallback(async (next) => {
+    setWifiOnly(next);
+    try {
+      await DbWorldDownload.setNetworkPolicy({ wifiOnly: next });
+    } catch (e) {
+      console.error('[useDownloads] setNetworkPolicy failed', e);
+      setWifiOnly(prev => !prev); // revert on failure
+    }
+  }, []);
+
+  return {
+    downloads, loading, refresh, wifiOnly, toggleWifiOnly,
+    actions: { pause, resume, cancel, remove, retry },
+  };
 }
