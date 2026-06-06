@@ -57,11 +57,11 @@ dependencies {
 
     // Fetch2 — persistent, resumable, queued download engine (JitPack).
     // fetch2okhttp lets it reuse the OkHttp client above.
-    // NOTE: verify these resolve on the first Gradle sync; if JitPack coordinates
-    // change, the alternative is the legacy 'androidx.tonyodev.fetch2' group.
+    // NOTE: JitPack publishes this repo's modules with an "x" prefix
+    // (xfetch2 / xfetch2okhttp); the Java packages remain com.tonyodev.fetch2.*.
     def fetch2_version = "3.1.6"
-    implementation "com.github.tonyofrancis.Fetch:fetch2:$fetch2_version"
-    implementation "com.github.tonyofrancis.Fetch:fetch2okhttp:$fetch2_version"
+    implementation "com.github.tonyofrancis.Fetch:xfetch2:$fetch2_version"
+    implementation "com.github.tonyofrancis.Fetch:xfetch2okhttp:$fetch2_version"
 }
 
 apply from: 'capacitor.build.gradle'

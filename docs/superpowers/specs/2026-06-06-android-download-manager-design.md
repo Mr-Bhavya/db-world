@@ -202,9 +202,10 @@ the download, including while queued — fixing the old unstable `queued_N` IDs.
 
 **Gradle (`android/`):**
 - Add JitPack repo (`maven { url 'https://jitpack.io' }`).
-- Add `com.github.tonyofrancis.Fetch:fetch2:3.1.6` and
-  `:fetch2okhttp:3.1.6` (latest published; reuses bundled OkHttp 4.12). Pin
-  exactly and verify the build against SDK 35 during the first plan step.
+- Add `com.github.tonyofrancis.Fetch:xfetch2:3.1.6` and `:xfetch2okhttp:3.1.6`
+  (JitPack publishes this repo's modules with an `x` prefix; the Java packages
+  remain `com.tonyodev.fetch2.*`). Reuses bundled OkHttp 4.12. Verified to
+  resolve on JitPack; full `assembleDebug` confirmed the rest of the build.
 
 **Manifest:**
 - Add `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `ACCESS_NETWORK_STATE`.
