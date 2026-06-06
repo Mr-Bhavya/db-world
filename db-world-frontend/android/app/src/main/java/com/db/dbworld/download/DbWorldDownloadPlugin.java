@@ -72,6 +72,7 @@ public class DbWorldDownloadPlugin extends Plugin {
     private static final String PREF_WIFI_ONLY    = "wifi_only";
 
     private Fetch fetch;
+    private volatile String initError = null; // set if Fetch2 failed to initialize in load()
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
 
     // Live speed/ETA per download id — only known during onProgress.
@@ -82,34 +83,42 @@ public class DbWorldDownloadPlugin extends Plugin {
     @Override
     public void load() {
         super.load();
+        // IMPORTANT: never let initialization throw out of load(). If it does,
+        // Capacitor drops the plugin registration and every call fails with the
+        // opaque "plugin is not implemented on android". On failure we keep the
+        // plugin registered and surface the real reason via initError.
+        try {
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .build();
 
-        OkHttpClient client = new OkHttpClient.Builder()
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .build();
+            FetchConfiguration config = new FetchConfiguration.Builder(getContext())
+                    .setNamespace(NAMESPACE)
+                    .setDownloadConcurrentLimit(CONCURRENT_LIMIT)
+                    .setHttpDownloader(new OkHttpDownloader(client))
+                    .enableRetryOnNetworkGain(true)          // auto-resume on reconnect
+                    .setAutoRetryMaxAttempts(AUTO_RETRY_MAX) // retry transient failures
+                    .setNotificationManager(new DefaultFetchNotificationManager(getContext()) {
+                        @NonNull
+                        @Override
+                        public Fetch getFetchInstanceForNamespace(@NonNull String namespace) {
+                            return fetch; // assigned just below; called lazily on notif events
+                        }
+                    })
+                    .build();
 
-        FetchConfiguration config = new FetchConfiguration.Builder(getContext())
-                .setNamespace(NAMESPACE)
-                .setDownloadConcurrentLimit(CONCURRENT_LIMIT)
-                .setHttpDownloader(new OkHttpDownloader(client))
-                .enableRetryOnNetworkGain(true)          // auto-resume on reconnect
-                .setAutoRetryMaxAttempts(AUTO_RETRY_MAX) // retry transient failures
-                .setNotificationManager(new DefaultFetchNotificationManager(getContext()) {
-                    @NonNull
-                    @Override
-                    public Fetch getFetchInstanceForNamespace(@NonNull String namespace) {
-                        return fetch; // assigned just below; called lazily on notif events
-                    }
-                })
-                .build();
+            fetch = Fetch.Impl.getInstance(config);
+            fetch.setGlobalNetworkType(isWifiOnly() ? NetworkType.WIFI_ONLY : NetworkType.ALL);
+            fetch.addListener(listener);
 
-        fetch = Fetch.Impl.getInstance(config);
-        fetch.setGlobalNetworkType(isWifiOnly() ? NetworkType.WIFI_ONLY : NetworkType.ALL);
-        fetch.addListener(listener);
-
-        // Re-sync the foreground service with whatever Fetch resumed on launch.
-        refreshForegroundState();
-        android.util.Log.d(TAG, "plugin loaded (Fetch2 mode)");
+            // Re-sync the foreground service with whatever Fetch resumed on launch.
+            refreshForegroundState();
+            android.util.Log.d(TAG, "plugin loaded (Fetch2 mode)");
+        } catch (Throwable t) {
+            initError = t.getClass().getSimpleName() + ": " + t.getMessage();
+            android.util.Log.e(TAG, "Fetch2 init failed in load(): " + initError, t);
+        }
     }
 
     @Override
@@ -148,6 +157,7 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void startDownload(PluginCall call) {
+        if (!fetchReady(call)) return;
         final String url      = call.getString("url");
         String fileNameArg    = call.getString("fileName", "download");
         final String title    = call.getString("title", fileNameArg);
@@ -230,6 +240,7 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void retryDownload(PluginCall call) {
+        if (!fetchReady(call)) return;
         Integer id = parseId(call);
         if (id == null) return;
         fetch.retry(id);
@@ -246,6 +257,7 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void deleteDownload(PluginCall call) {
+        if (!fetchReady(call)) return;
         Integer id = parseId(call);
         if (id == null) return;
         // Remove the published file (MediaStore/public) first, then the Fetch record
@@ -283,6 +295,7 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void listDownloads(PluginCall call) {
+        if (!fetchReady(call)) return;
         fetch.getDownloads(downloads -> {
             JSArray list = new JSArray();
             for (Download d : downloads) {
@@ -498,9 +511,20 @@ public class DbWorldDownloadPlugin extends Plugin {
         }
     }
 
+    /** Rejects the call with the real reason if Fetch failed to initialize. */
+    private boolean fetchReady(PluginCall call) {
+        if (fetch == null) {
+            call.reject("Download engine unavailable: "
+                    + (initError != null ? initError : "not initialized"));
+            return false;
+        }
+        return true;
+    }
+
     private interface IdAction { void run(int id); }
 
     private void withId(PluginCall call, IdAction action) {
+        if (!fetchReady(call)) return;
         Integer id = parseId(call);
         if (id == null) return;
         action.run(id);
