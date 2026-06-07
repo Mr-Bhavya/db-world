@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Box, Typography, LinearProgress, IconButton, Chip, Tooltip,
+  Box, Typography, LinearProgress, IconButton, Tooltip,
 } from '@mui/material';
 import PauseIcon        from '@mui/icons-material/Pause';
 import PlayArrowIcon    from '@mui/icons-material/PlayArrow';
@@ -56,7 +56,7 @@ function Avatar({ title, thumbnailUrl }) {
 
   if (thumbnailUrl && !imgError) {
     return (
-      <Box sx={{ width: 44, height: 44, flexShrink: 0, borderRadius: 1.5, overflow: 'hidden', mr: 1.5 }}>
+      <Box sx={{ width: 52, height: 52, flexShrink: 0, borderRadius: 2, overflow: 'hidden', mr: 1.5 }}>
         <img
           src={thumbnailUrl}
           alt=""
@@ -68,13 +68,13 @@ function Avatar({ title, thumbnailUrl }) {
   }
   return (
     <Box sx={{
-      width: 44, height: 44, flexShrink: 0,
-      borderRadius: 1.5,
+      width: 52, height: 52, flexShrink: 0,
+      borderRadius: 2,
       bgcolor: `hsl(${hue},35%,26%)`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       mr: 1.5,
     }}>
-      <Typography sx={{ color: '#fff', fontSize: 17, fontWeight: 700, lineHeight: 1 }}>
+      <Typography sx={{ color: '#fff', fontSize: 20, fontWeight: 700, lineHeight: 1 }}>
         {ch}
       </Typography>
     </Box>
@@ -82,22 +82,25 @@ function Avatar({ title, thumbnailUrl }) {
 }
 
 export default function DownloadItem({ item, onPlay, onSelect, selected, actions }) {
-  const T        = useT();
-  const isActive = item.status === 'running' || item.status === 'pending';
-  const isPaused = item.status === 'paused';
-  const canPlay  = item.status === 'success' && item.canPlay && item.playableUri;
-  const canRetry = item.status === 'failed' || item.status === 'cancelled';
-  const color    = STATUS_COLOR[item.status] ?? STATUS_COLOR.unknown;
-  const speed    = fmtSpeed(item.speedBytesPerSec);
-  const eta      = fmtEta(item.etaSeconds);
+  const T          = useT();
+  const isActive   = item.status === 'running' || item.status === 'pending';
+  const isPaused   = item.status === 'paused';
+  // Transient: tapped resume, transfer not yet flowing. Shown so resume feels instant.
+  const isResuming = Boolean(item._resuming) && item.status !== 'paused' && !(item.speedBytesPerSec > 0);
+  const canPlay    = item.status === 'success' && item.canPlay && item.playableUri;
+  const canRetry   = item.status === 'failed' || item.status === 'cancelled';
+  const color      = isResuming ? STATUS_COLOR.running : (STATUS_COLOR[item.status] ?? STATUS_COLOR.unknown);
+  const speed      = fmtSpeed(item.speedBytesPerSec);
+  const eta        = fmtEta(item.etaSeconds);
+  const statusLabel = isResuming ? 'resuming' : item.status;
 
   return (
     <Box
       onClick={() => onSelect?.(item)}
       sx={{
         display: 'flex', alignItems: 'flex-start',
-        p: 1.25, mb: 0.75,
-        borderRadius: 2,
+        p: 1.5, mb: 1,
+        borderRadius: 2.5,
         bgcolor: selected ? `${color}18` : T.glass,
         border: `1px solid ${selected ? color : T.glassBorder}`,
         cursor: onSelect ? 'pointer' : 'default',
@@ -115,41 +118,48 @@ export default function DownloadItem({ item, onPlay, onSelect, selected, actions
           {item.title}
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Chip
-            icon={STATUS_ICON[item.status]}
-            label={item.status}
-            size="small"
-            sx={{
-              bgcolor: `${color}22`, color,
-              fontWeight: 700, fontSize: '0.6rem', height: 18,
-              '& .MuiChip-icon': { color },
-            }}
-          />
+        {/* Status dot + size + (active) speed·eta on a single tidy line */}
+        <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+            <Typography variant="caption" sx={{ color, fontWeight: 700, fontSize: '0.65rem', textTransform: 'capitalize' }}>
+              {statusLabel}
+            </Typography>
+          </Box>
           {item.bytesTotal > 0 && (
             <Typography variant="caption" sx={{ color: T.textFaint, fontSize: '0.67rem' }}>
-              {fmtBytes(item.bytesDownloaded)} / {fmtBytes(item.bytesTotal)}
+              · {fmtBytes(item.bytesDownloaded)} / {fmtBytes(item.bytesTotal)}
+            </Typography>
+          )}
+          {!isResuming && speed && (
+            <Typography variant="caption" sx={{ color: T.textFaint, fontSize: '0.67rem' }}>
+              · {speed}{eta ? ` · ETA ${eta}` : ''}
+            </Typography>
+          )}
+          {isResuming && (
+            <Typography variant="caption" sx={{ color, fontSize: '0.67rem', fontWeight: 600 }}>
+              · Resuming…
             </Typography>
           )}
         </Box>
 
         {(isActive || isPaused) && (
-          <>
-            {speed && (
-              <Typography variant="caption" sx={{ color: T.textFaint, fontSize: '0.65rem', mt: 0.25, display: 'block' }}>
-                {speed}{eta ? ` · ETA ${eta}` : ''}
-              </Typography>
-            )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75 }}>
             <LinearProgress
-              variant={item.bytesTotal > 0 ? 'determinate' : 'indeterminate'}
+              variant={isResuming || item.bytesTotal <= 0 ? 'indeterminate' : 'determinate'}
               value={item.progress || 0}
               sx={{
-                mt: 0.5, borderRadius: 1, height: 3,
+                flex: 1, borderRadius: 1, height: 5,
                 bgcolor: `${STATUS_COLOR.running}22`,
-                '& .MuiLinearProgress-bar': { bgcolor: color },
+                '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 1 },
               }}
             />
-          </>
+            {!isResuming && item.bytesTotal > 0 && (
+              <Typography variant="caption" sx={{ color, fontSize: '0.65rem', fontWeight: 700, minWidth: 30, textAlign: 'right' }}>
+                {item.progress || 0}%
+              </Typography>
+            )}
+          </Box>
         )}
       </Box>
 

@@ -53,8 +53,14 @@ app:
 server:
   port: ${SERVER_PORT:9000}
 
+# Plain-http local dev: SameSite=None requires Secure, which a browser drops over
+# http. Relax to Lax/insecure so the refresh cookie still flows on localhost.
+jwt:
+  refresh-cookie-secure: false
+  refresh-cookie-same-site: Lax
+
 cors:
-  allowed-origins: https://dn-world.in
+  allowed-origins: https://cdn.db-world.in
 
 springdoc:
   swagger-ui:

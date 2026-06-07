@@ -1,21 +1,29 @@
 {
 	"appId": "com.db.dbworld",
 	"appName": "DB World",
-	"webDir": "build",
+	"webDir": "dist",
 	"bundledWebRuntime": false,
 	"server": {
-		"url": "https://db-world.in",
-		"cleartext": false,
+		"androidScheme": "https",
 		"allowNavigation": [
 			"db-world.in",
 			"*.db-world.in",
-			"cdn.db-world.in"
+			"cdn.db-world.in",
+			"api.db-world.in"
 		]
 	},
 	"appendUserAgent": "DBWorldApp/2.0 (Android)",
 	"plugins": {
 		"CapacitorHttp": {
 			"enabled": true
+		},
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"launchAutoHide": true,
+			"backgroundColor": "#000000",
+			"androidSplashResourceName": "splash",
+			"androidScaleType": "CENTER_CROP",
+			"showSpinner": false
 		}
 	}
 }

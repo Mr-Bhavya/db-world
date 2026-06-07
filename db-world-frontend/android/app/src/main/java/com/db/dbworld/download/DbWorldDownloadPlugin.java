@@ -14,6 +14,7 @@ import android.os.Environment;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import com.db.dbworld.MainActivity;
 import com.getcapacitor.JSArray;
@@ -73,14 +74,37 @@ import okhttp3.OkHttpClient;
 public class DbWorldDownloadPlugin extends Plugin {
 
     private static final String TAG               = "DbWorldDownload";
-    private static final String NAMESPACE         = "dbworld_downloads";
-    private static final int    CONCURRENT_LIMIT  = 2;
-    private static final int    AUTO_RETRY_MAX    = 3;
-    private static final String PREFS             = "dbworld_downloads_prefs";
+    private static final String NAMESPACE          = "dbworld_downloads";
+    private static final int    DEFAULT_CONCURRENT = 1;   // download one at a time by default
+    private static final int    MAX_CONCURRENT     = 3;   // user may raise to at most 3 parallel
+    private static final String PREF_CONCURRENT     = "concurrent_limit";
+    private static final int    AUTO_RETRY_MAX     = 3;
+    public  static final String PREFS             = "dbworld_downloads_prefs";
     private static final String PREF_WIFI_ONLY    = "wifi_only";
+    public  static final String PREF_PENDING_ROUTE = "pending_route";
+    private static final String ACTION_NOTIF      = "com.db.dbworld.DOWNLOAD_NOTIF_ACTION";
 
     private Fetch fetch;
     private volatile String initError = null; // set if Fetch2 failed to initialize in load()
+
+    /** Handles pause/resume/cancel/delete/retry taps from the download notification buttons. */
+    private final BroadcastReceiver notifActionReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (fetch == null || intent == null) return;
+            int id = intent.getIntExtra("downloadId", -1);
+            String action = intent.getStringExtra("action");
+            if (id < 0 || action == null) return;
+            switch (action) {
+                case "PAUSE":  fetch.pause(id);  break;
+                case "RESUME": fetch.resume(id); break;
+                case "CANCEL": fetch.cancel(id); break;
+                case "DELETE": fetch.delete(id); break;
+                case "RETRY":  fetch.retry(id);  break;
+                default: break; // group _ALL actions etc. — ignored
+            }
+        }
+    };
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
 
     // Live speed/ETA per download id — only known during onProgress.
@@ -91,15 +115,28 @@ public class DbWorldDownloadPlugin extends Plugin {
     @Override
     public void load() {
         super.load();
-        android.util.Log.e(TAG, "BUILD_MARKER=notif-v3 load() starting");
+        android.util.Log.e(TAG, "BUILD_MARKER=notif-v4 load() starting");
+        // Receiver for notification action buttons (SDK-34-safe registration).
+        ContextCompat.registerReceiver(getContext(), notifActionReceiver,
+                new IntentFilter(ACTION_NOTIF), ContextCompat.RECEIVER_NOT_EXPORTED);
         // IMPORTANT: never let initialization throw out of load(). If it does,
         // Capacitor drops the plugin registration and every call fails with the
         // opaque "plugin is not implemented on android". On failure we keep the
         // plugin registered and surface the real reason via initError.
         try {
+            // Tuned for large media over flaky CDNs: generous read timeout (slow first
+            // byte after a Range resume), no overall call timeout (multi-GB files),
+            // automatic retry of dropped connections, and a warm connection pool so a
+            // resume reuses the existing socket instead of re-handshaking.
             OkHttpClient client = new OkHttpClient.Builder()
                     .followRedirects(true)
                     .followSslRedirects(true)
+                    .retryOnConnectionFailure(true)
+                    .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                    .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .connectionPool(new okhttp3.ConnectionPool(8, 5, java.util.concurrent.TimeUnit.MINUTES))
                     .build();
 
             // The wrapped context makes Fetch's internal registerReceiver calls
@@ -109,7 +146,7 @@ public class DbWorldDownloadPlugin extends Plugin {
 
             FetchConfiguration config = new FetchConfiguration.Builder(fetchContext)
                     .setNamespace(NAMESPACE)
-                    .setDownloadConcurrentLimit(CONCURRENT_LIMIT)
+                    .setDownloadConcurrentLimit(concurrentLimit())
                     .setHttpDownloader(new OkHttpDownloader(client))
                     .enableRetryOnNetworkGain(true)          // auto-resume on reconnect
                     .setAutoRetryMaxAttempts(AUTO_RETRY_MAX) // retry transient failures
@@ -127,8 +164,19 @@ public class DbWorldDownloadPlugin extends Plugin {
             fetch.setGlobalNetworkType(isWifiOnly() ? NetworkType.WIFI_ONLY : NetworkType.ALL);
             fetch.addListener(listener);
 
-            // Re-sync the foreground service with whatever Fetch resumed on launch.
-            refreshForegroundState();
+            // Recover from a process kill (e.g. the user swiped the app away): Fetch
+            // persists each download, but anything that was mid-flight stays parked.
+            // Re-drive DOWNLOADING/QUEUED entries so a relaunch continues from the
+            // partial file via HTTP Range instead of silently stalling.
+            fetch.getDownloads(downloads -> {
+                for (Download d : downloads) {
+                    Status s = d.getStatus();
+                    if (s == Status.DOWNLOADING || s == Status.QUEUED) {
+                        fetch.resume(d.getId());
+                    }
+                }
+                refreshForegroundState();
+            });
             android.util.Log.d(TAG, "plugin loaded (Fetch2 mode)");
         } catch (Throwable t) {
             initError = t.getClass().getSimpleName() + ": " + t.getMessage();
@@ -142,6 +190,7 @@ public class DbWorldDownloadPlugin extends Plugin {
             fetch.removeListener(listener);
             // Don't fetch.close(): downloads should keep running via the service.
         }
+        try { getContext().unregisterReceiver(notifActionReceiver); } catch (Exception ignored) {}
         super.handleOnDestroy();
     }
 
@@ -302,7 +351,36 @@ public class DbWorldDownloadPlugin extends Plugin {
     public void getSettings(PluginCall call) {
         JSObject r = new JSObject();
         r.put("wifiOnly", isWifiOnly());
-        r.put("concurrentLimit", CONCURRENT_LIMIT);
+        r.put("concurrentLimit", concurrentLimit());
+        r.put("maxConcurrentLimit", MAX_CONCURRENT);
+        call.resolve(r);
+    }
+
+    /** Sets how many downloads run in parallel (clamped 1..MAX). Applied live to the queue. */
+    @PluginMethod
+    public void setConcurrentLimit(PluginCall call) {
+        Integer limit = call.getInt("limit");
+        if (limit == null) { call.reject("limit required"); return; }
+        int n = Math.max(1, Math.min(MAX_CONCURRENT, limit));
+        prefs().edit().putInt(PREF_CONCURRENT, n).apply();
+        if (fetch != null) fetch.setDownloadConcurrentLimit(n);
+        JSObject r = new JSObject();
+        r.put("concurrentLimit", n);
+        call.resolve(r);
+    }
+
+    /**
+     * Returns (and clears) a one-shot route requested by a notification tap. The SPA
+     * calls this on mount and on resume, so navigation is driven by the web app pulling
+     * the intent when it's actually ready — no fragile WebView eval timing.
+     */
+    @PluginMethod
+    public void consumePendingRoute(PluginCall call) {
+        SharedPreferences p = prefs();
+        String route = p.getString(PREF_PENDING_ROUTE, null);
+        if (route != null) p.edit().remove(PREF_PENDING_ROUTE).apply();
+        JSObject r = new JSObject();
+        r.put("route", route == null ? "" : route);
         call.resolve(r);
     }
 
@@ -565,6 +643,12 @@ public class DbWorldDownloadPlugin extends Plugin {
         return prefs().getBoolean(PREF_WIFI_ONLY, false);
     }
 
+    /** Persisted parallel-download limit, clamped to a safe 1..MAX range. */
+    private int concurrentLimit() {
+        int n = prefs().getInt(PREF_CONCURRENT, DEFAULT_CONCURRENT);
+        return Math.max(1, Math.min(MAX_CONCURRENT, n));
+    }
+
     /**
      * Wraps the context so every {@code registerReceiver(receiver, filter)} Fetch makes
      * internally (e.g. its connectivity receiver in PriorityListProcessorImpl) is forced to
@@ -622,6 +706,26 @@ public class DbWorldDownloadPlugin extends Plugin {
                                        @NonNull Context context) {
             super.updateNotification(notificationBuilder, downloadNotification, context);
             notificationBuilder.setContentIntent(openDownloadsPendingIntent());
+        }
+
+        /**
+         * Fetch 3.1.6 builds its action-button PendingIntents without FLAG_IMMUTABLE,
+         * which throws on Android 12+ and crashes the app. Override to build a safe,
+         * immutable PendingIntent that routes the tap to our own receiver instead.
+         */
+        @NonNull
+        @Override
+        public PendingIntent getActionPendingIntent(@NonNull DownloadNotification downloadNotification,
+                                                    @NonNull DownloadNotification.ActionType actionType) {
+            // DefaultFetchNotificationManager assigns notificationId = download.id, so the
+            // per-download notification id is the Fetch download id our receiver acts on.
+            Intent intent = new Intent(ACTION_NOTIF).setPackage(getContext().getPackageName());
+            intent.putExtra("downloadId", downloadNotification.getNotificationId());
+            intent.putExtra("action", actionType.name());
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+            int requestCode = downloadNotification.getNotificationId() * 16 + actionType.ordinal();
+            return PendingIntent.getBroadcast(getContext(), requestCode, intent, flags);
         }
     }
 

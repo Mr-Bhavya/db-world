@@ -6,6 +6,7 @@ import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.core.user.dto.CreateUserRequest;
 import com.db.dbworld.core.user.dto.UserDto;
 import com.db.dbworld.security.auth.AuthenticationService;
+import com.db.dbworld.config.JwtProperties;
 import com.db.dbworld.core.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -23,8 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 import static com.db.dbworld.helpers.DbWorldRecords.AuthTokens.REFRESH_TOKEN_COOKIE_NAME;
-import static com.db.dbworld.utils.CookieUtil.addCookie;
-import static com.db.dbworld.utils.CookieUtil.removeCookie;
+import static com.db.dbworld.utils.CookieUtil.refreshCookie;
+import static com.db.dbworld.utils.CookieUtil.clearRefreshCookie;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 
 @Log4j2
@@ -35,6 +36,7 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthenticationService authenticationService;
+    private final JwtProperties jwtProperties;
 
     /* ── Register ──────────────────────────────────────────────────── */
 
@@ -59,13 +61,9 @@ public class AuthController {
                 loginRequest.getPassword()
         );
 
-        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken())
-                .httpOnly(true)
-                .secure(false)
-                .sameSite("Lax")
-                .path("/")
-                .maxAge(tokens.refreshTokenTtl())
-                .build();
+        ResponseCookie refreshCookie = refreshCookie(
+                REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken(), tokens.refreshTokenTtl(),
+                jwtProperties.cookieSecure(), jwtProperties.cookieSameSite());
 
         ResponsePayloads.LoginResponse response = new ResponsePayloads.LoginResponse(
                 tokens.accessToken(),
@@ -137,7 +135,8 @@ public class AuthController {
         log.info("User logged out");
 
         return ResponseEntity.ok()
-                .header(SET_COOKIE, removeCookie(REFRESH_TOKEN_COOKIE_NAME).toString())
+                .header(SET_COOKIE, clearRefreshCookie(REFRESH_TOKEN_COOKIE_NAME,
+                        jwtProperties.cookieSecure(), jwtProperties.cookieSameSite()).toString())
                 .body(ApiResponse.success("Logged out successfully"));
     }
 }

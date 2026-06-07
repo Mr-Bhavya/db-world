@@ -31,6 +31,37 @@ const drainQueue = (error, token) => {
   waitQueue = [];
 };
 
+/**
+ * Mint a fresh access token from the HttpOnly refresh cookie and persist it.
+ * Concurrent callers coalesce onto the single in-flight refresh. Throws on
+ * failure WITHOUT clearing the session — callers decide whether a failure is
+ * fatal (the 401 interceptor force-logs-out; the resume keep-alive stays quiet).
+ */
+export async function refreshAccessToken() {
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => { waitQueue.push({ resolve, reject }); });
+  }
+  isRefreshing = true;
+  try {
+    // Plain axios (not the instance) to avoid interceptor recursion.
+    const { data } = await axios.post(
+      `${BASE_URL}/api/auth/refresh-token`,
+      {},
+      { withCredentials: true }
+    );
+    const newToken = data?.data?.accessToken;
+    if (!newToken) throw new Error('No accessToken in refresh response');
+    localStorage.setItem('token', newToken);
+    drainQueue(null, newToken);
+    return newToken;
+  } catch (err) {
+    drainQueue(err, null);
+    throw err;
+  } finally {
+    isRefreshing = false;
+  }
+}
+
 /* ─── Instance ──────────────────────────────────────────────────────── */
 
 const axiosInstance = axios.create({
@@ -63,47 +94,21 @@ axiosInstance.interceptors.response.use(
     // Only intercept 401/403 on protected endpoints and only once per request.
     if ((status === 401 || status === 403) && !original._retry && !isPublicPath) {
       original._retry = true;
-
-      // If a refresh is already in-flight, queue this request.
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          waitQueue.push({ resolve, reject });
-        }).then((token) => {
-          original.headers.Authorization = `Bearer ${token}`;
-          return axiosInstance(original);
-        });
-      }
-
-      isRefreshing = true;
       try {
-        // Use a plain axios call (not the instance) to avoid interceptor loops.
-        const { data } = await axios.post(
-          `${BASE_URL}/api/auth/refresh-token`,
-          {},
-          { withCredentials: true }
-        );
-
-        const newToken = data?.data?.accessToken;
-        if (!newToken) throw new Error('No accessToken in refresh response');
-
-        localStorage.setItem('token', newToken);
+        const newToken = await refreshAccessToken();
         original.headers.Authorization = `Bearer ${newToken}`;
         // Also refresh the `t` query-param used by stream resolve endpoints,
         // otherwise the retry still carries the old expired token in the URL.
         if (original.params?.t) {
           original.params = { ...original.params, t: newToken };
         }
-        drainQueue(null, newToken);
         return axiosInstance(original);
 
       } catch (refreshError) {
-        drainQueue(refreshError, null);
+        // Refresh genuinely failed (cookie expired/revoked) — end the session.
         localStorage.clear();
         window.dispatchEvent(new CustomEvent('auth:force-logout'));
         return Promise.reject(refreshError);
-
-      } finally {
-        isRefreshing = false;
       }
     }
 

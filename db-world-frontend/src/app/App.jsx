@@ -262,11 +262,30 @@ const ThemedApp = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Native download notifications fire this window event on tap (see MainActivity).
+  // A download-notification tap persists a one-shot route flag natively (see
+  // MainActivity). We pull it from the plugin on mount (cold launch) and whenever the
+  // app returns to the foreground (warm) — the SPA drives navigation when it's actually
+  // ready, so there's no race with the WebView still booting.
   useEffect(() => {
-    const openDownloads = () => navigate(Constants.DB_DOWNLOAD_QUEUE_ROUTE);
-    window.addEventListener('dbworldOpenDownloads', openDownloads);
-    return () => window.removeEventListener('dbworldOpenDownloads', openDownloads);
+    if (Capacitor.getPlatform() !== 'android') return undefined;
+    let cancelled = false;
+    let stateListener;
+    const ROUTE_MAP = { downloads: Constants.DB_DOWNLOAD_QUEUE_ROUTE };
+    const consumePending = async () => {
+      try {
+        const { route } = await DbWorldDownload.consumePendingRoute();
+        if (!cancelled && route && ROUTE_MAP[route]) navigate(ROUTE_MAP[route]);
+      } catch { /* older native build / web — ignore */ }
+    };
+    consumePending();
+    (async () => {
+      try {
+        stateListener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) consumePending();
+        });
+      } catch { /* not native */ }
+    })();
+    return () => { cancelled = true; stateListener?.remove?.(); };
   }, [navigate]);
   // When set, the user clicked a record card in-app on desktop. The main
   // <Routes> renders against this background location so the underlying
