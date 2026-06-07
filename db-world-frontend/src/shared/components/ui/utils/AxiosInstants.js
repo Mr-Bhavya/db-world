@@ -1,7 +1,18 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 
 const BASE_URL = getApiBaseUrl();
+
+// On a native Capacitor build the CapacitorHttp plugin patches XMLHttpRequest with a
+// native-backed shim whose setRequestHeader runs before open() finishes — which axios's
+// XHR adapter trips over ("setRequestHeader … state must be OPENED"), breaking every
+// request from the bundled app (capacitor://localhost → api.db-world.in cross-origin).
+// axios 1.7's fetch adapter uses CapacitorHttp's patched fetch instead, which is native
+// (no CORS) and has no such bug. Web keeps the default XHR adapter.
+if (Capacitor?.isNativePlatform?.()) {
+  axios.defaults.adapter = 'fetch';
+}
 
 /**
  * Paths that must NOT carry a Bearer token.

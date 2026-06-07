@@ -29,6 +29,15 @@ export function getApiBaseUrl() {
     return cached;
   }
 
+  // Native app serving the BUNDLED build (capacitor → https://localhost): there's no
+  // dev proxy, so an empty (same-origin) base would hit localhost. Point at prod API.
+  if (typeof window !== 'undefined'
+      && window.Capacitor?.isNativePlatform?.()
+      && window.location.hostname === 'localhost') {
+    cached = PRODUCTION_API_URL;
+    return cached;
+  }
+
   cached = '';
   return cached;
 }

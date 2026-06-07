@@ -1,4 +1,5 @@
 import axiosInstance from '../../../shared/components/ui/utils/AxiosInstants';
+import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 
 const BASE = '/api/admin/file-manager';
 
@@ -19,7 +20,9 @@ export const getFileInfo = (path) =>
 export const downloadFile = async (path) => {
   const { data } = await axiosInstance.post(`${BASE}/download-ticket`, null, { params: { path } });
   const ticketId = data.data.ticketId;
-  const url = `${BASE}/download/stream?ticket=${encodeURIComponent(ticketId)}`;
+  // Absolute API host — a relative href would resolve against the page origin
+  // (db-world.in / localhost in the app) instead of api.db-world.in.
+  const url = `${getApiBaseUrl()}${BASE}/download/stream?ticket=${encodeURIComponent(ticketId)}`;
   const a = document.createElement('a');
   a.href = url;
   a.style.display = 'none';

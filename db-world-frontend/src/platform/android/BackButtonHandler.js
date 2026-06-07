@@ -1,48 +1,49 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { App } from '@capacitor/app';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
+import Constants from '@shared/constants';
+
+// Root routes where Back should EXIT the app (double-press) instead of navigating.
+const EXIT_ROUTES = new Set([
+  Constants.DB_WORLD_HOME_ROUTE,
+  Constants.LOGIN_ROUTE,
+]);
 
 const BackButtonHandler = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { enqueueSnackbar } = useSnackbar();
+
+  // The native listener is registered once; read live values through refs so it
+  // always sees the CURRENT route (not the one captured at registration time).
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const lastFiredRef = useRef(0);
+  const exitArmedRef = useRef(false);
 
   useEffect(() => {
-    let backButtonCleanup;
-    let lastFired = 0; // debounce — gesture nav can fire events twice in quick succession
+    let cleanup;
+    App.addListener('backButton', () => {
+      // Gesture-nav can fire the event twice in quick succession — dedupe.
+      const now = Date.now();
+      if (now - lastFiredRef.current < 450) return;
+      lastFiredRef.current = now;
 
-    const setupListener = async () => {
-      const listener = await App.addListener('backButton', () => {
-        const now = Date.now();
-        if (now - lastFired < 400) return; // ignore duplicate within 400 ms
-        lastFired = now;
-        if (window.history.length > 1) {
-          navigate(-1);
-        } else {
-          App.exitApp();
-        }
-      });
-
-      // If the returned listener has a remove method, store a cleanup function for it.
-      // Otherwise, assume listener is already the cleanup function.
-      if (listener && typeof listener.remove === 'function') {
-        backButtonCleanup = () => listener.remove();
+      const path = locationRef.current.pathname;
+      if (EXIT_ROUTES.has(path)) {
+        // Double-press to exit from the home/login screen.
+        if (exitArmedRef.current) { App.exitApp(); return; }
+        exitArmedRef.current = true;
+        enqueueSnackbar('Press back again to exit', { variant: 'default', autoHideDuration: 2000 });
+        setTimeout(() => { exitArmedRef.current = false; }, 2000);
       } else {
-        backButtonCleanup = listener;
+        navigate(-1);
       }
-    };
+    }).then((l) => { cleanup = l; });
 
-    setupListener();
-
-    return () => {
-      if (backButtonCleanup) {
-        // If backButtonCleanup is a function, call it to remove the listener.
-        if (typeof backButtonCleanup === 'function') {
-          backButtonCleanup();
-        } else if (backButtonCleanup && typeof backButtonCleanup.remove === 'function') {
-          backButtonCleanup.remove();
-        }
-      }
-    };
-  }, [navigate]);
+    return () => { cleanup?.remove?.(); };
+  }, [navigate, enqueueSnackbar]);
 
   return null;
 };
