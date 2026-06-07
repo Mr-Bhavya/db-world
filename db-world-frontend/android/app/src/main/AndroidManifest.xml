@@ -21,17 +21,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name="com.db.dbworld.player.VideoPlayerActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|density"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:screenOrientation="sensor"
-            android:supportsPictureInPicture="true"
-            android:theme="@style/Theme.DbWorld.Player"
-            android:windowSoftInputMode="adjustNothing"
-        />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

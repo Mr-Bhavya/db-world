@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useSnackbar } from 'notistack';
-import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import CommonServices from '@shared/services/CommonServices';
+import Constants from '@shared/constants';
 import { tmdbImg } from '../api/cinemaApi';
+import { buildHybridEpisodes } from '../utils/episodeUtils';
 import { resolveMediaUrl } from '@shared/services/ApiServices';
 
 /**
@@ -20,6 +22,7 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
   const [resolving, setResolving] = useState(false);
   const [enrichedFiles, setEnrichedFiles] = useState(null);
   const { enqueueSnackbar } = useSnackbar();
+  const navigate = useNavigate();
 
   const resolveAll = useCallback(async (type) => {
     const files = allFiles.length > 0 ? allFiles : (mediaInfo ? [mediaInfo] : []);
@@ -40,24 +43,33 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
       const enriched = await resolveAll('ONLINE');
       setEnrichedFiles(enriched);
       const current = enriched.find(f => f.mediaFileId === mediaInfo.mediaFileId) ?? enriched[0];
-      if (Capacitor.getPlatform() === 'android') {
-        AndroidPlugins.launchNativePlayer({
-          url: current?.streamUrl,
-          title: record?.tmdb?.title || record?.title || mediaInfo.general?.fileName || '',
-          fileName: mediaInfo.general?.fileName || '',
-          fileId: String(mediaInfo.id || ''),
-          preferredAudio: 'Hindi',
-          preferredSub: null,
-        });
-      } else {
-        setPlayerOpen(true);
-      }
+      if (!current?.streamUrl) throw new Error('No stream URL');
+      // Quality variants for in-player switching (label from resolution, best effort).
+      const variants = enriched
+        .filter(f => f.streamUrl)
+        .map(f => ({ url: f.streamUrl, label: f.quality || f.video?.resolution || f.general?.fileName || 'Source', mediaFileId: f.mediaFileId }));
+      // Series episodes (same quality as the played file); [] for movies.
+      const episodes = buildHybridEpisodes(enriched, current);
+      // Unified hybrid player (web + native) — full-screen route over a native surface.
+      navigate(Constants.DB_PLAYER_ROUTE, {
+        state: {
+          media: {
+            url:      current.streamUrl,
+            fileId:   String(mediaInfo.id || mediaInfo.mediaFileId || ''),
+            title:    record?.tmdb?.title || record?.title || mediaInfo.general?.fileName || '',
+            fileName: mediaInfo.general?.fileName || '',
+            recordId: record?.id || record?.recordId || null,
+            variants,
+            episodes,
+          },
+        },
+      });
     } catch (_e) {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally {
       setResolving(false);
     }
-  }, [mediaInfo, record, resolveAll, enqueueSnackbar]);
+  }, [mediaInfo, record, resolveAll, enqueueSnackbar, navigate]);
 
   const handleDownload = useCallback(async () => {
     if (!mediaInfo) return;

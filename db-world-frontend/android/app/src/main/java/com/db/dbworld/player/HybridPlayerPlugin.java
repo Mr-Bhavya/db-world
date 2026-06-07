@@ -1,0 +1,461 @@
+package com.db.dbworld.player;
+
+import android.content.pm.ActivityInfo;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.TextureView;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.webkit.WebView;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
+import androidx.media3.common.C;
+import androidx.media3.common.Format;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.TrackGroup;
+import androidx.media3.common.TrackSelectionOverride;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.VideoSize;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
+
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * PHASE-0 SPIKE — throwaway. Proves the hybrid-player architecture on-device:
+ * an ExoPlayer {@link PlayerView} is inserted BEHIND the Capacitor WebView, the
+ * WebView is made transparent, and a React overlay drives playback via this
+ * minimal bridge (load/play/pause/seek) while receiving time/state events.
+ *
+ * If this renders smoothly with a working overlay, the hybrid design in
+ * docs/superpowers/specs/2026-06-07-hybrid-media-player-design.md is validated.
+ * This class is expected to be replaced by the real DbWorldPlayer bridge.
+ */
+@OptIn(markerClass = UnstableApi.class)
+@CapacitorPlugin(name = "HybridPlayer")
+public class HybridPlayerPlugin extends Plugin {
+
+    private static final String TAG = "HybridPlayer";
+
+    private ExoPlayer   player;
+    private TextureView videoView;
+    private String  currentUrl;       // for decoder-mode recreate
+    private int     decoderMode = 0;  // 0 auto · 1 hardware · 2 software
+    // Aspect-fit transform state — without this a raw TextureView stretches the video.
+    private float videoW = 0, videoH = 0, pixelRatio = 1f, zoom = 1f;
+    // Track groups by type, indexed for selection from JS.
+    private final List<TrackGroup> audioGroups = new ArrayList<>();
+    private final List<TrackGroup> textGroups  = new ArrayList<>();
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private final Runnable ticker = new Runnable() {
+        @Override public void run() {
+            if (player != null) {
+                JSObject e = new JSObject();
+                e.put("positionMs", Math.max(0, player.getCurrentPosition()));
+                long dur = player.getDuration();
+                e.put("durationMs", dur > 0 ? dur : 0);
+                notifyListeners("playerTime", e);
+                ui.postDelayed(this, 250);
+            }
+        }
+    };
+
+    @PluginMethod
+    public void load(PluginCall call) {
+        final String url = call.getString("url");
+        Double start = call.getDouble("startMs");
+        final long startMs = start != null ? start.longValue() : 0L;
+        if (url == null || url.isEmpty()) { call.reject("url required"); return; }
+
+        getActivity().runOnUiThread(() -> {
+            try { doLoad(url, startMs); call.resolve(); }
+            catch (Throwable t) {
+                android.util.Log.e(TAG, "load failed", t);
+                call.reject("load failed: " + t.getMessage());
+            }
+        });
+    }
+
+    /** Builds an ExoPlayer whose decoder preference matches {@link #decoderMode}. */
+    private ExoPlayer buildPlayer() {
+        DefaultRenderersFactory rf = new DefaultRenderersFactory(getContext())
+                .setEnableDecoderFallback(true);                 // fall back to OS decoders if HW init fails
+        if (decoderMode == 1)      rf.setMediaCodecSelector(preferSelector(true));   // hardware first
+        else if (decoderMode == 2) rf.setMediaCodecSelector(preferSelector(false));  // software first
+        ExoPlayer p = new ExoPlayer.Builder(getContext(), rf).build();
+        p.addListener(playerListener);
+        // Defaults before JS applies remembered prefs: prefer Hindi audio, subtitles off.
+        p.setTrackSelectionParameters(
+                p.getTrackSelectionParameters().buildUpon()
+                        .setPreferredAudioLanguage("hin")
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .build());
+        return p;
+    }
+
+    /** MediaCodecSelector that orders OS software decoders first or last. */
+    private MediaCodecSelector preferSelector(boolean preferHardware) {
+        return (mime, requiresSecure, requiresTunneling) -> {
+            List<MediaCodecInfo> infos =
+                    new ArrayList<>(MediaCodecUtil.getDecoderInfos(mime, requiresSecure, requiresTunneling));
+            infos.sort((a, b) -> {
+                int aw = a.softwareOnly ? 1 : 0, bw = b.softwareOnly ? 1 : 0;
+                return preferHardware ? Integer.compare(aw, bw)   // software last
+                                      : Integer.compare(bw, aw);  // software first
+            });
+            return infos;
+        };
+    }
+
+    private void doLoad(String url, long startMs) {
+        if (player == null) player = buildPlayer();
+        attachSurface(); // creates the TextureView and binds it to the player
+        currentUrl = url;
+        player.setMediaItem(MediaItem.fromUri(url));
+        player.prepare();
+        if (startMs > 0) player.seekTo(startMs);
+        player.setPlayWhenReady(true);
+        ui.removeCallbacks(ticker);
+        ui.post(ticker);
+        android.util.Log.d(TAG, "load ok url=" + url);
+    }
+
+    @PluginMethod
+    public void play(PluginCall call)  { runOnPlayer(() -> player.setPlayWhenReady(true));  call.resolve(); }
+
+    @PluginMethod
+    public void pause(PluginCall call) { runOnPlayer(() -> player.setPlayWhenReady(false)); call.resolve(); }
+
+    @PluginMethod
+    public void seekTo(PluginCall call) {
+        // Read as double: a JS number arrives as Integer and call.getLong() would
+        // silently return the default (0), making every seek jump to the start.
+        Double pos = call.getDouble("positionMs");
+        final long ms = pos != null ? pos.longValue() : 0L;
+        runOnPlayer(() -> player.seekTo(ms));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void selectAudioTrack(PluginCall call) {
+        final Integer id = call.getInt("id");
+        runOnPlayer(() -> {
+            if (id != null && id >= 0 && id < audioGroups.size()) {
+                player.setTrackSelectionParameters(
+                        player.getTrackSelectionParameters().buildUpon()
+                                .setOverrideForType(new TrackSelectionOverride(audioGroups.get(id), 0))
+                                .build());
+            }
+        });
+        call.resolve();
+    }
+
+    /** id < 0 (or null) turns subtitles off. */
+    @PluginMethod
+    public void selectTextTrack(PluginCall call) {
+        final Integer id = call.getInt("id");
+        runOnPlayer(() -> {
+            if (id == null || id < 0) {
+                player.setTrackSelectionParameters(
+                        player.getTrackSelectionParameters().buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                .build());
+            } else if (id < textGroups.size()) {
+                player.setTrackSelectionParameters(
+                        player.getTrackSelectionParameters().buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                .setOverrideForType(new TrackSelectionOverride(textGroups.get(id), 0))
+                                .build());
+            }
+        });
+        call.resolve();
+    }
+
+    /** mode: 'auto' · 'hw' (hardware-first) · 'sw' (software-first). Recreates the player live. */
+    @PluginMethod
+    public void setDecoderMode(PluginCall call) {
+        String mode = call.getString("mode", "auto");
+        final int m = "hw".equals(mode) ? 1 : "sw".equals(mode) ? 2 : 0;
+        getActivity().runOnUiThread(() -> {
+            if (m != decoderMode) {
+                decoderMode = m;
+                if (player != null && currentUrl != null) {
+                    long pos = player.getCurrentPosition();
+                    String url = currentUrl;
+                    player.release();
+                    player = null;
+                    doLoad(url, pos);
+                }
+            }
+        });
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void setRate(PluginCall call) {
+        Double r = call.getDouble("rate");
+        final float rate = r != null ? r.floatValue() : 1f;
+        runOnPlayer(() -> player.setPlaybackSpeed(rate));
+        call.resolve();
+    }
+
+    /** In-app media volume 0..1 (does not touch system volume). */
+    @PluginMethod
+    public void setVolume(PluginCall call) {
+        Double v = call.getDouble("value");
+        final float vol = v != null ? Math.max(0f, Math.min(1f, v.floatValue())) : 1f;
+        runOnPlayer(() -> player.setVolume(vol));
+        call.resolve();
+    }
+
+    /** Screen brightness 0..1 for this window (resets to system default on release). */
+    @PluginMethod
+    public void setBrightness(PluginCall call) {
+        Double v = call.getDouble("value");
+        final float b = v != null ? Math.max(0.01f, Math.min(1f, v.floatValue())) : 0.5f;
+        getActivity().runOnUiThread(() -> {
+            Window w = getActivity().getWindow();
+            WindowManager.LayoutParams lp = w.getAttributes();
+            lp.screenBrightness = b;
+            w.setAttributes(lp);
+        });
+        call.resolve();
+    }
+
+    /** Pinch zoom factor 1..3 applied on top of the aspect-fit transform. */
+    @PluginMethod
+    public void setZoom(PluginCall call) {
+        Double z = call.getDouble("scale");
+        zoom = z != null ? (float) Math.max(1.0, Math.min(3.0, z)) : 1f;
+        getActivity().runOnUiThread(this::applyTransform);
+        call.resolve();
+    }
+
+    /** mode: 'sensor' (auto-rotate) · 'portrait' · 'landscape' · 'locked' (lock current). */
+    @PluginMethod
+    public void setOrientation(PluginCall call) {
+        final String mode = call.getString("mode", "sensor");
+        getActivity().runOnUiThread(() -> {
+            int o;
+            switch (mode) {
+                // SENSOR_* allows BOTH orientations of that axis (e.g. landscape can flip
+                // to either side as the device rotates), instead of locking to one side.
+                case "portrait":  o = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;  break;
+                case "landscape": o = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE; break;
+                case "locked":    o = ActivityInfo.SCREEN_ORIENTATION_LOCKED;    break;
+                default:          o = ActivityInfo.SCREEN_ORIENTATION_SENSOR;    break;
+            }
+            getActivity().setRequestedOrientation(o);
+        });
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void release(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            ui.removeCallbacks(ticker);
+            if (player != null) { player.release(); player = null; }
+            detachSurface();
+            getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            Window w = getActivity().getWindow();
+            WindowManager.LayoutParams lp = w.getAttributes();
+            lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE; // back to system
+            w.setAttributes(lp);
+        });
+        call.resolve();
+    }
+
+    // ─── internals ──────────────────────────────────────────────────────────
+
+    private void attachSurface() {
+        WebView webView = getBridge().getWebView();
+        ViewGroup parent = (ViewGroup) webView.getParent();
+        if (videoView == null) {
+            // TextureView composites within the view hierarchy (respects alpha/z-order),
+            // so it shows correctly BEHIND a transparent WebView — unlike a SurfaceView,
+            // whose separate compositor layer doesn't reliably show through.
+            videoView = new TextureView(getContext());
+            // Re-fit the video whenever the view is (re)laid out, e.g. on rotation.
+            videoView.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyTransform());
+        }
+        if (videoView.getParent() == null) {
+            parent.addView(videoView, 0, new ViewGroup.LayoutParams(   // index 0 = behind WebView
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        player.setVideoTextureView(videoView);
+        // Make the WebView (and its page) see-through so the video shows behind the overlay,
+        // and paint the area behind the video black so letterbox/pillarbox bars are black
+        // (not the app's grey window background).
+        webView.setBackgroundColor(Color.TRANSPARENT);
+        parent.setBackgroundColor(Color.BLACK);
+    }
+
+    private void detachSurface() {
+        WebView webView = getBridge().getWebView();
+        webView.setBackgroundColor(Color.WHITE);
+        ViewGroup parent = (ViewGroup) webView.getParent();
+        if (parent != null) parent.setBackgroundColor(Color.TRANSPARENT);
+        if (player != null) player.clearVideoTextureView(videoView);
+        if (videoView != null && videoView.getParent() != null) {
+            ((ViewGroup) videoView.getParent()).removeView(videoView);
+        }
+    }
+
+    private void runOnPlayer(Runnable r) {
+        getActivity().runOnUiThread(() -> { if (player != null) r.run(); });
+    }
+
+    private static boolean isDecoderError(PlaybackException e) {
+        int c = e.errorCode;
+        return c == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+            || c == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED
+            || c == PlaybackException.ERROR_CODE_DECODING_FAILED
+            || c == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
+            || c == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES;
+    }
+
+    private static String langName(String code) {
+        if (code == null || code.isEmpty()) return "Unknown";
+        switch (code.toLowerCase()) {
+            case "hin": case "hi": return "Hindi";
+            case "eng": case "en": return "English";
+            case "tam": case "ta": return "Tamil";
+            case "tel": case "te": return "Telugu";
+            case "mal": case "ml": return "Malayalam";
+            case "kan": case "kn": return "Kannada";
+            case "ben": case "bn": return "Bengali";
+            case "mar": case "mr": return "Marathi";
+            case "pan": case "pa": return "Punjabi";
+            case "guj": case "gu": return "Gujarati";
+            case "urd": case "ur": return "Urdu";
+            case "spa": case "es": return "Spanish";
+            case "fra": case "fre": case "fr": return "French";
+            case "deu": case "ger": case "de": return "German";
+            case "jpn": case "ja": return "Japanese";
+            case "kor": case "ko": return "Korean";
+            case "zho": case "chi": case "zh": return "Chinese";
+            default:
+                try { return new java.util.Locale(code).getDisplayLanguage(); }
+                catch (Exception e) { return code; }
+        }
+    }
+
+    private void applyTransform() {
+        if (videoView == null || videoW <= 0 || videoH <= 0) return;
+        int vw = videoView.getWidth(), vh = videoView.getHeight();
+        if (vw == 0 || vh == 0) return;
+        float videoAspect = (videoW * pixelRatio) / videoH;
+        float viewAspect  = (float) vw / vh;
+        float sx = 1f, sy = 1f;
+        if (videoAspect > viewAspect) sy = viewAspect / videoAspect; // letterbox (bars top/bottom)
+        else                          sx = videoAspect / viewAspect; // pillarbox (bars left/right)
+        Matrix m = new Matrix();
+        m.setScale(sx * zoom, sy * zoom, vw / 2f, vh / 2f);          // zoom multiplies the fit
+        videoView.setTransform(m);
+        // Force a re-composite so the transform shows even while paused (a paused
+        // TextureView receives no new frames and wouldn't otherwise repaint).
+        videoView.invalidate();
+    }
+
+    private void emitTracks(Tracks tracks) {
+        audioGroups.clear();
+        textGroups.clear();
+        JSArray audio = new JSArray();
+        JSArray text  = new JSArray();
+        int selAudio = -1, selText = -1;
+        for (Tracks.Group g : tracks.getGroups()) {
+            int type = g.getType();
+            if (type == C.TRACK_TYPE_AUDIO) {
+                int id = audioGroups.size();
+                TrackGroup tg = g.getMediaTrackGroup();
+                Format f = tg.getFormat(0);
+                JSObject o = new JSObject();
+                o.put("id", id);
+                o.put("language", langName(f.language));
+                o.put("channels", f.channelCount > 0 ? f.channelCount : 0);
+                audio.put(o);
+                if (g.isSelected()) selAudio = id;
+                audioGroups.add(tg);
+            } else if (type == C.TRACK_TYPE_TEXT) {
+                int id = textGroups.size();
+                TrackGroup tg = g.getMediaTrackGroup();
+                Format f = tg.getFormat(0);
+                JSObject o = new JSObject();
+                o.put("id", id);
+                o.put("language", langName(f.language));
+                o.put("forced", (f.selectionFlags & C.SELECTION_FLAG_FORCED) != 0);
+                text.put(o);
+                if (g.isSelected()) selText = id;
+                textGroups.add(tg);
+            }
+        }
+        JSObject e = new JSObject();
+        e.put("audio", audio);
+        e.put("text", text);
+        e.put("selectedAudio", selAudio);
+        e.put("selectedText", selText);
+        notifyListeners("playerTracks", e);
+    }
+
+    private final Player.Listener playerListener = new Player.Listener() {
+        @Override public void onTracksChanged(@NonNull Tracks tracks) {
+            emitTracks(tracks);
+        }
+        @Override public void onVideoSizeChanged(@NonNull VideoSize vs) {
+            videoW = vs.width; videoH = vs.height;
+            pixelRatio = vs.pixelWidthHeightRatio > 0 ? vs.pixelWidthHeightRatio : 1f;
+            ui.post(HybridPlayerPlugin.this::applyTransform);
+        }
+        @Override public void onPlaybackStateChanged(int state) {
+            JSObject e = new JSObject();
+            e.put("state", state); // 1 IDLE, 2 BUFFERING, 3 READY, 4 ENDED
+            notifyListeners("playerState", e);
+            if (state == Player.STATE_ENDED) notifyListeners("playerEnded", new JSObject());
+        }
+        @Override public void onPlayerError(@NonNull PlaybackException error) {
+            // Auto-fallback: a hardware/decoder failure retries once with software decoders.
+            if (isDecoderError(error) && decoderMode != 2 && currentUrl != null) {
+                final long pos = player != null ? player.getCurrentPosition() : 0;
+                final String url = currentUrl;
+                decoderMode = 2;
+                JSObject info = new JSObject();
+                info.put("message", "Hardware decoder unavailable — switched to software");
+                notifyListeners("playerInfo", info);
+                ui.post(() -> {
+                    if (player != null) { player.release(); player = null; }
+                    doLoad(url, pos);
+                });
+                return;
+            }
+            JSObject e = new JSObject();
+            e.put("code", error.errorCode);
+            e.put("message", error.getMessage());
+            notifyListeners("playerError", e);
+        }
+    };
+
+    @Override
+    protected void handleOnDestroy() {
+        ui.removeCallbacks(ticker);
+        if (player != null) { player.release(); player = null; }
+        super.handleOnDestroy();
+    }
+}

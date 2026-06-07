@@ -374,6 +374,21 @@ export const resolveMediaUrlByPath = async (path, type = 'ONLINE') => {
   return response.data;
 };
 
+// Watch-progress (resume) APIs
+export const getWatchProgress = async (fileId) => {
+  const response = await axiosInstance.get(`/api/cinema/progress/${encodeURIComponent(fileId)}`);
+  return response.data?.data ?? null; // { fileId, positionMs, durationMs, ... } | null
+};
+
+export const saveWatchProgress = async (fileId, { positionMs, durationMs = 0, recordId, audioLang, subLang } = {}) => {
+  const params = { positionMs: Math.round(positionMs || 0), durationMs: Math.round(durationMs || 0) };
+  if (recordId != null)  params.recordId = recordId;
+  if (audioLang)         params.audioLang = audioLang;
+  if (subLang)           params.subLang = subLang;
+  // keepalive-style: best effort, never block UI on it
+  return axiosInstance.put(`/api/cinema/progress/${encodeURIComponent(fileId)}`, null, { params });
+};
+
 // Interaction APIs
 export const likeRecord = async (recordId, userId) => {
   try {

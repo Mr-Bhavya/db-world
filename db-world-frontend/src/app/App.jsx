@@ -69,6 +69,7 @@ const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/Reco
 const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
+const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybrid/HybridPlayerPage.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
 
 // Loading Component
@@ -247,6 +248,7 @@ const routeConfig = {
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
+    { path: Constants.DB_PLAYER_ROUTE, element: <LazyHybridPlayerPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
@@ -350,7 +352,8 @@ const ThemedApp = () => {
         <CategoryProvider>
           <div>
             <BackButtonHandler />
-            <Header />
+            {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
+            {!location.pathname.includes('/player') && <Header />}
             <Suspense fallback={<LoadingFallback />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}

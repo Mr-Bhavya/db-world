@@ -26,8 +26,6 @@ import { loadStreamFileInfoByFiledId, loadStreamFileInfoByPath, resolveMediaUrl,
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
-import CinemaPlayer from '../../player/CinemaPlayer';
-import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { tmdbImg } from '../../api/cinemaApi';
 
@@ -65,10 +63,9 @@ const CopyButton = ({ getUrl, label, size = 'small' }) => {
 
 const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const [playerOpen, setPlayerOpen] = useState(false);
   const [resolving, setResolving] = useState(false);
-  const [enrichedFiles, setEnrichedFiles] = useState(null);
 
   const { general, video, audio, subtitle } = mediaInfo;
   const quality  = getQuality(video, general?.fileName);
@@ -112,20 +109,24 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
     onClose();
     try {
       const enriched = await resolveAll('ONLINE');
-      setEnrichedFiles(enriched);
       const current = enriched.find(f => matchesCurrentFile(f, mediaInfo)) ?? enriched[0];
-      if (Capacitor.getPlatform() === 'android') {
-        AndroidPlugins.launchNativePlayer({
-          url:            current?.streamUrl,
-          title:          record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName,
-          fileName:       general?.fileName || '',
-          fileId:         String(mediaInfo.id || ''),
-          preferredAudio: 'Hindi',
-          preferredSub:   null,
-        });
-      } else {
-        setPlayerOpen(true);
-      }
+      if (!current?.streamUrl) throw new Error('No stream URL');
+      const heightOf = (f) => Number(f.video?.resolution?.split('x')?.[1]) || 0;
+      const variants = enriched
+        .filter(f => f.streamUrl)
+        .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
+      navigate(Constants.DB_PLAYER_ROUTE, {
+        state: {
+          media: {
+            url:      current.streamUrl,
+            fileId:   String(mediaInfo.id || mediaInfo.mediaFileId || ''),
+            title:    record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName || '',
+            fileName: general?.fileName || '',
+            recordId: record?.id || record?.recordId || null,
+            variants,
+          },
+        },
+      });
     } catch (_e) {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally {
@@ -278,14 +279,6 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
           label="Copy download URL"
         />
       </Box>
-
-      <CinemaPlayer
-        open={playerOpen}
-        onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
-        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => matchesCurrentFile(f, mediaInfo)) ?? mediaInfo) : mediaInfo}
-        allFiles={enrichedFiles ?? (allFiles ?? [mediaInfo])}
-        record={record}
-      />
     </Box>
   );
 };

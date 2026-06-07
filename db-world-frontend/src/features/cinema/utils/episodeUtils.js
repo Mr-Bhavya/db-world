@@ -41,33 +41,25 @@ export function buildEpisodeMap(files) {
 }
 
 /**
- * Build the episode list for Android VideoPlayerActivity.
- * Filters allFiles to same quality as currentFile, sorts by season/episode.
- * Returns [] for movies (no S##E## pattern) so the Android panel stays hidden.
- *
- * @param {object[]} allFiles   — all media file objects for the record
- * @param {object}   currentFile — the file the user tapped Play on
- * @returns {{ fileId: number, url: string, title: string, quality: string }[]}
+ * Rich episode list for the hybrid player: same quality as currentFile, sorted,
+ * each with a resolved url + stable id. Returns [] for movies.
  */
-export function buildAndroidEpisodeList(allFiles, currentFile) {
+export function buildHybridEpisodes(allFiles, currentFile) {
   if (!Array.isArray(allFiles) || !currentFile) return [];
-  const currentQuality = getQualityLabel(currentFile);
-
-  const sameQuality = allFiles.filter(f => getQualityLabel(f) === currentQuality);
-
-  const withEp = sameQuality
+  const quality = getQualityLabel(currentFile);
+  const pad = (n) => String(n).padStart(2, '0');
+  return allFiles
+    .filter(f => getQualityLabel(f) === quality)
     .map(f => ({ f, ep: parseEpisode(f?.general?.fileName) }))
     .filter(({ ep }) => ep !== null)
-    .sort((a, b) =>
-      a.ep.season !== b.ep.season
-        ? a.ep.season - b.ep.season
-        : a.ep.episode - b.ep.episode
-    );
-
-  return withEp.map(({ f, ep }) => ({
-    fileId:  f.id ?? f.mediaFileId ?? 0,
-    url:     f.streamUrl ?? '',
-    title:   `S${String(ep.season).padStart(2, '0')} · E${String(ep.episode).padStart(2, '0')}`,
-    quality: currentQuality,
-  }));
+    .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
+    .map(({ f, ep }) => ({
+      id:          String(f.id ?? f.mediaFileId ?? ''),
+      fileId:      String(f.id ?? f.mediaFileId ?? ''),
+      mediaFileId: f.mediaFileId ?? f.id ?? '',
+      season:      ep.season,
+      episode:     ep.episode,
+      label:       `S${pad(ep.season)}E${pad(ep.episode)}`,
+      url:         f.streamUrl ?? '',   // may be empty → resolved lazily on selection
+    }));
 }

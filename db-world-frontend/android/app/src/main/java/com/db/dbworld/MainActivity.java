@@ -7,7 +7,7 @@ import android.os.Looper;
 import android.view.View;
 
 import com.db.dbworld.download.DbWorldDownloadPlugin;
-import com.db.dbworld.player.DbWorldPlayerPlugin;
+import com.db.dbworld.player.HybridPlayerPlugin;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -16,8 +16,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(DbWorldPlayerPlugin.class);
         registerPlugin(DbWorldDownloadPlugin.class);
+        registerPlugin(HybridPlayerPlugin.class);
         super.onCreate(savedInstanceState);
         setImmersiveMode();
         handleOpenDownloads(getIntent());

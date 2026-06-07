@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Chip, CircularProgress, IconButton, Tabs, Tab, Divider, Button,
   Switch, useMediaQuery, useTheme,
@@ -19,8 +19,7 @@ import DownloadingIcon     from '@mui/icons-material/Downloading';
 import ErrorOutlineIcon    from '@mui/icons-material/ErrorOutline';
 import FolderOpenIcon      from '@mui/icons-material/FolderOpen';
 import { useT }            from '@shared/theme/ThemeContext';
-import AndroidPlugins      from '@platform/android/AndroidPlugins';
-import CinemaPlayer        from '@features/cinema/player/CinemaPlayer';
+import Constants            from '@shared/constants';
 import DownloadItem, { STATUS_COLOR, fmtBytes, fmtSpeed, fmtEta } from './DownloadItem';
 import { useDownloads }    from './useDownloads';
 
@@ -224,6 +223,7 @@ export default function DownloadsPage() {
   const theme   = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
+  const navigate = useNavigate();
   const {
     downloads, loading, refresh, actions, wifiOnly, toggleWifiOnly,
     concurrency, maxConcurrency, setConcurrency,
@@ -252,10 +252,6 @@ export default function DownloadsPage() {
     else                   actions.remove(item.downloadId);
     setConfirm(null);
   }, [confirm, actions]);
-
-  // Web player state
-  const [playerOpen,  setPlayerOpen]  = useState(false);
-  const [playerMedia, setPlayerMedia] = useState(null);
 
   const { active, completed, failed } = useMemo(() => ({
     active:    downloads.filter(d => ['running', 'pending', 'paused'].includes(d.status)),
@@ -290,25 +286,19 @@ export default function DownloadsPage() {
     }
   }, [downloads]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handlePlay = async (item) => {
+  const handlePlay = (item) => {
     const url = item.playableUri || item.localUri;
     if (!url) return;
-    if (Capacitor.getPlatform() === 'android' && item.canPlay) {
-      await AndroidPlugins.launchNativePlayer({
-        url,
-        title:    item.title || item.fileName || 'Download',
-        fileName: item.fileName || item.title  || 'download',
-        fileId:   item.downloadId,
-        preferredAudio: 'Hindi',
-        preferredSub:   null,
-      });
-    } else {
-      setPlayerMedia({
-        streamUrl: url,
-        general:   { fileName: item.title || item.fileName || 'Download' },
-      });
-      setPlayerOpen(true);
-    }
+    navigate(Constants.DB_PLAYER_ROUTE, {
+      state: {
+        media: {
+          url,
+          fileId:   String(item.downloadId || ''),
+          title:    item.title || item.fileName || 'Download',
+          fileName: item.fileName || item.title || 'download',
+        },
+      },
+    });
   };
 
   const handleSelect = (item) => {
@@ -521,13 +511,6 @@ export default function DownloadsPage() {
         state={confirm}
         onClose={() => setConfirm(null)}
         onConfirm={handleConfirm}
-      />
-
-      {/* Web / browser player */}
-      <CinemaPlayer
-        open={playerOpen}
-        onClose={() => setPlayerOpen(false)}
-        mediaInfo={playerMedia}
       />
     </Box>
   );
