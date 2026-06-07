@@ -1,7 +1,11 @@
 package com.db.dbworld.download;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
@@ -82,7 +86,7 @@ public class DbWorldDownloadPlugin extends Plugin {
     @Override
     public void load() {
         super.load();
-        android.util.Log.e(TAG, "BUILD_MARKER=no-notif-v1 load() starting");
+        android.util.Log.e(TAG, "BUILD_MARKER=ctxwrap-v2 load() starting");
         // IMPORTANT: never let initialization throw out of load(). If it does,
         // Capacitor drops the plugin registration and every call fails with the
         // opaque "plugin is not implemented on android". On failure we keep the
@@ -100,7 +104,7 @@ public class DbWorldDownloadPlugin extends Plugin {
             // DownloadForegroundService shows a summary notification. Rich per-download
             // notifications with action buttons are a follow-up (custom, SDK-34-safe
             // FetchNotificationManager).
-            FetchConfiguration config = new FetchConfiguration.Builder(getContext())
+            FetchConfiguration config = new FetchConfiguration.Builder(receiverFlagSafeContext(getContext()))
                     .setNamespace(NAMESPACE)
                     .setDownloadConcurrentLimit(CONCURRENT_LIMIT)
                     .setHttpDownloader(new OkHttpDownloader(client))
@@ -548,6 +552,40 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     private boolean isWifiOnly() {
         return prefs().getBoolean(PREF_WIFI_ONLY, false);
+    }
+
+    /**
+     * Wraps the context so every {@code registerReceiver(receiver, filter)} Fetch makes
+     * internally (e.g. its connectivity receiver in PriorityListProcessorImpl) is forced to
+     * pass RECEIVER_NOT_EXPORTED on Android 13+. Without this, Fetch 3.1.6 crashes on
+     * targetSdk 34+ with a SecurityException. getApplicationContext() is overridden to return
+     * the wrapper so Fetch's app-context-based registrations are also intercepted.
+     */
+    private Context receiverFlagSafeContext(Context base) {
+        return new ContextWrapper(base.getApplicationContext()) {
+            @Override
+            public Context getApplicationContext() {
+                return this;
+            }
+
+            @Override
+            public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    return super.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                }
+                return super.registerReceiver(receiver, filter);
+            }
+
+            @Override
+            public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
+                                           String broadcastPermission, android.os.Handler scheduler) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    return super.registerReceiver(receiver, filter, broadcastPermission, scheduler,
+                            Context.RECEIVER_NOT_EXPORTED);
+                }
+                return super.registerReceiver(receiver, filter, broadcastPermission, scheduler);
+            }
+        };
     }
 
     private static String guessMime(String fileName) {
