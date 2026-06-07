@@ -1,6 +1,7 @@
 package com.db.dbworld.download;
 
 import android.Manifest;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -12,7 +13,9 @@ import android.os.Build;
 import android.os.Environment;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
 
+import com.db.dbworld.MainActivity;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
@@ -24,7 +27,9 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 import com.tonyodev.fetch2.AbstractFetchListener;
+import com.tonyodev.fetch2.DefaultFetchNotificationManager;
 import com.tonyodev.fetch2.Download;
+import com.tonyodev.fetch2.DownloadNotification;
 import com.tonyodev.fetch2.EnqueueAction;
 import com.tonyodev.fetch2.Error;
 import com.tonyodev.fetch2.Fetch;
@@ -86,7 +91,7 @@ public class DbWorldDownloadPlugin extends Plugin {
     @Override
     public void load() {
         super.load();
-        android.util.Log.e(TAG, "BUILD_MARKER=ctxwrap-v2 load() starting");
+        android.util.Log.e(TAG, "BUILD_MARKER=notif-v3 load() starting");
         // IMPORTANT: never let initialization throw out of load(). If it does,
         // Capacitor drops the plugin registration and every call fails with the
         // opaque "plugin is not implemented on android". On failure we keep the
@@ -97,19 +102,25 @@ public class DbWorldDownloadPlugin extends Plugin {
                     .followSslRedirects(true)
                     .build();
 
-            // NOTE: deliberately NOT using Fetch's DefaultFetchNotificationManager.
-            // On targetSdk 34+ it crashes in registerBroadcastReceiver() because
-            // Fetch 3.1.6 (2021) calls the 2-arg Context.registerReceiver without
-            // RECEIVER_EXPORTED/NOT_EXPORTED. Core downloading works without it; the
-            // DownloadForegroundService shows a summary notification. Rich per-download
-            // notifications with action buttons are a follow-up (custom, SDK-34-safe
-            // FetchNotificationManager).
-            FetchConfiguration config = new FetchConfiguration.Builder(receiverFlagSafeContext(getContext()))
+            // The wrapped context makes Fetch's internal registerReceiver calls
+            // (connectivity receiver + notification manager) pass RECEIVER_NOT_EXPORTED,
+            // which is required on targetSdk 34+.
+            Context fetchContext = receiverFlagSafeContext(getContext());
+
+            FetchConfiguration config = new FetchConfiguration.Builder(fetchContext)
                     .setNamespace(NAMESPACE)
                     .setDownloadConcurrentLimit(CONCURRENT_LIMIT)
                     .setHttpDownloader(new OkHttpDownloader(client))
                     .enableRetryOnNetworkGain(true)          // auto-resume on reconnect
                     .setAutoRetryMaxAttempts(AUTO_RETRY_MAX) // retry transient failures
+                    // Don't fallocate the full file up front — on FUSE storage a multi-GB
+                    // preallocation stalls the visible "start" of every download/resume.
+                    .preAllocateFileOnCreation(false)
+                    .setProgressReportingInterval(1000)      // snappier progress UI
+                    // Rich per-download notification: live progress, pause/resume/cancel
+                    // buttons, and an auto completion notification. SDK-34-safe via the
+                    // wrapped context above.
+                    .setNotificationManager(new DbWorldNotificationManager(fetchContext))
                     .build();
 
             fetch = Fetch.Impl.getInstance(config);
@@ -586,6 +597,42 @@ public class DbWorldDownloadPlugin extends Plugin {
                 return super.registerReceiver(receiver, filter, broadcastPermission, scheduler);
             }
         };
+    }
+
+    /**
+     * Fetch's built-in notification manager (live progress + pause/resume/cancel/retry
+     * buttons + auto completion notification). We subclass it only to point it at our
+     * Fetch instance and to make tapping the notification open the Downloads page.
+     * Constructed with the receiver-flag-safe context so it doesn't crash on SDK 34+.
+     */
+    private class DbWorldNotificationManager extends DefaultFetchNotificationManager {
+        DbWorldNotificationManager(Context context) {
+            super(context);
+        }
+
+        @NonNull
+        @Override
+        public Fetch getFetchInstanceForNamespace(@NonNull String namespace) {
+            return fetch;
+        }
+
+        @Override
+        public void updateNotification(@NonNull NotificationCompat.Builder notificationBuilder,
+                                       @NonNull DownloadNotification downloadNotification,
+                                       @NonNull Context context) {
+            super.updateNotification(notificationBuilder, downloadNotification, context);
+            notificationBuilder.setContentIntent(openDownloadsPendingIntent());
+        }
+    }
+
+    /** Tapping a download notification brings the app forward and opens the Downloads page. */
+    private PendingIntent openDownloadsPendingIntent() {
+        Intent intent = new Intent(getContext(), MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra("openDownloads", true);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getActivity(getContext(), 1001, intent, flags);
     }
 
     private static String guessMime(String fileName) {

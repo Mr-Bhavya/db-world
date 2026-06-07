@@ -37,6 +37,22 @@ import { AnimatePresence } from 'framer-motion';
 import CategoryModal from './CategoryModal';
 import { useCategory } from './CategoryContext';
 import NotificationPanel from '../components/notifications/NotificationPanel';
+import { useActiveDownloadCount } from '../download-queue/useActiveDownloadCount';
+
+// Download nav icon with a live badge showing how many downloads are running/queued.
+function DownloadNavIcon() {
+  const count = useActiveDownloadCount();
+  return (
+    <Badge
+      badgeContent={count}
+      color="primary"
+      overlap="circular"
+      sx={{ '& .MuiBadge-badge': { fontSize: '0.55rem', height: 15, minWidth: 15, p: '0 4px' } }}
+    >
+      <DownloadIcon />
+    </Badge>
+  );
+}
 
 // ─── Styled components ────────────────────────────────────────────────────────
 
@@ -193,7 +209,7 @@ function Navbar({ coverColor, onGenreSelect }) {
     { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
     { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
     { id: 3, title: 'Categories', route: null,                              icon: null },
-    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadIcon /> }] : []),
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
   ], [isAndroid]);
 
   // Mobile bottom pill items: Home / Movies / Shows / Search / Downloads(Android)
@@ -202,7 +218,7 @@ function Navbar({ coverColor, onGenreSelect }) {
     { id: 1,  title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
     { id: 2,  title: 'Shows',     route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
     { id: 99, title: 'Search',    route: null,                              icon: <SearchIcon /> },
-    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadIcon /> }] : []),
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
   ], [isAndroid]);
 
   // Sync selectedNav with current URL

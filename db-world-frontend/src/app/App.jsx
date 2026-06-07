@@ -1,7 +1,7 @@
 import React, { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import Header from '@shared/components/layout/Header';
 import { ThemeTokensProvider, useThemeMode } from '@shared/theme';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
@@ -260,6 +260,14 @@ const ThemedApp = () => {
   const [loading, setLoading] = useState(true);
   const muiTheme = useMemo(() => buildMuiTheme(mode), [mode]);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Native download notifications fire this window event on tap (see MainActivity).
+  useEffect(() => {
+    const openDownloads = () => navigate(Constants.DB_DOWNLOAD_QUEUE_ROUTE);
+    window.addEventListener('dbworldOpenDownloads', openDownloads);
+    return () => window.removeEventListener('dbworldOpenDownloads', openDownloads);
+  }, [navigate]);
   // When set, the user clicked a record card in-app on desktop. The main
   // <Routes> renders against this background location so the underlying
   // cinema page stays visible; a second <Routes> mounts the modal on top.

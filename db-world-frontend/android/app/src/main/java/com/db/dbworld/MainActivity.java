@@ -1,5 +1,6 @@
 package com.db.dbworld;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,6 +20,32 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DbWorldDownloadPlugin.class);
         super.onCreate(savedInstanceState);
         setImmersiveMode();
+        handleOpenDownloads(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleOpenDownloads(intent);
+    }
+
+    /**
+     * When launched from a download notification (extra "openDownloads"), tell the web
+     * app to navigate to the Downloads page. Fired with a small delay so the SPA has a
+     * chance to attach its listener; the JS side listens for "dbworldOpenDownloads".
+     */
+    private void handleOpenDownloads(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra("openDownloads", false)) return;
+        // Fire a few times so it lands whether the SPA is already up (warm) or still
+        // loading (cold launch from the notification).
+        for (long delay : new long[]{ 1200, 3500, 6000 }) {
+            immersiveHandler.postDelayed(() -> {
+                try {
+                    if (getBridge() != null) getBridge().triggerWindowJSEvent("dbworldOpenDownloads");
+                } catch (Exception ignored) {}
+            }, delay);
+        }
     }
 
     @Override
