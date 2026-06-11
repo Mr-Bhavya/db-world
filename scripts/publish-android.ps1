@@ -31,6 +31,8 @@ param(
     [switch] $Mandatory,
     [int]    $MinSupportedCode = 0,
     [string] $Changelog        = '',
+    [ValidateSet('production','local','default')]
+    [string] $BuildMode        = 'production',               # env the APK is built with (publish should stay 'production')
     [switch] $SkipBuild                                      # publish an already-built APK (needs -VersionCode)
 )
 
@@ -56,10 +58,15 @@ Write-Host "Publishing versionCode=$VersionCode versionName=$VersionName mandato
 
 # 2. Build the signed APK (skip only if you pass the matching -VersionCode) ------
 if (-not $SkipBuild) {
-    Step "Building web bundle"
+    # production (default) -> ../runtime/.env.production ; local -> .env.local ; default -> no env-cmd
+    $buildScript = switch ($BuildMode) { 'local' { 'build:local' } 'default' { 'build' } default { 'build:production' } }
+    if ($BuildMode -ne 'production') {
+        Write-Host "WARNING: building with '$BuildMode' env - do NOT publish a non-production APK to the prod server." -ForegroundColor Yellow
+    }
+    Step "Building web bundle ($buildScript)"
     Push-Location $frontend
     try {
-        & npm run build; if ($LASTEXITCODE) { throw "npm build failed" }
+        & npm run $buildScript; if ($LASTEXITCODE) { throw "npm run $buildScript failed" }
         & npx cap sync android; if ($LASTEXITCODE) { throw "cap sync failed" }
     } finally { Pop-Location }
 
