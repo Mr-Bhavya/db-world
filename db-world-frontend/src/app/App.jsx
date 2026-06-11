@@ -356,7 +356,10 @@ const ThemedApp = () => {
       <CssBaseline />
       <SnackbarProvider maxSnack={4} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} autoHideDuration={3000}>
         <CategoryProvider>
-          <div style={{ background: '#000' }}>
+          {/* Transparent by default so the hybrid player's native video layer
+              (behind the transparent WebView) shows through. Only paint the dark
+              backdrop when the mobile detail sheet scales the page back. */}
+          <div style={{ background: pageScaled ? '#000' : 'transparent' }}>
             <BackButtonHandler />
             {/* Page chrome. Scales back slightly when the mobile detail sheet
                 is open (depth cue); the sheet/backdrop render as siblings on
