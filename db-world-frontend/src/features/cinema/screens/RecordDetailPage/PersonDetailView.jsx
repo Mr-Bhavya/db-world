@@ -158,105 +158,122 @@ export default function PersonDetailView({ personId, onBack, surface }) {
         </Box>
       )}
 
-      {!isLoading && !isError && data && (
-        <Box>
-          {/* Header */}
-          <Box sx={{
-            display: 'flex', gap: { xs: 2, sm: 3 }, p: { xs: 2.5, sm: 3 },
-            borderBottom: `1px solid ${alpha(T.text, 0.06)}`,
-            flexDirection: { xs: 'column', sm: 'row' },
-            alignItems: { xs: 'center', sm: 'flex-start' },
-          }}>
-            <Avatar src={photoUrl ?? undefined} alt={data.name}
-              sx={{
-                width: { xs: 130, sm: 150 }, height: { xs: 130, sm: 150 },
-                bgcolor: alpha(T.teal, 0.3), fontSize: '2rem', fontWeight: 800,
-                border: `2px solid ${alpha(T.text, 0.1)}`, flexShrink: 0,
-              }}>
-              {data.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-            </Avatar>
-
-            <Box sx={{ flex: 1, minWidth: 0, textAlign: { xs: 'center', sm: 'left' } }}>
-              <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.01em', mb: 0.5 }}>{data.name}</Typography>
-              {data.knownForDepartment && (
-                <Typography variant="body2" sx={{ color: T.teal, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, mb: 1.5 }}>
-                  {data.knownForDepartment}
-                </Typography>
+      {!isLoading && !isError && data && (() => {
+        const initials = data.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        const hasMeta = data.birthday || data.deathday || data.placeOfBirth;
+        const hasContent = Boolean(data.biography) || knownFor.length > 0 || otherWork.length > 0;
+        return (
+          <Box>
+            {/* Header — centered, with a blurred photo backdrop so the layout
+                reads as intentional even when there's little data. */}
+            <Box sx={{ position: 'relative', overflow: 'hidden' }}>
+              {photoUrl ? (
+                <Box component="img" src={photoUrl} alt="" aria-hidden
+                  sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(34px) brightness(0.5)', transform: 'scale(1.3)' }} />
+              ) : (
+                <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 100% at 50% 0%, ${alpha(T.teal, 0.35)} 0%, transparent 62%)` }} />
               )}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
-                {data.birthday && (
-                  <Chip size="small" icon={<CakeIcon sx={{ fontSize: 16 }} />}
-                    label={`${formatDate(data.birthday)}${age != null && !data.deathday ? ` · ${age} yrs` : ''}`}
-                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }} />
+              <Box sx={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, ${alpha('#000', 0.35)} 0%, ${alpha(surface ?? T.bg, 0.55)} 55%, ${surface ?? T.bg} 100%)` }} />
+
+              <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', px: 2, pt: { xs: 3, sm: 4 }, pb: 3, gap: 1 }}>
+                <Avatar src={photoUrl ?? undefined} alt={data.name}
+                  sx={{
+                    width: { xs: 118, sm: 138 }, height: { xs: 118, sm: 138 },
+                    bgcolor: alpha(T.teal, 0.4), fontSize: '2rem', fontWeight: 800,
+                    border: `3px solid ${alpha('#fff', 0.16)}`, boxShadow: '0 14px 40px rgba(0,0,0,0.5)',
+                  }}>
+                  {initials}
+                </Avatar>
+                <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.01em', mt: 0.5 }}>{data.name}</Typography>
+                {data.knownForDepartment && (
+                  <Typography sx={{ color: T.teal, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.2, fontSize: '0.74rem' }}>
+                    {data.knownForDepartment}
+                  </Typography>
                 )}
-                {data.deathday && (
-                  <Chip size="small" label={`† ${formatDate(data.deathday)}`}
-                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }} />
+                {hasMeta && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', mt: 0.5 }}>
+                    {data.birthday && (
+                      <Chip size="small" icon={<CakeIcon sx={{ fontSize: 16 }} />}
+                        label={`${formatDate(data.birthday)}${age != null && !data.deathday ? ` · ${age} yrs` : ''}`}
+                        sx={{ bgcolor: alpha(T.text, 0.1), color: T.textMuted, fontWeight: 600 }} />
+                    )}
+                    {data.deathday && (
+                      <Chip size="small" label={`† ${formatDate(data.deathday)}`}
+                        sx={{ bgcolor: alpha(T.text, 0.1), color: T.textMuted, fontWeight: 600 }} />
+                    )}
+                    {data.placeOfBirth && (
+                      <Chip size="small" icon={<PlaceIcon sx={{ fontSize: 16 }} />} label={data.placeOfBirth}
+                        sx={{ bgcolor: alpha(T.text, 0.1), color: T.textMuted, fontWeight: 600, maxWidth: 320 }} />
+                    )}
+                  </Box>
                 )}
-                {data.placeOfBirth && (
-                  <Chip size="small" icon={<PlaceIcon sx={{ fontSize: 16 }} />} label={data.placeOfBirth}
-                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }} />
+                {aliases.length > 0 && (
+                  <Typography variant="caption" sx={{ color: T.textFaint, mt: 0.25 }}>
+                    Also known as: {aliases.slice(0, 3).join(' · ')}
+                  </Typography>
                 )}
               </Box>
-              {aliases.length > 0 && (
-                <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: T.textFaint }}>
-                  Also known as: {aliases.slice(0, 4).join(' · ')}
-                </Typography>
-              )}
             </Box>
+
+            {/* Biography */}
+            {data.biography && (
+              <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderTop: `1px solid ${alpha(T.text, 0.06)}` }}>
+                <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>Biography</Typography>
+                <Typography variant="body2" sx={{ color: T.textMuted, mt: 1, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                  {data.biography}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Known for */}
+            {knownFor.length > 0 && (
+              <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderTop: `1px solid ${alpha(T.text, 0.06)}` }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <StarIcon sx={{ fontSize: 18, color: T.teal }} />
+                  <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>Known For</Typography>
+                </Box>
+                <Box sx={{
+                  display: 'flex', gap: 2, overflowX: 'auto', pb: 1.5,
+                  scrollbarWidth: 'thin',
+                  '&::-webkit-scrollbar': { height: 5 },
+                  '&::-webkit-scrollbar-thumb': { background: alpha(T.text, 0.2), borderRadius: 3 },
+                }}>
+                  {knownFor.map((item, i) => (
+                    <FilmoCard key={`${item.tmdbId}-${i}`} item={item} onClick={() => openRecord(item)} />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* More work */}
+            {otherWork.length > 0 && (
+              <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderTop: `1px solid ${alpha(T.text, 0.06)}` }}>
+                <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1, display: 'block', mb: 1.5 }}>
+                  More Work ({otherWork.length})
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' }, gap: 1.5 }}>
+                  {otherWork.map((item, i) => (
+                    <FilmoCard key={`${item.tmdbId}-${i}`} item={item} onClick={() => openRecord(item)} />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* Graceful empty state — fills the panel instead of leaving a gap */}
+            {!hasContent && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 1, px: 3, py: 8, minHeight: 220 }}>
+                <StarIcon sx={{ fontSize: 30, color: alpha(T.text, 0.18) }} />
+                <Typography variant="body2" sx={{ color: T.textMuted, fontWeight: 600 }}>
+                  Limited information available
+                </Typography>
+                <Typography variant="caption" sx={{ color: T.textFaint, maxWidth: 320 }}>
+                  We don&apos;t have a biography or filmography for {data.name} yet.
+                </Typography>
+              </Box>
+            )}
           </Box>
-
-          {/* Biography */}
-          {data.biography && (
-            <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderBottom: `1px solid ${alpha(T.text, 0.06)}` }}>
-              <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>Biography</Typography>
-              <Typography variant="body2" sx={{ color: T.textMuted, mt: 1, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {data.biography}
-              </Typography>
-            </Box>
-          )}
-
-          {/* Known for */}
-          {knownFor.length > 0 && (
-            <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <StarIcon sx={{ fontSize: 18, color: T.teal }} />
-                <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>Known For</Typography>
-              </Box>
-              <Box sx={{
-                display: 'flex', gap: 2, overflowX: 'auto', pb: 1.5,
-                scrollbarWidth: 'thin',
-                '&::-webkit-scrollbar': { height: 5 },
-                '&::-webkit-scrollbar-thumb': { background: alpha(T.text, 0.2), borderRadius: 3 },
-              }}>
-                {knownFor.map((item, i) => (
-                  <FilmoCard key={`${item.tmdbId}-${i}`} item={item} onClick={() => openRecord(item)} />
-                ))}
-              </Box>
-            </Box>
-          )}
-
-          {/* More work */}
-          {otherWork.length > 0 && (
-            <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderTop: `1px solid ${alpha(T.text, 0.06)}` }}>
-              <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1, display: 'block', mb: 1.5 }}>
-                More Work ({otherWork.length})
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' }, gap: 1.5 }}>
-                {otherWork.map((item, i) => (
-                  <FilmoCard key={`${item.tmdbId}-${i}`} item={item} onClick={() => openRecord(item)} />
-                ))}
-              </Box>
-            </Box>
-          )}
-
-          {(!knownFor.length && !otherWork.length) && (
-            <Box sx={{ p: 4 }}>
-              <Typography variant="body2" sx={{ color: T.textFaint }}>No filmography available.</Typography>
-            </Box>
-          )}
-        </Box>
-      )}
+        );
+      })()}
     </Box>
   );
 }
