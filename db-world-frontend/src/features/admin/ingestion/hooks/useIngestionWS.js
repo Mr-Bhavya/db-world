@@ -1,9 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import useIngestionStore from '../store/ingestionStore';
+import { resolveWsUrl } from '@shared/config/apiBaseUrl';
 
-const WS_URL = import.meta.env.VITE_WEBSOCKET_BASEURL
-  ? `${import.meta.env.VITE_WEBSOCKET_BASEURL}/ws/status`
-  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/status`;
+const WS_URL = resolveWsUrl('/ws/status');
 
 const RECONNECT_DELAY = 5000;
 

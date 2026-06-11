@@ -1,10 +1,15 @@
 package com.db.dbworld.player;
 
+import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.database.ContentObserver;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.media.AudioManager;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.TextureView;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -64,6 +69,11 @@ public class HybridPlayerPlugin extends Plugin {
     // Track groups by type, indexed for selection from JS.
     private final List<TrackGroup> audioGroups = new ArrayList<>();
     private final List<TrackGroup> textGroups  = new ArrayList<>();
+    // Volume is mapped to the SYSTEM media stream so the in-app bar, the swipe
+    // gesture, and the hardware volume keys all stay in sync.
+    private AudioManager   audioManager;
+    private ContentObserver volumeObserver;
+    private int            lastVolPercent = -1;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
@@ -127,6 +137,7 @@ public class HybridPlayerPlugin extends Plugin {
 
     private void doLoad(String url, long startMs) {
         if (player == null) player = buildPlayer();
+        ensureAudio();   // system-volume sync + route hardware keys to media
         attachSurface(); // creates the TextureView and binds it to the player
         currentUrl = url;
         player.setMediaItem(MediaItem.fromUri(url));
@@ -217,13 +228,34 @@ public class HybridPlayerPlugin extends Plugin {
         call.resolve();
     }
 
-    /** In-app media volume 0..1 (does not touch system volume). */
+    /** Sets the SYSTEM media volume (STREAM_MUSIC) so the in-app bar, the swipe
+     *  gesture, and the hardware volume keys stay in sync. ExoPlayer's own gain
+     *  stays at its default of 1. */
     @PluginMethod
     public void setVolume(PluginCall call) {
         Double v = call.getDouble("value");
         final float vol = v != null ? Math.max(0f, Math.min(1f, v.floatValue())) : 1f;
-        runOnPlayer(() -> player.setVolume(vol));
+        getActivity().runOnUiThread(() -> {
+            ensureAudio();
+            int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int idx = Math.round(vol * max);
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, idx, 0);
+            lastVolPercent = max > 0 ? Math.round((idx * 100f) / max) : 0;
+        });
         call.resolve();
+    }
+
+    /** Current system media volume as 0..1 — used to initialise the in-app bar. */
+    @PluginMethod
+    public void getVolume(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            ensureAudio();
+            int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int cur = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            JSObject r = new JSObject();
+            r.put("value", max > 0 ? (cur / (float) max) : 1f);
+            call.resolve(r);
+        });
     }
 
     /** Screen brightness 0..1 for this window (resets to system default on release). */
@@ -274,8 +306,10 @@ public class HybridPlayerPlugin extends Plugin {
             ui.removeCallbacks(ticker);
             if (player != null) { player.release(); player = null; }
             detachSurface();
+            unregisterVolumeObserver();
             getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
             Window w = getActivity().getWindow();
+            w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // allow the screen to sleep again
             WindowManager.LayoutParams lp = w.getAttributes();
             lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE; // back to system
             w.setAttributes(lp);
@@ -321,6 +355,55 @@ public class HybridPlayerPlugin extends Plugin {
 
     private void runOnPlayer(Runnable r) {
         getActivity().runOnUiThread(() -> { if (player != null) r.run(); });
+    }
+
+    /** Lazily grabs AudioManager, routes hardware volume keys to the media
+     *  stream, and starts observing system-volume changes (hardware keys). */
+    private void ensureAudio() {
+        if (audioManager == null) {
+            audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        }
+        getActivity().setVolumeControlStream(AudioManager.STREAM_MUSIC);
+        registerVolumeObserver();
+    }
+
+    private void registerVolumeObserver() {
+        if (volumeObserver != null || audioManager == null) return;
+        int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        int cur = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+        lastVolPercent = max > 0 ? Math.round((cur * 100f) / max) : 0;
+        volumeObserver = new ContentObserver(ui) {
+            @Override public void onChange(boolean selfChange, Uri uri) {
+                if (audioManager == null) return;
+                int mx = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int c  = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                int pct = mx > 0 ? Math.round((c * 100f) / mx) : 0;
+                if (pct == lastVolPercent) return;   // not a media-volume change
+                lastVolPercent = pct;
+                JSObject e = new JSObject();
+                e.put("value", mx > 0 ? (c / (float) mx) : 1f);
+                notifyListeners("playerVolume", e);
+            }
+        };
+        getContext().getContentResolver()
+                .registerContentObserver(Settings.System.CONTENT_URI, true, volumeObserver);
+    }
+
+    private void unregisterVolumeObserver() {
+        if (volumeObserver != null) {
+            try { getContext().getContentResolver().unregisterContentObserver(volumeObserver); }
+            catch (Exception ignored) { }
+            volumeObserver = null;
+        }
+    }
+
+    /** Hold the screen awake only while video is actually playing. */
+    private void setKeepScreenOn(boolean on) {
+        getActivity().runOnUiThread(() -> {
+            Window w = getActivity().getWindow();
+            if (on) w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else    w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        });
     }
 
     private static boolean isDecoderError(PlaybackException e) {
@@ -416,6 +499,10 @@ public class HybridPlayerPlugin extends Plugin {
     }
 
     private final Player.Listener playerListener = new Player.Listener() {
+        @Override public void onIsPlayingChanged(boolean isPlaying) {
+            // Keep the screen on only while actually playing; let it sleep when paused.
+            setKeepScreenOn(isPlaying);
+        }
         @Override public void onTracksChanged(@NonNull Tracks tracks) {
             emitTracks(tracks);
         }
@@ -455,7 +542,10 @@ public class HybridPlayerPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         ui.removeCallbacks(ticker);
+        unregisterVolumeObserver();
         if (player != null) { player.release(); player = null; }
+        try { getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); }
+        catch (Exception ignored) { }
         super.handleOnDestroy();
     }
 }

@@ -12,8 +12,9 @@ import RecordDetailContent from './RecordDetailContent';
  */
 export default function RecordDetailPage() {
   const T = useT();
+  const surface = T.bg === '#000000' ? '#141414' : T.bg;
   return (
-    <Box sx={{ bgcolor: T.bg, minHeight: '100vh' }}>
+    <Box sx={{ bgcolor: surface, minHeight: '100vh' }}>
       <RecordDetailContent />
     </Box>
   );

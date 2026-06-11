@@ -24,7 +24,7 @@ import { AuthProvider } from '@features/auth/context/Authentication';
 import PrivateRoute from '@features/auth/PrivateRoute';
 import BackButtonHandler from '@platform/android/BackButtonHandler.js';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Box, createTheme, ThemeProvider, Typography } from '@mui/material';
+import { Box, createTheme, ThemeProvider, Typography, useMediaQuery } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -67,6 +67,7 @@ const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage/index.jsx'));
 const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
+const LazyRecordDetailSheet   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailSheet.jsx'));
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
 const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybrid/HybridPlayerPage.jsx'));
@@ -289,10 +290,15 @@ const ThemedApp = () => {
     })();
     return () => { cancelled = true; stateListener?.remove?.(); };
   }, [navigate]);
-  // When set, the user clicked a record card in-app on desktop. The main
-  // <Routes> renders against this background location so the underlying
-  // cinema page stays visible; a second <Routes> mounts the modal on top.
+  // When set, the user opened a record detail in-app. The main <Routes>
+  // renders against this background location so the underlying page stays
+  // mounted (no refetch, scroll preserved); a second <Routes> mounts the
+  // detail overlay on top — a bottom sheet on mobile, a modal on desktop.
   const background = location.state?.background;
+  const isSheetViewport = useMediaQuery('(max-width:899.95px)');
+  // While the mobile sheet is open, shrink the page behind it slightly for an
+  // iOS-style "card stack" depth cue.
+  const pageScaled = !!background && isSheetViewport;
 
   const renderRoutes = (routes) =>
     routes.map((route, i) => (
@@ -350,8 +356,25 @@ const ThemedApp = () => {
       <CssBaseline />
       <SnackbarProvider maxSnack={4} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} autoHideDuration={3000}>
         <CategoryProvider>
-          <div>
+          <div style={{ background: '#000' }}>
             <BackButtonHandler />
+            {/* Page chrome. Scales back slightly when the mobile detail sheet
+                is open (depth cue); the sheet/backdrop render as siblings on
+                top so they aren't affected by this transform.
+
+                IMPORTANT: transform MUST be 'none' (not scale(1)) when idle —
+                any transform here makes position:fixed descendants (the bottom
+                nav, AppBar) anchor to this box instead of the viewport. */}
+            <Box
+              sx={{
+                transform: pageScaled ? 'scale(0.94)' : 'none',
+                borderRadius: pageScaled ? '16px' : 0,
+                transformOrigin: 'top center',
+                overflow: pageScaled ? 'hidden' : 'visible',
+                transition: 'transform 0.32s cubic-bezier(0.32,0.72,0,1), border-radius 0.32s ease',
+                minHeight: '100vh',
+              }}
+            >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!location.pathname.includes('/player') && <Header />}
             <Suspense fallback={<LoadingFallback />}>
@@ -393,22 +416,24 @@ const ThemedApp = () => {
               </Routes>
 
             </Suspense>
+            </Box>
 
-            {/* Netflix-style modal overlay — only mounted when the user
-                navigated to a detail route IN-APP (location.state.background
-                is set). Cold loads, shared URLs, and refreshes render the
-                full RecordDetailPage instead via the main Routes above.
+            {/* Detail overlay — only mounted when a record was opened IN-APP
+                (location.state.background is set). Cold loads, shared URLs, and
+                refreshes render the full RecordDetailPage instead via the main
+                Routes above. The overlay is responsive: a bottom sheet on
+                mobile (<md), a Netflix-style modal on desktop.
 
-                NOTE: wrapped in its own Suspense with a `null` fallback so
-                that when the lazy modal chunk loads on first open, the
-                fallback does not replace the underlying cinema page (which
-                would lose scroll position and trigger a full re-fetch). */}
+                NOTE: wrapped in its own Suspense with a `null` fallback so that
+                when the lazy chunk loads on first open, the fallback does not
+                replace the underlying page (which would lose scroll position
+                and trigger a full re-fetch). */}
             {background && (
               <Suspense fallback={null}>
                 <Routes>
                   <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
-                    <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={<LazyRecordDetailModal />} />
-                    <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={<LazyRecordDetailModal />} />
+                    <Route path={Constants.DB_MOVIE_DETIALS_ROUTE}  element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
+                    <Route path={Constants.DB_SERIES_DETIALS_ROUTE} element={isSheetViewport ? <LazyRecordDetailSheet /> : <LazyRecordDetailModal />} />
                   </Route>
                 </Routes>
               </Suspense>

@@ -11,7 +11,7 @@ import { registerPlugin, Capacitor } from '@capacitor/core';
 
 const HybridPlayer = registerPlugin('HybridPlayer');
 
-const EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', tracks: 'playerTracks', info: 'playerInfo' };
+const EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', tracks: 'playerTracks', info: 'playerInfo', volume: 'playerVolume' };
 
 function createNativeAdapter() {
   return {
@@ -22,6 +22,7 @@ function createNativeAdapter() {
     seekTo:        (ms) => HybridPlayer.seekTo({ positionMs: Math.max(0, Math.round(ms)) }),
     setRate:       (rate) => HybridPlayer.setRate({ rate }),
     setVolume:     (value) => HybridPlayer.setVolume({ value }),
+    getVolume:     () => HybridPlayer.getVolume(),
     setBrightness: (value) => HybridPlayer.setBrightness({ value }),
     setZoom:       (scale) => HybridPlayer.setZoom({ scale }),
     selectAudioTrack: (id) => HybridPlayer.selectAudioTrack({ id }),
@@ -73,6 +74,7 @@ function createWebAdapter(getVideo) {
     seekTo:        (ms) => { ensure(); if (v) v.currentTime = Math.max(0, ms) / 1000; },
     setRate:       (rate) => { ensure(); if (v) v.playbackRate = rate; },
     setVolume:     (value) => { ensure(); if (v) v.volume = Math.max(0, Math.min(1, value)); },
+    getVolume:     () => Promise.resolve({ value: ensure()?.volume ?? 1 }),
     setBrightness: () => {},   // not controllable on web
     setZoom:       (scale) => { ensure(); if (v) v.style.transform = `scale(${scale})`; },
     selectAudioTrack: (id) => { ensure(); const ts = v?.audioTracks; if (ts) for (let i = 0; i < ts.length; i++) ts[i].enabled = (i === id); },

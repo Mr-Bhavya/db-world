@@ -5,6 +5,7 @@
 // Audio/subtitle/quality + settings sheet + episodes arrive in later phases.
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import CircularProgress from '@mui/material/CircularProgress';
 import PlayArrowIcon     from '@mui/icons-material/PlayArrow';
 import PauseIcon         from '@mui/icons-material/Pause';
@@ -163,7 +164,17 @@ export default function DbWorldVideoPlayer({
           applyPreferredTracks(audio, text);
         }
       }),
+      // Device volume changed via the hardware keys — keep the in-app bar in
+      // sync silently (Android already shows its own system volume overlay, so
+      // no extra HUD here).
+      adapter.on('volume', (d) => {
+        if (typeof d?.value === 'number') setVolume(d.value);
+      }),
     ];
+    // Initialise the bar from the current device media volume.
+    adapter.getVolume?.().then((r) => {
+      if (typeof r?.value === 'number') setVolume(r.value);
+    }).catch(() => {});
     adapter.setDecoderMode?.(lsGet(PREF_DECODER, 'auto')); // set before load so the player builds with it
     adapter.load(src, startMs);
     if (isNative) adapter.setOrientation('landscape'); // default to full-screen landscape
@@ -185,6 +196,36 @@ export default function DbWorldVideoPlayer({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
+
+  // ── Pause when the app/tab goes to the background ───────────────────────────
+  // Video (and its audio) must not keep playing once the user leaves: Home
+  // button / app switch on Android, tab hidden or window blur on web.
+  useEffect(() => {
+    const pauseForBackground = () => {
+      const a = adapterRef.current;
+      if (!a) return;
+      a.pause();
+      setPlaying(false);
+      report(false); // persist progress on the way out
+    };
+
+    let stateListener;
+    if (isNative) {
+      CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) pauseForBackground();
+      }).then((l) => { stateListener = l; }).catch(() => {});
+    }
+
+    const onVisibility = () => { if (document.hidden) pauseForBackground(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', pauseForBackground);
+
+    return () => {
+      stateListener?.remove?.();
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', pauseForBackground);
+    };
+  }, [report]);
 
   // ── controls auto-hide ──────────────────────────────────────────────────────
   const scheduleHide = useCallback(() => {

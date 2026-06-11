@@ -48,6 +48,36 @@ const RailRow = ({
   const [showRight, setShowRight] = useState(true);
   const [titleHovered, setTitleHovered] = useState(false);
 
+  // Prime-rail expand coordination: when a card expands horizontally, slide the
+  // neighbours on the GROWING side out of the way (transform, so no reflow and
+  // no skipping) — the expanded card grows into the gap instead of covering them.
+  //
+  // The grow direction comes from REAL pointer movement (tracked here), not from
+  // which edge a card was entered (that was flaky and caused the random
+  // left/right + the skip). Moving right ⇒ grow LEFT so the cards to the right
+  // (where the cursor is heading) never move; moving left ⇒ grow RIGHT.
+  const [expand, setExpand] = useState({ idx: null, dir: null });
+  const lastXRef  = useRef(null);
+  const moveDirRef = useRef('right');
+  const handleMouseMove = useCallback((e) => {
+    if (lastXRef.current != null) {
+      const dx = e.clientX - lastXRef.current;
+      if (Math.abs(dx) > 2) moveDirRef.current = dx > 0 ? 'right' : 'left';
+    }
+    lastXRef.current = e.clientX;
+  }, []);
+  const handleHoverExpand = useCallback((idx) => {
+    if (idx == null) { setExpand({ idx: null, dir: null }); return; }
+    setExpand({ idx, dir: moveDirRef.current === 'right' ? 'left' : 'right' });
+  }, []);
+  const PRIME_SHIFT = 450; // ≈ landscape width − portrait width of a prime card
+  const cardShift = (i) => {
+    if (expand.idx == null) return 0;
+    if (expand.dir === 'left'  && i < expand.idx) return -PRIME_SHIFT;
+    if (expand.dir === 'right' && i > expand.idx) return  PRIME_SHIFT;
+    return 0;
+  };
+
   const { records, loading, hasNext, initialLoaded, trigger, loadMore } =
     useRailRecords(rail?.id, rail?.limitSize, rail?.infiniteScroll, category);
 
@@ -204,6 +234,7 @@ const RailRow = ({
           <Box
             ref={scrollRef}
             onScroll={handleScrollWithSave}
+            onMouseMove={expandOnHover ? handleMouseMove : undefined}
             sx={{
               display: 'flex', gap: { xs: top10 ? 0.5 : 1, md: top10 ? 0.5 : 1.5 },
               overflowX: 'auto', overflowY: 'visible',
@@ -220,18 +251,44 @@ const RailRow = ({
                   <RecordCardSkeleton key={i} wide={wide} top10={top10} />
                 ))
               : records.map((rec, i) => (
-                  <RecordCard
-                    key={rec.id}
-                    record={rec}
-                    wide={wide}
-                    interaction={interactions[rec.id] ?? {}}
-                    onWatchlist={onWatchlist}
-                    onLike={onLike}
-                    onLove={onLove}
-                    onWatched={onWatched}
-                    rank={top10 ? i + 1 : undefined}
-                    expandOnHover={expandOnHover}
-                  />
+                  expandOnHover ? (
+                    <Box
+                      key={rec.id}
+                      sx={{
+                        flexShrink: 0,
+                        transform: `translateX(${cardShift(i)}px)`,
+                        transition: 'transform 0.32s cubic-bezier(0.4,0,0.2,1)',
+                        willChange: 'transform',
+                      }}
+                    >
+                      <RecordCard
+                        record={rec}
+                        wide={wide}
+                        interaction={interactions[rec.id] ?? {}}
+                        onWatchlist={onWatchlist}
+                        onLike={onLike}
+                        onLove={onLove}
+                        onWatched={onWatched}
+                        expandOnHover
+                        index={i}
+                        onHoverExpand={handleHoverExpand}
+                        expandDir={expand.idx === i ? expand.dir : 'left'}
+                      />
+                    </Box>
+                  ) : (
+                    <RecordCard
+                      key={rec.id}
+                      record={rec}
+                      wide={wide}
+                      interaction={interactions[rec.id] ?? {}}
+                      onWatchlist={onWatchlist}
+                      onLike={onLike}
+                      onLove={onLove}
+                      onWatched={onWatched}
+                      rank={top10 ? i + 1 : undefined}
+                      expandOnHover={expandOnHover}
+                    />
+                  )
                 ))
             }
 

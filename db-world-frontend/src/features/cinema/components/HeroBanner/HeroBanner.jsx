@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Box, Typography, Button, Chip, IconButton,
@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight,
 } from '@mui/icons-material';
 import { tmdbImg } from '../../api/cinemaApi';
-import Constants from '@shared/constants';
+import { openRecord } from '../../utils/recordNav';
 
 const CYCLE_MS  = 8000;
 const FADE_SECS = 0.6;
@@ -116,6 +116,7 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [idx,        setIdx]        = useState(0);
   const [dir,        setDir]        = useState(1);
@@ -188,22 +189,8 @@ const HeroBanner = ({ records = [], interactions = {}, onWatchlist, loading, onC
     }
   }, [idx]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const goToDetail = () => {
-    if (!record) return;
-    const isMovie = record.type === 'MOVIE';
-    const route   = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
-    navigate(route.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`));
-  };
-
-  const goToPlay = () => {
-    if (!record) return;
-    const isMovie = record.type === 'MOVIE';
-    const route = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
-    navigate(
-      route.replace(':title', `${record.id}-${(record.title ?? '').replace(/\s+/g, '-').toLowerCase()}`),
-      { state: { defaultTab: 'Watch' } }
-    );
-  };
+  const goToDetail = () => openRecord(navigate, location, record);
+  const goToPlay   = () => openRecord(navigate, location, record, { play: true });
 
   if (loading && !record) return <HeroBannerSkeleton isMobile={isMobile} />;
   if (!record)            return null;

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Container, Skeleton, useMediaQuery,
+  Alert, Box, Button, Container, Skeleton, Typography, useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { useSnackbar } from 'notistack';
 
 import {
   addLike, addLove, addWatched, addWatchlist,
-  fetchInteraction, fetchRecord,
+  fetchInteraction, fetchRecord, tmdbImg,
   removeLike, removeLove, removeWatched, removeWatchlist,
 } from '../../api/cinemaApi';
 import Constants from '@shared/constants';
@@ -25,6 +25,7 @@ import SeasonsSection from './sections/SeasonsSection';
 import ReviewsSection from './sections/ReviewsSection';
 import WatchSection from './sections/WatchSection';
 import RelatedSection from './sections/RelatedSection';
+import PersonDetailView from './PersonDetailView';
 import { getUserId } from './helpers';
 
 const SECTION_IDS = {
@@ -55,6 +56,7 @@ export default function RecordDetailContent({
   inModal = false,
   onClose,
   stickyOffset = 0,
+  preview = null,
 }) {
   const { title } = useParams();
   const id = title?.split('-')[0];
@@ -65,6 +67,40 @@ export default function RecordDetailContent({
   const T = useT();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
+  // In dark mode lift the body off pure AMOLED black to an elevated charcoal
+  // (matches CinemaPage) so sections/cards have depth instead of a flat void.
+  const surface = T.bg === '#000000' ? '#141414' : T.bg;
+
+  // ── Cast/crew drill-in ────────────────────────────────────────────────────
+  // Clicking a person swaps THIS surface to their detail in place (no separate
+  // modal/drawer). Driven by router state so the hardware/browser Back button
+  // closes the person view first, returning to the record (not all the way out).
+  const personId = location.state?.person ?? null;
+  const personScrollRef = useRef(0);
+
+  const openPerson = useCallback((id) => {
+    if (!id) return;
+    personScrollRef.current = scrollRoot ? scrollRoot.scrollTop : window.scrollY;
+    navigate(location.pathname + location.search, { state: { ...location.state, person: id } });
+  }, [navigate, location, scrollRoot]);
+
+  const closePerson = useCallback(() => { navigate(-1); }, [navigate]);
+
+  // Scroll to top when drilling in; restore the record's scroll when coming back.
+  const prevPersonRef = useRef(personId);
+  useEffect(() => {
+    const was = prevPersonRef.current;
+    prevPersonRef.current = personId;
+    if (was === personId) return;
+    const y = personScrollRef.current;
+    requestAnimationFrame(() => {
+      if (personId) {
+        if (scrollRoot) scrollRoot.scrollTop = 0; else window.scrollTo(0, 0);
+      } else {
+        if (scrollRoot) scrollRoot.scrollTop = y; else window.scrollTo(0, y);
+      }
+    });
+  }, [personId, scrollRoot]);
 
   const [interactionState, setInteractionState] = useState(null);
   const [trailerVideo, setTrailerVideo] = useState(null);
@@ -196,9 +232,27 @@ export default function RecordDetailContent({
 
   // ── Loading / error states ─────────────────────────────────────────────
   if (recordLoading) {
+    // Instant hero: if the caller passed a card summary, paint its poster/
+    // backdrop + title immediately so the open has no grey flash — only the
+    // below-the-fold sections skeleton while the full record loads.
+    const previewImg = preview && tmdbImg(preview.backdropPath ?? preview.posterPath, 'w780');
     return (
-      <Box sx={{ bgcolor: T.bg, minHeight: inModal ? 'auto' : '100vh' }}>
-        <Skeleton variant="rectangular" width="100%" height={500} sx={{ bgcolor: alpha(T.text, 0.07) }} />
+      <Box sx={{ bgcolor: surface, minHeight: inModal ? 'auto' : '100vh' }}>
+        <Box sx={{ position: 'relative', width: '100%', height: { xs: 360, sm: 440, md: 500 }, bgcolor: '#050505', overflow: 'hidden' }}>
+          {previewImg ? (
+            <>
+              <Box component="img" src={previewImg} alt="" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', opacity: 0.5 }} />
+              <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.45) 45%, transparent 75%)' }} />
+              {preview?.title && (
+                <Typography variant="h4" sx={{ position: 'absolute', left: { xs: 16, md: 40 }, bottom: 28, right: 16, color: '#fff', fontWeight: 800, lineHeight: 1.1, textShadow: '0 2px 16px rgba(0,0,0,0.9)' }}>
+                  {preview.title}
+                </Typography>
+              )}
+            </>
+          ) : (
+            <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: alpha(T.text, 0.07) }} />
+          )}
+        </Box>
         <Container maxWidth="lg" sx={{ py: 4 }}>
           <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
             {[1, 2, 3, 4, 5].map((i) => (
@@ -238,8 +292,16 @@ export default function RecordDetailContent({
 
   const scrollToWatch = () => scrollToSection(SECTION_IDS.watch);
 
+  if (personId) {
+    return (
+      <Box ref={contentRef} sx={{ bgcolor: surface, minHeight: inModal ? 'auto' : '100vh' }}>
+        <PersonDetailView personId={personId} onBack={closePerson} surface={surface} />
+      </Box>
+    );
+  }
+
   return (
-    <Box ref={contentRef} sx={{ bgcolor: T.bg }}>
+    <Box ref={contentRef} sx={{ bgcolor: surface }}>
       <Hero
         record={record}
         interaction={currentInteraction}
@@ -266,7 +328,7 @@ export default function RecordDetailContent({
           </Box>
         )}
         <Box id={SECTION_IDS.cast} sx={{ scrollMarginTop: stickyOffset + 80 }}>
-          <CastCrewSection record={record} />
+          <CastCrewSection record={record} onPersonClick={openPerson} />
         </Box>
         <Box id={SECTION_IDS.gallery} sx={{ scrollMarginTop: stickyOffset + 80 }}>
           <GallerySection record={record} />

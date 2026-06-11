@@ -82,3 +82,7 @@ logs/
 *.env
 *.env.*
 !*.env.example
+
+### Local build artifacts & DB dumps — never commit ###
+db-world-frontend/android/app/release/
+MySqlDb/

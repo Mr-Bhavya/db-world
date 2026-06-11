@@ -41,3 +41,30 @@ export function getApiBaseUrl() {
   cached = '';
   return cached;
 }
+
+// Resolve a WebSocket URL for the given path (e.g. '/ws/status').
+//
+// WebSockets do NOT go through the CapacitorHttp plugin (it patches
+// fetch/XHR only), and on a native build the page origin is
+// https://localhost — not the backend. So we reuse getApiBaseUrl()
+// (which already redirects native localhost → the prod API) and just
+// swap the scheme: http→ws, https→wss.
+//
+// Resolution order (first match wins):
+//   1. VITE_WEBSOCKET_BASEURL build-time env var → explicit override
+//   2. getApiBaseUrl() non-empty                 → derive ws(s) from it
+//   3. Same origin                               → dev / proxied setups
+export function resolveWsUrl(path) {
+  const envWs = (import.meta.env.VITE_WEBSOCKET_BASEURL ?? '').trim();
+  if (envWs) return `${envWs.replace(/\/$/, '')}${path}`;
+
+  const apiBase = getApiBaseUrl();
+  if (apiBase) return `${apiBase.replace(/^http/, 'ws')}${path}`;
+
+  if (typeof window !== 'undefined') {
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${proto}://${window.location.host}${path}`;
+  }
+
+  return path;
+}

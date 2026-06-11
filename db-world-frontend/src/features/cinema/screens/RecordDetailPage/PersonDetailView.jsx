@@ -1,12 +1,12 @@
 import React, { useMemo, useCallback } from 'react';
 import {
-  Avatar, Box, Chip, CircularProgress, Dialog, IconButton, Typography, useMediaQuery,
+  Avatar, Box, Chip, CircularProgress, IconButton, Typography, useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
-import CloseIcon from '@mui/icons-material/Close';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CakeIcon from '@mui/icons-material/Cake';
 import PlaceIcon from '@mui/icons-material/Place';
 import StarIcon from '@mui/icons-material/Star';
@@ -29,14 +29,11 @@ const yearsBetween = (start, end) => {
   return Math.floor((b - a) / (365.25 * 24 * 3600 * 1000));
 };
 
-// ─── Filmography card ────────────────────────────────────────────────────────
 function FilmoCard({ item, onClick }) {
   const T = useT();
   const poster = tmdbImg(item.posterPath, 'w342');
   const initials = (item.title ?? '?').slice(0, 2).toUpperCase();
-  const subtitle = item.creditType === 'CAST'
-    ? item.character
-    : item.job;
+  const subtitle = item.creditType === 'CAST' ? item.character : item.job;
 
   return (
     <Box
@@ -45,24 +42,19 @@ function FilmoCard({ item, onClick }) {
       transition={{ duration: 0.15 }}
       onClick={item.recordId ? onClick : undefined}
       sx={{
-        flexShrink: 0,
-        width: { xs: 110, sm: 130 },
+        flexShrink: 0, width: { xs: 104, sm: 124 },
         cursor: item.recordId ? 'pointer' : 'default',
         opacity: item.recordId ? 1 : 0.55,
       }}
     >
       <Box sx={{
-        width: '100%', aspectRatio: '2/3',
-        borderRadius: 1.5, overflow: 'hidden',
-        bgcolor: alpha(T.text, 0.06),
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: '100%', aspectRatio: '2/3', borderRadius: 1.5, overflow: 'hidden',
+        bgcolor: alpha(T.text, 0.06), display: 'flex', alignItems: 'center', justifyContent: 'center',
         border: `1px solid ${alpha(T.text, 0.08)}`,
       }}>
         {poster
-          ? <Box component="img" src={poster} alt={item.title} loading="lazy"
-              sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <Typography variant="h6" sx={{ color: T.textFaint, fontWeight: 800 }}>{initials}</Typography>
-        }
+          ? <Box component="img" src={poster} alt={item.title} loading="lazy" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <Typography variant="h6" sx={{ color: T.textFaint, fontWeight: 800 }}>{initials}</Typography>}
       </Box>
       <Typography variant="caption" sx={{
         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
@@ -82,20 +74,23 @@ function FilmoCard({ item, onClick }) {
   );
 }
 
-// ─── Person detail modal ─────────────────────────────────────────────────────
-export default function PersonDetailModal({ personId, onClose }) {
+/**
+ * Person detail rendered IN PLACE inside the record detail surface (modal /
+ * sheet / page) — a "drill-in", not a separate popup. A Back arrow returns to
+ * the record. The parent (RecordDetailContent) drives open/close via router
+ * state so the hardware/browser Back button closes this first.
+ */
+export default function PersonDetailView({ personId, onBack, surface }) {
   const T = useT();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const location = useLocation();
 
-  const open = Boolean(personId);
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ['person-detail', personId],
     queryFn: () => fetchPersonDetail(personId),
-    enabled: open,
+    enabled: Boolean(personId),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -108,10 +103,7 @@ export default function PersonDetailModal({ personId, onClose }) {
       const bCast = b.creditType === 'CAST' ? 0 : 1;
       return aCast - bCast;
     });
-    return {
-      knownFor: sorted.slice(0, 12),
-      otherWork: sorted.slice(12),
-    };
+    return { knownFor: sorted.slice(0, 12), otherWork: sorted.slice(12) };
   }, [data]);
 
   const openRecord = useCallback((item) => {
@@ -120,42 +112,39 @@ export default function PersonDetailModal({ personId, onClose }) {
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
     const slug = (item.title ?? '').replace(/\s+/g, '-').toLowerCase();
     const path = base.replace(':title', `${item.recordId}-${slug}`);
-    onClose?.();
-    const existingBackground = location.state?.background;
-    navigate(path, { state: { background: existingBackground || location } });
-  }, [navigate, location, onClose]);
+    // Preserve the existing background so the overlay stays; drop `person`
+    // so the new record opens on its record view (not a stale person view).
+    const { person, ...restState } = location.state ?? {};
+    navigate(path, { state: { ...restState, background: restState.background || location } });
+  }, [navigate, location]);
 
   const photoUrl = tmdbImg(data?.profilePath, 'w342');
   const aliases = (data?.alsoKnownAs ?? '').split('|').map(s => s.trim()).filter(Boolean);
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullScreen={isXs}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          bgcolor: T.bg,
-          backgroundImage: 'none',
-          borderRadius: isXs ? 0 : 2,
-          color: T.text,
-          overflow: 'hidden',
-        },
-      }}
+    <Box
+      component={motion.div}
+      initial={{ opacity: 0, x: 28 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.24, ease: 'easeOut' }}
+      sx={{ bgcolor: surface ?? T.bg, minHeight: '100%' }}
     >
-      {/* Close button */}
-      <IconButton
-        onClick={onClose}
-        sx={{
-          position: 'absolute', top: 8, right: 8, zIndex: 2,
-          color: T.text, bgcolor: alpha(T.bg, 0.6),
-          '&:hover': { bgcolor: alpha(T.bg, 0.85) },
-        }}
-      >
-        <CloseIcon />
-      </IconButton>
+      {/* Sticky top bar with Back */}
+      <Box sx={{
+        position: 'sticky', top: 0, zIndex: 5,
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        px: { xs: 1.5, sm: 2.5 }, py: 1.25,
+        bgcolor: alpha(surface ?? T.bg, 0.88), backdropFilter: 'blur(12px)',
+        borderBottom: `1px solid ${alpha(T.text, 0.08)}`,
+      }}>
+        <IconButton onClick={onBack} size="small" aria-label="Back"
+          sx={{ color: T.text, bgcolor: alpha(T.text, 0.08), '&:hover': { bgcolor: alpha(T.text, 0.16) } }}>
+          <ArrowBackIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+        <Typography sx={{ fontWeight: 700, color: T.text, fontSize: '1rem', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {data?.name ?? 'Person'}
+        </Typography>
+      </Box>
 
       {isLoading && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 10 }}>
@@ -165,73 +154,50 @@ export default function PersonDetailModal({ personId, onClose }) {
 
       {isError && !isLoading && (
         <Box sx={{ p: 4 }}>
-          <Typography variant="body1" sx={{ color: T.textMuted }}>
-            Could not load person details.
-          </Typography>
+          <Typography variant="body1" sx={{ color: T.textMuted }}>Could not load person details.</Typography>
         </Box>
       )}
 
       {!isLoading && !isError && data && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', maxHeight: isXs ? 'none' : '85vh', overflowY: 'auto' }}>
+        <Box>
           {/* Header */}
           <Box sx={{
-            display: 'flex', gap: { xs: 2, sm: 3 },
-            p: { xs: 2.5, sm: 3 },
+            display: 'flex', gap: { xs: 2, sm: 3 }, p: { xs: 2.5, sm: 3 },
             borderBottom: `1px solid ${alpha(T.text, 0.06)}`,
             flexDirection: { xs: 'column', sm: 'row' },
             alignItems: { xs: 'center', sm: 'flex-start' },
           }}>
-            <Avatar
-              src={photoUrl ?? undefined}
-              alt={data.name}
+            <Avatar src={photoUrl ?? undefined} alt={data.name}
               sx={{
-                width: { xs: 140, sm: 160 },
-                height: { xs: 140, sm: 160 },
-                bgcolor: alpha(T.teal, 0.3),
-                fontSize: '2rem', fontWeight: 800,
-                border: `2px solid ${alpha(T.text, 0.1)}`,
-                flexShrink: 0,
-              }}
-            >
+                width: { xs: 130, sm: 150 }, height: { xs: 130, sm: 150 },
+                bgcolor: alpha(T.teal, 0.3), fontSize: '2rem', fontWeight: 800,
+                border: `2px solid ${alpha(T.text, 0.1)}`, flexShrink: 0,
+              }}>
               {data.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
             </Avatar>
 
             <Box sx={{ flex: 1, minWidth: 0, textAlign: { xs: 'center', sm: 'left' } }}>
-              <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.01em', mb: 0.5 }}>
-                {data.name}
-              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.01em', mb: 0.5 }}>{data.name}</Typography>
               {data.knownForDepartment && (
                 <Typography variant="body2" sx={{ color: T.teal, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, mb: 1.5 }}>
                   {data.knownForDepartment}
                 </Typography>
               )}
-
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
                 {data.birthday && (
-                  <Chip
-                    size="small"
-                    icon={<CakeIcon sx={{ fontSize: 16 }} />}
+                  <Chip size="small" icon={<CakeIcon sx={{ fontSize: 16 }} />}
                     label={`${formatDate(data.birthday)}${age != null && !data.deathday ? ` · ${age} yrs` : ''}`}
-                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }}
-                  />
+                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }} />
                 )}
                 {data.deathday && (
-                  <Chip
-                    size="small"
-                    label={`† ${formatDate(data.deathday)}`}
-                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }}
-                  />
+                  <Chip size="small" label={`† ${formatDate(data.deathday)}`}
+                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }} />
                 )}
                 {data.placeOfBirth && (
-                  <Chip
-                    size="small"
-                    icon={<PlaceIcon sx={{ fontSize: 16 }} />}
-                    label={data.placeOfBirth}
-                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }}
-                  />
+                  <Chip size="small" icon={<PlaceIcon sx={{ fontSize: 16 }} />} label={data.placeOfBirth}
+                    sx={{ bgcolor: alpha(T.text, 0.06), color: T.textMuted, fontWeight: 600 }} />
                 )}
               </Box>
-
               {aliases.length > 0 && (
                 <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: T.textFaint }}>
                   Also known as: {aliases.slice(0, 4).join(' · ')}
@@ -243,9 +209,7 @@ export default function PersonDetailModal({ personId, onClose }) {
           {/* Biography */}
           {data.biography && (
             <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderBottom: `1px solid ${alpha(T.text, 0.06)}` }}>
-              <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>
-                Biography
-              </Typography>
+              <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>Biography</Typography>
               <Typography variant="body2" sx={{ color: T.textMuted, mt: 1, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                 {data.biography}
               </Typography>
@@ -257,9 +221,7 @@ export default function PersonDetailModal({ personId, onClose }) {
             <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                 <StarIcon sx={{ fontSize: 18, color: T.teal }} />
-                <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>
-                  Known For
-                </Typography>
+                <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1 }}>Known For</Typography>
               </Box>
               <Box sx={{
                 display: 'flex', gap: 2, overflowX: 'auto', pb: 1.5,
@@ -274,17 +236,13 @@ export default function PersonDetailModal({ personId, onClose }) {
             </Box>
           )}
 
-          {/* Full filmography (overflow) */}
+          {/* More work */}
           {otherWork.length > 0 && (
             <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderTop: `1px solid ${alpha(T.text, 0.06)}` }}>
               <Typography variant="overline" sx={{ color: T.textFaint, fontWeight: 700, letterSpacing: 1, display: 'block', mb: 1.5 }}>
                 More Work ({otherWork.length})
               </Typography>
-              <Box sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' },
-                gap: 1.5,
-              }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' }, gap: 1.5 }}>
                 {otherWork.map((item, i) => (
                   <FilmoCard key={`${item.tmdbId}-${i}`} item={item} onClick={() => openRecord(item)} />
                 ))}
@@ -294,13 +252,11 @@ export default function PersonDetailModal({ personId, onClose }) {
 
           {(!knownFor.length && !otherWork.length) && (
             <Box sx={{ p: 4 }}>
-              <Typography variant="body2" sx={{ color: T.textFaint }}>
-                No filmography available.
-              </Typography>
+              <Typography variant="body2" sx={{ color: T.textFaint }}>No filmography available.</Typography>
             </Box>
           )}
         </Box>
       )}
-    </Dialog>
+    </Box>
   );
 }

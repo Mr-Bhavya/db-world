@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Chip, Skeleton, useMediaQuery, useTheme } from '@mui/material';
 import { useSelector } from 'react-redux';
+import { useQuery } from '@tanstack/react-query';
 
 import Navbar          from '../../navbar';
 import HeroBanner      from '../../components/HeroBanner/HeroBanner';
@@ -93,9 +94,22 @@ const CinemaPage = ({ pageType = 'home' }) => {
   // ── Hero dominant color (mobile) ──
   const [heroColor, setHeroColor] = useState(null);
 
-  const [rails,       setRails]       = useState([]);
-  const [_genres,     setGenres]      = useState([]);
-  const [loadingMeta, setLoadingMeta] = useState(true);
+  // Rail metadata + genres — cached by TanStack Query so revisiting this page
+  // (Home↔Movies↔Series, returning from a detail overlay) is instant and never
+  // refetches within staleTime.
+  const { data: railsData, isLoading: railsLoading } = useQuery({
+    queryKey: ['cinema-rails', apiPage, category ?? null],
+    queryFn: () => fetchPageRails(apiPage, category),
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const rails = Array.isArray(railsData) ? railsData : [];
+  useQuery({
+    queryKey: ['cinema-categories', apiPage],
+    queryFn: () => fetchPageCategories(apiPage),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
 
   // Clear category when page type changes (navigating between Home/Movies/Series)
   useEffect(() => {
@@ -116,14 +130,14 @@ const CinemaPage = ({ pageType = 'home' }) => {
 
   // Restore vertical scroll once rails are loaded
   useEffect(() => {
-    if (loadingMeta || rails.length === 0 || scrollRestored.current) return;
+    if (railsLoading || rails.length === 0 || scrollRestored.current) return;
     const saved = parseInt(sessionStorage.getItem(scrollKey) || '0', 10);
     if (saved > 0) {
       scrollRestored.current = true;
       const t = setTimeout(() => window.scrollTo({ top: saved, behavior: 'instant' }), 80);
       return () => clearTimeout(t);
     }
-  }, [loadingMeta, rails.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [railsLoading, rails.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hero: eagerly load the first rail's records
   const heroRail = rails[0] ?? null;
@@ -135,25 +149,6 @@ const CinemaPage = ({ pageType = 'home' }) => {
   const userId = user?.id ?? user?.userId ?? null;
 
   const { interactions, loadForRecords, toggleWatchlist, toggleLike, toggleLove, toggleWatched } = useInteractions();
-
-  // ── Fetch rail metadata + genres when page/category changes ──
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingMeta(true);
-    setRails([]);
-
-    Promise.all([
-      fetchPageRails(apiPage, category),
-      fetchPageCategories(apiPage),
-    ]).then(([railList, genreList]) => {
-      if (cancelled) return;
-      setRails(Array.isArray(railList) ? railList : []);
-      setGenres(Array.isArray(genreList) ? genreList : []);
-    }).catch(console.error)
-      .finally(() => { if (!cancelled) setLoadingMeta(false); });
-
-    return () => { cancelled = true; };
-  }, [apiPage, category]);
 
   // Eagerly load hero rail once known
   useEffect(() => {
@@ -230,13 +225,13 @@ const CinemaPage = ({ pageType = 'home' }) => {
         records={heroRecords}
         interactions={interactions}
         onWatchlist={handleWatchlist}
-        loading={loadingMeta || heroLoading}
+        loading={railsLoading || heroLoading}
         onColorExtracted={setHeroColor}
       />
 
       {/* ── Rails ── */}
       <Box sx={{ mt: { xs: 1, md: 2 } }}>
-        {loadingMeta && rails.length === 0 ? (
+        {railsLoading && rails.length === 0 ? (
           <>
             <RailSkeleton />
             <RailSkeleton />

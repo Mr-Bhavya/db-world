@@ -1,81 +1,80 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { Box, Dialog, IconButton, Slide, useMediaQuery } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Box, Dialog, Grow, IconButton } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
 import RecordDetailContent from './RecordDetailContent';
 
-// Slide-up transition for the modal entrance — feels like the detail panel
-// is rising into view from below, closer to the Netflix detail pop than
-// MUI's default fade. timeout is intentionally a touch longer (300ms in)
-// so the motion reads as deliberate, not snappy.
-const Transition = React.forwardRef(function ModalTransition(props, ref) {
-  return <Slide direction="up" ref={ref} timeout={{ enter: 300, exit: 220 }} {...props} />;
-});
-
 /**
- * Netflix-style modal overlay rendered when a card click on /cinema (or any
- * page) sets `location.state.background` to the previous URL.
+ * Desktop record-detail modal. Opens with a fast Grow (scale) transition whose
+ * transform-origin is the on-screen position of the control that opened it
+ * (location.state.originRect) — so it visually expands FROM the expand button.
+ * The chunk is preloaded on card hover (see recordNav.preloadDetail), so by the
+ * time the user clicks, this opens instantly.
  *
- * - URL still updates so refresh / share / back-button work as expected.
- * - Browser back button closes the modal (navigates back to the background
- *   location).
- * - Click outside the dialog (backdrop) closes it.
- * - X button closes it.
- *
- * Only mounted by App.jsx on desktop (md+); on mobile the same route renders
- * RecordDetailPage as a full page.
+ * - URL still updates so refresh / share / back-button work.
+ * - Browser/hardware Back, backdrop click, or X close it (back to background).
  */
 export default function RecordDetailModal() {
   const navigate = useNavigate();
   const location = useLocation();
-  const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(true);
   const scrollerRef = useRef(null);
   const [scrollEl, setScrollEl] = useState(null);
 
-  // Capture the Dialog's scroll container once it's mounted so PillNav's
-  // scrollspy can observe section visibility against it.
   const setScrollerRef = useCallback((node) => {
     scrollerRef.current = node;
     setScrollEl(node);
   }, []);
 
+  // Grow scales the Paper from its CSS transform-origin. Map the opening
+  // control's screen-centre onto the Paper as a percentage so the growth
+  // appears to originate there.
+  const transformOrigin = useMemo(() => {
+    const r = location.state?.originRect;
+    if (!r || typeof window === 'undefined') return 'center 28%';
+    const x = ((r.left + r.width / 2) / window.innerWidth) * 100;
+    const y = ((r.top + r.height / 2) / window.innerHeight) * 100;
+    return `${Math.max(0, Math.min(100, x))}% ${Math.max(0, Math.min(100, y))}%`;
+  }, [location.state]);
+
+  const Transition = useMemo(() => React.forwardRef(function ModalGrow(props, ref) {
+    return <Grow ref={ref} timeout={{ enter: 240, exit: 170 }} {...props} />;
+  }), []);
+
   const handleClose = useCallback(() => {
     setOpen(false);
-    // Wait for the Dialog's exit transition (MUI default ~225ms) before
-    // navigating. MUI manages body scroll lock and padding internally — we
-    // intentionally do NOT also lock body.style.overflow ourselves; two
-    // mechanisms competing was causing scroll to stay locked after close.
+    // Let the Grow exit play (~170ms) before popping the route.
     setTimeout(() => {
       const background = location.state?.background;
       if (background) navigate(background.pathname + (background.search ?? ''), { replace: true });
       else navigate(-1);
-    }, 230);
+    }, 180);
   }, [navigate, location.state]);
 
   return (
     <Dialog
       open={open}
       onClose={handleClose}
-      fullScreen={fullScreen}
       maxWidth={false}
       scroll="paper"
       TransitionComponent={Transition}
       PaperProps={{
         ref: setScrollerRef,
+        style: { transformOrigin },
         sx: {
-          width: { xs: '100%', md: '92vw' },
-          maxWidth: { md: 1200 },
-          maxHeight: { xs: '100%', md: '92vh' },
-          borderRadius: { xs: 0, md: 3 },
+          width: '92vw',
+          maxWidth: 1150,
+          maxHeight: '92vh',
+          borderRadius: 3,
           overflow: 'auto',
-          bgcolor: 'transparent', // content provides its own bg via T.bg
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+          bgcolor: 'transparent',
+          boxShadow: '0 32px 90px rgba(0,0,0,0.7)',
         },
       }}
-      BackdropProps={{ sx: { bgcolor: alpha('#000', 0.78), backdropFilter: 'blur(6px)' } }}
+      // No backdrop blur — the full-screen blur was the main cause of the
+      // sluggish open. A plain dark scrim is far cheaper and feels instant.
+      BackdropProps={{ sx: { bgcolor: alpha('#000', 0.82) } }}
     >
       <Box sx={{ position: 'relative' }}>
         <IconButton
@@ -88,7 +87,6 @@ export default function RecordDetailModal() {
             zIndex: 20,
             bgcolor: alpha('#000', 0.6), color: '#fff',
             border: `1px solid ${alpha('#fff', 0.18)}`,
-            backdropFilter: 'blur(8px)',
             width: 38, height: 38,
             '&:hover': { bgcolor: alpha('#000', 0.82) },
           }}
@@ -101,6 +99,7 @@ export default function RecordDetailModal() {
           scrollRoot={scrollEl}
           onClose={handleClose}
           stickyOffset={0}
+          preview={location.state?.cardRecord ?? null}
         />
       </Box>
     </Dialog>
