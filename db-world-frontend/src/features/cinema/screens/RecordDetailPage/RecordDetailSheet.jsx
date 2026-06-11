@@ -36,6 +36,9 @@ export default function RecordDetailSheet() {
   const navigate = useNavigate();
   const location = useLocation();
   const T = useT();
+  // Match the detail body so any uncovered area (short content, dvh quirks)
+  // reads as the surface, never a black bar.
+  const surface = T.bg === '#000000' ? '#141414' : T.bg;
 
   const [mode, setMode] = useState('peek');   // 'peek' | 'full'
   const [closing, setClosing] = useState(false);
@@ -187,7 +190,7 @@ export default function RecordDetailSheet() {
         sx={{
           position: 'fixed', left: 0, right: 0, top: 0,
           height: '100dvh', zIndex: 1300,
-          bgcolor: T.bg,
+          bgcolor: surface,
           overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
           boxShadow: '0 -16px 56px rgba(0,0,0,0.6)',

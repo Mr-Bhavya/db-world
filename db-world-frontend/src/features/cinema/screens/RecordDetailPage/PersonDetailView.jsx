@@ -127,7 +127,7 @@ export default function PersonDetailView({ personId, onBack, surface }) {
       initial={{ opacity: 0, x: 28 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.24, ease: 'easeOut' }}
-      sx={{ bgcolor: surface ?? T.bg, minHeight: '100%' }}
+      sx={{ bgcolor: surface ?? T.bg, minHeight: '100%', flex: 1 }}
     >
       {/* Sticky top bar with Back */}
       <Box sx={{

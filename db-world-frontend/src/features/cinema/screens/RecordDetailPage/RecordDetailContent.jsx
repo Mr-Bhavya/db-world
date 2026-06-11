@@ -294,7 +294,9 @@ export default function RecordDetailContent({
 
   if (personId) {
     return (
-      <Box ref={contentRef} sx={{ bgcolor: surface, minHeight: inModal ? 'auto' : '100vh' }}>
+      // Fill the surface (100% of the sheet/modal scroller, 100vh on the full
+      // page) so a person with little data doesn't leave a black bar below.
+      <Box ref={contentRef} sx={{ bgcolor: surface, minHeight: inModal ? '100%' : '100vh', display: 'flex', flexDirection: 'column' }}>
         <PersonDetailView personId={personId} onBack={closePerson} surface={surface} />
       </Box>
     );
