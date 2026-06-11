@@ -32,7 +32,9 @@ public class AppUpdateService {
 
     private final ObjectMapper objectMapper;
 
-    @Value("${app.release-dir:/opt/dbworld/releases}")
+    // Default matches the prod server layout (app.base-path=/app/db_world) and the
+    // Jenkins ANDROID_RELEASE_DIR, so it's correct even if app.release-dir isn't set.
+    @Value("${app.release-dir:/app/db_world/releases}")
     private String releaseDir;
 
     /** @return latest build info, or {@code null} if nothing has been published yet. */
