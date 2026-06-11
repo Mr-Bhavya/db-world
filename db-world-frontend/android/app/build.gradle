@@ -8,6 +8,14 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+// Version is overridable by CI so Jenkins can bump per build without editing
+// this file: -PappVersionCode / -PappVersionName (or APP_VERSION_CODE /
+// APP_VERSION_NAME env). Falls back to the local defaults below.
+def resolvedVersionCode = (project.findProperty('appVersionCode')
+        ?: System.getenv('APP_VERSION_CODE') ?: '1') as Integer
+def resolvedVersionName = (project.findProperty('appVersionName')
+        ?: System.getenv('APP_VERSION_NAME') ?: '1.0').toString()
+
 android {
     namespace "com.db.dbworld"
     compileSdk rootProject.ext.compileSdkVersion
@@ -15,8 +23,8 @@ android {
         applicationId "com.db.dbworld"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

@@ -77,6 +77,8 @@ public final class AppConstants {
 
     public static final String[] PUBLIC_APIS = {
             "/api/server/**",
+            "/api/app/version",
+            "/api/app/download",
             "/api/cinema/admin/bootstrap",
             "/assets/**",
             "/icons/**",
