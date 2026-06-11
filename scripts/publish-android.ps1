@@ -84,17 +84,19 @@ $meta = [ordered]@{
     minSupportedCode = $MinSupportedCode
     changelog        = $Changelog
 }
-$json     = $meta | ConvertTo-Json -Depth 5
-$jsonPath = Join-Path $env:TEMP 'dbworld-version.json'
+$json   = $meta | ConvertTo-Json -Depth 5
+$tmpDir = Join-Path $env:TEMP 'dbworld-release'
+New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+$jsonPath = Join-Path $tmpDir 'version.json'   # real name so scp lands it correctly
 [System.IO.File]::WriteAllText($jsonPath, $json, (New-Object System.Text.UTF8Encoding $false))
 
-# 4. Publish via scp/ssh (temp + atomic mv) -------------------------------------
+# 4. Publish via scp/ssh — kept to 2 connections (2 password prompts max; 0 with
+#    an SSH key). The APK is listed first so version.json only lands after the
+#    (large) APK is fully uploaded — clients never see a version pointing at a
+#    missing APK.
 Step "Uploading to ${Server}:${ReleaseDir}"
-& ssh $Server "mkdir -p '$ReleaseDir'";                                            if ($LASTEXITCODE) { throw "ssh mkdir failed" }
-& scp $apk      "${Server}:${ReleaseDir}/app-release.apk.tmp";                     if ($LASTEXITCODE) { throw "scp apk failed" }
-& scp $jsonPath "${Server}:${ReleaseDir}/version.json.tmp";                        if ($LASTEXITCODE) { throw "scp version.json failed" }
-& ssh $Server "mv -f '$ReleaseDir/app-release.apk.tmp' '$ReleaseDir/app-release.apk' && mv -f '$ReleaseDir/version.json.tmp' '$ReleaseDir/version.json'"
-if ($LASTEXITCODE) { throw "remote publish (mv) failed" }
+& ssh $Server "mkdir -p '$ReleaseDir'";                            if ($LASTEXITCODE) { throw "ssh mkdir failed" }
+& scp $apk $jsonPath "${Server}:${ReleaseDir}/";                   if ($LASTEXITCODE) { throw "scp upload failed" }
 
 Write-Host "`n✔ Published versionCode=$VersionCode ($VersionName) to ${Server}:${ReleaseDir}" -ForegroundColor Green
 Write-Host "  Devices on an older build will be prompted to update on next launch." -ForegroundColor Green
