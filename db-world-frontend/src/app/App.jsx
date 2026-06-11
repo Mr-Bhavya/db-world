@@ -33,6 +33,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { SnackbarProvider } from 'notistack';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
+import AppUpdateGate from '@shared/components/AppUpdateGate';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 
 const queryClient = new QueryClient({
@@ -361,6 +362,8 @@ const ThemedApp = () => {
               backdrop when the mobile detail sheet scales the page back. */}
           <div style={{ background: pageScaled ? '#000' : 'transparent' }}>
             <BackButtonHandler />
+            <AppUpdateGate />
+            {/* in-app self-update prompt (Android only) */}
             {/* Page chrome. Scales back slightly when the mobile detail sheet
                 is open (depth cue); the sheet/backdrop render as siblings on
                 top so they aren't affected by this transform.
