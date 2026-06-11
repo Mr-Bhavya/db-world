@@ -3,7 +3,6 @@ package com.db.dbworld.app.appupdate.service;
 import com.db.dbworld.app.appupdate.model.AppVersionInfo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,13 +23,13 @@ import java.nio.file.Path;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AppUpdateService {
 
     public static final String APK_FILE = "app-release.apk";
     private static final String META_FILE = "version.json";
 
-    private final ObjectMapper objectMapper;
+    // Self-contained mapper — the app context doesn't expose an ObjectMapper bean.
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // Default matches the prod server layout (app.base-path=/app/db_world) and the
     // Jenkins ANDROID_RELEASE_DIR, so it's correct even if app.release-dir isn't set.
@@ -44,7 +43,7 @@ public class AppUpdateService {
             return null;
         }
         try {
-            JsonNode n = objectMapper.readTree(meta.toFile());
+            JsonNode n = MAPPER.readTree(meta.toFile());
             Path apk = Path.of(releaseDir, APK_FILE);
             long size = Files.isRegularFile(apk) ? Files.size(apk) : 0L;
             return new AppVersionInfo(
