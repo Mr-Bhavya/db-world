@@ -4,25 +4,23 @@
     version.json to the backend's release directory, for the in-app updater.
 
 .DESCRIPTION
-    Publish-only flow — no CI Android build. The script:
+    Publish-only flow - no CI Android build. The script:
       1. Picks the next versionCode automatically (current published one + 1,
          read from the live /api/app/version endpoint; starts at 2 if none).
-      2. Builds the web bundle, runs `cap sync`, and `gradlew assembleRelease`
+      2. Builds the web bundle, runs 'cap sync', and 'gradlew assembleRelease'
          with that versionCode (so the APK and version.json always agree).
-      3. Writes version.json and copies both files to the server via scp/ssh
-         (temp + mv, so the app never reads a version.json pointing at an APK
-         that isn't in place yet).
+      3. Writes version.json and copies both files to the server via scp/ssh.
 
     Requires: Node + Android SDK + JDK 17 locally (same as a normal APK build),
     android/keystore.properties present, and OpenSSH (ssh/scp) with access to
     the server. The APK is signed with your existing key.
 
 .EXAMPLE
-    ./scripts/publish-android.ps1 -VersionName 1.4.0 -Changelog "Bug fixes" -Server dbworld_admin@db-world.in
+    ./scripts/publish-android.ps1 -VersionName 1.0.1 -Server dbworld_admin@ssh.db-world.in -Changelog "Bug fixes"
 
 .EXAMPLE
     # Force everyone to update before using the app
-    ./scripts/publish-android.ps1 -VersionName 1.5.0 -Mandatory -Server dbworld_admin@db-world.in
+    ./scripts/publish-android.ps1 -VersionName 1.5.0 -Mandatory -Server dbworld_admin@ssh.db-world.in
 #>
 param(
     [Parameter(Mandatory = $true)] [string] $VersionName,
@@ -40,7 +38,7 @@ $ErrorActionPreference = 'Stop'
 $frontend = Join-Path $PSScriptRoot '..\db-world-frontend' | Resolve-Path
 $apk      = Join-Path $frontend 'android\app\build\outputs\apk\release\app-release.apk'
 
-function Step($m) { Write-Host "`n▶ $m" -ForegroundColor Cyan }
+function Step($m) { Write-Host "`n> $m" -ForegroundColor Cyan }
 
 # 1. Decide the next versionCode ------------------------------------------------
 if ($VersionCode -le 0) {
@@ -75,7 +73,7 @@ if (-not $SkipBuild) {
 
 if (-not (Test-Path $apk)) { throw "APK not found at $apk" }
 
-# 3. Write version.json (UTF-8, no BOM — Jackson-friendly) ----------------------
+# 3. Write version.json (UTF-8, no BOM - Jackson-friendly) ----------------------
 Step "Writing version.json"
 $meta = [ordered]@{
     versionCode      = $VersionCode
@@ -90,13 +88,12 @@ New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 $jsonPath = Join-Path $tmpDir 'version.json'   # real name so scp lands it correctly
 [System.IO.File]::WriteAllText($jsonPath, $json, (New-Object System.Text.UTF8Encoding $false))
 
-# 4. Publish via scp/ssh — kept to 2 connections (2 password prompts max; 0 with
-#    an SSH key). The APK is listed first so version.json only lands after the
-#    (large) APK is fully uploaded — clients never see a version pointing at a
-#    missing APK.
+# 4. Publish via scp/ssh - 2 connections (2 password prompts max; 0 with an SSH
+#    key). APK is listed first so version.json only lands after the (large) APK
+#    is fully uploaded - clients never see a version pointing at a missing APK.
 Step "Uploading to ${Server}:${ReleaseDir}"
-& ssh $Server "mkdir -p '$ReleaseDir'";                            if ($LASTEXITCODE) { throw "ssh mkdir failed" }
-& scp $apk $jsonPath "${Server}:${ReleaseDir}/";                   if ($LASTEXITCODE) { throw "scp upload failed" }
+& ssh $Server "mkdir -p '$ReleaseDir'";            if ($LASTEXITCODE) { throw "ssh mkdir failed" }
+& scp $apk $jsonPath "${Server}:${ReleaseDir}/";   if ($LASTEXITCODE) { throw "scp upload failed" }
 
-Write-Host "`n✔ Published versionCode=$VersionCode ($VersionName) to ${Server}:${ReleaseDir}" -ForegroundColor Green
-Write-Host "  Devices on an older build will be prompted to update on next launch." -ForegroundColor Green
+Write-Host "`nOK: Published versionCode=$VersionCode ($VersionName) to ${Server}:${ReleaseDir}" -ForegroundColor Green
+Write-Host "Devices on an older build will be prompted to update on next launch." -ForegroundColor Green
