@@ -32,6 +32,7 @@ import ErrorOutlineIcon  from '@mui/icons-material/ErrorOutline';
 import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { createPlayerAdapter } from './playerAdapter';
+import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 const HIDE_MS = 3500;
@@ -48,6 +49,19 @@ const lsGet = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { r
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } };
 const audioLabel = (t) => `${t.language}${t.channels >= 6 ? ' 5.1' : t.channels === 2 ? ' Stereo' : ''}`;
 
+// ── Browser audio-codec support (web only) ───────────────────────────────────
+// Used to decide when a track must be transcoded to AAC server-side.
+const _codecProbe = typeof document !== 'undefined' ? document.createElement('video') : null;
+const browserCanPlay = (mime) => !!_codecProbe && _codecProbe.canPlayType(mime) !== '';
+const browserPlaysAudioFormat = (format) => {
+  if (!format) return true;
+  const f = String(format).toUpperCase();
+  if (f.includes('E-AC-3') || f.includes('EAC3') || f.includes('E-AC3')) return browserCanPlay('audio/mp4; codecs="ec-3"');
+  if (f.includes('AC-3')   || f.includes('AC3'))                          return browserCanPlay('audio/mp4; codecs="ac-3"');
+  if (f.includes('DTS')    || f.includes('TRUEHD') || f.includes('MLP'))  return false; // browsers never decode these
+  return true; // AAC / Opus / etc. — assume the browser handles it
+};
+
 const fmt = (ms) => {
   if (!ms || ms < 0) return '0:00';
   const s = Math.floor(ms / 1000);
@@ -61,6 +75,7 @@ export default function DbWorldVideoPlayer({
   src, startMs = 0, title = '', fileId, variants = [],
   episodes = [], currentEpisodeId, onSelectEpisode,
   onProgress, onClose,
+  audio = [], mediaFileId = '', durationMs = 0, // web transcode metadata
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
   const videoRef    = useRef(null);
@@ -176,7 +191,36 @@ export default function DbWorldVideoPlayer({
       if (typeof r?.value === 'number') setVolume(r.value);
     }).catch(() => {});
     adapter.setDecoderMode?.(lsGet(PREF_DECODER, 'auto')); // set before load so the player builds with it
-    adapter.load(src, startMs);
+
+    // Web: the adapter never emits a 'tracks' event, so seed the audio menu from
+    // the file metadata, and if the browser can't decode the chosen track's codec
+    // (E-AC3/AC3/DTS), stream it through the server-side AAC transcode instead of
+    // the direct CDN URL. Native (ExoPlayer) decodes everything directly.
+    let usedTranscode = false;
+    if (!isNative && audio.length) {
+      const webTracks = audio.map((a, i) => ({ id: i, language: a.language, channels: a.channels, format: a.format }));
+      setAudioTracks(webTracks);
+
+      let idx = audio.findIndex(a => a.language === lsGet(PREF_AUDIO, DEFAULT_AUDIO));
+      if (idx < 0) idx = 0;
+
+      if (mediaFileId && audio[idx] && !browserPlaysAudioFormat(audio[idx].format)) {
+        const token   = lsGet('token', '');
+        const apiBase  = getApiBaseUrl();
+        adapter.setTranscode?.({
+          durationMs,
+          audioIndex: idx,
+          build: (startSec, audioIdx) =>
+            `${apiBase}/api/stream/web/${mediaFileId}?t=${encodeURIComponent(token)}&audio=${audioIdx}&start=${startSec}`,
+        });
+        setCurAudio(idx);
+        appliedRef.current = true;      // track choice is baked into the transcode
+        adapter.load(src, startMs);      // url ignored — adapter uses the transcode build()
+        usedTranscode = true;
+      }
+    }
+    if (!usedTranscode) adapter.load(src, startMs);
+
     if (isNative) adapter.setOrientation('landscape'); // default to full-screen landscape
     scheduleHide();
 

@@ -69,14 +69,21 @@ function useFileActions(file, allFiles, record) {
         .filter(f => f.streamUrl)
         .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
 
+      // For the web audio transcode fallback (E-AC3 etc. → AAC).
+      const rawDur     = Number(currentResolved.general?.duration) || 0;
+      const durationMs = rawDur > 100000 ? Math.round(rawDur) : Math.round(rawDur * 1000);
+
       navigate(Constants.DB_PLAYER_ROUTE, {
         state: {
           media: {
-            url:      currentResolved.streamUrl,
-            fileId:   String(current.id || current.mediaFileId || ''),
-            title:    record?.tmdb?.title || record?.tmdb?.name || record?.name || current.general?.fileName || '',
-            fileName: current.general?.fileName || '',
-            recordId: record?.id || record?.recordId || null,
+            url:         currentResolved.streamUrl,
+            fileId:      String(current.id || current.mediaFileId || ''),
+            mediaFileId: current.mediaFileId || '',
+            title:       record?.tmdb?.title || record?.tmdb?.name || record?.name || current.general?.fileName || '',
+            fileName:    current.general?.fileName || '',
+            recordId:    record?.id || record?.recordId || null,
+            audio:       currentResolved.audio || [],
+            durationMs,
             variants,
             episodes,
           },
