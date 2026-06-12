@@ -41,6 +41,8 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -106,8 +108,13 @@ public class HybridPlayerPlugin extends Plugin {
 
     /** Builds an ExoPlayer whose decoder preference matches {@link #decoderMode}. */
     private ExoPlayer buildPlayer() {
-        DefaultRenderersFactory rf = new DefaultRenderersFactory(getContext())
-                .setEnableDecoderFallback(true);                 // fall back to OS decoders if HW init fails
+        // NextRenderersFactory is a drop-in DefaultRenderersFactory that also
+        // registers the bundled FFmpeg software decoders (E-AC3/AC3/DTS/TrueHD),
+        // used AFTER the platform MediaCodec ones — so audio still plays on
+        // devices whose hardware can't decode the codec, instead of going silent.
+        DefaultRenderersFactory rf = new NextRenderersFactory(getContext())
+                .setEnableDecoderFallback(true)                  // fall back to OS decoders if HW init fails
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
         if (decoderMode == 1)      rf.setMediaCodecSelector(preferSelector(true));   // hardware first
         else if (decoderMode == 2) rf.setMediaCodecSelector(preferSelector(false));  // software first
         ExoPlayer p = new ExoPlayer.Builder(getContext(), rf).build();
