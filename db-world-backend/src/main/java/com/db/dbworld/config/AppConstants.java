@@ -93,7 +93,6 @@ public final class AppConstants {
             "/ws/application-logs",
             "/ws/user-cinema-activity",
             "/api/stream/resolve/**",
-            "/api/stream/web/**",
             "/*", "/db-world/**", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**",
             "/api/admin/file-manager/download/stream"

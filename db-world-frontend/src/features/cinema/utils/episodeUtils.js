@@ -41,10 +41,24 @@ export function buildEpisodeMap(files) {
 }
 
 /**
+ * Look up a TMDB episode name for a given season/episode number.
+ * `tmdbSeasons` is record.tmdb.seasons: [{ seasonNumber, episodes:[{ episodeNumber, name }] }].
+ * Returns '' when not found (so callers can fall back to the S##E## label).
+ */
+export function tmdbEpisodeName(tmdbSeasons, season, episode) {
+  if (!Array.isArray(tmdbSeasons)) return '';
+  const s = tmdbSeasons.find(x => Number(x?.seasonNumber) === Number(season));
+  const e = s?.episodes?.find(x => Number(x?.episodeNumber) === Number(episode));
+  return e?.name ?? '';
+}
+
+/**
  * Rich episode list for the hybrid player: same quality as currentFile, sorted,
  * each with a resolved url + stable id. Returns [] for movies.
+ *
+ * @param {Array} [tmdbSeasons] record.tmdb.seasons — used to attach episode names.
  */
-export function buildHybridEpisodes(allFiles, currentFile) {
+export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
   if (!Array.isArray(allFiles) || !currentFile) return [];
   const quality = getQualityLabel(currentFile);
   const pad = (n) => String(n).padStart(2, '0');
@@ -53,13 +67,17 @@ export function buildHybridEpisodes(allFiles, currentFile) {
     .map(f => ({ f, ep: parseEpisode(f?.general?.fileName) }))
     .filter(({ ep }) => ep !== null)
     .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
-    .map(({ f, ep }) => ({
-      id:          String(f.id ?? f.mediaFileId ?? ''),
-      fileId:      String(f.id ?? f.mediaFileId ?? ''),
-      mediaFileId: f.mediaFileId ?? f.id ?? '',
-      season:      ep.season,
-      episode:     ep.episode,
-      label:       `S${pad(ep.season)}E${pad(ep.episode)}`,
-      url:         f.streamUrl ?? '',   // may be empty → resolved lazily on selection
-    }));
+    .map(({ f, ep }) => {
+      const name = tmdbEpisodeName(tmdbSeasons, ep.season, ep.episode);
+      return {
+        id:          String(f.id ?? f.mediaFileId ?? ''),
+        fileId:      String(f.id ?? f.mediaFileId ?? ''),
+        mediaFileId: f.mediaFileId ?? f.id ?? '',
+        season:      ep.season,
+        episode:     ep.episode,
+        name,                                    // TMDB episode title ('' if unknown)
+        label:       `S${pad(ep.season)}E${pad(ep.episode)}`,
+        url:         f.streamUrl ?? '',          // may be empty → resolved lazily on selection
+      };
+    });
 }

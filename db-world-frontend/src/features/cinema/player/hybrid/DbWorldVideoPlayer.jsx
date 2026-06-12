@@ -18,6 +18,7 @@ import LockOpenIcon      from '@mui/icons-material/LockOpen';
 import SpeedIcon         from '@mui/icons-material/Speed';
 import BrightnessHighIcon from '@mui/icons-material/BrightnessHigh';
 import VolumeUpIcon      from '@mui/icons-material/VolumeUp';
+import VolumeOffIcon     from '@mui/icons-material/VolumeOff';
 import SettingsIcon      from '@mui/icons-material/Settings';
 import AudiotrackIcon    from '@mui/icons-material/Audiotrack';
 import ClosedCaptionIcon from '@mui/icons-material/ClosedCaption';
@@ -32,7 +33,6 @@ import ErrorOutlineIcon  from '@mui/icons-material/ErrorOutline';
 import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { createPlayerAdapter } from './playerAdapter';
-import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 const HIDE_MS = 3500;
@@ -49,18 +49,17 @@ const lsGet = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { r
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } };
 const audioLabel = (t) => `${t.language}${t.channels >= 6 ? ' 5.1' : t.channels === 2 ? ' Stereo' : ''}`;
 
-// ── Browser audio-codec support (web only) ───────────────────────────────────
-// Used to decide when a track must be transcoded to AAC server-side.
-const _codecProbe = typeof document !== 'undefined' ? document.createElement('video') : null;
-const browserCanPlay = (mime) => !!_codecProbe && _codecProbe.canPlayType(mime) !== '';
-const browserPlaysAudioFormat = (format) => {
-  if (!format) return true;
-  const f = String(format).toUpperCase();
-  if (f.includes('E-AC-3') || f.includes('EAC3') || f.includes('E-AC3')) return browserCanPlay('audio/mp4; codecs="ec-3"');
-  if (f.includes('AC-3')   || f.includes('AC3'))                          return browserCanPlay('audio/mp4; codecs="ac-3"');
-  if (f.includes('DTS')    || f.includes('TRUEHD') || f.includes('MLP'))  return false; // browsers never decode these
-  return true; // AAC / Opus / etc. — assume the browser handles it
+// "S1:E2 · Episode Name" (drops the name when TMDB has none, drops the whole
+// thing for movies). withName=false → just "S1:E2".
+const epTitle = (ep, withName = true) => {
+  if (!ep || ep.season == null || ep.episode == null) return '';
+  const short = `S${ep.season}:E${ep.episode}`;
+  return withName && ep.name ? `${short} · ${ep.name}` : short;
 };
+
+// Double-tap / seek-button feedback animation (injected once).
+const SEEK_FX_CSS = `
+@keyframes dbw-seekfx { 0% { opacity: 0; transform: scale(0.6); } 18% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }`;
 
 const fmt = (ms) => {
   if (!ms || ms < 0) return '0:00';
@@ -75,7 +74,7 @@ export default function DbWorldVideoPlayer({
   src, startMs = 0, title = '', fileId, variants = [],
   episodes = [], currentEpisodeId, onSelectEpisode,
   onProgress, onClose,
-  audio = [], mediaFileId = '', durationMs = 0, // web transcode metadata
+  audio = [], // file audio-track metadata (seeds the audio menu on web)
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
   const videoRef    = useRef(null);
@@ -112,6 +111,7 @@ export default function DbWorldVideoPlayer({
   const appliedRef = useRef(false);                    // preferred tracks applied for this load
 
   const curIdx = episodes.findIndex(e => e.id === currentEpisodeId || e.fileId === currentEpisodeId);
+  const curEp = curIdx >= 0 ? episodes[curIdx] : null;
   const nextEpisode = curIdx >= 0 && curIdx < episodes.length - 1 ? episodes[curIdx + 1] : null;
   const seasonsMap = episodes.reduce((m, ep) => { (m[ep.season] ||= []).push(ep); return m; }, {});
   const [locked, setLocked]       = useState(false);
@@ -124,6 +124,10 @@ export default function DbWorldVideoPlayer({
   const [infoMsg, setInfoMsg]     = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hud, setHud]             = useState(null);    // { kind:'volume'|'brightness'|'zoom', value }
+  const [seekFx, setSeekFx]       = useState(null);    // { dir:'fwd'|'back', id } — double-tap/seek feedback
+  const [upNextDismissed, setUpNextDismissed] = useState(false);
+  const seekFxTimer = useRef(null);
+  const muteRef     = useRef(1);                       // remembers pre-mute volume
 
   // Apply remembered/default audio (Hindi) + subtitle (off) once per load.
   const applyPreferredTracks = useCallback((audio, text) => {
@@ -147,7 +151,7 @@ export default function DbWorldVideoPlayer({
     appliedRef.current = false;
     triedQualityRef.current = new Set();
     setCurQualityId(fileId);
-    setEnded(false); setCountdown(null); setErrorMsg(null);
+    setEnded(false); setCountdown(null); setErrorMsg(null); setUpNextDismissed(false);
 
     let prevHtmlBg, prevBodyBg;
     if (isNative) {
@@ -193,33 +197,21 @@ export default function DbWorldVideoPlayer({
     adapter.setDecoderMode?.(lsGet(PREF_DECODER, 'auto')); // set before load so the player builds with it
 
     // Web: the adapter never emits a 'tracks' event, so seed the audio menu from
-    // the file metadata, and if the browser can't decode the chosen track's codec
-    // (E-AC3/AC3/DTS), stream it through the server-side AAC transcode instead of
-    // the direct CDN URL. Native (ExoPlayer) decodes everything directly.
-    let usedTranscode = false;
+    // the file metadata and reflect which track is active up front (preferred
+    // language if present, else the first). Native (ExoPlayer) emits 'tracks' and
+    // applies prefs via applyPreferredTracks instead.
     if (!isNative && audio.length) {
       const webTracks = audio.map((a, i) => ({ id: i, language: a.language, channels: a.channels, format: a.format }));
       setAudioTracks(webTracks);
-
       let idx = audio.findIndex(a => a.language === lsGet(PREF_AUDIO, DEFAULT_AUDIO));
       if (idx < 0) idx = 0;
-
-      if (mediaFileId && audio[idx] && !browserPlaysAudioFormat(audio[idx].format)) {
-        const token   = lsGet('token', '');
-        const apiBase  = getApiBaseUrl();
-        adapter.setTranscode?.({
-          durationMs,
-          audioIndex: idx,
-          build: (startSec, audioIdx) =>
-            `${apiBase}/api/stream/web/${mediaFileId}?t=${encodeURIComponent(token)}&audio=${audioIdx}&start=${startSec}`,
-        });
-        setCurAudio(idx);
-        appliedRef.current = true;      // track choice is baked into the transcode
-        adapter.load(src, startMs);      // url ignored — adapter uses the transcode build()
-        usedTranscode = true;
-      }
+      setCurAudio(idx);
+      appliedRef.current = true;
+      // Best-effort: activate the preferred track once the element exists
+      // (browsers that expose HTMLMediaElement.audioTracks honour this).
+      setTimeout(() => adapter.selectAudioTrack?.(idx), 0);
     }
-    if (!usedTranscode) adapter.load(src, startMs);
+    adapter.load(src, startMs);
 
     if (isNative) adapter.setOrientation('landscape'); // default to full-screen landscape
     scheduleHide();
@@ -233,6 +225,7 @@ export default function DbWorldVideoPlayer({
       report(false); // save on close/unmount
       adapter.release();
       clearTimeout(hideTimer.current);
+      clearTimeout(seekFxTimer.current);
       if (isNative) {
         document.documentElement.style.background = prevHtmlBg;
         document.body.style.background = prevBodyBg;
@@ -287,11 +280,29 @@ export default function DbWorldVideoPlayer({
     showControls();
   }, [playing, showControls, report]);
 
+  // Brief on-screen ±10s feedback (double-tap, seek buttons, arrow keys).
+  const flashSeek = useCallback((dir) => {
+    clearTimeout(seekFxTimer.current);
+    setSeekFx({ dir, id: Date.now() });
+    seekFxTimer.current = setTimeout(() => setSeekFx(null), 650);
+  }, []);
+
   const seekBy = useCallback((deltaMs) => {
     const a = adapterRef.current; if (!a) return;
     const target = Math.max(0, Math.min(duration || Infinity, position + deltaMs));
     a.seekTo(target); setPosition(target); showControls();
-  }, [position, duration, showControls]);
+    flashSeek(deltaMs >= 0 ? 'fwd' : 'back');
+  }, [position, duration, showControls, flashSeek]);
+
+  const toggleMute = useCallback(() => {
+    const a = adapterRef.current; if (!a) return;
+    if (volume > 0) { muteRef.current = volume; a.setVolume(0); setVolume(0); }
+    else            { const v = muteRef.current || 1; a.setVolume(v); setVolume(v); }
+    showControls();
+  }, [volume, showControls]);
+
+  const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
+  const openEpisodes = () => { setEpisodesOpen(true); showControls(); };
 
   const rotate = () => {
     const next = !landscape; setLandscape(next); setLocked(false);
@@ -459,9 +470,10 @@ export default function DbWorldVideoPlayer({
   };
 
   const displayPos = scrub != null ? scrub : position;
-  const pct = duration > 0 ? (displayPos / duration) * 100 : 0;
-  // "Up next" card appears in the last 20s (and autoplays at the very end).
-  const nearEnd = duration > 0 && position > 0 && (duration - position) <= 20000;
+  // "Up next" card appears in the last 60s — series these days end on 1–3 min of
+  // credits, so prompt the next episode before the file actually finishes.
+  const nearEnd = duration > 0 && position > 0 && (duration - position) <= 60000;
+  const showUpNext = nextEpisode && !ended && nearEnd && !upNextDismissed && countdown == null;
 
   return (
     <div
@@ -472,10 +484,26 @@ export default function DbWorldVideoPlayer({
       style={{ position: 'fixed', inset: 0, zIndex: 2000, background: isNative ? 'transparent' : '#000',
                overflow: 'hidden', color: '#fff', fontFamily: 'system-ui, sans-serif', touchAction: 'none' }}
     >
+      <style>{SEEK_FX_CSS}</style>
+
       {/* Web video surface (native renders behind the WebView) */}
       {!isNative && (
         <video ref={videoRef} playsInline
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+      )}
+
+      {/* Double-tap / seek feedback (±10s ripple on the relevant side) */}
+      {seekFx && (
+        <div key={seekFx.id} style={{ position: 'absolute', top: 0, bottom: 0, width: '34%', zIndex: 24,
+          ...(seekFx.dir === 'fwd' ? { right: 0 } : { left: 0 }),
+          display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+            width: 116, height: 116, borderRadius: '50%', background: 'rgba(0,0,0,0.45)',
+            animation: 'dbw-seekfx 0.65s ease-out forwards' }}>
+            {seekFx.dir === 'fwd' ? <Forward10Icon sx={{ fontSize: 36 }} /> : <Replay10Icon sx={{ fontSize: 36 }} />}
+            <span style={{ fontSize: 13, fontWeight: 700 }}>{seekFx.dir === 'fwd' ? '+10s' : '-10s'}</span>
+          </div>
+        </div>
       )}
 
       {/* Buffering spinner */}
@@ -534,30 +562,22 @@ export default function DbWorldVideoPlayer({
       {/* Controls overlay */}
       {controls && !locked && (
         <>
-          {/* gradient scrims */}
+          {/* gradient scrims (stronger at the bottom for the taller control bar) */}
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'linear-gradient(rgba(0,0,0,0.55), transparent 22%, transparent 70%, rgba(0,0,0,0.7))' }} />
+            background: 'linear-gradient(rgba(0,0,0,0.6), transparent 20%, transparent 58%, rgba(0,0,0,0.88))' }} />
 
-          {/* Top bar */}
+          {/* Top bar: close + show name (left); orientation controls (right, native) */}
           <div style={row('absolute', { top: 0, left: 0, right: 0, padding: 14, justifyContent: 'space-between' })}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
               <IconBtn onClick={close}><CloseIcon /></IconBtn>
-              <span style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+              <span style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
             </div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {episodes.length > 1 && (
-                <IconBtn onClick={() => { setEpisodesOpen(true); showControls(); }}><PlaylistPlayIcon /></IconBtn>
-              )}
-              <IconBtn onClick={() => { setSettingsView('main'); setSettingsOpen(true); showControls(); }}><SettingsIcon /></IconBtn>
-              {isNative ? (
-                <>
-                  <IconBtn onClick={rotate}><ScreenRotationIcon /></IconBtn>
-                  <IconBtn onClick={toggleLock}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>
-                </>
-              ) : (
-                <IconBtn onClick={toggleFullscreen}>{isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}</IconBtn>
-              )}
-            </div>
+            {isNative && (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <IconBtn onClick={rotate}><ScreenRotationIcon /></IconBtn>
+                <IconBtn onClick={toggleLock}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>
+              </div>
+            )}
           </div>
 
           {/* Center transport */}
@@ -568,13 +588,40 @@ export default function DbWorldVideoPlayer({
             <IconBtn big onClick={() => seekBy(10000)}><Forward10Icon sx={{ fontSize: 38 }} /></IconBtn>
           </div>
 
-          {/* Bottom bar: time + seek bar */}
-          <div style={row('absolute', { bottom: 0, left: 0, right: 0, padding: '10px 16px 18px', gap: 12 })}>
-            <span style={{ fontSize: 12, minWidth: 48 }}>{fmt(displayPos)}</span>
-            <input type="range" min={0} max={duration || 0} value={displayPos}
-              onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
-              style={{ flex: 1, accentColor: TEAL, height: 4 }} />
-            <span style={{ fontSize: 12, minWidth: 48, textAlign: 'right' }}>{fmt(duration)}</span>
+          {/* Netflix-style bottom bar: episode title → seek bar → control row */}
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 18px 14px' }}>
+            {curEp && (
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#e0e0e0', marginBottom: 6,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {epTitle(curEp)}
+              </div>
+            )}
+
+            {/* seek bar + position/duration */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <input type="range" min={0} max={duration || 0} value={Math.min(displayPos, duration || displayPos)}
+                onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
+                style={{ flex: 1, accentColor: TEAL, height: 4 }} />
+              <span style={{ fontSize: 12, minWidth: 96, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#ddd' }}>
+                {fmt(displayPos)} / {fmt(duration)}
+              </span>
+            </div>
+
+            {/* control row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <IconBtn onClick={togglePlay}>{playing ? <PauseIcon /> : <PlayArrowIcon />}</IconBtn>
+                <IconBtn onClick={toggleMute}>{volume === 0 ? <VolumeOffIcon /> : <VolumeUpIcon />}</IconBtn>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {audioTracks.length > 0 && <IconBtn onClick={() => openSettings('audio')}><AudiotrackIcon /></IconBtn>}
+                <IconBtn onClick={() => openSettings('subtitles')}><ClosedCaptionIcon /></IconBtn>
+                <IconBtn onClick={() => openSettings('main')}><SettingsIcon /></IconBtn>
+                {episodes.length > 1 && <IconBtn onClick={openEpisodes}><PlaylistPlayIcon /></IconBtn>}
+                {nextEpisode && <IconBtn onClick={goNext} label="Next"><SkipNextIcon /></IconBtn>}
+                {!isNative && <IconBtn onClick={toggleFullscreen}>{isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}</IconBtn>}
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -586,21 +633,29 @@ export default function DbWorldVideoPlayer({
         </div>
       )}
 
-      {/* Next-episode autoplay card */}
-      {countdown != null && nextEpisode && (
-        <div style={{ position: 'absolute', bottom: 84, right: 20, zIndex: 25, width: 300, maxWidth: '80%',
-          background: 'rgba(0,0,0,0.88)', borderRadius: 12, padding: 16 }}>
-          <div style={{ fontSize: 12, color: '#bbb', marginBottom: 4 }}>Next episode in {countdown}s</div>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>{nextEpisode.label}</div>
+      {/* Next-episode card — autoplay countdown at the very end, or a manual
+          "Up next" prompt during the last 60s (credits) of the episode. */}
+      {((countdown != null && nextEpisode) || showUpNext) && (
+        <div style={{ position: 'absolute', bottom: 110, right: 20, zIndex: 25, width: 320, maxWidth: '82%',
+          background: 'rgba(0,0,0,0.9)', borderRadius: 12, padding: 16, border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ fontSize: 12, color: '#bbb', marginBottom: 4 }}>
+            {countdown != null ? `Next episode in ${countdown}s` : 'Up next'}
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12,
+            overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+            {epTitle(nextEpisode)}
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={goNext}
               style={{ flex: 1, padding: 10, background: TEAL, color: '#fff', border: 'none', borderRadius: 8,
                 fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <SkipNextIcon sx={{ fontSize: 18 }} /> Play now
+              <SkipNextIcon sx={{ fontSize: 18 }} /> {countdown != null ? 'Play now' : 'Play next'}
             </button>
-            <button onClick={cancelAutoplay}
+            <button onClick={countdown != null ? cancelAutoplay : () => setUpNextDismissed(true)}
               style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none',
-                borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+                borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>
+              {countdown != null ? 'Cancel' : 'Dismiss'}
+            </button>
           </div>
         </div>
       )}
@@ -624,7 +679,13 @@ export default function DbWorldVideoPlayer({
                         background: isCur ? 'rgba(13,148,136,0.18)' : 'transparent', border: 'none', cursor: 'pointer',
                         color: isCur ? TEAL : '#fff', fontWeight: isCur ? 700 : 500, fontSize: 14, textAlign: 'left' }}>
                       {isCur ? <PlayArrowIcon sx={{ fontSize: 18 }} /> : <span style={{ width: 18 }} />}
-                      {ep.label}
+                      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                        <span>{ep.label}</span>
+                        {ep.name && (
+                          <span style={{ fontSize: 12, fontWeight: 400, color: isCur ? TEAL : '#aaa',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.name}</span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}

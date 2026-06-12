@@ -49,7 +49,7 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
         .filter(f => f.streamUrl)
         .map(f => ({ url: f.streamUrl, label: f.quality || f.video?.resolution || f.general?.fileName || 'Source', mediaFileId: f.mediaFileId }));
       // Series episodes (same quality as the played file); [] for movies.
-      const episodes = buildHybridEpisodes(enriched, current);
+      const episodes = buildHybridEpisodes(enriched, current, record?.tmdb?.seasons);
       // Unified hybrid player (web + native) — full-screen route over a native surface.
       navigate(Constants.DB_PLAYER_ROUTE, {
         state: {

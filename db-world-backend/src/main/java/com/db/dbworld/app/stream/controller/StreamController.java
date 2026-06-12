@@ -8,19 +8,14 @@ import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.security.auth.JwtService;
 import com.db.dbworld.app.stream.service.StreamService;
-import com.db.dbworld.app.stream.service.StreamTranscodeService;
 import com.db.dbworld.config.AppConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -35,7 +30,6 @@ public class StreamController {
     private final StreamService          streamService;
     private final JwtService             jwtService;
     private final MediaInfoService       mediaInfoService;
-    private final StreamTranscodeService transcodeService;
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // CDN URL resolve â€” returns JSON with CDN URL + metadata
@@ -75,31 +69,6 @@ public class StreamController {
                 request.getHeader("User-Agent"),
                 getClientIp(request));
         return ApiResponse.success(dto);
-    }
-
-    // ────────────────────────────────────────────────────────────────────────
-    // Web transcode-on-stream — for browsers that can't decode the file's audio
-    // codec (E-AC3/AC3/DTS/TrueHD). Streams fragmented MP4 (video copy + AAC).
-    // The browser hits this directly in <video src>, so the JWT is in the query.
-    //   audio = 0-based index among audio streams; start = seek offset (seconds)
-    // ────────────────────────────────────────────────────────────────────────
-
-    @GetMapping("/web/{mediaFileId}")
-    public ResponseEntity<StreamingResponseBody> webTranscode(
-            @PathVariable String mediaFileId,
-            @RequestParam("t") String token,
-            @RequestParam(value = "audio", defaultValue = "0") int audio,
-            @RequestParam(value = "start", defaultValue = "0") double start) {
-
-        jwtService.parse(token); // validates the token (throws on invalid/expired)
-        log.info("web transcode id={} audio={} start={}", mediaFileId, audio, start);
-
-        StreamingResponseBody body = transcodeService.transcode(mediaFileId, audio, start);
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("video/mp4"))
-                .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .header("X-Accel-Buffering", "no") // tell nginx not to buffer the live stream
-                .body(body);
     }
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
