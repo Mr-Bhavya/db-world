@@ -107,7 +107,13 @@ public class HybridPlayerPlugin extends Plugin {
     /** Builds an ExoPlayer whose decoder preference matches {@link #decoderMode}. */
     private ExoPlayer buildPlayer() {
         DefaultRenderersFactory rf = new DefaultRenderersFactory(getContext())
-                .setEnableDecoderFallback(true);                 // fall back to OS decoders if HW init fails
+                .setEnableDecoderFallback(true)                  // fall back to OS decoders if HW init fails
+                // Use bundled extension decoders (FFmpeg) AFTER the platform
+                // MediaCodec ones, so E-AC3/AC3/DTS still decode in software on
+                // devices whose hardware can't — instead of playing silently.
+                // No-op until the media3 FFmpeg decoder .aar is on the classpath
+                // (build steps: android/FFMPEG_AUDIO_DECODER.md).
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
         if (decoderMode == 1)      rf.setMediaCodecSelector(preferSelector(true));   // hardware first
         else if (decoderMode == 2) rf.setMediaCodecSelector(preferSelector(false));  // software first
         ExoPlayer p = new ExoPlayer.Builder(getContext(), rf).build();
