@@ -21,7 +21,6 @@ import VolumeUpIcon      from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon     from '@mui/icons-material/VolumeOff';
 import SettingsIcon      from '@mui/icons-material/Settings';
 import AudiotrackIcon    from '@mui/icons-material/Audiotrack';
-import ClosedCaptionIcon from '@mui/icons-material/ClosedCaption';
 import HighQualityIcon   from '@mui/icons-material/HighQuality';
 import CheckIcon         from '@mui/icons-material/Check';
 import PlaylistPlayIcon  from '@mui/icons-material/PlaylistPlay';
@@ -32,6 +31,7 @@ import ChevronRightIcon  from '@mui/icons-material/ChevronRight';
 import ErrorOutlineIcon  from '@mui/icons-material/ErrorOutline';
 import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
@@ -57,9 +57,17 @@ const epTitle = (ep, withName = true) => {
   return withName && ep.name ? `${short} · ${ep.name}` : short;
 };
 
-// Double-tap / seek-button feedback animation (injected once).
-const SEEK_FX_CSS = `
-@keyframes dbw-seekfx { 0% { opacity: 0; transform: scale(0.6); } 18% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }`;
+// Player styles injected once: seek-feedback keyframes + the custom progress bar
+// (native <input range> keeps touch/keyboard/a11y; we restyle the track + thumb
+// and fake the played fill with an inline gradient).
+const PLAYER_CSS = `
+@keyframes dbw-seekfx { 0% { opacity: 0; transform: scale(0.6); } 18% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }
+.dbw-range { -webkit-appearance: none; appearance: none; width: 100%; height: 5px; border-radius: 999px; outline: none; cursor: pointer; transition: height 0.15s ease; }
+.dbw-range:hover { height: 7px; }
+.dbw-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); transition: transform 0.15s ease; }
+.dbw-range:hover::-webkit-slider-thumb, .dbw-range:active::-webkit-slider-thumb { transform: scale(1.3); }
+.dbw-range::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); }
+@media (prefers-reduced-motion: reduce) { .dbw-range, .dbw-range::-webkit-slider-thumb { transition: none; } }`;
 
 const fmt = (ms) => {
   if (!ms || ms < 0) return '0:00';
@@ -77,6 +85,7 @@ export default function DbWorldVideoPlayer({
   audio = [], // file audio-track metadata (seeds the audio menu on web)
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
+  const reduce   = useReducedMotion();          // honour prefers-reduced-motion
   const videoRef    = useRef(null);
   const rootRef     = useRef(null);
   const triedQualityRef = useRef(new Set()); // quality urls that failed to decode (avoid loops)
@@ -470,6 +479,7 @@ export default function DbWorldVideoPlayer({
   };
 
   const displayPos = scrub != null ? scrub : position;
+  const pct = duration > 0 ? Math.min(100, (displayPos / duration) * 100) : 0;
   // "Up next" card appears in the last 60s — series these days end on 1–3 min of
   // credits, so prompt the next episode before the file actually finishes.
   const nearEnd = duration > 0 && position > 0 && (duration - position) <= 60000;
@@ -484,7 +494,7 @@ export default function DbWorldVideoPlayer({
       style={{ position: 'fixed', inset: 0, zIndex: 2000, background: isNative ? 'transparent' : '#000',
                overflow: 'hidden', color: '#fff', fontFamily: 'system-ui, sans-serif', touchAction: 'none' }}
     >
-      <style>{SEEK_FX_CSS}</style>
+      <style>{PLAYER_CSS}</style>
 
       {/* Web video surface (native renders behind the WebView) */}
       {!isNative && (
@@ -569,60 +579,89 @@ export default function DbWorldVideoPlayer({
           {/* Top bar: close + show name (left); orientation controls (right, native) */}
           <div style={row('absolute', { top: 0, left: 0, right: 0, padding: 14, justifyContent: 'space-between' })}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <IconBtn onClick={close}><CloseIcon /></IconBtn>
-              <span style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+              <IconBtn onClick={close} ariaLabel="Close player"><CloseIcon /></IconBtn>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+                {curEp && (
+                  <span style={{ fontSize: 13, color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {epTitle(curEp)}
+                  </span>
+                )}
+              </div>
             </div>
             {isNative && (
               <div style={{ display: 'flex', gap: 4 }}>
-                <IconBtn onClick={rotate}><ScreenRotationIcon /></IconBtn>
-                <IconBtn onClick={toggleLock}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>
+                <IconBtn onClick={rotate} ariaLabel="Rotate screen"><ScreenRotationIcon /></IconBtn>
+                <IconBtn onClick={toggleLock} ariaLabel={locked ? 'Unlock controls' : 'Lock controls'}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>
               </div>
             )}
           </div>
 
-          {/* Center transport */}
+          {/* Center transport (screen-centered) */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', gap: 40, pointerEvents: 'none' }}>
-            <IconBtn big onClick={() => seekBy(-10000)}><Replay10Icon sx={{ fontSize: 38 }} /></IconBtn>
-            <IconBtn big onClick={togglePlay}>{playing ? <PauseIcon sx={{ fontSize: 52 }} /> : <PlayArrowIcon sx={{ fontSize: 52 }} />}</IconBtn>
-            <IconBtn big onClick={() => seekBy(10000)}><Forward10Icon sx={{ fontSize: 38 }} /></IconBtn>
+            justifyContent: 'center', gap: 48, pointerEvents: 'none' }}>
+            <IconBtn big onClick={() => seekBy(-10000)} ariaLabel="Rewind 10 seconds"><Replay10Icon sx={{ fontSize: 38 }} /></IconBtn>
+            <IconBtn big onClick={togglePlay} ariaLabel={playing ? 'Pause' : 'Play'}>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span key={playing ? 'pause' : 'play'} style={{ display: 'flex' }}
+                  initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}>
+                  {playing ? <PauseIcon sx={{ fontSize: 52 }} /> : <PlayArrowIcon sx={{ fontSize: 52 }} />}
+                </motion.span>
+              </AnimatePresence>
+            </IconBtn>
+            <IconBtn big onClick={() => seekBy(10000)} ariaLabel="Forward 10 seconds"><Forward10Icon sx={{ fontSize: 38 }} /></IconBtn>
           </div>
 
-          {/* Netflix-style bottom bar: episode title → seek bar → control row */}
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 18px 14px' }}>
-            {curEp && (
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#e0e0e0', marginBottom: 6,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {epTitle(curEp)}
-              </div>
-            )}
+          {/* Bottom bar: full-width progress → time → control row (icon + label) */}
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 28px 16px' }}>
 
-            {/* seek bar + position/duration */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <input type="range" min={0} max={duration || 0} value={Math.min(displayPos, duration || displayPos)}
-                onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
-                style={{ flex: 1, accentColor: TEAL, height: 4 }} />
-              <span style={{ fontSize: 12, minWidth: 96, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#ddd' }}>
-                {fmt(displayPos)} / {fmt(duration)}
-              </span>
+            {/* full-width progress bar (played fill via inline gradient) */}
+            <input className="dbw-range" type="range" min={0} max={duration || 0} aria-label="Seek"
+              value={Math.min(displayPos, duration || displayPos)}
+              onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
+              style={{ background: `linear-gradient(to right, ${TEAL} ${pct}%, rgba(255,255,255,0.28) ${pct}%)` }} />
+
+            {/* time below the bar, on the edges */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6,
+              fontSize: 12, color: '#ccc', fontVariantNumeric: 'tabular-nums' }}>
+              <span>{fmt(displayPos)}</span>
+              <span>{fmt(duration)}</span>
             </div>
 
-            {/* control row */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconBtn onClick={togglePlay}>{playing ? <PauseIcon /> : <PlayArrowIcon />}</IconBtn>
-                <IconBtn onClick={toggleMute}>{volume === 0 ? <VolumeOffIcon /> : <VolumeUpIcon />}</IconBtn>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {audioTracks.length > 0 && <IconBtn onClick={() => openSettings('audio')}><AudiotrackIcon /></IconBtn>}
-                <IconBtn onClick={() => openSettings('subtitles')}><ClosedCaptionIcon /></IconBtn>
-                <IconBtn onClick={() => openSettings('main')}><SettingsIcon /></IconBtn>
-                {episodes.length > 1 && <IconBtn onClick={openEpisodes}><PlaylistPlayIcon /></IconBtn>}
-                {nextEpisode && <IconBtn onClick={goNext} label="Next"><SkipNextIcon /></IconBtn>}
-                {!isNative && <IconBtn onClick={toggleFullscreen}>{isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}</IconBtn>}
-              </div>
+            {/* control row — spreads across the full width; volume/fullscreen are
+                web-only (rotate/lock live top-right on Android) */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 }}>
+              {!isNative && (
+                <CtrlBtn icon={volume === 0 ? <VolumeOffIcon /> : <VolumeUpIcon />} label="Volume"
+                  active={volume === 0} ariaLabel={volume === 0 ? 'Unmute' : 'Mute'} onClick={toggleMute} />
+              )}
+              <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} active={rateIdx !== 1}
+                ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
+              <CtrlBtn icon={<AudiotrackIcon />} label="Audio & Subs"
+                ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
+              {(episodes.length > 1 || nextEpisode) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2,
+                  background: 'rgba(255,255,255,0.07)', borderRadius: 12 }}>
+                  {episodes.length > 1 && (
+                    <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
+                  )}
+                  {nextEpisode && (
+                    <CtrlBtn icon={<SkipNextIcon />} label="Next" ariaLabel="Next episode" onClick={goNext} />
+                  )}
+                </div>
+              )}
+              <CtrlBtn icon={<SettingsIcon />} label="Settings" ariaLabel="Settings" onClick={() => openSettings('main')} />
+              {!isNative && (
+                <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                  label={isFullscreen ? 'Exit' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
+              )}
             </div>
-          </div>
+          </motion.div>
         </>
       )}
 
@@ -712,8 +751,8 @@ export default function DbWorldVideoPlayer({
                 <>
                   <SheetHeader title="Settings" />
                   <div style={{ overflowY: 'auto' }}>
-                    <MasterRow icon={<AudiotrackIcon fontSize="small" />}    label="Audio"     value={audioCur ? audioLabel(audioCur) : 'Default'} onClick={() => setSettingsView('audio')} />
-                    <MasterRow icon={<ClosedCaptionIcon fontSize="small" />} label="Subtitles" value={subLabel} onClick={() => setSettingsView('subtitles')} />
+                    <MasterRow icon={<AudiotrackIcon fontSize="small" />} label="Audio & Subtitles"
+                      value={`${audioCur ? audioLabel(audioCur) : 'Default'} · ${subLabel}`} onClick={() => setSettingsView('audiosubs')} />
                     {variants.length > 1 && (
                       <MasterRow icon={<HighQualityIcon fontSize="small" />} label="Quality" value={variants.find(v => v.mediaFileId === curQualityId)?.label ?? ''} onClick={() => setSettingsView('quality')} />
                     )}
@@ -725,14 +764,16 @@ export default function DbWorldVideoPlayer({
                 </>
               ) : (
                 <>
-                  <SheetHeader title={{ audio: 'Audio', subtitles: 'Subtitles', quality: 'Quality', speed: 'Speed', decoder: 'Decoder' }[settingsView]} onBack={back} />
+                  <SheetHeader title={{ audiosubs: 'Audio & Subtitles', quality: 'Quality', speed: 'Speed', decoder: 'Decoder' }[settingsView]} onBack={back} />
                   <div style={{ overflowY: 'auto' }}>
-                    {settingsView === 'audio' && (audioTracks.length
-                      ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => { chooseAudio(t); back(); }} />)
-                      : <SheetEmpty>No alternate audio tracks</SheetEmpty>)}
-                    {settingsView === 'subtitles' && (<>
-                      <SheetRow selected={curText < 0} label="Off" onClick={() => { chooseSub(null); back(); }} />
-                      {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={`${t.language}${t.forced ? ' (Forced)' : ''}`} onClick={() => { chooseSub(t); back(); }} />)}
+                    {settingsView === 'audiosubs' && (<>
+                      <SheetSection>Audio</SheetSection>
+                      {audioTracks.length
+                        ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => chooseAudio(t)} />)
+                        : <SheetEmpty>No alternate audio tracks</SheetEmpty>}
+                      <SheetSection>Subtitles</SheetSection>
+                      <SheetRow selected={curText < 0} label="Off" onClick={() => chooseSub(null)} />
+                      {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={`${t.language}${t.forced ? ' (Forced)' : ''}`} onClick={() => chooseSub(t)} />)}
                     </>)}
                     {settingsView === 'quality' && variants.map(v => <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId} label={v.label} onClick={() => { chooseQuality(v); back(); }} />)}
                     {settingsView === 'speed' && SPEEDS.map((s, i) => <SheetRow key={s} selected={i === rateIdx} label={`${s}×${s === 1 ? ' (Normal)' : ''}`} onClick={() => { chooseSpeed(i); back(); }} />)}
@@ -788,21 +829,54 @@ function SheetRow({ label, selected, onClick }) {
 function SheetEmpty({ children }) {
   return <div style={{ padding: '8px 16px', color: '#777', fontSize: 13 }}>{children}</div>;
 }
+function SheetSection({ children }) {
+  return (
+    <div style={{ padding: '10px 16px 4px', color: '#bbb', fontSize: 11, fontWeight: 700,
+      textTransform: 'uppercase', letterSpacing: 0.5 }}>{children}</div>
+  );
+}
 
 // ── tiny style helpers ────────────────────────────────────────────────────────
 const row = (position, extra) => ({ position, display: 'flex', alignItems: 'center', ...extra });
 
-function IconBtn({ children, onClick, big, label }) {
+// Round icon button (top bar + big center transport), with hover/tap motion.
+function IconBtn({ children, onClick, big, ariaLabel }) {
+  const reduce = useReducedMotion();
   return (
-    <button onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+    <motion.button type="button" aria-label={ariaLabel}
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      whileHover={reduce ? undefined : { scale: 1.1 }}
+      whileTap={reduce ? undefined : { scale: 0.88 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       style={{
-        pointerEvents: 'auto', display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', gap: 1, background: big ? 'rgba(0,0,0,0.35)' : 'transparent',
+        pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        background: big ? 'rgba(0,0,0,0.4)' : 'transparent',
         border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '50%',
-        width: big ? 64 : 40, height: big ? 64 : 40, padding: 0,
+        width: big ? 64 : 44, height: big ? 64 : 44, padding: 0,
       }}>
       {children}
-      {label && <span style={{ fontSize: 9, fontWeight: 700 }}>{label}</span>}
-    </button>
+    </motion.button>
+  );
+}
+
+// Labelled control-row button (icon + text beside it), with hover/tap motion +
+// an active (teal) state. Min 44px tall for touch.
+function CtrlBtn({ icon, label, onClick, active, ariaLabel }) {
+  const reduce = useReducedMotion();
+  return (
+    <motion.button type="button" aria-label={ariaLabel || label}
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      whileHover={reduce ? undefined : { scale: 1.06, backgroundColor: active ? 'rgba(20,184,166,0.26)' : 'rgba(255,255,255,0.14)' }}
+      whileTap={reduce ? undefined : { scale: 0.92 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
+      style={{
+        pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7,
+        minHeight: 44, padding: '8px 12px', borderRadius: 12, border: 'none', cursor: 'pointer',
+        background: active ? 'rgba(20,184,166,0.18)' : 'transparent',
+        color: active ? TEAL : '#fff', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+      }}>
+      {icon}
+      {label && <span>{label}</span>}
+    </motion.button>
   );
 }
