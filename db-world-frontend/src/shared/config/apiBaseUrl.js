@@ -61,10 +61,29 @@ export function resolveWsUrl(path) {
   const apiBase = getApiBaseUrl();
   if (apiBase) return `${apiBase.replace(/^http/, 'ws')}${path}`;
 
+  // Native build: the page is https://localhost, which is NOT the backend.
+  // Never use it as the WS host — fall back to the prod API. (getApiBaseUrl
+  // already handles native, but guard here in case it resolved empty.)
+  if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
+    return `${PRODUCTION_API_URL.replace(/^http/, 'ws')}${path}`;
+  }
+
   if (typeof window !== 'undefined') {
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     return `${proto}://${window.location.host}${path}`;
   }
 
   return path;
+}
+
+// Public web origin for share links / OG tags. On a native build (or dev) the
+// page origin is localhost, so share URLs must point at the real public host.
+const PUBLIC_WEB_ORIGIN = 'https://db-world.in';
+
+export function publicShareUrl() {
+  if (typeof window === 'undefined') return PUBLIC_WEB_ORIGIN;
+  // Already on the real public web host → the actual href is correct.
+  if (PRODUCTION_FRONTEND_HOSTS.has(window.location.hostname)) return window.location.href;
+  // Native (https://localhost) or dev → rebuild against the public origin.
+  return `${PUBLIC_WEB_ORIGIN}${window.location.pathname}${window.location.search}`;
 }

@@ -4,6 +4,7 @@ import { alpha } from '@mui/material/styles';
 import ShareIcon from '@mui/icons-material/Share';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
+import { publicShareUrl } from '@shared/config/apiBaseUrl';
 
 export default function ShareButton({ record }) {
   const tmdb = record?.tmdb ?? {};
@@ -11,7 +12,8 @@ export default function ShareButton({ record }) {
   const [copied, setCopied] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const shareUrl = window.location.href;
+  // Public link — never the Android WebView's https://localhost origin.
+  const shareUrl = publicShareUrl();
   const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
   const shareTitle = [tmdb.title, year].filter(Boolean).join(' (') + (year ? ')' : '');
   const shareText = tmdb.overview ? tmdb.overview.slice(0, 120) + '…' : shareTitle;
