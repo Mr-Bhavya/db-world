@@ -1,15 +1,28 @@
 # ExoPlayer FFmpeg audio decoder (E-AC3 / AC3 / DTS / TrueHD)
 
-The hybrid player (`HybridPlayerPlugin`) is configured with
-`EXTENSION_RENDERER_MODE_ON`, so it uses **hardware MediaCodec decoders first and
-falls back to the bundled FFmpeg software decoders** when the device can't decode
-a codec (e.g. E-AC3 on phones without a Dolby hardware decoder → currently silent).
+The hybrid player (`HybridPlayerPlugin`) uses `NextRenderersFactory` +
+`EXTENSION_RENDERER_MODE_ON`, so it tries **hardware MediaCodec decoders first and
+falls back to FFmpeg software decoders** when the device can't decode a codec
+(e.g. E-AC3 on phones without a Dolby hardware decoder → otherwise silent).
 
-That fallback only activates once the **media3 FFmpeg decoder `.aar`** is on the
-app's classpath. media3 does **not** publish a prebuilt FFmpeg extension — you
-build it once from source. This is a native (NDK) build, so run it on **Linux or
-WSL** (not from Windows PowerShell). It must be built against the **same media3
-version the app uses: `1.3.1`** (see `app/build.gradle`).
+## Current setup: NextLib (Maven Central) — no build needed
+The FFmpeg decoders come from the prebuilt, open-source **NextLib** extension
+(used by Just Player / Next Player), already wired in `app/build.gradle`:
+
+```gradle
+def media3_version = "1.7.1"   // must match NextLib's media3 version
+implementation "io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0"
+```
+Its version is `<media3>-<lib>`; to upgrade, bump **both** the media3 modules and
+this line together (e.g. `1.10.0` + `nextlib-media3ext:1.10.0-0.12.1`). Just
+rebuild the APK — nothing else to do. ABIs add a few MB to the APK.
+
+---
+
+## Alternative: build the official extension from source
+Only if you'd rather not depend on NextLib. media3 does **not** publish a prebuilt
+FFmpeg extension, so it's a native (NDK) build — run on **Linux or WSL**, against
+the **same media3 version the app uses**.
 
 ## Prerequisites (Linux / WSL)
 - Android **NDK r26+** and the SDK
