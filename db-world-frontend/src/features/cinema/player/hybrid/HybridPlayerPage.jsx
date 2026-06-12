@@ -10,6 +10,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
 
+// mediainfo Duration is seconds in the old format, ms in the new — normalise to ms.
+const toMs = (d) => { const n = Number(d) || 0; return n > 100000 ? Math.round(n) : Math.round(n * 1000); };
+
 // Resume only if meaningfully into the file and not within 30s of the end.
 async function resumePointFor(fileId) {
   if (!fileId) return 0;
@@ -34,19 +37,26 @@ export default function HybridPlayerPage() {
     let cancelled = false;
     (async () => {
       const startMs = await resumePointFor(media.fileId);
-      if (!cancelled) setCur({ url: media.url, fileId: media.fileId, title: media.title || media.fileName || '', startMs });
+      if (!cancelled) setCur({
+        url: media.url, fileId: media.fileId, title: media.title || media.fileName || '', startMs,
+        audio: media.audio || [], mediaFileId: media.mediaFileId || '', durationMs: media.durationMs || 0,
+      });
     })();
     return () => { cancelled = true; };
   }, [media, navigate]);
 
   const selectEpisode = useCallback(async (ep) => {
     let url = ep.url;
+    let mf = null;
     if (!url && ep.mediaFileId) {
-      try { const r = await resolveMediaUrl(ep.mediaFileId, 'ONLINE'); url = r?.data?.cdnUrl; } catch { /* ignore */ }
+      try { const r = await resolveMediaUrl(ep.mediaFileId, 'ONLINE'); url = r?.data?.cdnUrl; mf = r?.data?.mediaFile; } catch { /* ignore */ }
     }
     if (!url) return;
     const startMs = await resumePointFor(ep.fileId);
-    setCur({ url, fileId: ep.fileId, title: ep.label, startMs });
+    setCur({
+      url, fileId: ep.fileId, title: ep.label, startMs,
+      audio: mf?.audio || [], mediaFileId: ep.mediaFileId || '', durationMs: toMs(mf?.general?.duration),
+    });
   }, []);
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
@@ -73,6 +83,9 @@ export default function HybridPlayerPage() {
       onSelectEpisode={selectEpisode}
       onProgress={handleProgress}
       onClose={() => navigate(-1)}
+      audio={cur.audio || []}
+      mediaFileId={cur.mediaFileId || ''}
+      durationMs={cur.durationMs || 0}
     />
   );
 }
