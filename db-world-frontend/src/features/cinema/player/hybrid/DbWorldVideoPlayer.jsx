@@ -21,7 +21,6 @@ import VolumeUpIcon      from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon     from '@mui/icons-material/VolumeOff';
 import SettingsIcon      from '@mui/icons-material/Settings';
 import AudiotrackIcon    from '@mui/icons-material/Audiotrack';
-import ClosedCaptionIcon from '@mui/icons-material/ClosedCaption';
 import HighQualityIcon   from '@mui/icons-material/HighQuality';
 import CheckIcon         from '@mui/icons-material/Check';
 import PlaylistPlayIcon  from '@mui/icons-material/PlaylistPlay';
@@ -644,12 +643,8 @@ export default function DbWorldVideoPlayer({
               <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} active={rateIdx !== 1}
                 ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
 
-              {/* Audio | Subtitle — paired, split by a divider (no background) */}
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <CtrlBtn icon={<AudiotrackIcon />} label="Audio" ariaLabel="Audio track" onClick={() => openSettings('audio')} />
-                <span style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.28)' }} />
-                <CtrlBtn icon={<ClosedCaptionIcon />} label="Subtitles" ariaLabel="Subtitles" onClick={() => openSettings('subtitles')} />
-              </div>
+              <CtrlBtn icon={<AudiotrackIcon />} label="Audio & Subtitles"
+                ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
 
               {episodes.length > 1 && (
                 <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
@@ -747,15 +742,16 @@ export default function DbWorldVideoPlayer({
             style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.35)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
             <div onClick={(e) => e.stopPropagation()}
-              style={{ width: 'min(420px, 94%)', maxHeight: '86%', display: 'flex', flexDirection: 'column',
+              style={{ width: settingsView === 'audiosubs' ? 'min(560px, 96%)' : 'min(420px, 94%)',
+                maxHeight: '86%', display: 'flex', flexDirection: 'column',
                 background: 'rgba(16,16,16,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
                 borderRadius: 14, border: '1px solid rgba(255,255,255,0.12)', overflow: 'hidden' }}>
               {settingsView === 'main' ? (
                 <>
                   <SheetHeader title="Settings" />
                   <div style={{ overflowY: 'auto' }}>
-                    <MasterRow icon={<AudiotrackIcon fontSize="small" />}    label="Audio"     value={audioCur ? audioLabel(audioCur) : 'Default'} onClick={() => setSettingsView('audio')} />
-                    <MasterRow icon={<ClosedCaptionIcon fontSize="small" />} label="Subtitles" value={subLabel} onClick={() => setSettingsView('subtitles')} />
+                    <MasterRow icon={<AudiotrackIcon fontSize="small" />} label="Audio & Subtitles"
+                      value={`${audioCur ? audioLabel(audioCur) : 'Default'} · ${subLabel}`} onClick={() => setSettingsView('audiosubs')} />
                     {variants.length > 1 && (
                       <MasterRow icon={<HighQualityIcon fontSize="small" />} label="Quality" value={variants.find(v => v.mediaFileId === curQualityId)?.label ?? ''} onClick={() => setSettingsView('quality')} />
                     )}
@@ -767,15 +763,27 @@ export default function DbWorldVideoPlayer({
                 </>
               ) : (
                 <>
-                  <SheetHeader title={{ audio: 'Audio', subtitles: 'Subtitles', quality: 'Quality', speed: 'Speed', decoder: 'Decoder' }[settingsView]} onBack={back} />
+                  <SheetHeader title={{ audiosubs: 'Audio & Subtitles', quality: 'Quality', speed: 'Speed', decoder: 'Decoder' }[settingsView]} onBack={back} />
                   <div style={{ overflowY: 'auto' }}>
-                    {settingsView === 'audio' && (audioTracks.length
-                      ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => { chooseAudio(t); back(); }} />)
-                      : <SheetEmpty>No alternate audio tracks</SheetEmpty>)}
-                    {settingsView === 'subtitles' && (<>
-                      <SheetRow selected={curText < 0} label="Off" onClick={() => { chooseSub(null); back(); }} />
-                      {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={`${t.language}${t.forced ? ' (Forced)' : ''}`} onClick={() => { chooseSub(t); back(); }} />)}
-                    </>)}
+                    {settingsView === 'audiosubs' && (
+                      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                        {/* left: audio */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <SheetSection>Audio</SheetSection>
+                          {audioTracks.length
+                            ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => chooseAudio(t)} />)
+                            : <SheetEmpty>No alternate audio tracks</SheetEmpty>}
+                        </div>
+                        {/* divider */}
+                        <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+                        {/* right: subtitles */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <SheetSection>Subtitles</SheetSection>
+                          <SheetRow selected={curText < 0} label="Off" onClick={() => chooseSub(null)} />
+                          {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={`${t.language}${t.forced ? ' (Forced)' : ''}`} onClick={() => chooseSub(t)} />)}
+                        </div>
+                      </div>
+                    )}
                     {settingsView === 'quality' && variants.map(v => <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId} label={v.label} onClick={() => { chooseQuality(v); back(); }} />)}
                     {settingsView === 'speed' && SPEEDS.map((s, i) => <SheetRow key={s} selected={i === rateIdx} label={`${s}×${s === 1 ? ' (Normal)' : ''}`} onClick={() => { chooseSpeed(i); back(); }} />)}
                     {settingsView === 'decoder' && DECODERS.map(d => <SheetRow key={d.id} selected={d.id === decoder} label={d.label} onClick={() => { chooseDecoder(d.id); back(); }} />)}
@@ -829,6 +837,12 @@ function SheetRow({ label, selected, onClick }) {
 }
 function SheetEmpty({ children }) {
   return <div style={{ padding: '8px 16px', color: '#777', fontSize: 13 }}>{children}</div>;
+}
+function SheetSection({ children }) {
+  return (
+    <div style={{ padding: '12px 16px 4px', color: '#bbb', fontSize: 11, fontWeight: 700,
+      textTransform: 'uppercase', letterSpacing: 0.5 }}>{children}</div>
+  );
 }
 
 // ── tiny style helpers ────────────────────────────────────────────────────────
