@@ -52,8 +52,8 @@ const HeroBannerMobile = ({
     // Outer wrapper: heroColor bleeds into the side margins and transitions to cinema-bg below,
     // making the hero feel like part of one continuous page rather than a separate section.
     <Box sx={{
-      background: `linear-gradient(to bottom, rgba(${heroColor}, 0.9) 0%, rgba(${heroColor}, 0.6) 55%, var(--cinema-bg, #141414) 100%)`,
-      pb: 1.5,
+      background: `linear-gradient(to bottom, rgba(${heroColor}, 0.85) 0%, rgba(${heroColor}, 0.4) 70%, transparent 100%)`,
+      pb: 3,
     }}>
       {/* ── Hero: backdrop + gradient + content overlay ── */}
       <Box
@@ -197,14 +197,14 @@ const HeroBannerMobile = ({
               )}
             </Box>
 
-            {/* Buttons */}
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {/* Buttons — all flex:1 so they scale with any font size and never overflow */}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'stretch' }}>
               <Button
                 variant="contained"
                 startIcon={<PlayArrow />}
                 onClick={goToPlay}
                 sx={{
-                  flex: 1,
+                  flex: 1, minWidth: 0,
                   minHeight: metrics.btnHeight,
                   bgcolor: '#fff', color: '#000', fontWeight: 750,
                   fontSize: metrics.btnFont, borderRadius: 2, textTransform: 'none',
@@ -220,7 +220,8 @@ const HeroBannerMobile = ({
                   startIcon={ix.watchlisted ? <Check /> : <Add />}
                   onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
                   sx={{
-                    minWidth: 110, minHeight: metrics.btnHeight,
+                    flex: 1, minWidth: 0,
+                    minHeight: metrics.btnHeight,
                     borderColor: 'rgba(255,255,255,0.5)', color: '#fff',
                     fontWeight: 700, fontSize: metrics.btnFont,
                     borderRadius: 2, textTransform: 'none',
@@ -236,8 +237,7 @@ const HeroBannerMobile = ({
                 startIcon={<Info />}
                 onClick={goToDetail}
                 sx={{
-                  minWidth: ix.watched ? undefined : 110,
-                  flex: ix.watched ? 1 : undefined,
+                  flex: 1, minWidth: 0,
                   minHeight: metrics.btnHeight,
                   borderColor: 'rgba(255,255,255,0.35)', color: 'rgba(255,255,255,0.85)',
                   fontWeight: 700, fontSize: metrics.btnFont,
@@ -270,7 +270,7 @@ const HeroBannerMobile = ({
           ))}
         </Box>
       )}
-    </Box> {/* end outer heroColor wrapper */}
+    </Box>
   );
 };
 

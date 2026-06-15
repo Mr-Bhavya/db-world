@@ -204,7 +204,7 @@ const RailRow = ({
               {rail.title}
             </Typography>
 
-            <ScrollDots scrollRef={scrollRef} />
+            {!rail?.infiniteScroll && <ScrollDots scrollRef={scrollRef} />}
           </Box>
         )}
 
@@ -251,12 +251,12 @@ const RailRow = ({
               display: 'flex',
               gap: isTop10 ? 0.5 : { xs: 1, md: 1.5 },
               overflowX: isBillboard ? 'hidden' : 'auto',
-              overflowY: 'visible',
+              overflowY: 'clip',
               px,
               scrollbarWidth: 'none',
               '&::-webkit-scrollbar': { display: 'none' },
-              py: isTop10 ? '40px' : '16px',
-              my: isTop10 ? '-40px' : '-16px',
+              py: isTop10 ? '72px' : '16px',
+              my: isTop10 ? '-72px' : '-16px',
               ...(isBillboard && {
                 scrollSnapType: 'x mandatory',
                 '& > *': { scrollSnapAlign: 'start' },

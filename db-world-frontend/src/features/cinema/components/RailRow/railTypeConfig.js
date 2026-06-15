@@ -4,10 +4,11 @@ export const RAIL_TYPE_CONFIG = {
   standard: {
     cardAspect: '16/9',       // desktop/tv: landscape backdrop card
     mobileAspect: '2/3',      // mobile/tablet: portrait poster card
-    tiers: { mobile: 110, tablet: 135, desktop: 170, tv: 220 },
+    tiers: { mobile: 160, tablet: 170, desktop: 170, tv: 220 },
     hover: 'popup',
     skeleton: 'backdrop',
     scroll: 'horizontal',
+    titleStyle: 'fade',      // frosted-glass compact bar
   },
   wide: {
     cardAspect: '16/9',
@@ -16,6 +17,8 @@ export const RAIL_TYPE_CONFIG = {
     skeleton: 'backdrop',
     scroll: 'horizontal',
     showProgress: true,
+    useTextBackdrop: true,
+    titleStyle: 'fade',       // deep gradient when image has no burned-in title
   },
   prime: {
     cardAspect: '9/16',
@@ -27,7 +30,7 @@ export const RAIL_TYPE_CONFIG = {
   },
   top10: {
     cardAspect: '2/3',
-    tiers: { mobile: 130, tablet: 170, desktop: 210, tv: 280 },
+    tiers: { mobile: 170, tablet: 200, desktop: 250, tv: 340 },
     hover: 'popup',
     skeleton: 'top10',
     scroll: 'horizontal',
@@ -35,7 +38,14 @@ export const RAIL_TYPE_CONFIG = {
   },
   jumbo: {
     cardAspect: '2/3',
-    tiers: { mobile: 160, tablet: 200, desktop: 260, tv: 340 },
+    tiers: { mobile: 220, tablet: 240, desktop: 260, tv: 340 },
+    hover: 'popup',
+    skeleton: 'poster',
+    scroll: 'horizontal',
+  },
+  poster: {
+    cardAspect: '2/3',
+    tiers: { mobile: 160, tablet: 180, desktop: 230, tv: 300 },
     hover: 'popup',
     skeleton: 'poster',
     scroll: 'horizontal',
@@ -48,6 +58,8 @@ export const RAIL_TYPE_CONFIG = {
     scroll: 'horizontal',
     showProgress: true,
     showResume: true,
+    useTextBackdrop: true,
+    titleStyle: 'fade',        // floating pill badge, title only
   },
   person: {
     cardAspect: '1/1',
@@ -63,24 +75,57 @@ export const RAIL_TYPE_CONFIG = {
     skeleton: 'backdrop',
     scroll: 'snap',
     snapCount: 1,
+    useTextBackdrop: true,
   },
 };
 
 export const RAIL_TYPE_DEFAULT = 'standard';
 
-// Infers rail display type from rail metadata when rail.type is not provided by the API.
-// Title keyword matching is intentionally loose (case-insensitive, partial).
+// Infers the display type for a rail when the API hasn't shipped rail.type yet.
+// Rules are ordered most-specific → least-specific so a title like
+// "Top 10 New Releases" correctly resolves to top10, not wide.
+// When the backend adds rail.type, the first guard short-circuits everything.
 export function inferRailType(rail) {
   if (!rail) return RAIL_TYPE_DEFAULT;
   if (rail.type && RAIL_TYPE_CONFIG[rail.type]) return rail.type;
 
-  const title = (rail.title ?? '').toLowerCase();
-  if (/top\s*10|top ten|trending/i.test(title))           return 'top10';
-  if (/continue|resume|watching/i.test(title))             return 'continue';
-  if (/cast|actor|director|person|people/i.test(title))    return 'person';
-  if (/featured|prime|spotlight/i.test(title))             return 'prime';
-  if (/billboard/i.test(title))                            return 'billboard';
-  if (/jumbo|big|large/i.test(title))                      return 'jumbo';
-  if (/wide|backdrop/i.test(title))                        return 'wide';
+  const t = (rail.title ?? '').toLowerCase();
+
+  // ── top10 ── ranked / trending rows
+  if (/top\s*10|top\s*ten|trending|most.?popular|popular.?now|popular.?this|what.?s.?hot|charting|ranked|hot.?now|this.?week.?top/i.test(t))
+    return 'top10';
+
+  // ── continue ── resume-watching rows
+  if (/continue|resume|keep.?watch|recently.?watch|pick.?up|watching/i.test(t))
+    return 'continue';
+
+  // ── person ── cast / crew / director rows
+  if (/cast|actor|actress|director|person|people|crew|star|celebrity|talent/i.test(t))
+    return 'person';
+
+  // ── prime ── editorial / curated / recommendation rows  (portrait expand-on-hover)
+  if (/featured|spotlight|editor.?s?.?choice|editor.?pick|staff.?pick|recommended|because.?you|you.?might|similar.?to|if.?you.?like|fans.?also|based.?on/i.test(t))
+    return 'prime';
+
+  // ── billboard ── full-width showcase / theatrical rows
+  if (/billboard|showcase|now.?playing|in.?theatres?|coming.?soon|opening.?this/i.test(t))
+    return 'billboard';
+
+  // ── wide ── new-release / recently-added rows  (tall backdrop cards)
+  if (/new.?release|latest|recently.?added|new.?this.?week|new.?arrival|just.?added|new.?&.?popular|new.?on|arriving.?soon|leaving.?soon/i.test(t))
+    return 'wide';
+
+  // ── jumbo ── award / prestige / blockbuster rows  (oversized poster)
+  if (/award|oscar|emmy|bafta|blockbuster|must.?watch|critically.?acclaim|best.?of|top.?rated|highest.?rated/i.test(t))
+    return 'jumbo';
+
+  // ── poster ── explicit poster rail
+  if (/poster/i.test(t))
+    return 'poster';
+
+  // ── wide (legacy keyword) ──
+  if (/wide|backdrop/i.test(t))
+    return 'wide';
+
   return RAIL_TYPE_DEFAULT;
 }

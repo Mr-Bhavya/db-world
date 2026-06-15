@@ -24,6 +24,10 @@ const year = (d) => (d ? String(d).slice(0, 4) : '');
 
 const POPUP_W = 450; // wider popup
 
+// Shared cooldown: after navigating from a popup, block new hover popups for 600ms
+// so the next card's popup doesn't appear while the modal is loading.
+let navBlockUntil = 0;
+
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
 export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) => {
@@ -41,7 +45,6 @@ export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) =>
   const isPrim = resolvedType === 'prime';
   const isWide = ['wide', 'continue', 'billboard'].includes(resolvedType);
 
-  // For standard: xs/sm use mobileAspect (poster 2:3), md uses cardAspect (landscape 16:9)
   const [daw, dah] = cfg.cardAspect.split('/').map(Number);
   const mobAsp = cfg.mobileAspect ?? cfg.cardAspect;
   const [maw, mah] = mobAsp.split('/').map(Number);
@@ -66,12 +69,17 @@ export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) =>
       ? { xs: mobH, sm: tabH, md: deskH }
       : undefined;
 
+  // Standard (and any type with mobileAspect) uses a different aspect on mobile vs desktop.
+  const aspectRatioSx = h ? {} : cfg.mobileAspect
+    ? { aspectRatio: { xs: cfg.mobileAspect, md: cfg.cardAspect } }
+    : { aspectRatio: cfg.cardAspect };
+
   return (
     <Box sx={{
       flexShrink: 0,
       pl: is10 ? { xs: 6, md: 10 } : 0,
       width: w,
-      ...(h ? { height: h } : { aspectRatio: cfg.cardAspect }),
+      ...aspectRatioSx,
       borderRadius: isCirc ? '50%' : 1.5,
       overflow: 'hidden',
       bgcolor: 'rgba(255,255,255,.06)',
@@ -164,26 +172,37 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
   // modal overlay in App.jsx instead of a full-page navigation.
   const goDetail = (e) => {
     e?.stopPropagation();
-    openRecord(navigate, location, record, { originRect: rectOf(e?.currentTarget) });
-    onClose();
+    navBlockUntil = Date.now() + 600;
+    // Pass the full popup rect so the modal expands FROM the popup shape.
+    // top/left/POPUP_W/popupH are already computed in this scope.
+    openRecord(navigate, location, record, {
+      originRect: { top, left, width: POPUP_W, height: popupH },
+    });
+    // Delay close by one frame so the popup is visible on the modal's first frame —
+    // this makes the expand feel continuous rather than close-then-reopen.
+    requestAnimationFrame(() => onClose());
   };
 
   const goPlay = (e) => {
     e?.stopPropagation();
+    navBlockUntil = Date.now() + 600;
     openRecord(navigate, location, record, { play: true });
     onClose();
   };
 
+  // Scale the popup from the card's width so it visually expands from the card.
+  // anchorRect.width / POPUP_W gives the fraction that matches the card footprint.
+  const initialScale = Math.max(0.5, Math.min(anchorRect.width / POPUP_W, 0.9));
+
   return createPortal(
     <motion.div
       key="nfx-popup"
-      initial={{ opacity: 0, scale: 0.94, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.97, y: 4 }}
+      initial={{ opacity: 0, scale: initialScale }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: initialScale * 0.97 }}
       transition={{
-        opacity: { duration: 0.16 },
-        scale:   { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
-        y:       { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+        opacity: { duration: 0.12 },
+        scale:   { type: 'spring', stiffness: 360, damping: 28 },
       }}
       style={{
         position: 'fixed', top, left,
@@ -192,6 +211,7 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
         boxShadow: '0 28px 90px rgba(0,0,0,0.98)',
         background: '#181818',
         cursor: 'default',
+        transformOrigin: 'center center',
       }}
       onMouseLeave={onClose}
     >
@@ -429,6 +449,7 @@ const RecordCard = ({
   // ── hover ─────────────────────────────────────────────────────────────────
   const onMouseEnter = useCallback(() => {
     if (isMobile) return;
+    if (Date.now() < navBlockUntil) return; // suppressed: just navigated from a popup
     preloadDetail(); // warm the detail chunk so the modal opens instantly on click
     // Prime (expandOnHover) cards open fast for snappy switching between cards;
     // the popup-style cards keep the longer intent delay. The grow direction is
@@ -474,10 +495,13 @@ const RecordCard = ({
   const isTopTen = rank != null;
 
   // ── image ──────────────────────────────────────────────────────────────────
-  // Landscape (16:9) cards show backdrop; portrait cards show poster.
-  // Prefer backdropPath (clean) over backdropPathText (title burned in by TMDB).
+  // Landscape cards show backdrop. wide/continue/billboard prefer backdropPathText
+  // (TMDB title-burned image) so the card always shows a name without an overlay.
+  const useTextBackdrop = cfg.useTextBackdrop ?? false;
   const imgPath = isExpanded || isLandscape
-    ? (record.backdropPath ?? record.backdropPathText ?? record.posterPath)
+    ? useTextBackdrop
+      ? (record.backdropPathText ?? record.backdropPath ?? record.posterPath)
+      : (record.backdropPath ?? record.backdropPathText ?? record.posterPath)
     : (record.posterPath ?? record.backdropPath ?? record.backdropPathText);
 
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
@@ -670,6 +694,7 @@ const RecordCard = ({
             md: '5px rgba(255,255,255,0.92)',
           },
           mr: { xs: -2.5, sm: -3.5, md: -5 },
+          mb: 0,
           zIndex: 0,
           userSelect: 'none',
           flexShrink: 0,
@@ -845,25 +870,114 @@ const RecordCard = ({
           </Box>
         )}
 
-        {/* Landscape cards: static title overlay so backdrop images always show a name */}
-        {isLandscape && !expandOnHover && !hovered && (
-          <Box sx={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 65%, transparent 100%)',
-            px: 1, pb: 0.7, pt: 2.5,
-            pointerEvents: 'none',
-          }}>
-            <Typography sx={{
-              color: '#fff', fontWeight: 650,
-              fontSize: 'clamp(0.65rem, 2vw, 0.85rem)',
-              lineHeight: 1.2,
-              display: '-webkit-box', WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        {/* Landscape card title overlays — three distinct styles per rail type.
+            Hidden while hovered (popup takes over) and hidden when the displayed
+            image already has the title burned in (backdropPathText present). */}
+        {isLandscape && !expandOnHover && !hovered && !(useTextBackdrop && !!record.backdropPathText) && (() => {
+          const titleStyle = cfg.titleStyle ?? 'fade';
+
+          // ── Shared meta row ──────────────────────────────────────────────
+          const metaRow = (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7, flexWrap: 'nowrap' }}>
+              {record.voteAverage > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.2, flexShrink: 0 }}>
+                  <Star sx={{ fontSize: 9, color: '#46d369' }} />
+                  <Typography sx={{ color: '#46d369', fontSize: '0.6rem', fontWeight: 800, lineHeight: 1 }}>
+                    {Number(record.voteAverage).toFixed(1)}
+                  </Typography>
+                </Box>
+              )}
+              {year(record.releaseDate) && (
+                <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.6rem', lineHeight: 1, flexShrink: 0 }}>
+                  {year(record.releaseDate)}
+                </Typography>
+              )}
+              {record.genres?.length > 0 && (
+                <Typography sx={{
+                  color: 'rgba(255,255,255,0.32)', fontSize: '0.56rem', lineHeight: 1,
+                  overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                }}>
+                  {record.genres.slice(0, 2).join(' · ')}
+                </Typography>
+              )}
+            </Box>
+          );
+
+          // ── Style: glass ─────────────────────────────────────────────────
+          // Frosted-glass compact bar pinned to the bottom of the card.
+          if (titleStyle === 'glass') return (
+            <Box sx={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              backdropFilter: 'blur(14px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(14px) saturate(160%)',
+              background: 'rgba(0,0,0,0.52)',
+              borderTop: '1px solid rgba(255,255,255,0.07)',
+              px: 1.2, pt: 0.65, pb: 0.6,
+              pointerEvents: 'none',
             }}>
-              {record.title}
-            </Typography>
-          </Box>
-        )}
+              <Typography sx={{
+                color: '#fff', fontWeight: 700,
+                fontSize: 'clamp(0.66rem, 1.7vw, 0.86rem)',
+                lineHeight: 1.2, mb: 0.25,
+                display: '-webkit-box', WebkitLineClamp: 1,
+                WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                letterSpacing: 0.1,
+              }}>
+                {record.title}
+              </Typography>
+              {metaRow}
+            </Box>
+          );
+
+          // ── Style: tag ───────────────────────────────────────────────────
+          // Floating pill badge anchored to bottom-left. Shows only the title.
+          if (titleStyle === 'tag') return (
+            <Box sx={{
+              position: 'absolute', bottom: 7, left: 7,
+              maxWidth: '82%',
+              bgcolor: 'rgba(0,0,0,0.68)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              borderRadius: '5px',
+              px: 0.85, py: 0.4,
+              border: '1px solid rgba(255,255,255,0.11)',
+              pointerEvents: 'none',
+            }}>
+              <Typography sx={{
+                color: '#fff', fontWeight: 650,
+                fontSize: 'clamp(0.62rem, 1.5vw, 0.8rem)',
+                lineHeight: 1.2,
+                overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+              }}>
+                {record.title}
+              </Typography>
+            </Box>
+          );
+
+          // ── Style: fade (default) ────────────────────────────────────────
+          // Deep gradient from the bottom — title stacked above meta row.
+          return (
+            <Box sx={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              background: 'linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.55) 52%, transparent 100%)',
+              px: 1.2, pb: 1, pt: 3.5,
+              pointerEvents: 'none',
+            }}>
+              <Typography sx={{
+                color: '#fff', fontWeight: 750,
+                fontSize: 'clamp(0.68rem, 1.8vw, 0.9rem)',
+                lineHeight: 1.15, mb: 0.35,
+                display: '-webkit-box', WebkitLineClamp: 1,
+                WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                textShadow: '0 1px 8px rgba(0,0,0,0.9)',
+                letterSpacing: 0.15,
+              }}>
+                {record.title}
+              </Typography>
+              {metaRow}
+            </Box>
+          );
+        })()}
 
         {/* Default compact hover overlay (non-expand, on card itself) */}
         {hovered && !expandOnHover && (

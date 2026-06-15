@@ -213,7 +213,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
       />
 
       {/* ── Rails ── */}
-      <Box sx={{ mt: { xs: 1, md: 2 } }}>
+      <Box sx={{ mt: { xs: 0, md: 2 } }}>
         {railsLoading && rails.length === 0 ? (
           <>
             <RailSkeleton />
