@@ -15,6 +15,8 @@ import {
 } from '@mui/icons-material';
 import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord, preloadDetail, rectOf } from '../../utils/recordNav';
+import useDeviceTier from '../../hooks/useDeviceTier';
+import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../RailRow/railTypeConfig';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -24,32 +26,53 @@ const POPUP_W = 450; // wider popup
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
-export const RecordCardSkeleton = ({ wide, top10, prime }) => (
-  <Box sx={{
-    flexShrink: 0,
-    // top10 jumbo reserves more left space for the giant rank number that
-    // overlaps the poster's left edge in the real card.
-    pl: top10 ? { xs: 6, md: 10 } : 0,
-    // Prime mobile: landscape (matches always-expanded display).
-    // Prime desktop: portrait (collapsed/idle state — avoids layout jump on hover).
-    // Top 10 jumbo: larger portrait poster than the regular card.
-    width: prime
-      ? { xs: 249, sm: 320, md: 158 }
-      : top10
-        ? { xs: 130, sm: 170, md: 210 }
-        : wide
-          ? { xs: 200, md: 280 }
-          : { xs: 110, md: 150 },
-    ...(prime
-      ? { height: { xs: 140, sm: 180, md: 280 } }
-      : { aspectRatio: wide ? '16/9' : '2/3' }),
-    borderRadius: 1.5,
-    overflow: 'hidden',
-    bgcolor: 'rgba(255,255,255,.06)',
-  }}>
-    <Skeleton variant="rectangular" width="100%" height="100%" sx={{ bgcolor: 'rgba(255,255,255,.06)' }} />
-  </Box>
-);
+export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) => {
+  // Support legacy boolean props from WatchlistRailRow
+  const resolvedType = type !== 'standard'
+    ? type
+    : prime ? 'prime' : top10 ? 'top10' : wide ? 'wide' : 'standard';
+
+  const cfg    = RAIL_TYPE_CONFIG[resolvedType] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
+  const deskH  = cfg.tiers.desktop;
+  const mobH   = cfg.tiers.mobile;
+  const tabH   = cfg.tiers.tablet;
+  const isCirc = resolvedType === 'person';
+  const is10   = resolvedType === 'top10';
+  const isPrim = resolvedType === 'prime';
+  const isWide = ['wide', 'continue', 'billboard'].includes(resolvedType);
+
+  const w = isPrim
+    ? { xs: Math.round(mobH * 9/16), sm: Math.round(tabH * 9/16), md: Math.round(deskH * 9/16) }
+    : is10
+      ? { xs: Math.round(mobH * 2/3), sm: Math.round(tabH * 2/3), md: Math.round(deskH * 2/3) }
+      : isWide
+        ? { xs: Math.round(mobH * 16/9), sm: Math.round(tabH * 16/9), md: Math.round(deskH * 16/9) }
+        : isCirc
+          ? { xs: mobH, sm: tabH, md: deskH }
+          : { xs: Math.round(mobH * 2/3), sm: Math.round(tabH * 2/3), md: Math.round(deskH * 2/3) };
+
+  const h = isPrim
+    ? { xs: mobH, sm: tabH, md: deskH }
+    : isCirc
+      ? { xs: mobH, sm: tabH, md: deskH }
+      : undefined;
+
+  return (
+    <Box sx={{
+      flexShrink: 0,
+      pl: is10 ? { xs: 6, md: 10 } : 0,
+      width: w,
+      ...(h ? { height: h } : { aspectRatio: cfg.cardAspect }),
+      borderRadius: isCirc ? '50%' : 1.5,
+      overflow: 'hidden',
+      bgcolor: 'rgba(255,255,255,.06)',
+    }}>
+      <Skeleton variant="rectangular" width="100%" height="100%"
+        sx={{ bgcolor: 'rgba(255,255,255,.06)',
+              '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }} />
+    </Box>
+  );
+};
 
 // ─── Interaction action buttons ───────────────────────────────────────────────
 
@@ -305,7 +328,7 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
 
         {/* Title */}
         <Typography sx={{
-          color: '#fff', fontWeight: 800, fontSize: '1rem',
+          color: '#fff', fontWeight: 800, fontSize: 'clamp(0.85rem, 1.5vw, 1rem)',
           lineHeight: 1.3, mb: record.overview ? 0.8 : 0.6,
           display: '-webkit-box', WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical', overflow: 'hidden',
@@ -358,13 +381,19 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
 // ─── RecordCard ───────────────────────────────────────────────────────────────
 
 const RecordCard = ({
-  record, wide = false, interaction = {},
+  record, type: typeProp, wide = false, interaction = {},
   onWatchlist, onLike, onLove, onWatched,
   rank, expandOnHover = false,
   index, onHoverExpand, expandDir = 'left',
 }) => {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const tier  = useDeviceTier();
+  const isTv  = tier === 'tv';
+  // Resolve type: explicit prop wins, then infer from legacy boolean props
+  const type  = typeProp ?? (expandOnHover ? 'prime' : rank != null ? 'top10' : wide ? 'wide' : 'standard');
+  const cfg   = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
+  const baseH = cfg.tiers[tier];
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -434,32 +463,33 @@ const RecordCard = ({
 
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || wide || isTopTen ? 'w780' : 'w342');
 
-  // ── dimensions ────────────────────────────────────────────────────────────
-  // Prime rail uses a FIXED height — only width changes on hover (true horizontal expand).
-  // Wide rail uses 16:9 aspect ratio.  Top 10 jumbo + Poster rails use 2:3.
-  // Desktop prime height bumped to make it jumbo so it stands out as the
-  // featured row in the page (was 280, now 380).
-  const PRIME_HEIGHT = { xs: 140, sm: 180, md: 380 };
+  // ── dimensions — driven by RAIL_TYPE_CONFIG ─────────────────────────────
+  const PRIME_HEIGHT = {
+    xs: cfg.tiers.mobile,
+    sm: cfg.tiers.tablet,
+    md: cfg.tiers.desktop,
+  };
 
-  const cardWidth = expandOnHover
+  const cardWidth = (type === 'prime')
     ? {
-        // Mobile: always landscape — fills more of the screen and shows the backdrop properly.
-        xs: `calc(140px * ${16/9})`,
-        sm: `calc(180px * ${16/9})`,
-        // Desktop: portrait when idle, landscape when hovered (true horizontal expand).
-        md: isExpanded ? `calc(380px * ${16/9})` : `calc(380px * ${9/16})`,
+        xs: `calc(${cfg.tiers.mobile}px * ${16/9})`,
+        sm: `calc(${cfg.tiers.tablet}px * ${16/9})`,
+        md: isExpanded
+          ? `calc(${cfg.tiers.desktop}px * ${16/9})`
+          : `calc(${cfg.tiers.desktop}px * ${9/16})`,
       }
-    : isTopTen
-      ? { xs: 130, sm: 170, md: 210 }
-      : wide
-        ? { xs: 200, sm: 240, md: 280 }
-        : { xs: 110, sm: 130, md: 150 };
+    : (type === 'top10')
+      ? { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) }
+      : (type === 'wide' || type === 'continue')
+        ? { xs: Math.round(cfg.tiers.mobile * 16/9), sm: Math.round(cfg.tiers.tablet * 16/9), md: Math.round(cfg.tiers.desktop * 16/9) }
+        : (type === 'person')
+          ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop }
+          : (type === 'jumbo')
+            ? { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) }
+            : // standard/billboard: 2:3 poster
+              { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) };
 
-  const aspectRatio = expandOnHover
-    ? (isExpanded ? '16 / 9' : '9 / 16')   // 👈 MAGIC
-    : wide
-      ? '16 / 9'
-      : '2 / 3';
+  const aspectRatio = cfg.cardAspect.replace('/', ' / ');
 
   // ── motion ────────────────────────────────────────────────────────────────
   // Prime cards: pure horizontal width expand — no lift, no shadow, no glow.
@@ -478,7 +508,7 @@ const RecordCard = ({
   // cursor lands on the next card instead of skipping several. ───────────────
   const desktopPrime = expandOnHover && !isMobile;
   if (desktopPrime) {
-    const PRIME_H   = 380;
+    const PRIME_H   = cfg.tiers.desktop;
     const PORTRAIT  = Math.round(PRIME_H * 9 / 16);   // 214
     const GAP       = 12;                              // breathing room to neighbours
     const LANDSCAPE = Math.round(PRIME_H * 16 / 9) - GAP; // expanded width, minus the gap
@@ -592,6 +622,7 @@ const RecordCard = ({
       onClick={isMobile ? goDetail : undefined}
       animate={motionAnimate}
       transition={motionTransition}
+      tabIndex={isTv ? 0 : undefined}
       style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'flex-end' }}
     >
       {/* ── Top 10 jumbo rank ── Netflix-style stroked numeral that sits
@@ -642,6 +673,16 @@ const RecordCard = ({
           transition: expandOnHover
             ? 'width 0.34s cubic-bezier(0.4,0,0.2,1)'
             : 'width 0.42s cubic-bezier(0.32,0.72,0,1), box-shadow 0.32s ease',
+          ...(isTv && {
+            '&:focus-visible': {
+              outline: '4px solid',
+              outlineColor: 'primary.main',
+              outlineOffset: '4px',
+              transform: 'scale(1.08)',
+              zIndex: 10,
+              transition: 'transform 0.15s ease',
+            },
+          }),
         }}
       >
         {/* Skeleton */}
@@ -780,7 +821,7 @@ const RecordCard = ({
             display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', p: 0.8,
           }}>
             <Typography sx={{
-              color: '#fff', fontWeight: 700, fontSize: '0.7rem', lineHeight: 1.3, mb: 0.3,
+              color: '#fff', fontWeight: 700, fontSize: 'clamp(0.65rem, 2vw, 0.9rem)', lineHeight: 1.3, mb: 0.3,
               display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
             }}>
               {record.title}
@@ -788,7 +829,7 @@ const RecordCard = ({
             {record.voteAverage > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
                 <Star sx={{ fontSize: 10, color: '#46d369' }} />
-                <Typography sx={{ color: '#46d369', fontSize: '0.64rem', fontWeight: 700 }}>
+                <Typography sx={{ color: '#46d369', fontSize: 'clamp(0.6rem, 1.5vw, 0.78rem)', fontWeight: 700 }}>
                   {Number(record.voteAverage).toFixed(1)}
                 </Typography>
               </Box>
