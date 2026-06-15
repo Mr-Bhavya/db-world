@@ -168,10 +168,14 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
   return createPortal(
     <motion.div
       key="nfx-popup"
-      initial={{ opacity: 0, scale: 0.88, y: 8 }}
+      initial={{ opacity: 0, scale: 0.94, y: 10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: 4 }}
-      transition={{ duration: 0.16, ease: 'easeOut' }}
+      exit={{ opacity: 0, scale: 0.97, y: 4 }}
+      transition={{
+        opacity: { duration: 0.16 },
+        scale:   { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+        y:       { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+      }}
       style={{
         position: 'fixed', top, left,
         width: POPUP_W, zIndex: 9999,
@@ -267,13 +271,15 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             tooltip="Play / Download"
             onClick={goPlay}
           />
-          <ActionBtn
-            icon={<BookmarkAdd sx={{ fontSize: 17 }} />}
-            activeIcon={<BookmarkAdded sx={{ fontSize: 17, color: '#46d369' }} />}
-            active={interaction.watchlisted}
-            tooltip={interaction.watchlisted ? 'Remove from My List' : 'Add to My List'}
-            onClick={() => onWatchlist?.(record)}
-          />
+          {!interaction?.watched && (
+            <ActionBtn
+              icon={<BookmarkAdd sx={{ fontSize: 17 }} />}
+              activeIcon={<BookmarkAdded sx={{ fontSize: 17, color: '#46d369' }} />}
+              active={interaction.watchlisted}
+              tooltip={interaction.watchlisted ? 'Remove from My List' : 'Add to My List'}
+              onClick={() => onWatchlist?.(record)}
+            />
+          )}
           <ActionBtn
             icon={<ThumbUpOutlined sx={{ fontSize: 17 }} />}
             activeIcon={<ThumbUp sx={{ fontSize: 17, color: '#fff' }} />}
@@ -486,8 +492,16 @@ const RecordCard = ({
           ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop }
           : (type === 'jumbo')
             ? { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) }
-            : // standard/billboard: 2:3 poster
-              { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) };
+            : // standard/billboard: derive width from config cardAspect
+              (() => {
+                const [aw, ah] = cfg.cardAspect.split('/').map(Number);
+                const r = aw / ah;
+                return {
+                  xs: Math.round(cfg.tiers.mobile  * r),
+                  sm: Math.round(cfg.tiers.tablet  * r),
+                  md: Math.round(cfg.tiers.desktop * r),
+                };
+              })();
 
   const aspectRatio = cfg.cardAspect.replace('/', ' / ');
 
@@ -496,11 +510,11 @@ const RecordCard = ({
   // Non-prime cards keep the simple scale-on-hover behaviour.
   const motionAnimate = expandOnHover
     ? { zIndex: hovered ? 10 : 1 }
-    : hovered ? { scale: 1.05, zIndex: 10 } : { scale: 1, zIndex: 1 };
+    : hovered ? { scale: 1.03, zIndex: 10 } : { scale: 1, zIndex: 1 };
 
   const motionTransition = expandOnHover
     ? { duration: 0 }
-    : { duration: 0.2, ease: 'easeOut' };
+    : { duration: 0.15, ease: 'easeOut' };
 
   // ── Desktop prime rail: fixed portrait SLOT (never reflows) + an absolute
   // landscape overlay on hover that grows toward `expandDir`. Because the slot
@@ -598,7 +612,7 @@ const RecordCard = ({
                     <PlayArrow sx={{ fontSize: 18 }} />
                   </IconButton>
                 </Tooltip>
-                {iconBtn(interaction.watchlisted ? 'In My List' : 'Add to My List',
+                {!interaction?.watched && iconBtn(interaction.watchlisted ? 'In My List' : 'Add to My List',
                   (e) => { e.stopPropagation(); onWatchlist?.(record); },
                   interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 16 }} /> : <BookmarkAdd sx={{ fontSize: 16 }} />,
                   { color: interaction.watchlisted ? '#46d369' : '#fff' })}
@@ -779,12 +793,14 @@ const RecordCard = ({
                   <PlayArrow sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
-              <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
-                  sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watchlisted ? '#46d369' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-                  {interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 12 }} /> : <BookmarkAdd sx={{ fontSize: 12 }} />}
-                </IconButton>
-              </Tooltip>
+              {!interaction?.watched && (
+                <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
+                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
+                    sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watchlisted ? '#46d369' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
+                    {interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 12 }} /> : <BookmarkAdd sx={{ fontSize: 12 }} />}
+                  </IconButton>
+                </Tooltip>
+              )}
               <Tooltip title={interaction.liked ? 'Unlike' : 'Like'}>
                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); onLike?.(record); }}
                   sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>

@@ -23,26 +23,13 @@ import {
 const HeroBannerSkeleton = ({ isMobileLike, isTv }) => {
   if (isMobileLike) {
     return (
-      <Box
-        sx={{
-          minHeight: '82svh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          pt: 'max(16px, env(safe-area-inset-top))',
-          pb: 2,
-          px: 2,
-          background:
-            'linear-gradient(to bottom, rgb(var(--hero-color, 20,20,20)) 0%, var(--cinema-bg, #141414) 100%)',
-        }}
-      >
+      <Box>
         <Box
           sx={{
-            width: { xs: 'min(76vw, 320px)', sm: 'min(58vw, 360px)' },
-            aspectRatio: '2 / 3',
-            borderRadius: 3,
+            width: '100%',
+            height: '65svh',
+            bgcolor: '#0a0a0a',
             overflow: 'hidden',
-            bgcolor: 'rgba(255,255,255,.07)',
           }}
         >
           <Skeleton
@@ -52,31 +39,16 @@ const HeroBannerSkeleton = ({ isMobileLike, isTv }) => {
             sx={{ bgcolor: 'rgba(255,255,255,.07)' }}
           />
         </Box>
-
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1.2,
-            mt: 2.5,
-            width: { xs: 'min(76vw, 320px)', sm: 'min(58vw, 360px)' },
-          }}
-        >
-          <Skeleton
-            variant="rounded"
-            height={52}
-            sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2 }}
-          />
-          <Skeleton
-            variant="rounded"
-            height={52}
-            sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2 }}
-          />
-          <Skeleton
-            variant="rounded"
-            height={52}
-            sx={{ bgcolor: 'rgba(255,255,255,.07)', borderRadius: 2 }}
-          />
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.8, pt: 1.5, pb: 0.5 }}>
+          {[0, 1, 2].map((i) => (
+            <Box
+              key={i}
+              sx={{
+                width: i === 0 ? 20 : 7, height: 7, borderRadius: 999,
+                bgcolor: i === 0 ? 'rgba(13,148,136,0.4)' : 'rgba(255,255,255,0.12)',
+              }}
+            />
+          ))}
         </Box>
       </Box>
     );

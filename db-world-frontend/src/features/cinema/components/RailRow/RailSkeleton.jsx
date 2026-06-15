@@ -9,13 +9,12 @@ const SkeletonCard = ({ type, tier }) => {
   const isCirc  = type === 'person';
   const isTop10 = type === 'top10';
   const isPrime = type === 'prime';
-  const isWide  = ['wide', 'continue', 'billboard'].includes(type);
-
-  const w = isPrime  ? Math.round(h * 9/16)
-    : isTop10        ? Math.round(h * 2/3)
-    : isWide         ? Math.round(h * 16/9)
-    : isCirc         ? h
-    :                  Math.round(h * 2/3);
+  // Compute width from aspect ratio in config
+  const [aw, ah] = cfg.cardAspect.split('/').map(Number);
+  const w = isPrime  ? Math.round(h * 9/16)   // portrait before expand
+    : isTop10        ? Math.round(h * 2/3)     // top10 with rank offset
+    : isCirc         ? h                       // circle
+    :                  Math.round(h * aw / ah); // everything else: use config aspect
 
   return (
     <Box sx={{
