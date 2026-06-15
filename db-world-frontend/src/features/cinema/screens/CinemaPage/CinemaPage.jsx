@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Chip, Skeleton, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Chip, useMediaQuery, useTheme } from '@mui/material';
 import { useSelector } from 'react-redux';
 import { useQuery } from '@tanstack/react-query';
 
 import Navbar          from '../../navbar';
 import HeroBanner      from '../../components/HeroBanner/HeroBanner';
 import RailRow         from '../../components/RailRow/RailRow';
+import RailSkeleton    from '../../components/RailRow/RailSkeleton';
 import { fetchPageRails, fetchPageCategories } from '../../api/cinemaApi';
 import useInteractions from '../../hooks/useInteractions';
 import useRailRecords  from '../../hooks/useRailRecords';
@@ -58,24 +59,6 @@ const _GenreBar = ({ genres, selected, onSelect }) => (
         }}
       />
     ))}
-  </Box>
-);
-
-// ─── Rail loading skeletons ───────────────────────────────────────────────────
-
-const RailSkeleton = () => (
-  <Box sx={{ mb: 3.5, px: { xs: 2, md: 4 } }}>
-    <Skeleton variant="text" width={200} height={28} sx={{ bgcolor: 'rgba(255,255,255,.08)', mb: 1 }} />
-    <Box sx={{ display: 'flex', gap: 1.5 }}>
-      {[...Array(6)].map((_, i) => (
-        <Skeleton
-          key={i}
-          variant="rectangular"
-          width={150} height={225}
-          sx={{ borderRadius: 1.5, bgcolor: 'rgba(255,255,255,.06)', flexShrink: 0 }}
-        />
-      ))}
-    </Box>
   </Box>
 );
 
@@ -239,7 +222,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
           </>
         ) : (
           <>
-            {remainingRails.map((rail, idx) => (
+            {remainingRails.map((rail) => (
               <RailRow
                 key={rail.id}
                 rail={rail}
@@ -250,10 +233,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
                 onLove={handleLove}
                 onWatched={handleWatched}
                 onExplore={handleExploreAll}
-                wide={false}
                 eager={false}
-                top10={rail.title?.toLowerCase().includes('top 10') || rail.title?.toLowerCase().includes('top10')}
-                expandOnHover={idx % 5 === 3}
               />
             ))}
           </>
