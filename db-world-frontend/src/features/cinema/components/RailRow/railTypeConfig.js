@@ -8,6 +8,7 @@ export const RAIL_TYPE_CONFIG = {
     hover: 'popup',
     skeleton: 'backdrop',
     scroll: 'horizontal',
+    useTextBackdrop: true,
     titleStyle: 'fade',      // frosted-glass compact bar
   },
   wide: {
@@ -58,8 +59,8 @@ export const RAIL_TYPE_CONFIG = {
     scroll: 'horizontal',
     showProgress: true,
     showResume: true,
-    useTextBackdrop: true,
-    titleStyle: 'fade',        // floating pill badge, title only
+    // useTextBackdrop: true,
+    titleStyle: 'glass',        // floating pill badge, title only
   },
   person: {
     cardAspect: '1/1',
