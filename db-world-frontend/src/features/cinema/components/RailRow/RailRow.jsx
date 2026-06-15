@@ -3,47 +3,45 @@ import { motion } from 'framer-motion';
 import {
   Box, Typography, IconButton, useMediaQuery, useTheme,
 } from '@mui/material';
-import { ChevronLeft, ChevronRight, ArrowForward } from '@mui/icons-material';
+import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import RecordCard, { RecordCardSkeleton } from '../RecordCard/RecordCard';
 import useRailRecords from '../../hooks/useRailRecords';
 import useDeviceTier from '../../hooks/useDeviceTier';
-import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from './railTypeConfig';
+import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT, inferRailType } from './railTypeConfig';
 
 const SCROLL_AMOUNT = 0.75;
 
-// Thin scroll track + moving thumb. Only shown when rail.infiniteScroll === false.
-const ScrollIndicator = ({ scrollRef }) => {
-  const [left,   setLeft]   = useState(0);
-  const [thumbW, setThumbW] = useState(20);
+const ScrollDots = ({ scrollRef, count = 5 }) => {
+  const [activeIdx, setActiveIdx] = useState(0);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const update = () => {
-      const max  = el.scrollWidth - el.clientWidth;
-      const vis  = el.clientWidth / el.scrollWidth;
-      const tw   = Math.max(12, Math.min(60, vis * 100));
-      setThumbW(tw);
-      setLeft(max > 0 ? (el.scrollLeft / max) * (100 - tw) : 0);
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) { setActiveIdx(0); return; }
+      setActiveIdx(Math.round((el.scrollLeft / max) * (count - 1)));
     };
     el.addEventListener('scroll', update, { passive: true });
     update();
     return () => el.removeEventListener('scroll', update);
-  }, [scrollRef]);
+  }, [scrollRef, count]);
 
   return (
-    <Box sx={{
-      flex: 1, height: '2px', bgcolor: 'rgba(255,255,255,.1)',
-      borderRadius: '1px', overflow: 'hidden', mx: 1.5, alignSelf: 'center',
-    }}>
-      <Box sx={{
-        height: '100%',
-        width: `${thumbW}%`,
-        ml: `${left}%`,
-        bgcolor: 'rgba(255,255,255,.45)',
-        borderRadius: '1px',
-        transition: 'margin-left 0.12s linear',
-      }} />
+    <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center', ml: 'auto', flexShrink: 0, pr: 0.5 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <Box
+          key={i}
+          sx={{
+            width:  i === activeIdx ? 6 : 4,
+            height: i === activeIdx ? 6 : 4,
+            borderRadius: '50%',
+            bgcolor: i === activeIdx ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.22)',
+            transition: 'all 0.18s ease',
+            flexShrink: 0,
+          }}
+        />
+      ))}
     </Box>
   );
 };
@@ -70,9 +68,8 @@ const RailRow = ({
   const tier     = useDeviceTier();
   const isTv     = tier === 'tv';
 
-  // Resolve rail type: DTO field wins, then legacy props, then default
-  const type = rail?.type
-    ?? (expandOnHoverProp ? 'prime' : top10Prop ? 'top10' : wideProp ? 'wide' : RAIL_TYPE_DEFAULT);
+  // Resolve rail type: DTO field wins, then legacy props, then title inference, then default
+  const type = inferRailType({ ...rail, type: rail?.type ?? (expandOnHoverProp ? 'prime' : top10Prop ? 'top10' : wideProp ? 'wide' : null) });
   const cfg = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
 
   // Derived flags from config (no more heuristic string matching)
@@ -84,9 +81,8 @@ const RailRow = ({
   const scrollRef   = useRef(null);
   const observerRef = useRef(null);
 
-  const [showLeft,     setShowLeft]     = useState(false);
-  const [showRight,    setShowRight]    = useState(true);
-  const [titleHovered, setTitleHovered] = useState(false);
+  const [showLeft,  setShowLeft]  = useState(false);
+  const [showRight, setShowRight] = useState(true);
 
   // Prime-rail expand coordination
   const [expand,   setExpand]   = useState({ idx: null, dir: null });
@@ -179,10 +175,9 @@ const RailRow = ({
 
   if (!rail) return null;
 
-  const skeletonCount       = Math.min(rail.limitSize ?? 8, 8);
-  const showScrollIndicator = rail.infiniteScroll === false;
+  const skeletonCount = Math.min(rail.limitSize ?? 8, 8);
   // clamp covers phone edge → TV overscan (48px) automatically
-  const px                  = 'clamp(12px, 4vw, 48px)';
+  const px            = 'clamp(12px, 4vw, 48px)';
 
   return (
     <motion.div
@@ -193,11 +188,9 @@ const RailRow = ({
     >
       <Box sx={{ mb: { xs: 2.5, md: 3.5 } }}>
 
-        {/* ── Row header: [Title] [scroll track?] [Explore All →] ── */}
+        {/* ── Row header: [Title] [scroll dots] ── */}
         {type !== 'billboard' && (
           <Box
-            onMouseEnter={() => setTitleHovered(true)}
-            onMouseLeave={() => setTitleHovered(false)}
             sx={{ display: 'flex', alignItems: 'center', px: 'clamp(12px, 4vw, 48px)', mb: 1, cursor: 'default', gap: 1 }}
           >
             <Typography
@@ -211,32 +204,7 @@ const RailRow = ({
               {rail.title}
             </Typography>
 
-            {/* Scroll indicator — finite rails only */}
-            {showScrollIndicator && (
-              <ScrollIndicator scrollRef={scrollRef} />
-            )}
-
-            {/* "Explore All" — hidden on mobile, always visible on TV */}
-            <Box
-              component={motion.div}
-              animate={{ opacity: (titleHovered || isTv) ? 1 : 0, x: (titleHovered || isTv) ? 0 : -8 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => onExplore?.(rail)}
-              sx={{
-                display: { xs: 'none', md: 'flex' },
-                alignItems: 'center', gap: 0.3,
-                cursor: 'pointer', flexShrink: 0,
-                ml: showScrollIndicator ? 0 : 'auto',
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{ color: 'primary.main', fontWeight: 600, fontSize: '0.75rem', letterSpacing: 0.5 }}
-              >
-                Explore All
-              </Typography>
-              <ArrowForward sx={{ fontSize: 12, color: 'primary.main' }} />
-            </Box>
+            <ScrollDots scrollRef={scrollRef} />
           </Box>
         )}
 

@@ -2,10 +2,10 @@
 // Shape mirrors what the rail API will expose — migration = swap import for fetch.
 export const RAIL_TYPE_CONFIG = {
   standard: {
-    cardAspect: '2/3',
-    tiers: { mobile: 110, tablet: 130, desktop: 150, tv: 200 },
+    cardAspect: '16/9',
+    tiers: { mobile: 110, tablet: 135, desktop: 170, tv: 220 },
     hover: 'popup',
-    skeleton: 'poster',
+    skeleton: 'backdrop',
     scroll: 'horizontal',
   },
   wide: {
@@ -66,3 +66,20 @@ export const RAIL_TYPE_CONFIG = {
 };
 
 export const RAIL_TYPE_DEFAULT = 'standard';
+
+// Infers rail display type from rail metadata when rail.type is not provided by the API.
+// Title keyword matching is intentionally loose (case-insensitive, partial).
+export function inferRailType(rail) {
+  if (!rail) return RAIL_TYPE_DEFAULT;
+  if (rail.type && RAIL_TYPE_CONFIG[rail.type]) return rail.type;
+
+  const title = (rail.title ?? '').toLowerCase();
+  if (/top\s*10|top ten|trending/i.test(title))           return 'top10';
+  if (/continue|resume|watching/i.test(title))             return 'continue';
+  if (/cast|actor|director|person|people/i.test(title))    return 'person';
+  if (/featured|prime|spotlight/i.test(title))             return 'prime';
+  if (/billboard/i.test(title))                            return 'billboard';
+  if (/jumbo|big|large/i.test(title))                      return 'jumbo';
+  if (/wide|backdrop/i.test(title))                        return 'wide';
+  return RAIL_TYPE_DEFAULT;
+}
