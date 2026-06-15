@@ -159,6 +159,7 @@ const RailRow = ({
     if (!hScrollKey || !records.length || !scrollRef.current) return;
     const saved = parseInt(sessionStorage.getItem(hScrollKey) || '0', 10);
     if (saved > 0) scrollRef.current.scrollLeft = saved;
+  // hScrollKey and scrollRef are stable; only restore once when records first load
   }, [records.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScrollWithSave = useCallback(() => {

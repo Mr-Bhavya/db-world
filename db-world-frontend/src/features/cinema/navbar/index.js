@@ -454,6 +454,7 @@ function Navbar({ coverColor, onGenreSelect }) {
         }
       })
       .catch(() => {});
+  // enqueueSnackbar and navigate are stable refs from their providers; empty dep is intentional
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
