@@ -32,6 +32,7 @@ import {
   Tune as TuneIcon,
 } from '@mui/icons-material';
 import { AnimatePresence } from 'framer-motion';
+import { Capacitor } from '@capacitor/core';
 import CategoryModal from './CategoryModal';
 import { useCategory } from './CategoryContext';
 import NotificationPanel from '../components/notifications/NotificationPanel';
@@ -177,7 +178,7 @@ const FloatingNavItem = styled(ButtonBase, {
 
 // ─── TV Drawer (≥ 1920px + coarse pointer) ───────────────────────────────────
 
-function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigate }) {
+function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigate, isAndroid }) {
   const [expanded, setExpanded] = React.useState(false);
   const theme = useTheme();
 
@@ -194,7 +195,7 @@ function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigat
         </Badge>
       )
     },
-    { id: 6, title: 'Downloads',     route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> },
+    ...(isAndroid ? [{ id: 6, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
   ];
 
   const handleItemClick = (item) => {
@@ -305,6 +306,8 @@ function Navbar({ coverColor, onGenreSelect }) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const isAndroid = Capacitor.getPlatform() === 'android';
+
   const {
     selectedCategory,
     selectedNav,
@@ -328,8 +331,8 @@ function Navbar({ coverColor, onGenreSelect }) {
     { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
     { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
     { id: 3, title: 'Categories', route: null,                               icon: null },
-    { id: 4, title: 'Downloads',  route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> },
-  ], []);
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
+  ], [isAndroid]);
 
   // Mobile bottom pill items: Home / Movies / Shows / Search / Downloads
   const bottomNavItems = useMemo(() => [
@@ -337,8 +340,8 @@ function Navbar({ coverColor, onGenreSelect }) {
     { id: 1,  title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
     { id: 2,  title: 'Shows',     route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
     { id: 99, title: 'Search',    route: null,                               icon: <SearchIcon /> },
-    { id: 4,  title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> },
-  ], []);
+    ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
+  ], [isAndroid]);
 
   // Sync selectedNav with current URL
   useEffect(() => {
@@ -527,6 +530,7 @@ function Navbar({ coverColor, onGenreSelect }) {
           onFilter={() => setCategoryModalOpen(true)}
           onBell={(e) => setBellAnchorEl(e?.currentTarget ?? document.body)}
           onNavigate={(route) => { navigate(route); }}
+          isAndroid={isAndroid}
         />
         {/* Spacer so page content isn't hidden under the 72px drawer */}
         <Box sx={{ ml: '72px' }} />
