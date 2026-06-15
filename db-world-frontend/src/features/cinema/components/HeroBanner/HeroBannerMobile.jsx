@@ -49,12 +49,18 @@ const HeroBannerMobile = ({
   };
 
   return (
-    <Box>
+    // Outer wrapper: heroColor bleeds into the side margins and transitions to cinema-bg below,
+    // making the hero feel like part of one continuous page rather than a separate section.
+    <Box sx={{
+      background: `linear-gradient(to bottom, rgba(${heroColor}, 0.9) 0%, rgba(${heroColor}, 0.6) 55%, var(--cinema-bg, #141414) 100%)`,
+      pb: 1.5,
+    }}>
       {/* ── Hero: backdrop + gradient + content overlay ── */}
       <Box
         sx={{
           position: 'relative',
-          width: '100%',
+          mx: { xs: 1.5, sm: 2 },
+          borderRadius: { xs: 2, sm: 3 },
           height: metrics.heroHeight,
           overflow: 'hidden',
           bgcolor: '#0a0a0a',
@@ -264,7 +270,7 @@ const HeroBannerMobile = ({
           ))}
         </Box>
       )}
-    </Box>
+    </Box> {/* end outer heroColor wrapper */}
   );
 };
 

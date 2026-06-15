@@ -9,12 +9,14 @@ const SkeletonCard = ({ type, tier }) => {
   const isCirc  = type === 'person';
   const isTop10 = type === 'top10';
   const isPrime = type === 'prime';
-  // Compute width from aspect ratio in config
-  const [aw, ah] = cfg.cardAspect.split('/').map(Number);
-  const w = isPrime  ? Math.round(h * 9/16)   // portrait before expand
-    : isTop10        ? Math.round(h * 2/3)     // top10 with rank offset
-    : isCirc         ? h                       // circle
-    :                  Math.round(h * aw / ah); // everything else: use config aspect
+  // Respect mobileAspect for standard on mobile/tablet (poster vs backdrop)
+  const isMobileTier = tier === 'mobile' || tier === 'tablet';
+  const aspect = (cfg.mobileAspect && isMobileTier) ? cfg.mobileAspect : cfg.cardAspect;
+  const [aw, ah] = aspect.split('/').map(Number);
+  const w = isPrime  ? Math.round(h * 9/16)
+    : isTop10        ? Math.round(h * 2/3)
+    : isCirc         ? h
+    :                  Math.round(h * aw / ah);
 
   return (
     <Box sx={{
@@ -22,7 +24,7 @@ const SkeletonCard = ({ type, tier }) => {
       pl: isTop10 ? { xs: 6, md: 10 } : 0,
       width: w,
       height: (isPrime || isCirc) ? h : undefined,
-      aspectRatio: (!isPrime && !isCirc) ? cfg.cardAspect : undefined,
+      aspectRatio: (!isPrime && !isCirc) ? aspect : undefined,
       borderRadius: isCirc ? '50%' : 1.5,
       overflow: 'hidden',
       bgcolor: 'rgba(255,255,255,.06)',

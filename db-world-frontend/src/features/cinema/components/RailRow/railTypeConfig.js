@@ -2,7 +2,8 @@
 // Shape mirrors what the rail API will expose — migration = swap import for fetch.
 export const RAIL_TYPE_CONFIG = {
   standard: {
-    cardAspect: '16/9',
+    cardAspect: '16/9',       // desktop/tv: landscape backdrop card
+    mobileAspect: '2/3',      // mobile/tablet: portrait poster card
     tiers: { mobile: 110, tablet: 135, desktop: 170, tv: 220 },
     hover: 'popup',
     skeleton: 'backdrop',

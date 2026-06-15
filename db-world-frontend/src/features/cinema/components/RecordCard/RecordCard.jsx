@@ -41,6 +41,11 @@ export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) =>
   const isPrim = resolvedType === 'prime';
   const isWide = ['wide', 'continue', 'billboard'].includes(resolvedType);
 
+  // For standard: xs/sm use mobileAspect (poster 2:3), md uses cardAspect (landscape 16:9)
+  const [daw, dah] = cfg.cardAspect.split('/').map(Number);
+  const mobAsp = cfg.mobileAspect ?? cfg.cardAspect;
+  const [maw, mah] = mobAsp.split('/').map(Number);
+
   const w = isPrim
     ? { xs: Math.round(mobH * 9/16), sm: Math.round(tabH * 9/16), md: Math.round(deskH * 9/16) }
     : is10
@@ -49,7 +54,11 @@ export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) =>
         ? { xs: Math.round(mobH * 16/9), sm: Math.round(tabH * 16/9), md: Math.round(deskH * 16/9) }
         : isCirc
           ? { xs: mobH, sm: tabH, md: deskH }
-          : { xs: Math.round(mobH * 2/3), sm: Math.round(tabH * 2/3), md: Math.round(deskH * 2/3) };
+          : {
+              xs: Math.round(mobH * maw / mah),
+              sm: Math.round(tabH * maw / mah),
+              md: Math.round(deskH * daw / dah),
+            };
 
   const h = isPrim
     ? { xs: mobH, sm: tabH, md: deskH }
@@ -400,6 +409,10 @@ const RecordCard = ({
   const type  = typeProp ?? (expandOnHover ? 'prime' : rank != null ? 'top10' : wide ? 'wide' : 'standard');
   const cfg   = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
   const baseH = cfg.tiers[tier];
+  // Standard cards use poster (2:3) on mobile/tablet, backdrop (16:9) on desktop/tv
+  const isMobileTier = tier === 'mobile' || tier === 'tablet';
+  const effectiveAspect = (cfg.mobileAspect && isMobileTier) ? cfg.mobileAspect : cfg.cardAspect;
+  const isLandscape = effectiveAspect === '16/9';
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -461,13 +474,13 @@ const RecordCard = ({
   const isTopTen = rank != null;
 
   // ── image ──────────────────────────────────────────────────────────────────
-  const imgPath = isExpanded
-    ? (record.backdropPath ?? record.posterPath)
-    : wide
-      ? (record.backdropPath ?? record.posterPath)
-      : (record.posterPath ?? record.backdropPath);
+  // Landscape (16:9) cards show backdrop; portrait cards show poster.
+  // Prefer backdropPath (clean) over backdropPathText (title burned in by TMDB).
+  const imgPath = isExpanded || isLandscape
+    ? (record.backdropPath ?? record.backdropPathText ?? record.posterPath)
+    : (record.posterPath ?? record.backdropPath ?? record.backdropPathText);
 
-  const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || wide || isTopTen ? 'w780' : 'w342');
+  const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
 
   // ── dimensions — driven by RAIL_TYPE_CONFIG ─────────────────────────────
   const PRIME_HEIGHT = {
@@ -492,18 +505,21 @@ const RecordCard = ({
           ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop }
           : (type === 'jumbo')
             ? { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) }
-            : // standard/billboard: derive width from config cardAspect
+            : // standard/billboard: xs/sm use mobileAspect (poster), md+ use cardAspect (backdrop)
               (() => {
-                const [aw, ah] = cfg.cardAspect.split('/').map(Number);
-                const r = aw / ah;
+                const [daw, dah] = cfg.cardAspect.split('/').map(Number);
+                const dr = daw / dah;
+                const mobAsp = cfg.mobileAspect ?? cfg.cardAspect;
+                const [maw, mah] = mobAsp.split('/').map(Number);
+                const mr = maw / mah;
                 return {
-                  xs: Math.round(cfg.tiers.mobile  * r),
-                  sm: Math.round(cfg.tiers.tablet  * r),
-                  md: Math.round(cfg.tiers.desktop * r),
+                  xs: Math.round(cfg.tiers.mobile  * mr),
+                  sm: Math.round(cfg.tiers.tablet  * mr),
+                  md: Math.round(cfg.tiers.desktop * dr),
                 };
               })();
 
-  const aspectRatio = cfg.cardAspect.replace('/', ' / ');
+  const aspectRatio = effectiveAspect.replace('/', ' / ');
 
   // ── motion ────────────────────────────────────────────────────────────────
   // Prime cards: pure horizontal width expand — no lift, no shadow, no glow.
@@ -826,6 +842,26 @@ const RecordCard = ({
                 </IconButton>
               </Tooltip>
             </Box>
+          </Box>
+        )}
+
+        {/* Landscape cards: static title overlay so backdrop images always show a name */}
+        {isLandscape && !expandOnHover && !hovered && (
+          <Box sx={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 65%, transparent 100%)',
+            px: 1, pb: 0.7, pt: 2.5,
+            pointerEvents: 'none',
+          }}>
+            <Typography sx={{
+              color: '#fff', fontWeight: 650,
+              fontSize: 'clamp(0.65rem, 2vw, 0.85rem)',
+              lineHeight: 1.2,
+              display: '-webkit-box', WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            }}>
+              {record.title}
+            </Typography>
           </Box>
         )}
 
