@@ -36,12 +36,12 @@ export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) =>
     ? type
     : prime ? 'prime' : top10 ? 'top10' : wide ? 'wide' : 'standard';
 
-  const cfg    = RAIL_TYPE_CONFIG[resolvedType] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
-  const deskH  = cfg.tiers.desktop;
-  const mobH   = cfg.tiers.mobile;
-  const tabH   = cfg.tiers.tablet;
+  const cfg = RAIL_TYPE_CONFIG[resolvedType] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
+  const deskH = cfg.tiers.desktop;
+  const mobH = cfg.tiers.mobile;
+  const tabH = cfg.tiers.tablet;
   const isCirc = resolvedType === 'person';
-  const is10   = resolvedType === 'top10';
+  const is10 = resolvedType === 'top10';
   const isPrim = resolvedType === 'prime';
   const isWide = ['wide', 'continue', 'billboard'].includes(resolvedType);
 
@@ -50,18 +50,18 @@ export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) =>
   const [maw, mah] = mobAsp.split('/').map(Number);
 
   const w = isPrim
-    ? { xs: Math.round(mobH * 9/16), sm: Math.round(tabH * 9/16), md: Math.round(deskH * 9/16) }
+    ? { xs: Math.round(mobH * 9 / 16), sm: Math.round(tabH * 9 / 16), md: Math.round(deskH * 9 / 16) }
     : is10
-      ? { xs: Math.round(mobH * 2/3), sm: Math.round(tabH * 2/3), md: Math.round(deskH * 2/3) }
+      ? { xs: Math.round(mobH * 2 / 3), sm: Math.round(tabH * 2 / 3), md: Math.round(deskH * 2 / 3) }
       : isWide
-        ? { xs: Math.round(mobH * 16/9), sm: Math.round(tabH * 16/9), md: Math.round(deskH * 16/9) }
+        ? { xs: Math.round(mobH * 16 / 9), sm: Math.round(tabH * 16 / 9), md: Math.round(deskH * 16 / 9) }
         : isCirc
           ? { xs: mobH, sm: tabH, md: deskH }
           : {
-              xs: Math.round(mobH * maw / mah),
-              sm: Math.round(tabH * maw / mah),
-              md: Math.round(deskH * daw / dah),
-            };
+            xs: Math.round(mobH * maw / mah),
+            sm: Math.round(tabH * maw / mah),
+            md: Math.round(deskH * daw / dah),
+          };
 
   const h = isPrim
     ? { xs: mobH, sm: tabH, md: deskH }
@@ -85,8 +85,10 @@ export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) =>
       bgcolor: 'rgba(255,255,255,.06)',
     }}>
       <Skeleton variant="rectangular" width="100%" height="100%"
-        sx={{ bgcolor: 'rgba(255,255,255,.06)',
-              '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }} />
+        sx={{
+          bgcolor: 'rgba(255,255,255,.06)',
+          '@media (prefers-reduced-motion: reduce)': { animation: 'none' }
+        }} />
     </Box>
   );
 };
@@ -102,13 +104,13 @@ const ActionBtn = ({ icon, activeIcon, active, tooltip, onClick, variant = 'outl
         variant === 'filled'
           ? { bgcolor: '#fff', color: '#000', p: 0.8, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }
           : {
-              border: `1.5px solid ${active ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.45)'}`,
-              color: active ? '#fff' : 'rgba(255,255,255,.8)',
-              bgcolor: active ? 'rgba(255,255,255,.12)' : 'transparent',
-              p: 0.7,
-              transition: 'all 0.15s',
-              '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' },
-            }
+            border: `1.5px solid ${active ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.45)'}`,
+            color: active ? '#fff' : 'rgba(255,255,255,.8)',
+            bgcolor: active ? 'rgba(255,255,255,.12)' : 'transparent',
+            p: 0.7,
+            transition: 'all 0.15s',
+            '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' },
+          }
       }
     >
       {active ? activeIcon : icon}
@@ -148,24 +150,24 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
     window.innerHeight - popupH - 8
   ));
 
-    const toggleMute = (e) => {
-        e.stopPropagation();
+  const toggleMute = (e) => {
+    e.stopPropagation();
 
-        if (!iframeRef.current) return;
+    if (!iframeRef.current) return;
 
-        const command = muted ? 'unMute' : 'mute';
+    const command = muted ? 'unMute' : 'mute';
 
-        iframeRef.current.contentWindow.postMessage(
-            JSON.stringify({
-                event: 'command',
-                func: command,
-                args: []
-            }),
-            '*'
-        );
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({
+        event: 'command',
+        func: command,
+        args: []
+      }),
+      '*'
+    );
 
-        setMuted(prev => !prev);
-    };
+    setMuted(prev => !prev);
+  };
 
   // HoverPopup is desktop-only (the parent skips it when isMobile), so we
   // always pass the background location — this triggers the Netflix-style
@@ -202,7 +204,7 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
       exit={{ opacity: 0, scale: initialScale * 0.97 }}
       transition={{
         opacity: { duration: 0.12 },
-        scale:   { type: 'spring', stiffness: 360, damping: 28 },
+        scale: { type: 'spring', stiffness: 360, damping: 28 },
       }}
       style={{
         position: 'fixed', top, left,
@@ -235,56 +237,56 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
           transition: 'opacity 0.4s',
         }} />
         {videoSrc && (
-            <Box
-                component="iframe"
-                ref={iframeRef}
-                src={videoSrc}
-                allow="autoplay; encrypted-media; picture-in-picture"
-                onLoad={() => setVideoLoaded(true)}
-                sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    width: '120%',
-                    height: '120%',
-                    transform: 'translate(-50%, -50%) scale(1.2)', // 🔥 crop UI
-                    border: 'none',
-                    opacity: videoLoaded ? 1 : 0,
-                    transition: 'opacity 0.4s',
-                    pointerEvents: 'none' // 🔥 disable UI interaction
-                }}
-            />
-        )}
           <Box
-              sx={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '14%', // bottom mask
-                  background: 'linear-gradient(to top, black, transparent)',
-                  zIndex: 2
-              }}
+            component="iframe"
+            ref={iframeRef}
+            src={videoSrc}
+            allow="autoplay; encrypted-media; picture-in-picture"
+            onLoad={() => setVideoLoaded(true)}
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '120%',
+              height: '120%',
+              transform: 'translate(-50%, -50%) scale(1.2)', // 🔥 crop UI
+              border: 'none',
+              opacity: videoLoaded ? 1 : 0,
+              transition: 'opacity 0.4s',
+              pointerEvents: 'none' // 🔥 disable UI interaction
+            }}
           />
+        )}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: '14%', // bottom mask
+            background: 'linear-gradient(to top, black, transparent)',
+            zIndex: 2
+          }}
+        />
         {/* Mute toggle */}
         {videoSrc && (
-            <IconButton
-                size="small"
-                onClick={toggleMute}
-                sx={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 8,
-                    zIndex: 5,
-                    bgcolor: 'rgba(0,0,0,0.55)',
-                    color: '#fff',
-                    border: '1.5px solid rgba(255,255,255,0.45)',
-                    p: 0.5,
-                    '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
-                }}
-            >
-                {muted ? <VolumeOff sx={{ fontSize: 14 }} /> : <VolumeUp sx={{ fontSize: 14 }} />}
-            </IconButton>
+          <IconButton
+            size="small"
+            onClick={toggleMute}
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              right: 8,
+              zIndex: 5,
+              bgcolor: 'rgba(0,0,0,0.55)',
+              color: '#fff',
+              border: '1.5px solid rgba(255,255,255,0.45)',
+              p: 0.5,
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+            }}
+          >
+            {muted ? <VolumeOff sx={{ fontSize: 14 }} /> : <VolumeUp sx={{ fontSize: 14 }} />}
+          </IconButton>
         )}
       </Box>
 
@@ -416,19 +418,23 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
 // ─── RecordCard ───────────────────────────────────────────────────────────────
 
 const RecordCard = ({
-  record, type: typeProp, wide = false, interaction = {},
-  onWatchlist, onLike, onLove, onWatched,
-  rank, expandOnHover = false,
+  record, rank, expandOnHover = false, type: typeProp, wide = false, interaction = {},
   index, onHoverExpand, expandDir = 'left',
+  forceExpanded = false, onWatchlist, onLike, onLove, onWatched
 }) => {
-  const theme    = useTheme();
+
+  const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const tier  = useDeviceTier();
-  const isTv  = tier === 'tv';
+  const tier = useDeviceTier();
+  const isTv = tier === 'tv';
   // Resolve type: explicit prop wins, then infer from legacy boolean props
-  const type  = typeProp ?? (expandOnHover ? 'prime' : rank != null ? 'top10' : wide ? 'wide' : 'standard');
-  const cfg   = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
+  const type = typeProp ?? (expandOnHover ? 'prime' : rank != null ? 'top10' : wide ? 'wide' : 'standard');
+  const cfg = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
   const baseH = cfg.tiers[tier];
+
+  const isWideType = type === 'wide' || type === 'continue';
+  const useInlineWideHover = isWideType;
+
   // Standard cards use poster (2:3) on mobile/tablet, backdrop (16:9) on desktop/tv
   const isMobileTier = tier === 'mobile' || tier === 'tablet';
   const effectiveAspect = (cfg.mobileAspect && isMobileTier) ? cfg.mobileAspect : cfg.cardAspect;
@@ -436,12 +442,12 @@ const RecordCard = ({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [hovered,    setHovered]    = useState(false);
-  const [imgError,   setImgError]   = useState(false);
-  const [imgLoaded,  setImgLoaded]  = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [anchorRect, setAnchorRect] = useState(null);
 
-  const cardRef    = useRef(null);
+  const cardRef = useRef(null);
   const hoverTimer = useRef(null);
 
   const isMovie = record?.type === 'MOVIE';
@@ -454,13 +460,13 @@ const RecordCard = ({
     // Prime (expandOnHover) cards open fast for snappy switching between cards;
     // the popup-style cards keep the longer intent delay. The grow direction is
     // decided by RailRow from real pointer movement (passed back as expandDir).
-    const delay = expandOnHover ? 90 : 380;
+    const delay = expandOnHover ? 110 : useInlineWideHover ? 140 : 380;
     hoverTimer.current = setTimeout(() => {
       if (cardRef.current) setAnchorRect(cardRef.current.getBoundingClientRect());
       setHovered(true);
       if (expandOnHover) onHoverExpand?.(index);
     }, delay);
-  }, [isMobile, expandOnHover, onHoverExpand, index]);
+  }, [isMobile, expandOnHover, onHoverExpand, index, useInlineWideHover]);
 
   const onMouseLeave = useCallback(() => {
     clearTimeout(hoverTimer.current);
@@ -487,7 +493,7 @@ const RecordCard = ({
 
   // Mobile has no hover, so prime cards always show in the featured landscape
   // state (otherwise they shrink to a tiny 9:16 portrait and look broken).
-  const isExpanded = expandOnHover && (hovered || isMobile);
+  const isExpanded = expandOnHover && (forceExpanded || hovered || isMobile);
 
   // Top 10 jumbo mode: a Netflix-style featured row. The rank prop being set
   // means the parent RailRow already detected this as a Top 10 rail; we then
@@ -515,33 +521,33 @@ const RecordCard = ({
 
   const cardWidth = (type === 'prime')
     ? {
-        xs: `calc(${cfg.tiers.mobile}px * ${16/9})`,
-        sm: `calc(${cfg.tiers.tablet}px * ${16/9})`,
-        md: isExpanded
-          ? `calc(${cfg.tiers.desktop}px * ${16/9})`
-          : `calc(${cfg.tiers.desktop}px * ${9/16})`,
-      }
+      xs: `calc(${cfg.tiers.mobile}px * ${16 / 9})`,
+      sm: `calc(${cfg.tiers.tablet}px * ${16 / 9})`,
+      md: isExpanded
+        ? `calc(${cfg.tiers.desktop}px * ${16 / 9})`
+        : `calc(${cfg.tiers.desktop}px * ${9 / 16})`,
+    }
     : (type === 'top10')
-      ? { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) }
+      ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(cfg.tiers.desktop * 2 / 3) }
       : (type === 'wide' || type === 'continue')
-        ? { xs: Math.round(cfg.tiers.mobile * 16/9), sm: Math.round(cfg.tiers.tablet * 16/9), md: Math.round(cfg.tiers.desktop * 16/9) }
+        ? { xs: Math.round(cfg.tiers.mobile * 16 / 9), sm: Math.round(cfg.tiers.tablet * 16 / 9), md: Math.round(cfg.tiers.desktop * 16 / 9) }
         : (type === 'person')
           ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop }
           : (type === 'jumbo')
-            ? { xs: Math.round(cfg.tiers.mobile * 2/3), sm: Math.round(cfg.tiers.tablet * 2/3), md: Math.round(cfg.tiers.desktop * 2/3) }
+            ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(cfg.tiers.desktop * 2 / 3) }
             : // standard/billboard: xs/sm use mobileAspect (poster), md+ use cardAspect (backdrop)
-              (() => {
-                const [daw, dah] = cfg.cardAspect.split('/').map(Number);
-                const dr = daw / dah;
-                const mobAsp = cfg.mobileAspect ?? cfg.cardAspect;
-                const [maw, mah] = mobAsp.split('/').map(Number);
-                const mr = maw / mah;
-                return {
-                  xs: Math.round(cfg.tiers.mobile  * mr),
-                  sm: Math.round(cfg.tiers.tablet  * mr),
-                  md: Math.round(cfg.tiers.desktop * dr),
-                };
-              })();
+            (() => {
+              const [daw, dah] = cfg.cardAspect.split('/').map(Number);
+              const dr = daw / dah;
+              const mobAsp = cfg.mobileAspect ?? cfg.cardAspect;
+              const [maw, mah] = mobAsp.split('/').map(Number);
+              const mr = maw / mah;
+              return {
+                xs: Math.round(cfg.tiers.mobile * mr),
+                sm: Math.round(cfg.tiers.tablet * mr),
+                md: Math.round(cfg.tiers.desktop * dr),
+              };
+            })();
 
   const aspectRatio = effectiveAspect.replace('/', ' / ');
 
@@ -549,12 +555,16 @@ const RecordCard = ({
   // Prime cards: pure horizontal width expand — no lift, no shadow, no glow.
   // Non-prime cards keep the simple scale-on-hover behaviour.
   const motionAnimate = expandOnHover
-    ? { zIndex: hovered ? 10 : 1 }
-    : hovered ? { scale: 1.03, zIndex: 10 } : { scale: 1, zIndex: 1 };
+    ? { zIndex: isExpanded ? 10 : 1 }
+    : useInlineWideHover
+      ? (hovered ? { scale: 1.02, y: -4, zIndex: 10 } : { scale: 1, y: 0, zIndex: 1 })
+      : (hovered ? { scale: 1.03, zIndex: 10 } : { scale: 1, zIndex: 1 });
 
   const motionTransition = expandOnHover
     ? { duration: 0 }
-    : { duration: 0.15, ease: 'easeOut' };
+    : useInlineWideHover
+      ? { duration: 0.2, ease: 'easeOut' }
+      : { duration: 0.15, ease: 'easeOut' };
 
   // ── Desktop prime rail: fixed portrait SLOT (never reflows) + an absolute
   // landscape overlay on hover that grows toward `expandDir`. Because the slot
@@ -562,11 +572,11 @@ const RecordCard = ({
   // cursor lands on the next card instead of skipping several. ───────────────
   const desktopPrime = expandOnHover && !isMobile;
   if (desktopPrime) {
-    const PRIME_H   = cfg.tiers.desktop;
-    const PORTRAIT  = Math.round(PRIME_H * 9 / 16);   // 214
-    const GAP       = 12;                              // breathing room to neighbours
+    const PRIME_H = cfg.tiers.desktop;
+    const PORTRAIT = Math.round(PRIME_H * 9 / 16);   // 214
+    const GAP = 6;                              // breathing room to neighbours
     const LANDSCAPE = Math.round(PRIME_H * 16 / 9) - GAP; // expanded width, minus the gap
-    const portraitSrc  = imgError ? null : tmdbImg(record.posterPath ?? record.backdropPath, 'w342');
+    const portraitSrc = imgError ? null : tmdbImg(record.posterPath ?? record.backdropPath, 'w342');
     const landscapeSrc = imgError ? null : tmdbImg(record.backdropPath ?? record.posterPath, 'w780');
     const iconBtn = (title, onClick, child, extra = {}) => (
       <Tooltip title={title}>
@@ -583,7 +593,7 @@ const RecordCard = ({
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onClick={goDetail}
-        animate={{ zIndex: hovered ? 10 : 1 }}
+        animate={{ zIndex: isExpanded ? 10 : 1 }}
         transition={{ duration: 0 }}
         sx={{ flexShrink: 0, position: 'relative', width: PORTRAIT, height: PRIME_H, cursor: 'pointer' }}
       >
@@ -604,7 +614,7 @@ const RecordCard = ({
         </Box>
 
         {/* Hover overlay — absolute landscape, grows toward expandDir (no reflow) */}
-        {hovered && (
+        {isExpanded && (
           <Box
             component={motion.div}
             initial={{ width: PORTRAIT, opacity: 0.5 }}
@@ -704,7 +714,7 @@ const RecordCard = ({
           animation: 'topTenIn 0.45s ease-out both',
           '@keyframes topTenIn': {
             from: { opacity: 0, transform: 'translateY(8px)' },
-            to:   { opacity: 1, transform: 'translateY(0)' },
+            to: { opacity: 1, transform: 'translateY(0)' },
           },
         }}>
           {rank}
@@ -715,19 +725,25 @@ const RecordCard = ({
       <Box
         sx={{
           width: cardWidth,
-              height: expandOnHover ? PRIME_HEIGHT : undefined,
-              aspectRatio: !expandOnHover ? aspectRatio : undefined,
+          height: expandOnHover ? PRIME_HEIGHT : undefined,
+          aspectRatio: !expandOnHover ? aspectRatio : undefined,
           borderRadius: 1.5,
           overflow: 'hidden',
           bgcolor: 'rgba(255,255,255,.06)',
           position: 'relative',
-          // Prime cards: no shadow/glow — just the clean width transition.
+
           boxShadow: expandOnHover
             ? 'none'
-            : hovered ? '0 16px 48px rgba(0,0,0,.75)' : '0 2px 8px rgba(0,0,0,.3)',
+            : useInlineWideHover
+              ? (hovered ? '0 6px 14px rgba(0,0,0,.16)' : '0 1px 4px rgba(0,0,0,.10)')
+              : (hovered ? '0 16px 48px rgba(0,0,0,.75)' : '0 2px 8px rgba(0,0,0,.3)'),
+
           transition: expandOnHover
             ? 'width 0.34s cubic-bezier(0.4,0,0.2,1)'
-            : 'width 0.42s cubic-bezier(0.32,0.72,0,1), box-shadow 0.32s ease',
+            : useInlineWideHover
+              ? 'transform 0.2s ease, box-shadow 0.2s ease'
+              : 'width 0.42s cubic-bezier(0.32,0.72,0,1), box-shadow 0.32s ease',
+
           ...(isTv && {
             '&:focus-visible': {
               outline: '4px solid',
@@ -979,8 +995,165 @@ const RecordCard = ({
           );
         })()}
 
+        {/* Wide / Continue inline hover details */}
+        {hovered && useInlineWideHover && !isMobile && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              background: `
+                linear-gradient(to top,
+                  rgba(0,0,0,0.96) 0%,
+                  rgba(0,0,0,0.82) 28%,
+                  rgba(0,0,0,0.35) 62%,
+                  rgba(0,0,0,0.06) 100%)
+              `,
+              p: 1.25,
+            }}
+          >
+            <Box sx={{ mb: 0.7 }}>
+              <Typography
+                sx={{
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: '0.95rem',
+                  lineHeight: 1.2,
+                  mb: 0.35,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {record.title}
+              </Typography>
+
+              <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', flexWrap: 'wrap', mb: 0.45 }}>
+                {record.voteAverage > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                    <Star sx={{ fontSize: 12, color: '#46d369' }} />
+                    <Typography sx={{ color: '#46d369', fontSize: '0.72rem', fontWeight: 800 }}>
+                      {Number(record.voteAverage).toFixed(1)}
+                    </Typography>
+                  </Box>
+                )}
+
+                {year(record.releaseDate) && (
+                  <Typography sx={{ color: 'rgba(255,255,255,.62)', fontSize: '0.72rem', fontWeight: 600 }}>
+                    {year(record.releaseDate)}
+                  </Typography>
+                )}
+
+                {record.genres?.length > 0 && (
+                  <Typography
+                    sx={{
+                      color: 'rgba(255,255,255,.46)',
+                      fontSize: '0.68rem',
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '70%',
+                    }}
+                  >
+                    {record.genres.slice(0, 3).join(' · ')}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+              <Tooltip title="Play">
+                <IconButton
+                  size="small"
+                  onClick={goPlay}
+                  sx={{
+                    bgcolor: '#fff',
+                    color: '#000',
+                    p: 0.55,
+                    '&:hover': { bgcolor: 'rgba(255,255,255,.88)' },
+                  }}
+                >
+                  <PlayArrow sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+
+              {!interaction?.watched && (
+                <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
+                    sx={{
+                      border: '1.5px solid rgba(255,255,255,.5)',
+                      color: interaction.watchlisted ? '#46d369' : '#fff',
+                      p: 0.42,
+                      '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
+                    }}
+                  >
+                    {interaction.watchlisted
+                      ? <BookmarkAdded sx={{ fontSize: 13 }} />
+                      : <BookmarkAdd sx={{ fontSize: 13 }} />}
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              <Tooltip title={interaction.liked ? 'Unlike' : 'Like'}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); onLike?.(record); }}
+                  sx={{
+                    border: '1.5px solid rgba(255,255,255,.5)',
+                    color: '#fff',
+                    p: 0.42,
+                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
+                  }}
+                >
+                  {interaction.liked
+                    ? <ThumbUp sx={{ fontSize: 13 }} />
+                    : <ThumbUpOutlined sx={{ fontSize: 13 }} />}
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title={interaction.loved ? 'Loved' : 'Love it'}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); onLove?.(record); }}
+                  sx={{
+                    border: '1.5px solid rgba(255,255,255,.5)',
+                    color: interaction.loved ? '#e50914' : '#fff',
+                    p: 0.42,
+                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
+                  }}
+                >
+                  {interaction.loved
+                    ? <Favorite sx={{ fontSize: 13 }} />
+                    : <FavoriteBorder sx={{ fontSize: 13 }} />}
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="More details">
+                <IconButton
+                  size="small"
+                  onClick={goDetail}
+                  sx={{
+                    border: '1.5px solid rgba(255,255,255,.5)',
+                    color: '#fff',
+                    p: 0.42,
+                    ml: 'auto',
+                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
+                  }}
+                >
+                  <ExpandMore sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+        )}
+
         {/* Default compact hover overlay (non-expand, on card itself) */}
-        {hovered && !expandOnHover && (
+        {hovered && !expandOnHover && !useInlineWideHover && (
           <Box sx={{
             position: 'absolute', inset: 0,
             background: 'linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.1) 55%, transparent 100%)',
@@ -1017,7 +1190,7 @@ const RecordCard = ({
       </Box>
 
       {/* ── Netflix portal popup — desktop, non-prime mode ── */}
-      {hovered && !expandOnHover && !isMobile && anchorRect && (
+      {hovered && !expandOnHover && !useInlineWideHover && !isMobile && anchorRect && (
         <HoverPopup
           record={record}
           interaction={interaction}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import {
   Box,
   Typography,
@@ -26,13 +26,17 @@ import {
   clampLines,
 } from './heroUtils';
 
+const SURFACE_BUTTON = 'rgba(20,20,20,0.66)';
+const SURFACE_BUTTON_HOVER = 'rgba(28,28,28,0.86)';
+const BORDER = 'rgba(255,255,255,0.10)';
+const EASE = [0.22, 1, 0.36, 1];
+
 const HeroBannerDesktop = ({
   record,
   featured,
   idx,
   ix,
-  heroColor,
-  progressKey,
+  heroColor = '20,20,20',
   reducedMotion,
   onWatchlist,
   go,
@@ -42,13 +46,19 @@ const HeroBannerDesktop = ({
   isMonitor,
   isTv,
 }) => {
-  const backdrop = tmdbImg(
-    record.backdropPath ?? record.backdropPathText,
-    'original'
+  const [hovered, setHovered] = useState(false);
+
+  const backdrop = useMemo(
+    () =>
+      tmdbImg(
+        record?.backdropPath ?? record?.backdropPathText,
+        'original'
+      ),
+    [record?.backdropPath, record?.backdropPathText]
   );
 
-  const displayYear = year(record.releaseDate);
-  const tagLabel = record.type === 'MOVIE' ? 'Movie' : 'TV Series';
+  const displayYear = year(record?.releaseDate);
+  const tagLabel = record?.type === 'MOVIE' ? 'Movie' : 'TV Series';
 
   const metrics = useMemo(
     () => ({
@@ -58,8 +68,8 @@ const HeroBannerDesktop = ({
           ? 'clamp(680px, 82vh, 980px)'
           : 'clamp(560px, 78vh, 860px)',
 
-      contentLeft: isTv ? 48 : isMonitor ? 72 : 52,
-      contentBottom: isTv ? 122 : isMonitor ? 106 : 92,
+      contentLeft: isTv ? 56 : isMonitor ? 72 : 56,
+      contentBottom: isTv ? 160 : isMonitor ? 140 : 120,
 
       contentWidth: isTv
         ? 'min(35vw, 780px)'
@@ -77,23 +87,22 @@ const HeroBannerDesktop = ({
       chipSize: isTv ? '0.9rem' : '0.74rem',
       chipHeight: isTv ? 30 : 24,
 
-      buttonHeight: isTv ? 64 : 48,
-      buttonFont: isTv ? '1.08rem' : '0.96rem',
-      roundBtnSize: isTv ? 56 : 44,
+      buttonHeight: isTv ? 60 : 46,
+      buttonFont: isTv ? '1.06rem' : '0.95rem',
+      roundBtnSize: isTv ? 54 : 42,
 
-      arrowBtnSize: isTv ? 64 : isMonitor ? 54 : 46,
-      arrowIconSize: isTv ? 36 : 28,
-      sidePadding: isTv ? 48 : 20,
+      arrowBtnSize: isTv ? 56 : isMonitor ? 48 : 42,
+      arrowIconSize: isTv ? 32 : 26,
+      sidePadding: isTv ? 16 : 10,
 
-      indicatorBottom: isTv ? 34 : 24,
-      fadeHeight: isTv ? 100 : 82,
+      indicatorBottom: isTv ? 50 : 36,
     }),
     [isMonitor, isTv]
   );
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (featured.length <= 1) return;
+      if (!featured || featured.length <= 1) return;
 
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -107,23 +116,28 @@ const HeroBannerDesktop = ({
     };
 
     window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [featured, go]);
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [featured.length, go]);
+  const handlePrev = useCallback(() => go(-1), [go]);
+  const handleNext = useCallback(() => go(1), [go]);
+
+  if (!record) return null;
 
   return (
     <Box
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       sx={{
         position: 'relative',
         width: '100%',
         height: metrics.heroHeight,
         overflow: 'hidden',
-        bgcolor: '#0a0a0a',
         userSelect: 'none',
+        bgcolor: 'transparent',
       }}
     >
+      {/* ── HERO VISUAL LAYER (image + overlays) ───────────────────── */}
       <AnimatePresence mode="sync" initial={false}>
         <motion.div
           key={record.id}
@@ -132,72 +146,130 @@ const HeroBannerDesktop = ({
           exit={{ opacity: 0 }}
           transition={{
             duration: reducedMotion ? 0.2 : FADE_SECS,
-            ease: 'easeInOut',
+            ease: EASE,
           }}
-          style={{ position: 'absolute', inset: 0 }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+          }}
         >
-          {backdrop && (
-            <motion.div
-              key={`kb-${record.id}`}
-              initial={{ scale: 1 }}
-              animate={{ scale: reducedMotion ? 1 : 1.05 }}
-              transition={{
-                duration: reducedMotion ? 0.2 : CYCLE_MS / 1000,
-                ease: 'linear',
-              }}
-              style={{ position: 'absolute', inset: 0 }}
-            >
-              <Box
-                component="img"
-                src={backdrop}
-                alt={record.title}
-                loading="eager"
-                sx={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  objectPosition: isTv ? 'center center' : 'center top',
-                  display: 'block',
-                }}
-              />
-            </motion.div>
-          )}
-
+          {/* IMPORTANT:
+              Apply the bottom fade to the WHOLE visual layer, not only the image.
+              This removes the seam on the left side too. */}
           <Box
             sx={{
               position: 'absolute',
               inset: 0,
-              background: isTv
-                ? 'linear-gradient(to right, rgba(0,0,0,.9) 0%, rgba(0,0,0,.64) 42%, transparent 76%)'
-                : 'linear-gradient(to right, rgba(0,0,0,.86) 0%, rgba(0,0,0,.58) 45%, transparent 76%)',
-            }}
-          />
-
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              background: `linear-gradient(
-                to top,
-                var(--cinema-bg, #141414) 0%,
-                rgba(0,0,0,.75) 12%,
-                rgba(0,0,0,.4) 34%,
-                transparent 64%
-              )`,
-            }}
-          />
-
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              background: `radial-gradient(circle at 20% 70%, rgba(${heroColor}, .18), transparent 42%)`,
               pointerEvents: 'none',
+              WebkitMaskImage:
+                'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 58%, rgba(0,0,0,0.92) 70%, rgba(0,0,0,0.45) 86%, rgba(0,0,0,0.08) 94%, rgba(0,0,0,0) 100%)',
+              maskImage:
+                'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 58%, rgba(0,0,0,0.92) 70%, rgba(0,0,0,0.45) 86%, rgba(0,0,0,0.08) 94%, rgba(0,0,0,0) 100%)',
             }}
-          />
+          >
+            {/* Backdrop */}
+            {backdrop && (
+              <motion.div
+                key={`kb-${record.id}`}
+                initial={{ scale: 1 }}
+                animate={{ scale: reducedMotion ? 1 : 1.05 }}
+                transition={{
+                  duration: reducedMotion ? 0.2 : CYCLE_MS / 1000,
+                  ease: 'linear',
+                }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                }}
+              >
+                <Box
+                  component="img"
+                  src={backdrop}
+                  alt={record.title || 'hero'}
+                  loading="eager"
+                  draggable={false}
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'block',
+                    objectFit: 'cover',
+                    objectPosition: isTv ? 'center center' : 'center top',
+                    filter: 'brightness(1) saturate(1.02)',
+                    userSelect: 'none',
+                    WebkitUserDrag: 'none',
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {/* Left readability shadow */}
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                background: isTv
+                  ? `linear-gradient(
+                      to right,
+                      rgba(0,0,0,0.58) 0%,
+                      rgba(0,0,0,0.24) 36%,
+                      rgba(0,0,0,0.06) 56%,
+                      transparent 78%
+                    )`
+                  : `linear-gradient(
+                      to right,
+                      rgba(0,0,0,0.54) 0%,
+                      rgba(0,0,0,0.22) 38%,
+                      rgba(0,0,0,0.05) 58%,
+                      transparent 80%
+                    )`,
+              }}
+            />
+
+            {/* Image-color mood wash */}
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                background: isTv
+                  ? `linear-gradient(
+                      to right,
+                      rgba(${heroColor}, 0.42) 0%,
+                      rgba(${heroColor}, 0.22) 34%,
+                      rgba(${heroColor}, 0.08) 56%,
+                      transparent 80%
+                    )`
+                  : `linear-gradient(
+                      to right,
+                      rgba(${heroColor}, 0.38) 0%,
+                      rgba(${heroColor}, 0.18) 38%,
+                      rgba(${heroColor}, 0.06) 58%,
+                      transparent 82%
+                    )`,
+                mixBlendMode: 'multiply',
+              }}
+            />
+
+            {/* Soft glow */}
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                background: `
+                  radial-gradient(
+                    ellipse at 22% 76%,
+                    rgba(${heroColor}, 0.24) 0%,
+                    rgba(${heroColor}, 0.10) 28%,
+                    transparent 60%
+                  )
+                `,
+                mixBlendMode: 'screen',
+              }}
+            />
+          </Box>
         </motion.div>
       </AnimatePresence>
 
+      {/* ── CONTENT ─────────────────────────────────────────────────── */}
       <Box
         sx={{
           position: 'absolute',
@@ -214,7 +286,7 @@ const HeroBannerDesktop = ({
             initial={{ opacity: 0, y: reducedMotion ? 0 : 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: reducedMotion ? 0 : -10 }}
-            transition={{ duration: reducedMotion ? 0.2 : 0.45 }}
+            transition={{ duration: reducedMotion ? 0.2 : 0.45, ease: EASE }}
           >
             <Box
               sx={{
@@ -229,9 +301,9 @@ const HeroBannerDesktop = ({
                 label={tagLabel}
                 size="small"
                 sx={{
-                  bgcolor: record.type === 'MOVIE' ? '#e50914' : '#0080ff',
+                  bgcolor: record.type === 'MOVIE' ? '#ff1f1f' : '#0b84ff',
                   color: '#fff',
-                  fontWeight: 750,
+                  fontWeight: 800,
                   fontSize: metrics.chipSize,
                   height: metrics.chipHeight,
                 }}
@@ -241,8 +313,8 @@ const HeroBannerDesktop = ({
                 <Typography
                   variant="caption"
                   sx={{
-                    color: 'rgba(255,255,255,.76)',
-                    fontWeight: 500,
+                    color: 'rgba(255,255,255,0.78)',
+                    fontWeight: 600,
                     fontSize: isTv ? '0.95rem' : '0.8rem',
                   }}
                 >
@@ -262,7 +334,7 @@ const HeroBannerDesktop = ({
                     variant="caption"
                     sx={{
                       color: ratingColor(record.voteAverage),
-                      fontWeight: 750,
+                      fontWeight: 800,
                       fontSize: isTv ? '0.95rem' : '0.8rem',
                     }}
                   >
@@ -278,7 +350,7 @@ const HeroBannerDesktop = ({
                 color: '#fff',
                 lineHeight: 1.03,
                 mb: isTv ? 2 : 1.5,
-                textShadow: '0 2px 9px rgba(0,0,0,.7)',
+                textShadow: '0 2px 10px rgba(0,0,0,0.8)',
                 letterSpacing: '-0.03em',
                 fontSize: metrics.titleSize,
                 wordBreak: 'break-word',
@@ -295,25 +367,26 @@ const HeroBannerDesktop = ({
                   gap: 0.8,
                   mb: isTv ? 2 : 1.5,
                   flexWrap: 'wrap',
+                  alignItems: 'center',
                 }}
               >
-                {record.genres.slice(0, isTv ? 5 : 4).map((g, i) => (
+                {record.genres.slice(0, isTv ? 5 : 4).map((g, i, arr) => (
                   <React.Fragment key={g}>
                     <Typography
                       variant="caption"
                       sx={{
-                        color: 'rgba(255,255,255,.68)',
+                        color: 'rgba(255,255,255,0.74)',
                         fontSize: isTv ? '0.96rem' : '0.8rem',
                       }}
                     >
                       {g}
                     </Typography>
 
-                    {i < Math.min(record.genres.length, isTv ? 5 : 4) - 1 && (
+                    {i < arr.length - 1 && (
                       <Typography
                         variant="caption"
                         sx={{
-                          color: 'rgba(255,255,255,.34)',
+                          color: 'rgba(255,255,255,0.34)',
                           fontSize: isTv ? '0.96rem' : '0.8rem',
                         }}
                       >
@@ -328,11 +401,12 @@ const HeroBannerDesktop = ({
             {record.overview && (
               <Typography
                 sx={{
-                  color: 'rgba(255,255,255,.82)',
+                  color: 'rgba(255,255,255,0.84)',
                   mb: isTv ? 3 : 2.5,
                   lineHeight: 1.55,
                   maxWidth: isTv ? 720 : 520,
                   fontSize: metrics.bodySize,
+                  textShadow: '0 2px 8px rgba(0,0,0,0.55)',
                   ...clampLines(isTv ? 4 : 3),
                 }}
               >
@@ -356,14 +430,16 @@ const HeroBannerDesktop = ({
                   minHeight: metrics.buttonHeight,
                   bgcolor: '#fff',
                   color: '#000',
-                  fontWeight: 750,
+                  fontWeight: 800,
                   fontSize: metrics.buttonFont,
                   px: isTv ? 4.2 : 3,
-                  borderRadius: 2,
+                  borderRadius: 999,
                   textTransform: 'none',
                   whiteSpace: 'nowrap',
+                  boxShadow: 'none',
                   '&:hover': {
-                    bgcolor: 'rgba(255,255,255,.88)',
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    boxShadow: 'none',
                   },
                   '&:focus-visible': {
                     outline: '3px solid #0d9488',
@@ -380,17 +456,22 @@ const HeroBannerDesktop = ({
                 onClick={goToDetail}
                 sx={{
                   minHeight: metrics.buttonHeight,
-                  bgcolor: 'rgba(109,109,110,.72)',
-                  backdropFilter: 'blur(4px)',
+                  bgcolor: SURFACE_BUTTON,
+                  backdropFilter: 'blur(6px) saturate(1.05)',
+                  WebkitBackdropFilter: 'blur(6px) saturate(1.05)',
+                  border: `1px solid ${BORDER}`,
                   color: '#fff',
-                  fontWeight: 750,
+                  fontWeight: 700,
                   fontSize: metrics.buttonFont,
                   px: isTv ? 4.2 : 3,
-                  borderRadius: 2,
+                  borderRadius: 999,
                   textTransform: 'none',
                   whiteSpace: 'nowrap',
+                  boxShadow: 'none',
                   '&:hover': {
-                    bgcolor: 'rgba(109,109,110,.92)',
+                    bgcolor: SURFACE_BUTTON_HOVER,
+                    borderColor: 'rgba(255,255,255,0.20)',
+                    boxShadow: 'none',
                   },
                   '&:focus-visible': {
                     outline: '3px solid #0d9488',
@@ -403,23 +484,27 @@ const HeroBannerDesktop = ({
 
               <IconButton
                 onClick={() => onWatchlist?.(record)}
+                title={ix?.watchlisted ? 'Remove from My List' : 'Add to My List'}
                 sx={{
-                  border: '2px solid rgba(255,255,255,.58)',
-                  color: '#fff',
                   width: metrics.roundBtnSize,
                   height: metrics.roundBtnSize,
+                  color: '#fff',
+                  border: `2px solid ${BORDER}`,
+                  bgcolor: SURFACE_BUTTON,
+                  backdropFilter: 'blur(6px) saturate(1.05)',
+                  WebkitBackdropFilter: 'blur(6px) saturate(1.05)',
+                  transition: 'background 200ms ease, border-color 200ms ease',
                   '&:hover': {
                     borderColor: '#fff',
-                    bgcolor: 'rgba(255,255,255,.1)',
+                    bgcolor: SURFACE_BUTTON_HOVER,
                   },
                   '&:focus-visible': {
                     outline: '3px solid #0d9488',
                     outlineOffset: 3,
                   },
                 }}
-                title={ix.watchlisted ? 'Remove from My List' : 'Add to My List'}
               >
-                {ix.watchlisted ? (
+                {ix?.watchlisted ? (
                   <Check sx={{ fontSize: isTv ? 24 : 20 }} />
                 ) : (
                   <Add sx={{ fontSize: isTv ? 24 : 20 }} />
@@ -430,26 +515,36 @@ const HeroBannerDesktop = ({
         </AnimatePresence>
       </Box>
 
+      {/* Arrows */}
       {featured.length > 1 && (
         <>
           <IconButton
-            onClick={() => go(-1)}
+            onClick={handlePrev}
+            aria-label="Previous"
             sx={{
               position: 'absolute',
               left: metrics.sidePadding,
               top: '50%',
               transform: 'translateY(-50%)',
-              bgcolor: 'rgba(0,0,0,.45)',
+              bgcolor: 'rgba(0,0,0,0.45)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
               color: '#fff',
-              zIndex: 3,
+              zIndex: 4,
               width: metrics.arrowBtnSize,
               height: metrics.arrowBtnSize,
+              opacity: hovered ? 1 : 0,
+              pointerEvents: hovered ? 'auto' : 'none',
+              transition: 'opacity 220ms ease, background 220ms ease, transform 220ms ease',
               '&:hover': {
-                bgcolor: 'rgba(0,0,0,.68)',
+                bgcolor: 'rgba(0,0,0,0.72)',
+                transform: 'translateY(-50%) scale(1.05)',
               },
               '&:focus-visible': {
                 outline: '3px solid #0d9488',
                 outlineOffset: 3,
+                opacity: 1,
+                pointerEvents: 'auto',
               },
             }}
           >
@@ -457,23 +552,32 @@ const HeroBannerDesktop = ({
           </IconButton>
 
           <IconButton
-            onClick={() => go(1)}
+            onClick={handleNext}
+            aria-label="Next"
             sx={{
               position: 'absolute',
               right: metrics.sidePadding,
               top: '50%',
               transform: 'translateY(-50%)',
-              bgcolor: 'rgba(0,0,0,.45)',
+              bgcolor: 'rgba(0,0,0,0.45)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
               color: '#fff',
-              zIndex: 3,
+              zIndex: 4,
               width: metrics.arrowBtnSize,
               height: metrics.arrowBtnSize,
+              opacity: hovered ? 1 : 0,
+              pointerEvents: hovered ? 'auto' : 'none',
+              transition: 'opacity 220ms ease, background 220ms ease, transform 220ms ease',
               '&:hover': {
-                bgcolor: 'rgba(0,0,0,.68)',
+                bgcolor: 'rgba(0,0,0,0.72)',
+                transform: 'translateY(-50%) scale(1.05)',
               },
               '&:focus-visible': {
                 outline: '3px solid #0d9488',
                 outlineOffset: 3,
+                opacity: 1,
+                pointerEvents: 'auto',
               },
             }}
           >
@@ -482,6 +586,7 @@ const HeroBannerDesktop = ({
         </>
       )}
 
+      {/* Indicators */}
       {featured.length > 1 && (
         <Box
           sx={{
@@ -494,66 +599,34 @@ const HeroBannerDesktop = ({
             zIndex: 3,
           }}
         >
-          {featured.map((_, i) => (
-            <motion.div
-              key={i}
-              layout
-              onClick={() => goToIndex(i)}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              style={{
-                width: i === idx ? (isTv ? 30 : 24) : isTv ? 10 : 8,
-                height: isTv ? 10 : 8,
-                borderRadius: 999,
-                background: i === idx ? '#0d9488' : 'rgba(255,255,255,.36)',
-                cursor: 'pointer',
-                opacity: i === idx ? 1 : 0.55,
-              }}
-            />
-          ))}
+          {featured.map((_, i) => {
+            const active = i === idx;
+            return (
+              <motion.div
+                key={i}
+                layout
+                onClick={() => goToIndex(i)}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                style={{
+                  width: active ? (isTv ? 30 : 24) : isTv ? 10 : 8,
+                  height: isTv ? 10 : 8,
+                  borderRadius: 999,
+                  background: active
+                    ? 'linear-gradient(90deg, #14b8a6 0%, #0d9488 100%)'
+                    : 'rgba(255,255,255,0.36)',
+                  cursor: 'pointer',
+                  opacity: active ? 1 : 0.55,
+                  boxShadow: active
+                    ? '0 4px 12px rgba(13,148,136,0.35)'
+                    : 'none',
+                }}
+                role="button"
+                aria-label={`Go to slide ${i + 1}`}
+              />
+            );
+          })}
         </Box>
       )}
-
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: isTv ? 4 : 3,
-          zIndex: 4,
-          overflow: 'hidden',
-        }}
-      >
-        <motion.div
-          key={progressKey}
-          initial={{ scaleX: 0, originX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{
-            duration: CYCLE_MS / 1000,
-            ease: 'linear',
-          }}
-          style={{
-            height: '100%',
-            background: '#0d9488',
-            boxShadow: '0 0 8px rgba(13,148,136,.7)',
-            transformOrigin: 'left',
-          }}
-        />
-      </Box>
-
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: metrics.fadeHeight,
-          background:
-            'linear-gradient(to bottom, transparent, var(--cinema-bg, #141414))',
-          pointerEvents: 'none',
-          zIndex: 2,
-        }}
-      />
     </Box>
   );
 };

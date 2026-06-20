@@ -1,4 +1,4 @@
-export const CYCLE_MS = 8000;
+export const CYCLE_MS = 8000000;
 export const FADE_SECS = 0.6;
 
 export const year = (d) => (d ? String(d).slice(0, 4) : null);
@@ -88,4 +88,3 @@ export function updateThemeColor(color) {
 
   meta.content = `rgb(${color})`;
 }
-``
