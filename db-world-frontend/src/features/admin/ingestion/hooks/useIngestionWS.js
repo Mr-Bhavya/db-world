@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import useIngestionStore from '../store/ingestionStore';
-import { resolveWsUrl, showResolvedUrlsAlert } from '@shared/config/apiBaseUrl';
+import { resolveWsUrl } from '@shared/config/apiBaseUrl';
 
 const RECONNECT_DELAY = 5000;
 
@@ -16,7 +16,6 @@ export function useIngestionWS() {
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);
   const unmountedRef = useRef(false);
-  const alertShownRef = useRef(false);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectRef.current) {
@@ -74,12 +73,6 @@ export function useIngestionWS() {
     const wsUrl = resolveWsUrl('/ws/status');
 
     setWsStatus('connecting');
-
-    // Show alert only once because logs may not be visible on mobile
-    if (!alertShownRef.current) {
-      showResolvedUrlsAlert('/ws/status');
-      alertShownRef.current = true;
-    }
 
     try {
       const socket = new WebSocket(wsUrl);
@@ -168,6 +161,6 @@ export function useIngestionWS() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-    
+
   }, [connect]);
 }

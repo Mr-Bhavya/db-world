@@ -32,10 +32,10 @@ const safeText = (value, fallback = '') =>
 const getOverview = (record) =>
   safeText(
     record?.overview ||
-      record?.description ||
-      record?.summary ||
-      record?.plot ||
-      record?.tagline,
+    record?.description ||
+    record?.summary ||
+    record?.plot ||
+    record?.tagline,
     ''
   );
 
