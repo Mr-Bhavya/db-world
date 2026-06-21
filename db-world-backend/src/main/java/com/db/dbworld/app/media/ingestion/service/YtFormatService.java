@@ -462,7 +462,7 @@ public class YtFormatService {
     }
 
     private String textOrNull(JsonNode node, String field) {
-        return node.has(field) && !node.get(field).isNull() ? node.get(field).stringValue() : null;
+        return node.has(field) && !node.get(field).isNull() ? node.get(field).asString() : null;
     }
 
     private Integer intOrNull(JsonNode node, String field) {

@@ -77,7 +77,8 @@ public class SecurityConfig {
                 "https://db-world.in",
                 "https://www.db-world.in",
                 "https://api.db-world.in",
-                "https://cdn.db-world.in"
+                "https://cdn.db-world.in",
+                "https://app.db-world.in"
         ));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowedMethods(List.of("*"));
