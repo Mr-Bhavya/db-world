@@ -52,7 +52,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         log.debug("[{}] download uri={} videoITag={} audioITag={} onlyAudio={}",
                 jobId, ctx.getRequest().getUri(),
                 ctx.getRequest().getVideoITag(), ctx.getRequest().getAudioITag(),
-                ctx.getRequest().isOnlyAudio());
+                ctx.getRequest().getOnlyAudio());
         AtomicBoolean cancellation = new AtomicBoolean(false);
         cancellationFlags.put(jobId, cancellation);
 
@@ -65,7 +65,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             String formatSelector = buildFormatSelector(
                     ctx.getRequest().getVideoITag(),
                     ctx.getRequest().getAudioITag(),
-                    ctx.getRequest().isOnlyAudio());
+                    ctx.getRequest().getOnlyAudio());
             log.info("[{}] yt-dlp starting — uri={}, format={}, tempDir={}",
                     jobId, ctx.getRequest().getUri(), formatSelector, tempDir);
             ctx.log("YTDLP", "Running yt-dlp for: " + ctx.getRequest().getUri());
@@ -120,7 +120,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         String uri      = ctx.getRequest().getUri();
         String videoTag = ctx.getRequest().getVideoITag();
         String audioTag = ctx.getRequest().getAudioITag();
-        boolean onlyAudio = ctx.getRequest().isOnlyAudio();
+        boolean onlyAudio = ctx.getRequest().getOnlyAudio();
 
         List<String> cmd = new ArrayList<>();
 

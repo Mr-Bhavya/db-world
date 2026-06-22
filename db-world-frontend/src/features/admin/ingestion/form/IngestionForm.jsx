@@ -1,11 +1,5 @@
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import {
   Alert,
   alpha,
@@ -27,14 +21,17 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+
 import {
   Controller,
   useFieldArray,
   useForm,
   useWatch,
 } from 'react-hook-form';
+
 import {
   Add,
   Archive,
@@ -45,7 +42,6 @@ import {
   Link as LinkIcon,
   Lock,
   LockOutlined,
-  MusicNote,
   PlaylistPlay,
   Send,
   Tv,
@@ -53,9 +49,9 @@ import {
   VideoSettings,
   QueueMusic,
   AutoAwesome,
-  Subscriptions,
   LockReset,
 } from '@mui/icons-material';
+
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSnackbar } from 'notistack';
 
@@ -187,7 +183,7 @@ function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
       elevation={0}
       variant="outlined"
       sx={{
-        borderRadius: 4,
+        borderRadius: { xs: 3, sm: 4 },
         borderColor: alpha(theme.palette.divider, 0.7),
         background:
           theme.palette.mode === 'dark'
@@ -195,25 +191,30 @@ function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
             : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
         boxShadow:
           theme.palette.mode === 'dark'
-            ? '0 10px 30px rgba(0,0,0,0.18)'
-            : '0 10px 30px rgba(15, 23, 42, 0.05)',
+            ? '0 8px 24px rgba(0,0,0,0.16)'
+            : '0 8px 24px rgba(15, 23, 42, 0.045)',
         overflow: 'hidden',
         ...sx,
       }}
     >
-      <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2 }}>
+      <Box
+        sx={{
+          px: { xs: 1.25, sm: 1.75, md: 2.25 },
+          py: { xs: 1.25, sm: 1.5, md: 1.75 },
+        }}
+      >
         <Stack
           direction="row"
           alignItems="flex-start"
           justifyContent="space-between"
-          spacing={2}
-          mb={children ? 1.75 : 0}
+          spacing={1.25}
+          mb={children ? 1.25 : 0}
         >
-          <Stack direction="row" spacing={1.2} alignItems="center" minWidth={0}>
+          <Stack direction="row" spacing={1} alignItems="center" minWidth={0}>
             <Box
               sx={{
-                width: 38,
-                height: 38,
+                width: { xs: 34, sm: 38 },
+                height: { xs: 34, sm: 38 },
                 borderRadius: 2.25,
                 display: 'grid',
                 placeItems: 'center',
@@ -224,12 +225,22 @@ function SectionCard({ title, subtitle, icon, action, children, sx = {} }) {
             >
               {icon}
             </Box>
+
             <Box minWidth={0}>
-              <Typography variant="subtitle1" fontWeight={800} lineHeight={1.2}>
+              <Typography
+                variant="subtitle1"
+                fontWeight={800}
+                lineHeight={1.15}
+                sx={{ fontSize: { xs: '0.97rem', sm: '1rem' } }}
+              >
                 {title}
               </Typography>
               {subtitle ? (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', mt: 0.25, lineHeight: 1.3 }}
+                >
                   {subtitle}
                 </Typography>
               ) : null}
@@ -253,8 +264,8 @@ function OptionTile({ icon, title, subtitle, checked, onChange, children }) {
       variant="outlined"
       sx={{
         borderRadius: 3,
-        px: 1.5,
-        py: 1.25,
+        px: 1.25,
+        py: 1.1,
         borderColor: checked
           ? alpha(theme.palette.primary.main, 0.35)
           : alpha(theme.palette.divider, 0.8),
@@ -264,18 +275,18 @@ function OptionTile({ icon, title, subtitle, checked, onChange, children }) {
         transition: '0.2s ease',
       }}
     >
-      <Stack spacing={1.25}>
+      <Stack spacing={1}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           alignItems={{ xs: 'flex-start', sm: 'center' }}
           justifyContent="space-between"
-          spacing={1}
+          spacing={0.75}
         >
-          <Stack direction="row" spacing={1.1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center">
             <Box
               sx={{
-                width: 34,
-                height: 34,
+                width: 32,
+                height: 32,
                 borderRadius: 2,
                 display: 'grid',
                 placeItems: 'center',
@@ -318,6 +329,7 @@ const UrlRow = memo(function UrlRow({
   canRemove,
   isYtMode,
   showPerUrlEpisode,
+  compact = false,
 }) {
   const T = useT();
   const urlValue = useWatch({ control, name: `urls.${index}.url` });
@@ -337,13 +349,13 @@ const UrlRow = memo(function UrlRow({
         elevation={0}
         variant="outlined"
         sx={{
-          p: { xs: 1.25, sm: 1.5 },
+          p: compact ? { xs: 1, sm: 1.25 } : { xs: 1.1, sm: 1.35 },
           borderRadius: 3,
           borderColor: type !== 'unknown' ? sourceColors.border : 'divider',
           bgcolor: type !== 'unknown' ? sourceColors.bg : 'background.paper',
         }}
       >
-        <Stack spacing={1.25}>
+        <Stack spacing={1}>
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
             spacing={1}
@@ -368,11 +380,12 @@ const UrlRow = memo(function UrlRow({
                           <LinkIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
                         </InputAdornment>
                       ),
-                      endAdornment: type !== 'unknown' ? (
-                        <InputAdornment position="end">
-                          <SourceBadge type={type} />
-                        </InputAdornment>
-                      ) : undefined,
+                      endAdornment:
+                        type !== 'unknown' ? (
+                          <InputAdornment position="end">
+                            <SourceBadge type={type} />
+                          </InputAdornment>
+                        ) : undefined,
                     }}
                   />
                 )}
@@ -385,7 +398,7 @@ const UrlRow = memo(function UrlRow({
                   size="small"
                   onClick={() => remove(index)}
                   sx={{
-                    mt: { xs: -0.25, sm: 0.6 },
+                    mt: { xs: -0.25, sm: 0.5 },
                     alignSelf: { xs: 'flex-end', sm: 'unset' },
                   }}
                 >
@@ -401,7 +414,7 @@ const UrlRow = memo(function UrlRow({
             alignItems={{ xs: 'stretch', md: 'center' }}
           >
             {showPerUrlEpisode ? (
-              <Box sx={{ width: { xs: '100%', md: 132 } }}>
+              <Box sx={{ width: { xs: '100%', md: 120 } }}>
                 <Controller
                   name={`urls.${index}.episode`}
                   control={control}
@@ -486,9 +499,9 @@ const UrlRow = memo(function UrlRow({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function IngestionForm({ onSubmitted }) {
-  const T = useT();
   const theme = useTheme();
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
+  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
   const { enqueueSnackbar } = useSnackbar();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
 
@@ -534,10 +547,7 @@ export default function IngestionForm({ onSubmitted }) {
     name: 'urls',
   });
 
-  // Watch needed fields
   const urls = useWatch({ control, name: 'urls' }) || [];
-  const useAuth = !!useWatch({ control, name: 'useAuth' });
-  const extract = !!useWatch({ control, name: 'extract' });
   const audioOnly = !!useWatch({ control, name: 'audioOnly' });
   const videoITag = useWatch({ control, name: 'videoITag' });
   const audioITag = useWatch({ control, name: 'audioITag' });
@@ -560,11 +570,8 @@ export default function IngestionForm({ onSubmitted }) {
     [urls]
   );
 
-  // Debounced YT format fetch
   useEffect(() => {
-    if (fetchTimerRef.current) {
-      clearTimeout(fetchTimerRef.current);
-    }
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
 
     if (isYtMode && firstUrl) {
       fetchTimerRef.current = setTimeout(() => {
@@ -602,6 +609,7 @@ export default function IngestionForm({ onSubmitted }) {
     if (!isYtMode) {
       setValue('videoITag', null);
       setValue('audioITag', null);
+      setValue('audioOnly', false);
     }
   }, [isYtMode, setValue]);
 
@@ -704,7 +712,7 @@ export default function IngestionForm({ onSubmitted }) {
 
       const sharedOptions = {
         recordId: data.record?.id ?? null,
-        onlyAudio: !!data.audioOnly,
+        onlyAudio: isYtMode ? !!data.audioOnly : false,
         extract: !!data.extract,
         urlProtected: !!data.useAuth,
         username: data.useAuth ? data.username : undefined,
@@ -716,7 +724,6 @@ export default function IngestionForm({ onSubmitted }) {
         ...(torrentBase64 ? { torrentBase64 } : {}),
       };
 
-      // Playlist mode
       if (isPlaylist) {
         const entries = formatsData?.playlistEntries ?? [];
         const toDownload = entries.filter((e) => playlistSelected.has(e.index));
@@ -758,7 +765,6 @@ export default function IngestionForm({ onSubmitted }) {
         return;
       }
 
-      // TV + multiple URLs
       if (showPerUrlEpisode && uris.length > 1) {
         const seasonNumber = data.season ? Number(data.season) : null;
 
@@ -787,7 +793,6 @@ export default function IngestionForm({ onSubmitted }) {
         return;
       }
 
-      // Default single request
       const body = {
         ...sharedOptions,
         uris,
@@ -850,105 +855,114 @@ export default function IngestionForm({ onSubmitted }) {
       onSubmit={handleSubmit(onSubmit)}
       noValidate
       sx={{
-        maxWidth: 1520,
+        maxWidth: 1480,
         mx: 'auto',
-        px: { xs: 1, sm: 2, lg: 3 },
-        pb: { xs: 11, md: 12 },
+        px: { xs: 1, sm: 1.5, lg: 2.5 },
+        pt: { xs: 1, sm: 1.25 },
+        pb: { xs: 10, md: 11 },
       }}
     >
-      <Stack spacing={2.25}>
-        {/* Header */}
-        <Paper
-          elevation={0}
-          variant="outlined"
-          sx={{
-            borderRadius: 4,
-            overflow: 'hidden',
-            borderColor: alpha(theme.palette.divider, 0.7),
-            background:
-              theme.palette.mode === 'dark'
-                ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.16)} 0%, rgba(255,255,255,0.025) 100%)`
-                : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, rgba(255,255,255,0.92) 100%)`,
-          }}
-        >
-          <Box sx={{ p: { xs: 2, md: 2.75 } }}>
-            <Stack spacing={1.25}>
-              <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box
-                  sx={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 2.5,
-                    display: 'grid',
-                    placeItems: 'center',
-                    bgcolor: alpha(theme.palette.primary.main, 0.12),
-                    color: 'primary.main',
-                  }}
-                >
-                  <Subscriptions />
-                </Box>
-                <Box>
-                  <Typography variant="h6" fontWeight={900}>
-                    Ingestion Queue
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Add source URLs or upload a torrent, map a record, choose options, and start jobs.
-                  </Typography>
-                </Box>
-              </Stack>
-
-              <Stack direction="row" flexWrap="wrap" gap={1}>
-                <Chip
-                  size="small"
-                  label={`${nonEmptyUrlsCount} URL${nonEmptyUrlsCount !== 1 ? 's' : ''}`}
-                  variant="outlined"
-                />
-                {torrentFile ? (
-                  <Chip
-                    size="small"
-                    color="info"
-                    label={`Torrent: ${torrentFile.name}`}
-                    variant="outlined"
-                  />
-                ) : null}
-                {isYtMode ? (
-                  <Chip
-                    size="small"
-                    color="error"
-                    label={isPlaylist ? 'Playlist mode' : 'Format mode'}
-                    variant="outlined"
-                  />
-                ) : null}
-                {isTvRecord ? (
-                  <Chip
-                    size="small"
-                    color="secondary"
-                    label="TV series mapping"
-                    variant="outlined"
-                  />
-                ) : null}
-              </Stack>
-            </Stack>
-          </Box>
-        </Paper>
-
-        {/* Main layout */}
+      <Stack spacing={{ xs: 1.5, sm: 2 }}>
         <Box
           sx={{
             display: 'grid',
-            gap: 2.25,
+            gap: { xs: 1.5, sm: 2 },
             gridTemplateColumns: {
               xs: '1fr',
-              xl: 'minmax(0, 1.45fr) minmax(360px, 0.9fr)',
+              xl: 'minmax(0, 1.45fr) minmax(340px, 0.9fr)',
             },
           }}
         >
           {/* LEFT COLUMN */}
-          <Stack spacing={2.25} minWidth={0}>
+          <Stack spacing={{ xs: 1.5, sm: 2 }} minWidth={0}>
+            {/* Record mapping FIRST */}
+            <SectionCard
+              title="Record mapping"
+              subtitle="Choose record first so TV rules and episode handling are clear"
+              icon={<Tv fontSize="small" />}
+            >
+              <Stack spacing={1.25}>
+                <Controller
+                  name="record"
+                  control={control}
+                  render={({ field }) => (
+                    <RecordSearch value={field.value} onChange={field.onChange} />
+                  )}
+                />
+
+                {isTvRecord ? (
+                  <>
+                    <Divider />
+                    <Stack spacing={1}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                        TV series details
+                      </Typography>
+
+                      <Box
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: {
+                            xs: showPerUrlEpisode ? '1fr' : '1fr 1fr',
+                            sm: showPerUrlEpisode ? '180px 1fr' : '140px 140px',
+                          },
+                          gap: 1,
+                          alignItems: 'start',
+                        }}
+                      >
+                        <Controller
+                          name="season"
+                          control={control}
+                          render={({ field, fieldState }) => (
+                            <TextField
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value)}
+                              label="Season"
+                              size="small"
+                              type="number"
+                              fullWidth
+                              inputProps={{ min: 1 }}
+                              error={!!fieldState.error}
+                              helperText={fieldState.error?.message || ' '}
+                            />
+                          )}
+                        />
+
+                        {!showPerUrlEpisode ? (
+                          <Controller
+                            name="episode"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                              <TextField
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value)}
+                                label="Episode"
+                                size="small"
+                                type="number"
+                                fullWidth
+                                inputProps={{ min: 1 }}
+                                error={!!fieldState.error}
+                                helperText={fieldState.error?.message || ' '}
+                              />
+                            )}
+                          />
+                        ) : (
+                          <Alert severity="info" sx={{ borderRadius: 2.5 }}>
+                            Episode numbers are handled per URL because you added multiple sources.
+                          </Alert>
+                        )}
+                      </Box>
+                    </Stack>
+                  </>
+                ) : null}
+              </Stack>
+            </SectionCard>
+
             {/* Source input */}
             <SectionCard
               title="Source input"
-              subtitle="Add one or more URLs, or upload a .torrent file"
+              subtitle="Add URLs or upload a .torrent file"
               icon={<LinkIcon fontSize="small" />}
               action={
                 !isYtMode ? (
@@ -957,26 +971,26 @@ export default function IngestionForm({ onSubmitted }) {
                     startIcon={<Add />}
                     onClick={handleAppendUrl}
                     disabled={fields.length >= 20 || isSubmitting}
-                    sx={{ borderRadius: 999 }}
+                    sx={{ borderRadius: 999, minWidth: 0, px: { xs: 1.1, sm: 1.4 } }}
                   >
                     Add URL
                   </Button>
                 ) : null
               }
             >
-              <Stack spacing={1.25}>
+              <Stack spacing={1.1}>
                 {showPerUrlEpisode ? (
                   <Alert
                     severity="info"
                     icon={<Tv sx={{ fontSize: 18 }} />}
-                    sx={{ borderRadius: 3 }}
+                    sx={{ borderRadius: 2.5 }}
                   >
                     Multiple URLs detected for a TV series — assign the episode number for each URL.
                   </Alert>
                 ) : null}
 
                 <AnimatePresence initial={false}>
-                  <Stack spacing={1}>
+                  <Stack spacing={0.9}>
                     {fields.map((field, index) => (
                       <UrlRow
                         key={field.id}
@@ -986,6 +1000,7 @@ export default function IngestionForm({ onSubmitted }) {
                         canRemove={fields.length > 1}
                         isYtMode={isYtMode}
                         showPerUrlEpisode={showPerUrlEpisode}
+                        compact={isSmDown}
                       />
                     ))}
                   </Stack>
@@ -995,8 +1010,8 @@ export default function IngestionForm({ onSubmitted }) {
                 <Paper
                   variant="outlined"
                   sx={{
-                    mt: 0.5,
-                    p: { xs: 1.5, sm: 1.75 },
+                    mt: 0.25,
+                    p: { xs: 1.2, sm: 1.5 },
                     borderRadius: 3,
                     borderStyle: 'dashed',
                     borderColor: alpha(theme.palette.divider, 0.85),
@@ -1005,15 +1020,15 @@ export default function IngestionForm({ onSubmitted }) {
                 >
                   <Stack
                     direction={{ xs: 'column', sm: 'row' }}
-                    spacing={1.25}
+                    spacing={1}
                     alignItems={{ xs: 'stretch', sm: 'center' }}
                     justifyContent="space-between"
                   >
-                    <Stack direction="row" spacing={1.1} alignItems="center" minWidth={0}>
+                    <Stack direction="row" spacing={1} alignItems="center" minWidth={0}>
                       <Box
                         sx={{
-                          width: 36,
-                          height: 36,
+                          width: 34,
+                          height: 34,
                           borderRadius: 2,
                           display: 'grid',
                           placeItems: 'center',
@@ -1022,14 +1037,14 @@ export default function IngestionForm({ onSubmitted }) {
                           flexShrink: 0,
                         }}
                       >
-                        <UploadFile sx={{ fontSize: 20 }} />
+                        <UploadFile sx={{ fontSize: 19 }} />
                       </Box>
                       <Box minWidth={0}>
                         <Typography variant="body2" fontWeight={700}>
                           Torrent file
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Use this if you want to submit a .torrent without URLs.
+                          Submit a .torrent without URLs if needed.
                         </Typography>
                       </Box>
                     </Stack>
@@ -1075,89 +1090,13 @@ export default function IngestionForm({ onSubmitted }) {
               </Stack>
             </SectionCard>
 
-            {/* Record mapping moved LEFT */}
-            <SectionCard
-              title="Record mapping"
-              subtitle="Attach the download to a catalog record (optional)"
-              icon={<Tv fontSize="small" />}
-            >
-              <Stack spacing={1.5}>
-                <Controller
-                  name="record"
-                  control={control}
-                  render={({ field }) => (
-                    <RecordSearch value={field.value} onChange={field.onChange} />
-                  )}
-                />
-
-                {isTvRecord ? (
-                  <>
-                    <Divider />
-                    <Stack
-                      direction={{ xs: 'column', sm: 'row' }}
-                      spacing={1.25}
-                      alignItems={{ xs: 'stretch', sm: 'flex-start' }}
-                    >
-                      <Box sx={{ width: { xs: '100%', sm: 140 } }}>
-                        <Controller
-                          name="season"
-                          control={control}
-                          render={({ field, fieldState }) => (
-                            <TextField
-                              {...field}
-                              value={field.value ?? ''}
-                              onChange={(e) => field.onChange(e.target.value)}
-                              label="Season"
-                              size="small"
-                              type="number"
-                              fullWidth
-                              inputProps={{ min: 1 }}
-                              error={!!fieldState.error}
-                              helperText={fieldState.error?.message || ' '}
-                            />
-                          )}
-                        />
-                      </Box>
-
-                      {!showPerUrlEpisode ? (
-                        <Box sx={{ width: { xs: '100%', sm: 140 } }}>
-                          <Controller
-                            name="episode"
-                            control={control}
-                            render={({ field, fieldState }) => (
-                              <TextField
-                                {...field}
-                                value={field.value ?? ''}
-                                onChange={(e) => field.onChange(e.target.value)}
-                                label="Episode"
-                                size="small"
-                                type="number"
-                                fullWidth
-                                inputProps={{ min: 1 }}
-                                error={!!fieldState.error}
-                                helperText={fieldState.error?.message || ' '}
-                              />
-                            )}
-                          />
-                        </Box>
-                      ) : (
-                        <Alert severity="info" sx={{ flex: 1, borderRadius: 3 }}>
-                          Episode numbers are handled per URL because you added multiple sources.
-                        </Alert>
-                      )}
-                    </Stack>
-                  </>
-                ) : null}
-              </Stack>
-            </SectionCard>
-
             {/* YT formats / playlist */}
             {isYtMode && fetchUrl ? (
               <SectionCard
                 title={isPlaylist ? 'Playlist selection' : 'Format selection'}
                 subtitle={
                   isPlaylist
-                    ? 'Choose the playlist items to queue'
+                    ? 'Choose playlist items to queue'
                     : 'Choose video/audio formats for yt-dlp sources'
                 }
                 icon={
@@ -1168,7 +1107,7 @@ export default function IngestionForm({ onSubmitted }) {
                   )
                 }
               >
-                <Stack spacing={1.5}>
+                <Stack spacing={1.25}>
                   <Stack
                     direction={{ xs: 'column', sm: 'row' }}
                     spacing={1}
@@ -1176,7 +1115,11 @@ export default function IngestionForm({ onSubmitted }) {
                     justifyContent="space-between"
                   >
                     <Stack direction="row" spacing={1} alignItems="center">
-                      {formatsLoading ? <CircularProgress size={16} /> : <AutoAwesome sx={{ fontSize: 18, color: 'primary.main' }} />}
+                      {formatsLoading ? (
+                        <CircularProgress size={16} />
+                      ) : (
+                        <AutoAwesome sx={{ fontSize: 18, color: 'primary.main' }} />
+                      )}
                       <Box>
                         <Typography variant="body2" fontWeight={700}>
                           {isPlaylist ? 'Playlist detected' : 'Media formats ready'}
@@ -1219,7 +1162,7 @@ export default function IngestionForm({ onSubmitted }) {
                   </Stack>
 
                   {formatsError ? (
-                    <Alert severity="error" sx={{ borderRadius: 3 }}>
+                    <Alert severity="error" sx={{ borderRadius: 2.5 }}>
                       {isPlaylist
                         ? 'Failed to fetch playlist. Check the URL and try again.'
                         : 'Failed to fetch formats. Check the URL and try again.'}
@@ -1250,31 +1193,13 @@ export default function IngestionForm({ onSubmitted }) {
           </Stack>
 
           {/* RIGHT COLUMN */}
-          <Stack spacing={2.25} minWidth={0}>
-            {/* Options */}
+          <Stack spacing={{ xs: 1.5, sm: 2 }} minWidth={0}>
             <SectionCard
               title="Options"
               subtitle="Authentication, extraction and output behavior"
               icon={<LockReset fontSize="small" />}
             >
-              <Stack spacing={1.25}>
-                {/* Audio-only for non-YT */}
-                {!isYtMode ? (
-                  <Controller
-                    name="audioOnly"
-                    control={control}
-                    render={({ field }) => (
-                      <OptionTile
-                        icon={<MusicNote sx={{ fontSize: 18 }} />}
-                        title="Audio only"
-                        subtitle="Download as audio / songs"
-                        checked={!!field.value}
-                        onChange={(e) => field.onChange(e.target.checked)}
-                      />
-                    )}
-                  />
-                ) : null}
-
+              <Stack spacing={1.1}>
                 {/* HTTP Auth */}
                 <Controller
                   name="useAuth"
@@ -1388,12 +1313,12 @@ export default function IngestionForm({ onSubmitted }) {
                   )}
                 />
 
-                {/* Summary helper */}
+                {/* Summary */}
                 <Paper
                   variant="outlined"
                   sx={{
                     borderRadius: 3,
-                    p: 1.5,
+                    p: 1.25,
                     bgcolor: alpha(theme.palette.primary.main, 0.035),
                   }}
                 >
@@ -1402,7 +1327,7 @@ export default function IngestionForm({ onSubmitted }) {
                       Current summary
                     </Typography>
 
-                    <Stack direction="row" flexWrap="wrap" gap={1}>
+                    <Stack direction="row" flexWrap="wrap" gap={0.75}>
                       <Chip
                         size="small"
                         label={`URLs: ${nonEmptyUrlsCount}`}
@@ -1415,18 +1340,22 @@ export default function IngestionForm({ onSubmitted }) {
                       />
                       <Chip
                         size="small"
-                        label={`Mode: ${isYtMode ? (isPlaylist ? 'Playlist' : 'yt-dlp') : 'Standard'}`}
+                        label={`Mode: ${isYtMode ? (isPlaylist ? 'Playlist' : 'yt-dlp') : 'Standard'
+                          }`}
                         variant="outlined"
                       />
-                      <Chip
-                        size="small"
-                        label={`Audio only: ${audioOnly ? 'Yes' : 'No'}`}
-                        variant="outlined"
-                      />
+                      {isYtMode && !isPlaylist ? (
+                        <Chip
+                          size="small"
+                          label={`Audio only: ${audioOnly ? 'Yes' : 'No'}`}
+                          variant="outlined"
+                        />
+                      ) : null}
                       {isTvRecord ? (
                         <Chip
                           size="small"
-                          label={`Season: ${season || '-'} / Episode: ${showPerUrlEpisode ? 'Per URL' : episode || '-'}`}
+                          label={`Season: ${season || '-'} / Episode: ${showPerUrlEpisode ? 'Per URL' : episode || '-'
+                            }`}
                           variant="outlined"
                         />
                       ) : null}
@@ -1443,97 +1372,155 @@ export default function IngestionForm({ onSubmitted }) {
           elevation={10}
           sx={{
             position: 'fixed',
-            left: { xs: 8, sm: 16, md: 24 },
-            right: { xs: 8, sm: 16, md: 24 },
+
+            // ✅ MOBILE (bottom full width)
+            left: { xs: 8, sm: 16 },
+            right: { xs: 8, sm: 16 },
+
+            // ✅ DESKTOP (right sidebar)
+            ...(isLgUp && {
+              left: 'auto',
+              width: 360,
+              right: {
+                xl: 'calc((100vw - 1480px) / 2 + 24px)',
+                lg: 32,
+              },
+            }),
+
             bottom: { xs: 8, md: 16 },
+
             zIndex: theme.zIndex.appBar,
-            borderRadius: 3.5,
-            px: { xs: 1.25, sm: 1.75 },
-            py: 1.25,
+
+            borderRadius: 3,
+            px: { xs: 1, sm: 1.5 },
+            py: { xs: 1, sm: 1.25 },
+
             border: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
+
             bgcolor:
               theme.palette.mode === 'dark'
                 ? alpha(theme.palette.background.paper, 0.92)
                 : alpha('#ffffff', 0.92),
-            backdropFilter: 'blur(14px)',
+
+            backdropFilter: 'blur(12px)',
+
             boxShadow:
               theme.palette.mode === 'dark'
-                ? '0 10px 40px rgba(0,0,0,0.35)'
-                : '0 12px 36px rgba(15, 23, 42, 0.12)',
-            mx: 'auto',
-            maxWidth: 1520,
+                ? '0 10px 36px rgba(0,0,0,0.35)'
+                : '0 10px 30px rgba(15, 23, 42, 0.1)',
           }}
         >
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={1.25}
-            alignItems={{ xs: 'stretch', md: 'center' }}
-            justifyContent="space-between"
-          >
+          {isLgUp ? (
+            <Stack spacing={1.25}>
+              <Stack spacing={0.6}>
+                <Chip
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  label={
+                    isPlaylist
+                      ? `${playlistSelected.size} selected`
+                      : `${Math.max(nonEmptyUrlsCount, torrentBase64 ? 1 : 0)} job target${Math.max(nonEmptyUrlsCount, torrentBase64 ? 1 : 0) !== 1 ? 's' : ''
+                      }`
+                  }
+                />
+
+                {isYtMode && (
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={isPlaylist ? 'Playlist queue' : 'Format ready'}
+                  />
+                )}
+              </Stack>
+
+              <Divider />
+
+              <Stack spacing={1}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<Clear />}
+                  onClick={handleReset}
+                  disabled={isSubmitting}
+                  sx={{ borderRadius: 999 }}
+                >
+                  Clear
+                </Button>
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={
+                    isSubmitting ? (
+                      <CircularProgress size={16} color="inherit" />
+                    ) : (
+                      <Send />
+                    )
+                  }
+                  disabled={isSubmitting}
+                  sx={{ borderRadius: 999, fontWeight: 700 }}
+                >
+                  {submitLabel}
+                </Button>
+              </Stack>
+            </Stack>
+          ) : (
+            /* ✅ MOBILE COMPACT (horizontal layout) */
             <Stack
               direction="row"
               spacing={1}
               alignItems="center"
-              flexWrap="wrap"
-              useFlexGap
+              justifyContent="space-between"
             >
+              {/* ✅ summary minimized */}
               <Chip
                 size="small"
                 color="primary"
                 variant="outlined"
+                sx={{ flexShrink: 0 }}
                 label={
                   isPlaylist
-                    ? `${playlistSelected.size} selected`
-                    : `${Math.max(nonEmptyUrlsCount, torrentBase64 ? 1 : 0)} job target${Math.max(nonEmptyUrlsCount, torrentBase64 ? 1 : 0) !== 1 ? 's' : ''}`
+                    ? `${playlistSelected.size}`
+                    : `${Math.max(nonEmptyUrlsCount, torrentBase64 ? 1 : 0)}`
                 }
               />
-              {isYtMode ? (
-                <Chip
-                  size="small"
+
+              {/* ✅ actions inline */}
+              <Stack direction="row" spacing={1} flex={1} justifyContent="flex-end">
+                <Button
                   variant="outlined"
-                  label={isPlaylist ? 'Playlist queue' : 'Format selection ready'}
-                />
-              ) : null}
-              {isLgUp ? (
-                <Typography variant="caption" color="text.secondary">
-                  Review the selected options, then start ingestion.
-                </Typography>
-              ) : null}
-            </Stack>
+                  size="small"
+                  onClick={handleReset}
+                  disabled={isSubmitting}
+                  startIcon={<Clear />}
+                  sx={{
+                    borderRadius: 999,
+                    minWidth: 70,
+                    px: 1,
+                  }}
+                >
+                  Clear
+                </Button>
 
-            <Stack direction="row" spacing={1.25} justifyContent="flex-end">
-              <Button
-                variant="outlined"
-                startIcon={<Clear />}
-                onClick={handleReset}
-                disabled={isSubmitting}
-                sx={{ borderRadius: 999, minWidth: 110 }}
-              >
-                Clear
-              </Button>
-
-              <Button
-                type="submit"
-                variant="contained"
-                startIcon={
-                  isSubmitting ? (
-                    <CircularProgress size={16} color="inherit" />
-                  ) : (
-                    <Send />
-                  )
-                }
-                disabled={isSubmitting}
-                sx={{
-                  borderRadius: 999,
-                  px: 2.5,
-                  minWidth: { xs: 150, sm: 180 },
-                  boxShadow: 'none',
-                }}
-              >
-                {submitLabel}
-              </Button>
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="contained"
+                  disabled={isSubmitting}
+                  startIcon={<Send />}
+                  sx={{
+                    borderRadius: 999,
+                    px: 1.5,
+                    minWidth: 90,
+                    fontWeight: 700,
+                  }}
+                >
+                  {isSubmitting ? '...' : 'Start'}
+                </Button>
+              </Stack>
             </Stack>
-          </Stack>
+          )}
         </Paper>
       </Stack>
     </Box>

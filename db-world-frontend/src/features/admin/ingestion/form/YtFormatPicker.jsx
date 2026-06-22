@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   alpha,
@@ -6,6 +6,7 @@ import {
   ButtonBase,
   Chip,
   CircularProgress,
+  Divider,
   Paper,
   Stack,
   Table,
@@ -15,69 +16,275 @@ import {
   TableRow,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { useT } from '@shared/theme';
 import {
   Audiotrack,
   CheckCircleRounded,
   GraphicEq,
   Hd,
+  Hearing,
+  HighQuality,
+  InfoOutlined,
+  Language,
   PlayCircleOutline,
   Storage,
   VideoSettings,
   Videocam,
 } from '@mui/icons-material';
+import { useT } from '@shared/theme';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Generic helpers (provider-agnostic: YouTube, JioHotstar, Zee5, MX Player, etc.)
 // ─────────────────────────────────────────────────────────────────────────────
+
+function isNil(value) {
+  return value === null || value === undefined || value === '';
+}
+
+function safeText(value, fallback = '—') {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+}
 
 function fmtBitrate(kbps) {
-  if (!kbps) return '—';
-  return kbps >= 1000 ? `${(kbps / 1000).toFixed(1)} Mbps` : `${Math.round(kbps)} kbps`;
+  if (!kbps || !Number.isFinite(Number(kbps))) return '—';
+  const value = Number(kbps);
+  return value >= 1000 ? `${(value / 1000).toFixed(1)} Mbps` : `${Math.round(value)} kbps`;
 }
 
 function fmtSize(bytes) {
-  if (!bytes) return '—';
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (!bytes || !Number.isFinite(Number(bytes))) return '—';
+  const value = Number(bytes);
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+  return `${(value / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function fmtDuration(seconds) {
+  if (!seconds || !Number.isFinite(Number(seconds))) return '—';
+  const total = Math.round(Number(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 function getVideoResolution(fmt) {
-  if (fmt?.resolution && fmt.resolution !== 'audio only') return fmt.resolution;
+  if (fmt?.resolution && fmt.resolution !== 'audio only') return fmt.resolution.replace(/×/g, 'x');
+  if (fmt?.width && fmt?.height) return `${fmt.width}x${fmt.height}`;
   if (fmt?.height) return `${fmt.height}p`;
   return '—';
 }
 
-function getAudioCodec(fmt) {
-  return fmt?.acodec || fmt?.ext || '—';
+function normalizeCodec(value) {
+  const raw = safeText(value, '—');
+  if (raw === '—') return raw;
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('av01')) return 'AV1';
+  if (lower.includes('vp09') || lower === 'vp9') return 'VP9';
+  if (lower.includes('hvc1') || lower.includes('hev1') || lower.includes('hevc')) return 'H.265 / HEVC';
+  if (lower.includes('avc1') || lower.includes('h264')) return 'H.264 / AVC';
+  if (lower.includes('mp4a')) return 'AAC';
+  if (lower.includes('opus')) return 'Opus';
+  if (lower.includes('ec-3') || lower.includes('eac3')) return 'E-AC-3 / Dolby';
+  if (lower.includes('ac-3') || lower.includes('ac3')) return 'AC-3 / Dolby';
+  return raw;
 }
 
-function getFormatPrimaryLabel(tab, fmt) {
-  return tab === 'video' ? getVideoResolution(fmt) : getAudioCodec(fmt);
+function getAudioCodec(fmt) {
+  return normalizeCodec(fmt?.acodec || fmt?.ext);
+}
+
+function getVideoCodec(fmt) {
+  return normalizeCodec(fmt?.vcodec || fmt?.ext);
 }
 
 function getFormatBitrate(tab, fmt) {
-  return fmtBitrate(
-    tab === 'video'
-      ? (fmt?.vbr || fmt?.tbr)
-      : (fmt?.abr || fmt?.tbr)
-  );
+  const value = tab === 'video' ? (fmt?.vbr || fmt?.tbr || 0) : (fmt?.abr || fmt?.tbr || 0);
+  return fmtBitrate(value);
 }
 
 function getFormatSize(fmt) {
-  return fmtSize(fmt?.filesize);
+  return fmtSize(fmt?.filesize || fmt?.filesizeApprox);
+}
+
+function getFormatExt(fmt) {
+  return safeText(fmt?.ext || fmt?.container, '—').toUpperCase();
+}
+
+function getFormatProtocol(fmt) {
+  return safeText(fmt?.protocol, '—');
+}
+
+function getFormatDynamicRange(fmt) {
+  return safeText(fmt?.dynamicRange || fmt?.dynamic_range || fmt?.hdr, '—');
+}
+
+function getFormatFps(fmt) {
+  if (!fmt?.fps || !Number.isFinite(Number(fmt.fps))) return '—';
+  return `${Number(fmt.fps)} fps`;
+}
+
+function getFormatNote(fmt) {
+  return safeText(fmt?.formatNote || fmt?.format || fmt?.note, '—');
+}
+
+const LANGUAGE_PATTERNS = [
+  { label: 'Hindi', patterns: ['हिन्दी', ' hindi', '_hi_', '-hi_', ' hi ', ' hin', 'hin_'] },
+  { label: 'English', patterns: [' english', '_en_', '-en_', ' en ', 'eng', ' english'] },
+  { label: 'Tamil', patterns: [' tamil', '_ta_', '-ta_', ' ta ', 'tam'] },
+  { label: 'Telugu', patterns: [' telugu', '_te_', '-te_', ' te ', 'tel'] },
+  { label: 'Malayalam', patterns: [' malayalam', '_ml_', '-ml_', ' ml ', 'mal'] },
+  { label: 'Kannada', patterns: [' kannada', '_kn_', '-kn_', ' kn ', 'kan'] },
+  { label: 'Marathi', patterns: [' marathi', '_mr_', '-mr_', ' mr ', 'mar'] },
+  { label: 'Bengali', patterns: [' bengali', '_bn_', '-bn_', ' bn ', 'ben'] },
+  { label: 'Gujarati', patterns: [' gujarati', '_gu_', '-gu_', ' gu ', 'guj'] },
+  { label: 'Punjabi', patterns: [' punjabi', '_pa_', '-pa_', ' pa ', 'pan'] },
+  { label: 'Spanish', patterns: [' spanish', '_es_', '-es_', ' es ', 'spa'] },
+  { label: 'French', patterns: [' french', '_fr_', '-fr_', ' fr ', 'fre', 'fra'] },
+];
+
+function parseLanguageFromFormat(fmt) {
+  const explicitLanguage = safeText(fmt?.language || fmt?.audioLanguage || fmt?.lang || '', '');
+  if (explicitLanguage) return explicitLanguage;
+
+  const source = [fmt?.formatNote, fmt?.formatId, fmt?.format].filter(Boolean).join(' | ').toLowerCase();
+  for (const item of LANGUAGE_PATTERNS) {
+    if (item.patterns.some((pattern) => source.includes(pattern))) {
+      return item.label;
+    }
+  }
+  return '—';
+}
+
+function parseAudioProfile(fmt) {
+  const joined = `${safeText(fmt?.formatNote, '')} ${safeText(fmt?.formatId, '')}`.toLowerCase();
+
+  if (joined.includes('audio description')) return 'Audio Description';
+  if (joined.includes('dolby51') || joined.includes('5.1')) return 'Dolby 5.1';
+  if (joined.includes('stereo')) return 'Stereo';
+  if (joined.includes('mono')) return 'Mono';
+  if (joined.includes('medium')) return 'Medium';
+  if (joined.includes('high')) return 'High';
+  if (joined.includes('low')) return 'Low';
+
+  return '—';
+}
+
+function parseStreamType(fmt) {
+  const explicitType = safeText(fmt?.type, '').toLowerCase();
+  if (explicitType === 'combined') return 'Combined';
+  if (explicitType === 'video') return 'Video only';
+  if (explicitType === 'audio') return 'Audio only';
+
+  const joined = `${safeText(fmt?.formatNote, '')} ${safeText(fmt?.format, '')}`.toLowerCase();
+  if (joined.includes('dash')) return 'DASH';
+  if (joined.includes('audio')) return 'Audio only';
+  if (joined.includes('video')) return 'Video only';
+
+  return 'Standard';
+}
+
+function getQualityBadgeLabel(fmt, tab) {
+  if (tab === 'video') {
+    const h = Number(fmt?.height || 0);
+    if (h >= 2160) return '4K';
+    if (h >= 1440) return '1440p';
+    if (h >= 1080) return '1080p';
+    if (h >= 720) return '720p';
+    if (h >= 480) return '480p';
+    if (h >= 360) return '360p';
+    if (h >= 240) return '240p';
+    if (h > 0) return `${h}p`;
+    return 'Video';
+  }
+
+  const abr = Number(fmt?.abr || fmt?.tbr || 0);
+  if (abr >= 192) return 'High';
+  if (abr >= 120) return 'Medium';
+  if (abr > 0) return 'Low';
+  return 'Audio';
+}
+
+function buildFormatMeta(tab, fmt) {
+  const typeLabel = parseStreamType(fmt);
+  return {
+    id: safeText(fmt?.formatId, '—'),
+    resolution: getVideoResolution(fmt),
+    videoCodec: getVideoCodec(fmt),
+    audioCodec: getAudioCodec(fmt),
+    bitrate: getFormatBitrate(tab, fmt),
+    size: getFormatSize(fmt),
+    ext: getFormatExt(fmt),
+    protocol: getFormatProtocol(fmt),
+    dynamicRange: getFormatDynamicRange(fmt),
+    fps: getFormatFps(fmt),
+    note: getFormatNote(fmt),
+    language: parseLanguageFromFormat(fmt),
+    audioProfile: parseAudioProfile(fmt),
+    streamType: typeLabel,
+    streamLabel: typeLabel,
+    isCombined: typeLabel === 'Combined',
+    qualityLabel: getQualityBadgeLabel(fmt, tab),
+    tbr: Number(fmt?.tbr || 0),
+    abr: Number(fmt?.abr || 0),
+    vbr: Number(fmt?.vbr || 0),
+    height: Number(fmt?.height || 0),
+  };
+}
+
+function normalizeVideoRows(rows = []) {
+  return [...rows].sort((a, b) => {
+    const aType = parseStreamType(a);
+    const bType = parseStreamType(b);
+
+    const rank = { 'Video only': 0, Combined: 1, DASH: 2, Standard: 3 };
+    const typeDelta = (rank[aType] ?? 9) - (rank[bType] ?? 9);
+    if (typeDelta !== 0) return typeDelta;
+
+    const ah = Number(a?.height || 0);
+    const bh = Number(b?.height || 0);
+    if (bh !== ah) return bh - ah;
+
+    const av = Number(a?.vbr || a?.tbr || 0);
+    const bv = Number(b?.vbr || b?.tbr || 0);
+    return bv - av;
+  });
+}
+
+function normalizeAudioRows(rows = []) {
+  return [...rows].sort((a, b) => {
+    const langA = parseLanguageFromFormat(a);
+    const langB = parseLanguageFromFormat(b);
+    if (langA !== langB) return langA.localeCompare(langB);
+
+    const profA = parseAudioProfile(a);
+    const profB = parseAudioProfile(b);
+    if (profA !== profB) return profA.localeCompare(profB);
+
+    const abrA = Number(a?.abr || a?.tbr || 0);
+    const abrB = Number(b?.abr || b?.tbr || 0);
+    return abrB - abrA;
+  });
+}
+
+function findById(rows = [], id) {
+  return rows.find((row) => safeText(row?.formatId, '') === safeText(id, '')) || null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Small reusable bits
+// Small UI bits
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StatChip({ icon, label, color = 'default' }) {
+function StatChip({ icon, label, color = 'default', sx = {} }) {
   return (
     <Chip
       size="small"
@@ -88,6 +295,7 @@ function StatChip({ icon, label, color = 'default' }) {
       sx={{
         borderRadius: 999,
         fontWeight: 600,
+        ...sx,
       }}
     />
   );
@@ -105,6 +313,7 @@ function SelectedDot({ selected }) {
         bgcolor: selected ? 'primary.main' : 'transparent',
         position: 'relative',
         transition: 'all 0.2s ease',
+        flexShrink: 0,
         '&::after': selected
           ? {
               content: '""',
@@ -136,7 +345,7 @@ function PickerHeaderCard({ title, subtitle, leftIcon, children }) {
             : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
       }}
     >
-      <Stack spacing={1.5}>
+      <Stack spacing={1.25}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           spacing={1.25}
@@ -164,7 +373,11 @@ function PickerHeaderCard({ title, subtitle, leftIcon, children }) {
                 {title}
               </Typography>
               {subtitle ? (
-                <Typography variant="caption" color="text.secondary">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', wordBreak: 'break-word' }}
+                >
                   {subtitle}
                 </Typography>
               ) : null}
@@ -178,16 +391,43 @@ function PickerHeaderCard({ title, subtitle, leftIcon, children }) {
   );
 }
 
+function FullIdBox({ value }) {
+  const theme = useTheme();
+
+  return (
+    <Tooltip title={safeText(value)} arrow placement="top">
+      <Box
+        sx={{
+          px: 1,
+          py: 0.75,
+          borderRadius: 2,
+          bgcolor: alpha(theme.palette.action.active, 0.04),
+          border: `1px solid ${alpha(theme.palette.divider, 0.85)}`,
+        }}
+      >
+        <Typography
+          variant="caption"
+          sx={{
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontWeight: 700,
+            lineHeight: 1.35,
+            display: 'block',
+            wordBreak: 'break-word',
+            whiteSpace: 'normal',
+          }}
+        >
+          {safeText(value)}
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Mobile cards view
+// Mobile cards
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FormatCardList = memo(function FormatCardList({
-  rows,
-  tab,
-  selectedId,
-  onSelect,
-}) {
+const FormatCardList = memo(function FormatCardList({ rows, tab, selectedId, onSelect }) {
   const theme = useTheme();
 
   if (!rows.length) {
@@ -201,15 +441,13 @@ const FormatCardList = memo(function FormatCardList({
   return (
     <Stack spacing={1}>
       {rows.map((fmt) => {
-        const selected = fmt.formatId === selectedId;
-        const primary = getFormatPrimaryLabel(tab, fmt);
-        const bitrate = getFormatBitrate(tab, fmt);
-        const size = getFormatSize(fmt);
+        const selected = safeText(fmt?.formatId, '') === safeText(selectedId, '');
+        const meta = buildFormatMeta(tab, fmt);
 
         return (
           <ButtonBase
-            key={fmt.formatId}
-            onClick={() => onSelect(fmt.formatId)}
+            key={meta.id}
+            onClick={() => onSelect(meta.id, fmt)}
             sx={{
               width: '100%',
               textAlign: 'left',
@@ -224,12 +462,8 @@ const FormatCardList = memo(function FormatCardList({
                 width: '100%',
                 p: 1.25,
                 borderRadius: 3,
-                borderColor: selected
-                  ? alpha(theme.palette.primary.main, 0.35)
-                  : alpha(theme.palette.divider, 0.8),
-                bgcolor: selected
-                  ? alpha(theme.palette.primary.main, 0.06)
-                  : 'background.paper',
+                borderColor: selected ? alpha(theme.palette.primary.main, 0.38) : alpha(theme.palette.divider, 0.8),
+                bgcolor: selected ? alpha(theme.palette.primary.main, 0.06) : 'background.paper',
                 transition: 'all 0.18s ease',
               }}
             >
@@ -237,24 +471,16 @@ const FormatCardList = memo(function FormatCardList({
                 <Stack direction="row" spacing={1} alignItems="flex-start">
                   <SelectedDot selected={selected} />
 
-                  <Stack spacing={0.75} sx={{ flex: 1, minWidth: 0 }}>
+                  <Stack spacing={0.9} sx={{ flex: 1, minWidth: 0 }}>
                     <Stack
                       direction="row"
-                      spacing={1}
+                      spacing={0.75}
                       alignItems="center"
                       justifyContent="space-between"
                     >
-                      <Chip
-                        size="small"
-                        label={fmt.formatId}
-                        variant="outlined"
-                        sx={{
-                          fontSize: '0.68rem',
-                          height: 24,
-                          fontWeight: 700,
-                          maxWidth: 90,
-                        }}
-                      />
+                      <Typography variant="body2" fontWeight={800}>
+                        {tab === 'video' ? meta.resolution : `Audio • ${meta.language !== '—' ? meta.language : meta.audioCodec}`}
+                      </Typography>
 
                       {selected ? (
                         <Chip
@@ -267,39 +493,59 @@ const FormatCardList = memo(function FormatCardList({
                       ) : null}
                     </Stack>
 
-                    <Typography variant="body2" fontWeight={700}>
-                      {tab === 'video' ? primary : `Audio • ${primary}`}
-                    </Typography>
+                    <FullIdBox value={meta.id} />
 
                     <Stack direction="row" flexWrap="wrap" gap={0.75}>
-                      <StatChip
-                        icon={tab === 'video' ? <Hd sx={{ fontSize: 14 }} /> : <GraphicEq sx={{ fontSize: 14 }} />}
-                        label={primary}
-                      />
-                      <StatChip
-                        icon={<PlayCircleOutline sx={{ fontSize: 14 }} />}
-                        label={bitrate}
-                      />
-                      <StatChip
-                        icon={<Storage sx={{ fontSize: 14 }} />}
-                        label={size}
-                      />
+                      <StatChip icon={tab === 'video' ? <Hd sx={{ fontSize: 14 }} /> : <GraphicEq sx={{ fontSize: 14 }} />} label={meta.qualityLabel} />
+                      {tab === 'video' ? (
+                        <>
+                          <StatChip icon={<Videocam sx={{ fontSize: 14 }} />} label={meta.videoCodec} />
+                          {meta.dynamicRange !== '—' ? <StatChip icon={<HighQuality sx={{ fontSize: 14 }} />} label={meta.dynamicRange} /> : null}
+                          {meta.fps !== '—' ? <StatChip icon={<PlayCircleOutline sx={{ fontSize: 14 }} />} label={meta.fps} /> : null}
+                        </>
+                      ) : (
+                        <>
+                          <StatChip icon={<GraphicEq sx={{ fontSize: 14 }} />} label={meta.audioCodec} />
+                          {meta.language !== '—' ? <StatChip icon={<Language sx={{ fontSize: 14 }} />} label={meta.language} /> : null}
+                          {meta.audioProfile !== '—' ? (
+                            <StatChip
+                              icon={meta.audioProfile === 'Audio Description' ? <Hearing sx={{ fontSize: 14 }} /> : <Audiotrack sx={{ fontSize: 14 }} />}
+                              label={meta.audioProfile}
+                            />
+                          ) : null}
+                        </>
+                      )}
+
+                      <StatChip icon={<InfoOutlined sx={{ fontSize: 14 }} />} label={meta.streamLabel} />
+                      <StatChip icon={<PlayCircleOutline sx={{ fontSize: 14 }} />} label={meta.bitrate} />
+                      {meta.ext !== '—' ? <StatChip icon={<Storage sx={{ fontSize: 14 }} />} label={meta.ext} /> : null}
                     </Stack>
 
-                    {fmt?.formatNote ? (
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {fmt.formatNote}
-                      </Typography>
-                    ) : null}
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 0.75,
+                      }}
+                    >
+                      <Paper variant="outlined" sx={{ p: 0.8, borderRadius: 2, bgcolor: 'background.default' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Note
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600} sx={{ wordBreak: 'break-word' }}>
+                          {meta.note}
+                        </Typography>
+                      </Paper>
+
+                      <Paper variant="outlined" sx={{ p: 0.8, borderRadius: 2, bgcolor: 'background.default' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Size / Protocol
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600} sx={{ wordBreak: 'break-word' }}>
+                          {meta.size} / {meta.protocol}
+                        </Typography>
+                      </Paper>
+                    </Box>
                   </Stack>
                 </Stack>
               </Stack>
@@ -312,15 +558,10 @@ const FormatCardList = memo(function FormatCardList({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Desktop table view
+// Desktop table
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FormatTable = memo(function FormatTable({
-  rows,
-  tab,
-  selectedId,
-  onSelect,
-}) {
+const FormatTable = memo(function FormatTable({ rows, tab, selectedId, onSelect }) {
   const T = useT();
 
   if (!rows.length) {
@@ -332,43 +573,50 @@ const FormatTable = memo(function FormatTable({
   }
 
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        borderRadius: 3,
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
+    <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
+      <Box sx={{ maxHeight: 460, overflow: 'auto' }}>
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
               <TableCell padding="checkbox" sx={{ bgcolor: 'background.paper' }} />
-              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>ID</TableCell>
-              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>
-                {tab === 'video' ? 'Resolution' : 'Codec'}
+              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700, minWidth: 260 }}>
+                Full ID
               </TableCell>
-              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>Bitrate</TableCell>
-              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>Size</TableCell>
-              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>Note</TableCell>
+              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>
+                Main Info
+              </TableCell>
+              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>
+                Codec
+              </TableCell>
+              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>
+                Bitrate / Size
+              </TableCell>
+              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700 }}>
+                Stream
+              </TableCell>
+              <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 700, minWidth: 220 }}>
+                Note
+              </TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
             {rows.map((fmt) => {
-              const selected = fmt.formatId === selectedId;
+              const selected = safeText(fmt?.formatId, '') === safeText(selectedId, '');
+              const meta = buildFormatMeta(tab, fmt);
 
               return (
                 <TableRow
-                  key={fmt.formatId}
+                  key={meta.id}
                   hover
                   selected={selected}
-                  onClick={() => onSelect(fmt.formatId)}
+                  onClick={() => onSelect(meta.id, fmt)}
                   sx={{
                     cursor: 'pointer',
                     bgcolor: selected ? alpha(T.teal, 0.08) : undefined,
                     '& .MuiTableCell-root': {
                       py: 1.1,
+                      verticalAlign: 'top',
                     },
                   }}
                 >
@@ -379,26 +627,54 @@ const FormatTable = memo(function FormatTable({
                   </TableCell>
 
                   <TableCell>
-                    <Chip
-                      label={fmt.formatId}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        fontSize: '0.68rem',
-                        fontWeight: 700,
-                        height: 24,
-                      }}
-                    />
+                    <FullIdBox value={meta.id} />
                   </TableCell>
 
-                  <TableCell sx={{ fontWeight: selected ? 700 : 500 }}>
-                    {getFormatPrimaryLabel(tab, fmt)}
+                  <TableCell>
+                    {tab === 'video' ? (
+                      <Stack spacing={0.35}>
+                        <Typography variant="body2" fontWeight={700}>
+                          {meta.resolution}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {meta.qualityLabel} • {meta.dynamicRange !== '—' ? `${meta.dynamicRange} • ` : ''}{meta.fps !== '—' ? meta.fps : '—'}
+                        </Typography>
+                      </Stack>
+                    ) : (
+                      <Stack spacing={0.35}>
+                        <Typography variant="body2" fontWeight={700}>
+                          {meta.language !== '—' ? meta.language : meta.audioCodec}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {meta.audioProfile !== '—' ? meta.audioProfile : meta.qualityLabel}
+                        </Typography>
+                      </Stack>
+                    )}
                   </TableCell>
 
-                  <TableCell>{getFormatBitrate(tab, fmt)}</TableCell>
+                  <TableCell>
+                    <Stack spacing={0.35}>
+                      <Typography variant="body2">
+                        {tab === 'video' ? meta.videoCodec : meta.audioCodec}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {meta.ext}
+                      </Typography>
+                    </Stack>
+                  </TableCell>
 
-                  <TableCell sx={{ color: 'text.secondary' }}>
-                    {getFormatSize(fmt)}
+                  <TableCell>
+                    <Stack spacing={0.35}>
+                      <Typography variant="body2">{meta.bitrate}</Typography>
+                      <Typography variant="caption" color="text.secondary">{meta.size}</Typography>
+                    </Stack>
+                  </TableCell>
+
+                  <TableCell>
+                    <Stack spacing={0.35}>
+                      <Typography variant="body2">{meta.streamLabel}</Typography>
+                      <Typography variant="caption" color="text.secondary">{meta.protocol}</Typography>
+                    </Stack>
                   </TableCell>
 
                   <TableCell
@@ -410,13 +686,12 @@ const FormatTable = memo(function FormatTable({
                   >
                     <Box
                       sx={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                        lineHeight: 1.35,
                       }}
                     >
-                      {fmt?.formatNote || '—'}
+                      {meta.note}
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -434,12 +709,11 @@ const FormatTable = memo(function FormatTable({
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Shows parsed yt-dlp formats and lets the user pick:
- *   - one video format (or none if audioOnly)
- *   - one audio format
+ * Provider-agnostic format picker for adaptive and combined streams.
+ * Supports payloads from YouTube, JioHotstar, MX Player, Zee5, etc.
  *
  * Props:
- *   formatsData    — YtFormatsResponse from backend
+ *   formatsData    — API response or payload.data
  *   loading        — bool
  *   audioOnly      — bool
  *   selectedVideo  — formatId string | null
@@ -460,7 +734,6 @@ export default function YtFormatPicker({
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
   const [tab, setTab] = useState(audioOnly ? 'audio' : 'video');
 
-  // Keep tab in sync with audioOnly state
   useEffect(() => {
     if (audioOnly) {
       setTab('audio');
@@ -469,22 +742,37 @@ export default function YtFormatPicker({
     }
   }, [audioOnly, tab]);
 
-  const { videoFormats = [], audioFormats = [], title } = formatsData || {};
+  const payload = useMemo(() => {
+    if (!formatsData) return null;
+    return formatsData?.data ?? formatsData;
+  }, [formatsData]);
+
+  const { videoFormats = [], audioFormats = [], title, uploader, duration } = payload || {};
+
+  const normalizedVideoRows = useMemo(() => normalizeVideoRows(videoFormats), [videoFormats]);
+  const normalizedAudioRows = useMemo(() => normalizeAudioRows(audioFormats), [audioFormats]);
 
   const activeRows = useMemo(
-    () => (tab === 'video' ? videoFormats : audioFormats),
-    [tab, videoFormats, audioFormats]
+    () => (tab === 'video' ? normalizedVideoRows : normalizedAudioRows),
+    [tab, normalizedVideoRows, normalizedAudioRows]
   );
 
-  const selectedId = useMemo(
-    () => (tab === 'video' ? selectedVideo : selectedAudio),
-    [tab, selectedVideo, selectedAudio]
-  );
+  const selectedVideoRow = useMemo(() => findById(normalizedVideoRows, selectedVideo), [normalizedVideoRows, selectedVideo]);
+  const selectedAudioRow = useMemo(() => findById(normalizedAudioRows, selectedAudio), [normalizedAudioRows, selectedAudio]);
+  const selectedVideoMeta = useMemo(() => (selectedVideoRow ? buildFormatMeta('video', selectedVideoRow) : null), [selectedVideoRow]);
+  const selectedAudioMeta = useMemo(() => (selectedAudioRow ? buildFormatMeta('audio', selectedAudioRow) : null), [selectedAudioRow]);
+  const selectedActiveMeta = tab === 'video' ? selectedVideoMeta : selectedAudioMeta;
+
+  const selectedVideoIsCombined = !!selectedVideoMeta?.isCombined;
 
   const handleSelect = useCallback(
-    (id) => {
+    (id, fmt) => {
       if (tab === 'video') {
         onSelectVideo?.(id);
+        const meta = buildFormatMeta('video', fmt || {});
+        if (meta.isCombined) {
+          onSelectAudio?.(null);
+        }
       } else {
         onSelectAudio?.(id);
       }
@@ -492,18 +780,12 @@ export default function YtFormatPicker({
     [tab, onSelectVideo, onSelectAudio]
   );
 
-  const videoCount = videoFormats.length;
-  const audioCount = audioFormats.length;
+  const videoCount = normalizedVideoRows.length;
+  const audioCount = normalizedAudioRows.length;
 
   if (loading) {
     return (
-      <Paper
-        variant="outlined"
-        sx={{
-          borderRadius: 3,
-          p: 2,
-        }}
-      >
+      <Paper variant="outlined" sx={{ borderRadius: 3, p: 2 }}>
         <Stack direction="row" spacing={1.2} alignItems="center">
           <CircularProgress size={20} />
           <Box>
@@ -519,7 +801,7 @@ export default function YtFormatPicker({
     );
   }
 
-  if (!formatsData) return null;
+  if (!payload) return null;
 
   return (
     <Stack spacing={1.5}>
@@ -527,7 +809,9 @@ export default function YtFormatPicker({
         title="Format picker"
         subtitle={
           title
-            ? title
+            ? uploader
+              ? `${title} • ${uploader}`
+              : title
             : 'Choose the best stream before starting the ingestion job'
         }
         leftIcon={<VideoSettings sx={{ fontSize: 20 }} />}
@@ -543,8 +827,17 @@ export default function YtFormatPicker({
             label={`Audio ${audioCount}`}
             color={tab === 'audio' ? 'primary' : 'default'}
           />
+          {!isNil(duration) ? (
+            <StatChip icon={<PlayCircleOutline sx={{ fontSize: 14 }} />} label={fmtDuration(duration)} />
+          ) : null}
         </Stack>
       </PickerHeaderCard>
+
+      {selectedVideoIsCombined && !audioOnly ? (
+        <Alert severity="info" sx={{ borderRadius: 3 }}>
+          The selected video stream already contains audio. Separate audio selection is optional and will be cleared when you choose a combined stream.
+        </Alert>
+      ) : null}
 
       {!audioOnly ? (
         <ToggleButtonGroup
@@ -579,46 +872,54 @@ export default function YtFormatPicker({
       )}
 
       {activeRows.length > 0 ? (
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`Showing ${tab} formats`}
-            sx={{ fontWeight: 700 }}
-          />
-          {selectedId ? (
-            <Chip
-              size="small"
-              color="primary"
-              variant="outlined"
-              label={`Selected: ${selectedId}`}
-              sx={{ fontWeight: 700 }}
-            />
-          ) : (
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`No ${tab} format selected`}
-              sx={{ fontWeight: 700 }}
-            />
-          )}
-        </Stack>
+        <Paper
+          variant="outlined"
+          sx={{
+            borderRadius: 3,
+            p: 1.25,
+            bgcolor: alpha(theme.palette.primary.main, 0.02),
+          }}
+        >
+          <Stack spacing={1}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              justifyContent="space-between"
+            >
+              <Stack direction="row" flexWrap="wrap" gap={1}>
+                <Chip size="small" variant="outlined" label={`Showing ${tab} formats`} sx={{ fontWeight: 700 }} />
+                <Chip size="small" variant="outlined" label={`${activeRows.length} rows`} sx={{ fontWeight: 700 }} />
+                {selectedActiveMeta ? (
+                  <Chip size="small" color="primary" variant="outlined" label={`Selected ${selectedActiveMeta.qualityLabel}`} sx={{ fontWeight: 700 }} />
+                ) : (
+                  <Chip size="small" variant="outlined" label={`No ${tab} format selected`} sx={{ fontWeight: 700 }} />
+                )}
+              </Stack>
+            </Stack>
+
+            {selectedActiveMeta ? (
+              <Stack spacing={0.75}>
+                <Typography variant="caption" color="text.secondary">
+                  Selected full ID
+                </Typography>
+                <FullIdBox value={selectedActiveMeta.id} />
+              </Stack>
+            ) : null}
+
+            <Divider />
+
+            <Typography variant="caption" color="text.secondary">
+              Full format ID is always shown because some providers include language, codec, or stream details directly inside the ID.
+            </Typography>
+          </Stack>
+        </Paper>
       ) : null}
 
       {isSmDown ? (
-        <FormatCardList
-          rows={activeRows}
-          tab={tab}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-        />
+        <FormatCardList rows={activeRows} tab={tab} selectedId={tab === 'video' ? selectedVideo : selectedAudio} onSelect={handleSelect} />
       ) : (
-        <FormatTable
-          rows={activeRows}
-          tab={tab}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-        />
+        <FormatTable rows={activeRows} tab={tab} selectedId={tab === 'video' ? selectedVideo : selectedAudio} onSelect={handleSelect} />
       )}
     </Stack>
   );

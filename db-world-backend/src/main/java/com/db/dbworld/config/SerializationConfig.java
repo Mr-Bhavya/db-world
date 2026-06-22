@@ -76,6 +76,7 @@ public class SerializationConfig {
 
             builder.addModule(extras)
                     .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                     .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
         };
     }
