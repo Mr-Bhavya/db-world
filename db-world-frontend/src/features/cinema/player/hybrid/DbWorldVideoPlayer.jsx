@@ -347,11 +347,22 @@ export default function DbWorldVideoPlayer({
   };
 
   // ── next-episode autoplay (default ON, 10s) ─────────────────────────────────
+  // Switch to another episode with instant feedback: show the buffering spinner
+  // right away (the parent resolves the next episode's URL + resume point async,
+  // so without this the old frame sits frozen for a moment).
+  const switchEpisode = useCallback((ep) => {
+    if (!ep) return;
+    setBuffering(true);
+    setEnded(false);
+    setCountdown(null);
+    setUpNextDismissed(false);
+    onSelectEpisode?.(ep);
+  }, [onSelectEpisode]);
+
   const goNext = useCallback(() => {
     if (!nextEpisode) return;
-    setEnded(false); setCountdown(null);
-    onSelectEpisode?.(nextEpisode);
-  }, [nextEpisode, onSelectEpisode]);
+    switchEpisode(nextEpisode);
+  }, [nextEpisode, switchEpisode]);
 
   useEffect(() => {
     if (!ended || !nextEpisode) return undefined;
@@ -745,7 +756,7 @@ export default function DbWorldVideoPlayer({
                 {seasonsMap[s].map(ep => {
                   const isCur = ep.id === currentEpisodeId || ep.fileId === currentEpisodeId;
                   return (
-                    <button key={ep.id} onClick={() => { onSelectEpisode?.(ep); setEpisodesOpen(false); }}
+                    <button key={ep.id} onClick={() => { switchEpisode(ep); setEpisodesOpen(false); }}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 18px',
                         background: isCur ? 'rgba(13,148,136,0.18)' : 'transparent', border: 'none', cursor: 'pointer',
                         color: isCur ? TEAL : '#fff', fontWeight: isCur ? 700 : 500, fontSize: 14, textAlign: 'left' }}>

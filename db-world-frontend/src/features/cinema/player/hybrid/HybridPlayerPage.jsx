@@ -47,18 +47,24 @@ export default function HybridPlayerPage() {
   }, [media, navigate]);
 
   const selectEpisode = useCallback(async (ep) => {
+    // Resolve the stream URL and the resume point concurrently — they don't depend
+    // on each other, so running them in parallel halves the wait before playback.
+    const [resolved, startMs] = await Promise.all([
+      (!ep.url && ep.mediaFileId)
+        ? resolveMediaUrl(ep.mediaFileId, 'ONLINE').catch(() => null)
+        : Promise.resolve(null),
+      resumePointFor(ep.fileId),
+    ]);
+
     let url = ep.url;
     let mf = null;
     let storyboard = ep.storyboard || null;
-    if (!url && ep.mediaFileId) {
-      try {
-        const r = await resolveMediaUrl(ep.mediaFileId, 'ONLINE');
-        url = r?.data?.cdnUrl; mf = r?.data?.mediaFile;
-        storyboard = buildStoryboard(url, ep.mediaFileId, mf) || storyboard;
-      } catch { /* ignore */ }
+    if (resolved?.data?.cdnUrl) {
+      url = resolved.data.cdnUrl;
+      mf = resolved.data.mediaFile;
+      storyboard = buildStoryboard(url, ep.mediaFileId, mf) || storyboard;
     }
     if (!url) return;
-    const startMs = await resumePointFor(ep.fileId);
     setCur({ url, fileId: ep.fileId, startMs, audio: mf?.audio || [], storyboard });
   }, []);
 
