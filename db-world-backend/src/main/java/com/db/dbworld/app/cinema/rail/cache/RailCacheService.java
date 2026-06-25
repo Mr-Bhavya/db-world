@@ -88,24 +88,39 @@ public class RailCacheService {
 
         String indexKey = recordIndexKey(recordId);
 
-        Set<Object> members = redisTemplate.opsForSet().members(indexKey);
+        try {
+            // Read the index set with the SAME string serializer used to write it in put().
+            // opsForSet().members() would deserialize members with the template's JSON value
+            // serializer and fail (members are raw "rail:…" key strings, not JSON).
+            final var stringSerializer = redisTemplate.getStringSerializer();
+            Set<String> keys = redisTemplate.execute(
+                    (org.springframework.data.redis.core.RedisCallback<Set<String>>) connection -> {
+                        byte[] indexKeyBytes = stringSerializer.serialize(indexKey);
+                        Set<byte[]> raw = connection.setCommands().sMembers(indexKeyBytes);
+                        if (raw == null) return Collections.emptySet();
+                        return raw.stream()
+                                .filter(Objects::nonNull)
+                                .map(stringSerializer::deserialize)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet());
+                    });
 
-        if (members == null || members.isEmpty()) return;
+            if (keys == null || keys.isEmpty()) {
+                redisTemplate.delete(indexKey);
+                return;
+            }
 
-        // Convert safely
-        Set<String> keys = members.stream()
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .collect(Collectors.toSet());
+            redisTemplate.delete(keys);   // delete uses the (string) key serializer — correct for rail keys
+            redisTemplate.delete(indexKey);
 
-        // Batch delete (better than loop)
-        redisTemplate.delete(keys);
-
-        // cleanup index
-        redisTemplate.delete(indexKey);
-
-        log.info("Rail cache invalidated; reason=recordChanged; recordId={}; railKeysEvicted={}",
-                recordId, keys.size());
+            log.info("Rail cache invalidated; reason=recordChanged; recordId={}; railKeysEvicted={}",
+                    recordId, keys.size());
+        } catch (Exception e) {
+            // A cache-eviction hiccup must never fail the mutation that triggered it.
+            log.warn("Rail cache evictByRecord failed for recordId={}; falling back to evictAll: {}",
+                    recordId, e.getMessage());
+            try { evictAll(); } catch (Exception ignored) { /* best-effort */ }
+        }
     }
 
     /* =========================================================
