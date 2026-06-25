@@ -62,6 +62,19 @@ public class CatalogAdminController {
     }
 
     /* =========================
+       REFRESH FROM TMDB (re-sync a single record)
+       ========================= */
+
+    @AdminAccess
+    @PostMapping("/{id}/refresh")
+    public ApiResponse<RecordDto> refresh(@PathVariable Long id) {
+        return ApiResponse.success(
+                "Record synced from TMDB",
+                catalogService.refreshRecord(id)
+        );
+    }
+
+    /* =========================
        UPDATE RECORD
        ========================= */
 

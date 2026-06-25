@@ -441,6 +441,7 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 ) AS year,
                 r.created_at AS createdAt,
                 r.updated_at AS updatedAt,
+                r.hide_from_rails AS hideFromRails,
                 GROUP_CONCAT(tag.tag_type ORDER BY tag.priority SEPARATOR ',') AS tags
             FROM records r
             LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
@@ -466,7 +467,8 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 tm.release_date,
                 tm.first_air_date,
                 r.created_at,
-                r.updated_at
+                r.updated_at,
+                r.hide_from_rails
             """,
             countQuery = """
                     SELECT COUNT(*)

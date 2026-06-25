@@ -3,6 +3,7 @@ import { Box, Chip, IconButton, Tooltip } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import SyncIcon from '@mui/icons-material/Sync';
 import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -13,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useT } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
 import { useRecordVisibility } from './useRecordVisibility';
+import { useRecordSync } from './useRecordSync';
 import RecordTagsInline from './RecordTagsInline';
 
 const SORT_FIELD_MAP = {
@@ -25,6 +27,7 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
   const { sortModel, setSortModel, setSelectedRows, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
 
   const visibilityMut = useRecordVisibility();
+  const syncMut       = useRecordSync();
 
   const gridSx = useMemo(() => ({
     // v8 CSS variables override container/pinned backgrounds
@@ -200,15 +203,26 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       },
     },
     {
-      field: 'actions', headerName: '', width: 72, sortable: false,
+      field: 'actions', headerName: '', width: 108, sortable: false,
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', gap: .5 }}>
+          <Tooltip title="Sync from TMDB">
+            <span>
+              <IconButton size="small" disabled={syncMut.isPending && syncMut.variables === row.recordId}
+                onClick={() => syncMut.mutate(row.recordId)}
+                sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
+                <SyncIcon sx={{ fontSize: 15,
+                  animation: syncMut.isPending && syncMut.variables === row.recordId ? 'dbw-spin 0.8s linear infinite' : 'none',
+                  '@keyframes dbw-spin': { to: { transform: 'rotate(360deg)' } } }} />
+              </IconButton>
+            </span>
+          </Tooltip>
           <Tooltip title="Edit"><IconButton size="small" onClick={() => openModal('edit', row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.success, bgcolor: `${T.success}15` } }}><EditIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
           <Tooltip title="Delete"><IconButton size="small" onClick={() => onDelete(row.recordId)} sx={{ color: T.textFaint, '&:hover': { color: T.error, bgcolor: T.errorBg } }}><DeleteIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
         </Box>
       ),
     },
-  ], [T, onDelete, openModal, openTmdbModal, openRecordDetail, openMediaFiles, visibilityMut]);
+  ], [T, onDelete, openModal, openTmdbModal, openRecordDetail, openMediaFiles, visibilityMut, syncMut]);
 
   return (
     <DataGrid

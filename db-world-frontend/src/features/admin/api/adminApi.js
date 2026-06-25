@@ -52,6 +52,10 @@ export const setRecordVisibility = (id, hideFromRails) =>
 export const updateRecord = (id, body) =>
   axiosInstance.put(`/api/cinema/admin/catalog/${id}`, body).then(r => r.data.data);
 
+/** Re-fetch this record's data from TMDB and update the DB. */
+export const refreshRecordFromTmdb = (id) =>
+  axiosInstance.post(`/api/cinema/admin/catalog/${id}/refresh`).then(r => r.data.data);
+
 export const deleteRecord = (id) =>
   axiosInstance.delete(`/api/cinema/admin/catalog/${id}`).then(r => r.data);
 
