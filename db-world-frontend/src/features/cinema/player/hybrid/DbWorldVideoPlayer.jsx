@@ -498,7 +498,7 @@ export default function DbWorldVideoPlayer({
 
       {/* Web video surface (native renders behind the WebView) */}
       {!isNative && (
-        <video ref={videoRef} playsInline
+        <video ref={videoRef} playsInline preload="auto"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
       )}
 
