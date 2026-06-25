@@ -1,9 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Box, Typography, IconButton, Chip, Skeleton, Tooltip,
+  Box, Typography, IconButton, Skeleton, Tooltip,
   useMediaQuery, useTheme,
 } from '@mui/material';
 import {
@@ -11,409 +10,19 @@ import {
   Favorite, FavoriteBorder,
   Visibility, VisibilityOff,
   BookmarkAdd, BookmarkAdded,
-  ExpandMore, Star, VolumeOff, VolumeUp,
+  ExpandMore, Star,
 } from '@mui/icons-material';
 import { tmdbImg } from '../../api/cinemaApi';
 import { openRecord, preloadDetail, rectOf } from '../../utils/recordNav';
 import useDeviceTier from '../../hooks/useDeviceTier';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../RailRow/railTypeConfig';
+import RecordCardSkeleton from './parts/RecordCardSkeleton';
+import HoverPopup from './parts/HoverPopup';
+import { year, navBlock } from './parts/cardHelpers';
+import { resolveCardImage } from './parts/cardImage';
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-const year = (d) => (d ? String(d).slice(0, 4) : '');
-
-const POPUP_W = 450; // wider popup
-
-// Shared cooldown: after navigating from a popup, block new hover popups for 600ms
-// so the next card's popup doesn't appear while the modal is loading.
-let navBlockUntil = 0;
-
-// ─── Skeleton ────────────────────────────────────────────────────────────────
-
-export const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) => {
-  // Support legacy boolean props from WatchlistRailRow
-  const resolvedType = type !== 'standard'
-    ? type
-    : prime ? 'prime' : top10 ? 'top10' : wide ? 'wide' : 'standard';
-
-  const cfg = RAIL_TYPE_CONFIG[resolvedType] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
-  const deskH = cfg.tiers.desktop;
-  const mobH = cfg.tiers.mobile;
-  const tabH = cfg.tiers.tablet;
-  const isCirc = resolvedType === 'person';
-  const is10 = resolvedType === 'top10';
-  const isPrim = resolvedType === 'prime';
-  const isWide = ['wide', 'continue', 'billboard'].includes(resolvedType);
-
-  const [daw, dah] = cfg.cardAspect.split('/').map(Number);
-  const mobAsp = cfg.mobileAspect ?? cfg.cardAspect;
-  const [maw, mah] = mobAsp.split('/').map(Number);
-
-  const w = isPrim
-    ? { xs: Math.round(mobH * 9 / 16), sm: Math.round(tabH * 9 / 16), md: Math.round(deskH * 9 / 16) }
-    : is10
-      ? { xs: Math.round(mobH * 2 / 3), sm: Math.round(tabH * 2 / 3), md: Math.round(deskH * 2 / 3) }
-      : isWide
-        ? { xs: Math.round(mobH * 16 / 9), sm: Math.round(tabH * 16 / 9), md: Math.round(deskH * 16 / 9) }
-        : isCirc
-          ? { xs: mobH, sm: tabH, md: deskH }
-          : {
-            xs: Math.round(mobH * maw / mah),
-            sm: Math.round(tabH * maw / mah),
-            md: Math.round(deskH * daw / dah),
-          };
-
-  const h = isPrim
-    ? { xs: mobH, sm: tabH, md: deskH }
-    : isCirc
-      ? { xs: mobH, sm: tabH, md: deskH }
-      : undefined;
-
-  // Standard (and any type with mobileAspect) uses a different aspect on mobile vs desktop.
-  const aspectRatioSx = h ? {} : cfg.mobileAspect
-    ? { aspectRatio: { xs: cfg.mobileAspect, md: cfg.cardAspect } }
-    : { aspectRatio: cfg.cardAspect };
-
-  return (
-    <Box sx={{
-      flexShrink: 0,
-      pl: is10 ? { xs: 6, md: 10 } : 0,
-      width: w,
-      ...aspectRatioSx,
-      borderRadius: isCirc ? '50%' : 1.5,
-      overflow: 'hidden',
-      bgcolor: 'rgba(255,255,255,.06)',
-    }}>
-      <Skeleton variant="rectangular" width="100%" height="100%"
-        sx={{
-          bgcolor: 'rgba(255,255,255,.06)',
-          '@media (prefers-reduced-motion: reduce)': { animation: 'none' }
-        }} />
-    </Box>
-  );
-};
-
-// ─── Interaction action buttons ───────────────────────────────────────────────
-
-const ActionBtn = ({ icon, activeIcon, active, tooltip, onClick, variant = 'outline' }) => (
-  <Tooltip title={tooltip} PopperProps={{ style: { zIndex: 10001 } }}>
-    <IconButton
-      size="small"
-      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-      sx={
-        variant === 'filled'
-          ? { bgcolor: '#fff', color: '#000', p: 0.8, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }
-          : {
-            border: `1.5px solid ${active ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.45)'}`,
-            color: active ? '#fff' : 'rgba(255,255,255,.8)',
-            bgcolor: active ? 'rgba(255,255,255,.12)' : 'transparent',
-            p: 0.7,
-            transition: 'all 0.15s',
-            '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' },
-          }
-      }
-    >
-      {active ? activeIcon : icon}
-    </IconButton>
-  </Tooltip>
-);
-
-// ─── Netflix hover popup (portal) ────────────────────────────────────────────
-
-const fmtRuntime = (mins) => {
-  if (!mins || mins <= 0) return null;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? `${h}h ${m > 0 ? `${m}m` : ''}`.trim() : `${m}m`;
-};
-
-const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onWatched, anchorRect, onClose }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [videoLoaded, setVideoLoaded] = useState(false);
-  const [muted, setMuted] = useState(true);
-  const isMovie = record.type === 'MOVIE';
-  const iframeRef = useRef(null);
-
-  const videoSrc = record.previewVideoUrl
-    ? `${record.previewVideoUrl}&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&vq=hd1080`
-    : null;
-
-  const POPUP_VIDEO_H = Math.round(POPUP_W * 9 / 16);
-  const popupH = POPUP_VIDEO_H + (record.overview ? 290 : 210);
-  const left = Math.max(8, Math.min(
-    anchorRect.left + anchorRect.width / 2 - POPUP_W / 2,
-    window.innerWidth - POPUP_W - 8
-  ));
-  const top = Math.max(8, Math.min(
-    anchorRect.top + anchorRect.height / 2 - popupH / 2,
-    window.innerHeight - popupH - 8
-  ));
-
-  const toggleMute = (e) => {
-    e.stopPropagation();
-
-    if (!iframeRef.current) return;
-
-    const command = muted ? 'unMute' : 'mute';
-
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({
-        event: 'command',
-        func: command,
-        args: []
-      }),
-      '*'
-    );
-
-    setMuted(prev => !prev);
-  };
-
-  // HoverPopup is desktop-only (the parent skips it when isMobile), so we
-  // always pass the background location — this triggers the Netflix-style
-  // modal overlay in App.jsx instead of a full-page navigation.
-  const goDetail = (e) => {
-    e?.stopPropagation();
-    navBlockUntil = Date.now() + 600;
-    // Pass the full popup rect so the modal expands FROM the popup shape.
-    // top/left/POPUP_W/popupH are already computed in this scope.
-    openRecord(navigate, location, record, {
-      originRect: { top, left, width: POPUP_W, height: popupH },
-    });
-    // Delay close by one frame so the popup is visible on the modal's first frame —
-    // this makes the expand feel continuous rather than close-then-reopen.
-    requestAnimationFrame(() => onClose());
-  };
-
-  const goPlay = (e) => {
-    e?.stopPropagation();
-    navBlockUntil = Date.now() + 600;
-    openRecord(navigate, location, record, { play: true });
-    onClose();
-  };
-
-  // Scale the popup from the card's width so it visually expands from the card.
-  // anchorRect.width / POPUP_W gives the fraction that matches the card footprint.
-  const initialScale = Math.max(0.5, Math.min(anchorRect.width / POPUP_W, 0.9));
-
-  return createPortal(
-    <motion.div
-      key="nfx-popup"
-      initial={{ opacity: 0, scale: initialScale }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: initialScale * 0.97 }}
-      transition={{
-        opacity: { duration: 0.12 },
-        scale: { type: 'spring', stiffness: 360, damping: 28 },
-      }}
-      style={{
-        position: 'fixed', top, left,
-        width: POPUP_W, zIndex: 9999,
-        borderRadius: 8, overflow: 'hidden',
-        boxShadow: '0 28px 90px rgba(0,0,0,0.98)',
-        background: '#181818',
-        cursor: 'default',
-        transformOrigin: 'center center',
-      }}
-      onMouseLeave={onClose}
-    >
-      {/* ── Video / Backdrop ── */}
-      <Box sx={{ width: '100%', aspectRatio: '16/9', position: 'relative', bgcolor: '#000', overflow: 'hidden' }}>
-        <Box
-          component="img"
-          src={tmdbImg(record.backdropPath ?? record.posterPath, 'w780')}
-          alt={record.title}
-          sx={{
-            width: '100%', height: '100%', objectFit: 'cover',
-            position: 'absolute', inset: 0,
-            opacity: videoLoaded ? 0 : 1,
-            transition: 'opacity 0.4s',
-          }}
-        />
-        <Box sx={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(to top, #181818 0%, transparent 60%)',
-          opacity: videoLoaded ? 0 : 1,
-          transition: 'opacity 0.4s',
-        }} />
-        {videoSrc && (
-          <Box
-            component="iframe"
-            ref={iframeRef}
-            src={videoSrc}
-            allow="autoplay; encrypted-media; picture-in-picture"
-            onLoad={() => setVideoLoaded(true)}
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: '120%',
-              height: '120%',
-              transform: 'translate(-50%, -50%) scale(1.2)', // 🔥 crop UI
-              border: 'none',
-              opacity: videoLoaded ? 1 : 0,
-              transition: 'opacity 0.4s',
-              pointerEvents: 'none' // 🔥 disable UI interaction
-            }}
-          />
-        )}
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            width: '100%',
-            height: '14%', // bottom mask
-            background: 'linear-gradient(to top, black, transparent)',
-            zIndex: 2
-          }}
-        />
-        {/* Mute toggle */}
-        {videoSrc && (
-          <IconButton
-            size="small"
-            onClick={toggleMute}
-            sx={{
-              position: 'absolute',
-              bottom: 8,
-              right: 8,
-              zIndex: 5,
-              bgcolor: 'rgba(0,0,0,0.55)',
-              color: '#fff',
-              border: '1.5px solid rgba(255,255,255,0.45)',
-              p: 0.5,
-              '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
-            }}
-          >
-            {muted ? <VolumeOff sx={{ fontSize: 14 }} /> : <VolumeUp sx={{ fontSize: 14 }} />}
-          </IconButton>
-        )}
-      </Box>
-
-      {/* ── Info ── */}
-      <Box sx={{ px: 2, pt: 1.5, pb: 2, bgcolor: '#181818' }}>
-
-        {/* ── Action row (Netflix four: Play · My List · Like · Expand) ── */}
-        <Box sx={{ display: 'flex', gap: 0.8, mb: 1.2, alignItems: 'center' }}>
-          <ActionBtn
-            variant="filled"
-            icon={<PlayArrow sx={{ fontSize: 20 }} />}
-            activeIcon={<PlayArrow sx={{ fontSize: 20 }} />}
-            tooltip="Play / Download"
-            onClick={goPlay}
-          />
-          {!interaction?.watched && (
-            <ActionBtn
-              icon={<BookmarkAdd sx={{ fontSize: 17 }} />}
-              activeIcon={<BookmarkAdded sx={{ fontSize: 17, color: '#46d369' }} />}
-              active={interaction.watchlisted}
-              tooltip={interaction.watchlisted ? 'Remove from My List' : 'Add to My List'}
-              onClick={() => onWatchlist?.(record)}
-            />
-          )}
-          <ActionBtn
-            icon={<ThumbUpOutlined sx={{ fontSize: 17 }} />}
-            activeIcon={<ThumbUp sx={{ fontSize: 17, color: '#fff' }} />}
-            active={interaction.liked}
-            tooltip={interaction.liked ? 'Unlike' : 'Like'}
-            onClick={() => onLike?.(record)}
-          />
-          <Box sx={{ ml: 'auto' }}>
-            <ActionBtn
-              icon={<ExpandMore sx={{ fontSize: 19 }} />}
-              activeIcon={<ExpandMore sx={{ fontSize: 19 }} />}
-              tooltip="More details"
-              onClick={goDetail}
-            />
-          </Box>
-        </Box>
-
-        {/* Metadata row — ★ TMDB score · year · runtime/seasons · type (plain) */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 0.9, flexWrap: 'wrap', alignItems: 'center' }}>
-          {record.voteAverage > 0 && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-              <Star sx={{ fontSize: 13, color: '#46d369' }} />
-              <Typography sx={{ color: '#46d369', fontSize: '0.78rem', fontWeight: 800 }}>
-                {Number(record.voteAverage).toFixed(1)}
-              </Typography>
-            </Box>
-          )}
-          {year(record.releaseDate) && (
-            <Typography sx={{ color: 'rgba(255,255,255,.62)', fontSize: '0.78rem', fontWeight: 600 }}>
-              {year(record.releaseDate)}
-            </Typography>
-          )}
-          {isMovie && fmtRuntime(record.runtime) && (
-            <Typography sx={{ color: 'rgba(255,255,255,.55)', fontSize: '0.78rem' }}>
-              {fmtRuntime(record.runtime)}
-            </Typography>
-          )}
-          {!isMovie && record.numberOfSeasons > 0 && (
-            <Typography sx={{ color: 'rgba(255,255,255,.55)', fontSize: '0.78rem' }}>
-              {record.numberOfSeasons === 1 ? '1 Season' : `${record.numberOfSeasons} Seasons`}
-            </Typography>
-          )}
-          {/* Type as plain muted text — no coloured pill */}
-          <Box sx={{
-            ml: 0.2, px: 0.7, py: 0.1, borderRadius: 0.5,
-            border: '1px solid rgba(255,255,255,.28)',
-            color: 'rgba(255,255,255,.7)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: 0.4,
-          }}>
-            {isMovie ? 'MOVIE' : 'SERIES'}
-          </Box>
-        </Box>
-
-        {/* Title */}
-        <Typography sx={{
-          color: '#fff', fontWeight: 800, fontSize: 'clamp(0.85rem, 1.5vw, 1rem)',
-          lineHeight: 1.3, mb: record.overview ? 0.8 : 0.6,
-          display: '-webkit-box', WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        }}>
-          {record.title}
-        </Typography>
-
-        {/* Overview */}
-        {record.overview && (
-          <Typography sx={{
-            color: 'rgba(255,255,255,.6)', fontSize: '0.8rem',
-            lineHeight: 1.55, mb: 0.9,
-            display: '-webkit-box', WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }}>
-            {record.overview}
-          </Typography>
-        )}
-
-        {/* Genres */}
-        {record.genres?.length > 0 && (
-          <Typography sx={{ color: 'rgba(255,255,255,.38)', fontSize: '0.72rem', mb: 0.7 }}>
-            {record.genres.slice(0, 4).join(' · ')}
-          </Typography>
-        )}
-
-        {/* Providers */}
-        {record.providers?.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap' }}>
-            {record.providers.slice(0, 6).map(p =>
-              p.logoPath && (
-                <Box
-                  key={p.providerId ?? p.providerName}
-                  component="img"
-                  src={tmdbImg(p.logoPath, 'w92')}
-                  alt={p.providerName}
-                  title={p.providerName}
-                  sx={{ width: 26, height: 26, borderRadius: 1, objectFit: 'cover' }}
-                />
-              )
-            )}
-          </Box>
-        )}
-      </Box>
-    </motion.div>,
-    document.body
-  );
-};
+// Re-exported for the rail rows that import it from here.
+export { RecordCardSkeleton };
 
 // ─── RecordCard ───────────────────────────────────────────────────────────────
 
@@ -455,7 +64,7 @@ const RecordCard = ({
   // ── hover ─────────────────────────────────────────────────────────────────
   const onMouseEnter = useCallback(() => {
     if (isMobile) return;
-    if (Date.now() < navBlockUntil) return; // suppressed: just navigated from a popup
+    if (Date.now() < navBlock.until) return; // suppressed: just navigated from a popup
     preloadDetail(); // warm the detail chunk so the modal opens instantly on click
     // Prime (expandOnHover) cards open fast for snappy switching between cards;
     // the popup-style cards keep the longer intent delay. The grow direction is
@@ -500,25 +109,10 @@ const RecordCard = ({
   // render a bigger portrait poster and an enormous stroked rank number.
   const isTopTen = rank != null;
 
-  // ── image ──────────────────────────────────────────────────────────────────
-  // Landscape cards show backdrop. wide/continue/billboard prefer backdropPathText
-  // (TMDB title-burned image) so the card always shows a name without an overlay.
-  // Image variant: a rail can force WITH_TEXT / WITHOUT_TEXT for both backdrop and
-  // poster; otherwise fall back to the per-display-type default (useTextBackdrop).
-  const forceClean = imageVariant === 'WITHOUT_TEXT';
-  const useTextBackdrop = imageVariant === 'WITH_TEXT'
-    ? true
-    : forceClean
-      ? false
-      : (cfg.useTextBackdrop ?? false);
-  const imgPath = isExpanded || isLandscape
-    ? useTextBackdrop
-      ? (record.backdropPathText ?? record.backdropPath ?? record.posterPath)
-      : (record.backdropPath ?? record.backdropPathText ?? record.posterPath)
-    : forceClean
-      ? (record.posterPathClean ?? record.posterPath ?? record.backdropPath ?? record.backdropPathText)
-      : (record.posterPath ?? record.posterPathClean ?? record.backdropPath ?? record.backdropPathText);
-
+  // ── image — driven by display-type default + per-rail imageVariant ──────────
+  const { useTextBackdrop, imgPath } = resolveCardImage({
+    record, cfg, imageVariant, landscape: isExpanded || isLandscape,
+  });
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
 
   // ── dimensions — driven by RAIL_TYPE_CONFIG ─────────────────────────────
