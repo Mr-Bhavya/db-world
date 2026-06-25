@@ -359,9 +359,11 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             cmd.addAll(List.of("-i", poster.toAbsolutePath().toString()));
         }
 
-        // Preserve source stream metadata so track titles survive filtering/remuxing.
-        // Global title/description are still overridden explicitly below.
-        cmd.addAll(List.of("-map_metadata", "0"));
+        // Drop ALL source CONTAINER (global) metadata — this strips release-group /
+        // site tags (URLs, comments, "encoded by", etc.) that some rips embed.
+        // Per-stream metadata (track titles, languages) is NOT affected by this and
+        // survives via -c copy; the global title/description we want are re-added below.
+        cmd.addAll(List.of("-map_metadata", "-1"));
 
         boolean hasFilter = filter != null && filter.hasAnyFilter();
 
@@ -412,11 +414,18 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         applyAudioTrackMetadata(cmd, filter);
         applySubtitleTrackMetadata(cmd, filter);
 
+        // ── Video stream title: codec / resolution / bit depth / HDR / bitrate ──
+        // (Not the movie name — that goes in the global title below.)
+        if (filter != null && filter.getVideoTrack() != null) {
+            String videoTitle = TrackTitleFormatter.formatVideoTitle(filter.getVideoTrack());
+            if (!videoTitle.isBlank()) {
+                cmd.addAll(List.of("-metadata:s:v:0", "title=" + videoTitle));
+            }
+        }
+
         // ── Global metadata ───────────────────────────────────────────────────
         if (metadataTitle != null && !metadataTitle.isBlank()) {
             cmd.addAll(List.of("-metadata", "title=" + metadataTitle));
-            // NOTE: do NOT set -metadata:s:v:0 title here — the stream's own codec
-            // title should reflect the video stream's actual properties, not the movie name
         }
         if (overview != null && !overview.isBlank()) {
             cmd.addAll(List.of("-metadata", "description=" + overview));
