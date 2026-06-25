@@ -50,6 +50,15 @@ export const RAIL_TYPE_CONFIG = {
     hover: 'popup',
     skeleton: 'poster',
     scroll: 'horizontal',
+    showPosterTitle: true,    // title caption bar at the bottom of the portrait poster
+  },
+  // Same portrait poster, but no title caption — a clean wall of artwork.
+  posterPlain: {
+    cardAspect: '2/3',
+    tiers: { mobile: 160, tablet: 180, desktop: 230, tv: 300 },
+    hover: 'popup',
+    skeleton: 'poster',
+    scroll: 'horizontal',
   },
   continue: {
     cardAspect: '16/9',
@@ -88,8 +97,15 @@ export const RAIL_TYPE_DEFAULT = 'standard';
 // When the backend adds rail.type, the first guard short-circuits everything.
 export function inferRailType(rail) {
   if (!rail) return RAIL_TYPE_DEFAULT;
+  // 1. Explicit admin-set display type from the API wins.
   if (rail.type && RAIL_TYPE_CONFIG[rail.type]) return rail.type;
 
+  // 2. Derive from the rail's rule type (reliable) before guessing from the title.
+  const ruleType = rail.rule?.type;
+  if (ruleType === 'continueWatching') return 'continue';
+  if (ruleType === 'person')           return 'person';
+
+  // 3. Legacy fallback: guess from the title.
   const t = (rail.title ?? '').toLowerCase();
 
   // ── top10 ── ranked / trending rows

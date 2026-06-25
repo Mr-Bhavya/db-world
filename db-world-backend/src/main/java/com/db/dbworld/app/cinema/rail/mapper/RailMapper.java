@@ -22,6 +22,7 @@ public interface RailMapper {
        ========================================= */
 
     @Mapping(target = "records", ignore = true)
+    @Mapping(target = "type", source = "displayType")
     RailDto toDto(RailEntity entity);
 
     /* =========================================

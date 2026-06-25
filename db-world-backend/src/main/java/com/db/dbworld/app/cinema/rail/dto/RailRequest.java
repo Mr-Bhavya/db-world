@@ -19,6 +19,9 @@ public class RailRequest {
 
     private boolean infiniteScroll;
 
+    /** Card display type (e.g. "standard", "wide", "poster", "posterPlain", "prime", "jumbo", "top10", "billboard"). Null/blank = AUTO. */
+    private String displayType;
+
     /** Pages this rail should appear on. Must contain at least one entry. */
     private Set<PageType> pageTypes;
 

@@ -47,7 +47,21 @@ const RULE_TYPES  = [
   { value: 'becauseYouWatched', label: 'Because You Watched' },
 ];
 const BLANK_RULE = { type: 'tag', tag: 'TRENDING', genreId: null, languages: [], field: '', value: '', recordType: '', sort: 'popularity', direction: 'DESC' };
-const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], rule: { ...BLANK_RULE } };
+const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], displayType: '', rule: { ...BLANK_RULE } };
+
+// Card display types selectable per rail. '' = Auto (client derives from rule
+// type — continueWatching/person — else responsive default: mobile poster / desktop 16:9).
+const DISPLAY_TYPES = [
+  { value: '',            label: 'Auto (default)' },
+  { value: 'standard',    label: 'Standard — 16:9 (poster on mobile)' },
+  { value: 'wide',        label: 'Wide — 16:9' },
+  { value: 'poster',      label: 'Poster' },
+  { value: 'posterPlain', label: 'Poster (no title)' },
+  { value: 'prime',       label: 'Prime' },
+  { value: 'jumbo',       label: 'Jumbo' },
+  { value: 'top10',       label: 'Top 10 (ranked)' },
+  { value: 'billboard',   label: 'Billboard' },
+];
 
 // Sub-tab keys for the Rails Tab. ALL = rails configured for >1 page.
 const RAIL_SCOPE_TABS = [
@@ -818,7 +832,7 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
     if (data) {
       // Normalize pageType (legacy) → pageTypes (current) at load time so the form
       // owns a single source of truth.
-      const incoming = { ...BLANK_RAIL, ...data, rule: { ...BLANK_RULE, ...(data.rule ?? {}) } };
+      const incoming = { ...BLANK_RAIL, ...data, displayType: data.type ?? data.displayType ?? '', rule: { ...BLANK_RULE, ...(data.rule ?? {}) } };
       const pageTypes = railPageTypes(incoming);
       setForm({ ...incoming, pageTypes: pageTypes.length ? pageTypes : ['HOME'] });
       setLangInput('');
@@ -907,11 +921,15 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           <TextField label="Priority" type="number" value={form.priority ?? 0} onChange={setField('priority')}
             size="small" inputProps={{ min: 0 }} sx={{ minWidth: 88, ...inputSx }} />
           <TextField label="Limit" type="number" value={form.limitSize ?? 20} onChange={setField('limitSize')}
             size="small" inputProps={{ min: 1, max: 200 }} sx={{ minWidth: 88, ...inputSx }} />
+          <TextField select label="Display Type" value={form.displayType ?? ''} onChange={setField('displayType')}
+            size="small" sx={{ minWidth: 230, ...inputSx }}>
+            {DISPLAY_TYPES.map(o => <MenuItem key={o.value || 'auto'} value={o.value}>{o.label}</MenuItem>)}
+          </TextField>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 3 }}>

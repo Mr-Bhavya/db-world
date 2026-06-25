@@ -37,6 +37,16 @@ public class RailEntity {
     private Boolean infiniteScroll = true;
 
     /**
+     * How this rail's cards are rendered on the client (e.g. "standard", "wide",
+     * "poster", "posterPlain", "prime", "jumbo", "top10", "billboard").
+     * Null/blank = AUTO: the client derives it from the rule type (continueWatching →
+     * continue, person → person) else falls back to the responsive default
+     * (mobile poster / desktop 16:9). Admin-editable via the Tags &amp; Rails page.
+     */
+    @Column(name = "display_type", length = 30)
+    private String displayType;
+
+    /**
      * Pages this rail appears on. A rail can target any subset of pages; the admin UI's
      * "All" sub-tab corresponds to rails with more than one entry here. Hibernate creates
      * the {@code rails_page_types} join table automatically (ddl-auto=update).

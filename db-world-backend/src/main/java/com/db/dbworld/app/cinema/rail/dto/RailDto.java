@@ -33,6 +33,12 @@ public class RailDto {
 
     private boolean infiniteScroll;
 
+    /**
+     * Card display type for the client (mapped from {@code RailEntity.displayType}).
+     * Null = AUTO (client derives from rule type, else responsive default).
+     */
+    private String type;
+
     /** Pages this rail appears on. */
     private Set<PageType> pageTypes;
 

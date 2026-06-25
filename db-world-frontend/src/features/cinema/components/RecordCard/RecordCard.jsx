@@ -995,6 +995,25 @@ const RecordCard = ({
           );
         })()}
 
+        {/* Poster title caption — only for type="poster" (posterPlain stays clean).
+            Portrait cards have no landscape overlay, so this gives them a name bar. */}
+        {cfg.showPosterTitle && !isLandscape && !expandOnHover && !hovered && (
+          <Box sx={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 55%, transparent 100%)',
+            px: 1, pb: 0.8, pt: 2.5, pointerEvents: 'none',
+          }}>
+            <Typography sx={{
+              color: '#fff', fontWeight: 700, fontSize: 'clamp(0.66rem, 1.6vw, 0.82rem)',
+              lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical', overflow: 'hidden',
+              textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+            }}>
+              {record.title}
+            </Typography>
+          </Box>
+        )}
+
         {/* Wide / Continue inline hover details */}
         {hovered && useInlineWideHover && !isMobile && (
           <Box
