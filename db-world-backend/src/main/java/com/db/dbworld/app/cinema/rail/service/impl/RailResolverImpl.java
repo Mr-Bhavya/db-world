@@ -74,6 +74,10 @@ public class RailResolverImpl implements RailResolver {
                     .map(RailItemEntity::getRecord);
 
             case "tag" -> {
+                List<RecordTagType> tags = parseTags(rule);
+                if (!tags.isEmpty()) {
+                    yield recordRepository.findByTags(tags, sortedPageable);
+                }
                 RecordTagType tag;
                 try {
                     tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
@@ -278,6 +282,17 @@ public class RailResolverImpl implements RailResolver {
     private Slice<Long> resolveTagIds(RailRule rule, RecordType effectiveType,
                                       Long category, Pageable pageable) {
 
+        // Multi-tag union (combined rails). No genre/type sub-filtering — these rails
+        // are simple "any of these tags, newest first" home rails.
+        List<RecordTagType> tags = parseTags(rule);
+        if (!tags.isEmpty()) {
+            if (RailSortBuilder.isTagPrioritySort(pageable.getSort())) {
+                Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+                return recordRepository.findIdsByTagsOrderByPriorityDesc(tags, unsorted);
+            }
+            return recordRepository.findIdsByTags(tags, pageable);
+        }
+
         RecordTagType tag;
         try {
             tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
@@ -411,7 +426,27 @@ public class RailResolverImpl implements RailResolver {
             }
         }
 
+        // Multi-tag (union) rails sort by the computed per-record score, newest-first.
+        if ("tag".equals(rule.getType()) && rule.getTags() != null && !rule.getTags().isEmpty()) {
+            return RailSortBuilder.build("tagPriority", "DESC");
+        }
+
         return Sort.unsorted();
+    }
+
+    /** Parses {@code rule.tags} into valid {@link RecordTagType}s; empty when none/unset. */
+    private List<RecordTagType> parseTags(RailRule rule) {
+        if (rule.getTags() == null || rule.getTags().isEmpty()) {
+            return List.of();
+        }
+        List<RecordTagType> result = new java.util.ArrayList<>();
+        for (String t : rule.getTags()) {
+            if (t == null || t.isBlank()) continue;
+            try {
+                result.add(RecordTagType.valueOf(t.toUpperCase()));
+            } catch (IllegalArgumentException ignored) { /* skip unknown */ }
+        }
+        return result;
     }
 
     /**

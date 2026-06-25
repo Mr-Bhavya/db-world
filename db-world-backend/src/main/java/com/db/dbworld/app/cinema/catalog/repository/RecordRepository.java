@@ -55,6 +55,44 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             Pageable pageable
     );
 
+    // ── Multi-tag union (combined rails, e.g. NEW_SEASON + NEW_EPISODE) ──────────
+    // A record carries at most one of these tags, so no DISTINCT/GROUP BY is needed.
+
+    @Query("""
+            SELECT r
+            FROM RecordEntity r
+            JOIN r.tags tag
+            JOIN r.tmdb tmdb
+            WHERE tag.tagType IN :tags
+            """)
+    Slice<RecordEntity> findByTags(
+            @Param("tags") java.util.Collection<RecordTagType> tags,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags tag
+            WHERE tag.tagType IN :tags
+            """)
+    Slice<Long> findIdsByTags(
+            @Param("tags") java.util.Collection<RecordTagType> tags,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags tag
+            WHERE tag.tagType IN :tags
+            ORDER BY tag.priority DESC
+            """)
+    Slice<Long> findIdsByTagsOrderByPriorityDesc(
+            @Param("tags") java.util.Collection<RecordTagType> tags,
+            Pageable pageable
+    );
+
     @Query("""
             SELECT r.id
             FROM RecordEntity r

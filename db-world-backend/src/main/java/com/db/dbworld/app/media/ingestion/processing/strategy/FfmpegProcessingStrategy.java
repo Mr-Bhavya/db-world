@@ -10,6 +10,7 @@ import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
+import com.db.dbworld.app.cinema.catalog.tags.services.NewContentTaggingService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaSource;
@@ -60,6 +61,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final SymlinkService             symlinkService;
     private final SmartTrackFilterService    smartTrackFilterService;
     private final StoryboardService          storyboardService;
+    private final NewContentTaggingService   newContentTaggingService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -247,6 +249,15 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto));
             } catch (Exception e) {
                 ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
+            }
+
+            // Flag new season/episode so the record resurfaces on the home rail (TV only; best-effort).
+            try {
+                EpisodeRef ref = resolveEpisodeRef(ctx, finalFile);
+                newContentTaggingService.evaluate(ctx.getRecordId(), finalDto.getId(),
+                        ref != null ? ref.season() : null, ref != null ? ref.episode() : null);
+            } catch (Exception e) {
+                ctx.logError("NEW_CONTENT", "New-content flagging failed (non-fatal): " + e.getMessage());
             }
 
             log.info("[{}] FFmpeg processing complete — finalFile={}, mediaFileId={}",
