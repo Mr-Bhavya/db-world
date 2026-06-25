@@ -6,9 +6,31 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import Constants from '@shared/constants';
-import { resolveMediaUrl } from '@shared/services/ApiServices';
+import { resolveMediaUrl, loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
+import { parseEpisode } from '../../utils/episodeUtils';
+import { buildStoryboard } from '../../utils/storyboard';
 import ContinueCard from './ContinueCard';
+
+// Build the player's episode list from a record's media files (one entry per
+// season/episode), so resuming a series gets the episode picker + Next button.
+const pad = (n) => String(n).padStart(2, '0');
+function buildEpisodes(files) {
+  const byEp = new Map();
+  for (const f of files || []) {
+    const ep = parseEpisode(f.fileName);
+    if (!ep) continue;
+    const key = `${ep.season}x${ep.episode}`;
+    if (!byEp.has(key)) byEp.set(key, { f, ep });
+  }
+  return [...byEp.values()]
+    .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
+    .map(({ f, ep }) => ({
+      id: String(f.id), fileId: String(f.id), mediaFileId: f.id,
+      season: ep.season, episode: ep.episode,
+      label: `S${pad(ep.season)}E${pad(ep.episode)}`, name: '', url: '',
+    }));
+}
 
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
@@ -57,9 +79,19 @@ const ContinueRailRow = () => {
     if (resuming) return;
     setResuming(true);
     try {
-      const res = await resolveMediaUrl(item.resumeFileId, 'ONLINE');
+      // Resolve the stream URL and (for series) the record's media files in parallel,
+      // so the player gets the episode list + Next/Episodes buttons.
+      const isSeries = item.type === 'TV_SERIES';
+      const [res, infoResp] = await Promise.all([
+        resolveMediaUrl(item.resumeFileId, 'ONLINE'),
+        isSeries ? loadStreamFileInfoByRecordId(item.recordId).catch(() => null) : Promise.resolve(null),
+      ]);
       const url = res?.data?.cdnUrl;
       if (!url) throw new Error('No stream URL');
+
+      const episodes = isSeries ? buildEpisodes(infoResp?.data ?? []) : [];
+      const storyboard = buildStoryboard(url, item.resumeFileId, res?.data?.mediaFile) || null;
+
       // The player resumes from the saved progress for this fileId automatically.
       navigate(Constants.DB_PLAYER_ROUTE, {
         state: {
@@ -68,6 +100,8 @@ const ContinueRailRow = () => {
             fileId: item.resumeFileId,
             title: item.title,
             recordId: item.recordId,
+            episodes,
+            storyboard,
           },
         },
       });

@@ -81,9 +81,9 @@ const ContinueCard = ({ item, onResume, onRemove }) => {
         )}
       </Box>
 
-      {/* Progress bar pinned to the very bottom */}
+      {/* Progress bar pinned to the very bottom (teal app accent) */}
       <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, bgcolor: 'rgba(255,255,255,.25)' }}>
-        <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: '#e50914' }} />
+        <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: '#14b8a6' }} />
       </Box>
     </Box>
   );
