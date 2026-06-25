@@ -419,7 +419,7 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
 
 const RecordCard = ({
   record, rank, expandOnHover = false, type: typeProp, wide = false, interaction = {},
-  index, onHoverExpand, expandDir = 'left',
+  index, onHoverExpand, expandDir = 'left', imageVariant = null,
   forceExpanded = false, onWatchlist, onLike, onLove, onWatched
 }) => {
 
@@ -503,12 +503,21 @@ const RecordCard = ({
   // ── image ──────────────────────────────────────────────────────────────────
   // Landscape cards show backdrop. wide/continue/billboard prefer backdropPathText
   // (TMDB title-burned image) so the card always shows a name without an overlay.
-  const useTextBackdrop = cfg.useTextBackdrop ?? false;
+  // Image variant: a rail can force WITH_TEXT / WITHOUT_TEXT for both backdrop and
+  // poster; otherwise fall back to the per-display-type default (useTextBackdrop).
+  const forceClean = imageVariant === 'WITHOUT_TEXT';
+  const useTextBackdrop = imageVariant === 'WITH_TEXT'
+    ? true
+    : forceClean
+      ? false
+      : (cfg.useTextBackdrop ?? false);
   const imgPath = isExpanded || isLandscape
     ? useTextBackdrop
       ? (record.backdropPathText ?? record.backdropPath ?? record.posterPath)
       : (record.backdropPath ?? record.backdropPathText ?? record.posterPath)
-    : (record.posterPath ?? record.backdropPath ?? record.backdropPathText);
+    : forceClean
+      ? (record.posterPathClean ?? record.posterPath ?? record.backdropPath ?? record.backdropPathText)
+      : (record.posterPath ?? record.posterPathClean ?? record.backdropPath ?? record.backdropPathText);
 
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
 

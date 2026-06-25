@@ -47,7 +47,14 @@ const RULE_TYPES  = [
   { value: 'becauseYouWatched', label: 'Because You Watched' },
 ];
 const BLANK_RULE = { type: 'tag', tag: 'TRENDING', genreId: null, languages: [], field: '', value: '', recordType: '', sort: 'popularity', direction: 'DESC' };
-const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], displayType: '', rule: { ...BLANK_RULE } };
+const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], displayType: '', imageVariant: '', rule: { ...BLANK_RULE } };
+
+// Which image the cards use. '' = Auto (per display-type default).
+const IMAGE_VARIANTS = [
+  { value: '',             label: 'Auto' },
+  { value: 'WITH_TEXT',    label: 'With text (title art)' },
+  { value: 'WITHOUT_TEXT', label: 'Without text (clean)' },
+];
 
 // Card display types selectable per rail. '' = Auto (client derives from rule
 // type — continueWatching/person — else responsive default: mobile poster / desktop 16:9).
@@ -832,7 +839,7 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
     if (data) {
       // Normalize pageType (legacy) → pageTypes (current) at load time so the form
       // owns a single source of truth.
-      const incoming = { ...BLANK_RAIL, ...data, displayType: data.type ?? data.displayType ?? '', rule: { ...BLANK_RULE, ...(data.rule ?? {}) } };
+      const incoming = { ...BLANK_RAIL, ...data, displayType: data.type ?? data.displayType ?? '', imageVariant: data.imageVariant ?? '', rule: { ...BLANK_RULE, ...(data.rule ?? {}) } };
       const pageTypes = railPageTypes(incoming);
       setForm({ ...incoming, pageTypes: pageTypes.length ? pageTypes : ['HOME'] });
       setLangInput('');
@@ -929,6 +936,10 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
           <TextField select label="Display Type" value={form.displayType ?? ''} onChange={setField('displayType')}
             size="small" sx={{ minWidth: 230, ...inputSx }}>
             {DISPLAY_TYPES.map(o => <MenuItem key={o.value || 'auto'} value={o.value}>{o.label}</MenuItem>)}
+          </TextField>
+          <TextField select label="Image" value={form.imageVariant ?? ''} onChange={setField('imageVariant')}
+            size="small" sx={{ minWidth: 190, ...inputSx }}>
+            {IMAGE_VARIANTS.map(o => <MenuItem key={o.value || 'auto'} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
         </Box>
 

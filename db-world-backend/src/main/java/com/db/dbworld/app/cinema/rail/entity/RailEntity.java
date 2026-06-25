@@ -47,6 +47,14 @@ public class RailEntity {
     private String displayType;
 
     /**
+     * Which image variant the cards use: "WITH_TEXT" (poster with title /
+     * backdrop with title-logo) or "WITHOUT_TEXT" (clean poster / clean backdrop).
+     * Null/blank = AUTO (per display-type default). Admin-editable.
+     */
+    @Column(name = "image_variant", length = 20)
+    private String imageVariant;
+
+    /**
      * Pages this rail appears on. A rail can target any subset of pages; the admin UI's
      * "All" sub-tab corresponds to rails with more than one entry here. Hibernate creates
      * the {@code rails_page_types} join table automatically (ddl-auto=update).

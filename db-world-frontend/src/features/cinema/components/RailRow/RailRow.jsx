@@ -467,6 +467,7 @@ const PRIME_SHIFT = (() => {
                         <RecordCard
                           record={rec}
                           type={type}
+                          imageVariant={rail?.imageVariant}
                           interaction={interactions[rec.id] ?? {}}
                           onWatchlist={onWatchlist}
                           onLike={onLike}
@@ -492,6 +493,7 @@ const PRIME_SHIFT = (() => {
                       <RecordCard
                         record={rec}
                         type={type}
+                        imageVariant={rail?.imageVariant}
                         interaction={interactions[rec.id] ?? {}}
                         onWatchlist={onWatchlist}
                         onLike={onLike}

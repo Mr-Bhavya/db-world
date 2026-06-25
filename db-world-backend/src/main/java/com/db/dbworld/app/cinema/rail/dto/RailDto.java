@@ -39,6 +39,9 @@ public class RailDto {
      */
     private String type;
 
+    /** Image variant for the cards: WITH_TEXT | WITHOUT_TEXT | null (AUTO). */
+    private String imageVariant;
+
     /** Pages this rail appears on. */
     private Set<PageType> pageTypes;
 
