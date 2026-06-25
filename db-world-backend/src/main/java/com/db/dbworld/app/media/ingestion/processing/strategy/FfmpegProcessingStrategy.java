@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -117,26 +118,55 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return result;
         }
 
-        ctx.log("FFMPEG", "Processing " + mediaFiles.size() + " extracted file(s)");
-
         Integer originalSeason  = ctx.getRequest().getSeason();
         Integer originalEpisode = ctx.getRequest().getEpisode();
+
+        // Partition: episode files carry a detectable SxxExx pattern; everything else
+        // is an extra/sample/featurette.
+        List<Path> episodeFiles = mediaFiles.stream()
+                .filter(f -> detectFromFilename(f) != null)
+                .collect(Collectors.toList());
+
+        List<Path> toProcess;
+        boolean perFileEpisode;
+        if (!episodeFiles.isEmpty()) {
+            // Season pack (one or more episodes): process each detected episode with its
+            // OWN season/episode, ignoring any single value on the request; skip files
+            // without an SxxExx pattern so samples/extras don't collide or mis-tag.
+            toProcess = episodeFiles;
+            perFileEpisode = true;
+            int skipped = mediaFiles.size() - episodeFiles.size();
+            if (skipped > 0) {
+                ctx.log("FFMPEG", "Skipping " + skipped + " non-episode file(s) without an SxxExx pattern");
+            }
+        } else {
+            // No episodes detected → single title (movie / single file). Pick the largest
+            // media file so a bundled "sample" clip is ignored, keeping the user's
+            // season/episode (if any) for that one file.
+            Path main = mediaFiles.stream()
+                    .max(Comparator.comparingLong(this::sizeQuietly))
+                    .orElse(mediaFiles.getFirst());
+            toProcess = List.of(main);
+            perFileEpisode = false;
+            if (mediaFiles.size() > 1) {
+                ctx.log("FFMPEG", "No SxxExx episodes detected — processing largest file: " + main.getFileName());
+            }
+        }
+
+        ctx.log("FFMPEG", "Processing " + toProcess.size() + " of " + mediaFiles.size() + " media file(s)");
 
         Path lastFinalFile = null;
         Map<String, Object> lastMediaInfo = null;
         int successCount = 0;
 
-        for (Path file : mediaFiles) {
-            // If season/episode were not provided by the user, infer them per-file
-            if (originalSeason == null) {
-                EpisodeRef ref = detectFromFilename(file);
-                if (ref != null) {
-                    ctx.getRequest().setSeason(ref.season());
-                    ctx.getRequest().setEpisode(ref.episode());
-                }
+        for (Path file : toProcess) {
+            if (perFileEpisode) {
+                EpisodeRef ref = detectFromFilename(file); // non-null by construction
+                ctx.getRequest().setSeason(ref.season());
+                ctx.getRequest().setEpisode(ref.episode());
             }
 
-            ctx.log("FFMPEG", "Processing extracted: " + file.getFileName());
+            ctx.log("FFMPEG", "Processing: " + file.getFileName());
             try {
                 ProcessingResult fileResult = processSingleFile(ctx, file);
                 if (fileResult.isSuccess()) {
@@ -158,14 +188,18 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         ProcessingResult result = new ProcessingResult();
         if (successCount == 0) {
             result.setSuccess(false);
-            result.setErrorMessage("All " + mediaFiles.size() + " extracted files failed FFmpeg processing");
+            result.setErrorMessage("No media files were processed successfully in " + dir);
         } else {
             result.setFinalFile(lastFinalFile);
             result.setMediaInfo(lastMediaInfo);
             result.setSuccess(true);
-            ctx.log("FFMPEG", "Completed: " + successCount + "/" + mediaFiles.size() + " files processed");
+            ctx.log("FFMPEG", "Completed: " + successCount + "/" + toProcess.size() + " file(s) processed");
         }
         return result;
+    }
+
+    private long sizeQuietly(Path p) {
+        try { return Files.size(p); } catch (IOException e) { return 0L; }
     }
 
     // ── Single-file processing ────────────────────────────────────────────────
