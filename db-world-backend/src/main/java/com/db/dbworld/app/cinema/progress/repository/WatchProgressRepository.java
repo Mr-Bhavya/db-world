@@ -21,6 +21,15 @@ public interface WatchProgressRepository extends JpaRepository<WatchProgressEnti
 
     List<WatchProgressEntity> findByUserIdAndUpdatedAtAfterOrderByUpdatedAtDesc(Long userId, Instant after);
 
+    /** All of a user's progress rows, newest first (for building Continue Watching). */
+    List<WatchProgressEntity> findByUserIdOrderByUpdatedAtDesc(Long userId);
+
+    /** Remove from Continue Watching: drop all of a user's progress for one record. */
+    long deleteByUserIdAndRecordId(Long userId, Long recordId);
+
+    /** Drop a single file's progress for a user. */
+    long deleteByUserIdAndFileId(Long userId, String fileId);
+
     /**
      * Atomic upsert. Player clients can fire two saves for the same (user, file) within
      * milliseconds; the previous find-then-insert flow raced and tripped the
