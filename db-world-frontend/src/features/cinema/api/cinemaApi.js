@@ -15,6 +15,15 @@ export const getWatchProgress = (fileId) =>
 export const getRecentProgress = (days = 30) =>
   axiosInstance.get(`${BASE}/progress`, { params: { days } }).then(r => r.data?.data ?? []);
 
+// Continue Watching: enriched tiles (resume target + progress), completed items
+// already filtered out server-side.
+export const getContinueWatching = () =>
+  axiosInstance.get(`${BASE}/progress/continue`).then(r => r.data?.data ?? []);
+
+// Remove a whole title from Continue Watching.
+export const removeContinueWatching = (recordId) =>
+  axiosInstance.delete(`${BASE}/progress/record/${recordId}`).then(r => r.data);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build a full TMDB image URL from a path. */

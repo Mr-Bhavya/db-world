@@ -8,6 +8,7 @@ import Navbar from '../../navbar';
 import HeroBanner from '../../components/HeroBanner/HeroBanner';
 import RailRow from '../../components/RailRow/RailRow';
 import RailSkeleton from '../../components/RailRow/RailSkeleton';
+import ContinueRailRow from '../../components/ContinueRailRow/ContinueRailRow';
 import { fetchPageRails, fetchPageCategories } from '../../api/cinemaApi';
 import useInteractions from '../../hooks/useInteractions';
 import useRailRecords from '../../hooks/useRailRecords';
@@ -311,7 +312,13 @@ const CinemaPage = ({ pageType = 'home' }) => {
             </>
           ) : (
             <>
-              {remainingRails.map((rail) => (
+              {/* Continue Watching — self-contained (progress + resume + remove);
+                  hides itself when empty. Drops any backend continueWatching rail
+                  below to avoid a duplicate plain row. */}
+              <ContinueRailRow />
+              {remainingRails
+                .filter((rail) => rail?.rule?.type !== 'continueWatching')
+                .map((rail) => (
                 <RailRow
                   key={rail.id}
                   rail={rail}
