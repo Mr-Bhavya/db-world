@@ -517,7 +517,9 @@ export default function DbWorldVideoPlayer({
       onMouseMove={!isNative ? showControls : undefined}   // desktop: reveal controls on mouse move
       onClick={!isNative ? (e) => { if (!e.target.closest('button, input')) showControls(); } : undefined}
       style={{ position: 'fixed', inset: 0, zIndex: 2000, background: isNative ? 'transparent' : '#000',
-               overflow: 'hidden', color: '#fff', fontFamily: 'system-ui, sans-serif', touchAction: 'none' }}
+               overflow: 'hidden', color: '#fff', fontFamily: 'system-ui, sans-serif', touchAction: 'none',
+               // Desktop: hide the cursor while the controls are hidden; mouse move re-shows both.
+               cursor: (!isNative && !controls) ? 'none' : 'default' }}
     >
       <style>{PLAYER_CSS}</style>
 
