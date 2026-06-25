@@ -37,7 +37,7 @@ public class ExtractionProcessingStrategy implements ProcessingStrategy {
 
     @Override
     public boolean supports(IngestionContext ctx) {
-        return ctx.getRequest().getExtract()
+        return Boolean.TRUE.equals(ctx.getRequest().getExtract())
                 && ctx.getDownload() != null
                 && ctx.getDownload().isSuccess()
                 && ctx.getDownload().getFilePath() != null;

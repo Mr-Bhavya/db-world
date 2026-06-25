@@ -148,7 +148,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
         Map<String, Object> options = new HashMap<>();
         options.put("dir", tempDir.toAbsolutePath().toString());
 
-        if (ctx.getRequest().getUrlProtected()) {
+        if (Boolean.TRUE.equals(ctx.getRequest().getUrlProtected())) {
             options.put("http-user", ctx.getRequest().getUsername());
             options.put("http-passwd", ctx.getRequest().getPassword());
         }

@@ -11,7 +11,7 @@ import TicTacToe from '@features/games/TicTacToe';
 import Snake from '@features/games/Snake';
 import MemoryMatch from '@features/games/MemoryMatch';
 import Game2048 from '@features/games/Game2048';
-import Home from '@shared/components/layout/Home';
+import Home from '@shared/components/layout/home/Home';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import PasswordManagment from '@features/password-manager/PasswordManagement';
 import GeneratePassword from '@features/password-manager/GeneratePassword';
