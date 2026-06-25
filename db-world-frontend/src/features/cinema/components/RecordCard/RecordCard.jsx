@@ -1,30 +1,27 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React from 'react';
 import { motion } from 'framer-motion';
-import {
-  Box, Typography, IconButton, Skeleton, Tooltip,
-  useMediaQuery, useTheme,
-} from '@mui/material';
-import {
-  PlayArrow, Check, ThumbUp, ThumbUpOutlined,
-  Favorite, FavoriteBorder,
-  Visibility, VisibilityOff,
-  BookmarkAdd, BookmarkAdded,
-  ExpandMore, Star,
-} from '@mui/icons-material';
+import { Box, Typography, Skeleton } from '@mui/material';
 import { tmdbImg } from '../../api/cinemaApi';
-import { openRecord, preloadDetail, rectOf } from '../../utils/recordNav';
-import useDeviceTier from '../../hooks/useDeviceTier';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../RailRow/railTypeConfig';
+import useCardInteraction from './parts/useCardInteraction';
+import { resolveCardImage } from './parts/cardImage';
 import RecordCardSkeleton from './parts/RecordCardSkeleton';
 import HoverPopup from './parts/HoverPopup';
-import { year, navBlock } from './parts/cardHelpers';
-import { resolveCardImage } from './parts/cardImage';
+import PrimeDesktopCard from './parts/PrimeDesktopCard';
+import {
+  CardTitleOverlay, PosterCaption, ExpandedInfoBar,
+  WideHoverOverlay, CompactHoverOverlay, WatchedBadge,
+} from './parts/CardOverlays';
 
 // Re-exported for the rail rows that import it from here.
 export { RecordCardSkeleton };
 
 // ─── RecordCard ───────────────────────────────────────────────────────────────
+//
+// Thin shell: resolves the display type + dimensions + image, owns shared
+// interaction state (via useCardInteraction), then either dispatches the
+// distinct desktop-prime layout or renders the standard card box with the
+// per-type overlay components from ./parts/CardOverlays.
 
 const RecordCard = ({
   record, rank, expandOnHover = false, type: typeProp, wide = false, interaction = {},
@@ -32,95 +29,52 @@ const RecordCard = ({
   forceExpanded = false, onWatchlist, onLike, onLove, onWatched
 }) => {
 
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const tier = useDeviceTier();
-  const isTv = tier === 'tv';
   // Resolve type: explicit prop wins, then infer from legacy boolean props
   const type = typeProp ?? (expandOnHover ? 'prime' : rank != null ? 'top10' : wide ? 'wide' : 'standard');
   const cfg = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
-  const baseH = cfg.tiers[tier];
-
   const isWideType = type === 'wide' || type === 'continue';
   const useInlineWideHover = isWideType;
+
+  const {
+    isMobile, tier, isTv,
+    hovered, anchorRect, cardRef,
+    imgError, imgLoaded, setImgError, setImgLoaded,
+    onMouseEnter, onMouseLeave, goDetail, goPlay,
+  } = useCardInteraction({ expandOnHover, useInlineWideHover, index, onHoverExpand, record });
 
   // Standard cards use poster (2:3) on mobile/tablet, backdrop (16:9) on desktop/tv
   const isMobileTier = tier === 'mobile' || tier === 'tablet';
   const effectiveAspect = (cfg.mobileAspect && isMobileTier) ? cfg.mobileAspect : cfg.cardAspect;
   const isLandscape = effectiveAspect === '16/9';
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const [hovered, setHovered] = useState(false);
-  const [imgError, setImgError] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [anchorRect, setAnchorRect] = useState(null);
-
-  const cardRef = useRef(null);
-  const hoverTimer = useRef(null);
-
-  const isMovie = record?.type === 'MOVIE';
-
-  // ── hover ─────────────────────────────────────────────────────────────────
-  const onMouseEnter = useCallback(() => {
-    if (isMobile) return;
-    if (Date.now() < navBlock.until) return; // suppressed: just navigated from a popup
-    preloadDetail(); // warm the detail chunk so the modal opens instantly on click
-    // Prime (expandOnHover) cards open fast for snappy switching between cards;
-    // the popup-style cards keep the longer intent delay. The grow direction is
-    // decided by RailRow from real pointer movement (passed back as expandDir).
-    const delay = expandOnHover ? 110 : useInlineWideHover ? 140 : 380;
-    hoverTimer.current = setTimeout(() => {
-      if (cardRef.current) setAnchorRect(cardRef.current.getBoundingClientRect());
-      setHovered(true);
-      if (expandOnHover) onHoverExpand?.(index);
-    }, delay);
-  }, [isMobile, expandOnHover, onHoverExpand, index, useInlineWideHover]);
-
-  const onMouseLeave = useCallback(() => {
-    clearTimeout(hoverTimer.current);
-    setHovered(false);
-    setAnchorRect(null);
-    if (expandOnHover) onHoverExpand?.(null, null);
-  }, [expandOnHover, onHoverExpand]);
-
-  // ── navigation ────────────────────────────────────────────────────────────
-  // Always open the detail as an OVERLAY (background location set): a bottom
-  // sheet on mobile, a Netflix-style modal on desktop. The underlying page
-  // stays mounted, so closing keeps scroll position and avoids a refetch.
-  const goDetail = useCallback((e) => {
-    e?.stopPropagation();
-    openRecord(navigate, location, record, { originRect: rectOf(e?.currentTarget) });
-  }, [navigate, location, record]);
-
-  const goPlay = useCallback((e) => {
-    e?.stopPropagation();
-    openRecord(navigate, location, record, { play: true });
-  }, [navigate, location, record]);
 
   if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} top10={rank != null} />;
 
-  // Mobile has no hover, so prime cards always show in the featured landscape
-  // state (otherwise they shrink to a tiny 9:16 portrait and look broken).
+  // Mobile has no hover, so prime cards always show in the featured landscape state.
   const isExpanded = expandOnHover && (forceExpanded || hovered || isMobile);
-
-  // Top 10 jumbo mode: a Netflix-style featured row. The rank prop being set
-  // means the parent RailRow already detected this as a Top 10 rail; we then
-  // render a bigger portrait poster and an enormous stroked rank number.
   const isTopTen = rank != null;
 
-  // ── image — driven by display-type default + per-rail imageVariant ──────────
+  // ── image — display-type default + per-rail imageVariant ──────────────────
   const { useTextBackdrop, imgPath } = resolveCardImage({
     record, cfg, imageVariant, landscape: isExpanded || isLandscape,
   });
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
 
+  // ── Desktop prime: distinct fixed-slot / expand-on-hover layout ────────────
+  if (expandOnHover && !isMobile) {
+    return (
+      <PrimeDesktopCard
+        record={record} interaction={interaction} cfg={cfg}
+        expandDir={isExpanded ? expandDir : 'right'} isExpanded={isExpanded}
+        cardRef={cardRef} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
+        goDetail={goDetail} goPlay={goPlay}
+        imgError={imgError} imgLoaded={imgLoaded} setImgError={setImgError} setImgLoaded={setImgLoaded}
+        onWatchlist={onWatchlist} onLike={onLike}
+      />
+    );
+  }
+
   // ── dimensions — driven by RAIL_TYPE_CONFIG ─────────────────────────────
-  const PRIME_HEIGHT = {
-    xs: cfg.tiers.mobile,
-    sm: cfg.tiers.tablet,
-    md: cfg.tiers.desktop,
-  };
+  const PRIME_HEIGHT = { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop };
 
   const cardWidth = (type === 'prime')
     ? {
@@ -155,8 +109,6 @@ const RecordCard = ({
   const aspectRatio = effectiveAspect.replace('/', ' / ');
 
   // ── motion ────────────────────────────────────────────────────────────────
-  // Prime cards: pure horizontal width expand — no lift, no shadow, no glow.
-  // Non-prime cards keep the simple scale-on-hover behaviour.
   const motionAnimate = expandOnHover
     ? { zIndex: isExpanded ? 10 : 1 }
     : useInlineWideHover
@@ -169,117 +121,10 @@ const RecordCard = ({
       ? { duration: 0.2, ease: 'easeOut' }
       : { duration: 0.15, ease: 'easeOut' };
 
-  // ── Desktop prime rail: fixed portrait SLOT (never reflows) + an absolute
-  // landscape overlay on hover that grows toward `expandDir`. Because the slot
-  // footprint is constant, hovering across cards never shifts the row, so the
-  // cursor lands on the next card instead of skipping several. ───────────────
-  const desktopPrime = expandOnHover && !isMobile;
-  if (desktopPrime) {
-    const PRIME_H = cfg.tiers.desktop;
-    const PORTRAIT = Math.round(PRIME_H * 9 / 16);   // 214
-    const GAP = 6;                              // breathing room to neighbours
-    const LANDSCAPE = Math.round(PRIME_H * 16 / 9) - GAP; // expanded width, minus the gap
-    const portraitSrc = imgError ? null : tmdbImg(record.posterPath ?? record.backdropPath, 'w342');
-    const landscapeSrc = imgError ? null : tmdbImg(record.backdropPath ?? record.posterPath, 'w780');
-    const iconBtn = (title, onClick, child, extra = {}) => (
-      <Tooltip title={title}>
-        <IconButton size="small" onClick={onClick}
-          sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: '#fff', p: 0.65, '&:hover': { borderColor: '#fff' }, ...extra }}>
-          {child}
-        </IconButton>
-      </Tooltip>
-    );
-    return (
-      <Box
-        ref={cardRef}
-        component={motion.div}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        onClick={goDetail}
-        animate={{ zIndex: isExpanded ? 10 : 1 }}
-        transition={{ duration: 0 }}
-        sx={{ flexShrink: 0, position: 'relative', width: PORTRAIT, height: PRIME_H, cursor: 'pointer' }}
-      >
-        {/* Idle portrait poster — the fixed footprint */}
-        <Box sx={{ position: 'absolute', inset: 0, borderRadius: 1.5, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.06)' }}>
-          {!imgLoaded && <Skeleton variant="rectangular" width="100%" height="100%" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(255,255,255,.06)' }} />}
-          {portraitSrc && (
-            <Box component="img" src={portraitSrc} alt={record.title}
-              onLoad={() => setImgLoaded(true)} onError={() => { setImgError(true); setImgLoaded(true); }}
-              sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          )}
-          {interaction.watched && (
-            <Box sx={{ position: 'absolute', top: 6, right: 6, bgcolor: 'rgba(0,0,0,.72)', borderRadius: 10, px: 0.7, py: 0.2, display: 'flex', alignItems: 'center', gap: 0.3 }}>
-              <Check sx={{ fontSize: 10, color: '#4caf50' }} />
-              <Typography sx={{ fontSize: '0.6rem', color: '#4caf50', fontWeight: 700 }}>Watched</Typography>
-            </Box>
-          )}
-        </Box>
-
-        {/* Hover overlay — absolute landscape, grows toward expandDir (no reflow) */}
-        {isExpanded && (
-          <Box
-            component={motion.div}
-            initial={{ width: PORTRAIT, opacity: 0.5 }}
-            animate={{ width: LANDSCAPE, opacity: 1 }}
-            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-            sx={{
-              position: 'absolute', top: 0, height: PRIME_H,
-              // Anchor to the slot edge on the side we came from; the GAP baked
-              // into LANDSCAPE leaves a gap to the neighbour on the growing side
-              // (the anchored side already has the rail's gap).
-              ...(expandDir === 'left' ? { right: 0 } : { left: 0 }),
-              borderRadius: 1.5, overflow: 'hidden', zIndex: 5, bgcolor: '#141414',
-              // No shadow/glow — just the clean expand.
-            }}
-          >
-            {landscapeSrc && (
-              <Box component="img" src={landscapeSrc} alt={record.title}
-                sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-            )}
-            <Box sx={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              background: 'linear-gradient(to top, rgba(0,0,0,.97) 0%, rgba(0,0,0,.4) 75%, transparent 100%)',
-              p: 1.6, pt: 4,
-            }}>
-              <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', mb: 0.6, lineHeight: 1.2 }}>
-                {record.title}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 0.9, mb: 0.7, alignItems: 'center' }}>
-                {record.voteAverage > 0 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                    <Star sx={{ fontSize: 15, color: '#46d369' }} />
-                    <Typography sx={{ color: '#46d369', fontSize: '0.85rem', fontWeight: 700 }}>{Number(record.voteAverage).toFixed(1)}</Typography>
-                  </Box>
-                )}
-                {year(record.releaseDate) && <Typography sx={{ color: 'rgba(255,255,255,.6)', fontSize: '0.85rem' }}>{year(record.releaseDate)}</Typography>}
-              </Box>
-              {record.genres?.length > 0 && (
-                <Typography sx={{ color: 'rgba(255,255,255,.45)', fontSize: '0.74rem', mb: 1 }}>
-                  {record.genres.slice(0, 3).join(' · ')}
-                </Typography>
-              )}
-              <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
-                <Tooltip title="Play">
-                  <IconButton size="small" onClick={goPlay} sx={{ bgcolor: '#fff', color: '#000', p: 0.7, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }}>
-                    <PlayArrow sx={{ fontSize: 18 }} />
-                  </IconButton>
-                </Tooltip>
-                {!interaction?.watched && iconBtn(interaction.watchlisted ? 'In My List' : 'Add to My List',
-                  (e) => { e.stopPropagation(); onWatchlist?.(record); },
-                  interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 16 }} /> : <BookmarkAdd sx={{ fontSize: 16 }} />,
-                  { color: interaction.watchlisted ? '#46d369' : '#fff' })}
-                {iconBtn(interaction.liked ? 'Unlike' : 'Like',
-                  (e) => { e.stopPropagation(); onLike?.(record); },
-                  interaction.liked ? <ThumbUp sx={{ fontSize: 16 }} /> : <ThumbUpOutlined sx={{ fontSize: 16 }} />)}
-                {iconBtn('More details', goDetail, <ExpandMore sx={{ fontSize: 18 }} />, { ml: 'auto' })}
-              </Box>
-            </Box>
-          </Box>
-        )}
-      </Box>
-    );
-  }
+  // Whether to show the static landscape title overlay (hidden while hovered or
+  // when the image already has the title burned in).
+  const showTitleOverlay = isLandscape && !expandOnHover && !hovered
+    && !(useTextBackdrop && !!record.backdropPathText);
 
   return (
     <motion.div
@@ -292,8 +137,7 @@ const RecordCard = ({
       tabIndex={isTv ? 0 : undefined}
       style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'flex-end' }}
     >
-      {/* ── Top 10 jumbo rank ── Netflix-style stroked numeral that sits
-          alongside the poster and tucks behind the left edge for depth. */}
+      {/* ── Top 10 stroked rank numeral ── */}
       {rank != null && (
         <Typography sx={{
           fontSize: { xs: '9rem', sm: '12rem', md: '16rem' },
@@ -302,18 +146,10 @@ const RecordCard = ({
           lineHeight: 0.78,
           letterSpacing: { xs: '-0.06em', md: '-0.08em' },
           color: 'transparent',
-          WebkitTextStroke: {
-            xs: '3px rgba(255,255,255,0.92)',
-            md: '5px rgba(255,255,255,0.92)',
-          },
+          WebkitTextStroke: { xs: '3px rgba(255,255,255,0.92)', md: '5px rgba(255,255,255,0.92)' },
           mr: { xs: -2.5, sm: -3.5, md: -5 },
-          mb: 0,
-          zIndex: 0,
-          userSelect: 'none',
-          flexShrink: 0,
+          mb: 0, zIndex: 0, userSelect: 'none', flexShrink: 0,
           textShadow: '4px 4px 18px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)',
-          // Subtle entrance — fade-in plus a tiny rise so the numeral feels
-          // like it slides in from the bottom alongside the poster.
           animation: 'topTenIn 0.45s ease-out both',
           '@keyframes topTenIn': {
             from: { opacity: 0, transform: 'translateY(8px)' },
@@ -334,27 +170,20 @@ const RecordCard = ({
           overflow: 'hidden',
           bgcolor: 'rgba(255,255,255,.06)',
           position: 'relative',
-
           boxShadow: expandOnHover
             ? 'none'
             : useInlineWideHover
               ? (hovered ? '0 6px 14px rgba(0,0,0,.16)' : '0 1px 4px rgba(0,0,0,.10)')
               : (hovered ? '0 16px 48px rgba(0,0,0,.75)' : '0 2px 8px rgba(0,0,0,.3)'),
-
           transition: expandOnHover
             ? 'width 0.34s cubic-bezier(0.4,0,0.2,1)'
             : useInlineWideHover
               ? 'transform 0.2s ease, box-shadow 0.2s ease'
               : 'width 0.42s cubic-bezier(0.32,0.72,0,1), box-shadow 0.32s ease',
-
           ...(isTv && {
             '&:focus-visible': {
-              outline: '4px solid',
-              outlineColor: 'primary.main',
-              outlineOffset: '4px',
-              transform: 'scale(1.08)',
-              zIndex: 10,
-              transition: 'transform 0.15s ease',
+              outline: '4px solid', outlineColor: 'primary.main', outlineOffset: '4px',
+              transform: 'scale(1.08)', zIndex: 10, transition: 'transform 0.15s ease',
             },
           }),
         }}
@@ -380,438 +209,39 @@ const RecordCard = ({
           />
         )}
 
-        {/* Prime expand: info bar.
-            Mobile renders a simplified bar (title + rating + year only) — the
-            whole card is tappable to open the detail page where all the
-            interaction buttons live in the Hero. Desktop renders the full
-            netflix-style bar with the interaction row, but only when actually
-            hovered (not when the card just happens to be mounted at md). */}
-        {isExpanded && isMobile && (
-          <Box sx={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,.95) 0%, rgba(0,0,0,.45) 70%, transparent 100%)',
-            p: 1, pt: 2.5,
-          }}>
-            <Typography sx={{
-              color: '#fff', fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.2,
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}>
-              {record.title}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.75, mt: 0.4, alignItems: 'center' }}>
-              {record.voteAverage > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                  <Star sx={{ fontSize: 11, color: '#46d369' }} />
-                  <Typography sx={{ color: '#46d369', fontSize: '0.7rem', fontWeight: 700 }}>
-                    {Number(record.voteAverage).toFixed(1)}
-                  </Typography>
-                </Box>
-              )}
-              {year(record.releaseDate) && (
-                <Typography sx={{ color: 'rgba(255,255,255,.55)', fontSize: '0.7rem' }}>
-                  {year(record.releaseDate)}
-                </Typography>
-              )}
-            </Box>
-          </Box>
+        {/* Prime expanded info bar (mobile prime renders here; desktop prime uses PrimeDesktopCard) */}
+        {isExpanded && (
+          <ExpandedInfoBar
+            record={record} interaction={interaction} isMobile={isMobile}
+            goPlay={goPlay} onWatchlist={onWatchlist} onLike={onLike} onLove={onLove}
+            onWatched={onWatched} goDetail={goDetail}
+          />
         )}
 
-        {isExpanded && !isMobile && (
-          <Box sx={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,.97) 0%, rgba(0,0,0,.4) 75%, transparent 100%)',
-            p: 1.2, pt: 3,
-          }}>
-            <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.82rem', mb: 0.5, lineHeight: 1.2 }}>
-              {record.title}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.5, mb: 0.6, alignItems: 'center' }}>
-              {record.voteAverage > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                  <Star sx={{ fontSize: 11, color: '#46d369' }} />
-                  <Typography sx={{ color: '#46d369', fontSize: '0.7rem', fontWeight: 700 }}>
-                    {Number(record.voteAverage).toFixed(1)}
-                  </Typography>
-                </Box>
-              )}
-              {year(record.releaseDate) && (
-                <Typography sx={{ color: 'rgba(255,255,255,.5)', fontSize: '0.7rem' }}>
-                  {year(record.releaseDate)}
-                </Typography>
-              )}
-            </Box>
-            {record.genres?.length > 0 && (
-              <Typography sx={{ color: 'rgba(255,255,255,.4)', fontSize: '0.64rem', mb: 0.8 }}>
-                {record.genres.slice(0, 3).join(' · ')}
-              </Typography>
-            )}
-            {/* Full interaction row — desktop only */}
-            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-              <Tooltip title="Play">
-                <IconButton size="small" onClick={goPlay}
-                  sx={{ bgcolor: '#fff', color: '#000', p: 0.5, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }}>
-                  <PlayArrow sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-              {!interaction?.watched && (
-                <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
-                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
-                    sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watchlisted ? '#46d369' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-                    {interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 12 }} /> : <BookmarkAdd sx={{ fontSize: 12 }} />}
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Tooltip title={interaction.liked ? 'Unlike' : 'Like'}>
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onLike?.(record); }}
-                  sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-                  {interaction.liked ? <ThumbUp sx={{ fontSize: 12 }} /> : <ThumbUpOutlined sx={{ fontSize: 12 }} />}
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={interaction.loved ? 'Loved' : 'Love it'}>
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onLove?.(record); }}
-                  sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.loved ? '#e50914' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-                  {interaction.loved ? <Favorite sx={{ fontSize: 12 }} /> : <FavoriteBorder sx={{ fontSize: 12 }} />}
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={interaction.watched ? 'Watched' : 'Mark Watched'}>
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatched?.(record); }}
-                  sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watched ? '#a5d6a7' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-                  {interaction.watched ? <Visibility sx={{ fontSize: 12 }} /> : <VisibilityOff sx={{ fontSize: 12 }} />}
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="More details">
-                <IconButton size="small" onClick={goDetail}
-                  sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: '#fff', p: 0.4, ml: 'auto', '&:hover': { borderColor: '#fff' } }}>
-                  <ExpandMore sx={{ fontSize: 15 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-        )}
+        {/* Static landscape title overlay (glass / tag / fade) */}
+        {showTitleOverlay && <CardTitleOverlay record={record} titleStyle={cfg.titleStyle ?? 'fade'} />}
 
-        {/* Landscape card title overlays — three distinct styles per rail type.
-            Hidden while hovered (popup takes over) and hidden when the displayed
-            image already has the title burned in (backdropPathText present). */}
-        {isLandscape && !expandOnHover && !hovered && !(useTextBackdrop && !!record.backdropPathText) && (() => {
-          const titleStyle = cfg.titleStyle ?? 'fade';
-
-          // ── Shared meta row ──────────────────────────────────────────────
-          const metaRow = (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7, flexWrap: 'nowrap' }}>
-              {record.voteAverage > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.2, flexShrink: 0 }}>
-                  <Star sx={{ fontSize: 9, color: '#46d369' }} />
-                  <Typography sx={{ color: '#46d369', fontSize: '0.6rem', fontWeight: 800, lineHeight: 1 }}>
-                    {Number(record.voteAverage).toFixed(1)}
-                  </Typography>
-                </Box>
-              )}
-              {year(record.releaseDate) && (
-                <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.6rem', lineHeight: 1, flexShrink: 0 }}>
-                  {year(record.releaseDate)}
-                </Typography>
-              )}
-              {record.genres?.length > 0 && (
-                <Typography sx={{
-                  color: 'rgba(255,255,255,0.32)', fontSize: '0.56rem', lineHeight: 1,
-                  overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                }}>
-                  {record.genres.slice(0, 2).join(' · ')}
-                </Typography>
-              )}
-            </Box>
-          );
-
-          // ── Style: glass ─────────────────────────────────────────────────
-          // Frosted-glass compact bar pinned to the bottom of the card.
-          if (titleStyle === 'glass') return (
-            <Box sx={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              backdropFilter: 'blur(14px) saturate(160%)',
-              WebkitBackdropFilter: 'blur(14px) saturate(160%)',
-              background: 'rgba(0,0,0,0.52)',
-              borderTop: '1px solid rgba(255,255,255,0.07)',
-              px: 1.2, pt: 0.65, pb: 0.6,
-              pointerEvents: 'none',
-            }}>
-              <Typography sx={{
-                color: '#fff', fontWeight: 700,
-                fontSize: 'clamp(0.66rem, 1.7vw, 0.86rem)',
-                lineHeight: 1.2, mb: 0.25,
-                display: '-webkit-box', WebkitLineClamp: 1,
-                WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                letterSpacing: 0.1,
-              }}>
-                {record.title}
-              </Typography>
-              {metaRow}
-            </Box>
-          );
-
-          // ── Style: tag ───────────────────────────────────────────────────
-          // Floating pill badge anchored to bottom-left. Shows only the title.
-          if (titleStyle === 'tag') return (
-            <Box sx={{
-              position: 'absolute', bottom: 7, left: 7,
-              maxWidth: '82%',
-              bgcolor: 'rgba(0,0,0,0.68)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              borderRadius: '5px',
-              px: 0.85, py: 0.4,
-              border: '1px solid rgba(255,255,255,0.11)',
-              pointerEvents: 'none',
-            }}>
-              <Typography sx={{
-                color: '#fff', fontWeight: 650,
-                fontSize: 'clamp(0.62rem, 1.5vw, 0.8rem)',
-                lineHeight: 1.2,
-                overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-              }}>
-                {record.title}
-              </Typography>
-            </Box>
-          );
-
-          // ── Style: fade (default) ────────────────────────────────────────
-          // Deep gradient from the bottom — title stacked above meta row.
-          return (
-            <Box sx={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              background: 'linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.55) 52%, transparent 100%)',
-              px: 1.2, pb: 1, pt: 3.5,
-              pointerEvents: 'none',
-            }}>
-              <Typography sx={{
-                color: '#fff', fontWeight: 750,
-                fontSize: 'clamp(0.68rem, 1.8vw, 0.9rem)',
-                lineHeight: 1.15, mb: 0.35,
-                display: '-webkit-box', WebkitLineClamp: 1,
-                WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                textShadow: '0 1px 8px rgba(0,0,0,0.9)',
-                letterSpacing: 0.15,
-              }}>
-                {record.title}
-              </Typography>
-              {metaRow}
-            </Box>
-          );
-        })()}
-
-        {/* Poster title caption — only for type="poster" (posterPlain stays clean).
-            Portrait cards have no landscape overlay, so this gives them a name bar. */}
+        {/* Poster title caption — type="poster" only */}
         {cfg.showPosterTitle && !isLandscape && !expandOnHover && !hovered && (
-          <Box sx={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 55%, transparent 100%)',
-            px: 1, pb: 0.8, pt: 2.5, pointerEvents: 'none',
-          }}>
-            <Typography sx={{
-              color: '#fff', fontWeight: 700, fontSize: 'clamp(0.66rem, 1.6vw, 0.82rem)',
-              lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical', overflow: 'hidden',
-              textShadow: '0 1px 6px rgba(0,0,0,0.9)',
-            }}>
-              {record.title}
-            </Typography>
-          </Box>
+          <PosterCaption record={record} />
         )}
 
-        {/* Wide / Continue inline hover details */}
+        {/* Wide / Continue inline hover panel */}
         {hovered && useInlineWideHover && !isMobile && (
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-end',
-              background: `
-                linear-gradient(to top,
-                  rgba(0,0,0,0.96) 0%,
-                  rgba(0,0,0,0.82) 28%,
-                  rgba(0,0,0,0.35) 62%,
-                  rgba(0,0,0,0.06) 100%)
-              `,
-              p: 1.25,
-            }}
-          >
-            <Box sx={{ mb: 0.7 }}>
-              <Typography
-                sx={{
-                  color: '#fff',
-                  fontWeight: 800,
-                  fontSize: '0.95rem',
-                  lineHeight: 1.2,
-                  mb: 0.35,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
-                {record.title}
-              </Typography>
-
-              <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', flexWrap: 'wrap', mb: 0.45 }}>
-                {record.voteAverage > 0 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                    <Star sx={{ fontSize: 12, color: '#46d369' }} />
-                    <Typography sx={{ color: '#46d369', fontSize: '0.72rem', fontWeight: 800 }}>
-                      {Number(record.voteAverage).toFixed(1)}
-                    </Typography>
-                  </Box>
-                )}
-
-                {year(record.releaseDate) && (
-                  <Typography sx={{ color: 'rgba(255,255,255,.62)', fontSize: '0.72rem', fontWeight: 600 }}>
-                    {year(record.releaseDate)}
-                  </Typography>
-                )}
-
-                {record.genres?.length > 0 && (
-                  <Typography
-                    sx={{
-                      color: 'rgba(255,255,255,.46)',
-                      fontSize: '0.68rem',
-                      overflow: 'hidden',
-                      whiteSpace: 'nowrap',
-                      textOverflow: 'ellipsis',
-                      maxWidth: '70%',
-                    }}
-                  >
-                    {record.genres.slice(0, 3).join(' · ')}
-                  </Typography>
-                )}
-              </Box>
-            </Box>
-
-            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-              <Tooltip title="Play">
-                <IconButton
-                  size="small"
-                  onClick={goPlay}
-                  sx={{
-                    bgcolor: '#fff',
-                    color: '#000',
-                    p: 0.55,
-                    '&:hover': { bgcolor: 'rgba(255,255,255,.88)' },
-                  }}
-                >
-                  <PlayArrow sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Tooltip>
-
-              {!interaction?.watched && (
-                <Tooltip title={interaction.watchlisted ? 'In My List' : 'Add to My List'}>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => { e.stopPropagation(); onWatchlist?.(record); }}
-                    sx={{
-                      border: '1.5px solid rgba(255,255,255,.5)',
-                      color: interaction.watchlisted ? '#46d369' : '#fff',
-                      p: 0.42,
-                      '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
-                    }}
-                  >
-                    {interaction.watchlisted
-                      ? <BookmarkAdded sx={{ fontSize: 13 }} />
-                      : <BookmarkAdd sx={{ fontSize: 13 }} />}
-                  </IconButton>
-                </Tooltip>
-              )}
-
-              <Tooltip title={interaction.liked ? 'Unlike' : 'Like'}>
-                <IconButton
-                  size="small"
-                  onClick={(e) => { e.stopPropagation(); onLike?.(record); }}
-                  sx={{
-                    border: '1.5px solid rgba(255,255,255,.5)',
-                    color: '#fff',
-                    p: 0.42,
-                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
-                  }}
-                >
-                  {interaction.liked
-                    ? <ThumbUp sx={{ fontSize: 13 }} />
-                    : <ThumbUpOutlined sx={{ fontSize: 13 }} />}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={interaction.loved ? 'Loved' : 'Love it'}>
-                <IconButton
-                  size="small"
-                  onClick={(e) => { e.stopPropagation(); onLove?.(record); }}
-                  sx={{
-                    border: '1.5px solid rgba(255,255,255,.5)',
-                    color: interaction.loved ? '#e50914' : '#fff',
-                    p: 0.42,
-                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
-                  }}
-                >
-                  {interaction.loved
-                    ? <Favorite sx={{ fontSize: 13 }} />
-                    : <FavoriteBorder sx={{ fontSize: 13 }} />}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title="More details">
-                <IconButton
-                  size="small"
-                  onClick={goDetail}
-                  sx={{
-                    border: '1.5px solid rgba(255,255,255,.5)',
-                    color: '#fff',
-                    p: 0.42,
-                    ml: 'auto',
-                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' },
-                  }}
-                >
-                  <ExpandMore sx={{ fontSize: 15 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
+          <WideHoverOverlay
+            record={record} interaction={interaction}
+            goPlay={goPlay} onWatchlist={onWatchlist} onLike={onLike} onLove={onLove} goDetail={goDetail}
+          />
         )}
 
-        {/* Default compact hover overlay (non-expand, on card itself) */}
-        {hovered && !expandOnHover && !useInlineWideHover && (
-          <Box sx={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.1) 55%, transparent 100%)',
-            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', p: 0.8,
-          }}>
-            <Typography sx={{
-              color: '#fff', fontWeight: 700, fontSize: 'clamp(0.65rem, 2vw, 0.9rem)', lineHeight: 1.3, mb: 0.3,
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}>
-              {record.title}
-            </Typography>
-            {record.voteAverage > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                <Star sx={{ fontSize: 10, color: '#46d369' }} />
-                <Typography sx={{ color: '#46d369', fontSize: 'clamp(0.6rem, 1.5vw, 0.78rem)', fontWeight: 700 }}>
-                  {Number(record.voteAverage).toFixed(1)}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-        )}
+        {/* Default compact hover overlay (poster/standard/jumbo) */}
+        {hovered && !expandOnHover && !useInlineWideHover && <CompactHoverOverlay record={record} />}
 
         {/* Watched badge */}
-        {interaction.watched && (
-          <Box sx={{
-            position: 'absolute', top: 5, right: 5,
-            bgcolor: 'rgba(0,0,0,.72)', borderRadius: 10, px: 0.7, py: 0.2,
-            display: 'flex', alignItems: 'center', gap: 0.3,
-          }}>
-            <Check sx={{ fontSize: 9, color: '#4caf50' }} />
-            <Typography sx={{ fontSize: '0.58rem', color: '#4caf50', fontWeight: 700 }}>Watched</Typography>
-          </Box>
-        )}
+        {interaction.watched && <WatchedBadge />}
       </Box>
 
-      {/* ── Netflix portal popup — desktop, non-prime mode ── */}
+      {/* Netflix portal popup — desktop, non-prime mode */}
       {hovered && !expandOnHover && !useInlineWideHover && !isMobile && anchorRect && (
         <HoverPopup
           record={record}
