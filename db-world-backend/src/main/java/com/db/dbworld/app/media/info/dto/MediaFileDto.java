@@ -25,6 +25,14 @@ public class MediaFileDto {
     private Instant updatedAt;
     private List<TrackDto> tracks;
 
+    // ── Scrub-preview storyboard metadata (null when no sprite was generated) ──
+    private Integer storyboardIntervalMs;
+    private Integer storyboardCols;
+    private Integer storyboardRows;
+    private Integer storyboardTileW;
+    private Integer storyboardTileH;
+    private Integer storyboardCount;
+
     // ── Convenience accessors computed from tracks ────────────────────────────
 
     public TrackDto getGeneralTrack() {

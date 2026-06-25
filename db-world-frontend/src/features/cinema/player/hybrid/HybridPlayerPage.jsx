@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
+import { buildStoryboard } from '../../utils/storyboard';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
 
 // Resume only if meaningfully into the file and not within 30s of the end.
@@ -39,6 +40,7 @@ export default function HybridPlayerPage() {
       const startMs = await resumePointFor(media.fileId);
       if (!cancelled) setCur({
         url: media.url, fileId: media.fileId, startMs, audio: media.audio || [],
+        storyboard: media.storyboard || null,
       });
     })();
     return () => { cancelled = true; };
@@ -47,12 +49,17 @@ export default function HybridPlayerPage() {
   const selectEpisode = useCallback(async (ep) => {
     let url = ep.url;
     let mf = null;
+    let storyboard = ep.storyboard || null;
     if (!url && ep.mediaFileId) {
-      try { const r = await resolveMediaUrl(ep.mediaFileId, 'ONLINE'); url = r?.data?.cdnUrl; mf = r?.data?.mediaFile; } catch { /* ignore */ }
+      try {
+        const r = await resolveMediaUrl(ep.mediaFileId, 'ONLINE');
+        url = r?.data?.cdnUrl; mf = r?.data?.mediaFile;
+        storyboard = buildStoryboard(url, ep.mediaFileId, mf) || storyboard;
+      } catch { /* ignore */ }
     }
     if (!url) return;
     const startMs = await resumePointFor(ep.fileId);
-    setCur({ url, fileId: ep.fileId, startMs, audio: mf?.audio || [] });
+    setCur({ url, fileId: ep.fileId, startMs, audio: mf?.audio || [], storyboard });
   }, []);
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
@@ -80,6 +87,7 @@ export default function HybridPlayerPage() {
       onProgress={handleProgress}
       onClose={() => navigate(-1)}
       audio={cur.audio || []}
+      storyboard={cur.storyboard || null}
     />
   );
 }

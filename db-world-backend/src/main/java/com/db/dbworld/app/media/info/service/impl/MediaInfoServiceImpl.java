@@ -542,6 +542,12 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .tmdbEpisodeNumber(entity.getTmdbEpisodeNumber())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .storyboardIntervalMs(entity.getStoryboardIntervalMs())
+                .storyboardCols(entity.getStoryboardCols())
+                .storyboardRows(entity.getStoryboardRows())
+                .storyboardTileW(entity.getStoryboardTileW())
+                .storyboardTileH(entity.getStoryboardTileH())
+                .storyboardCount(entity.getStoryboardCount())
                 .tracks(trackDtos)
                 .build();
     }

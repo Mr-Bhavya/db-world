@@ -11,6 +11,7 @@ import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
 import com.db.dbworld.app.media.link.SymlinkService;
+import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaSource;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.utils.PathSanitizer;
@@ -57,6 +58,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final TmdbMediaEnrichmentService enrichmentService;
     private final SymlinkService             symlinkService;
     private final SmartTrackFilterService    smartTrackFilterService;
+    private final StoryboardService          storyboardService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -205,6 +207,14 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             latestDto = finalDto;
 
             symlinkService.create(finalDto.getId(), finalDto.getFilePath());
+
+            // Scrub-preview storyboard (best-effort; never fails ingestion).
+            try {
+                storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto));
+            } catch (Exception e) {
+                ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
+            }
+
             log.info("[{}] FFmpeg processing complete — finalFile={}, mediaFileId={}",
                     ctx.getJobId(), finalFile.getFileName(), finalDto.getId());
 
@@ -311,6 +321,16 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 "mediaFileId", dto.getId(),
                 "fileName", dto.getFileName() != null ? dto.getFileName() : ""
         );
+    }
+
+    /** Total runtime in ms from the general track, falling back to the primary video track. */
+    private long resolveDurationMs(MediaFileDto dto) {
+        if (dto == null) return 0L;
+        TrackDto general = dto.getGeneralTrack();
+        if (general != null && general.getDuration() != null) return general.getDuration();
+        TrackDto video = dto.getPrimaryVideoTrack();
+        if (video != null && video.getDuration() != null) return video.getDuration();
+        return 0L;
     }
 
     // Deletes any media-file DB records pointing to the given temp directory that were

@@ -87,6 +87,8 @@ public class HybridPlayerPlugin extends Plugin {
                 e.put("positionMs", Math.max(0, player.getCurrentPosition()));
                 long dur = player.getDuration();
                 e.put("durationMs", dur > 0 ? dur : 0);
+                // Buffered (preloaded) position so the UI can draw the loaded portion of the bar.
+                e.put("bufferedMs", Math.max(0, player.getBufferedPosition()));
                 notifyListeners("playerTime", e);
                 ui.postDelayed(this, 250);
             }

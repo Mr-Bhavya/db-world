@@ -45,16 +45,30 @@ function createWebAdapter(getVideo) {
   let attached = false;
   const ensure = () => (v = getVideo());
 
+  // End of the buffered range that currently covers playback — i.e. how far
+  // ahead the browser has preloaded — so the UI can draw the loaded portion.
+  const bufferedEndMs = () => {
+    try {
+      const r = v?.buffered;
+      if (!r || r.length === 0) return 0;
+      const t = v.currentTime || 0;
+      for (let i = 0; i < r.length; i++) {
+        if (t >= r.start(i) - 0.5 && t <= r.end(i) + 0.5) return r.end(i) * 1000;
+      }
+      return r.end(r.length - 1) * 1000; // fall back to the last range
+    } catch { return 0; }
+  };
   const onTime    = () => emit('time', {
     positionMs: (v?.currentTime || 0) * 1000,
     durationMs: (v && isFinite(v.duration) ? v.duration * 1000 : 0),
+    bufferedMs: bufferedEndMs(),
   });
   const onEnded   = () => emit('ended', {});
   const onError   = () => emit('error', { code: v?.error?.code, message: 'video error' });
   const onWaiting = () => emit('state', { state: 2 }); // buffering
   const onPlaying = () => emit('state', { state: 3 }); // ready/playing
   const listeners = [
-    ['timeupdate', onTime], ['durationchange', onTime],
+    ['timeupdate', onTime], ['durationchange', onTime], ['progress', onTime],
     ['ended', onEnded], ['error', onError],
     ['waiting', onWaiting], ['playing', onPlaying], ['canplay', onPlaying],
   ];

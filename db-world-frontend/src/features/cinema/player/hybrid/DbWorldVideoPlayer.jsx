@@ -83,6 +83,7 @@ export default function DbWorldVideoPlayer({
   episodes = [], currentEpisodeId, onSelectEpisode,
   onProgress, onClose,
   audio = [], // file audio-track metadata (seeds the audio menu on web)
+  storyboard = null, // scrub-preview sprite { url, intervalMs, cols, rows, tileW, tileH, count } | null
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
   const reduce   = useReducedMotion();          // honour prefers-reduced-motion
@@ -102,7 +103,10 @@ export default function DbWorldVideoPlayer({
 
   const [position, setPosition]   = useState(0);
   const [duration, setDuration]   = useState(0);
+  const [buffered, setBuffered]   = useState(0);      // preloaded position (ms) for the loaded fill
   const [scrub, setScrub]         = useState(null);   // non-null while dragging the bar
+  const [preview, setPreview]     = useState(null);   // hover/scrub preview: { leftPx, time } | null
+  const barRef      = useRef(null);                   // progress-bar wrapper (for pointer→time math)
   const [playing, setPlaying]     = useState(true);
   const [buffering, setBuffering] = useState(true);
   const [controls, setControls]   = useState(true);
@@ -174,6 +178,7 @@ export default function DbWorldVideoPlayer({
       adapter.on('time', d => {
         setPosition(d.positionMs || 0);
         if (d.durationMs) setDuration(d.durationMs);
+        if (typeof d.bufferedMs === 'number') setBuffered(d.bufferedMs);
         progressRef.current = { positionMs: d.positionMs || 0, durationMs: d.durationMs || progressRef.current.durationMs };
       }),
       adapter.on('state', d => {
@@ -412,11 +417,29 @@ export default function DbWorldVideoPlayer({
     return () => window.removeEventListener('keydown', onKey);
   }, [togglePlay, seekBy, showControls, toggleFullscreen, isNative]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── seek bar drag ─────────────────────────────────────────────────────────
-  const onScrubChange = (e) => { setScrub(Number(e.target.value)); showControls(); };
+  // ── seek bar drag + hover preview ───────────────────────────────────────────
+  // Builds the { leftPx, time } preview from a 0..1 fraction along the bar,
+  // clamping leftPx so the tooltip/thumbnail stays inside the player edges.
+  const PREVIEW_HALF = 80; // half the preview bubble width (px)
+  const previewAt = useCallback((frac) => {
+    const el = barRef.current;
+    if (!el || !duration) return;
+    const w = el.clientWidth;
+    const f = Math.max(0, Math.min(1, frac));
+    setPreview({ leftPx: Math.max(PREVIEW_HALF, Math.min(w - PREVIEW_HALF, f * w)), time: f * duration });
+  }, [duration]);
+
+  const onBarHover = (e) => { if (scrub == null) previewAt((e.clientX - barRef.current.getBoundingClientRect().left) / barRef.current.clientWidth); };
+  const onBarLeave = () => { if (scrub == null) setPreview(null); };
+
+  const onScrubChange = (e) => {
+    const ms = Number(e.target.value);
+    setScrub(ms); showControls();
+    if (duration) previewAt(ms / duration);
+  };
   const onScrubCommit = () => {
     if (scrub != null) { adapterRef.current?.seekTo(scrub); setPosition(scrub); }
-    setScrub(null);
+    setScrub(null); setPreview(null);
   };
 
   // ── gestures (native + web touch): double-tap seek, vertical swipe = bright/vol ─
@@ -480,6 +503,8 @@ export default function DbWorldVideoPlayer({
 
   const displayPos = scrub != null ? scrub : position;
   const pct = duration > 0 ? Math.min(100, (displayPos / duration) * 100) : 0;
+  // Buffered (preloaded) fill — never less than the played fill so it reads cleanly.
+  const bufPct = duration > 0 ? Math.min(100, Math.max(pct, (buffered / duration) * 100)) : 0;
   // "Up next" card appears in the last 60s — series these days end on 1–3 min of
   // credits, so prompt the next episode before the file actually finishes.
   const nearEnd = duration > 0 && position > 0 && (duration - position) <= 60000;
@@ -620,11 +645,18 @@ export default function DbWorldVideoPlayer({
             transition={{ duration: 0.2, ease: 'easeOut' }}
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 28px 16px' }}>
 
-            {/* full-width progress bar (played fill via inline gradient) */}
-            <input className="dbw-range" type="range" min={0} max={duration || 0} aria-label="Seek"
-              value={Math.min(displayPos, duration || displayPos)}
-              onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
-              style={{ background: `linear-gradient(to right, ${TEAL} ${pct}%, rgba(255,255,255,0.28) ${pct}%)` }} />
+            {/* full-width progress bar — wrapper carries hover→time math + the preview bubble.
+                Fill is a 3-stop gradient: teal (played) → light (buffered) → dark (unloaded). */}
+            <div ref={barRef} style={{ position: 'relative' }} onMouseMove={onBarHover} onMouseLeave={onBarLeave}>
+              {preview && (
+                <ScrubPreview leftPx={preview.leftPx} time={preview.time} fmt={fmt}
+                  thumb={storyboardTile(storyboard, preview.time)} />
+              )}
+              <input className="dbw-range" type="range" min={0} max={duration || 0} aria-label="Seek"
+                value={Math.min(displayPos, duration || displayPos)}
+                onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
+                style={{ background: `linear-gradient(to right, ${TEAL} ${pct}%, rgba(255,255,255,0.5) ${pct}%, rgba(255,255,255,0.5) ${bufPct}%, rgba(255,255,255,0.22) ${bufPct}%)` }} />
+            </div>
 
             {/* time below the bar, on the edges */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6,
@@ -837,6 +869,44 @@ function SheetRow({ label, selected, onClick }) {
 }
 function SheetEmpty({ children }) {
   return <div style={{ padding: '8px 16px', color: '#777', fontSize: 13 }}>{children}</div>;
+}
+
+// Crops the storyboard sprite to the tile matching `timeMs` and returns it as a
+// framed thumbnail, or null when there's no sprite for this file. Uses CSS
+// background cropping so the whole sprite loads once and every tile is instant.
+function storyboardTile(sb, timeMs) {
+  if (!sb || !sb.count || !sb.intervalMs || !sb.tileW || !sb.tileH) return null;
+  const idx = Math.max(0, Math.min(sb.count - 1, Math.floor(timeMs / sb.intervalMs)));
+  const col = idx % sb.cols;
+  const row = Math.floor(idx / sb.cols);
+  return (
+    <div style={{
+      width: sb.tileW, height: sb.tileH, borderRadius: 6, overflow: 'hidden',
+      border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 2px 10px rgba(0,0,0,0.6)',
+      backgroundImage: `url(${sb.url})`,
+      backgroundRepeat: 'no-repeat',
+      backgroundSize: `${sb.cols * sb.tileW}px ${sb.rows * sb.tileH}px`,
+      backgroundPosition: `-${col * sb.tileW}px -${row * sb.tileH}px`,
+    }} />
+  );
+}
+
+// Hover/scrub preview bubble above the progress bar: an optional thumbnail frame
+// (Part B — storyboard) stacked over the timestamp. Centered on leftPx; the
+// caller has already clamped leftPx so it never overflows the player edges.
+function ScrubPreview({ leftPx, time, fmt, thumb }) {
+  return (
+    <div style={{ position: 'absolute', bottom: '100%', left: leftPx, transform: 'translateX(-50%)',
+      marginBottom: 12, pointerEvents: 'none', zIndex: 20,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      {thumb}
+      <span style={{ background: 'rgba(0,0,0,0.85)', padding: '3px 9px', borderRadius: 6, fontSize: 12,
+        fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+        {fmt(time)}
+      </span>
+    </div>
+  );
 }
 function SheetSection({ children }) {
   return (
