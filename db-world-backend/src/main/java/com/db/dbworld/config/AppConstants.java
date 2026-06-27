@@ -95,7 +95,8 @@ public final class AppConstants {
             "/api/stream/resolve/**",
             "/*", "/db-world/**", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**",
-            "/api/admin/file-manager/download/stream"
+            "/api/admin/file-manager/download/stream",
+            "/storyboard/**"
     };
 
     // ── TMDB API URLs ─────────────────────────────────────────────────────────
