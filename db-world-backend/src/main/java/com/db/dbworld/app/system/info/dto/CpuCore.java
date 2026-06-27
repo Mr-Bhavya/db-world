@@ -12,6 +12,6 @@ import lombok.experimental.SuperBuilder;
 public class CpuCore {
     private Integer coreId;
     private Long frequency;
-    private Integer load;
+    private Double loadPercent;
     private String vendor;
 }

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,6 +54,10 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     protected static final Path SYS_HWMON      = Path.of("/sys/class/hwmon");
     protected static final Path SYS_DMI        = Path.of("/sys/class/dmi/id");
     protected static final Path SYS_BLOCK       = Path.of("/sys/class/block");
+
+    // Cached net stats for zero-sleep delta speed in getPerformanceMetrics()
+    private final AtomicReference<Map<String, long[]>> prevNetStats = new AtomicReference<>(Map.of());
+    private volatile long prevNetTimestamp = 0L;
 
     public LinuxServerInfoCollector(ProcessExecutor processExecutor) {
         super(processExecutor);
@@ -170,10 +175,18 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         List<Double> coreLoads = measurePerCoreCpuUsage();
         double avgLoad = coreLoads.stream().mapToDouble(d -> d).average().orElse(0.0);
 
+        List<CpuCore> coreDetails = new ArrayList<>();
+        for (int i = 0; i < coreLoads.size(); i++) {
+            coreDetails.add(CpuCore.builder()
+                    .coreId(i)
+                    .loadPercent(coreLoads.get(i))
+                    .vendor(vendor.trim())
+                    .build());
+        }
+
         return CpuInfo.builder()
                 .name(model.trim())
                 .vendor(vendor.trim())
-                .cores(cores)
                 .cores(cores)
                 .availableProcessors(cores)
                 .architecture(System.getProperty("os.arch"))
@@ -181,10 +194,11 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .cacheSize(cache)
                 .loadPercentage((int) avgLoad)
                 .loadPercentageStr(String.format("%.1f", avgLoad))
+                .coreDetails(coreDetails)
                 .build();
     }
 
-    private List<Double> measurePerCoreCpuUsage() {
+    protected List<Double> measurePerCoreCpuUsage() {
         try {
             long[][] before = readCpuStats();
             Thread.sleep(500);
@@ -262,6 +276,27 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .javaTotalFormatted(formatBytes(runtime.totalMemory()))
                 .javaFreeFormatted(formatBytes(runtime.freeMemory()))
                 .javaMaxFormatted(formatBytes(runtime.maxMemory()))
+                .build();
+    }
+
+    @Override
+    public MemoryInfo getBasicMemoryInfo() {
+        Map<String, Long> mem = parseMeminfo();
+        long totalKb = mem.getOrDefault("MemTotal", 0L);
+        long availKb = mem.getOrDefault("MemAvailable", 0L);
+        long usedKb  = totalKb - availKb;
+        long total = totalKb * 1024L, avail = availKb * 1024L, used = usedKb * 1024L;
+        double pct = calculatePercentage(usedKb, totalKb);
+        return MemoryInfo.builder()
+                .totalBytes(total).usedBytes(used).freeBytes(avail)
+                .totalFormatted(formatBytes(total))
+                .usedFormatted(formatBytes(used))
+                .freeFormatted(formatBytes(avail))
+                .availableFormatted(formatBytes(avail))
+                .usedPercent(String.format("%.1f", pct))
+                .javaTotalMemory(runtime.totalMemory())
+                .javaFreeMemory(runtime.freeMemory())
+                .javaMaxMemory(runtime.maxMemory())
                 .build();
     }
 
@@ -452,7 +487,7 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     }
 
     /** Returns map: interface → [rxBytes, rxPackets, rxErrors, rxDrop, ..., txBytes, txPackets, txErrors, ...] */
-    private Map<String, long[]> readNetDevStats() {
+    protected Map<String, long[]> readNetDevStats() {
         Map<String, long[]> result = new LinkedHashMap<>();
         try {
             for (String line : Files.readAllLines(PROC_NET_DEV)) {
@@ -610,6 +645,31 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             }
         }
 
+        // Live network speed: zero-sleep delta from cached previous /proc/net/dev sample
+        Map<String, long[]> currentNet = readNetDevStats();
+        long nowMs = System.currentTimeMillis();
+        long rxBytesPerSec = 0L, txBytesPerSec = 0L;
+        Map<String, long[]> prevNet = prevNetStats.getAndSet(currentNet);
+        long prevTime = prevNetTimestamp;
+        prevNetTimestamp = nowMs;
+        if (prevTime > 0 && nowMs - prevTime < 60_000L && !prevNet.isEmpty()) {
+            double deltaMs = nowMs - prevTime;
+            for (Map.Entry<String, long[]> e : currentNet.entrySet()) {
+                long[] curr = e.getValue();
+                long[] prev = prevNet.getOrDefault(e.getKey(), new long[16]);
+                if (curr.length > 8 && prev.length > 8) {
+                    rxBytesPerSec += Math.max(0L, (long) ((curr[0] - prev[0]) * 1000.0 / deltaMs));
+                    txBytesPerSec += Math.max(0L, (long) ((curr[8] - prev[8]) * 1000.0 / deltaMs));
+                }
+            }
+        }
+
+        // Physical memory load from /proc/meminfo
+        Map<String, Long> memInfo = parseMeminfo();
+        long memTotalKb = memInfo.getOrDefault("MemTotal", 0L);
+        long memAvailKb = memInfo.getOrDefault("MemAvailable", 0L);
+        double memLoadPct = calculatePercentage(memTotalKb - memAvailKb, memTotalKb);
+
         return PerformanceMetrics.builder()
                 .cpuLoad1Min(load1)
                 .cpuLoad5Min(load5)
@@ -619,8 +679,11 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .uptimeSeconds(uptimeSeconds)
                 .processCount(totalProcs)
                 .runningProcessCount(runningProcs)
-                .memoryLoadPercent(calculatePercentage(
-                        runtime.totalMemory() - runtime.freeMemory(), runtime.totalMemory()))
+                .memoryLoadPercent(memLoadPct)
+                .networkRxBytesPerSec(rxBytesPerSec)
+                .networkTxBytesPerSec(txBytesPerSec)
+                .networkRxFormatted(formatSpeed(rxBytesPerSec))
+                .networkTxFormatted(formatSpeed(txBytesPerSec))
                 .build();
     }
 
@@ -647,6 +710,12 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             }
         }
         return new long[8];
+    }
+
+    private static String formatSpeed(long bytesPerSec) {
+        if (bytesPerSec >= 1_000_000L) return String.format("%.1f MB/s", bytesPerSec / 1_000_000.0);
+        if (bytesPerSec >= 1_000L)     return String.format("%.1f KB/s", bytesPerSec / 1_000.0);
+        return bytesPerSec + " B/s";
     }
 
     // ──────────────────────────────────────────────────────────────────────────

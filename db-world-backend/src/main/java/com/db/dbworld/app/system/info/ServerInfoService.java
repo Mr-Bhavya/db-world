@@ -9,6 +9,7 @@ import com.db.dbworld.app.system.info.dto.*;
 import com.db.dbworld.app.system.info.dto.os.linux.LinuxServerInfo;
 import com.db.dbworld.app.system.info.dto.os.raspberrypi.RaspberryPiServerInfo;
 import com.db.dbworld.app.system.info.dto.os.windows.WindowsServerInfo;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -62,6 +63,16 @@ public class ServerInfoService {
         this.unsupportedOSCollector = unsupportedOSCollector;
         this.activeCollector       = detectCollector();
         log.info("ServerInfoService initialized — collector: {}", activeCollector.getClass().getSimpleName());
+    }
+
+    @PostConstruct
+    void warmupCache() {
+        Thread t = new Thread(() -> {
+            try { getCachedOrCollect(false); }
+            catch (Exception e) { log.debug("Cache warmup non-fatal: {}", e.getMessage()); }
+        }, "server-info-warmup");
+        t.setDaemon(true);
+        t.start();
     }
 
     // ──────────────────────────────────────────────────────────────────────────

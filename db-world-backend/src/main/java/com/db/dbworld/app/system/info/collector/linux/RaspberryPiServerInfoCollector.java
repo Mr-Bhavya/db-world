@@ -737,38 +737,28 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
                     log.debug("Error getting frequency from vcgencmd", e);
                 }
 
-                // Get CPU load
-                String loadOutput = exec("top", "-bn1");
-                if (!loadOutput.isEmpty()) {
-                    // Parse CPU load from top output
-                    String[] lines = loadOutput.split("\n");
-                    for (String line : lines) {
-                        if (line.contains("Cpu(s):")) {
-                            String[] parts = line.split(":");
-                            if (parts.length > 1) {
-                                String cpuUsage = parts[1].split("%")[0].trim();
-                                try {
-                                    double usage = Double.parseDouble(cpuUsage);
-                                    cpuInfo.setLoadPercentage((int) usage);
-                                } catch (NumberFormatException e) {
-                                    log.debug("Error parsing CPU usage", e);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
+                // Get CPU load using /proc/stat delta (replaces broken top -bn1 parsing)
+                List<Double> coreLoads = measurePerCoreCpuUsage();
+                double avgLoad = coreLoads.stream().mapToDouble(d -> d).average().orElse(0.0);
+                cpuInfo.setLoadPercentage((int) Math.round(avgLoad));
+                cpuInfo.setLoadPercentageStr(String.format("%.1f", avgLoad));
 
-                // Get individual core loads
+                // Per-core details with actual measured loads
                 List<CpuCore> cores = new ArrayList<>();
-                if (cpuInfo.getCores() != null) {
+                for (int i = 0; i < coreLoads.size(); i++) {
+                    cores.add(CpuCore.builder()
+                            .coreId(i)
+                            .loadPercent(coreLoads.get(i))
+                            .vendor(cpuInfo.getVendor())
+                            .build());
+                }
+                if (cores.isEmpty() && cpuInfo.getCores() != null) {
                     for (int i = 0; i < cpuInfo.getCores(); i++) {
-                        CpuCore core = CpuCore.builder()
+                        cores.add(CpuCore.builder()
                                 .coreId(i)
-                                .load(cpuInfo.getLoadPercentage() != null ? cpuInfo.getLoadPercentage() / cpuInfo.getCores() : 0)
+                                .loadPercent(avgLoad / cpuInfo.getCores())
                                 .vendor(cpuInfo.getVendor())
-                                .build();
-                        cores.add(core);
+                                .build());
                     }
                 }
                 cpuInfo.setCoreDetails(cores);
@@ -785,58 +775,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
 
     @Override
     public MemoryInfo getMemoryInfo() {
-        log.debug("Collecting memory information for Raspberry Pi");
-
-        MemoryInfo memoryInfo = MemoryInfo.builder().build();
-
-        try {
-            String memInfoStr = readFileSafe(MEM_INFO_PATH);
-            if (!memInfoStr.isEmpty()) {
-                Map<String, String> memMap = parseKeyValueOutput(memInfoStr, ":");
-
-                long totalMem = getLongValue(memMap.get("MemTotal"));
-                long freeMem = getLongValue(memMap.get("MemFree"));
-                long buffers = getLongValue(memMap.get("Buffers"));
-                long cached = getLongValue(memMap.get("Cached"));
-                long sReclaimable = getLongValue(memMap.get("SReclaimable"));
-                long swapTotal = getLongValue(memMap.get("SwapTotal"));
-                long swapFree = getLongValue(memMap.get("SwapFree"));
-
-                // Calculate used memory (total - free - buffers - cache)
-                long usedMem = totalMem - freeMem - buffers - cached - sReclaimable;
-                if (usedMem < 0) usedMem = 0;
-
-                long swapUsed = swapTotal - swapFree;
-
-                double usedPercent = calculatePercentage(usedMem, totalMem);
-
-                memoryInfo.setTotalBytes(totalMem * 1024); // Convert from KB to bytes
-                memoryInfo.setFreeBytes(freeMem * 1024);
-                memoryInfo.setUsedBytes(usedMem * 1024);
-                memoryInfo.setSwapTotalBytes(swapTotal * 1024);
-                memoryInfo.setSwapFreeBytes(swapFree * 1024);
-                memoryInfo.setSwapUsedBytes(swapUsed * 1024);
-                memoryInfo.setBuffersBytes(buffers * 1024);
-                memoryInfo.setCachedBytes(cached * 1024);
-                memoryInfo.setSharedBytes(0L); // Not directly available
-                memoryInfo.setAvailableBytes((freeMem + buffers + cached) * 1024);
-
-                memoryInfo.setTotalFormatted(formatBytes(memoryInfo.getTotalBytes()));
-                memoryInfo.setFreeFormatted(formatBytes(memoryInfo.getFreeBytes()));
-                memoryInfo.setUsedFormatted(formatBytes(memoryInfo.getUsedBytes()));
-                memoryInfo.setUsedPercent(String.format("%.1f", usedPercent));
-
-                // Add Java memory info
-                addJavaMemoryInfo(memoryInfo);
-            }
-
-            log.debug("Memory information collected successfully");
-
-        } catch (Exception e) {
-            log.warn("Error collecting memory information", e);
-        }
-
-        return memoryInfo;
+        // LinuxServerInfoCollector.getMemoryInfo() correctly reads /proc/meminfo with proper kB stripping
+        return super.getMemoryInfo();
     }
 
     @Override

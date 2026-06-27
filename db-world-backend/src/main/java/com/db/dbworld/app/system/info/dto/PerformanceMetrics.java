@@ -29,4 +29,8 @@ public class PerformanceMetrics {
     private Long diskWrites;
     private Long networkBytesIn;
     private Long networkBytesOut;
+    private Long networkRxBytesPerSec;
+    private Long networkTxBytesPerSec;
+    private String networkRxFormatted;
+    private String networkTxFormatted;
 }
