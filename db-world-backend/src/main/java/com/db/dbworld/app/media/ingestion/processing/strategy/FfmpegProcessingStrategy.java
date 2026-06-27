@@ -246,7 +246,9 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
             // Scrub-preview storyboard (best-effort; never fails ingestion).
             try {
-                storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto));
+                ctx.log("STORYBOARD", "Generating scrub-preview storyboard…");
+                storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto),
+                        msg -> ctx.log("STORYBOARD", msg));
             } catch (Exception e) {
                 ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
             }
@@ -542,6 +544,12 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return sanitizeToken(detected.getLabel());
         }
         if (ctx.getSource() != null && "YOUTUBE".equalsIgnoreCase(ctx.getSource().getType())) {
+            // Use the actual streaming platform detected from the URL (Hotstar, Netflix, etc.)
+            Map<String, Object> attrs = ctx.getSource().getAttributes();
+            if (attrs != null) {
+                Object platform = attrs.get("platform");
+                if (platform instanceof String s && !s.isBlank()) return sanitizeToken(s);
+            }
             return "YOUTUBE";
         }
         return null;

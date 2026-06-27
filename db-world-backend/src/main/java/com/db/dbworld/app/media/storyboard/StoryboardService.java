@@ -11,11 +11,13 @@ import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Generates a "storyboard" sprite sheet of thumbnail frames for scrub-bar
@@ -58,6 +60,10 @@ public class StoryboardService {
     }
 
     public void generate(String mediaFileId, Path videoFile, long durationMs) {
+        generate(mediaFileId, videoFile, durationMs, null);
+    }
+
+    public void generate(String mediaFileId, Path videoFile, long durationMs, Consumer<String> progress) {
         if (mediaFileId == null || videoFile == null || durationMs <= 0) {
             log.debug("Storyboard skipped (missing id/file/duration) for {}", mediaFileId);
             return;
@@ -79,6 +85,7 @@ public class StoryboardService {
 
             List<BufferedImage> tiles = new ArrayList<>(count);
             int tileH = -1;
+            int lastReportedQuarter = -1;
             for (int i = 0; i < count; i++) {
                 long ts   = (long) i * intervalSec;
                 Path tile = tmpDir.resolve(i + ".jpg");
@@ -98,6 +105,15 @@ public class StoryboardService {
                 } catch (Exception e) {
                     log.debug("Storyboard tile {} failed for {}: {}", i, mediaFileId, e.getMessage());
                     tiles.add(null);
+                }
+
+                if (progress != null) {
+                    int quarter = (i + 1) * 4 / count; // 0..4
+                    if (quarter > lastReportedQuarter) {
+                        int pct = (i + 1) * 100 / count;
+                        progress.accept((i + 1) + "/" + count + " tiles (" + pct + "%)");
+                        lastReportedQuarter = quarter;
+                    }
                 }
             }
 
@@ -119,7 +135,12 @@ public class StoryboardService {
 
             Path out = spritePath(mediaFileId);
             Files.createDirectories(out.getParent());
-            ImageIO.write(sprite, "jpg", out.toFile());
+            // Write via OutputStream to avoid FileImageOutputStreamSpi issues on headless systems
+            try (OutputStream os = Files.newOutputStream(out)) {
+                if (!ImageIO.write(sprite, "jpg", os)) {
+                    throw new IOException("No JPEG ImageWriter available");
+                }
+            }
 
             // Persist geometry so the client can crop the right tile on hover.
             final int intervalMs = intervalSec * 1000;
