@@ -135,10 +135,11 @@ public class StoryboardService {
 
             Path out = spritePath(mediaFileId);
             Files.createDirectories(out.getParent());
+            Files.deleteIfExists(out); // remove stale/partial file from a previous interrupted attempt
             // Write via OutputStream to avoid FileImageOutputStreamSpi issues on headless systems
             try (OutputStream os = Files.newOutputStream(out)) {
                 if (!ImageIO.write(sprite, "jpg", os)) {
-                    throw new IOException("No JPEG ImageWriter available");
+                    throw new IOException("No JPEG ImageWriter available (headless JPEG plugin missing)");
                 }
             }
 
@@ -159,7 +160,8 @@ public class StoryboardService {
                     mediaFileId, count, COLS, rows, TILE_WIDTH, tileH);
 
         } catch (Exception e) {
-            log.warn("Storyboard generation failed for {}: {}", mediaFileId, e.getMessage());
+            log.warn("Storyboard generation failed for {} ({}): {}",
+                    mediaFileId, e.getClass().getSimpleName(), e.getMessage());
         } finally {
             if (tmpDir != null) deleteQuietly(tmpDir);
         }
