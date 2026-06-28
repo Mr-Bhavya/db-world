@@ -1,6 +1,6 @@
 package com.db.dbworld.app.cinema.tmdb.media.projection;
 
-public interface PosterImageProjection {
+public interface LogoImageProjection {
 
     Long getTmdbId();
 
@@ -9,9 +9,5 @@ public interface PosterImageProjection {
     String getIso6391();
 
     Integer getHeight();
-
-    Double getVoteAverage();
-
-    Integer getVoteCount();
 
 }

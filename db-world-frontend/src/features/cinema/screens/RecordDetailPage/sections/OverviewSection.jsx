@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Box, Chip, Paper, Typography, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { motion } from 'framer-motion';
@@ -47,7 +47,8 @@ export default function OverviewSection({ record }) {
     return availableRegions[0] ?? null;
   }, [availableRegions, userRegion]);
 
-  const [selectedRegion, setSelectedRegion] = useState(defaultRegion);
+  // Lock to the user's region (India default) — no all-country selector.
+  const selectedRegion = defaultRegion;
 
   // Only show providers for the chosen region.
   const regionalProviders = useMemo(
@@ -70,17 +71,6 @@ export default function OverviewSection({ record }) {
     ...providerOrder.filter((k) => grouped[k]),
     ...Object.keys(grouped).filter((k) => !providerOrder.includes(k)),
   ];
-
-  // Order region chips: user's region first, then IN, US, then alphabetic.
-  const sortedRegionChips = useMemo(() => {
-    const priority = (r) => {
-      if (r === userRegion) return 0;
-      if (r === 'IN') return 1;
-      if (r === 'US') return 2;
-      return 3;
-    };
-    return [...availableRegions].sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
-  }, [availableRegions, userRegion]);
 
   const chipSx = { bgcolor: alpha(T.teal, 0.12), color: T.teal, fontSize: '0.72rem', border: `1px solid ${alpha(T.teal, 0.2)}` };
   const subChipSx = { bgcolor: T.glass, color: T.textMuted, fontSize: '0.72rem' };
@@ -258,32 +248,9 @@ export default function OverviewSection({ record }) {
 
           {availableRegions.length > 0 && (
             <Box>
-              <SectionHeading>Where to Watch</SectionHeading>
-
-              {/* Region selector — only shown when the title is available in 2+ regions */}
-              {sortedRegionChips.length > 1 && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
-                  {sortedRegionChips.map((r) => {
-                    const isActive = r === selectedRegion;
-                    return (
-                      <Chip
-                        key={r}
-                        label={r === userRegion ? `${r} (you)` : r}
-                        size="small"
-                        onClick={() => setSelectedRegion(r)}
-                        sx={{
-                          height: 22, fontSize: '0.7rem', fontWeight: 700,
-                          bgcolor: isActive ? T.teal : alpha(T.text, 0.06),
-                          color: isActive ? '#fff' : T.textMuted,
-                          border: `1px solid ${isActive ? T.teal : alpha(T.text, 0.1)}`,
-                          cursor: 'pointer',
-                          '&:hover': { bgcolor: isActive ? T.teal : alpha(T.teal, 0.15), color: isActive ? '#fff' : T.teal },
-                        }}
-                      />
-                    );
-                  })}
-                </Box>
-              )}
+              <SectionHeading>
+                Where to Watch{selectedRegion ? ` · ${selectedRegion}` : ''}
+              </SectionHeading>
 
               {sortedProviderKeys.length > 0 ? (
                 sortedProviderKeys.map((type) => (

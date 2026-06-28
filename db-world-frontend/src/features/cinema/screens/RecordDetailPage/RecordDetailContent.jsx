@@ -309,16 +309,25 @@ export default function RecordDetailContent({
   }
 
   return (
-    <Box ref={contentRef} sx={{ bgcolor: surface }}>
+    <Box
+      ref={contentRef}
+      sx={{
+        bgcolor: surface,
+        // Gentle fade-in so the full record eases over the loading preview
+        // instead of popping in.
+        animation: 'rdContentIn 0.4s ease both',
+        '@keyframes rdContentIn': { from: { opacity: 0 }, to: { opacity: 1 } },
+      }}
+    >
       <Hero
         record={record}
         interaction={currentInteraction}
         onToggle={handleToggle}
-        interactionLoading={toggleMutation.isPending}
         onPlayTrailer={firstTrailer ? () => setTrailerVideo(firstTrailer) : null}
         onWatchClick={scrollToWatch}
         onBack={inModal ? onClose : undefined}
         inModal={inModal}
+        preview={preview}
       />
 
       <PillNav sections={sectionList} scrollRoot={scrollRoot} stickyOffset={stickyOffset} />

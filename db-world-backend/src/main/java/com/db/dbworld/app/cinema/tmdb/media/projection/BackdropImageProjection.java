@@ -10,4 +10,8 @@ public interface BackdropImageProjection {
 
     Integer getHeight();
 
+    Double getVoteAverage();
+
+    Integer getVoteCount();
+
 }

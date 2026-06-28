@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Chip, useMediaQuery, useTheme } from '@mui/material';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { useSelector } from 'react-redux';
 import { useQuery } from '@tanstack/react-query';
 
@@ -74,7 +75,6 @@ const CinemaPage = ({ pageType = 'home' }) => {
   const theme = useTheme();
 
   // Device buckets
-  const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isMonitor = useMediaQuery('(min-width:1536px)');
@@ -85,6 +85,12 @@ const CinemaPage = ({ pageType = 'home' }) => {
   const category = selectedCategory?.id ?? null;
 
   const [heroColor, setHeroColor] = useState(null);
+
+  // The rails rise over the hero and hide it, so no opacity fade is needed — just
+  // a gentle parallax lag so the image lingers as the rails cover it. Driven by
+  // scroll position via framer-motion → no React re-renders.
+  const { scrollY } = useScroll();
+  const heroParallax = useTransform(scrollY, [0, 520], [0, 120]);
 
   const { data: railsData, isLoading: railsLoading } = useQuery({
     queryKey: ['cinema-rails', apiPage, category ?? null],
@@ -201,22 +207,25 @@ const CinemaPage = ({ pageType = 'home' }) => {
   const safeHeroColor = heroColor || '20,20,20';
   const hasHeroColor = Boolean(heroColor);
 
-  // Device-specific overlay sizing
+  // Device-specific overlay sizing.
+  // `solidEnd` is tuned to land just past the hero's bottom edge so the colour
+  // wash starts fading exactly where the hero dissolves — the hero and the rails
+  // read as one continuous page instead of a hero block sitting on a colour slab.
   const overlayConfig = useMemo(() => {
     if (isTv) {
-      return { height: '220vh', solidEnd: 58, fadeMid: 72 };
+      return { height: '220vh', solidEnd: 42, fadeMid: 62 };
     }
     if (isMonitor) {
-      return { height: '210vh', solidEnd: 54, fadeMid: 70 };
+      return { height: '210vh', solidEnd: 42, fadeMid: 62 };
     }
     if (isDesktop) {
-      return { height: '200vh', solidEnd: 50, fadeMid: 68 };
+      return { height: '200vh', solidEnd: 42, fadeMid: 62 };
     }
     if (isTablet) {
-      return { height: '175vh', solidEnd: 46, fadeMid: 64 };
+      return { height: '175vh', solidEnd: 44, fadeMid: 64 };
     }
-    // mobile xs
-    return { height: '165vh', solidEnd: 44, fadeMid: 62 };
+    // mobile xs — taller hero card; keep the wash solid around it, fade into rails
+    return { height: '175vh', solidEnd: 52, fadeMid: 68 };
   }, [isDesktop, isMonitor, isTablet, isTv]);
 
   const overlayGradient = useMemo(() => {
@@ -294,16 +303,25 @@ const CinemaPage = ({ pageType = 'home' }) => {
       <Box sx={{ position: 'relative', zIndex: 1 }}>
         <Navbar coverColor={isMobile ? heroColor : null} />
 
-        <HeroBanner
-          records={heroRecords}
-          interactions={interactions}
-          onWatchlist={handleWatchlist}
-          loading={railsLoading || heroLoading}
-          onColorExtracted={setHeroColor}
-        />
+        {/* Desktop: hero sits behind the rails and fades/parallaxes on scroll.
+            Mobile keeps the static card hero (no fade). */}
+        <Box
+          component={motion.div}
+          style={isMobile ? undefined : { y: heroParallax }}
+          sx={{ position: 'relative', zIndex: 0 }}
+        >
+          <HeroBanner
+            records={heroRecords}
+            interactions={interactions}
+            onWatchlist={handleWatchlist}
+            loading={railsLoading || heroLoading}
+            onColorExtracted={setHeroColor}
+          />
+        </Box>
 
-        {/* Important: keep rails transparent, no extra top margin */}
-        <Box sx={{ background: 'transparent' }}>
+        {/* Rails ride up over the hero (desktop) and stay transparent so the
+            colour wash shows through. */}
+        <Box sx={{ position: 'relative', zIndex: 1, background: 'transparent', mt: { xs: 0, md: '-7vh' } }}>
           {railsLoading && rails.length === 0 ? (
             <>
               <RailSkeleton />

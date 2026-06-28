@@ -1,11 +1,30 @@
 import React from 'react';
 import { Box, Typography, IconButton, Tooltip } from '@mui/material';
 import {
-  PlayArrow, Check, ThumbUp, ThumbUpOutlined,
-  Favorite, FavoriteBorder, Visibility, VisibilityOff,
+  PlayArrow, Check, Visibility, VisibilityOff,
   BookmarkAdd, BookmarkAdded, ExpandMore, Star,
 } from '@mui/icons-material';
+import { tmdbImg } from '../../../api/cinemaApi';
 import { year } from './cardHelpers';
+import CardReactionButton from './CardReactionButton';
+
+// Title logo over a clean image — shown ALONE (no meta) when available.
+const LogoImg = ({ record, maxH = 34 }) => (
+  <Box
+    component="img"
+    src={tmdbImg(record.logoPath, 'w300')}
+    alt={record.title}
+    draggable={false}
+    sx={{
+      maxHeight: maxH,
+      maxWidth: '90%',
+      objectFit: 'contain',
+      objectPosition: 'left bottom',
+      display: 'block',
+      filter: 'drop-shadow(0 1px 6px rgba(0,0,0,0.95))',
+    }}
+  />
+);
 
 // Small shared meta row (★ rating · year · genres) used by the title overlay.
 const MetaRow = ({ record }) => (
@@ -35,7 +54,10 @@ const MetaRow = ({ record }) => (
 );
 
 // Landscape title overlay — three styles per rail type (glass / tag / fade).
+// With a logo: show the logo ALONE (no meta). Without: text title + meta row.
 export const CardTitleOverlay = ({ record, titleStyle = 'fade' }) => {
+  const hasLogo = Boolean(record.logoPath);
+
   if (titleStyle === 'glass') return (
     <Box sx={{
       position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -45,14 +67,20 @@ export const CardTitleOverlay = ({ record, titleStyle = 'fade' }) => {
       borderTop: '1px solid rgba(255,255,255,0.07)',
       px: 1.2, pt: 0.65, pb: 0.6, pointerEvents: 'none',
     }}>
-      <Typography sx={{
-        color: '#fff', fontWeight: 700, fontSize: 'clamp(0.66rem, 1.7vw, 0.86rem)',
-        lineHeight: 1.2, mb: 0.25, display: '-webkit-box', WebkitLineClamp: 1,
-        WebkitBoxOrient: 'vertical', overflow: 'hidden', letterSpacing: 0.1,
-      }}>
-        {record.title}
-      </Typography>
-      <MetaRow record={record} />
+      {hasLogo ? (
+        <LogoImg record={record} maxH={30} />
+      ) : (
+        <>
+          <Typography sx={{
+            color: '#fff', fontWeight: 700, fontSize: 'clamp(0.66rem, 1.7vw, 0.86rem)',
+            lineHeight: 1.2, mb: 0.25, display: '-webkit-box', WebkitLineClamp: 1,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden', letterSpacing: 0.1,
+          }}>
+            {record.title}
+          </Typography>
+          <MetaRow record={record} />
+        </>
+      )}
     </Box>
   );
 
@@ -63,12 +91,16 @@ export const CardTitleOverlay = ({ record, titleStyle = 'fade' }) => {
       borderRadius: '5px', px: 0.85, py: 0.4, border: '1px solid rgba(255,255,255,0.11)',
       pointerEvents: 'none',
     }}>
-      <Typography sx={{
-        color: '#fff', fontWeight: 650, fontSize: 'clamp(0.62rem, 1.5vw, 0.8rem)',
-        lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-      }}>
-        {record.title}
-      </Typography>
+      {hasLogo ? (
+        <LogoImg record={record} maxH={24} />
+      ) : (
+        <Typography sx={{
+          color: '#fff', fontWeight: 650, fontSize: 'clamp(0.62rem, 1.5vw, 0.8rem)',
+          lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+        }}>
+          {record.title}
+        </Typography>
+      )}
     </Box>
   );
 
@@ -79,15 +111,21 @@ export const CardTitleOverlay = ({ record, titleStyle = 'fade' }) => {
       background: 'linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.55) 52%, transparent 100%)',
       px: 1.2, pb: 1, pt: 3.5, pointerEvents: 'none',
     }}>
-      <Typography sx={{
-        color: '#fff', fontWeight: 750, fontSize: 'clamp(0.68rem, 1.8vw, 0.9rem)',
-        lineHeight: 1.15, mb: 0.35, display: '-webkit-box', WebkitLineClamp: 1,
-        WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        textShadow: '0 1px 8px rgba(0,0,0,0.9)', letterSpacing: 0.15,
-      }}>
-        {record.title}
-      </Typography>
-      <MetaRow record={record} />
+      {hasLogo ? (
+        <LogoImg record={record} maxH={36} />
+      ) : (
+        <>
+          <Typography sx={{
+            color: '#fff', fontWeight: 750, fontSize: 'clamp(0.68rem, 1.8vw, 0.9rem)',
+            lineHeight: 1.15, mb: 0.35, display: '-webkit-box', WebkitLineClamp: 1,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            textShadow: '0 1px 8px rgba(0,0,0,0.9)', letterSpacing: 0.15,
+          }}>
+            {record.title}
+          </Typography>
+          <MetaRow record={record} />
+        </>
+      )}
     </Box>
   );
 };
@@ -185,18 +223,15 @@ export const ExpandedInfoBar = ({ record, interaction, isMobile, goPlay, onWatch
             </IconButton>
           </Tooltip>
         )}
-        <Tooltip title={interaction.liked ? 'Unlike' : 'Like'}>
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onLike?.(record); }}
-            sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-            {interaction.liked ? <ThumbUp sx={{ fontSize: 12 }} /> : <ThumbUpOutlined sx={{ fontSize: 12 }} />}
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={interaction.loved ? 'Loved' : 'Love it'}>
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onLove?.(record); }}
-            sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.loved ? '#e50914' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
-            {interaction.loved ? <Favorite sx={{ fontSize: 12 }} /> : <FavoriteBorder sx={{ fontSize: 12 }} />}
-          </IconButton>
-        </Tooltip>
+        <CardReactionButton
+          record={record}
+          liked={interaction.liked}
+          loved={interaction.loved}
+          onLike={onLike}
+          onLove={onLove}
+          iconSize={12}
+          pad={0.4}
+        />
         <Tooltip title={interaction.watched ? 'Watched' : 'Mark Watched'}>
           <IconButton size="small" onClick={(e) => { e.stopPropagation(); onWatched?.(record); }}
             sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.watched ? '#a5d6a7' : '#fff', p: 0.4, '&:hover': { borderColor: '#fff' } }}>
@@ -267,18 +302,15 @@ export const WideHoverOverlay = ({ record, interaction, goPlay, onWatchlist, onL
           </IconButton>
         </Tooltip>
       )}
-      <Tooltip title={interaction.liked ? 'Unlike' : 'Like'}>
-        <IconButton size="small" onClick={(e) => { e.stopPropagation(); onLike?.(record); }}
-          sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: '#fff', p: 0.42, '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' } }}>
-          {interaction.liked ? <ThumbUp sx={{ fontSize: 13 }} /> : <ThumbUpOutlined sx={{ fontSize: 13 }} />}
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={interaction.loved ? 'Loved' : 'Love it'}>
-        <IconButton size="small" onClick={(e) => { e.stopPropagation(); onLove?.(record); }}
-          sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: interaction.loved ? '#e50914' : '#fff', p: 0.42, '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' } }}>
-          {interaction.loved ? <Favorite sx={{ fontSize: 13 }} /> : <FavoriteBorder sx={{ fontSize: 13 }} />}
-        </IconButton>
-      </Tooltip>
+      <CardReactionButton
+        record={record}
+        liked={interaction.liked}
+        loved={interaction.loved}
+        onLike={onLike}
+        onLove={onLove}
+        iconSize={13}
+        pad={0.42}
+      />
       <Tooltip title="More details">
         <IconButton size="small" onClick={goDetail}
           sx={{ border: '1.5px solid rgba(255,255,255,.5)', color: '#fff', p: 0.42, ml: 'auto', '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.08)' } }}>

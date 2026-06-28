@@ -13,6 +13,14 @@ const SCROLL_AMOUNT = 0.75;
 const CARD_LEAVE_COLLAPSE_MS = 95;
 const ROW_LEAVE_COLLAPSE_MS = 130;
 
+// The neighbour slide-aside MUST use the same duration + easing as the
+// PrimeDesktopCard overlay growth, otherwise the seam between the expanded
+// card's right edge and the next card's left edge "breathes" during the
+// animation, dropping the cursor into a dead zone and causing expand/collapse
+// flicker. Keep these in sync with PrimeDesktopCard (DUR / EASE).
+const PRIME_ANIM_MS = 300;
+const PRIME_ANIM_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
+
 const ScrollDots = ({ scrollRef, count = 5 }) => {
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -95,9 +103,12 @@ const RailRow = ({
 
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
+  const [navHovered, setNavHovered] = useState(false); // reveal scroll arrows on hover
 
-  // Single source of truth for prime rail expansion
-  const [expand, setExpand] = useState({ idx: null, dir: 'right' });
+  // Single source of truth for prime rail expansion.
+  // `push` = whether neighbours slide aside (interior) or the overlay just
+  // covers them (edge-constrained, so the card never lands off-screen).
+  const [expand, setExpand] = useState({ idx: null, dir: 'right', push: false });
 
   const {
     records,
@@ -159,33 +170,65 @@ const PRIME_SHIFT = (() => {
     return { firstVisible, lastVisible };
   }, [records.length]);
 
-  const chooseExpandDirection = useCallback((idx) => {
-  const { firstVisible, lastVisible } = getVisibleRange();
-  const prevIdx = prevExpandedIdxRef.current;
+  // Decide which way a card expands AND whether it pushes its neighbours.
+  //  - interior card (room on the side it grows toward): slide neighbours aside,
+  //    keeping direction continuity with the last hover.
+  //  - edge card (a side without PRIME_SHIFT of room): grow toward the side that
+  //    DOES fit, still pushing neighbours aside. The direction (not the push) is
+  //    what keeps it on-screen — this was the bug: continuity used to win over
+  //    the edge check, so the first/last card expanded past the viewport edge.
+  //  - degenerate case (neither side fits, e.g. viewport narrower than a
+  //    landscape card): overlay covers instead of pushing, so still no scroll.
+  const chooseExpand = useCallback((idx) => {
+    const scroller = scrollRef.current;
+    const el = cardRefs.current[idx];
+    const prevIdx = prevExpandedIdxRef.current;
 
-  // first visible should still prefer right
-  if (idx <= firstVisible) return 'right';
+    let fitsRight = true;
+    let fitsLeft = true;
+    let roomRight = Infinity;
+    let roomLeft = Infinity;
 
-  // movement continuity should win before edge fallback
-  if (prevIdx != null) {
-    if (idx > prevIdx) return 'right';
-    if (idx < prevIdx) return 'left';
-  }
+    if (scroller && el) {
+      const viewLeft = scroller.scrollLeft;
+      const viewRight = viewLeft + scroller.clientWidth;
+      const cardLeft = el.offsetLeft;               // layout pos — ignores transform
+      const cardRight = cardLeft + el.offsetWidth;
+      const PAD = 8;                                 // small breathing room at edges
+      roomRight = viewRight - cardRight;
+      roomLeft = cardLeft - viewLeft;
+      fitsRight = cardRight + PRIME_SHIFT <= viewRight - PAD;
+      fitsLeft = cardLeft - PRIME_SHIFT >= viewLeft + PAD;
+    }
 
-  // only use last-visible fallback when there is no movement history
-  if (idx >= lastVisible) return 'left';
+    // A side without room → grow toward the side that DOES fit, still pushing
+    // neighbours aside (the expanded card stays fully visible because that side
+    // has the required PRIME_SHIFT of space).
+    if (!fitsLeft && fitsRight) return { dir: 'right', push: true };
+    if (!fitsRight && fitsLeft) return { dir: 'left', push: true };
+    // Neither side fits → pick the roomier side and let the overlay cover rather
+    // than push, so the card still never requires scrolling.
+    if (!fitsRight && !fitsLeft) {
+      return { dir: roomRight >= roomLeft ? 'right' : 'left', push: false };
+    }
 
-  const leftSlots = idx - firstVisible;
-  const rightSlots = lastVisible - idx;
+    // Interior (both sides fit) → slide-aside with direction continuity.
+    if (prevIdx != null) {
+      if (idx > prevIdx) return { dir: 'right', push: true };
+      if (idx < prevIdx) return { dir: 'left', push: true };
+    }
 
-  return rightSlots >= leftSlots ? 'right' : 'left';
-}, [getVisibleRange]);
+    const { firstVisible, lastVisible } = getVisibleRange();
+    if (idx <= firstVisible) return { dir: 'right', push: true };
+    if (idx >= lastVisible) return { dir: 'left', push: true };
+    return { dir: (lastVisible - idx) >= (idx - firstVisible) ? 'right' : 'left', push: true };
+  }, [getVisibleRange, PRIME_SHIFT]);
 
   const expandNow = useCallback((idx) => {
-    const dir = chooseExpandDirection(idx);
-    setExpand({ idx, dir });
+    const { dir, push } = chooseExpand(idx);
+    setExpand({ idx, dir, push });
     prevExpandedIdxRef.current = idx;
-  }, [chooseExpandDirection]);
+  }, [chooseExpand]);
 
   const handleHoverExpand = useCallback((idx) => {
     // cancel pending collapse if next card is entered quickly
@@ -227,7 +270,7 @@ const PRIME_SHIFT = (() => {
   }, []);
 
   const cardShift = useCallback((i) => {
-    if (!expandOnHover || expand.idx == null) return 0;
+    if (!expandOnHover || expand.idx == null || !expand.push) return 0;
 
     if (expand.dir === 'right' && i > expand.idx) {
       return PRIME_SHIFT;
@@ -238,7 +281,7 @@ const PRIME_SHIFT = (() => {
     }
 
     return 0;
-  }, [expandOnHover, expand.idx, expand.dir, PRIME_SHIFT]);
+  }, [expandOnHover, expand.idx, expand.dir, expand.push, PRIME_SHIFT]);
 
   // Lazy load via Intersection Observer
   useEffect(() => {
@@ -373,51 +416,71 @@ const PRIME_SHIFT = (() => {
         )}
 
         <Box
+          onMouseEnter={() => setNavHovered(true)}
+          onMouseLeave={() => setNavHovered(false)}
           sx={{
             position: 'relative',
             background: 'transparent',
           }}
         >
           {showLeft && !isMobile && !isTv && (
-            <IconButton
-              onClick={() => scroll(-1)}
+            <Box
               sx={{
-                position: 'absolute',
-                left: 0,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 8,
-                bgcolor: 'rgba(20,20,20,.85)',
-                color: '#fff',
-                height: '100%',
-                width: 40,
-                borderRadius: 0,
-                '&:hover': { bgcolor: 'rgba(20,20,20,.95)' },
+                position: 'absolute', left: 0, top: 0, bottom: 0, width: 64, zIndex: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'flex-start', pl: 0.5,
+                background: 'linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.12) 65%, transparent 100%)',
+                opacity: navHovered ? 1 : 0,
+                pointerEvents: 'none', // strip is click-through; only the button captures clicks
+                transition: 'opacity 0.22s ease',
               }}
             >
-              <ChevronLeft />
-            </IconButton>
+              <IconButton
+                onClick={() => scroll(-1)}
+                aria-label="Scroll left"
+                sx={{
+                  width: 40, height: 40, color: '#fff',
+                  pointerEvents: navHovered ? 'auto' : 'none',
+                  bgcolor: 'rgba(0,0,0,0.62)',
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  backdropFilter: 'blur(6px)',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                  transition: 'background 0.15s ease, transform 0.15s ease',
+                  '&:hover': { bgcolor: 'rgba(0,0,0,0.85)', transform: 'scale(1.08)' },
+                }}
+              >
+                <ChevronLeft />
+              </IconButton>
+            </Box>
           )}
 
           {showRight && !isMobile && !isTv && (
-            <IconButton
-              onClick={() => scroll(1)}
+            <Box
               sx={{
-                position: 'absolute',
-                right: 0,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 8,
-                bgcolor: 'rgba(20,20,20,.85)',
-                color: '#fff',
-                height: '100%',
-                width: 40,
-                borderRadius: 0,
-                '&:hover': { bgcolor: 'rgba(20,20,20,.95)' },
+                position: 'absolute', right: 0, top: 0, bottom: 0, width: 64, zIndex: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 0.5,
+                background: 'linear-gradient(to left, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.12) 65%, transparent 100%)',
+                opacity: navHovered ? 1 : 0,
+                pointerEvents: 'none', // strip is click-through; only the button captures clicks
+                transition: 'opacity 0.22s ease',
               }}
             >
-              <ChevronRight />
-            </IconButton>
+              <IconButton
+                onClick={() => scroll(1)}
+                aria-label="Scroll right"
+                sx={{
+                  width: 40, height: 40, color: '#fff',
+                  pointerEvents: navHovered ? 'auto' : 'none',
+                  bgcolor: 'rgba(0,0,0,0.62)',
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  backdropFilter: 'blur(6px)',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                  transition: 'background 0.15s ease, transform 0.15s ease',
+                  '&:hover': { bgcolor: 'rgba(0,0,0,0.85)', transform: 'scale(1.08)' },
+                }}
+              >
+                <ChevronRight />
+              </IconButton>
+            </Box>
           )}
 
           <Box
@@ -460,7 +523,8 @@ const PRIME_SHIFT = (() => {
                           position: 'relative',
                           zIndex: isExpanded ? 7 : 1,
                           transform: `translateX(${shiftedX}px)`,
-                          transition: 'transform 340ms cubic-bezier(0.22, 1, 0.36, 1)',
+                          // Matched to the overlay growth so the seam stays constant.
+                          transition: `transform ${PRIME_ANIM_MS}ms ${PRIME_ANIM_EASE}`,
                           willChange: 'transform',
                         }}
                       >

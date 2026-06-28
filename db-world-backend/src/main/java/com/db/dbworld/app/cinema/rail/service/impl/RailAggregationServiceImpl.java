@@ -33,6 +33,7 @@ public class RailAggregationServiceImpl implements RailAggregationService {
 
     private final PosterImageRepository posterImageRepository;
     private final BackdropImageRepository backdropImageRepository;
+    private final LogoImageRepository logoImageRepository;
     private final VideoRepository videoRepository;
     private final TmdbProviderRepository tmdbProviderRepository;
     private final GenreRepository genreRepository;
@@ -44,14 +45,11 @@ public class RailAggregationServiceImpl implements RailAggregationService {
 
     private static final String REGION = "IN";
 
-    /** Rotate among top-N candidates per tmdbId. */
-    private static final int ROTATE_TOP_N = 3;
-
-    /** Hours per rotation window. */
-    private static final int ROTATE_HOURS = 6;
-
     /** Locale priority — index 0 = highest. */
     private static final List<String> LOCALE_PRIORITY = List.of("en", "hi", "gu");
+
+    /** Logo locale priority — Hindi first, then English, then regional. */
+    private static final List<String> LOGO_LOCALE_PRIORITY = List.of("hi", "en", "gu");
 
     /** Minimum image height to consider. Below this = filtered out. */
     private static final int MIN_HEIGHT = 300;
@@ -80,18 +78,28 @@ public class RailAggregationServiceImpl implements RailAggregationService {
         var genres    = async(() -> fetchGenres(tmdbIds));
         var posters   = async(() -> fetchPosters(tmdbIds));
         var backdrops = async(() -> fetchBackdrops(tmdbIds));
+        var logos     = async(() -> fetchLogos(tmdbIds));
         var videos    = async(() -> fetchVideos(tmdbIds));
         var providers = async(() -> fetchProviders(tmdbIds));
 
-        CompletableFuture.allOf(genres, posters, backdrops, videos, providers).join();
+        CompletableFuture.allOf(genres, posters, backdrops, logos, videos, providers).join();
 
+        // allOf has completed every future, so join() returns immediately. A failed
+        // fetch completes with null (see async's exceptionally) — coalesce to an
+        // empty map so one bad fetch degrades to fallback images instead of NPE-ing
+        // the whole rail downstream.
         return new RailAggregationResult(
-                genres.getNow(Map.of()),
-                posters.getNow(Map.of()),
-                backdrops.getNow(Map.of()),
-                videos.getNow(Map.of()),
-                providers.getNow(Map.of())
+                orEmpty(genres.join()),
+                orEmpty(posters.join()),
+                orEmpty(backdrops.join()),
+                orEmpty(videos.join()),
+                orEmpty(providers.join()),
+                orEmpty(logos.join())
         );
+    }
+
+    private static <K, V> Map<K, V> orEmpty(Map<K, V> map) {
+        return map != null ? map : Map.of();
     }
 
     /* ═══════════════════════════════════════════════════════════
@@ -107,28 +115,31 @@ public class RailAggregationServiceImpl implements RailAggregationService {
                 g -> g.getGenre().getName());
     }
 
+    // Locale-ranked only; per-variant image rotation/variety is applied downstream
+    // in RailRecordBuilder (it knows which images are with-text vs clean).
     private Map<Long, List<PosterImageProjection>> fetchPosters(List<Long> ids) {
-
-        var map = collect(
-                posterImageRepository.findPostersByTmdbIds(ids),
+        return collect(
+                posterImageRepository.findPostersByTmdbIds(ids, LOCALE_PRIORITY, MIN_HEIGHT),
                 PosterImageProjection::getTmdbId,
-                validImage(PosterImageProjection::getTmdbId, PosterImageProjection::getHeight),
+                validImage(PosterImageProjection::getTmdbId, PosterImageProjection::getFilePath),
                 localeOrder(PosterImageProjection::getIso6391));
-
-        applyRotation(map);
-        return map;
     }
 
     private Map<Long, List<BackdropImageProjection>> fetchBackdrops(List<Long> ids) {
-
-        var map = collect(
-                backdropImageRepository.findBackdropsByTmdbIds(ids),
+        return collect(
+                backdropImageRepository.findBackdropsByTmdbIds(ids, LOCALE_PRIORITY, MIN_HEIGHT),
                 BackdropImageProjection::getTmdbId,
-                validImage(BackdropImageProjection::getTmdbId, BackdropImageProjection::getHeight),
+                validImage(BackdropImageProjection::getTmdbId, BackdropImageProjection::getFilePath),
                 localeOrder(BackdropImageProjection::getIso6391));
+    }
 
-        applyRotation(map);
-        return map;
+    // Title logos, locale-ranked (en > hi > gu > none). Builder picks the best one.
+    private Map<Long, List<LogoImageProjection>> fetchLogos(List<Long> ids) {
+        return collect(
+                logoImageRepository.findLogosByTmdbIds(ids, LOCALE_PRIORITY),
+                LogoImageProjection::getTmdbId,
+                validImage(LogoImageProjection::getTmdbId, LogoImageProjection::getFilePath),
+                logoLocaleOrder(LogoImageProjection::getIso6391));
     }
 
     private Map<Long, List<VideoProjection>> fetchVideos(List<Long> ids) {
@@ -179,17 +190,17 @@ public class RailAggregationServiceImpl implements RailAggregationService {
     }
 
     /* ═══════════════════════════════════════════════════════════
-       IMAGE FILTER — min height gate (not ranking)
+       IMAGE FILTER — null guard only
+
+       Height / locale / file-path gating is pushed down to the SQL query
+       (see PosterImageRepository / BackdropImageRepository), so this is just a
+       cheap defensive guard against malformed projection rows.
     ═══════════════════════════════════════════════════════════ */
 
     private <T> Predicate<T> validImage(
             Function<T, Long> idFn,
-            Function<T, Integer> heightFn) {
-        return item -> {
-            if (idFn.apply(item) == null) return false;
-            Integer h = heightFn.apply(item);
-            return h == null || h >= MIN_HEIGHT;
-        };
+            Function<T, String> pathFn) {
+        return item -> idFn.apply(item) != null && pathFn.apply(item) != null;
     }
 
     /* ═══════════════════════════════════════════════════════════
@@ -217,28 +228,20 @@ public class RailAggregationServiceImpl implements RailAggregationService {
         return idx >= 0 ? (LOCALE_PRIORITY.size() - idx) * 100 : 10;
     }
 
-    /* ═══════════════════════════════════════════════════════════
-       ROTATION — clock-based, tmdbId-aware, restart-safe
-    ═══════════════════════════════════════════════════════════ */
-
     /**
-     * Rotates the "first pick" among the top-N candidates per tmdbId.
-     *
-     * - Wall clock seed  → survives server restart
-     * - tmdbId mixed in  → different movies rotate at different phases
-     * - Deterministic     → CDN/cache friendly within same window
+     * Logo ordering — Hindi first, then English, then regional (gu), then
+     * language-neutral (null). Title logos read best in the local language.
      */
-    private static <T> void applyRotation(Map<Long, List<T>> map) {
-        if (ROTATE_TOP_N <= 1 || ROTATE_HOURS <= 0) return;
+    private <T> Comparator<T> logoLocaleOrder(Function<T, String> isoFn) {
+        return Comparator.<T, Integer>comparing(
+                img -> logoLocaleScore(isoFn.apply(img)),
+                Comparator.reverseOrder());
+    }
 
-        long window = System.currentTimeMillis() / (1000L * 60 * 60 * ROTATE_HOURS);
-
-        map.forEach((tmdbId, list) -> {
-            if (list.size() <= 1) return;
-            int n = Math.min(ROTATE_TOP_N, list.size());
-            int pick = (int) (((tmdbId * 31 + window) % n + n) % n);
-            if (pick != 0) Collections.swap(list, 0, pick);
-        });
+    private static int logoLocaleScore(String iso) {
+        if (iso == null) return 1;                       // included, lowest priority
+        int idx = LOGO_LOCALE_PRIORITY.indexOf(iso);
+        return idx >= 0 ? (LOGO_LOCALE_PRIORITY.size() - idx) * 10 : 0;  // hi > en > gu
     }
 
     /* ═══════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useState } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -46,7 +46,8 @@ const HeroBannerDesktop = ({
   isMonitor,
   isTv,
 }) => {
-  const [hovered, setHovered] = useState(false);
+  const stripRef = useRef(null);
+  const thumbRefs = useRef([]);
 
   const backdrop = useMemo(
     () =>
@@ -59,6 +60,7 @@ const HeroBannerDesktop = ({
 
   const displayYear = year(record?.releaseDate);
   const tagLabel = record?.type === 'MOVIE' ? 'Movie' : 'TV Series';
+  const logo = tmdbImg(record?.logoPath, isTv ? 'w780' : 'w500');
 
   const metrics = useMemo(
     () => ({
@@ -83,6 +85,8 @@ const HeroBannerDesktop = ({
           ? 'clamp(3rem, 4.2vw, 4.8rem)'
           : 'clamp(2.2rem, 3.4vw, 3.9rem)',
 
+      logoMaxH: isTv ? 200 : isMonitor ? 168 : 132,
+
       bodySize: isTv ? '1.1rem' : isMonitor ? '1rem' : '0.95rem',
       chipSize: isTv ? '0.9rem' : '0.74rem',
       chipHeight: isTv ? 30 : 24,
@@ -91,11 +95,10 @@ const HeroBannerDesktop = ({
       buttonFont: isTv ? '1.06rem' : '0.95rem',
       roundBtnSize: isTv ? 54 : 42,
 
-      arrowBtnSize: isTv ? 56 : isMonitor ? 48 : 42,
-      arrowIconSize: isTv ? 32 : 26,
-      sidePadding: isTv ? 16 : 10,
-
-      indicatorBottom: isTv ? 50 : 36,
+      navBtnSize: isTv ? 44 : 36,
+      navIconSize: isTv ? 26 : 20,
+      thumbW: isTv ? 132 : isMonitor ? 116 : 104,
+      thumbH: isTv ? 74 : isMonitor ? 66 : 58,
     }),
     [isMonitor, isTv]
   );
@@ -122,12 +125,18 @@ const HeroBannerDesktop = ({
   const handlePrev = useCallback(() => go(-1), [go]);
   const handleNext = useCallback(() => go(1), [go]);
 
+  // Keep the active thumbnail centred in the strip as the slide changes.
+  useEffect(() => {
+    const el = thumbRefs.current[idx];
+    if (el?.scrollIntoView) {
+      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [idx]);
+
   if (!record) return null;
 
   return (
     <Box
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       sx={{
         position: 'relative',
         width: '100%',
@@ -288,6 +297,41 @@ const HeroBannerDesktop = ({
             exit={{ opacity: 0, y: reducedMotion ? 0 : -10 }}
             transition={{ duration: reducedMotion ? 0.2 : 0.45, ease: EASE }}
           >
+            {/* Title logo first (falls back to the text title), then the meta line */}
+            {logo ? (
+              <Box
+                component="img"
+                src={logo}
+                alt={record.title}
+                draggable={false}
+                sx={{
+                  maxWidth: '100%',
+                  maxHeight: metrics.logoMaxH,
+                  objectFit: 'contain',
+                  objectPosition: 'left bottom',
+                  display: 'block',
+                  mb: isTv ? 2 : 1.5,
+                  filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.7))',
+                }}
+              />
+            ) : (
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                  color: '#fff',
+                  lineHeight: 1.03,
+                  mb: isTv ? 2 : 1.5,
+                  textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+                  letterSpacing: '-0.03em',
+                  fontSize: metrics.titleSize,
+                  wordBreak: 'break-word',
+                  ...clampLines(isTv ? 3 : 2),
+                }}
+              >
+                {record.title}
+              </Typography>
+            )}
+
             <Box
               sx={{
                 display: 'flex',
@@ -343,22 +387,6 @@ const HeroBannerDesktop = ({
                 </Box>
               )}
             </Box>
-
-            <Typography
-              sx={{
-                fontWeight: 900,
-                color: '#fff',
-                lineHeight: 1.03,
-                mb: isTv ? 2 : 1.5,
-                textShadow: '0 2px 10px rgba(0,0,0,0.8)',
-                letterSpacing: '-0.03em',
-                fontSize: metrics.titleSize,
-                wordBreak: 'break-word',
-                ...clampLines(isTv ? 3 : 2),
-              }}
-            >
-              {record.title}
-            </Typography>
 
             {record.genres?.length > 0 && (
               <Box
@@ -515,116 +543,113 @@ const HeroBannerDesktop = ({
         </AnimatePresence>
       </Box>
 
-      {/* Arrows */}
+      {/* Slide navigator — thumbnail strip on the right (replaces the bottom
+          dots + side arrows, so it doesn't take its own vertical band). */}
       {featured.length > 1 && (
-        <>
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: metrics.contentBottom,
+            right: metrics.contentLeft,
+            zIndex: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            maxWidth: { md: '40vw', xl: '34vw' },
+          }}
+        >
           <IconButton
             onClick={handlePrev}
             aria-label="Previous"
             sx={{
-              position: 'absolute',
-              left: metrics.sidePadding,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              bgcolor: 'rgba(0,0,0,0.45)',
-              backdropFilter: 'blur(4px)',
-              WebkitBackdropFilter: 'blur(4px)',
+              flexShrink: 0,
+              width: metrics.navBtnSize,
+              height: metrics.navBtnSize,
               color: '#fff',
-              zIndex: 4,
-              width: metrics.arrowBtnSize,
-              height: metrics.arrowBtnSize,
-              opacity: hovered ? 1 : 0,
-              pointerEvents: hovered ? 'auto' : 'none',
-              transition: 'opacity 220ms ease, background 220ms ease, transform 220ms ease',
-              '&:hover': {
-                bgcolor: 'rgba(0,0,0,0.72)',
-                transform: 'translateY(-50%) scale(1.05)',
-              },
-              '&:focus-visible': {
-                outline: '3px solid #0d9488',
-                outlineOffset: 3,
-                opacity: 1,
-                pointerEvents: 'auto',
-              },
+              bgcolor: 'rgba(0,0,0,0.5)',
+              border: `1px solid ${BORDER}`,
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.78)' },
+              '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 2 },
             }}
           >
-            <ChevronLeft sx={{ fontSize: metrics.arrowIconSize }} />
+            <ChevronLeft sx={{ fontSize: metrics.navIconSize }} />
           </IconButton>
+
+          <Box
+            ref={stripRef}
+            sx={{
+              display: 'flex',
+              gap: 1,
+              minWidth: 0,
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              '&::-webkit-scrollbar': { display: 'none' },
+              py: 0.5,
+            }}
+          >
+            {featured.map((item, i) => {
+              const active = i === idx;
+              const thumb = tmdbImg(
+                item.backdropPath ?? item.backdropPathText ?? item.posterPath,
+                'w300'
+              );
+              return (
+                <Box
+                  key={item.id ?? i}
+                  ref={(el) => { thumbRefs.current[i] = el; }}
+                  onClick={() => goToIndex(i)}
+                  role="button"
+                  aria-label={`Go to ${item.title ?? `slide ${i + 1}`}`}
+                  sx={{
+                    flex: '0 0 auto',
+                    width: metrics.thumbW,
+                    height: metrics.thumbH,
+                    borderRadius: 1.5,
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    bgcolor: 'rgba(255,255,255,0.06)',
+                    border: `2px solid ${active ? '#fff' : 'transparent'}`,
+                    opacity: active ? 1 : 0.55,
+                    transition: 'opacity 0.2s ease, border-color 0.2s ease, transform 0.2s ease',
+                    '&:hover': { opacity: 1, transform: 'translateY(-2px)' },
+                  }}
+                >
+                  {thumb && (
+                    <Box
+                      component="img"
+                      src={thumb}
+                      alt={item.title || ''}
+                      loading="lazy"
+                      draggable={false}
+                      sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
 
           <IconButton
             onClick={handleNext}
             aria-label="Next"
             sx={{
-              position: 'absolute',
-              right: metrics.sidePadding,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              bgcolor: 'rgba(0,0,0,0.45)',
-              backdropFilter: 'blur(4px)',
-              WebkitBackdropFilter: 'blur(4px)',
+              flexShrink: 0,
+              width: metrics.navBtnSize,
+              height: metrics.navBtnSize,
               color: '#fff',
-              zIndex: 4,
-              width: metrics.arrowBtnSize,
-              height: metrics.arrowBtnSize,
-              opacity: hovered ? 1 : 0,
-              pointerEvents: hovered ? 'auto' : 'none',
-              transition: 'opacity 220ms ease, background 220ms ease, transform 220ms ease',
-              '&:hover': {
-                bgcolor: 'rgba(0,0,0,0.72)',
-                transform: 'translateY(-50%) scale(1.05)',
-              },
-              '&:focus-visible': {
-                outline: '3px solid #0d9488',
-                outlineOffset: 3,
-                opacity: 1,
-                pointerEvents: 'auto',
-              },
+              bgcolor: 'rgba(0,0,0,0.5)',
+              border: `1px solid ${BORDER}`,
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.78)' },
+              '&:focus-visible': { outline: '3px solid #0d9488', outlineOffset: 2 },
             }}
           >
-            <ChevronRight sx={{ fontSize: metrics.arrowIconSize }} />
+            <ChevronRight sx={{ fontSize: metrics.navIconSize }} />
           </IconButton>
-        </>
-      )}
-
-      {/* Indicators */}
-      {featured.length > 1 && (
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: metrics.indicatorBottom,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            gap: 0.8,
-            zIndex: 3,
-          }}
-        >
-          {featured.map((_, i) => {
-            const active = i === idx;
-            return (
-              <motion.div
-                key={i}
-                layout
-                onClick={() => goToIndex(i)}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                style={{
-                  width: active ? (isTv ? 30 : 24) : isTv ? 10 : 8,
-                  height: isTv ? 10 : 8,
-                  borderRadius: 999,
-                  background: active
-                    ? 'linear-gradient(90deg, #14b8a6 0%, #0d9488 100%)'
-                    : 'rgba(255,255,255,0.36)',
-                  cursor: 'pointer',
-                  opacity: active ? 1 : 0.55,
-                  boxShadow: active
-                    ? '0 4px 12px rgba(13,148,136,0.35)'
-                    : 'none',
-                }}
-                role="button"
-                aria-label={`Go to slide ${i + 1}`}
-              />
-            );
-          })}
         </Box>
       )}
     </Box>

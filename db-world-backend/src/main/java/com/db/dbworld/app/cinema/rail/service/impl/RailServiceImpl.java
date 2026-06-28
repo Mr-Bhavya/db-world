@@ -334,7 +334,7 @@ public class RailServiceImpl implements RailService {
         List<RailRecordDto> result = orderedRecords.stream()
                 .map(r -> railRecordBuilder.build(
                         r, aggregate.genres(), aggregate.posters(), aggregate.backdrops(),
-                        aggregate.videos(), aggregate.providers())
+                        aggregate.videos(), aggregate.providers(), aggregate.logos())
                 ).toList();
 
         RailPageDto railPageDto = RailPageDto.builder()
@@ -398,7 +398,7 @@ public class RailServiceImpl implements RailService {
         List<RailRecordDto> records = ordered.stream()
                 .map(r -> railRecordBuilder.build(
                         r, aggregate.genres(), aggregate.posters(),
-                        aggregate.backdrops(), aggregate.videos(), aggregate.providers()))
+                        aggregate.backdrops(), aggregate.videos(), aggregate.providers(), aggregate.logos()))
                 .toList();
 
         return RailPageDto.builder()

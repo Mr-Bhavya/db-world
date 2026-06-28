@@ -19,6 +19,8 @@ import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.ImageEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.LogoImageEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
@@ -175,7 +177,41 @@ public class CatalogServiceImpl implements CatalogService {
             }
         }
 
-        return recordMapper.toDto(record);
+        RecordDto dto = recordMapper.toDto(record);
+
+        // Title logo for the detail hero — selected from the loaded images
+        // (locale-best: hi > en > gu > language-neutral). null → UI uses text title.
+        if (record.getTmdb() != null && dto.getTmdb() != null) {
+            dto.getTmdb().setLogoPath(selectLogoPath(record.getTmdb().getImages()));
+        }
+
+        return dto;
+    }
+
+    // Logo priority — Hindi first, then English, then regional (gu). null is also
+    // allowed (language-neutral logo), just lowest priority.
+    private static final List<String> LOGO_LOCALES = List.of("hi", "en", "gu");
+
+    private static String selectLogoPath(List<ImageEntity> images) {
+        if (images == null) return null;
+        String best = null;
+        int bestScore = -1;
+        for (ImageEntity img : images) {
+            if (!(img instanceof LogoImageEntity logo) || logo.getFilePath() == null) continue;
+            int score = logoLocaleScore(logo.getIso6391());
+            if (score <= 0) continue; // skip foreign-language logos — keep en/hi/gu/neutral only
+            if (score > bestScore) {
+                bestScore = score;
+                best = logo.getFilePath();
+            }
+        }
+        return best;
+    }
+
+    private static int logoLocaleScore(String iso) {
+        if (iso == null) return 1;                       // language-neutral logo
+        int idx = LOGO_LOCALES.indexOf(iso);
+        return idx >= 0 ? (LOGO_LOCALES.size() - idx) * 10 : 0;  // hi > en > gu > other
     }
 
     /**

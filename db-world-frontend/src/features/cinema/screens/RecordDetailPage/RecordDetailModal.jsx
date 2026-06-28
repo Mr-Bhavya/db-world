@@ -1,9 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Box, Dialog, IconButton } from '@mui/material';
+import { Box, Dialog, IconButton, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
+import { useT } from '@shared/theme/ThemeContext';
 import RecordDetailContent from './RecordDetailContent';
 
 // Expand transition: when opened from a hover popup (originRect supplied by
@@ -16,7 +17,9 @@ const NFXExpand = React.forwardRef(function NFXExpand(
 ) {
   const vw = typeof window !== 'undefined' ? window.innerWidth  : 1440;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 900;
-  const modalW = Math.min(vw * 0.92, 1150);
+  // Cap matches the Paper maxWidth below (1360 on TV) so the grow start-scale
+  // stays accurate on very large screens.
+  const modalW = Math.min(vw * 0.92, vw >= 1920 ? 1360 : 1150);
 
   // Start the modal shell at the popup's footprint so it appears to grow out of it.
   const initial = originRect
@@ -49,6 +52,9 @@ const NFXExpand = React.forwardRef(function NFXExpand(
 export default function RecordDetailModal() {
   const navigate = useNavigate();
   const location = useLocation();
+  const T = useT();
+  const isTV = useMediaQuery('(min-width:1920px)');
+  const maxW = isTV ? 1360 : 1150;
   const [open, setOpen] = useState(true);
   const [scrollEl, setScrollEl] = useState(null);
   const closingRef = useRef(false);
@@ -86,12 +92,29 @@ export default function RecordDetailModal() {
         ref: setScrollerRef,
         sx: {
           width: '92vw',
-          maxWidth: 1150,
+          maxWidth: maxW,
           maxHeight: '92vh',
           borderRadius: 3,
           overflow: 'auto',
           bgcolor: 'transparent',
           boxShadow: '0 32px 90px rgba(0,0,0,0.7)',
+          // Slim, theme-aware scrollbar that sits inside the rounded Paper.
+          // The 3px transparent border + padding-box clip insets the thumb so
+          // it reads as a pill rather than flush against the rounded edge.
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${alpha(T.text, 0.28)} transparent`,
+          '&::-webkit-scrollbar': { width: 10 },
+          '&::-webkit-scrollbar-track': { background: 'transparent' },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: alpha(T.text, 0.24),
+            borderRadius: 999,
+            border: '3px solid transparent',
+            backgroundClip: 'padding-box',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            backgroundColor: alpha(T.text, 0.42),
+            backgroundClip: 'padding-box',
+          },
         },
       }}
       slotProps={{

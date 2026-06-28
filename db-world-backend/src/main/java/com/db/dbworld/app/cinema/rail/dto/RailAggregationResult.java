@@ -13,12 +13,14 @@ public record RailAggregationResult(
         Map<Long, List<PosterImageProjection>> posters,
         Map<Long, List<BackdropImageProjection>> backdrops,
         Map<Long, List<VideoProjection>> videos,
-        Map<Long, List<TmdbProviderDto>> providers
+        Map<Long, List<TmdbProviderDto>> providers,
+        Map<Long, List<LogoImageProjection>> logos
 
 ) {
 
     public static RailAggregationResult empty() {
         return new RailAggregationResult(
+                Collections.emptyMap(),
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 Collections.emptyMap(),

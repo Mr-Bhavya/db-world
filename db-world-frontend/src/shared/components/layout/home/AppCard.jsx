@@ -48,7 +48,7 @@ const AppCard = memo(function AppCard({
         width: '100%',
         minWidth: 0,
         minHeight: {
-          xs: 158,
+          xs: 138,
           sm: 166,
           md: 184,
           xl: 210,
@@ -85,7 +85,7 @@ const AppCard = memo(function AppCard({
       <Box
         sx={{
           height: {
-            xs: 68,
+            xs: 58,
             sm: 72,
             md: 84,
             xl: 104,
@@ -115,7 +115,7 @@ const AppCard = memo(function AppCard({
             zIndex: 1,
             color: '#fff',
             fontSize: {
-              xs: 32,
+              xs: 27,
               sm: 36,
               md: 40,
               xl: 50,
@@ -170,7 +170,7 @@ const AppCard = memo(function AppCard({
       <Box
         sx={{
           p: {
-            xs: 1.45,
+            xs: 1.2,
             sm: 1.7,
             md: 2,
             xl: 2.3,
@@ -190,7 +190,7 @@ const AppCard = memo(function AppCard({
             color: T.textPrimary,
             fontWeight: 900,
             fontSize: {
-              xs: '0.94rem',
+              xs: '0.88rem',
               sm: '1rem',
               md: '1.05rem',
               xl: '1.18rem',
@@ -199,7 +199,7 @@ const AppCard = memo(function AppCard({
               fontSize: '1.36rem',
             },
             lineHeight: 1.18,
-            mb: 0.65,
+            mb: { xs: 0.4, sm: 0.65 },
             ...clampTextSx(2),
           }}
         >
@@ -211,7 +211,7 @@ const AppCard = memo(function AppCard({
           sx={{
             color: T.textMuted,
             fontSize: {
-              xs: '0.76rem',
+              xs: '0.73rem',
               sm: '0.82rem',
               md: '0.86rem',
               xl: '0.95rem',
@@ -221,6 +221,8 @@ const AppCard = memo(function AppCard({
             },
             lineHeight: 1.45,
             ...clampTextSx(3),
+            // Phones: 2 lines keeps the 2-up cards short; desktop keeps 3.
+            WebkitLineClamp: { xs: 2, sm: 3 },
           }}
         >
           {app.description}

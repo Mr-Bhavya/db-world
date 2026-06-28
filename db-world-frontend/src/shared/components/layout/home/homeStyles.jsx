@@ -41,7 +41,9 @@ export const appsGridSx = {
    * - Desktop/monitor/TV: more columns automatically
    */
   gridTemplateColumns: {
-    xs: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))',
+    // Phones: fixed 2-up grid (denser, app-launcher feel) instead of one
+    // full-width card per row.
+    xs: 'repeat(2, minmax(0, 1fr))',
     sm: 'repeat(auto-fit, minmax(220px, 1fr))',
     md: 'repeat(auto-fit, minmax(230px, 1fr))',
     lg: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -53,7 +55,7 @@ export const appsGridSx = {
   },
 
   gap: {
-    xs: 1.5,
+    xs: 1.1,
     sm: 1.75,
     md: 2.2,
     xl: 2.6,

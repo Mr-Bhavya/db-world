@@ -10,10 +10,6 @@ import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
-import ThumbUpIcon from '@mui/icons-material/ThumbUp';
-import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
@@ -21,17 +17,57 @@ import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import { tmdbImg } from '../../api/cinemaApi';
 import { formatRuntime } from './helpers';
 import ShareButton from './shared/ShareButton';
+import ReactionButton from './ReactionButton';
 
 /* ═══════════════════════════════════════════════════════════
    CONSTANTS
+
+   Like + Love are merged into ReactionButton (Netflix-style),
+   so only the simple toggles live here.
 ═══════════════════════════════════════════════════════════ */
 
-const INTERACTIONS = [
-  { key: 'watchlisted', label: 'My List', ActiveIcon: BookmarkIcon, InactiveIcon: BookmarkBorderIcon, activeColor: '#0d9488' },
-  { key: 'liked', label: 'Like', ActiveIcon: ThumbUpIcon, InactiveIcon: ThumbUpOutlinedIcon, activeColor: '#3b82f6' },
-  { key: 'loved', label: 'Love', ActiveIcon: FavoriteIcon, InactiveIcon: FavoriteBorderIcon, activeColor: '#ec4899' },
-  { key: 'watched', label: 'Watched', ActiveIcon: VisibilityIcon, InactiveIcon: VisibilityOffIcon, activeColor: '#22c55e' },
-];
+const WATCHLIST = { key: 'watchlisted', label: 'My List', ActiveIcon: BookmarkIcon, InactiveIcon: BookmarkBorderIcon, activeColor: '#0d9488' };
+const WATCHED = { key: 'watched', label: 'Watched', ActiveIcon: VisibilityIcon, InactiveIcon: VisibilityOffIcon, activeColor: '#22c55e' };
+
+/* ═══════════════════════════════════════════════════════════
+   TOGGLE BUTTON
+
+   A single on/off interaction (My List, Watched). Stays
+   responsive while the request is in flight — the parent does
+   an optimistic update + rollback, so disabling here would only
+   make the button feel laggy.
+═══════════════════════════════════════════════════════════ */
+
+function ToggleButton({ cfg, active, onToggle, btnSize, iconSize }) {
+  const { key, label, ActiveIcon, InactiveIcon, activeColor } = cfg;
+  return (
+    <Tooltip title={active ? `Remove from ${label}` : label} placement="top">
+      <span data-noexpand>
+        <IconButton
+          size="small"
+          onClick={() => onToggle(key, active)}
+          aria-label={active ? `Remove from ${label}` : `Add to ${label}`}
+          sx={{
+            bgcolor: active ? alpha(activeColor, 0.25) : alpha('#fff', 0.1),
+            border: `1.5px solid ${active ? activeColor : alpha('#fff', 0.2)}`,
+            color: active ? activeColor : '#e5e5e5',
+            width: btnSize, height: btnSize,
+            backdropFilter: 'blur(6px)',
+            transition: 'all 0.18s',
+            '&:hover': {
+              bgcolor: active ? alpha(activeColor, 0.35) : alpha('#fff', 0.2),
+              transform: 'scale(1.08)',
+            },
+          }}
+        >
+          {active
+            ? <ActiveIcon sx={{ fontSize: iconSize }} />
+            : <InactiveIcon sx={{ fontSize: iconSize }} />}
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════════
    DOMINANT COLOR HOOK
@@ -100,8 +136,8 @@ function useDominantColor(posterPath) {
 ═══════════════════════════════════════════════════════════ */
 
 export default function Hero({
-  record, interaction, onToggle, interactionLoading,
-  onPlayTrailer, onWatchClick, onBack, inModal = false,
+  record, interaction, onToggle,
+  onPlayTrailer, onWatchClick, onBack, inModal = false, preview = null,
 }) {
   const tmdb = record?.tmdb ?? {};
   const isMovie = record?.type === 'MOVIE';
@@ -113,6 +149,11 @@ export default function Hero({
 
   const backdropUrl = tmdbImg(tmdb.backdropPath, isXs ? 'w780' : isTv ? 'original' : 'w1280');
   const posterUrl = tmdbImg(tmdb.posterPath, 'w342');
+  const logoUrl = tmdbImg(tmdb.logoPath, isTv ? 'w780' : 'w500');
+  // Instant bases from the clicked card, so the real images crossfade in with
+  // no dark flash / pop on open.
+  const previewBackdropUrl = tmdbImg(preview?.backdropPath ?? preview?.posterPath, isXs ? 'w780' : 'w1280');
+  const previewPosterUrl = tmdbImg(preview?.posterPathClean ?? preview?.posterPath ?? preview?.backdropPath, 'w342');
 
   const accentColor = useDominantColor(tmdb.posterPath);
 
@@ -160,6 +201,23 @@ export default function Hero({
         alignItems: 'flex-end',
       }}
     >
+      {/* Preview backdrop — instant base (from the clicked card) so the real
+          backdrop crossfades in over it instead of flashing from black. */}
+      {previewBackdropUrl && !backdropLoaded && (
+        <Box
+          component="img"
+          src={previewBackdropUrl}
+          alt=""
+          draggable={false}
+          sx={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            objectFit: 'cover', objectPosition: 'center 25%',
+            opacity: 0.6, pointerEvents: 'none',
+          }}
+        />
+      )}
+
       {/* Backdrop */}
       {backdropUrl && (
         <Box
@@ -247,8 +305,9 @@ export default function Hero({
           mx: 'auto',
         }}>
 
-          {/* Poster — hidden on mobile */}
-          {posterUrl && (
+          {/* Poster — only when there's no logo (logo + backdrop is the hero;
+              the poster would be redundant). Hidden on mobile regardless. */}
+          {posterUrl && !logoUrl && (
             <Box sx={{
               position: 'relative',
               width: { xs: 0, sm: 120, md: 160, lg: 180, xl: 220 },
@@ -256,7 +315,21 @@ export default function Hero({
               flexShrink: 0,
               alignSelf: 'flex-end',
             }}>
-              {!posterLoaded && (
+              {previewPosterUrl ? (
+                /* Instant preview poster — the real one crossfades in over it. */
+                <Box
+                  component="img"
+                  src={previewPosterUrl}
+                  alt=""
+                  draggable={false}
+                  sx={{
+                    position: 'absolute', inset: 0,
+                    width: '100%', aspectRatio: '2/3',
+                    borderRadius: { sm: 2, md: 2.5 },
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (!posterLoaded && (
                 <Skeleton
                   variant="rounded"
                   sx={{
@@ -266,7 +339,7 @@ export default function Hero({
                     bgcolor: alpha('#fff', 0.06),
                   }}
                 />
-              )}
+              ))}
               <Box
                 component={motion.img}
                 src={posterUrl}
@@ -292,40 +365,45 @@ export default function Hero({
             </Box>
           )}
 
-          {/* Info column */}
+          {/* Info column — logo/title first, then the type chip + the rest */}
           <Box sx={{ flex: 1, minWidth: 0, pb: { xs: 0, md: 1, xl: 2 } }}>
 
-            <Chip
-              label={isMovie ? 'MOVIE' : 'TV SERIES'}
-              size="small"
-              sx={{
-                bgcolor: alpha(accentColor, 0.22),
-                color: alpha('#fff', 0.85),
-                fontSize: { xs: '0.6rem', xl: '0.72rem' },
-                fontWeight: 800, mb: 0.75,
-                height: { xs: 20, xl: 24 },
-                border: `1px solid ${alpha(accentColor, 0.45)}`,
-                letterSpacing: 1,
-                '& .MuiChip-label': { px: 1 },
-              }}
-            />
-
-            <Typography
-              variant="h1"
-              sx={{
-                color: '#fff', fontWeight: 800, lineHeight: 1.05,
-                fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.5rem', lg: '2.8rem', xl: '3.2rem' },
-                ...(isTv && { fontSize: '3.8rem' }),
-                textShadow: '0 2px 18px rgba(0,0,0,0.85)',
-                letterSpacing: -0.5,
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
-            >
-              {tmdb.title ?? record?.name}
-            </Typography>
+            {logoUrl ? (
+              <Box
+                component="img"
+                src={logoUrl}
+                alt={tmdb.title ?? record?.name}
+                draggable={false}
+                sx={{
+                  // Capped so a wide logo doesn't dominate small screens.
+                  maxWidth: { xs: 200, sm: 280, md: 340, lg: 380, xl: 440 },
+                  maxHeight: { xs: 72, sm: 92, md: 124, lg: 144, xl: 168 },
+                  ...(isTv && { maxHeight: 200 }),
+                  objectFit: 'contain',
+                  objectPosition: 'left center',
+                  display: 'block',
+                  mb: 0.5,
+                  filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.7))',
+                }}
+              />
+            ) : (
+              <Typography
+                variant="h1"
+                sx={{
+                  color: '#fff', fontWeight: 800, lineHeight: 1.05,
+                  fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.5rem', lg: '2.8rem', xl: '3.2rem' },
+                  ...(isTv && { fontSize: '3.8rem' }),
+                  textShadow: '0 2px 18px rgba(0,0,0,0.85)',
+                  letterSpacing: -0.5,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {tmdb.title ?? record?.name}
+              </Typography>
+            )}
 
             {tmdb.tagline && (
               <Typography sx={{
@@ -497,41 +575,29 @@ export default function Hero({
                 gap: { xs: 0.6, md: 0.75, xl: 1 },
                 ml: { xs: 0, sm: 0.5 },
               }}>
-                {INTERACTIONS.map(({ key, label, ActiveIcon, InactiveIcon, activeColor }) => {
-                  const active = interaction?.[key] ?? false;
-                  return (
-                    <Tooltip
-                      key={key}
-                      title={active ? `Remove from ${label}` : label}
-                      placement="top"
-                    >
-                      <span data-noexpand>
-                        <IconButton
-                          size="small"
-                          disabled={interactionLoading}
-                          onClick={() => onToggle(key, active)}
-                          aria-label={active ? `Remove from ${label}` : `Add to ${label}`}
-                          sx={{
-                            bgcolor: active ? alpha(activeColor, 0.25) : alpha('#fff', 0.1),
-                            border: `1.5px solid ${active ? activeColor : alpha('#fff', 0.2)}`,
-                            color: active ? activeColor : '#e5e5e5',
-                            width: btnSize, height: btnSize,
-                            backdropFilter: 'blur(6px)',
-                            transition: 'all 0.18s',
-                            '&:hover': {
-                              bgcolor: active ? alpha(activeColor, 0.35) : alpha('#fff', 0.2),
-                              transform: 'scale(1.08)',
-                            },
-                          }}
-                        >
-                          {active
-                            ? <ActiveIcon sx={{ fontSize: iconSize }} />
-                            : <InactiveIcon sx={{ fontSize: iconSize }} />}
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  );
-                })}
+                <ToggleButton
+                  cfg={WATCHLIST}
+                  active={interaction?.watchlisted ?? false}
+                  onToggle={onToggle}
+                  btnSize={btnSize}
+                  iconSize={iconSize}
+                />
+
+                <ReactionButton
+                  liked={interaction?.liked ?? false}
+                  loved={interaction?.loved ?? false}
+                  onToggle={onToggle}
+                  btnSize={btnSize}
+                  iconSize={iconSize}
+                />
+
+                <ToggleButton
+                  cfg={WATCHED}
+                  active={interaction?.watched ?? false}
+                  onToggle={onToggle}
+                  btnSize={btnSize}
+                  iconSize={iconSize}
+                />
 
                 <Box component="span" data-noexpand sx={{ display: 'inline-flex' }}>
                   <ShareButton record={record} size={btnSize} />

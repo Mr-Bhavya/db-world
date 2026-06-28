@@ -41,7 +41,6 @@ const Home = () => {
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const isTabletDown = useMediaQuery(theme.breakpoints.down('md'));
 
   const { auth } = useAuth();
@@ -146,14 +145,6 @@ const Home = () => {
     }
   }, [handleNavigate]);
 
-  const openVault = useCallback(() => {
-    const app = APPS.find((candidate) => candidate.id === 'password');
-
-    if (app) {
-      handleNavigate(app);
-    }
-  }, [handleNavigate]);
-
   return (
     <Box
       sx={{
@@ -170,7 +161,6 @@ const Home = () => {
         scrolled={scrolled}
         onNavigate={handleNavigate}
         openCinema={openCinema}
-        openVault={openVault}
       />
 
       <Box

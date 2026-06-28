@@ -11,6 +11,18 @@ export const RAIL_TYPE_CONFIG = {
     useTextBackdrop: true,
     titleStyle: 'fade',      // frosted-glass compact bar
   },
+  // 16:9 backdrop card at EVERY breakpoint (mobile included) — same shape as the
+  // desktop standard card, just landscape everywhere instead of the portrait
+  // poster mobile uses for `standard`, and not the oversized `wide`.
+  landscape: {
+    cardAspect: '16/9',
+    tiers: { mobile: 150, tablet: 165, desktop: 180, tv: 240 },
+    hover: 'popup',
+    skeleton: 'backdrop',
+    scroll: 'horizontal',
+    useTextBackdrop: true,
+    titleStyle: 'fade',
+  },
   wide: {
     cardAspect: '16/9',
     tiers: { mobile: 200, tablet: 240, desktop: 280, tv: 380 },
@@ -23,7 +35,9 @@ export const RAIL_TYPE_CONFIG = {
   },
   prime: {
     cardAspect: '9/16',
-    tiers: { mobile: 140, tablet: 180, desktop: 380, tv: 500 },
+    // mobile/tablet show a portrait poster (no hover-expand), so they need a
+    // proper poster height; desktop/tv keep the tall expand-on-hover slot.
+    tiers: { mobile: 210, tablet: 250, desktop: 380, tv: 500 },
     hover: 'expand',
     skeleton: 'portrait',
     scroll: 'horizontal',

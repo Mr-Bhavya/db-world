@@ -5,11 +5,11 @@ import {
   Box,
   Button,
   Container,
-  Stack,
 
 } from '@mui/material';
 
 import { motion, useReducedMotion } from 'framer-motion';
+import { MovieFilter as CinemaIcon } from '@mui/icons-material';
 
 import BokehBackground from '@shared/components/ui/BokehBackground';
 
@@ -23,7 +23,6 @@ const HeroSection = memo(function HeroSection({
   scrolled,
   onNavigate,
   openCinema,
-  openVault,
 }) {
   const prefersReducedMotion = useReducedMotion();
 
@@ -41,17 +40,19 @@ const HeroSection = memo(function HeroSection({
         sx={{
           position: 'relative',
           minHeight: {
-            xs: 'calc(100svh - 56px)',
+            // Phones: shrink to content so the apps grid sits just below the
+            // fold instead of behind a full-screen wall of text.
+            xs: 'auto',
             sm: '100svh',
           },
           pt: {
-            xs: '76px',
+            xs: '84px',
             sm: '84px',
             md: '96px',
             xl: '112px',
           },
           pb: {
-            xs: '56px',
+            xs: '36px',
             sm: '80px',
             md: '110px',
             xl: '140px',
@@ -204,7 +205,7 @@ const HeroSection = memo(function HeroSection({
                       fontSize: 'clamp(6.6rem, 4.8vw, 9rem)',
                     },
                     mb: {
-                      xs: 2,
+                      xs: 1.5,
                       sm: 2.4,
                       md: 3,
                     },
@@ -255,7 +256,7 @@ const HeroSection = memo(function HeroSection({
                       lg: 0,
                     },
                     mb: {
-                      xs: 3,
+                      xs: 2.5,
                       sm: 3.4,
                       md: 4,
                     },
@@ -284,56 +285,40 @@ const HeroSection = memo(function HeroSection({
                   damping: 16,
                 }}
               >
-                <Stack
-                  direction={{
-                    xs: 'column',
-                    sm: 'row',
-                  }}
-                  spacing={{
-                    xs: 1.3,
-                    sm: 1.6,
-                  }}
-                  justifyContent={{
-                    xs: 'center',
-                    lg: 'flex-start',
-                  }}
-                  alignItems={{
-                    xs: 'stretch',
-                    sm: 'center',
-                  }}
+                <Box
                   sx={{
-                    maxWidth: {
-                      xs: 460,
-                      sm: 'none',
-                    },
-                    mx: {
-                      xs: 'auto',
-                      lg: 0,
+                    display: 'flex',
+                    justifyContent: {
+                      xs: 'center',
+                      lg: 'flex-start',
                     },
                   }}
                 >
                   <Button
                     variant="contained"
                     onClick={openCinema}
+                    startIcon={<CinemaIcon sx={{ fontSize: { xs: '1.15rem', xl: '1.3rem' } }} />}
                     sx={{
+                      // Content-width (not full-width) so it stays well-proportioned
+                      // on any phone size or font scale; centred on mobile, left on lg.
                       bgcolor: T.teal,
                       color: '#fff',
                       borderRadius: 2.2,
                       px: {
-                        xs: 2.4,
-                        sm: 3.4,
-                        xl: 4.2,
+                        xs: 3.4,
+                        sm: 3.6,
+                        xl: 4.4,
                       },
                       py: {
-                        xs: 1.15,
+                        xs: 1.2,
                         xl: 1.45,
                       },
                       minHeight: {
-                        xs: 46,
+                        xs: 48,
                         xl: 56,
                       },
                       fontSize: {
-                        xs: '0.94rem',
+                        xs: '0.96rem',
                         xl: '1.08rem',
                       },
                       fontWeight: 900,
@@ -347,43 +332,7 @@ const HeroSection = memo(function HeroSection({
                   >
                     Browse Cinema
                   </Button>
-
-                  <Button
-                    variant="outlined"
-                    onClick={openVault}
-                    sx={{
-                      color: T.teal,
-                      borderColor: T.glassBorder,
-                      borderRadius: 2.2,
-                      px: {
-                        xs: 2.4,
-                        sm: 3.4,
-                        xl: 4.2,
-                      },
-                      py: {
-                        xs: 1.15,
-                        xl: 1.45,
-                      },
-                      minHeight: {
-                        xs: 46,
-                        xl: 56,
-                      },
-                      fontSize: {
-                        xs: '0.94rem',
-                        xl: '1.08rem',
-                      },
-                      fontWeight: 850,
-                      textTransform: 'none',
-                      bgcolor: 'rgba(255,255,255,0.025)',
-                      '&:hover': {
-                        bgcolor: T.tealBg,
-                        borderColor: T.teal,
-                      },
-                    }}
-                  >
-                    Open Vault
-                  </Button>
-                </Stack>
+                </Box>
               </motion.div>
             </Box>
 

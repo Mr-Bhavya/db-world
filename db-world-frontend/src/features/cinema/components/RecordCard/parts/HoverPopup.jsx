@@ -1,48 +1,89 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Box, Typography, IconButton } from '@mui/material';
 import {
-  PlayArrow, ThumbUp, ThumbUpOutlined,
+  PlayArrow,
   BookmarkAdd, BookmarkAdded, ExpandMore, Star, VolumeOff, VolumeUp,
 } from '@mui/icons-material';
 import { tmdbImg } from '../../../api/cinemaApi';
 import { openRecord } from '../../../utils/recordNav';
 import ActionButton from './ActionButton';
+import CardReactionButton from './CardReactionButton';
 import { POPUP_W, year, fmtRuntime, navBlock } from './cardHelpers';
 
+const SPRING = { type: 'spring', stiffness: 300, damping: 30, mass: 0.85 };
+
 // Netflix-style hover popup rendered into a body portal (desktop, non-prime cards).
-const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onWatched, anchorRect, onClose }) => {
+//
+// Mounting/unmounting is owned by the card; wrap the render site in
+// <AnimatePresence> (see RecordCard) so the exit variant actually runs. The
+// popup keeps the hover alive via onHoverEnter so it doesn't self-close when it
+// covers the card underneath.
+const HoverPopup = ({
+  record, interaction = {}, onWatchlist, onLike, onLove,
+  anchorRect, onClose, onHoverEnter,
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const reduceMotion = useReducedMotion();
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [muted, setMuted] = useState(true);
   const isMovie = record.type === 'MOVIE';
   const iframeRef = useRef(null);
 
+  // mute=1 so autoplay isn't blocked; unmute on demand via the JS API.
   const videoSrc = record.previewVideoUrl
-    ? `${record.previewVideoUrl}&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&vq=hd1080`
+    ? `${record.previewVideoUrl}&autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&loop=1&enablejsapi=1&vq=hd1080&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`
     : null;
 
-  const POPUP_VIDEO_H = Math.round(POPUP_W * 9 / 16);
-  const popupH = POPUP_VIDEO_H + (record.overview ? 290 : 210);
-  const left = Math.max(8, Math.min(
-    anchorRect.left + anchorRect.width / 2 - POPUP_W / 2,
-    window.innerWidth - POPUP_W - 8
-  ));
-  const top = Math.max(8, Math.min(
-    anchorRect.top + anchorRect.height / 2 - popupH / 2,
-    window.innerHeight - popupH - 8
-  ));
+  // Position the popup centred on the card, clamped to the viewport, plus the
+  // transform offset that lets it emerge from the card's own footprint.
+  const layout = useMemo(() => {
+    if (!anchorRect) return null;
+    const videoH = Math.round(POPUP_W * 9 / 16);
+    const height = videoH + (record.overview ? 290 : 210);
+    const left = Math.max(8, Math.min(
+      anchorRect.left + anchorRect.width / 2 - POPUP_W / 2,
+      window.innerWidth - POPUP_W - 8,
+    ));
+    const top = Math.max(8, Math.min(
+      anchorRect.top + anchorRect.height / 2 - height / 2,
+      window.innerHeight - height - 8,
+    ));
+    const originX = (anchorRect.left + anchorRect.width / 2) - (left + POPUP_W / 2);
+    const originY = (anchorRect.top + anchorRect.height / 2) - (top + height / 2);
+    const scale = Math.max(0.5, Math.min(anchorRect.width / POPUP_W, 0.9));
+    return { height, left, top, originX, originY, scale };
+  }, [anchorRect, record.overview]);
+
+  const variants = useMemo(() => {
+    if (!layout) return {};
+    if (reduceMotion) {
+      return {
+        initial: { opacity: 0 },
+        animate: { opacity: 1, transition: { duration: 0.15 } },
+        exit: { opacity: 0, transition: { duration: 0.12 } },
+      };
+    }
+    const at = { scale: layout.scale, x: layout.originX, y: layout.originY };
+    return {
+      initial: { opacity: 0, ...at },
+      animate: {
+        opacity: 1, scale: 1, x: 0, y: 0,
+        transition: { default: SPRING, opacity: { duration: 0.18 } },
+      },
+      // Retract back toward the card on close instead of snapping.
+      exit: { opacity: 0, ...at, transition: { duration: 0.16, ease: 'easeIn' } },
+    };
+  }, [layout, reduceMotion]);
 
   const toggleMute = (e) => {
     e.stopPropagation();
-    if (!iframeRef.current) return;
-    const command = muted ? 'unMute' : 'mute';
+    if (!iframeRef.current?.contentWindow) return;
     iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({ event: 'command', func: command, args: [] }),
-      '*'
+      JSON.stringify({ event: 'command', func: muted ? 'unMute' : 'mute', args: [] }), '*',
     );
     setMuted(prev => !prev);
   };
@@ -53,7 +94,7 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
     e?.stopPropagation();
     navBlock.until = Date.now() + 600;
     openRecord(navigate, location, record, {
-      originRect: { top, left, width: POPUP_W, height: popupH },
+      originRect: { top: layout.top, left: layout.left, width: POPUP_W, height: layout.height },
     });
     requestAnimationFrame(() => onClose());
   };
@@ -65,41 +106,37 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
     onClose();
   };
 
-  const initialScale = Math.max(0.5, Math.min(anchorRect.width / POPUP_W, 0.9));
+  if (!layout) return null;
 
   return createPortal(
     <motion.div
       key="nfx-popup"
-      initial={{ opacity: 0, scale: initialScale }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: initialScale * 0.97 }}
-      transition={{
-        opacity: { duration: 0.12 },
-        scale: { type: 'spring', stiffness: 360, damping: 28 },
-      }}
+      variants={variants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      onMouseEnter={onHoverEnter}
+      onMouseLeave={onClose}
       style={{
-        position: 'fixed', top, left,
+        position: 'fixed', top: layout.top, left: layout.left,
         width: POPUP_W, zIndex: 9999,
         borderRadius: 8, overflow: 'hidden',
         boxShadow: '0 28px 90px rgba(0,0,0,0.98)',
         background: '#181818',
         cursor: 'default',
         transformOrigin: 'center center',
+        willChange: 'transform, opacity',
       }}
-      onMouseLeave={onClose}
     >
       {/* ── Video / Backdrop ── */}
       <Box sx={{ width: '100%', aspectRatio: '16/9', position: 'relative', bgcolor: '#000', overflow: 'hidden' }}>
+        {/* Backdrop stays put; the video simply fades in on top of it, so there's
+            no black flash between iframe load and playback. */}
         <Box
           component="img"
           src={tmdbImg(record.backdropPath ?? record.posterPath, 'w780')}
           alt={record.title}
-          sx={{
-            width: '100%', height: '100%', objectFit: 'cover',
-            position: 'absolute', inset: 0,
-            opacity: videoLoaded ? 0 : 1,
-            transition: 'opacity 0.4s',
-          }}
+          sx={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
         />
         <Box sx={{
           position: 'absolute', inset: 0,
@@ -113,14 +150,14 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
             ref={iframeRef}
             src={videoSrc}
             allow="autoplay; encrypted-media; picture-in-picture"
-            onLoad={() => setVideoLoaded(true)}
+            onLoad={() => setTimeout(() => setVideoLoaded(true), 180)}
             sx={{
               position: 'absolute', top: '50%', left: '50%',
               width: '120%', height: '120%',
               transform: 'translate(-50%, -50%) scale(1.2)',
               border: 'none',
               opacity: videoLoaded ? 1 : 0,
-              transition: 'opacity 0.4s',
+              transition: 'opacity 0.5s',
               pointerEvents: 'none',
             }}
           />
@@ -164,12 +201,14 @@ const HoverPopup = ({ record, interaction = {}, onWatchlist, onLike, onLove, onW
               onClick={() => onWatchlist?.(record)}
             />
           )}
-          <ActionButton
-            icon={<ThumbUpOutlined sx={{ fontSize: 17 }} />}
-            activeIcon={<ThumbUp sx={{ fontSize: 17, color: '#fff' }} />}
-            active={interaction.liked}
-            tooltip={interaction.liked ? 'Unlike' : 'Like'}
-            onClick={() => onLike?.(record)}
+          <CardReactionButton
+            record={record}
+            liked={interaction.liked}
+            loved={interaction.loved}
+            onLike={onLike}
+            onLove={onLove}
+            iconSize={17}
+            pad={0.7}
           />
           <Box sx={{ ml: 'auto' }}>
             <ActionButton

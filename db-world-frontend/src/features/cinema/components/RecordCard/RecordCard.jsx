@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Box, Typography, Skeleton } from '@mui/material';
 import { tmdbImg } from '../../api/cinemaApi';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../RailRow/railTypeConfig';
@@ -32,6 +32,11 @@ const RecordCard = ({
   // Resolve type: explicit prop wins, then infer from legacy boolean props
   const type = typeProp ?? (expandOnHover ? 'prime' : rank != null ? 'top10' : wide ? 'wide' : 'standard');
   const cfg = RAIL_TYPE_CONFIG[type] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
+
+  // Single source of truth for "is this a prime card". Previously the prime
+  // branches keyed off the legacy `expandOnHover` boolean, so a rail passing
+  // `type="prime"` (without the old flag) silently rendered a dead portrait.
+  const isPrime = type === 'prime';
   const isWideType = type === 'wide' || type === 'continue';
   const useInlineWideHover = isWideType;
 
@@ -40,17 +45,19 @@ const RecordCard = ({
     hovered, anchorRect, cardRef,
     imgError, imgLoaded, setImgError, setImgLoaded,
     onMouseEnter, onMouseLeave, goDetail, goPlay,
-  } = useCardInteraction({ expandOnHover, useInlineWideHover, index, onHoverExpand, record });
+  } = useCardInteraction({ expandOnHover: isPrime, useInlineWideHover, index, onHoverExpand, record });
 
   // Standard cards use poster (2:3) on mobile/tablet, backdrop (16:9) on desktop/tv
   const isMobileTier = tier === 'mobile' || tier === 'tablet';
   const effectiveAspect = (cfg.mobileAspect && isMobileTier) ? cfg.mobileAspect : cfg.cardAspect;
   const isLandscape = effectiveAspect === '16/9';
 
-  if (!record) return <RecordCardSkeleton wide={wide} prime={expandOnHover} top10={rank != null} />;
+  if (!record) return <RecordCardSkeleton wide={wide} prime={isPrime} top10={rank != null} />;
 
-  // Mobile has no hover, so prime cards always show in the featured landscape state.
-  const isExpanded = expandOnHover && (forceExpanded || hovered || isMobile);
+  // Desktop expands a portrait slot to landscape on hover. Mobile has no hover,
+  // so it shows the portrait poster (same shape as the desktop idle slot) and
+  // opens the detail page on tap.
+  const isExpanded = isPrime && (forceExpanded || hovered);
   const isTopTen = rank != null;
 
   // ── image — display-type default + per-rail imageVariant ──────────────────
@@ -60,15 +67,15 @@ const RecordCard = ({
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
 
   // ── Desktop prime: distinct fixed-slot / expand-on-hover layout ────────────
-  if (expandOnHover && !isMobile) {
+  if (isPrime && !isMobile) {
     return (
       <PrimeDesktopCard
         record={record} interaction={interaction} cfg={cfg}
-        expandDir={isExpanded ? expandDir : 'right'} isExpanded={isExpanded}
+        expandDir={expandDir} isExpanded={isExpanded}
         cardRef={cardRef} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
         goDetail={goDetail} goPlay={goPlay}
         imgError={imgError} imgLoaded={imgLoaded} setImgError={setImgError} setImgLoaded={setImgLoaded}
-        onWatchlist={onWatchlist} onLike={onLike}
+        onWatchlist={onWatchlist} onLike={onLike} onLove={onLove}
       />
     );
   }
@@ -78,8 +85,9 @@ const RecordCard = ({
 
   const cardWidth = (type === 'prime')
     ? {
-      xs: `calc(${cfg.tiers.mobile}px * ${16 / 9})`,
-      sm: `calc(${cfg.tiers.tablet}px * ${16 / 9})`,
+      // Mobile/tablet prime is a portrait poster (matches the desktop idle slot).
+      xs: `calc(${cfg.tiers.mobile}px * ${9 / 16})`,
+      sm: `calc(${cfg.tiers.tablet}px * ${9 / 16})`,
       md: isExpanded
         ? `calc(${cfg.tiers.desktop}px * ${16 / 9})`
         : `calc(${cfg.tiers.desktop}px * ${9 / 16})`,
@@ -109,13 +117,13 @@ const RecordCard = ({
   const aspectRatio = effectiveAspect.replace('/', ' / ');
 
   // ── motion ────────────────────────────────────────────────────────────────
-  const motionAnimate = expandOnHover
+  const motionAnimate = isPrime
     ? { zIndex: isExpanded ? 10 : 1 }
     : useInlineWideHover
       ? (hovered ? { scale: 1.02, y: -4, zIndex: 10 } : { scale: 1, y: 0, zIndex: 1 })
       : (hovered ? { scale: 1.03, zIndex: 10 } : { scale: 1, zIndex: 1 });
 
-  const motionTransition = expandOnHover
+  const motionTransition = isPrime
     ? { duration: 0 }
     : useInlineWideHover
       ? { duration: 0.2, ease: 'easeOut' }
@@ -123,7 +131,7 @@ const RecordCard = ({
 
   // Whether to show the static landscape title overlay (hidden while hovered or
   // when the image already has the title burned in).
-  const showTitleOverlay = isLandscape && !expandOnHover && !hovered
+  const showTitleOverlay = isLandscape && !isPrime && !hovered
     && !(useTextBackdrop && !!record.backdropPathText);
 
   return (
@@ -137,23 +145,28 @@ const RecordCard = ({
       tabIndex={isTv ? 0 : undefined}
       style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'flex-end' }}
     >
-      {/* ── Top 10 stroked rank numeral ── */}
+      {/* ── Top 10 rank numeral — metallic gradient fill + crisp edge ── */}
       {rank != null && (
         <Typography sx={{
-          fontSize: { xs: '9rem', sm: '12rem', md: '16rem' },
+          fontSize: { xs: '8.5rem', sm: '11.5rem', md: '15rem' },
           fontWeight: 900,
           fontFamily: '"Bebas Neue", "Helvetica Neue", Arial, sans-serif',
-          lineHeight: 0.78,
-          letterSpacing: { xs: '-0.06em', md: '-0.08em' },
+          lineHeight: 0.72,
+          letterSpacing: { xs: '-0.05em', md: '-0.07em' },
+          // Brushed-metal gradient fill with a dark edge so it reads on any poster.
+          background: 'linear-gradient(180deg, #ffffff 0%, #d6dce2 44%, #8b95a1 72%, #5b646f 100%)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
           color: 'transparent',
-          WebkitTextStroke: { xs: '3px rgba(255,255,255,0.92)', md: '5px rgba(255,255,255,0.92)' },
-          mr: { xs: -2.5, sm: -3.5, md: -5 },
+          WebkitTextStroke: { xs: '1.5px rgba(0,0,0,0.42)', md: '2px rgba(0,0,0,0.5)' },
+          mr: { xs: -2, sm: -3, md: -4.5 },
           mb: 0, zIndex: 0, userSelect: 'none', flexShrink: 0,
-          textShadow: '4px 4px 18px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)',
-          animation: 'topTenIn 0.45s ease-out both',
+          filter: 'drop-shadow(2px 7px 16px rgba(0,0,0,0.85))',
+          animation: 'topTenIn 0.5s cubic-bezier(0.22,1,0.36,1) both',
           '@keyframes topTenIn': {
-            from: { opacity: 0, transform: 'translateY(8px)' },
-            to: { opacity: 1, transform: 'translateY(0)' },
+            from: { opacity: 0, transform: 'translateY(14px) scale(0.92)' },
+            to: { opacity: 1, transform: 'translateY(0) scale(1)' },
           },
         }}>
           {rank}
@@ -164,18 +177,18 @@ const RecordCard = ({
       <Box
         sx={{
           width: cardWidth,
-          height: expandOnHover ? PRIME_HEIGHT : undefined,
-          aspectRatio: !expandOnHover ? aspectRatio : undefined,
+          height: isPrime ? PRIME_HEIGHT : undefined,
+          aspectRatio: !isPrime ? aspectRatio : undefined,
           borderRadius: 1.5,
           overflow: 'hidden',
           bgcolor: 'rgba(255,255,255,.06)',
           position: 'relative',
-          boxShadow: expandOnHover
+          boxShadow: isPrime
             ? 'none'
             : useInlineWideHover
               ? (hovered ? '0 6px 14px rgba(0,0,0,.16)' : '0 1px 4px rgba(0,0,0,.10)')
               : (hovered ? '0 16px 48px rgba(0,0,0,.75)' : '0 2px 8px rgba(0,0,0,.3)'),
-          transition: expandOnHover
+          transition: isPrime
             ? 'width 0.34s cubic-bezier(0.4,0,0.2,1)'
             : useInlineWideHover
               ? 'transform 0.2s ease, box-shadow 0.2s ease'
@@ -222,7 +235,7 @@ const RecordCard = ({
         {showTitleOverlay && <CardTitleOverlay record={record} titleStyle={cfg.titleStyle ?? 'fade'} />}
 
         {/* Poster title caption — type="poster" only */}
-        {cfg.showPosterTitle && !isLandscape && !expandOnHover && !hovered && (
+        {cfg.showPosterTitle && !isLandscape && !isPrime && !hovered && (
           <PosterCaption record={record} />
         )}
 
@@ -235,25 +248,29 @@ const RecordCard = ({
         )}
 
         {/* Default compact hover overlay (poster/standard/jumbo) */}
-        {hovered && !expandOnHover && !useInlineWideHover && <CompactHoverOverlay record={record} />}
+        {hovered && !isPrime && !useInlineWideHover && <CompactHoverOverlay record={record} />}
 
         {/* Watched badge */}
         {interaction.watched && <WatchedBadge />}
       </Box>
 
       {/* Netflix portal popup — desktop, non-prime mode */}
-      {hovered && !expandOnHover && !useInlineWideHover && !isMobile && anchorRect && (
-        <HoverPopup
-          record={record}
-          interaction={interaction}
-          onWatchlist={onWatchlist}
-          onLike={onLike}
-          onLove={onLove}
-          onWatched={onWatched}
-          anchorRect={anchorRect}
-          onClose={onMouseLeave}
-        />
-      )}
+      <AnimatePresence>
+        {hovered && !isPrime && !useInlineWideHover && !isMobile && anchorRect && (
+          <HoverPopup
+            key={`hover-popup-${record.id}`}
+            record={record}
+            interaction={interaction}
+            onWatchlist={onWatchlist}
+            onLike={onLike}
+            onLove={onLove}
+            onWatched={onWatched}
+            anchorRect={anchorRect}
+            onClose={onMouseLeave}
+            onHoverEnter={onMouseEnter}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

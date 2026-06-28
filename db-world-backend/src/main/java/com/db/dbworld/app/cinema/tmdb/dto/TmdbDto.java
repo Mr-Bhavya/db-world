@@ -38,6 +38,9 @@ public class TmdbDto {
 
     private String posterPath;
 
+    // Title logo (transparent PNG) — locale-best, null when none. UI falls back to text title.
+    private String logoPath;
+
     private String status;
 
     private String tagline;

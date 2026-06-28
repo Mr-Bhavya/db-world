@@ -34,183 +34,75 @@ const SkeletonBlock = (props) => (
   />
 );
 
-const HeroSkeletonMobile = ({ isXs, isTablet }) => {
-  const heroHeight = isXs ? '68svh' : isTablet ? '62svh' : '65svh';
-  const cardRadius = isXs ? 20 : 26;
-  const panelRadius = isXs ? 18 : 22;
-  const stripCardWidth = isXs ? 116 : 138;
-  const stripCardHeight = isXs ? 68 : 80;
+const HeroSkeletonMobile = ({ isXs }) => {
+  const cardHeight = isXs ? '76svh' : '68svh';
+  const cardRadius = isXs ? 18 : 22;
 
   return (
-    <Box sx={{ position: 'relative', pb: 2.1 }}>
-      <Box sx={{ px: { xs: 1.5, sm: 2 } }}>
-        {/* Main hero skeleton */}
+    <Box sx={{ px: { xs: 1.5, sm: 2 }, pt: { xs: 1, sm: 1.5 }, pb: { xs: 1.5, sm: 2 } }}>
+      {/* Contained fixed-height card skeleton — matches the real hero card */}
+      <Box
+        sx={{
+          position: 'relative',
+          width: '100%',
+          height: cardHeight,
+          borderRadius: `${cardRadius}px`,
+          overflow: 'hidden',
+          border: '1px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 18px 44px rgba(0,0,0,0.42)',
+          bgcolor: shimmerBg,
+        }}
+      >
+        {/* Image shimmer fills the card */}
+        <SkeletonBlock
+          width="100%"
+          height="100%"
+          sx={{ position: 'absolute', inset: 0, borderRadius: 0, bgcolor: shimmerStrong }}
+        />
+
+        {/* Bottom scrim */}
         <Box
           sx={{
-            position: 'relative',
-            width: '100%',
-            height: heroHeight,
-            borderRadius: `${cardRadius}px`,
-            overflow: 'hidden',
-            bgcolor: 'transparent',
-            boxShadow: '0 20px 46px rgba(0,0,0,0.20)',
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            background:
+              'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 30%, transparent 70%)',
+          }}
+        />
+
+        {/* Content placeholders overlaid at the bottom */}
+        <Box
+          sx={{
+            position: 'absolute',
+            left: 0, right: 0, bottom: 0,
+            zIndex: 2,
+            px: 2,
+            pb: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 1,
           }}
         >
-          {/* Image shimmer */}
-          <SkeletonBlock
-            width="100%"
-            height="100%"
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: 0,
-              bgcolor: shimmerStrong,
-            }}
-          />
+          <SkeletonBlock width="62%" height={24} sx={{ borderRadius: 1 }} />
+          <SkeletonBlock width="44%" height={12} sx={{ mb: 1 }} />
 
-          {/* Soft visual shading */}
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              pointerEvents: 'none',
-              background:
-                'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.04) 16%, rgba(0,0,0,0.08) 42%, rgba(0,0,0,0.24) 74%, rgba(0,0,0,0.46) 100%)',
-            }}
-          />
-
-          {/* Bottom content panel */}
-          <Box
-            sx={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              p: isXs ? '0 14px 14px' : '0 18px 18px',
-            }}
-          >
-            <Box
-              sx={{
-                borderRadius: `${panelRadius}px`,
-                p: isXs ? 1.2 : 1.5,
-                bgcolor: 'rgba(20,20,20,0.78)',
-                border: '1px solid rgba(255,255,255,0.08)',
-              }}
-            >
-              {/* Badges */}
-              <Box sx={{ display: 'flex', gap: 0.7, mb: 1 }}>
-                <SkeletonBlock width={48} height={20} sx={{ borderRadius: 999 }} />
-                <SkeletonBlock width={64} height={20} sx={{ borderRadius: 999 }} />
-              </Box>
-
-              {/* Title */}
-              <SkeletonBlock width="78%" height={22} sx={{ mb: 0.8 }} />
-              <SkeletonBlock width="52%" height={22} sx={{ mb: 1.2 }} />
-
-              {/* Meta */}
-              <Box sx={{ display: 'flex', gap: 1, mb: 1.2 }}>
-                <SkeletonBlock width={40} height={12} />
-                <SkeletonBlock width={48} height={12} />
-                <SkeletonBlock width={56} height={12} />
-              </Box>
-
-              {/* Overview */}
-              <SkeletonBlock width="95%" height={11} sx={{ mb: 0.7 }} />
-              <SkeletonBlock width="84%" height={11} sx={{ mb: 1.4 }} />
-
-              {/* Actions */}
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <SkeletonBlock height={44} sx={{ flex: 1.2, borderRadius: 999 }} />
-                <SkeletonBlock height={44} sx={{ flex: 1, borderRadius: 999 }} />
-                <SkeletonBlock width={44} height={44} sx={{ borderRadius: 12 }} />
-              </Box>
-            </Box>
-          </Box>
-        </Box>
-
-        {/* Preview strip skeleton */}
-        <Box sx={{ pt: 1.2 }}>
-          <Box
-            sx={{
-              display: 'flex',
-              gap: 1,
-              overflow: 'hidden',
-              px: 0.2,
-              pb: 0.35,
-            }}
-          >
-            {[0, 1, 2, 3].map((i) => (
-              <Box
-                key={i}
-                sx={{
-                  flex: '0 0 auto',
-                  width: stripCardWidth,
-                  minWidth: stripCardWidth,
-                  height: stripCardHeight,
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  position: 'relative',
-                  border:
-                    i === 0
-                      ? '2px solid rgba(13,148,136,0.55)'
-                      : '1px solid rgba(255,255,255,0.08)',
-                  boxShadow:
-                    i === 0
-                      ? '0 8px 18px rgba(13,148,136,0.14)'
-                      : '0 8px 16px rgba(0,0,0,0.14)',
-                }}
-              >
-                <SkeletonBlock
-                  width="100%"
-                  height="100%"
-                  sx={{
-                    borderRadius: 0,
-                    bgcolor: shimmerStrong,
-                  }}
-                />
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    background:
-                      'linear-gradient(to top, rgba(0,0,0,0.34) 0%, rgba(0,0,0,0.08) 58%, transparent 100%)',
-                  }}
-                />
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    left: 8,
-                    right: 8,
-                    bottom: 6,
-                  }}
-                >
-                  <SkeletonBlock width="78%" height={10} />
-                </Box>
-              </Box>
-            ))}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.25 }}>
+            <SkeletonBlock width={42} height={42} sx={{ borderRadius: '50%' }} />
+            <SkeletonBlock width={150} height={44} sx={{ borderRadius: 1 }} />
+            <SkeletonBlock width={42} height={42} sx={{ borderRadius: '50%' }} />
           </Box>
 
-          {/* Dots */}
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 0.75,
-              pt: 1.05,
-              pb: 0.1,
-            }}
-          >
+          <Box sx={{ display: 'flex', gap: 0.7, mt: 1.4 }}>
             {[0, 1, 2, 3, 4].map((i) => (
               <Box
                 key={i}
                 sx={{
-                  width: i === 0 ? 24 : 7,
+                  width: i === 0 ? 22 : 7,
                   height: 7,
                   borderRadius: 999,
-                  bgcolor:
-                    i === 0
-                      ? 'rgba(13,148,136,0.55)'
-                      : 'rgba(255,255,255,0.18)',
+                  bgcolor: i === 0 ? 'rgba(13,148,136,0.55)' : 'rgba(255,255,255,0.18)',
                 }}
               />
             ))}
@@ -288,14 +180,15 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
           width: 'min(50vw, 780px)',
         }}
       >
-        <Box sx={{ display: 'flex', gap: 1, mb: 1.6 }}>
+        {/* Logo placeholder (logo-first layout) */}
+        <SkeletonBlock width={isTv ? 360 : 260} height={isTv ? 120 : 96} sx={{ mb: 2, borderRadius: 2 }} />
+
+        {/* Meta row */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
           <SkeletonBlock width={64} height={22} sx={{ borderRadius: 999 }} />
           <SkeletonBlock width={48} height={16} />
           <SkeletonBlock width={42} height={16} />
         </Box>
-
-        <SkeletonBlock width="82%" height={isTv ? 80 : 56} sx={{ mb: 2, borderRadius: 1 }} />
-        <SkeletonBlock width="52%" height={isTv ? 80 : 56} sx={{ mb: 2.4, borderRadius: 1 }} />
 
         <Box sx={{ display: 'flex', gap: 1.4, mb: 2 }}>
           <SkeletonBlock width={70} height={14} />
@@ -318,31 +211,27 @@ const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
         </Box>
       </Box>
 
-      {/* Indicator dots */}
+      {/* Slide navigator placeholder — right-side thumbnail strip */}
       <Box
         sx={{
           position: 'absolute',
-          bottom: isTv ? 50 : 36,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          bottom: contentBottom,
+          right: contentLeft,
           display: 'flex',
-          gap: 0.8,
+          alignItems: 'center',
+          gap: 1,
         }}
       >
-        {[0, 1, 2, 3, 4].map((i) => (
-          <Box
+        <SkeletonBlock width={isTv ? 44 : 36} height={isTv ? 44 : 36} sx={{ borderRadius: '50%' }} />
+        {[0, 1, 2, 3].map((i) => (
+          <SkeletonBlock
             key={i}
-            sx={{
-              width: i === 0 ? (isTv ? 30 : 24) : isTv ? 10 : 8,
-              height: isTv ? 10 : 8,
-              borderRadius: 999,
-              bgcolor:
-                i === 0
-                  ? 'rgba(13,148,136,0.55)'
-                  : 'rgba(255,255,255,0.22)',
-            }}
+            width={isTv ? 132 : isMonitor ? 116 : 104}
+            height={isTv ? 74 : isMonitor ? 66 : 58}
+            sx={{ borderRadius: 1.5, bgcolor: shimmerStrong }}
           />
         ))}
+        <SkeletonBlock width={isTv ? 44 : 36} height={isTv ? 44 : 36} sx={{ borderRadius: '50%' }} />
       </Box>
     </Box>
   );

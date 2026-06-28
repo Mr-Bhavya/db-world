@@ -61,6 +61,7 @@ const IMAGE_VARIANTS = [
 const DISPLAY_TYPES = [
   { value: '',            label: 'Auto (default)' },
   { value: 'standard',    label: 'Standard — 16:9 (poster on mobile)' },
+  { value: 'landscape',   label: 'Landscape — 16:9 (all screens)' },
   { value: 'wide',        label: 'Wide — 16:9' },
   { value: 'poster',      label: 'Poster' },
   { value: 'posterPlain', label: 'Poster (no title)' },
