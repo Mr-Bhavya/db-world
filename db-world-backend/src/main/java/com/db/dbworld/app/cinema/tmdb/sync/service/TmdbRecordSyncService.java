@@ -1,5 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.sync.service;
 
+import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobConfigEntity;
+import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobConfigRepository;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
 import com.db.dbworld.app.cinema.enums.RecordType;
@@ -21,15 +23,52 @@ public class TmdbRecordSyncService {
 
     private final TmdbRecordSyncRepository repository;
     private final RecordRepository recordRepository;
+    private final SchedulerJobConfigRepository schedulerConfigRepo;
 
-    private static final Duration RECHECK_INTERVAL = Duration.ofHours(TmdbSync.RECHECK_INTERVAL_DAYS);
+    /** A RUNNING row older than this is a zombie from a crashed run and is sync-eligible again. */
+    private static final Duration STALE_RUNNING_RECLAIM =
+            Duration.ofHours(TmdbSync.STALE_RUNNING_RECLAIM_HOURS);
 
-    public boolean shouldSync(Long tmdbId, RecordType type) {
+    /**
+     * Resolves the recheck interval for a record type from the DB scheduler config
+     * ({@code scheduler_job_config.recheck_interval_hours}), falling back to
+     * {@link TmdbSync#RECHECK_INTERVAL_HOURS} when unset/invalid. Read <b>once per sync
+     * run</b> by the orchestrator and passed into {@link #shouldSync} — not per record.
+     */
+    public Duration recheckInterval(RecordType type) {
+        String jobId = (type == RecordType.MOVIE)
+                ? TmdbSync.MOVIE_SYNC_JOB_ID
+                : TmdbSync.TV_SYNC_JOB_ID;
+        int hours = schedulerConfigRepo.findById(jobId)
+                .map(SchedulerJobConfigEntity::getRecheckIntervalHours)
+                .filter(h -> h > 0)
+                .orElse(TmdbSync.RECHECK_INTERVAL_HOURS);
+        return Duration.ofHours(hours);
+    }
+
+    public boolean shouldSync(Long tmdbId, RecordType type, Duration recheckInterval) {
 
         return repository.findByTmdbIdAndRecordType(tmdbId, type)
-                .map(entity -> entity.getLastCheckedAt() == null ||
-                        entity.getLastCheckedAt()
-                                .isBefore(Instant.now().minus(RECHECK_INTERVAL)))
+                .map(entity -> {
+                    Instant lastChecked = entity.getLastCheckedAt();
+                    if (lastChecked == null) {
+                        return true;
+                    }
+
+                    Instant now = Instant.now();
+
+                    // Reclaim zombies: markChecked() flips status to RUNNING *before* the
+                    // refresh runs, so a crash mid-refresh leaves the row RUNNING with a
+                    // recent lastCheckedAt — which the recheck gate below would skip. Any
+                    // RUNNING row older than the reclaim threshold is from a dead prior run
+                    // (within a run, shouldSync is evaluated before markChecked), so sync it.
+                    if (entity.getStatus() == SyncStatus.RUNNING
+                            && lastChecked.isBefore(now.minus(STALE_RUNNING_RECLAIM))) {
+                        return true;
+                    }
+
+                    return lastChecked.isBefore(now.minus(recheckInterval));
+                })
                 .orElse(true);
     }
 

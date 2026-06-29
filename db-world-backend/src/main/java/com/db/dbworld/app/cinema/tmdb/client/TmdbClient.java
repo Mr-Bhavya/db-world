@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.client;
 
 import com.db.dbworld.app.cinema.tmdb.client.dto.*;
+import com.db.dbworld.app.cinema.tmdb.config.TmdbWebClientConfig;
 import com.db.dbworld.app.cinema.tmdb.discover.dto.DiscoverResponseDto;
 import com.db.dbworld.app.cinema.tmdb.search.dto.SearchResponseDto;
 import com.db.dbworld.app.cinema.tmdb.trending.dto.TrendingResponseDto;
@@ -57,7 +58,7 @@ public class TmdbClient {
     }
 
     private <T> Mono<T> get(String path, Class<T> responseType, Consumer<UriBuilder> queryParams) {
-        return logHttpFailure(path, webClient.get()
+        Mono<T> request = webClient.get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder.path(path);
 
@@ -68,7 +69,13 @@ public class TmdbClient {
                     return builder.build();
                 })
                 .retrieve()
-                .bodyToMono(responseType));
+                .bodyToMono(responseType)
+                // Retry transient network failures (Connection reset, premature close,
+                // stale pooled sockets) around the FULL request — including the body
+                // read, which a WebClient filter cannot cover. See transientNetworkRetry.
+                .retryWhen(TmdbWebClientConfig.transientNetworkRetry(path));
+
+        return logHttpFailure(path, request);
     }
 
     private static void addIfPresent(UriBuilder builder, String name, Object value) {

@@ -6,7 +6,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SyncIcon from '@mui/icons-material/Sync';
 import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -20,30 +19,72 @@ import RecordTagsInline from './RecordTagsInline';
 const SORT_FIELD_MAP = {
   recordId: 'recordId', name: 'name', type: 'type',
   year: 'year', tmdbId: 'tmdbId', createdAt: 'createdAt', updatedAt: 'updatedAt',
+  lastSyncedAt: 'lastSyncedAt',
 };
 
-export default function RecordTable({ rows, totalElements, loading, onDelete }) {
+// Fields that exist as real, sortable DataGrid columns. The sort dropdown can
+// also sort by folded fields (tmdbId, year, recordId) that have no column — those
+// must NOT be handed to the grid's controlled sortModel, or it reconciles them
+// away and resets the selection. They still drive the server query via the store.
+const GRID_SORTABLE_FIELDS = new Set(['name', 'lastSyncedAt']);
+
+// TMDB sync status → chip label + color (matches the sync-health strip).
+const SYNC_META = {
+  SUCCESS: { label: 'Synced',  color: '#10b981' },
+  FAILED:  { label: 'Failed',  color: '#ef4444' },
+  SKIPPED: { label: 'Skipped', color: '#6b7280' },
+  RUNNING: { label: 'Running', color: '#f59e0b' },
+};
+
+const fmtSize = (b) => {
+  if (!b) return '0 B';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 ** 2) return `${Math.round(b / 1024)} KB`;
+  if (b < 1024 ** 3) return `${Math.round(b / 1024 ** 2)} MB`;
+  return `${(b / 1024 ** 3).toFixed(1)} GB`;
+};
+
+export default function RecordTable({ rows, totalElements, loading, onDelete, isMobile }) {
   const T = useT();
-  const { sortModel, setSortModel, setSelectedRows, openModal, openTmdbModal, openRecordDetail, openMediaFiles } = useRecordStore();
+  const { sortModel, setSortModel, selectedRows, setSelectedRows, openModal, openMediaFiles, openDrawer } = useRecordStore();
+
+  // DataGrid v8 selection model is { type, ids:Set }. Keep it controlled off the
+  // store so the bulk-action bar reflects checkbox state and clearSelection() works.
+  const rowSelectionModel = useMemo(
+    () => ({ type: 'include', ids: new Set(selectedRows) }),
+    [selectedRows],
+  );
+  const handleSelectionChange = useCallback((model) => {
+    // "select all" emits exclude-mode → everything on the page minus exclusions.
+    const ids = model.type === 'exclude'
+      ? rows.filter(r => !model.ids.has(r.recordId)).map(r => r.recordId)
+      : Array.from(model.ids);
+    setSelectedRows(ids);
+  }, [rows, setSelectedRows]);
+
+  // Compact mobile: hide secondary columns so Title + Sync + actions fit a phone.
+  const columnVisibilityModel = useMemo(() => isMobile
+    ? { tags: false, lastSyncedAt: false, mediaFileCount: false, hideFromRails: false }
+    : {}, [isMobile]);
 
   const visibilityMut = useRecordVisibility();
   const syncMut       = useRecordSync();
 
   const gridSx = useMemo(() => ({
     // v8 CSS variables override container/pinned backgrounds
-    '--DataGrid-containerBackground': T.tealBg,
+    '--DataGrid-containerBackground': T.sidebar,
     '--DataGrid-pinnedBackground':    T.sidebar,
     border: 'none',
     color: T.textPrimary,
     bgcolor: T.adminBg,
 
-    // Column header — force background + text via !important to beat v8 CSS vars
+    // Column header — neutral band (no heavy teal), force via !important to beat v8 CSS vars
     '& .MuiDataGrid-columnHeaders': {
-      backgroundColor: `${T.tealBg} !important`,
+      backgroundColor: `${T.sidebar} !important`,
       borderBottom: `1px solid ${T.border}`,
     },
     '& .MuiDataGrid-columnHeader': {
-      backgroundColor: `${T.tealBg} !important`,
+      backgroundColor: `${T.sidebar} !important`,
       color: `${T.textMuted} !important`,
       '&:focus, &:focus-within': { outline: 'none' },
     },
@@ -76,7 +117,7 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
     // Footer
     '& .MuiDataGrid-footerContainer': {
       borderTop: `1px solid ${T.border}`,
-      backgroundColor: `${T.tealBg} !important`,
+      backgroundColor: `${T.sidebar} !important`,
       color: T.textMuted,
     },
     '& .MuiDataGrid-selectedRowCount': { color: T.teal },
@@ -93,91 +134,81 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
   }, [setSortModel]);
 
   const displaySortModel = useMemo(() =>
-    sortModel.map(s => ({ field: Object.keys(SORT_FIELD_MAP).find(k => SORT_FIELD_MAP[k] === s.field) ?? s.field, sort: s.sort })),
+    sortModel
+      .map(s => ({ field: Object.keys(SORT_FIELD_MAP).find(k => SORT_FIELD_MAP[k] === s.field) ?? s.field, sort: s.sort }))
+      .filter(s => GRID_SORTABLE_FIELDS.has(s.field)),
   [sortModel]);
 
   const columns = useMemo(() => [
     {
-      field: 'recordId', headerName: 'ID', width: 80,
-      renderCell: ({ value }) => (
-        <Box
-          onClick={() => openRecordDetail(value)}
-          sx={{ color: T.teal, fontWeight: 700, cursor: 'pointer', fontSize: 13, '&:hover': { textDecoration: 'underline' } }}
-        >
-          {value}
-        </Box>
-      ),
-    },
-    {
-      field: 'name', headerName: 'Name', flex: 1.5, minWidth: 160,
-      renderCell: ({ value, row }) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      // Rich title cell — absorbs type (icon), name, year and TMDB id.
+      // Click opens the detail drawer (Overview).
+      field: 'name', headerName: 'Title', flex: 1, minWidth: 220,
+      renderCell: ({ row }) => (
+        <Box onClick={() => openDrawer(row.recordId)}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', width: '100%', minWidth: 0, height: '100%',
+            '&:hover .dbw-title': { color: T.teal } }}>
           {row.type === 'MOVIE'
-            ? <MovieIcon sx={{ fontSize: 15, color: T.teal, flexShrink: 0 }} />
-            : <TvIcon    sx={{ fontSize: 15, color: T.success, flexShrink: 0 }} />}
-          <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.textPrimary }}>{value}</Box>
-        </Box>
-      ),
-    },
-    {
-      field: 'type', headerName: 'Type', width: 95,
-      renderCell: ({ value }) => (
-        <Chip label={value === 'TV_SERIES' ? 'Series' : 'Movie'} size="small" sx={{
-          bgcolor: value === 'MOVIE' ? T.tealBg : `${T.success}20`,
-          color: value === 'MOVIE' ? T.teal : T.success,
-          fontWeight: 700, fontSize: 10,
-        }} />
-      ),
-    },
-    { field: 'year', headerName: 'Year', width: 72, type: 'number' },
-    {
-      field: 'tmdbId', headerName: 'TMDB ID', width: 120,
-      renderCell: ({ value, row }) => value ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: .5 }}>
-          <Tooltip title="View TMDB data">
-            <Box
-              onClick={() => openTmdbModal(row)}
-              sx={{ color: T.teal, fontSize: 13, cursor: 'pointer', fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}
-            >{value}</Box>
-          </Tooltip>
-          <Box
-            component="a"
-            href={`https://www.themoviedb.org/${row.type === 'MOVIE' ? 'movie' : 'tv'}/${value}`}
-            target="_blank" rel="noreferrer"
-            onClick={e => e.stopPropagation()}
-            sx={{ color: T.textFaint, display: 'flex', alignItems: 'center', '&:hover': { color: T.teal } }}
-          >
-            <OpenInNewIcon sx={{ fontSize: 11 }} />
+            ? <MovieIcon sx={{ fontSize: 16, color: T.teal, flexShrink: 0 }} />
+            : <TvIcon    sx={{ fontSize: 16, color: T.success, flexShrink: 0 }} />}
+          <Box sx={{ minWidth: 0, lineHeight: 1.25 }}>
+            <Box className="dbw-title" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              color: T.textPrimary, fontWeight: 500, fontSize: 13, lineHeight: 1.35 }}>{row.name}</Box>
+            <Box sx={{ fontSize: 11, color: T.textFaint, lineHeight: 1.3 }}>
+              {row.year ?? '—'}{row.tmdbId ? ` · #${row.tmdbId}` : ''}
+            </Box>
           </Box>
         </Box>
-      ) : <Box sx={{ color: T.textFaint }}>—</Box>,
+      ),
     },
     {
-      field: 'tags', headerName: 'Tags', flex: 1.5, minWidth: 180, sortable: false,
+      field: 'syncStatus', headerName: 'Sync', width: 175, sortable: false,
+      renderCell: ({ value, row }) => {
+        if (!value) return <Box sx={{ color: T.textFaint, fontSize: 12 }}>—</Box>;
+        const m = SYNC_META[value] ?? { label: value, color: T.textMuted };
+        return (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, py: 0.5, minWidth: 0 }}>
+            <Chip label={m.label} size="small"
+              sx={{ alignSelf: 'flex-start', bgcolor: `${m.color}22`, color: m.color, fontWeight: 700, fontSize: 10 }} />
+            {value === 'FAILED' && row.syncError && (
+              <Tooltip title={row.syncError}>
+                <Box sx={{ fontSize: 10, color: T.error, lineHeight: 1.2,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                  {row.syncError}
+                </Box>
+              </Tooltip>
+            )}
+          </Box>
+        );
+      },
+    },
+    {
+      field: 'lastSyncedAt', headerName: 'Last synced', width: 120,
+      renderCell: ({ value }) => value
+        ? <Box sx={{ fontSize: 12, color: T.textFaint }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box>
+        : <Box sx={{ color: T.textFaint }}>—</Box>,
+    },
+    {
+      field: 'tags', headerName: 'Tags', flex: 1, minWidth: 150, sortable: false,
       renderCell: ({ row }) => <RecordTagsInline record={row} />,
     },
     {
-      field: 'createdAt', headerName: 'Created', width: 125,
-      renderCell: ({ value }) => value
-        ? <Box sx={{ fontSize: 12, color: T.textFaint }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box>
-        : <Box sx={{ color: T.textFaint }}>—</Box>,
-    },
-    {
-      field: 'updatedAt', headerName: 'Updated', width: 125,
-      renderCell: ({ value }) => value
-        ? <Box sx={{ fontSize: 12, color: T.textFaint }}>{formatDistanceToNow(new Date(value), { addSuffix: true })}</Box>
-        : <Box sx={{ color: T.textFaint }}>—</Box>,
-    },
-    {
-      field: 'mediaFiles', headerName: 'Files', width: 72, sortable: false,
-      renderCell: ({ row }) => (
-        <Tooltip title="View media files">
-          <IconButton size="small" onClick={() => openMediaFiles(row.recordId)}
-            sx={{ color: T.textFaint, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>
-            <VideoFileIcon sx={{ fontSize: 15 }} />
-          </IconButton>
-        </Tooltip>
-      ),
+      field: 'mediaFileCount', headerName: 'Files', width: 120, sortable: false,
+      renderCell: ({ row }) => {
+        const count = row.mediaFileCount ?? 0;
+        return (
+          <Tooltip title="View / manage media files">
+            <Box onClick={() => openMediaFiles(row.recordId)}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer',
+                color: count > 0 ? T.textPrimary : T.textFaint, '&:hover': { color: T.teal } }}>
+              <VideoFileIcon sx={{ fontSize: 15 }} />
+              <Box sx={{ fontSize: 12 }}>
+                {count > 0 ? `${count} · ${fmtSize(Number(row.mediaTotalSize))}` : '—'}
+              </Box>
+            </Box>
+          </Tooltip>
+        );
+      },
     },
     {
       field: 'hideFromRails', headerName: 'On Rails', width: 80, sortable: false,
@@ -222,7 +253,7 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
         </Box>
       ),
     },
-  ], [T, onDelete, openModal, openTmdbModal, openRecordDetail, openMediaFiles, visibilityMut, syncMut]);
+  ], [T, onDelete, openModal, openMediaFiles, openDrawer, visibilityMut, syncMut]);
 
   return (
     <DataGrid
@@ -236,7 +267,11 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       onSortModelChange={handleSortChange}
       checkboxSelection
       disableRowSelectionOnClick
-      onRowSelectionModelChange={ids => setSelectedRows(Array.from(ids))}
+      rowSelectionModel={rowSelectionModel}
+      onRowSelectionModelChange={handleSelectionChange}
+      columnVisibilityModel={columnVisibilityModel}
+      rowHeight={58}
+      columnHeaderHeight={44}
       hideFooterPagination
       sx={gridSx}
       slotProps={{ loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' } }}

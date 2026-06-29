@@ -55,7 +55,6 @@ const LazyAdminDashboard       = lazy(() => import('@features/admin/dashboard/Ad
 const LazyActivityCenter       = lazy(() => import('@features/admin/activity-center'));
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/mediafiles'));
 const LazyRequestsAdmin        = lazy(() => import('@features/admin/requests'));
-const LazyTmdbSyncManager      = lazy(() => import('@features/admin/tmdb-sync'));
 const LazyIngestionPage        = lazy(() => import('@features/admin/ingestion'));
 const LazyServerInfo           = lazy(() => import('@features/admin/system-info'));
 const LazyRedisManager         = lazy(() => import('@features/admin/redis'));
@@ -409,7 +408,8 @@ const ThemedApp = () => {
                     <Route path="media-requests"   element={<Navigate to="../requests?tab=media" replace />} />
                     <Route path="catalog-requests" element={<Navigate to="../requests?tab=catalog" replace />} />
                     <Route path="tag-management" element={<LazyTagManagement />} />
-                    <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
+                    {/* TMDB Sync merged into Records — redirect old links there */}
+                    <Route path="tmdb-sync"     element={<Navigate to="../records" replace />} />
                     <Route path="ingestion"     element={<LazyIngestionPage />} />
                     <Route path="system-info"   element={<LazyServerInfo />} />
                     <Route path="logs"          element={<LazyLogViewer />} />

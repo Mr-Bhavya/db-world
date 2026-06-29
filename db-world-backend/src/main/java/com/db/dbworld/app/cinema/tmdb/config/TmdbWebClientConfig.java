@@ -88,7 +88,6 @@ public class TmdbWebClientConfig {
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(strategies)
                 .filter(retryOn429())
-                .filter(retryOnTransientErrors())
                 .filter(observabilityFilter())
                 .build();
 
@@ -167,13 +166,16 @@ public class TmdbWebClientConfig {
                                     System.currentTimeMillis() - start);
                         }
                     })
-                    .doOnError(error -> log.error(
+                    .doOnError(error -> log.warn(
+                            // One-line WARN per attempt only. Transient resets are retried by
+                            // TmdbClient (which re-runs this filter), so a full stack trace here
+                            // would fire on every recoverable blip. The final, unrecoverable
+                            // failure is logged with its stack trace by the sync orchestrator.
                             "TMDB FAILED {} {} ({} ms) - rootCause={}",
                             request.method(),
                             request.url(),
                             System.currentTimeMillis() - start,
-                            rootCause(error),
-                            error
+                            rootCause(error)
                     ));
         };
     }
@@ -200,30 +202,37 @@ public class TmdbWebClientConfig {
     }
 
     /**
-     * Retries on transient connection problems such as
-     * {@code Connection reset}, stale pooled sockets, premature closes, etc.
-     * Methods retried are effectively idempotent in our usage (all GETs).
+     * Retry spec for transient connection problems such as {@code Connection reset},
+     * stale pooled sockets, premature closes and read timeouts.
+     *
+     * <p><b>Why this is not a {@link ExchangeFilterFunction}:</b> a WebClient filter only
+     * wraps {@code next.exchange(request)}, which completes the moment the response
+     * <i>headers</i> arrive. The response <i>body</i> is streamed afterwards, downstream
+     * of the filter. A reset while reading a large TMDB body (e.g. the full
+     * {@code append_to_response=images,videos,credits} payload) therefore bypasses any
+     * filter-level retry and surfaces as a hard failure. {@link TmdbClient} applies this
+     * spec around the whole call — connection acquisition, header receipt <i>and</i> body
+     * read — so a reset at any stage is retried by re-issuing the request.
+     *
+     * <p>Safe because every TMDB call in {@link TmdbClient} is an idempotent GET.
      */
-    private static ExchangeFilterFunction retryOnTransientErrors() {
-        return (request, next) -> next.exchange(request)
-                .retryWhen(Retry.backoff(NET_MAX_ATTEMPTS, NET_INITIAL_BACKOFF)
-                        .maxBackoff(NET_MAX_BACKOFF)
-                        .jitter(JITTER)
-                        .filter(TmdbWebClientConfig::isTransientNetworkError)
-                        .doBeforeRetry(rs -> log.warn(
-                                "TMDB network retry attempt {}/{} for {} {} (cause={})",
-                                rs.totalRetries() + 1,
-                                NET_MAX_ATTEMPTS,
-                                request.method(),
-                                request.url(),
-                                rootCause(rs.failure())))
-                        .onRetryExhaustedThrow((spec, signal) -> {
-                            log.error("TMDB network retries exhausted for {} {} - {}",
-                                    request.method(),
-                                    request.url(),
-                                    rootCause(signal.failure()));
-                            return signal.failure();
-                        }));
+    public static Retry transientNetworkRetry(String description) {
+        return Retry.backoff(NET_MAX_ATTEMPTS, NET_INITIAL_BACKOFF)
+                .maxBackoff(NET_MAX_BACKOFF)
+                .jitter(JITTER)
+                .filter(TmdbWebClientConfig::isTransientNetworkError)
+                .doBeforeRetry(rs -> log.warn(
+                        "TMDB network retry attempt {}/{} for {} (cause={})",
+                        rs.totalRetries() + 1,
+                        NET_MAX_ATTEMPTS,
+                        description,
+                        rootCause(rs.failure())))
+                .onRetryExhaustedThrow((spec, signal) -> {
+                    log.error("TMDB network retries exhausted for {} - {}",
+                            description,
+                            rootCause(signal.failure()));
+                    return signal.failure();
+                });
     }
 
     /* =========================================================

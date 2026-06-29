@@ -9,6 +9,7 @@ import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -116,6 +117,7 @@ public class CatalogAdminController {
             @RequestParam(required = false) RecordType type,
             @RequestParam(required = false) Long tmdbId,
             @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) SyncStatus status,
             Pageable pageable
     ) {
 
@@ -126,6 +128,7 @@ public class CatalogAdminController {
                         type,
                         tmdbId,
                         year,
+                        status,
                         pageable
                 )
         );

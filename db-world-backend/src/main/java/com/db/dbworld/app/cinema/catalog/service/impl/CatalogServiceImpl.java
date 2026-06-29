@@ -15,6 +15,7 @@ import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
 import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
@@ -298,35 +299,15 @@ public class CatalogServiceImpl implements CatalogService {
             RecordType type,
             Long tmdbId,
             Integer year,
+            SyncStatus status,
             Pageable pageable
     ) {
+        // Sort is applied inside the repository's hand-built native query from a
+        // safe allowlist — no alias-remap needed (and it can sort joined columns).
         return recordRepository.findAdminTable(
-                recordId, name, type != null ? type.name() : null, tmdbId, year, remapAdminTableSort(pageable)
+                recordId, name, type != null ? type.name() : null, tmdbId, year,
+                status != null ? status.name() : null, pageable
         );
-    }
-
-    /**
-     * Spring Data appends the table alias (r.) to sort properties in native queries.
-     * Remap frontend camelCase field names to the actual snake_case column names
-     * that exist in the `records r` table, so ORDER BY r.column_name is valid SQL.
-     * The computed alias `year` has no real column — fall back to `id`.
-     */
-    private Pageable remapAdminTableSort(Pageable pageable) {
-        if (!pageable.getSort().isSorted()) return pageable;
-        List<Sort.Order> orders = pageable.getSort().stream()
-                .map(o -> {
-                    String col = switch (o.getProperty()) {
-                        case "recordId"  -> "id";
-                        case "tmdbId"    -> "tmdb_id";
-                        case "createdAt" -> "created_at";
-                        case "updatedAt" -> "updated_at";
-                        case "year"      -> "id";   // computed alias; id is a reasonable proxy
-                        default          -> o.getProperty();
-                    };
-                    return o.isAscending() ? Sort.Order.asc(col) : Sort.Order.desc(col);
-                })
-                .collect(Collectors.toList());
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orders));
     }
 
     /* ===============================

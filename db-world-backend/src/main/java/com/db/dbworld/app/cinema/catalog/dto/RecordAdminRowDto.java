@@ -23,4 +23,21 @@ public interface RecordAdminRowDto {
     String getTags();
 
     Boolean getHideFromRails();
+
+    /* ── TMDB sync state (LEFT JOIN tmdb_record_sync; null when never synced) ── */
+
+    /** SUCCESS / FAILED / SKIPPED / RUNNING, or null if the record has no sync row yet. */
+    String getSyncStatus();
+
+    Instant getLastSyncedAt();
+
+    Instant getLastCheckedAt();
+
+    String getSyncError();
+
+    /* ── Media file rollup (per-record COUNT + SUM(file_size); 0 when none) ── */
+
+    Long getMediaFileCount();
+
+    Long getMediaTotalSize();
 }

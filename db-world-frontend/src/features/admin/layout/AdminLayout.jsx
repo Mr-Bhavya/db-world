@@ -8,7 +8,7 @@ import {
 import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
   Dashboard, Movie, VideoLibrary,
-  LocalOffer, Sync, Computer, Analytics,
+  LocalOffer, Computer, Analytics,
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home,
@@ -46,7 +46,6 @@ const NAV = [
       { id: 'media-files', label: 'Media Files',   icon: <VideoLibrary />, path: 'media-files' },
       { id: 'requests', label: 'Requests', icon: <Inbox />, path: 'requests' },
       { id: 'tag-management', label: 'Tags & Rails', icon: <LocalOffer />, path: 'tag-management' },
-      { id: 'tmdb-sync',   label: 'TMDB Sync',     icon: <Sync />,         path: 'tmdb-sync' },
     ],
   },
   {

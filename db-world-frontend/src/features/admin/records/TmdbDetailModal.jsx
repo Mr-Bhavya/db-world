@@ -809,3 +809,46 @@ export default function TmdbDetailModal({ record, onClose }) {
     </Dialog>
   );
 }
+
+// ── Drawer body ───────────────────────────────────────────────────
+// Same TMDB content, rendered as stacked sections (no Dialog, no sub-tabs)
+// for the unified record detail drawer's "TMDB" tab. The default export above
+// is retained only for backward-compat and is no longer mounted anywhere.
+
+export function TmdbDetailBody({ record }) {
+  const T = useT();
+  const isMovie = record?.type === 'MOVIE';
+
+  const { data: tmdb, isLoading, error } = useQuery({
+    queryKey: ['tmdbDetail', record?.type, record?.tmdbId],
+    queryFn:  () => getTmdbDetail(record.type, record.tmdbId),
+    enabled:  Boolean(record?.tmdbId) && Boolean(record?.type),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!record?.tmdbId) {
+    return <Typography sx={{ fontSize: 13, color: T.textMuted }}>No TMDB link for this record.</Typography>;
+  }
+  if (isLoading) {
+    return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress size={28} sx={{ color: T.teal }} /></Box>;
+  }
+  if (error) {
+    return <Alert severity="error" sx={{ bgcolor: T.errorBg, color: T.error, border: `1px solid ${T.error}44`, '& .MuiAlert-icon': { color: T.error } }}>Failed to load TMDB details.</Alert>;
+  }
+  if (!tmdb) {
+    return <Typography sx={{ fontSize: 13, color: T.textMuted }}>No data available.</Typography>;
+  }
+
+  const div = <Divider sx={{ borderColor: T.border, my: 2 }} />;
+
+  return (
+    <Box>
+      <OverviewTab tmdb={tmdb} isMovie={isMovie} />
+      {(tmdb.credits ?? []).length > 0 && <>{div}<CastCrewTab tmdb={tmdb} /></>}
+      {((tmdb.videos?.length ?? 0) + (tmdb.images?.length ?? 0)) > 0 && <>{div}<MediaTab tmdb={tmdb} /></>}
+      {(tmdb.providers?.length ?? 0) > 0 && <>{div}<ProvidersTab tmdb={tmdb} /></>}
+      {(tmdb.reviews?.length ?? 0) > 0 && <>{div}<ReviewsTab tmdb={tmdb} /></>}
+      {!isMovie && (tmdb.seasons?.length ?? 0) > 0 && <>{div}<SeasonsTab tmdb={tmdb} /></>}
+    </Box>
+  );
+}

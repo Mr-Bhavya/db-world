@@ -465,76 +465,12 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
        ADMIN TABLE
     ================================================================= */
 
-    @Query(value = """
-            SELECT
-                r.id AS recordId,
-                r.name AS name,
-                r.type AS type,
-                tm.id AS tmdbId,
-                YEAR(
-                    COALESCE(
-                        NULLIF(TRIM(tm.release_date), ''),
-                        NULLIF(TRIM(tm.first_air_date), '')
-                    )
-                ) AS year,
-                r.created_at AS createdAt,
-                r.updated_at AS updatedAt,
-                r.hide_from_rails AS hideFromRails,
-                GROUP_CONCAT(tag.tag_type ORDER BY tag.priority SEPARATOR ',') AS tags
-            FROM records r
-            LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
-            LEFT JOIN record_tags tag ON r.id = tag.record_id
-            WHERE (:recordId IS NULL OR r.id = :recordId)
-              AND (:name IS NULL OR LOWER(r.name) LIKE LOWER(CONCAT('%', :name, '%')))
-              AND (:type IS NULL OR r.type = :type)
-              AND (:tmdbId IS NULL OR tm.id = :tmdbId)
-              AND (
-                    :year IS NULL
-                    OR YEAR(
-                        COALESCE(
-                            NULLIF(TRIM(tm.release_date), ''),
-                            NULLIF(TRIM(tm.first_air_date), '')
-                        )
-                    ) = :year
-                  )
-            GROUP BY
-                r.id,
-                r.name,
-                r.type,
-                tm.id,
-                tm.release_date,
-                tm.first_air_date,
-                r.created_at,
-                r.updated_at,
-                r.hide_from_rails
-            """,
-            countQuery = """
-                    SELECT COUNT(*)
-                    FROM records r
-                    LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
-                    WHERE (:recordId IS NULL OR r.id = :recordId)
-                      AND (:name IS NULL OR LOWER(r.name) LIKE LOWER(CONCAT('%', :name, '%')))
-                      AND (:type IS NULL OR r.type = :type)
-                      AND (:tmdbId IS NULL OR tm.id = :tmdbId)
-                      AND (
-                            :year IS NULL
-                            OR YEAR(
-                                COALESCE(
-                                    NULLIF(TRIM(tm.release_date), ''),
-                                    NULLIF(TRIM(tm.first_air_date), '')
-                                )
-                            ) = :year
-                          )
-                    """,
-            nativeQuery = true)
-    Page<RecordAdminRowDto> findAdminTable(
-            @Param("recordId") Long recordId,
-            @Param("name") String name,
-            @Param("type") String type,
-            @Param("tmdbId") Long tmdbId,
-            @Param("year") Integer year,
-            Pageable pageable
-    );
+    /*
+     * findAdminTable(recordId, name, type, tmdbId, year, status, pageable) is
+     * implemented in RecordRepositoryImpl (hand-built native query) so ORDER BY
+     * can target joined columns (sync state, tmdb year). A @Query here can't —
+     * Spring Data prefixes the primary alias `r.` onto native sort columns.
+     */
 
     /* ================================================================
        TAG ADMIN

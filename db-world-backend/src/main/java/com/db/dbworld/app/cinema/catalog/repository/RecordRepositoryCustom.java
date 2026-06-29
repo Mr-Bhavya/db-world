@@ -16,6 +16,22 @@ public interface RecordRepositoryCustom {
     );
 
     /**
+     * Admin records table — hand-built native query so sorting can target joined
+     * columns (sync state, tmdb year) which Spring Data's native @Query sort cannot
+     * (it prefixes the primary alias {@code r.}). {@code type}/{@code status} are
+     * enum names or null; sort is applied from a safe allowlist.
+     */
+    Page<RecordAdminRowDto> findAdminTable(
+            Long recordId,
+            String name,
+            String type,
+            Long tmdbId,
+            Integer year,
+            String status,
+            Pageable pageable
+    );
+
+    /**
      * Returns record IDs matching a Specification, with proper sort support
      * for tmdb.* fields via joined paths.
      */
