@@ -15,7 +15,10 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -28,9 +31,15 @@ import static jakarta.persistence.CascadeType.PERSIST;
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "record_type")
 @BatchSize(size = 50)
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 public class TmdbEntity {
+
+    /** Min vote count for the Bayesian weighted rating — damps low-vote outliers. */
+    private static final double WEIGHTED_RATING_MIN_VOTES = 50.0;
+    /** Prior mean rating pulled toward when a title has few votes. */
+    private static final double WEIGHTED_RATING_PRIOR_MEAN = 6.5;
 
     @Id
     private Long id;
@@ -67,6 +76,40 @@ public class TmdbEntity {
     private double voteAverage;
 
     private int voteCount;
+
+    /* ── Derived sort fields (kept in sync by lifecycle hooks; used by rail sorting) ──
+       These exist so rails can sort uniformly across movies AND series:
+       - primaryDate: release date for movies / first-air date for series (set by the
+         subclass hooks) so a mixed Home rail can sort by date.
+       - weightedRating: Bayesian "Top rated" score so a 10/10 with 3 votes doesn't beat
+         an 8.5 with thousands of votes.
+       - updatedAt: bumps via auditing whenever TMDB data for this title changes (manual
+         refresh or batch sync). Distinct from records.updated_at (catalog edits). */
+
+    @Column(name = "primary_date")
+    private String primaryDate;
+
+    @Column(name = "weighted_rating")
+    private Double weightedRating;
+
+    @LastModifiedDate
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
+    /** Recomputes the weighted rating on every persist/update from base vote fields. */
+    @PrePersist
+    @PreUpdate
+    void computeWeightedRating() {
+        double v = voteCount;
+        this.weightedRating =
+                (v / (v + WEIGHTED_RATING_MIN_VOTES)) * voteAverage
+                        + (WEIGHTED_RATING_MIN_VOTES / (v + WEIGHTED_RATING_MIN_VOTES)) * WEIGHTED_RATING_PRIOR_MEAN;
+    }
+
+    /** Normalises blank/whitespace date strings to null so they sort last (DESC). */
+    protected static String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
+    }
 
     // Genres
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST, MERGE})

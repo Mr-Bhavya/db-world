@@ -14,15 +14,18 @@ import { fetchRailPage } from '../api/cinemaApi';
  * Cached entries are keyed by (railId, category, limitSize); a key change
  * (e.g. switching genre) transparently swaps to that key's cache or fetches.
  */
-export default function useRailRecords(railId, limitSize = 20, infiniteScroll = false, category) {
+export default function useRailRecords(railId, limitSize = 20, infiniteScroll = false, category, pageType) {
   // Lazy gate — the row stays un-fetched until it scrolls into view. Once
   // triggered it remains enabled for this component's life (key changes then
   // fetch immediately, matching the previous category-switch behaviour).
   const [enabled, setEnabled] = useState(false);
 
+  // pageType scopes a multi-page rail's content (HOME → both, MOVIES → movies,
+  // SERIES → series). It MUST be in the key so the same rail cached on Home
+  // doesn't bleed its "both" content onto Movies/Series.
   const query = useInfiniteQuery({
-    queryKey: ['rail-records', railId, category ?? null, limitSize],
-    queryFn: ({ pageParam }) => fetchRailPage(railId, pageParam, limitSize, category),
+    queryKey: ['rail-records', railId, category ?? null, limitSize, pageType ?? null],
+    queryFn: ({ pageParam }) => fetchRailPage(railId, pageParam, limitSize, category, pageType),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => (lastPage?.hasNext ? allPages.length : undefined),
     enabled: enabled && !!railId,

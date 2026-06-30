@@ -62,7 +62,7 @@ const PrimeDesktopCard = ({
       sx={{ flexShrink: 0, position: 'relative', width: PORTRAIT, height: PRIME_H, cursor: 'pointer' }}
     >
       {/* Idle portrait poster — the fixed footprint */}
-      <Box sx={{ position: 'absolute', inset: 0, borderRadius: 1.5, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.06)' }}>
+      <Box sx={{ position: 'absolute', inset: 0, borderRadius: 1, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.06)' }}>
         {!imgLoaded && <Skeleton variant="rectangular" width="100%" height="100%" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(255,255,255,.06)' }} />}
         {portraitSrc && (
           <Box component="img" src={portraitSrc} alt={record.title}
@@ -92,7 +92,7 @@ const PrimeDesktopCard = ({
             sx={{
               position: 'absolute', top: 0, height: PRIME_H,
               ...(expandDir === 'left' ? { right: 0 } : { left: 0 }),
-              borderRadius: 1.5, overflow: 'hidden', zIndex: 5, bgcolor: '#141414',
+              borderRadius: 1, overflow: 'hidden', zIndex: 5, bgcolor: '#141414',
             }}
           >
             {landscapeSrc && !lsError && (

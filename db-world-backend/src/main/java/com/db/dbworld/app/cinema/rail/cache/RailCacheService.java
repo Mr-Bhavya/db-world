@@ -1,5 +1,6 @@
 package com.db.dbworld.app.cinema.rail.cache;
 
+import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.rail.dto.RailPageDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -24,8 +25,12 @@ public class RailCacheService {
        KEY BUILDERS
     ========================================================= */
 
-    private String railKey(Long railId, int page, int size) {
-        return "rail:" + railId + ":" + page + ":" + size;
+    // The page scope is part of the key: a multi-page rail resolves DIFFERENT records
+    // per page (Home = both, Movies = movies, Series = series via resolveEffectiveType),
+    // so caching by railId+page+size alone would serve Home's content on Movies/Series.
+    private String railKey(Long railId, PageType requestedPage, int page, int size) {
+        String scope = requestedPage != null ? requestedPage.name() : "_";
+        return "rail:" + railId + ":" + scope + ":" + page + ":" + size;
     }
 
     private String recordIndexKey(Long recordId) {
@@ -36,8 +41,8 @@ public class RailCacheService {
        READ
     ========================================================= */
 
-    public RailPageDto get(Long railId, int page, int size) {
-        Object value = redisTemplate.opsForValue().get(railKey(railId, page, size));
+    public RailPageDto get(Long railId, PageType requestedPage, int page, int size) {
+        Object value = redisTemplate.opsForValue().get(railKey(railId, requestedPage, page, size));
         return value instanceof RailPageDto dto ? dto : null;
     }
 
@@ -46,12 +51,13 @@ public class RailCacheService {
     ========================================================= */
 
     public void put(Long railId,
+                    PageType requestedPage,
                     int page,
                     int size,
                     RailPageDto dto,
                     List<Long> recordIds) {
 
-        String railKey = railKey(railId, page, size);
+        String railKey = railKey(railId, requestedPage, page, size);
 
         // 1. Store main cache
         redisTemplate.opsForValue().set(railKey, dto, TTL);

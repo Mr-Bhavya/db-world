@@ -397,7 +397,7 @@ export default function RecordManagementV2() {
         '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 3 } }}>
         {isLoading
           ? <SkeletonRows T={T} />
-          : <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} isMobile={isMobile} />}
+          : <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />}
       </Box>
 
       {/* Pagination */}

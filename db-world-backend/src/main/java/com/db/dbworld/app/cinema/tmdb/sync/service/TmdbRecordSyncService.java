@@ -12,6 +12,8 @@ import com.db.dbworld.app.cinema.tmdb.sync.repository.TmdbRecordSyncRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -74,20 +76,30 @@ public class TmdbRecordSyncService {
 
     /* =====================================
        PUBLIC MARK METHODS
+
+       Each runs in its own REQUIRES_NEW transaction so the sync-status write is
+       committed independently of the caller. This is what lets a *manual* refresh
+       (CatalogService.refreshRecord, which is @Transactional and rolls back on a
+       TMDB error) still persist a FAILED status. The batch orchestrator calls
+       these with no surrounding transaction, so the behaviour there is unchanged.
      ===================================== */
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markChecked(Long tmdbId, RecordType type) {
         update(tmdbId, type, SyncStatus.RUNNING, false);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markSynced(Long tmdbId, RecordType type) {
         update(tmdbId, type, SyncStatus.SUCCESS, true);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markFailed(Long tmdbId, RecordType type) {
         markFailed(tmdbId, type, (String) null);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markFailed(Long tmdbId, RecordType type, String errorMessage) {
         log.debug("markFailed: tmdbId={}, type={}, error={}", tmdbId, type, errorMessage);
         TmdbRecordSyncEntity entity = getOrCreate(tmdbId, type);
@@ -97,10 +109,12 @@ public class TmdbRecordSyncService {
         repository.save(entity);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markFailed(Long tmdbId, RecordType type, Throwable cause) {
         markFailed(tmdbId, type, rootMessage(cause));
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markSkipped(Long tmdbId, RecordType type) {
         update(tmdbId, type, SyncStatus.SKIPPED, false);
     }

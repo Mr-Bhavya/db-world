@@ -415,7 +415,16 @@ public class RailResolverImpl implements RailResolver {
 
         // Explicit override on the rail takes precedence
         if (rule.getSort() != null && !rule.getSort().isBlank()) {
-            return RailSortBuilder.build(rule.getSort(), rule.getDirection());
+            Sort explicit = RailSortBuilder.build(rule.getSort(), rule.getDirection());
+            // tagPriority is the computed record_tags.priority score — only the tag
+            // resolution path can ORDER BY it. On genre/language/filter/manual rails the
+            // sentinel would leak into the SQL as `ORDER BY __TAG_PRIORITY__` and throw,
+            // so ignore it (fall back to the query's natural order) on non-tag rails.
+            if (RailSortBuilder.isTagPrioritySort(explicit) && !"tag".equals(rule.getType())) {
+                log.debug("Ignoring tagPriority sort on non-tag rail (type={})", rule.getType());
+                return Sort.unsorted();
+            }
+            return explicit;
         }
 
         // For tag-type rails, inherit the default sort from TagDefinition

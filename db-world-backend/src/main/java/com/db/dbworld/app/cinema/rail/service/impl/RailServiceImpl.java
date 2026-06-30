@@ -284,9 +284,10 @@ public class RailServiceImpl implements RailService {
         boolean userScoped = "continueWatching".equals(ruleType)
                 || "becauseYouWatched".equals(ruleType);
 
-        // 1. Cache check (only for non-category, non-user-scoped requests)
+        // 1. Cache check (only for non-category, non-user-scoped requests). Keyed by
+        // requestedPage too, since a multi-page rail resolves different records per page.
         if (category == null && !userScoped) {
-            RailPageDto cached = cacheService.get(railId, page, pageSize);
+            RailPageDto cached = cacheService.get(railId, requestedPage, page, pageSize);
             if (cached != null) return cached;
             // Cache miss on a shared (non-user-scoped) rail — useful signal for hot rails.
             log.debug("Rail cache miss; railId={}, page={}, size={}, ruleType={}",
@@ -345,9 +346,9 @@ public class RailServiceImpl implements RailService {
                 .records(result)
                 .build();
 
-        // Only cache non-category, non-user-scoped results
+        // Only cache non-category, non-user-scoped results (keyed by requestedPage)
         if (category == null && !userScoped) {
-            cacheService.put(railId, page, pageSize, railPageDto, recordIds);
+            cacheService.put(railId, requestedPage, page, pageSize, railPageDto, recordIds);
         }
 
         return railPageDto;

@@ -71,6 +71,9 @@ const _GenreBar = ({ genres, selected, onSelect }) => (
 
 const CinemaPage = ({ pageType = 'home' }) => {
   const apiPage = PAGE_MAP[pageType] ?? 'home';
+  // PageType enum the backend expects ('HOME' | 'MOVIES' | 'SERIES'). Sent with
+  // each rail-records fetch so a multi-page rail scopes its content to this page.
+  const railPageType = apiPage.toUpperCase();
   const navigate = useNavigate();
   const theme = useTheme();
 
@@ -86,11 +89,13 @@ const CinemaPage = ({ pageType = 'home' }) => {
 
   const [heroColor, setHeroColor] = useState(null);
 
-  // The rails rise over the hero and hide it, so no opacity fade is needed — just
-  // a gentle parallax lag so the image lingers as the rails cover it. Driven by
-  // scroll position via framer-motion → no React re-renders.
+  // Hero scroll behaviour (desktop), driven by scroll position via framer-motion
+  // (no React re-renders): a gentle parallax lag plus an opacity fade so the hero —
+  // including its overview text and buttons — fades out as the rails rise over it,
+  // instead of the content visibly colliding with / showing through the rail section.
   const { scrollY } = useScroll();
-  const heroParallax = useTransform(scrollY, [0, 520], [0, 120]);
+  const heroParallax = useTransform(scrollY, [0, 520], [0, 90]);
+  const heroFade     = useTransform(scrollY, [0, 300, 520], [1, 1, 0]);
 
   const { data: railsData, isLoading: railsLoading } = useQuery({
     queryKey: ['cinema-rails', apiPage, category ?? null],
@@ -98,7 +103,10 @@ const CinemaPage = ({ pageType = 'home' }) => {
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
-  const rails = Array.isArray(railsData) ? railsData : [];
+  const rails = useMemo(
+    () => (Array.isArray(railsData) ? railsData : []),
+    [railsData]
+  );
 
   useQuery({
     queryKey: ['cinema-categories', apiPage],
@@ -132,9 +140,11 @@ const CinemaPage = ({ pageType = 'home' }) => {
     }
   }, [railsLoading, rails.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const heroRail = rails[0] ?? null;
+  // Continue Watching is rendered by its own component (lower down), so it can't be
+  // the hero banner — the hero is the highest-priority rail that isn't it.
+  const heroRail = rails.find((r) => r?.rule?.type !== 'continueWatching') ?? null;
   const { records: heroRecords, loading: heroLoading, trigger: heroTrigger } =
-    useRailRecords(heroRail?.id, Math.min(heroRail?.limitSize ?? 8, 8), false, category);
+    useRailRecords(heroRail?.id, Math.min(heroRail?.limitSize ?? 8, 8), false, category, railPageType);
 
   const user = useSelector((s) => s.userReducer?.user ?? s.userReducer);
   const userId = user?.id ?? user?.userId ?? null;
@@ -199,9 +209,12 @@ const CinemaPage = ({ pageType = 'home' }) => {
     else selectCategory(genreOrNull);
   }, [selectCategory, clearCategory]);
 
+  // Every rail except the hero, in the backend's priority order. Continue Watching
+  // stays in this list (rather than being force-pinned to the top) so its
+  // admin-configured priority/position is honoured like any other rail.
   const remainingRails = useMemo(
-    () => (rails.length > 1 ? rails.slice(1) : []),
-    [rails]
+    () => rails.filter((r) => r !== heroRail),
+    [rails, heroRail]
   );
 
   const safeHeroColor = heroColor || '20,20,20';
@@ -307,7 +320,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
             Mobile keeps the static card hero (no fade). */}
         <Box
           component={motion.div}
-          style={isMobile ? undefined : { y: heroParallax }}
+          style={isMobile ? undefined : { y: heroParallax, opacity: heroFade }}
           sx={{ position: 'relative', zIndex: 0 }}
         >
           <HeroBanner
@@ -330,26 +343,28 @@ const CinemaPage = ({ pageType = 'home' }) => {
             </>
           ) : (
             <>
-              {/* Continue Watching — self-contained (progress + resume + remove);
-                  hides itself when empty. Drops any backend continueWatching rail
-                  below to avoid a duplicate plain row. */}
-              <ContinueRailRow />
-              {remainingRails
-                .filter((rail) => rail?.rule?.type !== 'continueWatching')
-                .map((rail) => (
-                <RailRow
-                  key={rail.id}
-                  rail={rail}
-                  category={category}
-                  interactions={interactions}
-                  onWatchlist={handleWatchlist}
-                  onLike={handleLike}
-                  onLove={handleLove}
-                  onWatched={handleWatched}
-                  onExplore={handleExploreAll}
-                  eager={false}
-                />
-              ))}
+              {/* Rails render in priority order. The continueWatching rail is swapped
+                  for the self-contained ContinueRailRow (progress + resume + remove;
+                  hides itself when empty) in place, so it keeps its configured slot. */}
+              {remainingRails.map((rail) =>
+                rail?.rule?.type === 'continueWatching' ? (
+                  <ContinueRailRow key={rail.id} />
+                ) : (
+                  <RailRow
+                    key={rail.id}
+                    rail={rail}
+                    category={category}
+                    pageType={railPageType}
+                    interactions={interactions}
+                    onWatchlist={handleWatchlist}
+                    onLike={handleLike}
+                    onLove={handleLove}
+                    onWatched={handleWatched}
+                    onExplore={handleExploreAll}
+                    eager={false}
+                  />
+                )
+              )}
             </>
           )}
         </Box>

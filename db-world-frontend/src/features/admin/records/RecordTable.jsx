@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Box, Chip, IconButton, Tooltip } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import EditIcon from '@mui/icons-material/Edit';
@@ -44,7 +44,7 @@ const fmtSize = (b) => {
   return `${(b / 1024 ** 3).toFixed(1)} GB`;
 };
 
-export default function RecordTable({ rows, totalElements, loading, onDelete, isMobile }) {
+export default function RecordTable({ rows, totalElements, loading, onDelete }) {
   const T = useT();
   const { sortModel, setSortModel, selectedRows, setSelectedRows, openModal, openMediaFiles, openDrawer } = useRecordStore();
 
@@ -62,10 +62,11 @@ export default function RecordTable({ rows, totalElements, loading, onDelete, is
     setSelectedRows(ids);
   }, [rows, setSelectedRows]);
 
-  // Compact mobile: hide secondary columns so Title + Sync + actions fit a phone.
-  const columnVisibilityModel = useMemo(() => isMobile
-    ? { tags: false, lastSyncedAt: false, mediaFileCount: false, hideFromRails: false }
-    : {}, [isMobile]);
+  // Column visibility is user-controlled via the column menu ("Manage columns" /
+  // "Hide column"). Same columns on mobile and desktop — the grid scrolls
+  // horizontally on small screens. Must be controlled WITH an onChange handler,
+  // otherwise the panel checkboxes appear frozen (can't toggle).
+  const [columnVisibilityModel, setColumnVisibilityModel] = useState({});
 
   const visibilityMut = useRecordVisibility();
   const syncMut       = useRecordSync();
@@ -127,6 +128,43 @@ export default function RecordTable({ rows, totalElements, loading, onDelete, is
 
     // Checkbox
     '& .MuiCheckbox-root': { color: T.textFaint },
+  }), [T]);
+
+  // The column-menu ("Sort by / Hide / Manage columns") and the "Manage columns"
+  // panel are portaled to <body>, so gridSx above can't reach them — they'd fall
+  // back to the wrong MUI palette (white labels on the light theme). Theme them
+  // explicitly so they're legible in both modes.
+  const panelSx = useMemo(() => ({
+    '& .MuiPaper-root, & .MuiDataGrid-paper': {
+      backgroundColor: T.sidebar,
+      color: T.textPrimary,
+      border: `1px solid ${T.border}`,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.24)',
+    },
+    '& .MuiDataGrid-columnsManagement':        { color: T.textPrimary },
+    '& .MuiDataGrid-columnsManagementHeader':  { color: T.textMuted },
+    '& .MuiDataGrid-columnsManagementFooter':  { borderTop: `1px solid ${T.border}` },
+    '& .MuiFormControlLabel-label':            { color: T.textPrimary, fontSize: 13 },
+    '& .MuiCheckbox-root':                     { color: T.textFaint, '&.Mui-checked': { color: T.teal } },
+    '& .MuiInputBase-input':                   { color: T.textPrimary },
+    '& .MuiInput-underline:before':            { borderBottomColor: T.border },
+    '& .MuiInput-underline:hover:before':      { borderBottomColor: T.borderHover },
+    '& .MuiInput-underline:after':             { borderBottomColor: T.teal },
+    '& .MuiSvgIcon-root':                      { color: T.textMuted },
+    '& .MuiButton-root':                       { color: T.teal },
+  }), [T]);
+
+  const columnMenuSx = useMemo(() => ({
+    '& .MuiPaper-root': {
+      backgroundColor: T.sidebar,
+      color: T.textPrimary,
+      border: `1px solid ${T.border}`,
+    },
+    '& .MuiMenuItem-root, & .MuiListItemText-primary': { color: T.textPrimary },
+    '& .MuiMenuItem-root:hover':                       { backgroundColor: T.tealBg },
+    '& .MuiListItemIcon-root .MuiSvgIcon-root':        { color: T.textMuted },
+    '& .MuiDivider-root':                              { borderColor: T.border },
+    '& .MuiInputBase-input':                           { color: T.textPrimary },
   }), [T]);
 
   const handleSortChange = useCallback((model) => {
@@ -270,11 +308,16 @@ export default function RecordTable({ rows, totalElements, loading, onDelete, is
       rowSelectionModel={rowSelectionModel}
       onRowSelectionModelChange={handleSelectionChange}
       columnVisibilityModel={columnVisibilityModel}
+      onColumnVisibilityModelChange={setColumnVisibilityModel}
       rowHeight={58}
       columnHeaderHeight={44}
       hideFooterPagination
       sx={gridSx}
-      slotProps={{ loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' } }}
+      slotProps={{
+        loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' },
+        panel: { sx: panelSx },
+        columnMenu: { sx: columnMenuSx },
+      }}
       keepNonExistentRowsSelected
     />
   );

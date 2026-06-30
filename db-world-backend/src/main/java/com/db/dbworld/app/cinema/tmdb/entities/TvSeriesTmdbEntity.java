@@ -19,6 +19,13 @@ public class TvSeriesTmdbEntity extends TmdbEntity {
 
     private String lastAirDate;
 
+    /** Feeds the base {@code primaryDate} sort column with this series' first-air date. */
+    @PrePersist
+    @PreUpdate
+    void syncPrimaryDate() {
+        setPrimaryDate(blankToNull(firstAirDate));
+    }
+
     private boolean inProduction;
 
     private int numberOfEpisodes;

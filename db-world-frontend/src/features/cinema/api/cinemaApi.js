@@ -49,9 +49,9 @@ export const fetchPageCategories = (page) =>
  * GET /api/cinema/rails/{railId}/records
  * → RailPageDto { railId, page, size, hasNext, records: RailRecordDto[] }
  */
-export const fetchRailPage = (railId, page = 0, size = 20, category) =>
+export const fetchRailPage = (railId, page = 0, size = 20, category, pageType) =>
   axiosInstance
-    .get(`${BASE}/rails/${railId}/records`, { params: { page, size, category } })
+    .get(`${BASE}/rails/${railId}/records`, { params: { page, size, category, pageType } })
     .then(unwrap);
 
 // ─── Catalog ──────────────────────────────────────────────────────────────────

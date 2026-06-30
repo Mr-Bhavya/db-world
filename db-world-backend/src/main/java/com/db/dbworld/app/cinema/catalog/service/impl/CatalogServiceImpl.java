@@ -25,6 +25,7 @@ import com.db.dbworld.app.cinema.tmdb.media.entity.LogoImageEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
+import com.db.dbworld.app.cinema.tmdb.sync.service.TmdbRecordSyncService;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
@@ -60,6 +61,7 @@ public class CatalogServiceImpl implements CatalogService {
     private final SeasonRepository seasonRepository;
     private final RecordTaggingService recordTaggingService;
     private final TmdbIngestionService tmdbIngestionService;
+    private final TmdbRecordSyncService tmdbRecordSyncService;
     private final ApplicationEventPublisher publisher;
     private final RecordMapper recordMapper;
 
@@ -339,25 +341,36 @@ public class CatalogServiceImpl implements CatalogService {
 
         RecordEntity record = getRecordOrThrow(recordId);
 
-//        record.setTmdb(null);
-//        recordRepository.save(record);
+        try {
+            TmdbEntity refreshed = ingestTmdbByType(
+                    record.getType(),
+                    record.getTmdbId(),
+                    tmdbIngestionService::refreshMovie,
+                    tmdbIngestionService::refreshTvSeries
+            );
 
-        TmdbEntity refreshed = ingestTmdbByType(
-                record.getType(),
-                record.getTmdbId(),
-                tmdbIngestionService::refreshMovie,
-                tmdbIngestionService::refreshTvSeries
-        );
+            record.setTmdb(refreshed);
 
-        record.setTmdb(refreshed);
+            RecordDto dto = saveAndMap(record);
 
-        RecordDto dto = saveAndMap(record);
+            publishEvent(record.getId());
 
-        publishEvent(record.getId());
+            // Stamp the sync row (status/lastSyncedAt) so the Records table reflects
+            // THIS manual refresh, not the last batch run. REQUIRES_NEW on markSynced
+            // commits it independently of this transaction.
+            tmdbRecordSyncService.markSynced(record.getTmdbId(), record.getType());
 
-        log.info("Record refreshed; recordId={}, tmdbId={}", record.getId(), record.getTmdbId());
+            log.info("Record refreshed; recordId={}, tmdbId={}", record.getId(), record.getTmdbId());
 
-        return dto;
+            return dto;
+
+        } catch (Exception e) {
+            // markFailed is REQUIRES_NEW, so the FAILED status survives the rollback
+            // this rethrow triggers on the surrounding @Transactional method.
+            tmdbRecordSyncService.markFailed(record.getTmdbId(), record.getType(), e);
+            log.warn("Record refresh failed; recordId={}, tmdbId={}", record.getId(), record.getTmdbId(), e);
+            throw e;
+        }
     }
 
     /* ===============================

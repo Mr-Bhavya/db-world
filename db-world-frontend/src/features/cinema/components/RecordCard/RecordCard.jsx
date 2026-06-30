@@ -179,7 +179,7 @@ const RecordCard = ({
           width: cardWidth,
           height: isPrime ? PRIME_HEIGHT : undefined,
           aspectRatio: !isPrime ? aspectRatio : undefined,
-          borderRadius: 1.5,
+          borderRadius: 1,
           overflow: 'hidden',
           bgcolor: 'rgba(255,255,255,.06)',
           position: 'relative',

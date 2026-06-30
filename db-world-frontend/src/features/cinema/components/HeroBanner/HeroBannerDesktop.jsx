@@ -125,12 +125,15 @@ const HeroBannerDesktop = ({
   const handlePrev = useCallback(() => go(-1), [go]);
   const handleNext = useCallback(() => go(1), [go]);
 
-  // Keep the active thumbnail centred in the strip as the slide changes.
+  // Keep the active thumbnail centred — but scroll ONLY the strip, never via
+  // scrollIntoView. scrollIntoView({inline:'center'}) also scrolls the page/ancestors
+  // to centre the bottom-right strip, which yanks the whole hero sideways on load.
   useEffect(() => {
+    const strip = stripRef.current;
     const el = thumbRefs.current[idx];
-    if (el?.scrollIntoView) {
-      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-    }
+    if (!strip || !el) return;
+    const target = el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
   }, [idx]);
 
   if (!record) return null;

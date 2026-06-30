@@ -67,6 +67,7 @@ const ScrollDots = ({ scrollRef, count = 5 }) => {
 const RailRow = ({
   rail,
   category,
+  pageType,
   interactions = {},
   onWatchlist,
   onLike,
@@ -117,7 +118,7 @@ const RailRow = ({
     initialLoaded,
     trigger,
     loadMore,
-  } = useRailRecords(rail?.id, rail?.limitSize, rail?.infiniteScroll, category);
+  } = useRailRecords(rail?.id, rail?.limitSize, rail?.infiniteScroll, category, pageType);
 
   const getPrimeBaseHeight = () => {
     if (isTv) return cfg.tiers.tv;
@@ -383,7 +384,7 @@ const PRIME_SHIFT = (() => {
     >
       <Box
         sx={{
-          mb: { xs: 2.5, md: 3.5 },
+          mb: { xs: 3.25, md: 5 },
           background: 'transparent',
         }}
       >
@@ -490,7 +491,7 @@ const PRIME_SHIFT = (() => {
             onMouseEnter={expandOnHover ? handleRowMouseEnter : undefined}
             sx={{
               display: 'flex',
-              gap: isTop10 ? 0.5 : { xs: 1, md: 1.5 },
+              gap: isTop10 ? 0.5 : { xs: 1.25, md: 2 },
               overflowX: isBillboard ? 'hidden' : 'auto',
               overflowY: 'visible',
               px,

@@ -14,6 +14,7 @@ export function useRecordSync() {
     mutationFn: (id) => refreshRecordFromTmdb(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records'] });
+      qc.invalidateQueries({ queryKey: ['tmdb-sync-stats'] });
       enqueueSnackbar('Synced from TMDB.', { variant: 'success', autoHideDuration: 2500 });
     },
     onError: () => enqueueSnackbar('TMDB sync failed.', { variant: 'error' }),

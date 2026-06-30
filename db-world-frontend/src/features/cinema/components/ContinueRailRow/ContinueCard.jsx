@@ -23,7 +23,7 @@ const ContinueCard = ({ item, onResume, onRemove }) => {
       sx={{
         flexShrink: 0, position: 'relative', cursor: 'pointer',
         width: { xs: 230, sm: 260, md: 300 },
-        aspectRatio: '16/9', borderRadius: 1.5, overflow: 'hidden',
+        aspectRatio: '16/9', borderRadius: 1, overflow: 'hidden',
         bgcolor: 'rgba(255,255,255,.06)',
         boxShadow: '0 2px 8px rgba(0,0,0,.3)',
         transition: 'transform .18s ease, box-shadow .18s ease',

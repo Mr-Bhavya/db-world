@@ -52,7 +52,7 @@ const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) => {
       pl: is10 ? { xs: 6, md: 10 } : 0,
       width: w,
       ...aspectRatioSx,
-      borderRadius: isCirc ? '50%' : 1.5,
+      borderRadius: isCirc ? '50%' : 1,
       overflow: 'hidden',
       bgcolor: 'rgba(255,255,255,.06)',
     }}>
