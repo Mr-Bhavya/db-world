@@ -9,6 +9,7 @@ import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.entity.track.*;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
+import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
@@ -41,6 +42,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final RecordRepository recordRepository;
     private final ObjectMapper objectMapper;
     private final AppProperties properties;
+    private final StoryboardService storyboardService;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Public API
@@ -53,16 +55,40 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 filePath, recordId, ingestionJobId);
         String json = getRawJson(filePath);
 
-        // Delete existing entry for this path to avoid duplicates
-        mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString())
-                .ifPresent(existing -> {
-                    log.info("Replacing existing MediaInfo entry for {} (id={})",
-                            filePath.getFileName(), existing.getId());
-                    mediaFileRepository.delete(existing);
-                });
+        // Replace any existing entry for this path (avoids duplicates). Carry the scrub-preview
+        // storyboard forward so a re-collect/rescan doesn't drop the thumbnail: stash the sprite
+        // before the delete (whose @PostRemove would erase it), copy the geometry onto the new
+        // row, then restore the sprite under the new id. A full re-ingest still regenerates it.
+        Path stashedSprite = null;
+        Integer sbIntervalMs = null, sbCols = null, sbRows = null, sbTileW = null, sbTileH = null, sbCount = null;
+        var existingOpt = mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString());
+        if (existingOpt.isPresent()) {
+            MediaFileEntity existing = existingOpt.get();
+            log.info("Replacing existing MediaInfo entry for {} (id={})",
+                    filePath.getFileName(), existing.getId());
+            if (existing.getStoryboardCount() != null) {
+                sbIntervalMs = existing.getStoryboardIntervalMs();
+                sbCols       = existing.getStoryboardCols();
+                sbRows       = existing.getStoryboardRows();
+                sbTileW      = existing.getStoryboardTileW();
+                sbTileH      = existing.getStoryboardTileH();
+                sbCount      = existing.getStoryboardCount();
+                stashedSprite = storyboardService.stashSprite(existing.getId());
+            }
+            mediaFileRepository.delete(existing);
+        }
 
         MediaFileEntity entity = buildEntity(filePath, json, recordId, ingestionJobId);
+        if (sbCount != null) {
+            entity.setStoryboardIntervalMs(sbIntervalMs);
+            entity.setStoryboardCols(sbCols);
+            entity.setStoryboardRows(sbRows);
+            entity.setStoryboardTileW(sbTileW);
+            entity.setStoryboardTileH(sbTileH);
+            entity.setStoryboardCount(sbCount);
+        }
         MediaFileEntity saved = mediaFileRepository.save(entity);
+        if (stashedSprite != null) storyboardService.restoreSprite(stashedSprite, saved.getId());
 
         log.info("MediaInfo persisted: id={}, file={}, tracks={}, recordId={}",
                 saved.getId(), filePath.getFileName(), saved.getTracks().size(), recordId);
@@ -81,9 +107,9 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         Long recordId = existing.getRecord() != null ? existing.getRecord().getId() : null;
         String jobId = existing.getIngestionJobId();
 
-        log.info("Rescan deleting id={} before re-collecting path={}", mediaFileId, filePath);
-        mediaFileRepository.delete(existing);
-
+        // Don't delete here — collectAndPersist replaces the existing row for this path and carries
+        // the storyboard forward. Deleting first would drop the scrub preview.
+        log.info("Rescan re-collecting path={} (id={})", filePath, mediaFileId);
         return collectAndPersist(filePath, recordId, jobId);
     }
 

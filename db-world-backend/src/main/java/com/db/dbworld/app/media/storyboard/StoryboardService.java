@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -74,6 +75,43 @@ public class StoryboardService {
             }
         } catch (Exception e) {
             log.warn("Failed to delete storyboard sprite for {}: {}", mediaFileId, e.getMessage());
+        }
+    }
+
+    /**
+     * Copies the sprite aside to a temp file so a subsequent media-file row delete (and its
+     * {@code @PostRemove} cleanup) during a re-collect/rescan can't destroy it. Returns the temp
+     * path, or null when there's no sprite to preserve. Pair with {@link #restoreSprite}.
+     */
+    public Path stashSprite(String mediaFileId) {
+        if (mediaFileId == null) return null;
+        try {
+            Path src = spritePath(mediaFileId);
+            if (!Files.exists(src)) return null;
+            Path tmp = Files.createTempFile("storyboard-stash-", ".jpg");
+            Files.copy(src, tmp, StandardCopyOption.REPLACE_EXISTING);
+            return tmp;
+        } catch (Exception e) {
+            log.warn("Failed to stash storyboard sprite for {}: {}", mediaFileId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Moves a previously {@link #stashSprite stashed} sprite into place under a new media-file id
+     * (a rescan/re-collect assigns the file a fresh row id, so the scrub preview survives).
+     * Best-effort; a failure just leaves the file without a preview until the next full ingest.
+     */
+    public void restoreSprite(Path stashed, String newMediaFileId) {
+        if (stashed == null || newMediaFileId == null) return;
+        try {
+            Path dst = spritePath(newMediaFileId);
+            Files.createDirectories(dst.getParent());
+            Files.move(stashed, dst, StandardCopyOption.REPLACE_EXISTING);
+            log.info("Storyboard sprite carried forward to {}", newMediaFileId);
+        } catch (Exception e) {
+            log.warn("Failed to restore storyboard sprite for {}: {}", newMediaFileId, e.getMessage());
+            try { Files.deleteIfExists(stashed); } catch (Exception ignored) { /* best-effort */ }
         }
     }
 
