@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.info.entity;
 
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.media.info.entity.track.TrackEntity;
+import com.db.dbworld.app.media.storyboard.MediaFileStoryboardCleanupListener;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,7 +32,7 @@ import java.util.List;
                 columnNames = {"record_id", "file_path"}
         )
 )
-@EntityListeners(AuditingEntityListener.class)
+@EntityListeners({AuditingEntityListener.class, MediaFileStoryboardCleanupListener.class})
 @Getter
 @Setter
 @NoArgsConstructor

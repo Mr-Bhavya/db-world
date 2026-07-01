@@ -111,15 +111,19 @@ public class SymlinkService {
     // DELETE
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    public void deleteById(String fileId) {
+    /** @return true if a symlink existed and was deleted; false if none existed or deletion failed (best-effort). */
+    public boolean deleteById(String fileId) {
         try {
             Path symlink = runtimeProperties.getSymlinkPath().resolve(fileId);
             if (Files.exists(symlink, LinkOption.NOFOLLOW_LINKS)) {
                 Files.delete(symlink);
                 log.info("{} Deleted {}", TAG, symlink);
+                return true;
             }
+            return false;
         } catch (Exception ex) {
             log.warn("{} Failed to delete symlink for fileId={}: {}", TAG, fileId, ex.getMessage());
+            return false;
         }
     }
 

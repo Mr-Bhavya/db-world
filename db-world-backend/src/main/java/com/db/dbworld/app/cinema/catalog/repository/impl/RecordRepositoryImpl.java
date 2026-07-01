@@ -25,6 +25,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -209,6 +210,32 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
         long total = ((Number) countQuery.getSingleResult()).longValue();
 
         return new PageImpl<>(content, pageable, total);
+    }
+
+    @Override
+    public Map<String, Long> countByLatestSyncStatus() {
+        // Identical latest-sync join to findAdminTable, grouped by status, so these
+        // counts exactly match what the status filter returns (one row per record,
+        // by its latest sync — no orphaned / duplicate / stale non-latest rows).
+        String sql = """
+                SELECT s.status AS status, COUNT(*) AS cnt
+                FROM records r
+                LEFT JOIN tmdb_record_sync s ON s.id = (
+                    SELECT s2.id FROM tmdb_record_sync s2
+                    WHERE s2.tmdb_id = r.tmdb_id AND s2.record_type = r.type
+                    ORDER BY s2.last_checked_at DESC, s2.id DESC
+                    LIMIT 1
+                )
+                GROUP BY s.status
+                """;
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery(sql).getResultList();
+        Map<String, Long> counts = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] == null) continue; // records with no sync row — not a status bucket
+            counts.put((String) row[0], ((Number) row[1]).longValue());
+        }
+        return counts;
     }
 
     private static String buildAdminOrderBy(Pageable pageable) {

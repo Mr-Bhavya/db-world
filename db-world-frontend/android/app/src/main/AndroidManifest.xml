@@ -53,4 +53,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Network-type awareness for Wi-Fi-only / auto-resume on reconnect -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Keep the CPU + Wi-Fi radio awake while downloading so transfers don't freeze
+         under screen-off / Doze / battery-saver (the download-stops-on-its-own bug). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Ask the user to exempt the app from battery optimization so background
+         downloads aren't throttled/killed (sideloaded app; prompted like 1DM). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>

@@ -3,6 +3,7 @@ package com.db.dbworld.app.media.storyboard;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -57,6 +58,34 @@ public class StoryboardService {
 
     public Path spritePath(String mediaFileId) {
         return storyboardDir().resolve(mediaFileId + ".jpg");
+    }
+
+    /**
+     * Deletes the generated sprite for a media file. Best-effort — a missing file
+     * or I/O error is logged and swallowed. Invoked from a JPA {@code @PostRemove}
+     * hook (see {@link MediaFileStoryboardCleanupListener}) so deleting a media file
+     * never leaves an orphaned storyboard behind, no matter which path removed it.
+     */
+    public void delete(String mediaFileId) {
+        if (mediaFileId == null) return;
+        try {
+            if (Files.deleteIfExists(spritePath(mediaFileId))) {
+                log.info("Storyboard sprite deleted for {}", mediaFileId);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to delete storyboard sprite for {}: {}", mediaFileId, e.getMessage());
+        }
+    }
+
+    /**
+     * Hand this Spring-managed service to the JPA entity listener, which JPA
+     * instantiates itself (so it can't be @Autowired). A static holder is the
+     * simplest reliable bridge and avoids depending on Hibernate's Spring
+     * bean-container resolution for entity listeners.
+     */
+    @PostConstruct
+    void registerCleanupHook() {
+        MediaFileStoryboardCleanupListener.setStoryboardService(this);
     }
 
     public void generate(String mediaFileId, Path videoFile, long durationMs) {

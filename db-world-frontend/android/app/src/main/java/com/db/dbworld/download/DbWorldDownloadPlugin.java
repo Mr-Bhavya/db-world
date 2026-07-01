@@ -1,6 +1,8 @@
 package com.db.dbworld.download;
 
 import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -11,6 +13,8 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.PowerManager;
+import android.provider.Settings;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -44,10 +48,14 @@ import com.tonyodev.fetch2okhttp.OkHttpDownloader;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 
@@ -82,19 +90,36 @@ public class DbWorldDownloadPlugin extends Plugin {
     public  static final String PREFS             = "dbworld_downloads_prefs";
     private static final String PREF_WIFI_ONLY    = "wifi_only";
     public  static final String PREF_PENDING_ROUTE = "pending_route";
-    private static final String ACTION_NOTIF      = "com.db.dbworld.DOWNLOAD_NOTIF_ACTION";
+    public  static final String ACTION_NOTIF      = "com.db.dbworld.DOWNLOAD_NOTIF_ACTION";
+
+    // Stall watchdog: a download stuck in DOWNLOADING with no byte progress for this
+    // long is force-restarted. Threshold must exceed OkHttp's 60s readTimeout plus
+    // Fetch's own retry window so we don't fight legitimate slow first-byte resumes.
+    private static final long WATCHDOG_TICK_SEC   = 15;
+    private static final long STALL_THRESHOLD_MS  = 90_000;
+    private static final int  STALL_MAX_ATTEMPTS  = 3;
 
     private Fetch fetch;
     private volatile String initError = null; // set if Fetch2 failed to initialize in load()
+
+    // Stall watchdog state.
+    private ScheduledExecutorService watchdog;
+    // id -> [lastBytes, lastChangeMs, attempts]
+    private final Map<Integer, long[]> stallTracker = new ConcurrentHashMap<>();
+    // Debounce for the queue pump (avoid rapid re-applies on bursts of terminal events).
+    private volatile long lastPumpMs = 0;
 
     /** Handles pause/resume/cancel/delete/retry taps from the download notification buttons. */
     private final BroadcastReceiver notifActionReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (fetch == null || intent == null) return;
-            int id = intent.getIntExtra("downloadId", -1);
             String action = intent.getStringExtra("action");
-            if (id < 0 || action == null) return;
+            if (action == null) return;
+            // Sent by the foreground service when it hits the OS runtime cap (onTimeout).
+            if ("PAUSE_ALL".equals(action)) { pauseAllActive(); return; }
+            int id = intent.getIntExtra("downloadId", -1);
+            if (id < 0) return;
             switch (action) {
                 case "PAUSE":  fetch.pause(id);  break;
                 case "RESUME": fetch.resume(id); break;
@@ -105,6 +130,17 @@ public class DbWorldDownloadPlugin extends Plugin {
             }
         }
     };
+
+    /** Pauses every in-flight/queued download (Fetch persists partials for a later resume). */
+    private void pauseAllActive() {
+        if (fetch == null) return;
+        fetch.getDownloads(downloads -> {
+            for (Download d : downloads) {
+                Status s = d.getStatus();
+                if (s == Status.DOWNLOADING || s == Status.QUEUED) fetch.pause(d.getId());
+            }
+        });
+    }
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
 
     // Live speed/ETA per download id — only known during onProgress.
@@ -163,6 +199,7 @@ public class DbWorldDownloadPlugin extends Plugin {
             fetch = Fetch.Impl.getInstance(config);
             fetch.setGlobalNetworkType(isWifiOnly() ? NetworkType.WIFI_ONLY : NetworkType.ALL);
             fetch.addListener(listener);
+            startWatchdog();
 
             // Recover from a process kill (e.g. the user swiped the app away): Fetch
             // persists each download, but anything that was mid-flight stays parked.
@@ -190,8 +227,22 @@ public class DbWorldDownloadPlugin extends Plugin {
             fetch.removeListener(listener);
             // Don't fetch.close(): downloads should keep running via the service.
         }
+        if (watchdog != null) { watchdog.shutdownNow(); watchdog = null; }
         try { getContext().unregisterReceiver(notifActionReceiver); } catch (Exception ignored) {}
         super.handleOnDestroy();
+    }
+
+    /**
+     * When the user returns to the app, nudge the queue forward. After a long
+     * spell in the background (or a network outage) Fetch's queue processor can be
+     * sitting on a ballooned back-off timer; pumping restarts it so a free slot is
+     * filled promptly instead of minutes later.
+     */
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        pumpQueue();
+        refreshForegroundState();
     }
 
     // ─── permissions ──────────────────────────────────────────────────────────
@@ -262,6 +313,12 @@ public class DbWorldDownloadPlugin extends Plugin {
 
     private void enqueueNew(PluginCall call, String url, String fileName, String title,
                             String thumb, String mediaId, String recordId, String mime) {
+        // Start the foreground service NOW, while we're guaranteed to be in the
+        // foreground (this runs off a user tap). Android 12+ forbids starting a FGS
+        // from the background, so starting it only reactively (e.g. on a later
+        // auto-resume) silently fails and leaves the process unprotected.
+        try { DownloadForegroundService.start(getContext(), 1); } catch (Exception ignored) {}
+
         File target = new File(downloadDir(), fileName);
 
         Request request = new Request(url, target.getAbsolutePath());
@@ -369,6 +426,54 @@ public class DbWorldDownloadPlugin extends Plugin {
         call.resolve(r);
     }
 
+    // ─── battery optimization (background survival) ─────────────────────────────
+
+    /** True if the OS still battery-optimizes us (i.e. background downloads may be throttled/killed). */
+    @PluginMethod
+    public void isBatteryOptimized(PluginCall call) {
+        boolean optimized = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+            if (pm != null) optimized = !pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+        }
+        JSObject r = new JSObject();
+        r.put("optimized", optimized);
+        call.resolve(r);
+    }
+
+    /**
+     * Prompts the user to exempt the app from battery optimization so downloads keep
+     * running under Doze / power-saving (1DM-style).
+     *
+     * NOTE: ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS + the matching permission are
+     * Google-Play-policy-restricted, but this app is sideloaded (it ships an in-app APK
+     * updater), so the direct ask is fine. If ever Play-distributed, drop the direct
+     * intent and rely on ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS (the fallback below).
+     */
+    @PluginMethod
+    public void requestBatteryExemption(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) { call.resolve(); return; }
+        String pkg = getContext().getPackageName();
+        PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        if (pm != null && pm.isIgnoringBatteryOptimizations(pkg)) { call.resolve(); return; }
+        try {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    .setData(Uri.parse("package:" + pkg))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            // Some OEMs reject the direct request — open the general settings list instead.
+            try {
+                getContext().startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                call.resolve();
+            } catch (Exception e2) {
+                call.reject("Could not open battery optimization settings: " + e2.getMessage());
+            }
+        }
+    }
+
     /**
      * Returns (and clears) a one-shot route requested by a notification tap. The SPA
      * calls this on mount and on resume, so navigation is driven by the web app pulling
@@ -420,27 +525,36 @@ public class DbWorldDownloadPlugin extends Plugin {
             emit("downloadProgress", d);
         }
 
+        // NB: don't clear stallTracker here — the watchdog pauses↔resumes to unstick a
+        // download and must keep its attempt count across that. checkStalls' retainAll
+        // drops the entry once the download is no longer DOWNLOADING.
         @Override public void onPaused(@NonNull Download d)  { refreshForegroundState(); emit("downloadStateChanged", d); }
         @Override public void onResumed(@NonNull Download d) { refreshForegroundState(); emit("downloadStateChanged", d); }
 
         @Override public void onCancelled(@NonNull Download d) {
             liveStats.remove(d.getId());
+            stallTracker.remove(d.getId());
             refreshForegroundState();
+            pumpQueue();               // free the slot → start the next queued item
             emit("downloadStateChanged", d);
         }
 
-        @Override public void onRemoved(@NonNull Download d) { liveStats.remove(d.getId()); emit("downloadRemoved", d); }
-        @Override public void onDeleted(@NonNull Download d) { liveStats.remove(d.getId()); emit("downloadRemoved", d); }
+        @Override public void onRemoved(@NonNull Download d) { liveStats.remove(d.getId()); stallTracker.remove(d.getId()); pumpQueue(); emit("downloadRemoved", d); }
+        @Override public void onDeleted(@NonNull Download d) { liveStats.remove(d.getId()); stallTracker.remove(d.getId()); pumpQueue(); emit("downloadRemoved", d); }
 
         @Override public void onError(@NonNull Download d, @NonNull Error error, Throwable throwable) {
             android.util.Log.e(TAG, "download error id=" + d.getId() + " err=" + error);
             liveStats.remove(d.getId());
+            stallTracker.remove(d.getId());
             refreshForegroundState();
+            pumpQueue();               // failed item shouldn't block the queue
             emit("downloadError", d);
         }
 
         @Override public void onCompleted(@NonNull Download d) {
             liveStats.remove(d.getId());
+            stallTracker.remove(d.getId());
+            pumpQueue();               // start the next queued item immediately
             // Publish off the main thread, then update extras + notify JS.
             ioExecutor.execute(() -> publishAndComplete(d));
         }
@@ -513,6 +627,100 @@ public class DbWorldDownloadPlugin extends Plugin {
                 DownloadForegroundService.stop(getContext());
             }
         });
+    }
+
+    // ─── queue pump ─────────────────────────────────────────────────────────
+
+    /**
+     * Force Fetch's queue to advance. Root cause of "the next download doesn't
+     * start after one finishes": Fetch's PriorityListProcessor backs its poll
+     * interval off to 60s→120s→240s on empty passes, and the broadcast that would
+     * reset it can be missed. Re-applying the concurrent limit does an internal
+     * stop()→start() on the processor, and start() resets the back-off, so the next
+     * QUEUED item starts within ~0.5s.
+     *
+     * IMPORTANT: setDownloadConcurrentLimit cancels+re-queues anything currently
+     * DOWNLOADING, so we only pump when nothing is running (a free slot with no
+     * in-flight transfer to disturb) — which is exactly the stall condition.
+     */
+    private void pumpQueue() {
+        if (fetch == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastPumpMs < 250) return; // debounce bursts of terminal events
+        lastPumpMs = now;
+        fetch.getDownloads(downloads -> {
+            int running = 0, queued = 0;
+            for (Download d : downloads) {
+                Status s = d.getStatus();
+                if (s == Status.DOWNLOADING) running++;
+                else if (s == Status.QUEUED || s == Status.ADDED) queued++;
+            }
+            if (running == 0 && queued > 0) {
+                fetch.setDownloadConcurrentLimit(concurrentLimit());
+            }
+        });
+    }
+
+    // ─── stall watchdog ───────────────────────────────────────────────────────
+
+    private void startWatchdog() {
+        if (watchdog != null && !watchdog.isShutdown()) return;
+        watchdog = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "dbworld-dl-watchdog");
+            t.setDaemon(true);
+            return t;
+        });
+        watchdog.scheduleWithFixedDelay(this::checkStalls,
+                WATCHDOG_TICK_SEC, WATCHDOG_TICK_SEC, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Detects downloads that report DOWNLOADING but whose byte counter hasn't moved
+     * for {@link #STALL_THRESHOLD_MS} (dead socket after a Doze/network blip — the
+     * "stopped but still shows downloading" bug) and unsticks them with a
+     * pause→resume, so the transfer re-negotiates its Range and continues. After a
+     * few failed attempts it leaves the item paused for the user to resume manually
+     * instead of spinning forever.
+     */
+    private void checkStalls() {
+        if (fetch == null) return;
+        try {
+            fetch.getDownloads(downloads -> {
+                long now = System.currentTimeMillis();
+                Set<Integer> activeIds = new HashSet<>();
+                for (Download d : downloads) {
+                    if (d.getStatus() != Status.DOWNLOADING) continue;
+                    final int id = d.getId();
+                    activeIds.add(id);
+                    long bytes = d.getDownloaded();
+                    long[] tr = stallTracker.get(id);
+                    if (tr == null) {
+                        stallTracker.put(id, new long[]{ bytes, now, 0 });
+                        continue;
+                    }
+                    if (bytes > tr[0]) {                 // real progress → reset
+                        tr[0] = bytes; tr[1] = now; tr[2] = 0;
+                    } else if (now - tr[1] >= STALL_THRESHOLD_MS) {
+                        tr[1] = now;                      // don't re-fire until next threshold
+                        if (tr[2] >= STALL_MAX_ATTEMPTS) {
+                            android.util.Log.w(TAG, "watchdog: giving up on stalled id=" + id + ", leaving paused");
+                            fetch.pause(id);              // stops the fake-running state; user can resume
+                        } else {
+                            tr[2] = tr[2] + 1;
+                            android.util.Log.w(TAG, "watchdog: unsticking stalled id=" + id + " attempt=" + tr[2]);
+                            fetch.pause(id);
+                            if (watchdog != null && !watchdog.isShutdown()) {
+                                watchdog.schedule(() -> { if (fetch != null) fetch.resume(id); },
+                                        1500, TimeUnit.MILLISECONDS);
+                            }
+                        }
+                    }
+                }
+                stallTracker.keySet().retainAll(activeIds); // drop entries for finished/paused items
+            });
+        } catch (Exception e) {
+            android.util.Log.w(TAG, "watchdog tick failed: " + e.getMessage());
+        }
     }
 
     // ─── DTO mapping ────────────────────────────────────────────────────────
@@ -698,6 +906,31 @@ public class DbWorldDownloadPlugin extends Plugin {
         @Override
         public Fetch getFetchInstanceForNamespace(@NonNull String namespace) {
             return fetch;
+        }
+
+        /**
+         * Route Fetch's per-download notifications onto the SAME channel the foreground
+         * service uses, so there's one "Downloads" channel in system settings instead of
+         * two, and the per-download notifications bundle under our group summary.
+         */
+        @NonNull
+        @Override
+        public String getChannelId(int notificationId, @NonNull Context context) {
+            return DownloadForegroundService.CHANNEL_ID;
+        }
+
+        /** Ensure our shared channel exists (Fetch calls this from its init, before the FGS may have). */
+        @Override
+        public void createNotificationChannels(@NonNull Context context,
+                                               @NonNull NotificationManager notificationManager) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    && notificationManager.getNotificationChannel(DownloadForegroundService.CHANNEL_ID) == null) {
+                NotificationChannel ch = new NotificationChannel(
+                        DownloadForegroundService.CHANNEL_ID, "Downloads", NotificationManager.IMPORTANCE_LOW);
+                ch.setDescription("Download progress");
+                ch.setShowBadge(false);
+                notificationManager.createNotificationChannel(ch);
+            }
         }
 
         @Override

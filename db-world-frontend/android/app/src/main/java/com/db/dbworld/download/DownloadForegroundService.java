@@ -3,35 +3,56 @@ package com.db.dbworld.download;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 
+import com.db.dbworld.MainActivity;
+
 /**
- * Tiny foreground service whose only job is to keep the app process alive while
- * downloads are running. Fetch2 performs the actual downloading on its own
- * threads; without a foreground service Android freely kills a backgrounded
- * process, which is the root cause of the old "downloads auto-stop" bug.
+ * Foreground service that keeps the app process alive AND awake while downloads
+ * run. Fetch2 does the actual downloading on its own threads; this service is
+ * what stops Android from freezing/killing those transfers when the app is
+ * backgrounded, the screen is off, or the device enters Doze / battery-saver.
  *
- * The plugin starts this service when the first download becomes active and
- * stops it when none remain. It shows a low-importance summary notification;
- * Fetch's own notification manager renders the per-download progress + actions.
+ * Two things it does that the previous version didn't:
+ *  1. Holds a PARTIAL_WAKE_LOCK + Wi-Fi lock while active — the root fix for
+ *     "download stops on its own but the UI still says downloading". Without a
+ *     wakelock the CPU/radio sleep under Doze and the socket dies silently.
+ *  2. Handles Android 14/15's ~6h dataSync foreground-service runtime cap via
+ *     onTimeout(): pause everything (Fetch persists partials, so they resume
+ *     later) and stand down instead of getting ANR-killed.
+ *
+ * The plugin starts this service when the first download becomes active (from a
+ * user tap, so we're allowed to go foreground) and stops it when none remain.
+ * It renders the single grouped summary notification; Fetch's own notification
+ * manager renders the per-download progress + action buttons on the SAME channel
+ * and group so they bundle together instead of cluttering the shade.
  */
 public class DownloadForegroundService extends Service {
 
     public static final String CHANNEL_ID = "dbworld_downloads";
-    private static final int   NOTIF_ID    = 2999;
+    private static final int    NOTIF_ID   = 2999;
+    private static final String LOCK_TAG   = "dbworld:downloads";
+    /** Must match Fetch's DEFAULT_GROUP_ID so per-download notifications bundle under this summary. */
+    private static final String NOTIF_GROUP = "0";
 
     public static final String EXTRA_ACTIVE_COUNT = "activeCount";
 
     private static boolean running = false;
+
+    private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock  wifiLock;
 
     public static boolean isRunning() {
         return running;
@@ -59,21 +80,54 @@ public class DownloadForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // intent may be null on an OS-initiated restart; default to 1 active item.
         int activeCount = intent != null ? intent.getIntExtra(EXTRA_ACTIVE_COUNT, 1) : 1;
-        Notification notification = buildSummaryNotification(activeCount);
 
-        // Android 14+ requires the foreground service type at startForeground time.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ServiceCompat.startForeground(
-                    this, NOTIF_ID, notification,
+                    this, NOTIF_ID, buildSummaryNotification(activeCount),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } else {
-            startForeground(NOTIF_ID, notification);
+            startForeground(NOTIF_ID, buildSummaryNotification(activeCount));
         }
         running = true;
-        // If the OS kills us mid-download, Fetch's persisted state lets the plugin
-        // resume on next launch; no need to redeliver the intent.
+        acquireLocks();
+
+        // NOT_STICKY on purpose: the download engine (Fetch) lives in the
+        // Activity-scoped Capacitor plugin, so a headless sticky restart couldn't
+        // actually download — it would just hold a wakelock + notification with no
+        // work (a battery-draining zombie). The wakelock + foreground state prevent
+        // the process from being killed in the first place; if the whole process is
+        // still killed, downloads resume when the app is next opened (plugin.load()
+        // re-drives them from Fetch's persisted DB).
         return START_NOT_STICKY;
+    }
+
+    /** Android 14 (API 34) single-arg timeout callback. */
+    @Override
+    public void onTimeout(int startId) {
+        handleTimeout();
+    }
+
+    /** Android 15 (API 35) typed timeout callback. */
+    @Override
+    public void onTimeout(int startId, int fgsType) {
+        handleTimeout();
+    }
+
+    /**
+     * The system hit the dataSync foreground-service runtime cap. We MUST stop the
+     * FGS promptly or the app is ANR-killed. Ask the plugin to pause everything
+     * (Fetch persists partial files, so a later resume continues via HTTP Range),
+     * then release our locks and stand down.
+     */
+    private void handleTimeout() {
+        try {
+            Intent i = new Intent(DbWorldDownloadPlugin.ACTION_NOTIF).setPackage(getPackageName());
+            i.putExtra("action", "PAUSE_ALL");
+            sendBroadcast(i);
+        } catch (Exception ignored) {}
+        stopInternal(true);
     }
 
     @Nullable
@@ -84,17 +138,56 @@ public class DownloadForegroundService extends Service {
 
     @Override
     public void onDestroy() {
-        running = false;
+        stopInternal(false);
         super.onDestroy();
     }
+
+    private void stopInternal(boolean selfStop) {
+        releaseLocks();
+        running = false;
+        try {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
+        } catch (Exception ignored) {}
+        if (selfStop) stopSelf();
+    }
+
+    // ─── wake / wifi locks ────────────────────────────────────────────────────
+
+    private void acquireLocks() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (wakeLock == null && pm != null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, LOCK_TAG);
+                wakeLock.setReferenceCounted(false);
+            }
+            if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire();
+
+            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifiLock == null && wm != null) {
+                // FULL_HIGH_PERF is deprecated but the correct/harmless value here;
+                // do NOT use FULL_LOW_LATENCY (real-time apps only — hurts throughput).
+                wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, LOCK_TAG);
+                wifiLock.setReferenceCounted(false);
+            }
+            if (wifiLock != null && !wifiLock.isHeld()) wifiLock.acquire();
+        } catch (Exception ignored) {}
+    }
+
+    private void releaseLocks() {
+        try { if (wakeLock != null && wakeLock.isHeld()) wakeLock.release(); } catch (Exception ignored) {}
+        try { if (wifiLock != null && wifiLock.isHeld()) wifiLock.release(); } catch (Exception ignored) {}
+    }
+
+    // ─── notification ─────────────────────────────────────────────────────────
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null && nm.getNotificationChannel(CHANNEL_ID) == null) {
                 NotificationChannel ch = new NotificationChannel(
-                        CHANNEL_ID, "DB-World Downloads", NotificationManager.IMPORTANCE_LOW);
+                        CHANNEL_ID, "Downloads", NotificationManager.IMPORTANCE_LOW);
                 ch.setDescription("Download progress");
+                ch.setShowBadge(false);
                 nm.createNotificationChannel(ch);
             }
         }
@@ -108,10 +201,22 @@ public class DownloadForegroundService extends Service {
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setContentTitle("DB World")
                 .setContentText(text)
+                .setContentIntent(openDownloadsPendingIntent())
                 .setOngoing(true)
-                .setGroup(CHANNEL_ID)
+                .setGroup(NOTIF_GROUP)
                 .setGroupSummary(true)
+                .setOnlyAlertOnce(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
+    }
+
+    /** Tapping the summary brings the app forward and opens the Downloads page. */
+    private PendingIntent openDownloadsPendingIntent() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra("openDownloads", true);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getActivity(this, 1001, intent, flags);
     }
 }

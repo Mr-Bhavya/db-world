@@ -66,6 +66,10 @@ class MyDownloadManagerWeb extends WebPlugin {
   async setConcurrentLimit({ limit }) { return { concurrentLimit: limit }; }
   async consumePendingRoute() { return { route: '' }; }
 
+  // Battery-optimization exemption is Android-only; the web has no equivalent.
+  async isBatteryOptimized() { return { optimized: false }; }
+  async requestBatteryExemption() { return {}; }
+
   async cancelDownload({ downloadId }) {
     this.downloads = this.downloads.filter(d => d.downloadId !== downloadId);
     persist(this.downloads);

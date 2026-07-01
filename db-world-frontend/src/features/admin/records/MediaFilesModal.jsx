@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Box, Typography, IconButton, CircularProgress, Alert, Chip, Tooltip,
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -8,7 +9,7 @@ import VideoFileIcon from '@mui/icons-material/VideoFile';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
-import { getMediaFiles, deleteMediaFile, rescanMediaFile } from '../api/adminApi';
+import { getMediaFiles, deleteMediaFileById, rescanMediaFile } from '../api/adminApi';
 
 const fmtSize = (bytes) => {
   if (!bytes) return '—';
@@ -58,6 +59,7 @@ export function MediaFilesBody({ recordId }) {
   const { enqueueSnackbar } = useSnackbar();
   const [deletingId, setDeletingId] = useState(null);
   const [rescanningId, setRescanningId] = useState(null);
+  const [confirmFile, setConfirmFile] = useState(null); // file pending permanent delete
 
   const { data: files = [], isLoading, error, refetch } = useQuery({
     queryKey: ['mediaFiles', recordId],
@@ -67,11 +69,14 @@ export function MediaFilesBody({ recordId }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteMediaFile,
-    onMutate: (path) => setDeletingId(path),
-    onSuccess: () => { refetch(); enqueueSnackbar('Media file info deleted', { variant: 'success' }); },
-    onError: () => enqueueSnackbar('Delete failed', { variant: 'error' }),
-    onSettled: () => setDeletingId(null),
+    // purge=true → erase the physical file, its symlink and storyboard too, not just the DB row.
+    mutationFn: (id) => deleteMediaFileById(id, true),
+    onMutate: (id) => setDeletingId(id),
+    // The backend returns a truthful per-step message (e.g. a warning if the file
+    // couldn't be removed from disk) — surface it rather than a blanket "success".
+    onSuccess: (res) => { refetch(); enqueueSnackbar(res?.message || 'File deleted', { variant: 'success' }); },
+    onError: (e) => enqueueSnackbar(e?.response?.data?.message || 'Delete failed', { variant: 'error' }),
+    onSettled: () => { setDeletingId(null); setConfirmFile(null); },
   });
   const rescanMutation = useMutation({
     mutationFn: rescanMediaFile,
@@ -98,7 +103,7 @@ export function MediaFilesBody({ recordId }) {
         {files.length} file{files.length !== 1 ? 's' : ''} · {fmtSize(totalSize)} total
       </Typography>
       {files.map((file) => {
-        const isDeleting   = deletingId   === file.filePath;
+        const isDeleting   = deletingId   === file.id;
         const isRescanning = rescanningId === file.id;
         const videoTrack   = file.primaryVideoTrack ?? file.tracks?.find(t => t.type === 'Video' && t.defaultTrack === 'Yes') ?? file.tracks?.find(t => t.type === 'Video');
         const audioTrack   = file.primaryAudioTrack ?? file.tracks?.find(t => t.type === 'Audio');
@@ -119,7 +124,7 @@ export function MediaFilesBody({ recordId }) {
               </Box>
               <Box sx={{ display: 'flex', gap: .5, flexShrink: 0 }}>
                 <Tooltip title="Rescan file info"><span><IconButton size="small" onClick={() => rescanMutation.mutate(file.id)} disabled={isRescanning} sx={{ color: T.textMuted, '&:hover': { color: T.teal, bgcolor: T.tealBg } }}>{isRescanning ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon sx={{ fontSize: 15 }} />}</IconButton></span></Tooltip>
-                <Tooltip title="Delete media info record"><span><IconButton size="small" onClick={() => deleteMutation.mutate(file.filePath)} disabled={isDeleting} sx={{ color: T.textMuted, '&:hover': { color: T.error, bgcolor: T.errorBg } }}>{isDeleting ? <CircularProgress size={14} color="inherit" /> : <DeleteIcon sx={{ fontSize: 15 }} />}</IconButton></span></Tooltip>
+                <Tooltip title="Delete file permanently"><span><IconButton size="small" onClick={() => setConfirmFile(file)} disabled={isDeleting} sx={{ color: T.textMuted, '&:hover': { color: T.error, bgcolor: T.errorBg } }}>{isDeleting ? <CircularProgress size={14} color="inherit" /> : <DeleteIcon sx={{ fontSize: 15 }} />}</IconButton></span></Tooltip>
               </Box>
             </Box>
             {(videoTrack || audioTrack || textTracks.length > 0) && (
@@ -137,6 +142,39 @@ export function MediaFilesBody({ recordId }) {
           </Box>
         );
       })}
+
+      {/* Confirm — this now permanently erases the file from disk, not just the DB row. */}
+      <Dialog
+        open={Boolean(confirmFile)}
+        onClose={() => setConfirmFile(null)}
+        PaperProps={{ sx: { bgcolor: T.surface || T.bg, color: T.textPrimary, borderRadius: 2, border: `1px solid ${T.glassBorder}`, maxWidth: 420 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, color: T.textPrimary, pb: 1 }}>Delete file?</DialogTitle>
+        <DialogContent>
+          {confirmFile && (
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: T.textPrimary, mb: 1, wordBreak: 'break-all' }}>
+              {confirmFile.fileName}
+            </Typography>
+          )}
+          <DialogContentText sx={{ color: T.textMuted, fontSize: 13 }}>
+            This permanently deletes the file from disk and removes its library entry,
+            symlink and preview thumbnails. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmFile(null)} sx={{ color: T.textMuted, textTransform: 'none' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate(confirmFile.id)}
+            sx={{ bgcolor: T.error, '&:hover': { bgcolor: T.error, filter: 'brightness(0.9)' }, fontWeight: 700, textTransform: 'none' }}
+          >
+            Delete permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
