@@ -103,15 +103,6 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
         } else {
           enqueueSnackbar(`Added to downloads: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
         }
-        // First download only: ask to exempt the app from battery optimization so
-        // downloads keep running under Doze / power-saving (1DM behaviour).
-        try {
-          if (!localStorage.getItem('dbworld_battery_asked')) {
-            const { optimized } = await DbWorldDownload.isBatteryOptimized();
-            if (optimized) await DbWorldDownload.requestBatteryExemption();
-            localStorage.setItem('dbworld_battery_asked', '1');
-          }
-        } catch { /* older native build / web stub — ignore */ }
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: mediaInfo.general?.fileName, openInNewTab: true });
       }

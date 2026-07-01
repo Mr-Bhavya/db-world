@@ -18,10 +18,8 @@ import DownloadDoneIcon    from '@mui/icons-material/DownloadDone';
 import DownloadingIcon     from '@mui/icons-material/Downloading';
 import ErrorOutlineIcon    from '@mui/icons-material/ErrorOutline';
 import FolderOpenIcon      from '@mui/icons-material/FolderOpen';
-import BatteryAlertIcon    from '@mui/icons-material/BatteryAlert';
 import { useT }            from '@shared/theme/ThemeContext';
 import Constants            from '@shared/constants';
-import DbWorldDownload      from '@platform/android/DbWorldDownload';
 import DownloadItem, { STATUS_COLOR, fmtBytes, fmtSpeed, fmtEta } from './DownloadItem';
 import { useDownloads }    from './useDownloads';
 
@@ -233,22 +231,6 @@ export default function DownloadsPage() {
   const [tab,      setTab]      = useState('all');
   const [selected, setSelected] = useState(null);
   const [confirm,  setConfirm]  = useState(null); // { kind: 'cancel' | 'delete', item }
-  // Whether the OS still battery-optimizes us (background downloads may be throttled).
-  const [batteryOptimized, setBatteryOptimized] = useState(false);
-
-  const checkBattery = useCallback(async () => {
-    try {
-      const { optimized } = await DbWorldDownload.isBatteryOptimized();
-      setBatteryOptimized(Boolean(optimized));
-    } catch { /* web stub / older native — ignore */ }
-  }, []);
-  React.useEffect(() => { checkBattery(); }, [checkBattery]);
-
-  const requestBattery = useCallback(async () => {
-    try { await DbWorldDownload.requestBatteryExemption(); } catch { /* ignore */ }
-    // Re-check after the user returns from the system dialog.
-    setTimeout(checkBattery, 800);
-  }, [checkBattery]);
 
   // Route the two destructive actions through a confirmation dialog; everything
   // else (play/pause/resume/retry) acts immediately.
@@ -405,18 +387,6 @@ export default function DownloadsPage() {
                 onClick={(e) => e.stopPropagation()}
               />
             </MenuItem>
-            {/* Only shown while the OS still battery-optimizes us — the fix for
-                downloads dying under Doze / power-saving when backgrounded. */}
-            {batteryOptimized && (
-              <MenuItem onClick={runAndClose(requestBattery)}>
-                <ListItemIcon sx={{ color: '#ff9800' }}><BatteryAlertIcon fontSize="small" /></ListItemIcon>
-                <ListItemText
-                  primary="Allow background downloads"
-                  secondary="Stop the system pausing downloads"
-                  secondaryTypographyProps={{ sx: { color: T.textFaint, fontSize: '0.6rem' } }}
-                />
-              </MenuItem>
-            )}
             <MenuItem onClick={runAndClose(refresh)}>
               <ListItemIcon sx={{ color: T.textMuted }}><RefreshIcon fontSize="small" /></ListItemIcon>
               <ListItemText>Refresh</ListItemText>

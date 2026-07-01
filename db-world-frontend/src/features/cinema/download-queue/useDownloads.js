@@ -123,8 +123,9 @@ export function useDownloads() {
 
   // Actions
   const pause = useCallback(async (id) => {
+    // Optimistically zero speed/ETA so the UI reflects the pause instantly (no lingering decay).
+    setDownloads(prev => prev.map(d => d.downloadId === id ? { ...d, status: 'paused', speedBytesPerSec: 0, etaSeconds: -1 } : d));
     await DbWorldDownload.pauseDownload({ downloadId: id });
-    setDownloads(prev => prev.map(d => d.downloadId === id ? { ...d, status: 'paused' } : d));
   }, []);
 
   // Resume: optimistically show a "resuming" state so the UI reacts instantly

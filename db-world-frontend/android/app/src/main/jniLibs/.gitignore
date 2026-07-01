@@ -1,0 +1,4 @@
+# The aria2c native binary is user-supplied (see README.md), NOT committed — it's 60+ MB and
+# licensed/sourced upstream. It stays on disk for local builds; re-fetch it on other machines
+# per README.md. Remove this rule (or `git add -f`) if you decide to vendor it via Git LFS.
+libaria2c.so

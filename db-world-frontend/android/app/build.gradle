@@ -53,6 +53,16 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    // The embedded aria2c binary ships as jniLibs/<abi>/libaria2c.so. It MUST be extracted to
+    // disk so we can exec() it (only the extracted native-lib dir is executable on modern
+    // Android), and it must never be stripped/altered by the packager.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += "**/libaria2c.so"
+        }
+    }
 }
 
 repositories {
@@ -87,14 +97,8 @@ dependencies {
     // a hardware decoder. Drop-in via NextRenderersFactory. Version = <media3>-<lib>.
     implementation "io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0"
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
-    // Fetch2 — persistent, resumable, queued download engine (JitPack).
-    // fetch2okhttp lets it reuse the OkHttp client above.
-    // NOTE: JitPack publishes this repo's modules with an "x" prefix
-    // (xfetch2 / xfetch2okhttp); the Java packages remain com.tonyodev.fetch2.*.
-    def fetch2_version = "3.1.6"
-    implementation "com.github.tonyofrancis.Fetch:xfetch2:$fetch2_version"
-    implementation "com.github.tonyofrancis.Fetch:xfetch2okhttp:$fetch2_version"
+    // Downloads are handled by an embedded aria2c process (see com.db.dbworld.download).
+    // OkHttp above is reused only for aria2's localhost JSON-RPC transport.
 }
 
 apply from: 'capacitor.build.gradle'

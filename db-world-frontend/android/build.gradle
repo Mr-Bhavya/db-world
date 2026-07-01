@@ -21,8 +21,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // Fetch2 download library is published via JitPack
-        maven { url 'https://jitpack.io' }
     }
 
     configurations.all {
