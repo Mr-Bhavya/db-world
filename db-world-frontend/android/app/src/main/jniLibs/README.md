@@ -1,8 +1,11 @@
-# aria2c native binary — REQUIRED (drop in before building)
+# aria2c native binary
 
-The download engine is the real `aria2c` program, embedded in the APK. It is **not** committed
-to this repo (it's a multi‑MB compiled binary and its licensing/source is upstream). You must
-place it here **before building**, or downloads will report *"Download engine unavailable"*.
+The download engine is the real `aria2c` program (official build, GPLv2+; source at
+github.com/aria2/aria2), embedded in the APK.
+
+**arm64-v8a is vendored** — `arm64-v8a/libaria2c.so` is committed to the repo, so fresh clones and
+CI build without downloading anything (arm64 covers essentially every phone). The steps below are
+only needed to **add another ABI** (32-bit ARM / x86 emulators) or to **update** the binary.
 
 ## What to place, and where
 

@@ -159,7 +159,7 @@ final class Aria2Daemon {
         // reused via the pingOk() check on next launch, or reaped by the OS.
         a.add("--daemon=false");
         a.add("--enable-color=false");
-        a.add("--console-log-level=info"); // verbose while validating on-device; dial back later
+        a.add("--console-log-level=warn"); // errors/warnings only (bump to info to debug)
         a.add("--summary-interval=0");
         return a;
     }
