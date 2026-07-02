@@ -1,24 +1,10 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Box, LinearProgress } from '@mui/material';
 
 import { useAuth } from '@features/auth/context/Authentication';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import Constants from '@shared/constants';
-
-const RouteLoader = () => (
-  <Box
-    sx={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 1400,
-    }}
-  >
-    <LinearProgress />
-  </Box>
-);
+import AppLoader from '@shared/components/ui/AppLoader';
 
 const normalizeRole = (role) => {
   if (!role) return null;
@@ -47,7 +33,7 @@ const PrivateRoute = ({ allowedRoles }) => {
   const normalizedAllowedRoles = hasRoleRestriction ? allowedRoles.map(normalizeRole).filter(Boolean) : [];
 
   if (auth.loading) {
-    return <RouteLoader />;
+    return <AppLoader variant="bar" />;
   }
 
   if (!auth.isAuthenticated) {
@@ -66,7 +52,7 @@ const PrivateRoute = ({ allowedRoles }) => {
    * Do NOT show ErrorPage during this temporary state.
    */
   if (hasRoleRestriction && !normalizedUserRole) {
-    return <RouteLoader />;
+    return <AppLoader variant="bar" />;
   }
 
   if (hasRoleRestriction && !normalizedAllowedRoles.includes(normalizedUserRole)) {

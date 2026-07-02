@@ -47,6 +47,7 @@ import {
 
 import { useT, getGlowProps, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 
 import {
   getCredential,
@@ -1161,6 +1162,8 @@ const VaultSkeleton = ({ T }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ViewPassword = () => {
+  usePageMeta('Vault');
+
   const T = useT();
   const GLOW = getGlowProps(T);
   const FIELD = getFieldSx(T);

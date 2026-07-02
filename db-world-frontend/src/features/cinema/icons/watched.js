@@ -3,6 +3,8 @@ import { addWatched, removeWatched } from '../api/cinemaApi';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 import { Tooltip, Zoom, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined';
 import useRecordStore from '@app/store/recordStore';
 
 function Watched({ recordId, isWatched = false, size = "medium" }) {
@@ -62,17 +64,15 @@ function Watched({ recordId, isWatched = false, size = "medium" }) {
           {loading ? (
             spinnerIcon
           ) : isWatchedState ? (
-            <i
-              className="fas fa-eye"
-              style={{
+            <Visibility
+              sx={{
                 fontSize: iconButtonStyles.iconSize,
                 color: iconButtonStyles.activeColor
               }}
             />
           ) : (
-            <i
-              className="far fa-eye"
-              style={{
+            <VisibilityOutlined
+              sx={{
                 fontSize: iconButtonStyles.iconSize,
                 color: iconButtonStyles.inactiveColor
               }}

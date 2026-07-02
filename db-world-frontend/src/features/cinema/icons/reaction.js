@@ -4,11 +4,15 @@ import { Tooltip, Zoom, IconButton, Box, Popover } from '@mui/material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 import useRecordStore from '@app/store/recordStore';
+import ThumbUp from '@mui/icons-material/ThumbUp';
+import Favorite from '@mui/icons-material/Favorite';
+import ThumbDown from '@mui/icons-material/ThumbDown';
+import SentimentSatisfiedAltOutlined from '@mui/icons-material/SentimentSatisfiedAltOutlined';
 
 const reactions = [
-  { type: 'like', icon: 'fa-thumbs-up', label: 'Like' },
-  { type: 'love', icon: 'fa-heart', label: 'Love' },
-  { type: 'dislike', icon: 'fa-thumbs-down', label: 'Dislike' }
+  { type: 'like', Icon: ThumbUp, label: 'Like' },
+  { type: 'love', Icon: Favorite, label: 'Love' },
+  { type: 'dislike', Icon: ThumbDown, label: 'Dislike' }
 ];
 
 const Reaction = ({
@@ -128,11 +132,10 @@ const Reaction = ({
         >
           {loading ? (
             spinnerIcon
-          ) : reaction ? (
+          ) : reaction && currentReaction ? (
             <>
-              <i
-                className={`fas ${currentReaction.icon}`}
-                style={{
+              <currentReaction.Icon
+                sx={{
                   fontSize: iconButtonStyles.iconSize,
                   color: iconButtonStyles.activeColor
                 }}
@@ -145,9 +148,8 @@ const Reaction = ({
             </>
           ) : (
             <>
-              <i
-                className="far fa-smile"
-                style={{
+              <SentimentSatisfiedAltOutlined
+                sx={{
                   fontSize: iconButtonStyles.iconSize,
                   color: iconButtonStyles.inactiveColor
                 }}
@@ -189,7 +191,7 @@ const Reaction = ({
         onMouseLeave={handleMouseLeave}
       >
         <Box sx={{ display: 'flex', gap: '8px' }}>
-          {reactions.map(({ type, icon, label }) => (
+          {reactions.map(({ type, Icon, label }) => (
             <motion.div
               key={type}
               whileHover={{ scale: 1.2 }}
@@ -206,9 +208,8 @@ const Reaction = ({
                     }
                   }}
                 >
-                  <i
-                    className={`fas ${icon}`}
-                    style={{
+                  <Icon
+                    sx={{
                       fontSize: iconButtonStyles.iconSize,
                       color: reaction === type ?
                         iconButtonStyles.activeColor :

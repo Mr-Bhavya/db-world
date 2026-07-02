@@ -9,6 +9,7 @@ import {
 import { Visibility, VisibilityOff, ContentCopy, ArrowBack, VpnKey } from '@mui/icons-material';
 import { useT, getGlowProps, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import CommonServices from '@shared/services/CommonServices';
 
 function generateSecurePassword(length) {
@@ -37,6 +38,8 @@ function generateSecurePassword(length) {
 }
 
 const GeneratePassword = () => {
+  usePageMeta('Password Generator');
+
   const T = useT();
   const GLOW = getGlowProps(T);
   const FIELD = getFieldSx(T);

@@ -12,6 +12,7 @@ import {
 
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 
 import Footer from '@shared/components/layout/Footer';
@@ -37,6 +38,8 @@ import HeroSection from './HeroSection';
 import RecentCard from './RecentCard';
 
 const Home = () => {
+  usePageMeta(null, { description: 'DB World — your all-in-one hub for movies, TV shows, weather, a secure password vault and games.' });
+
   const T = useT();
   const navigate = useNavigate();
   const theme = useTheme();

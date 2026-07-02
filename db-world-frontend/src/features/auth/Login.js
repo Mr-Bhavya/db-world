@@ -35,6 +35,7 @@ import { useAuth } from '@features/auth/context/Authentication';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import Constants from '@shared/constants';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getFieldSx, getGlowProps } from '@shared/theme';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,6 +105,8 @@ const getSafeDestination = (location) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Login = () => {
+  usePageMeta('Sign In');
+
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();

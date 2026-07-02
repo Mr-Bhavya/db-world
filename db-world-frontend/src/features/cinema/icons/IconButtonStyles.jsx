@@ -1,3 +1,5 @@
+import CircularProgress from '@mui/material/CircularProgress';
+
 export const iconButtonStyles = {
   inactiveColor: 'rgba(255, 255, 255, 0.2)',
   activeColor: 'white',
@@ -6,8 +8,5 @@ export const iconButtonStyles = {
 };
 
 export const spinnerIcon = (
-  <i className="fas fa-spinner fa-spin" style={{ 
-    fontSize: iconButtonStyles.iconSize, 
-    color: iconButtonStyles.activeColor 
-  }}></i>
+  <CircularProgress size={22} thickness={5} sx={{ color: iconButtonStyles.activeColor }} />
 );

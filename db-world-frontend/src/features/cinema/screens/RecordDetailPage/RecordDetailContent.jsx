@@ -167,9 +167,10 @@ export default function RecordDetailContent({
   }, [record])
 
 
-  // ── Page meta — page mode only, not modal (modal preserves underlying URL meta) ──
+  // ── Page meta ──
   useEffect(() => {
-    if (inModal || !record) return;
+    if (!record) return;
+    const prev = document.title;
     const tmdb = record.tmdb ?? {};
     const isMovie = record.type === 'MOVIE';
     const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
@@ -183,23 +184,25 @@ export default function RecordDetailContent({
 
     document.title = `${titleStr} — DB Cinema`;
 
-    const setMeta = (attr, value, content) => {
-      let el = document.querySelector(`meta[${attr}="${value}"]`);
-      if (!el) { el = document.createElement('meta'); el.setAttribute(attr, value); document.head.appendChild(el); }
-      el.setAttribute('content', content);
-    };
-    setMeta('name', 'description', description);
-    setMeta('property', 'og:title', titleStr);
-    setMeta('property', 'og:description', description);
-    setMeta('property', 'og:image', image);
-    setMeta('property', 'og:url', window.location.href);
-    setMeta('property', 'og:type', isMovie ? 'video.movie' : 'video.tv_show');
-    setMeta('name', 'twitter:card', 'summary_large_image');
-    setMeta('name', 'twitter:title', titleStr);
-    setMeta('name', 'twitter:description', description);
-    setMeta('name', 'twitter:image', image);
+    if (!inModal) {
+      const setMeta = (attr, value, content) => {
+        let el = document.querySelector(`meta[${attr}="${value}"]`);
+        if (!el) { el = document.createElement('meta'); el.setAttribute(attr, value); document.head.appendChild(el); }
+        el.setAttribute('content', content);
+      };
+      setMeta('name', 'description', description);
+      setMeta('property', 'og:title', titleStr);
+      setMeta('property', 'og:description', description);
+      setMeta('property', 'og:image', image);
+      setMeta('property', 'og:url', window.location.href);
+      setMeta('property', 'og:type', isMovie ? 'video.movie' : 'video.tv_show');
+      setMeta('name', 'twitter:card', 'summary_large_image');
+      setMeta('name', 'twitter:title', titleStr);
+      setMeta('name', 'twitter:description', description);
+      setMeta('name', 'twitter:image', image);
+    }
 
-    return () => { document.title = 'DB Cinema'; };
+    return () => { document.title = prev; };
   }, [record, inModal]);
 
   // ── Compose section list (Seasons only for TV) ─────────────────────────

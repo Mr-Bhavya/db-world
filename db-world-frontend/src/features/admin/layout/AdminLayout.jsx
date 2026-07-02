@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
 import { AdminThemeProvider, useThemeMode, useT } from '@shared/theme';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
@@ -98,6 +99,8 @@ const ContentLoader = () => {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const AdminLayoutInner = () => {
+  usePageMeta('Admin');
+
   const { T, mode, toggleMode } = useThemeMode();
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));

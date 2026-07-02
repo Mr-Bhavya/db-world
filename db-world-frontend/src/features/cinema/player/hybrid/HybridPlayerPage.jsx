@@ -10,6 +10,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
+import usePageMeta from '@shared/hooks/usePageMeta';
 
 // Resume only if meaningfully into the file and not within 30s of the end.
 async function resumePointFor(fileId) {
@@ -31,6 +32,7 @@ export default function HybridPlayerPage() {
   // The show/movie name stays constant; per-episode info (S#E# · name) is derived
   // inside the player from `episodes` + `currentEpisodeId`.
   const showTitle = media?.title || media?.fileName || '';
+  usePageMeta(showTitle ? `${showTitle} — DB Cinema` : 'Now Playing — DB Cinema', { exact: true });
   const [cur, setCur] = useState(null); // { url, fileId, startMs, audio }
 
   useEffect(() => {

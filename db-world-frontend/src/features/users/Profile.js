@@ -25,6 +25,7 @@ import { motion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { getUserDetail, changePassword, getLoginHistory } from '@shared/services/ApiServices';
 import { toast } from '@shared/components/ui/Toast';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getFieldSx, getGlowProps } from '@shared/theme';
 
 // ── UA parser (no deps) ───────────────────────────────────────────────────────
@@ -310,6 +311,8 @@ const LoginHistoryDialog = ({ open, onClose }) => {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 const Profile = () => {
+  usePageMeta('Profile');
+
   const T        = useT();
   const GLOW     = getGlowProps(T);
   const navigate = useNavigate();

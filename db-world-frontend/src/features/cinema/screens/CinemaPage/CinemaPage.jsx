@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Chip, useMediaQuery, useTheme } from '@mui/material';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { useSelector } from 'react-redux';
+import { useAuth } from '@features/auth/context/Authentication';
 import { useQuery } from '@tanstack/react-query';
 
 import Navbar from '../../navbar';
@@ -15,6 +15,7 @@ import useInteractions from '../../hooks/useInteractions';
 import useRailRecords from '../../hooks/useRailRecords';
 import { useCategory } from '../../navbar/CategoryContext';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 
 const PAGE_MAP = {
   home: 'home',
@@ -74,6 +75,20 @@ const CinemaPage = ({ pageType = 'home' }) => {
   // PageType enum the backend expects ('HOME' | 'MOVIES' | 'SERIES'). Sent with
   // each rail-records fetch so a multi-page rail scopes its content to this page.
   const railPageType = apiPage.toUpperCase();
+
+  usePageMeta(
+    apiPage === 'movies' ? 'Movies — DB Cinema'
+      : apiPage === 'series' ? 'TV Shows — DB Cinema'
+        : 'Browse — DB Cinema',
+    {
+      exact: true,
+      description:
+        apiPage === 'movies' ? 'Stream and download the latest movies on DB Cinema.'
+          : apiPage === 'series' ? 'Binge the latest TV shows and series on DB Cinema.'
+            : 'Browse movies and TV shows to stream and download on DB Cinema.',
+    }
+  );
+
   const navigate = useNavigate();
   const theme = useTheme();
 
@@ -146,7 +161,8 @@ const CinemaPage = ({ pageType = 'home' }) => {
   const { records: heroRecords, loading: heroLoading, trigger: heroTrigger } =
     useRailRecords(heroRail?.id, Math.min(heroRail?.limitSize ?? 8, 8), false, category, railPageType);
 
-  const user = useSelector((s) => s.userReducer?.user ?? s.userReducer);
+  const { auth } = useAuth();
+  const user = auth.user;
   const userId = user?.id ?? user?.userId ?? null;
 
   const {

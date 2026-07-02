@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { useDispatch } from 'react-redux';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
-import { addUser } from '@app/redux/action/allActions';
 import axiosInstance, { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
 import constants from '@shared/constants';
 
@@ -48,7 +46,6 @@ const extractAppRole = (roles = []) => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const dispatch = useDispatch();
   const [auth, setAuth] = useState(INITIAL_AUTH);
   const initialized = useRef(false); // guard against strict-mode double-mount
 
@@ -58,9 +55,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem('role', role);
-    dispatch(addUser(user));
     setAuth({ isAuthenticated: true, token, user, role, loading: false });
-  }, [dispatch]);
+  }, []);
 
   /* ── logout ─────────────────────────────────────────────────────── */
 
@@ -73,22 +69,20 @@ export const AuthProvider = ({ children }) => {
       // Intentionally swallowed — client-side cleanup always runs.
     } finally {
       localStorage.clear();
-      dispatch(addUser(null));
       setAuth({ ...INITIAL_AUTH, loading: false });
     }
-  }, [dispatch]);
+  }, []);
 
   /* ── Force-logout event from axios interceptor ───────────────────── */
 
   useEffect(() => {
     const handler = () => {
       // The interceptor already cleared localStorage.
-      dispatch(addUser(null));
       setAuth({ ...INITIAL_AUTH, loading: false });
     };
     window.addEventListener('auth:force-logout', handler);
     return () => window.removeEventListener('auth:force-logout', handler);
-  }, [dispatch]);
+  }, []);
 
   /* ── Keep the session warm when returning to the foreground ──────────
      A long-running background download can outlive the short-lived access
@@ -146,7 +140,6 @@ export const AuthProvider = ({ children }) => {
 
         if (!role) {
           localStorage.clear();
-          dispatch(addUser(null));
           setAuth({ ...INITIAL_AUTH, loading: false });
           return;
         }

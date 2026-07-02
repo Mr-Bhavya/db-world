@@ -11,6 +11,7 @@ import {
   ArrowForward as ArrowIcon,
 } from '@mui/icons-material';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getGlowProps } from '@shared/theme';
 
 const GAMES = [
@@ -128,6 +129,8 @@ const GameCard = ({ game, index }) => {
 };
 
 const Games = () => {
+  usePageMeta('Games', { description: 'Play Tic Tac Toe, Snake, Memory Match and 2048 on DB World.' });
+
   const T    = useT();
   const GLOW = getGlowProps(T);
 

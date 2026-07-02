@@ -4,6 +4,7 @@ import { Box, Button, Container, Typography } from '@mui/material';
 import { ArrowBack, Refresh } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 
 // Colour map for tiles
@@ -92,6 +93,8 @@ function hasMoves(g) {
 
 /* ── Component ───────────────────────────────────────────────────────────── */
 const Game2048 = () => {
+  usePageMeta('2048 — DB Games', { exact: true });
+
   const T        = useT();
   const navigate = useNavigate();
   const [grid, setGrid]   = useState(INIT_GRID);

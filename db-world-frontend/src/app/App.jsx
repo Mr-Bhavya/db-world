@@ -5,12 +5,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavig
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
-import Weather from '@features/weather/weather';
-import Games from '@features/games/Games';
-import TicTacToe from '@features/games/TicTacToe';
-import Snake from '@features/games/Snake';
-import MemoryMatch from '@features/games/MemoryMatch';
-import Game2048 from '@features/games/Game2048';
 import Home from '@shared/components/layout/home/Home';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import PasswordManagment from '@features/password-manager/PasswordManagement';
@@ -24,7 +18,7 @@ import { AuthProvider } from '@features/auth/context/Authentication';
 import PrivateRoute from '@features/auth/PrivateRoute';
 import BackButtonHandler from '@platform/android/BackButtonHandler.js';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Box, createTheme, ThemeProvider, Typography, useMediaQuery } from '@mui/material';
+import { Box, createTheme, ThemeProvider, useMediaQuery } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -35,6 +29,7 @@ import { SnackbarProvider } from 'notistack';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
+import AppLoader from '@shared/components/ui/AppLoader';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,56 +68,15 @@ const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-que
 const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybrid/HybridPlayerPage.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
 
-// Loading Component
-const LoadingFallback = () => (
-   <Box
-      sx={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1300,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        backdropFilter: 'blur(2px)',
-      }}
-    >
-      {/* Spinner */}
-      <Box
-        sx={{
-          width: 52,
-          height: 52,
-          borderRadius: '50%',
-          border: '4px solid rgba(255,255,255,0.2)',
-          borderTopColor: 'primary.main',
-          animation: 'spin 0.9s linear infinite',
-          mb: 2,
-        }}
-      />
+// Non-critical standalone routes — split out of the initial (cinema) bundle.
+// Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
+const Weather     = lazy(() => import('@features/weather/weather'));
+const Games       = lazy(() => import('@features/games/Games'));
+const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
+const Snake       = lazy(() => import('@features/games/Snake'));
+const MemoryMatch = lazy(() => import('@features/games/MemoryMatch'));
+const Game2048    = lazy(() => import('@features/games/Game2048'));
 
-      <Typography
-        variant="body2"
-        sx={{
-          color: 'rgba(255,255,255,0.85)',
-          letterSpacing: 1,
-          textTransform: 'uppercase',
-        }}
-      >
-        Loading, please wait...
-      </Typography>
-
-      {/* Keyframes */}
-      <style>
-        {`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}
-      </style>
-    </Box>
-  );
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -151,16 +105,7 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.reloading) {
-      const isDark = localStorage.getItem('dbworld-theme') !== 'light';
-      return (
-        <div style={{ minHeight: '100vh', background: isDark ? '#000000' : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid rgba(13,148,136,0.25)', borderTopColor: '#0d9488', animation: 'spin 0.9s linear infinite' }} />
-          <div style={{ color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontSize: '0.875rem', letterSpacing: 0.5 }}>
-            Updating to the latest version…
-          </div>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      );
+      return <AppLoader message="Updating to the latest version…" />;
     }
 
     if (this.state.hasError) {
@@ -343,12 +288,7 @@ const ThemedApp = () => {
   }, []);
 
   if (loading) {
-    return (
-      <ThemeProvider theme={muiTheme}>
-        <CssBaseline />
-        <LoadingFallback />
-      </ThemeProvider>
-    );
+    return <AppLoader />;
   }
 
   return (
@@ -382,7 +322,7 @@ const ThemedApp = () => {
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!location.pathname.includes('/player') && <Header />}
-            <Suspense fallback={<LoadingFallback />}>
+            <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
                 <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>

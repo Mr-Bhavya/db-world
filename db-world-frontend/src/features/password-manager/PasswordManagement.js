@@ -12,6 +12,7 @@ import {
   ArrowForward as ArrowIcon,
 } from '@mui/icons-material';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getGlowProps } from '@shared/theme';
 
 const FEATURES = [
@@ -112,6 +113,8 @@ const FeatureCard = ({ feature, index }) => {
 };
 
 const PasswordManagement = () => {
+  usePageMeta('Vault', { description: 'Your AES-256 encrypted password vault on DB World.' });
+
   const T    = useT();
   const GLOW = getGlowProps(T);
 
