@@ -17,6 +17,14 @@
 	"plugins": {
 		"CapacitorHttp": {
 			"enabled": true
+		},
+		"SplashScreen": {
+			"launchShowDuration": 0,
+			"launchAutoHide": true,
+			"backgroundColor": "#000000",
+			"showSpinner": false,
+			"splashFullScreen": true,
+			"splashImmersive": true
 		}
 	}
 }

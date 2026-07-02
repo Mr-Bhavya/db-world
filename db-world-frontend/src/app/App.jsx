@@ -206,6 +206,10 @@ const routeConfig = {
 const ThemedApp = () => {
   const { mode } = useThemeMode();
   const [loading, setLoading] = useState(true);
+  // Guarantee the boot loader runs at least one full animation loop (~2.6s: the
+  // character build-in + one white-shimmer sweep) before we swap in the app, even
+  // when init resolves faster — so the loader never flashes/cuts off mid-animation.
+  const [minElapsed, setMinElapsed] = useState(false);
   const muiTheme = useMemo(() => buildMuiTheme(mode), [mode]);
   const location = useLocation();
   const navigate = useNavigate();
@@ -287,8 +291,27 @@ const ThemedApp = () => {
     };
   }, []);
 
-  if (loading) {
-    return <AppLoader />;
+  useEffect(() => {
+    const t = setTimeout(() => setMinElapsed(true), 2800);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Fade out + remove the pre-React boot loader (lives in index.html, outside
+  // #root) once the app is ready. The boot loader is the ONLY loader on cold
+  // start — it plays its build-in + shimmer once, then we hand off to the app,
+  // so there's no second in-app loader restarting the animation.
+  useEffect(() => {
+    if (loading || !minElapsed) return undefined;
+    const el = document.getElementById('app-loader');
+    if (!el) return undefined;
+    el.classList.add('dbl-hide');
+    const t = setTimeout(() => el.remove(), 500);
+    return () => clearTimeout(t);
+  }, [loading, minElapsed]);
+
+  // Cold start: render nothing while the boot overlay is up (it covers the screen).
+  if (loading || !minElapsed) {
+    return null;
   }
 
   return (
