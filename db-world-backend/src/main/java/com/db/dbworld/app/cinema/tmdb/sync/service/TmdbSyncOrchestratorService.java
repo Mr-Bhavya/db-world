@@ -84,11 +84,16 @@ public class TmdbSyncOrchestratorService {
         log.debug("{} sync matched {} local records from {} TMDB changes",
                 type, recordMap.size(), changedIds.size());
 
+        // Resolve the recheck interval once per run (DB-configurable per job, see
+        // scheduler_job_config.recheck_interval_hours) rather than per record.
+        Duration recheckInterval = syncService.recheckInterval(type);
+        log.debug("{} sync recheck interval: {}h", type, recheckInterval.toHours());
+
         Flux.fromIterable(changedIds)
                 .filter(recordMap::containsKey)
                 .doOnNext(id -> metrics.incrementTotal())
                 .delayElements(Duration.ofMillis(TmdbSync.DELAY_MS))
-                .flatMap(id -> processSingle(id, recordMap.get(id), type, metrics, warnCount),
+                .flatMap(id -> processSingle(id, recordMap.get(id), type, metrics, warnCount, recheckInterval),
                         TmdbSync.PARALLELISM)
                 .doOnError(e -> log.error("{} sync pipeline error", type, e))
                 .blockLast();
@@ -133,13 +138,14 @@ public class TmdbSyncOrchestratorService {
                                      RecordEntity record,
                                      RecordType type,
                                      SyncMetrics metrics,
-                                     AtomicInteger warnCount) {
+                                     AtomicInteger warnCount,
+                                     Duration recheckInterval) {
 
         if (record == null) return Mono.empty();
 
         return Mono.fromRunnable(() -> {
 
-            if (!syncService.shouldSync(tmdbId, type)) {
+            if (!syncService.shouldSync(tmdbId, type, recheckInterval)) {
                 syncService.markSkipped(tmdbId, type);
                 metrics.incrementSkipped();
                 return;

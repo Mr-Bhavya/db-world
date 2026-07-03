@@ -4,9 +4,9 @@ export const useRecordStore = create((set) => ({
   viewMode:    'table',
   setViewMode: (v) => set({ viewMode: v }),
 
-  filters: { name: '', type: '', year: '', tmdbId: '', recordId: '' },
+  filters: { name: '', type: '', year: '', tmdbId: '', recordId: '', status: '' },
   setFilter:    (key, value) => set(s => ({ filters: { ...s.filters, [key]: value } })),
-  clearFilters: () => set({ filters: { name: '', type: '', year: '', tmdbId: '', recordId: '' } }),
+  clearFilters: () => set({ filters: { name: '', type: '', year: '', tmdbId: '', recordId: '', status: '' } }),
 
   pageSize:    25,
   setPageSize: (s) => set({ pageSize: s }),
@@ -18,26 +18,21 @@ export const useRecordStore = create((set) => ({
   setSelectedRows: (v) => set({ selectedRows: v }),
   clearSelection:  () => set({ selectedRows: [] }),
 
-  drawerRecordId: null,
   modalState:     null,
   editRecordId:   null,
-  openDrawer:     (id) => set({ drawerRecordId: id }),
-  closeDrawer:    () => set({ drawerRecordId: null }),
   openModal:      (type, id = null) => set({ modalState: type, editRecordId: id }),
   closeModal:     () => set({ modalState: null, editRecordId: null }),
 
-  // TMDB data modal — opened by clicking TMDB ID in table
-  tmdbModalRecord: null,
-  openTmdbModal:   (record) => set({ tmdbModalRecord: record }),
-  closeTmdbModal:  () => set({ tmdbModalRecord: null }),
+  // Unified detail drawer — tabs: overview | tmdb | files | sync.
+  // Replaces the former separate TMDB / record-detail / media-files modals.
+  drawerRecordId: null,
+  drawerTab:      'overview',
+  openDrawer:     (id, tab = 'overview') => set({ drawerRecordId: id, drawerTab: tab }),
+  setDrawerTab:   (tab) => set({ drawerTab: tab }),
+  closeDrawer:    () => set({ drawerRecordId: null }),
 
-  // Full record detail modal — opened by clicking record ID
-  recordDetailId: null,
-  openRecordDetail:  (id) => set({ recordDetailId: id }),
-  closeRecordDetail: () => set({ recordDetailId: null }),
-
-  // Media files modal — opened by clicking Files column
-  mediaFilesRecordId: null,
-  openMediaFiles:  (id) => set({ mediaFilesRecordId: id }),
-  closeMediaFiles: () => set({ mediaFilesRecordId: null }),
+  // Back-compat openers — route into the drawer's tabs so existing call sites work.
+  openRecordDetail: (id)  => set({ drawerRecordId: id, drawerTab: 'overview' }),
+  openTmdbModal:    (rec) => set({ drawerRecordId: rec?.recordId ?? rec, drawerTab: 'tmdb' }),
+  openMediaFiles:   (id)  => set({ drawerRecordId: id, drawerTab: 'files' }),
 }));

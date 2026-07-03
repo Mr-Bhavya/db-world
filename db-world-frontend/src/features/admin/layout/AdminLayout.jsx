@@ -8,7 +8,7 @@ import {
 import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
   Dashboard, Movie, VideoLibrary,
-  LocalOffer, Sync, Computer, Analytics,
+  LocalOffer, Computer, Analytics,
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home,
@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
 import { AdminThemeProvider, useThemeMode, useT } from '@shared/theme';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
@@ -46,7 +47,6 @@ const NAV = [
       { id: 'media-files', label: 'Media Files',   icon: <VideoLibrary />, path: 'media-files' },
       { id: 'requests', label: 'Requests', icon: <Inbox />, path: 'requests' },
       { id: 'tag-management', label: 'Tags & Rails', icon: <LocalOffer />, path: 'tag-management' },
-      { id: 'tmdb-sync',   label: 'TMDB Sync',     icon: <Sync />,         path: 'tmdb-sync' },
     ],
   },
   {
@@ -99,6 +99,8 @@ const ContentLoader = () => {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const AdminLayoutInner = () => {
+  usePageMeta('Admin');
+
   const { T, mode, toggleMode } = useThemeMode();
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));

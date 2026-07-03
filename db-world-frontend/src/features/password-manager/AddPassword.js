@@ -17,6 +17,7 @@ import {
 } from '@mui/icons-material';
 import { useT, getGlowProps, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { addCredential, findAllHost } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 
@@ -29,6 +30,8 @@ const schema = z.object({
 });
 
 const AddPassword = () => {
+  usePageMeta('Save Credential');
+
   const T = useT();
   const GLOW = getGlowProps(T);
   const FIELD = getFieldSx(T);

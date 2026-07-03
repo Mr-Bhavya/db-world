@@ -56,6 +56,18 @@ public class SchedulerJobConfigEntity {
     private Integer stabilityWindowSeconds;
 
     /**
+     * Job-specific recheck window in HOURS (used by TMDB Movie/TV sync). A record checked
+     * more recently than this is skipped even when TMDB's /changes window (which overlaps
+     * by BUFFER_DAYS) re-lists it. Must be shorter than the job's cron period so a genuine
+     * later-day change is still synced. Null falls back to a code-side default
+     * (CinemaConstants.TmdbSync.RECHECK_INTERVAL_HOURS). Same single-column rationale as
+     * {@link #stabilityWindowSeconds} above — promote both to a JSON params column if the
+     * per-job knobs keep growing.
+     */
+    @Column(name = "recheck_interval_hours")
+    private Integer recheckIntervalHours;
+
+    /**
      * Admin-supplied display label override. When null, the service falls
      * back to the hardcoded {@code displayName(jobId)} switch. Lets the admin
      * rename "TmdbMovieSync" to "🎬 Movies Sync" without touching code.

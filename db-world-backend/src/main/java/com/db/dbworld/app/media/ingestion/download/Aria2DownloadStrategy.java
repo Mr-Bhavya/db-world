@@ -148,7 +148,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
         Map<String, Object> options = new HashMap<>();
         options.put("dir", tempDir.toAbsolutePath().toString());
 
-        if (ctx.getRequest().isUrlProtected()) {
+        if (Boolean.TRUE.equals(ctx.getRequest().getUrlProtected())) {
             options.put("http-user", ctx.getRequest().getUsername());
             options.put("http-passwd", ctx.getRequest().getPassword());
         }
@@ -270,7 +270,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
         }
 
         try {
-            long size = Files.size(downloadedFile);
+            long size = sizeOf(downloadedFile);
             log.info("[{}] Aria2 file ready — {} ({} bytes)", jobId, downloadedFile.getFileName(), size);
             ctx.log("ARIA2", "File ready: " + downloadedFile.getFileName() + " (" + size + " bytes)");
 
@@ -286,6 +286,12 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     }
 
     private Path resolveDownloadedFile(Aria2StatusParam status, Path tempDir) {
+        // Multi-file torrent (e.g. a season pack): return the whole temp directory so
+        // FfmpegProcessingStrategy.processDirectory() walks and processes every episode,
+        // instead of just the first file.
+        if (status.getFiles() != null && status.getFiles().size() > 1) {
+            return tempDir;
+        }
         if (status.getFiles() != null && !status.getFiles().isEmpty()) {
             String fp = status.getFiles().getFirst().getPath();
             if (fp != null && !fp.isBlank()) {
@@ -312,6 +318,20 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             log.warn("Error scanning temp dir: {}", e.getMessage());
         }
         return null;
+    }
+
+    /** Total size of a file, or the summed size of all regular files when given a directory. */
+    private long sizeOf(Path p) {
+        try {
+            if (!Files.isDirectory(p)) return Files.size(p);
+            try (var s = Files.walk(p)) {
+                return s.filter(Files::isRegularFile)
+                        .mapToLong(f -> { try { return Files.size(f); } catch (Exception e) { return 0L; } })
+                        .sum();
+            }
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     private void updateProgress(IngestionContext ctx, Aria2StatusParam status) {

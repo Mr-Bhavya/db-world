@@ -337,6 +337,8 @@ function EditCronDialog({ open, job, onClose, onSave }) {
   const [tz, setTz]                   = useState('');
   const [displayName, setDisplayName] = useState('');
   const [notes, setNotes]             = useState('');
+  const [recheck, setRecheck]         = useState(20);
+  const [error, setError]             = useState('');
 
   useEffect(() => {
     if (open && job) {
@@ -344,18 +346,31 @@ function EditCronDialog({ open, job, onClose, onSave }) {
       setTz(job.timezone ?? '');
       setDisplayName(job.name && job.name !== job.defaultName ? job.name : '');
       setNotes(job.notes ?? '');
+      setRecheck(job.recheckIntervalHours ?? 20);
+      setError('');
     }
   }, [open, job]);
+
+  // Recheck interval applies only to the TMDB change-sync jobs (or any job that
+  // already carries the value). Other jobs don't gate on it.
+  const showRecheck = job
+    && (job.id === 'TmdbMovieSync' || job.id === 'TmdbTvSync' || job.recheckIntervalHours != null);
 
   const handleSave = () => {
     const parts = (cron ?? '').trim().split(/\s+/);
     if (parts.length !== 6) return; // builder won't normally produce invalid expr, but defend
-    onSave(job.id, {
+    const body = {
       cronExpression: cron.trim(),
       timezone:       tz.trim() || undefined,
       displayName,
       notes,
-    });
+    };
+    if (showRecheck) {
+      const rh = parseInt(recheck, 10);
+      if (!Number.isFinite(rh) || rh <= 0) { setError('Recheck interval must be a positive integer'); return; }
+      body.recheckIntervalHours = rh;
+    }
+    onSave(job.id, body);
   };
 
   if (!job) return null;
@@ -390,6 +405,24 @@ function EditCronDialog({ open, job, onClose, onSave }) {
             '& .MuiInputLabel-root': { color: T.textMuted },
             '& .MuiInputLabel-root.Mui-focused': { color: meta.color },
           }} />
+
+        {showRecheck && (
+          <TextField size="small" label="Recheck interval (hours)" type="number" value={recheck}
+            onChange={e => { setRecheck(e.target.value); setError(''); }}
+            inputProps={{ min: 1, max: 168, step: 1 }}
+            error={!!error}
+            helperText={error
+              || 'Skip a record re-checked within this many hours, even if TMDB re-lists it. Keep it below the run frequency (e.g. 20 for a daily run) so a genuine later change still syncs.'}
+            sx={{
+              '& .MuiOutlinedInput-root': { bgcolor: T.inputBg ?? T.glass, color: T.textPrimary,
+                '& fieldset': { borderColor: T.glassBorder },
+                '&:hover fieldset': { borderColor: meta.color },
+                '&.Mui-focused fieldset': { borderColor: meta.color } },
+              '& .MuiInputLabel-root': { color: T.textMuted },
+              '& .MuiInputLabel-root.Mui-focused': { color: meta.color },
+              '& .MuiFormHelperText-root': { color: error ? T.error : T.textFaint },
+            }} />
+        )}
 
         <Divider sx={{ borderColor: T.border }} />
 
@@ -941,6 +974,7 @@ export default function SchedulerPanel() {
       if (body.displayName            !== undefined) settings.displayName            = body.displayName;
       if (body.notes                  !== undefined) settings.notes                  = body.notes;
       if (body.stabilityWindowSeconds !== undefined) settings.stabilityWindowSeconds = body.stabilityWindowSeconds;
+      if (body.recheckIntervalHours   !== undefined) settings.recheckIntervalHours   = body.recheckIntervalHours;
       if (Object.keys(settings).length > 0) {
         tasks.push(api.updateSettings(jobId, settings));
       }

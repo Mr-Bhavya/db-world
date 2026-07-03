@@ -28,11 +28,14 @@ import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.LoadControl;
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
+import androidx.media3.exoplayer.upstream.DefaultAllocator;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -84,6 +87,8 @@ public class HybridPlayerPlugin extends Plugin {
                 e.put("positionMs", Math.max(0, player.getCurrentPosition()));
                 long dur = player.getDuration();
                 e.put("durationMs", dur > 0 ? dur : 0);
+                // Buffered (preloaded) position so the UI can draw the loaded portion of the bar.
+                e.put("bufferedMs", Math.max(0, player.getBufferedPosition()));
                 notifyListeners("playerTime", e);
                 ui.postDelayed(this, 250);
             }
@@ -117,7 +122,9 @@ public class HybridPlayerPlugin extends Plugin {
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
         if (decoderMode == 1)      rf.setMediaCodecSelector(preferSelector(true));   // hardware first
         else if (decoderMode == 2) rf.setMediaCodecSelector(preferSelector(false));  // software first
-        ExoPlayer p = new ExoPlayer.Builder(getContext(), rf).build();
+        ExoPlayer p = new ExoPlayer.Builder(getContext(), rf)
+                .setLoadControl(buildLoadControl())
+                .build();
         p.addListener(playerListener);
         // Defaults before JS applies remembered prefs: prefer Hindi audio, subtitles off.
         p.setTrackSelectionParameters(
@@ -126,6 +133,36 @@ public class HybridPlayerPlugin extends Plugin {
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                         .build());
         return p;
+    }
+
+    /**
+     * Buffer policy tuned for large high-bitrate files (4K remuxes, 40–100 Mbps)
+     * streamed over HTTP from the self-hosted CDN.
+     *
+     * ExoPlayer's DEFAULT LoadControl caps the forward buffer by BYTES
+     * (DEFAULT_TARGET_BUFFER_BYTES), which at 4K bitrates fills in ~2–3 seconds —
+     * so any brief HDD-seek or bandwidth dip drains it and the video stalls.
+     *
+     * We raise the byte ceiling to 96 MB (≈13 s at 60 Mbps, ≈40 s at 20 Mbps) and
+     * widen the time window to up to 2 minutes, so the player builds a deep cushion
+     * whenever the link has spare headroom and rides through spikes without
+     * rebuffering. {@code prioritizeTimeOverSizeThresholds=false} keeps the 96 MB
+     * cap authoritative so a very high-bitrate file can't OOM a low-RAM phone.
+     * A 30 s back-buffer makes the player's −10 s seeks instant (no re-download).
+     */
+    private LoadControl buildLoadControl() {
+        return new DefaultLoadControl.Builder()
+                // 64 KB allocation segments — fewer, larger blocks for big media.
+                .setAllocator(new DefaultAllocator(true, 64 * 1024))
+                .setBufferDurationsMs(
+                        30_000,   // minBufferMs — keep refilling until 30 s buffered
+                        120_000,  // maxBufferMs — buffer up to 2 min when bandwidth allows
+                        2_500,    // bufferForPlaybackMs — start fast (2.5 s)
+                        7_000)    // bufferForPlaybackAfterRebufferMs — refill more after a stall to avoid stutter loops
+                .setTargetBufferBytes(96 * 1024 * 1024)   // 96 MB ceiling (vs ~tiny default at 4K bitrates)
+                .setPrioritizeTimeOverSizeThresholds(false) // byte cap stays authoritative → OOM-safe
+                .setBackBuffer(30_000, true)                // retain 30 s behind for instant −10 s seeks
+                .build();
     }
 
     /** MediaCodecSelector that orders OS software decoders first or last. */

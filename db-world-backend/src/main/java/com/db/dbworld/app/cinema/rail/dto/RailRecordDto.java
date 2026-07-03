@@ -34,6 +34,9 @@ public class RailRecordDto {
     private String backdropPath;        // preferred backdrop (clean)
     private String backdropPathText;    // backdrop with title/logo
 
+    // Title logo (transparent PNG) — null when none; UI falls back to the text title
+    private String logoPath;
+
     private double voteAverage;
 
     private double popularity;

@@ -29,7 +29,7 @@ public class SecurityConfig {
             HttpSecurity http,
             TokenAuthenticationHandler.BearerTokenAuthenticationEntryPoint authenticationEntryPoint,
             TokenAuthenticationHandler.BearerTokenAccessDeniedHandler accessDeniedHandler
-    ) throws Exception {
+    ) {
 
         return http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -67,14 +67,18 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
+                "https://localhost",
+                "https://localhost:*",
                 "http://127.0.0.1:*",
-                "http://192.168.*",       // local network (home/office)
-                "http://10.*",            // local network (corporate)
-                "http://172.16.*",        // local network (docker/office)
+                "https://127.0.0.1",
+                "https://127.0.0.1:*",
+                "http://192.168.*",
+                "https://192.168.*",
                 "https://db-world.in",
                 "https://www.db-world.in",
                 "https://api.db-world.in",
-                "https://cdn.db-world.in"
+                "https://cdn.db-world.in",
+                "https://app.db-world.in"
         ));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowedMethods(List.of("*"));

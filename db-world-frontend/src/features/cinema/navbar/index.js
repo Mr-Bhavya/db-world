@@ -31,13 +31,13 @@ import {
   FileDownload as DownloadIcon,
   Tune as TuneIcon,
 } from '@mui/icons-material';
-import { Capacitor } from '@capacitor/core';
-
 import { AnimatePresence } from 'framer-motion';
+import { Capacitor } from '@capacitor/core';
 import CategoryModal from './CategoryModal';
 import { useCategory } from './CategoryContext';
 import NotificationPanel from '../components/notifications/NotificationPanel';
 import { useActiveDownloadCount } from '../download-queue/useActiveDownloadCount';
+import useDeviceTier from '../hooks/useDeviceTier';
 
 // Download nav icon with a live badge showing how many downloads are running/queued.
 function DownloadNavIcon() {
@@ -176,13 +176,137 @@ const FloatingNavItem = styled(ButtonBase, {
   },
 }));
 
+// ─── TV Drawer (≥ 1920px + coarse pointer) ───────────────────────────────────
+
+function TvDrawer({ activeId, unreadCount, onSearch, onFilter, onBell, onNavigate, isAndroid }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const theme = useTheme();
+
+  const tvItems = [
+    { id: 0, title: 'Home',          route: Constants.DB_CINEMA_BROWSE_ROUTE,  icon: <HomeIcon /> },
+    { id: 1, title: 'Movies',        route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
+    { id: 2, title: 'TV Shows',      route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
+    { id: 3, title: 'Search',        route: null,                               icon: <SearchIcon /> },
+    { id: 4, title: 'Filter',        route: null,                               icon: <TuneIcon /> },
+    { id: 5, title: 'Notifications', route: null,                               icon: (
+        <Badge badgeContent={unreadCount > 0 ? unreadCount : null} color="error" max={99}
+          sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: 16, minWidth: 16, p: '0 4px' } }}>
+          <BellIcon />
+        </Badge>
+      )
+    },
+    ...(isAndroid ? [{ id: 6, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
+  ];
+
+  const handleItemClick = (item) => {
+    if (item.id === 3) { onSearch?.(); }
+    else if (item.id === 4) { onFilter?.(); }
+    else if (item.id === 5) { onBell?.(); }
+    else if (item.route) { onNavigate?.(item.route); }
+  };
+
+  return (
+    <Box
+      onFocus={() => setExpanded(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setExpanded(false);
+      }}
+      sx={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: expanded ? 220 : 72,
+        zIndex: 1300,
+        background: alpha(theme.palette.common.black, 0.82),
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderRight: `1px solid ${alpha(theme.palette.common.white, 0.08)}`,
+        pt: 6,
+        pb: 4,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.5,
+        overflow: 'hidden',
+        transition: 'width 0.25s ease',
+      }}
+    >
+      {tvItems.map((item) => {
+        const isActive = item.id === activeId;
+        return (
+          <ButtonBase
+            key={item.id}
+            tabIndex={0}
+            focusRipple
+            onClick={() => handleItemClick(item)}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              px: 2,
+              py: 1.5,
+              minHeight: 52,
+              borderRadius: 1,
+              mx: 1,
+              color: isActive
+                ? theme.palette.common.white
+                : alpha(theme.palette.common.white, 0.55),
+              background: isActive
+                ? alpha(theme.palette.primary.main, 0.18)
+                : 'transparent',
+              borderLeft: isActive
+                ? `3px solid ${theme.palette.primary.main}`
+                : '3px solid transparent',
+              transition: 'color 0.18s ease, background 0.18s ease',
+              '&:hover': {
+                color: theme.palette.common.white,
+                background: alpha(theme.palette.common.white, 0.08),
+              },
+              '&.Mui-focusVisible': {
+                outline: `4px solid ${theme.palette.primary.main}`,
+                outlineOffset: -4,
+              },
+              justifyContent: 'flex-start',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Box sx={{ display: 'flex', flexShrink: 0, fontSize: '1.4rem', lineHeight: 1 }}>
+              {item.icon}
+            </Box>
+            <Box
+              component="span"
+              sx={{
+                fontSize: '0.95rem',
+                fontWeight: isActive ? 700 : 400,
+                letterSpacing: '0.01em',
+                opacity: expanded ? 1 : 0,
+                transition: 'opacity 0.2s ease',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {item.title}
+            </Box>
+          </ButtonBase>
+        );
+      })}
+    </Box>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 function Navbar({ coverColor, onGenreSelect }) {
   const theme    = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // < 600px only
+  const tier     = useDeviceTier();
+  const isTv     = tier === 'tv';
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isAndroid = Capacitor.getPlatform() === 'android';
 
   const {
     selectedCategory,
@@ -201,23 +325,21 @@ function Navbar({ coverColor, onGenreSelect }) {
   const [unreadCount,       setUnreadCount]       = useState(0);
   const [bellAnchorEl,      setBellAnchorEl]      = useState(null);
 
-  const isAndroid = Capacitor.getPlatform() === 'android';
-
   // All page navigation items (used by desktop nav + routing sync)
   const navItems = useMemo(() => [
-    { id: 0, title: 'Home',       route: Constants.DB_CINEMA_BROWSE_ROUTE, icon: <HomeIcon /> },
-    { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
-    { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
-    { id: 3, title: 'Categories', route: null,                              icon: null },
+    { id: 0, title: 'Home',       route: Constants.DB_CINEMA_BROWSE_ROUTE,  icon: <HomeIcon /> },
+    { id: 1, title: 'Movies',     route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
+    { id: 2, title: 'TV Shows',   route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
+    { id: 3, title: 'Categories', route: null,                               icon: null },
     ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
   ], [isAndroid]);
 
-  // Mobile bottom pill items: Home / Movies / Shows / Search / Downloads(Android)
+  // Mobile bottom pill items: Home / Movies / Shows / Search / Downloads
   const bottomNavItems = useMemo(() => [
-    { id: 0,  title: 'Home',      route: Constants.DB_CINEMA_BROWSE_ROUTE, icon: <HomeIcon /> },
-    { id: 1,  title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE, icon: <MovieIcon /> },
-    { id: 2,  title: 'Shows',     route: Constants.DB_CINEMA_SERIES_ROUTE, icon: <TvIcon /> },
-    { id: 99, title: 'Search',    route: null,                              icon: <SearchIcon /> },
+    { id: 0,  title: 'Home',      route: Constants.DB_CINEMA_BROWSE_ROUTE,  icon: <HomeIcon /> },
+    { id: 1,  title: 'Movies',    route: Constants.DB_CINEMA_MOVIES_ROUTE,  icon: <MovieIcon /> },
+    { id: 2,  title: 'Shows',     route: Constants.DB_CINEMA_SERIES_ROUTE,  icon: <TvIcon /> },
+    { id: 99, title: 'Search',    route: null,                               icon: <SearchIcon /> },
     ...(isAndroid ? [{ id: 4, title: 'Downloads', route: Constants.DB_DOWNLOAD_QUEUE_ROUTE, icon: <DownloadNavIcon /> }] : []),
   ], [isAndroid]);
 
@@ -335,6 +457,7 @@ function Navbar({ coverColor, onGenreSelect }) {
         }
       })
       .catch(() => {});
+  // enqueueSnackbar and navigate are stable refs from their providers; empty dep is intentional
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -396,6 +519,42 @@ function Navbar({ coverColor, onGenreSelect }) {
   );
 
   // ─── JSX ─────────────────────────────────────────────────────────────────────
+
+  if (isTv) {
+    return (
+      <>
+        <TvDrawer
+          activeId={selectedNav?.id ?? 0}
+          unreadCount={unreadCount}
+          onSearch={() => setSearchActive(true)}
+          onFilter={() => setCategoryModalOpen(true)}
+          onBell={(e) => setBellAnchorEl(e?.currentTarget ?? document.body)}
+          onNavigate={(route) => { navigate(route); }}
+          isAndroid={isAndroid}
+        />
+        {/* Spacer so page content isn't hidden under the 72px drawer */}
+        <Box sx={{ ml: '72px' }} />
+
+        <CategoryModal
+          open={categoryModalOpen}
+          categories={categoryList}
+          selectedCategory={selectedCategory}
+          onSelect={handleCategorySelect}
+          onClear={handleClearCategory}
+          onClose={() => setCategoryModalOpen(false)}
+          appBarHeight={0}
+        />
+        <NotificationPanel
+          anchorEl={bellAnchorEl}
+          onClose={handleBellClose}
+          onUnreadClear={handleUnreadClear}
+        />
+        <AnimatePresence>
+          {searchActive && <SearchOverlay onClose={() => setSearchActive(false)} />}
+        </AnimatePresence>
+      </>
+    );
+  }
 
   return (
     <>
@@ -471,8 +630,8 @@ function Navbar({ coverColor, onGenreSelect }) {
               </Badge>
             ))}
 
-            {/* Category filter — mobile only */}
-            {isMobile && iconBtn(
+            {/* Filter — mobile top bar AND desktop */}
+            {iconBtn(
               () => setCategoryModalOpen(true),
               <TuneIcon sx={{ fontSize: '1.3rem' }} />,
               selectedCategory ? { color: theme.palette.primary.main } : {},

@@ -10,7 +10,9 @@ import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
+import com.db.dbworld.app.cinema.catalog.tags.services.NewContentTaggingService;
 import com.db.dbworld.app.media.link.SymlinkService;
+import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaSource;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.utils.PathSanitizer;
@@ -24,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -57,6 +60,8 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final TmdbMediaEnrichmentService enrichmentService;
     private final SymlinkService             symlinkService;
     private final SmartTrackFilterService    smartTrackFilterService;
+    private final StoryboardService          storyboardService;
+    private final NewContentTaggingService   newContentTaggingService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -115,26 +120,55 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return result;
         }
 
-        ctx.log("FFMPEG", "Processing " + mediaFiles.size() + " extracted file(s)");
-
         Integer originalSeason  = ctx.getRequest().getSeason();
         Integer originalEpisode = ctx.getRequest().getEpisode();
+
+        // Partition: episode files carry a detectable SxxExx pattern; everything else
+        // is an extra/sample/featurette.
+        List<Path> episodeFiles = mediaFiles.stream()
+                .filter(f -> detectFromFilename(f) != null)
+                .collect(Collectors.toList());
+
+        List<Path> toProcess;
+        boolean perFileEpisode;
+        if (!episodeFiles.isEmpty()) {
+            // Season pack (one or more episodes): process each detected episode with its
+            // OWN season/episode, ignoring any single value on the request; skip files
+            // without an SxxExx pattern so samples/extras don't collide or mis-tag.
+            toProcess = episodeFiles;
+            perFileEpisode = true;
+            int skipped = mediaFiles.size() - episodeFiles.size();
+            if (skipped > 0) {
+                ctx.log("FFMPEG", "Skipping " + skipped + " non-episode file(s) without an SxxExx pattern");
+            }
+        } else {
+            // No episodes detected → single title (movie / single file). Pick the largest
+            // media file so a bundled "sample" clip is ignored, keeping the user's
+            // season/episode (if any) for that one file.
+            Path main = mediaFiles.stream()
+                    .max(Comparator.comparingLong(this::sizeQuietly))
+                    .orElse(mediaFiles.getFirst());
+            toProcess = List.of(main);
+            perFileEpisode = false;
+            if (mediaFiles.size() > 1) {
+                ctx.log("FFMPEG", "No SxxExx episodes detected — processing largest file: " + main.getFileName());
+            }
+        }
+
+        ctx.log("FFMPEG", "Processing " + toProcess.size() + " of " + mediaFiles.size() + " media file(s)");
 
         Path lastFinalFile = null;
         Map<String, Object> lastMediaInfo = null;
         int successCount = 0;
 
-        for (Path file : mediaFiles) {
-            // If season/episode were not provided by the user, infer them per-file
-            if (originalSeason == null) {
-                EpisodeRef ref = detectFromFilename(file);
-                if (ref != null) {
-                    ctx.getRequest().setSeason(ref.season());
-                    ctx.getRequest().setEpisode(ref.episode());
-                }
+        for (Path file : toProcess) {
+            if (perFileEpisode) {
+                EpisodeRef ref = detectFromFilename(file); // non-null by construction
+                ctx.getRequest().setSeason(ref.season());
+                ctx.getRequest().setEpisode(ref.episode());
             }
 
-            ctx.log("FFMPEG", "Processing extracted: " + file.getFileName());
+            ctx.log("FFMPEG", "Processing: " + file.getFileName());
             try {
                 ProcessingResult fileResult = processSingleFile(ctx, file);
                 if (fileResult.isSuccess()) {
@@ -156,14 +190,18 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         ProcessingResult result = new ProcessingResult();
         if (successCount == 0) {
             result.setSuccess(false);
-            result.setErrorMessage("All " + mediaFiles.size() + " extracted files failed FFmpeg processing");
+            result.setErrorMessage("No media files were processed successfully in " + dir);
         } else {
             result.setFinalFile(lastFinalFile);
             result.setMediaInfo(lastMediaInfo);
             result.setSuccess(true);
-            ctx.log("FFMPEG", "Completed: " + successCount + "/" + mediaFiles.size() + " files processed");
+            ctx.log("FFMPEG", "Completed: " + successCount + "/" + toProcess.size() + " file(s) processed");
         }
         return result;
+    }
+
+    private long sizeQuietly(Path p) {
+        try { return Files.size(p); } catch (IOException e) { return 0L; }
     }
 
     // ── Single-file processing ────────────────────────────────────────────────
@@ -205,6 +243,25 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             latestDto = finalDto;
 
             symlinkService.create(finalDto.getId(), finalDto.getFilePath());
+
+            // Scrub-preview storyboard (best-effort; never fails ingestion).
+            try {
+                ctx.log("STORYBOARD", "Generating scrub-preview storyboard…");
+                storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto),
+                        msg -> ctx.log("STORYBOARD", msg));
+            } catch (Exception e) {
+                ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
+            }
+
+            // Flag new season/episode so the record resurfaces on the home rail (TV only; best-effort).
+            try {
+                EpisodeRef ref = resolveEpisodeRef(ctx, finalFile);
+                newContentTaggingService.evaluate(ctx.getRecordId(), finalDto.getId(),
+                        ref != null ? ref.season() : null, ref != null ? ref.episode() : null);
+            } catch (Exception e) {
+                ctx.logError("NEW_CONTENT", "New-content flagging failed (non-fatal): " + e.getMessage());
+            }
+
             log.info("[{}] FFmpeg processing complete — finalFile={}, mediaFileId={}",
                     ctx.getJobId(), finalFile.getFileName(), finalDto.getId());
 
@@ -311,6 +368,16 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 "mediaFileId", dto.getId(),
                 "fileName", dto.getFileName() != null ? dto.getFileName() : ""
         );
+    }
+
+    /** Total runtime in ms from the general track, falling back to the primary video track. */
+    private long resolveDurationMs(MediaFileDto dto) {
+        if (dto == null) return 0L;
+        TrackDto general = dto.getGeneralTrack();
+        if (general != null && general.getDuration() != null) return general.getDuration();
+        TrackDto video = dto.getPrimaryVideoTrack();
+        if (video != null && video.getDuration() != null) return video.getDuration();
+        return 0L;
     }
 
     // Deletes any media-file DB records pointing to the given temp directory that were
@@ -477,6 +544,12 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return sanitizeToken(detected.getLabel());
         }
         if (ctx.getSource() != null && "YOUTUBE".equalsIgnoreCase(ctx.getSource().getType())) {
+            // Use the actual streaming platform detected from the URL (Hotstar, Netflix, etc.)
+            Map<String, Object> attrs = ctx.getSource().getAttributes();
+            if (attrs != null) {
+                Object platform = attrs.get("platform");
+                if (platform instanceof String s && !s.isBlank()) return sanitizeToken(s);
+            }
             return "YOUTUBE";
         }
         return null;

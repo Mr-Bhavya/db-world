@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Custom content view for download progress notifications. Used with
+     NotificationCompat.DecoratedCustomViewStyle so the system still draws the small icon, app
+     name, time and action buttons, while we control the progress bar colour (teal) — the
+     standard NotificationCompat.setColor does NOT tint the progress bar on Android 12+/OneUI. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="2dp"
+    android:paddingBottom="4dp">
+
+    <TextView
+        android:id="@+id/dl_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textAppearance="@style/TextAppearance.Compat.Notification.Title" />
+
+    <TextView
+        android:id="@+id/dl_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:layout_marginTop="1dp"
+        android:textAppearance="@style/TextAppearance.Compat.Notification.Info" />
+
+    <ProgressBar
+        android:id="@+id/dl_progress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:max="100"
+        android:minHeight="3dp"
+        android:maxHeight="3dp"
+        android:progressTint="#009688"
+        android:progressBackgroundTint="#4D009688"
+        android:indeterminateTint="#009688" />
+</LinearLayout>

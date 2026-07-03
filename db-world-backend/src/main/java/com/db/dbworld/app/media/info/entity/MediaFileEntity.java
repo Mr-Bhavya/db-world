@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.info.entity;
 
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.media.info.entity.track.TrackEntity;
+import com.db.dbworld.app.media.storyboard.MediaFileStoryboardCleanupListener;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,7 +32,7 @@ import java.util.List;
                 columnNames = {"record_id", "file_path"}
         )
 )
-@EntityListeners(AuditingEntityListener.class)
+@EntityListeners({AuditingEntityListener.class, MediaFileStoryboardCleanupListener.class})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -82,6 +83,27 @@ public class MediaFileEntity {
 
     @Column(name = "tmdb_episode_number")
     private Integer tmdbEpisodeNumber;
+
+    // ── Scrub-preview storyboard (sprite sheet of thumbnail frames) ───────────
+    // Generated at ingest; sprite lives at {storyboards}/{id}.jpg and is served
+    // by the CDN. Null on older files that predate the feature → no preview frame.
+    @Column(name = "storyboard_interval_ms")
+    private Integer storyboardIntervalMs;   // ms between consecutive tiles
+
+    @Column(name = "storyboard_cols")
+    private Integer storyboardCols;         // tiles per row in the sprite
+
+    @Column(name = "storyboard_rows")
+    private Integer storyboardRows;         // tile rows in the sprite
+
+    @Column(name = "storyboard_tile_w")
+    private Integer storyboardTileW;        // single tile width (px)
+
+    @Column(name = "storyboard_tile_h")
+    private Integer storyboardTileH;        // single tile height (px)
+
+    @Column(name = "storyboard_count")
+    private Integer storyboardCount;        // total tiles (≤ cols*rows)
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

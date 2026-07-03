@@ -21,18 +21,18 @@ public class IngestionRequest {
 
     private String username;
     private String password;
-    private boolean urlProtected;
+    private Boolean urlProtected = false;
 
     private String fileName;
     private Long expectedSize;
 
-    private boolean extract;
+    private Boolean extract = false;
     private String extractPassword;
-    private boolean rename;
+    private Boolean rename = false;
 
     private String videoITag;
     private String audioITag;
-    private boolean onlyAudio;
+    private Boolean onlyAudio = false;
 
     /**
      * Base64-encoded .torrent file content.

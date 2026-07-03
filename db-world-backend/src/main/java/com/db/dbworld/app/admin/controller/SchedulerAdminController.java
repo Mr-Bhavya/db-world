@@ -97,8 +97,9 @@ public class SchedulerAdminController {
     /**
      * Consolidated partial-update endpoint. Accepts any combination of
      * {@code displayName} (string, "" to clear override),
-     * {@code notes} (string, "" to clear), and
-     * {@code stabilityWindowSeconds} (non-negative int).
+     * {@code notes} (string, "" to clear),
+     * {@code stabilityWindowSeconds} (non-negative int), and
+     * {@code recheckIntervalHours} (positive int, TMDB sync jobs).
      * Cron and interval each have their own dedicated endpoint above —
      * they trigger re-scheduling and deserve separate paths.
      */
@@ -116,9 +117,16 @@ public class SchedulerAdminController {
             return ApiResponse.error(HttpStatus.BAD_REQUEST,
                     "stabilityWindowSeconds must be a non-negative integer");
         }
-        log.info("Admin updating job={} settings (displayName={}, notes={}chars, stability={})",
-                jobName, displayName, notes != null ? notes.length() : 0, stability);
-        schedulerAdminService.updateSettings(jobName, displayName, notes, stability);
+        Integer recheckHours = null;
+        if (body.get("recheckIntervalHours") instanceof Number n) {
+            recheckHours = n.intValue();
+        } else if (body.containsKey("recheckIntervalHours") && body.get("recheckIntervalHours") != null) {
+            return ApiResponse.error(HttpStatus.BAD_REQUEST,
+                    "recheckIntervalHours must be a positive integer");
+        }
+        log.info("Admin updating job={} settings (displayName={}, notes={}chars, stability={}, recheckHours={})",
+                jobName, displayName, notes != null ? notes.length() : 0, stability, recheckHours);
+        schedulerAdminService.updateSettings(jobName, displayName, notes, stability, recheckHours);
         return ApiResponse.success("Settings updated for " + jobName);
     }
 

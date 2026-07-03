@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, MenuItem, Box, Typography,
+  Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography,
   CircularProgress, IconButton, Chip, Divider, Alert,
   FormControlLabel, Checkbox,
 } from '@mui/material';
@@ -10,11 +10,13 @@ import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import MovieIcon from '@mui/icons-material/Movie';
+import TvIcon from '@mui/icons-material/Tv';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { useT, getSelectMenuProps } from '@shared/theme';
+import { useT } from '@shared/theme';
 import { updateRecord, addRecordTag, removeRecordTag, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
 import { useTagDefs } from './useTagDefs';
@@ -48,7 +50,7 @@ export default function RecordEditModal({ open, record, onClose }) {
   const [hideFromRails, setHideFromRails] = useState(false);
   const searchTimer = useRef(null);
 
-  const { control, handleSubmit, watch, reset, formState: { errors } } = useForm({
+  const { control, handleSubmit, watch, reset } = useForm({
     resolver: zodResolver(createRecordSchema),
     defaultValues: { type: 'MOVIE' },
   });
@@ -136,20 +138,23 @@ export default function RecordEditModal({ open, record, onClose }) {
     <Dialog open={open} onClose={onClose}
       PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, color: T.textPrimary, width: '100%', maxWidth: 580, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, color: T.textPrimary }}>
-        Edit Record
+        Edit record
         <IconButton onClick={onClose} sx={{ color: T.textMuted }}><CloseIcon /></IconButton>
       </DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
 
           <Controller name="type" control={control} render={({ field }) => (
-            <TextField {...field} select label="Type" size="small" sx={inputSx}
-              SelectProps={{ MenuProps: getSelectMenuProps(T) }}
-              error={!!errors.type} helperText={errors.type?.message}
-              onChange={e => { field.onChange(e); setResults([]); setSelected(null); }}>
-              <MenuItem value="MOVIE">Movie</MenuItem>
-              <MenuItem value="TV_SERIES">Series</MenuItem>
-            </TextField>
+            <ToggleButtonGroup exclusive size="small" value={field.value}
+              onChange={(_, v) => { if (v) { field.onChange(v); setResults([]); setSelected(null); } }}
+              sx={{ '& .MuiToggleButton-root': {
+                flex: 1, textTransform: 'none', gap: 0.75, fontSize: 13,
+                color: T.textMuted, borderColor: T.glassBorder,
+                '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}55`,
+                  '&:hover': { bgcolor: T.tealBg } } } }}>
+              <ToggleButton value="MOVIE"><MovieIcon sx={{ fontSize: 17 }} />Movie</ToggleButton>
+              <ToggleButton value="TV_SERIES"><TvIcon sx={{ fontSize: 17 }} />Series</ToggleButton>
+            </ToggleButtonGroup>
           )} />
 
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -164,6 +169,15 @@ export default function RecordEditModal({ open, record, onClose }) {
 
           {searchError && (
             <Alert severity="error" sx={{ bgcolor: T.errorBg, color: T.error, border: `1px solid ${T.error}44`, '& .MuiAlert-icon': { color: T.error } }}>{searchError}</Alert>
+          )}
+
+          {!searching && !searchError && results.length === 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, py: 3, color: T.textFaint }}>
+              <SearchIcon sx={{ fontSize: 28 }} />
+              <Typography sx={{ fontSize: 13, color: T.textMuted, textAlign: 'center' }}>
+                {query.trim() ? 'No matches — try a different title or year.' : 'Search TMDB to change the linked title.'}
+              </Typography>
+            </Box>
           )}
 
           {results.length > 0 && (

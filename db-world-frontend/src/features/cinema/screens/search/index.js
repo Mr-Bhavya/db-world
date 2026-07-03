@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { saveUserEventInfo, searchRecord, searchStreamFile } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
-import { debounce } from 'lodash';
+import { debounce } from 'lodash-es';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
 import {

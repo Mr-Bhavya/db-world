@@ -8,6 +8,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 
 const COLS = 20;
@@ -27,6 +28,8 @@ const DIRS = { UP: { x: 0, y: -1 }, DOWN: { x: 0, y: 1 }, LEFT: { x: -1, y: 0 },
 const OPPOSITE = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT' };
 
 const Snake = () => {
+  usePageMeta('Snake — DB Games', { exact: true });
+
   const T          = useT();
   const navigate   = useNavigate();
   const canvasRef  = useRef(null);

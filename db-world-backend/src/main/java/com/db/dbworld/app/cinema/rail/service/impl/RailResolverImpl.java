@@ -74,6 +74,10 @@ public class RailResolverImpl implements RailResolver {
                     .map(RailItemEntity::getRecord);
 
             case "tag" -> {
+                List<RecordTagType> tags = parseTags(rule);
+                if (!tags.isEmpty()) {
+                    yield recordRepository.findByTags(tags, sortedPageable);
+                }
                 RecordTagType tag;
                 try {
                     tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
@@ -278,6 +282,17 @@ public class RailResolverImpl implements RailResolver {
     private Slice<Long> resolveTagIds(RailRule rule, RecordType effectiveType,
                                       Long category, Pageable pageable) {
 
+        // Multi-tag union (combined rails). No genre/type sub-filtering — these rails
+        // are simple "any of these tags, newest first" home rails.
+        List<RecordTagType> tags = parseTags(rule);
+        if (!tags.isEmpty()) {
+            if (RailSortBuilder.isTagPrioritySort(pageable.getSort())) {
+                Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+                return recordRepository.findIdsByTagsOrderByPriorityDesc(tags, unsorted);
+            }
+            return recordRepository.findIdsByTags(tags, pageable);
+        }
+
         RecordTagType tag;
         try {
             tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
@@ -400,7 +415,16 @@ public class RailResolverImpl implements RailResolver {
 
         // Explicit override on the rail takes precedence
         if (rule.getSort() != null && !rule.getSort().isBlank()) {
-            return RailSortBuilder.build(rule.getSort(), rule.getDirection());
+            Sort explicit = RailSortBuilder.build(rule.getSort(), rule.getDirection());
+            // tagPriority is the computed record_tags.priority score — only the tag
+            // resolution path can ORDER BY it. On genre/language/filter/manual rails the
+            // sentinel would leak into the SQL as `ORDER BY __TAG_PRIORITY__` and throw,
+            // so ignore it (fall back to the query's natural order) on non-tag rails.
+            if (RailSortBuilder.isTagPrioritySort(explicit) && !"tag".equals(rule.getType())) {
+                log.debug("Ignoring tagPriority sort on non-tag rail (type={})", rule.getType());
+                return Sort.unsorted();
+            }
+            return explicit;
         }
 
         // For tag-type rails, inherit the default sort from TagDefinition
@@ -411,7 +435,27 @@ public class RailResolverImpl implements RailResolver {
             }
         }
 
+        // Multi-tag (union) rails sort by the computed per-record score, newest-first.
+        if ("tag".equals(rule.getType()) && rule.getTags() != null && !rule.getTags().isEmpty()) {
+            return RailSortBuilder.build("tagPriority", "DESC");
+        }
+
         return Sort.unsorted();
+    }
+
+    /** Parses {@code rule.tags} into valid {@link RecordTagType}s; empty when none/unset. */
+    private List<RecordTagType> parseTags(RailRule rule) {
+        if (rule.getTags() == null || rule.getTags().isEmpty()) {
+            return List.of();
+        }
+        List<RecordTagType> result = new java.util.ArrayList<>();
+        for (String t : rule.getTags()) {
+            if (t == null || t.isBlank()) continue;
+            try {
+                result.add(RecordTagType.valueOf(t.toUpperCase()));
+            } catch (IllegalArgumentException ignored) { /* skip unknown */ }
+        }
+        return result;
     }
 
     /**

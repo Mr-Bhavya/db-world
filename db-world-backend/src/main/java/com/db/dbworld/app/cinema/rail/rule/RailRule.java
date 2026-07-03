@@ -17,6 +17,13 @@ public class RailRule {
      */
     private String tag;
 
+    /**
+     * Optional multi-tag union (type="tag"): records carrying ANY of these tag types.
+     * Takes precedence over {@code tag} when non-empty. Used by the combined
+     * "New Episodes & Seasons" rail (NEW_SEASON + NEW_EPISODE).
+     */
+    private List<String> tags;
+
     private Long genreId;
 
     private List<String> languages;

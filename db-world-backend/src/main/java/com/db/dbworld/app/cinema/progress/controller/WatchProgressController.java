@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.progress.controller;
 
 import com.db.dbworld.api.response.ApiResponse;
+import com.db.dbworld.app.cinema.progress.dto.ContinueWatchingDto;
 import com.db.dbworld.app.cinema.progress.service.WatchProgressService;
 import com.db.dbworld.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
@@ -40,5 +41,25 @@ public class WatchProgressController {
             @RequestParam(defaultValue = "30") int days) {
         return ApiResponse.success(
                 service.getRecentProgress(userContext.userId(), days));
+    }
+
+    /** Continue Watching tiles: resume target + progress, completed items already filtered out. */
+    @GetMapping("/continue")
+    public ApiResponse<List<ContinueWatchingDto>> continueWatching() {
+        return ApiResponse.success(service.getContinueWatching(userContext.userId()));
+    }
+
+    /** Remove a whole record from Continue Watching. */
+    @DeleteMapping("/record/{recordId}")
+    public ApiResponse<Void> removeRecord(@PathVariable Long recordId) {
+        service.removeRecord(userContext.userId(), recordId);
+        return ApiResponse.success("Removed from Continue Watching");
+    }
+
+    /** Remove a single file's saved progress. */
+    @DeleteMapping("/{fileId}")
+    public ApiResponse<Void> removeFile(@PathVariable String fileId) {
+        service.removeFile(userContext.userId(), fileId);
+        return ApiResponse.success("Progress removed");
     }
 }

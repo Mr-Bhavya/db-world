@@ -4,6 +4,7 @@ import { Box, Button, Container, Typography } from '@mui/material';
 import { ArrowBack, Refresh } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 
 const EMPTY  = null;
@@ -18,6 +19,8 @@ function checkWinner(board) {
 }
 
 const TicTacToe = () => {
+  usePageMeta('Tic Tac Toe — DB Games', { exact: true });
+
   const T        = useT();
   const navigate = useNavigate();
   const [board, setBoard]   = useState(Array(9).fill(EMPTY));

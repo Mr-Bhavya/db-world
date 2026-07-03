@@ -7,6 +7,7 @@ import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { tmdbImg } from '../api/cinemaApi';
 import { buildHybridEpisodes } from '../utils/episodeUtils';
+import { buildStoryboard } from '../utils/storyboard';
 import { resolveMediaUrl } from '@shared/services/ApiServices';
 
 /**
@@ -31,7 +32,13 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
       try {
         const res = await resolveMediaUrl(f.mediaFileId, type);
         const cdnUrl = res?.data?.cdnUrl;
-        return cdnUrl ? { ...f, streamUrl: type === 'ONLINE' ? cdnUrl : f.streamUrl, downloadUrl: type === 'DOWNLOAD' ? cdnUrl : f.downloadUrl } : f;
+        if (!cdnUrl) return f;
+        return {
+          ...f,
+          streamUrl:   type === 'ONLINE'   ? cdnUrl : f.streamUrl,
+          downloadUrl: type === 'DOWNLOAD' ? cdnUrl : f.downloadUrl,
+          storyboard:  buildStoryboard(cdnUrl, f.mediaFileId, res?.data?.mediaFile) || f.storyboard,
+        };
       } catch { return f; }
     }));
   }, [mediaInfo, allFiles]);
@@ -49,7 +56,7 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
         .filter(f => f.streamUrl)
         .map(f => ({ url: f.streamUrl, label: f.quality || f.video?.resolution || f.general?.fileName || 'Source', mediaFileId: f.mediaFileId }));
       // Series episodes (same quality as the played file); [] for movies.
-      const episodes = buildHybridEpisodes(enriched, current);
+      const episodes = buildHybridEpisodes(enriched, current, record?.tmdb?.seasons);
       // Unified hybrid player (web + native) — full-screen route over a native surface.
       navigate(Constants.DB_PLAYER_ROUTE, {
         state: {
@@ -61,6 +68,7 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
             recordId: record?.id || record?.recordId || null,
             variants,
             episodes,
+            storyboard: current.storyboard || null,
           },
         },
       });

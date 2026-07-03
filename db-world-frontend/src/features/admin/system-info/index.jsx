@@ -7,7 +7,7 @@ import {
 import {
   Monitor, Refresh, Memory, Storage, Speed,
   DeveloperBoard, CheckCircle, Warning, Error as ErrorIcon,
-  FiberManualRecord
+  FiberManualRecord, ArrowDownward, ArrowUpward, Thermostat
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -60,7 +60,7 @@ function MiniStatCard({ label, value, pctValue, color, icon }) {
             {label}
           </Typography>
         </Box>
-        <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: T.text, lineHeight: 1, mb: 0.75 }}>
+        <Typography sx={{ fontSize: String(value ?? '').length > 10 ? '0.95rem' : '1.4rem', fontWeight: 800, color: T.text, lineHeight: 1, mb: 0.75 }}>
           {value}
         </Typography>
         {pctValue != null && (
@@ -143,15 +143,15 @@ function OverviewTab({ info }) {
       </Grid>
       <Grid item xs={12} md={6}>
         <SectionTitle>Performance</SectionTitle>
+        <InfoRow label="CPU Usage"      value={perf?.cpuUsagePercent != null ? `${perf.cpuUsagePercent.toFixed(1)}%` : null} />
         <InfoRow label="CPU Load (1m)"  value={perf?.cpuLoad1Min   != null ? `${perf.cpuLoad1Min.toFixed(2)}` : null} />
         <InfoRow label="CPU Load (5m)"  value={perf?.cpuLoad5Min   != null ? `${perf.cpuLoad5Min.toFixed(2)}` : null} />
         <InfoRow label="CPU Load (15m)" value={perf?.cpuLoad15Min  != null ? `${perf.cpuLoad15Min.toFixed(2)}` : null} />
+        <InfoRow label="Net Download"   value={perf?.networkRxFormatted} />
+        <InfoRow label="Net Upload"     value={perf?.networkTxFormatted} />
         <InfoRow label="Processes"      value={perf?.processCount} />
         <InfoRow label="Running"        value={perf?.runningProcessCount} />
-        <InfoRow label="Threads"        value={perf?.threadCount} />
-        <InfoRow label="Context Switches" value={perf?.contextSwitches?.toLocaleString()} />
-        <InfoRow label="Interrupts"     value={perf?.interrupts?.toLocaleString()} />
-        <InfoRow label="Page Faults"    value={perf?.pageFaults?.toLocaleString()} />
+        <InfoRow label="Memory Load"    value={perf?.memoryLoadPercent != null ? `${perf.memoryLoadPercent.toFixed(1)}%` : null} />
         <InfoRow label="Uptime"         value={perf?.uptime} />
         {si?.ipAddresses?.length > 0 && (
           <Box sx={{ mt: 2 }}>
@@ -171,7 +171,7 @@ function OverviewTab({ info }) {
 function CpuTab({ info, quick }) {
   const T = useT();
   const cpu = quick?.cpu ?? info?.cpu;
-  const load = cpu?.loadPercentage ?? 0;
+  const load = quick?.performance?.cpuUsagePercent ?? info?.performance?.cpuUsagePercent ?? cpu?.loadPercentage ?? 0;
   const color = loadColor(load);
 
   return (
@@ -195,7 +195,7 @@ function CpuTab({ info, quick }) {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
             <Typography sx={{ fontSize: '0.78rem', color: T.text }}>Overall CPU Usage</Typography>
             <Typography sx={{ fontSize: '1.2rem', fontWeight: 800, color, fontFamily: 'monospace' }}>
-              {cpu?.loadPercentageStr ?? `${load}%`}
+              {`${Number(load).toFixed(1)}%`}
             </Typography>
           </Box>
           <LinearProgress
@@ -545,7 +545,7 @@ export default function SystemInfoPage() {
   /* ── Derived stats ── */
 
   const liveInfo = quick ?? info;
-  const cpuPct   = liveInfo?.cpu?.loadPercentage ?? 0;
+  const cpuPct   = liveInfo?.performance?.cpuUsagePercent ?? liveInfo?.cpu?.loadPercentage ?? 0;
   const memPct   = liveInfo?.memory?.usedPercent
     ? parseFloat(liveInfo.memory.usedPercent)
     : (liveInfo?.memory?.usedBytes && liveInfo?.memory?.totalBytes
@@ -554,6 +554,14 @@ export default function SystemInfoPage() {
   const diskPct  = info?.disk?.drives?.length
     ? info.disk.drives.reduce((s, d) => s + parseFloat(d.usedPercent || 0), 0) / info.disk.drives.length
     : 0;
+
+  const netRx   = liveInfo?.performance?.networkRxFormatted ?? null;
+  const netTx   = liveInfo?.performance?.networkTxFormatted ?? null;
+  const tempC   = info?.temperature?.maxTemperatureCelsius ?? info?.temperature?.highestTemperatureCelsius;
+  const tempColor = tempC == null ? '#6b7280' : tempC < 60 ? '#10b981' : tempC < 75 ? '#f59e0b' : '#ef4444';
+  const memValue = liveInfo?.memory?.usedFormatted && liveInfo?.memory?.totalFormatted
+    ? `${liveInfo.memory.usedFormatted} / ${liveInfo.memory.totalFormatted}`
+    : `${memPct.toFixed(0)}%`;
 
   const si = info?.serverInfo;
   const osLabel = info?.windows ? 'Windows' : info?.raspberryPi ? 'Raspberry Pi' : info?.linux ? 'Linux' : info?.mac ? 'macOS' : 'Unknown';
@@ -607,13 +615,15 @@ export default function SystemInfoPage() {
       {/* Live stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {[
-          { label: 'CPU',    value: `${cpuPct}%`,              pctValue: cpuPct,  color: loadColor(cpuPct),  icon: <Speed /> },
-          { label: 'Memory', value: liveInfo?.memory?.usedFormatted ?? `${memPct.toFixed(0)}%`, pctValue: memPct, color: loadColor(memPct), icon: <Memory /> },
-          { label: 'Disk',   value: info?.disk?.usedSpaceFormatted ?? `${diskPct.toFixed(0)}%`, pctValue: diskPct, color: loadColor(diskPct), icon: <Storage /> },
-          { label: 'Uptime', value: si?.uptime ?? liveInfo?.performance?.uptime ?? '—', pctValue: null, color: '#3b82f6', icon: <Monitor /> },
-          { label: 'Processes', value: liveInfo?.performance?.processCount ?? '—', pctValue: null, color: '#8b5cf6', icon: <DeveloperBoard /> },
+          { label: 'CPU',        value: `${Number(cpuPct).toFixed(1)}%`,                       pctValue: cpuPct,  color: loadColor(cpuPct),  icon: <Speed /> },
+          { label: 'Memory',     value: memValue,                                              pctValue: memPct, color: loadColor(memPct), icon: <Memory /> },
+          { label: 'Disk',       value: info?.disk?.usedSpaceFormatted ?? `${diskPct.toFixed(0)}%`, pctValue: diskPct, color: loadColor(diskPct), icon: <Storage /> },
+          { label: 'Net ↓',      value: netRx ?? '—',                                          pctValue: null, color: '#3b82f6', icon: <ArrowDownward /> },
+          { label: 'Net ↑',      value: netTx ?? '—',                                          pctValue: null, color: '#6366f1', icon: <ArrowUpward /> },
+          { label: 'Temperature', value: tempC != null ? `${tempC.toFixed(1)}°C` : '—',        pctValue: tempC != null ? Math.min(tempC, 100) : null, color: tempColor, icon: <Thermostat /> },
+          { label: 'Uptime',     value: liveInfo?.performance?.uptime ?? si?.uptime ?? '—',    pctValue: null, color: '#8b5cf6', icon: <Monitor /> },
         ].map((s) => (
-          <Grid item xs={6} sm={4} md={2.4} key={s.label}>
+          <Grid item xs={6} sm={4} md={3} lg={12/7} key={s.label}>
             <MiniStatCard {...s} />
           </Grid>
         ))}

@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -52,7 +53,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         log.debug("[{}] download uri={} videoITag={} audioITag={} onlyAudio={}",
                 jobId, ctx.getRequest().getUri(),
                 ctx.getRequest().getVideoITag(), ctx.getRequest().getAudioITag(),
-                ctx.getRequest().isOnlyAudio());
+                Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio()));
         AtomicBoolean cancellation = new AtomicBoolean(false);
         cancellationFlags.put(jobId, cancellation);
 
@@ -65,7 +66,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             String formatSelector = buildFormatSelector(
                     ctx.getRequest().getVideoITag(),
                     ctx.getRequest().getAudioITag(),
-                    ctx.getRequest().isOnlyAudio());
+                    Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio()));
             log.info("[{}] yt-dlp starting — uri={}, format={}, tempDir={}",
                     jobId, ctx.getRequest().getUri(), formatSelector, tempDir);
             ctx.log("YTDLP", "Running yt-dlp for: " + ctx.getRequest().getUri());
@@ -120,7 +121,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         String uri      = ctx.getRequest().getUri();
         String videoTag = ctx.getRequest().getVideoITag();
         String audioTag = ctx.getRequest().getAudioITag();
-        boolean onlyAudio = ctx.getRequest().isOnlyAudio();
+        boolean onlyAudio = Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio());
 
         List<String> cmd = new ArrayList<>();
 
@@ -228,6 +229,10 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         private final TrackingService         trackingService;
         private final ObjectMapper            objectMapper;
 
+        // Cumulative bytes from completed streams (video done, audio starting)
+        private final AtomicLong    committedBytes = new AtomicLong(0);
+        private final AtomicInteger streamCount    = new AtomicInteger(1);
+
         IngestionProgressProcessor(
                 IngestionContext ctx,
                 AtomicReference<String> capturedFilename,
@@ -250,7 +255,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             if (line == null || line.isBlank()) return;
 
             // Progress JSON from --progress-template %(progress)j --newline
-            if (line.startsWith("{") && line.contains("download")) {
+            if (line.startsWith("{") && line.contains("\"status\"")) {
                 parseProgress(line);
                 return;
             }
@@ -277,26 +282,52 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             try {
                 JsonNode node = objectMapper.readTree(json);
 
+                String status = node.has("status") ? node.get("status").asText("") : "";
+
                 Long   dl    = longOrNull(node, "downloaded_bytes");
                 Long   tot   = longOrNull(node, "total_bytes");
                 if (tot == null) tot = longOrNull(node, "total_bytes_estimate");
                 Double speed = doubleOrNull(node, "speed");
                 Long   eta   = longOrNull(node, "eta");
 
+                // Detect when a new stream starts: dl resets to near-zero while we had
+                // already downloaded substantial data (video done, audio starting).
+                if ("downloading".equals(status)
+                        && dl != null && downloadedBytes.get() > 1_000_000L
+                        && dl < downloadedBytes.get() / 2) {
+                    long prevBytes = totalBytes.get() > 0 ? totalBytes.get() : downloadedBytes.get();
+                    committedBytes.addAndGet(prevBytes);
+                    int nextStream = streamCount.incrementAndGet();
+                    ctx.log("YTDLP", "Stream " + (nextStream - 1) + " complete ("
+                            + formatBytes(prevBytes) + "), downloading stream " + nextStream + "…");
+                }
+
                 if (dl  != null) downloadedBytes.set(dl);
                 if (tot != null) totalBytes.set(tot);
 
-                long dlv  = downloadedBytes.get();
-                long totv = totalBytes.get();
-                if (totv > 0) {
+                long dlv  = committedBytes.get() + downloadedBytes.get();
+                long totv = committedBytes.get() + totalBytes.get();
+
+                // Update progress bar even when total is unknown (totv=0 means unknown total)
+                if (dlv > 0 && "downloading".equals(status)) {
                     trackingService.updateProgress(ctx.getJobId(),
                             ProgressSnapshot.downloading(dlv, totv,
                                     speed != null ? speed : 0.0,
                                     eta   != null ? eta   : 0L));
                 }
+
+                if ("finished".equals(status) && dl != null) {
+                    ctx.log("YTDLP", "Downloaded " + formatBytes(committedBytes.get() + dl));
+                }
             } catch (Exception ignored) {
                 // best-effort — malformed progress line is non-fatal
             }
+        }
+
+        private static String formatBytes(long bytes) {
+            if (bytes >= 1_000_000_000L) return String.format("%.1f GB", bytes / 1.0e9);
+            if (bytes >= 1_000_000L)     return String.format("%.1f MB", bytes / 1.0e6);
+            return String.format("%.0f KB", bytes / 1.0e3);
         }
 
         private Long   longOrNull(JsonNode n, String f)   { JsonNode v = n.get(f); return (v == null || v.isNull()) ? null : v.asLong(); }

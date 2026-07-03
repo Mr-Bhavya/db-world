@@ -90,4 +90,17 @@ public class RecordEntity implements Serializable {
     @Builder.Default
     private boolean hideFromRails = false;
 
+    /**
+     * When this record last gained genuinely new content (a season/episode it didn't
+     * have before), set at ingest. Drives the NEW_SEASON/NEW_EPISODE tag strategies
+     * (30-day window) so an old show resurfaces on rails when a new season arrives.
+     * Re-uploads / quality variants of existing episodes do NOT touch this.
+     */
+    @Column(name = "new_content_at")
+    private Instant newContentAt;
+
+    /** "NEW_SEASON" or "NEW_EPISODE" — the kind of the most recent new-content event. */
+    @Column(name = "new_content_kind", length = 20)
+    private String newContentKind;
+
 }

@@ -9,6 +9,7 @@ import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public interface CatalogService {
             RecordType type,
             Long tmdbId,
             Integer year,
+            SyncStatus status,
             Pageable pageable
     );
 

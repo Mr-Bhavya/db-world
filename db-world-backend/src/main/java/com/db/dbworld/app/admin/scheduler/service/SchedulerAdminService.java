@@ -44,10 +44,12 @@ public class SchedulerAdminService {
                     .enabled(true).displayOrder(0).build(),
             SchedulerJobConfigEntity.builder().jobId("TmdbMovieSync")
                     .jobType(JobType.CRON).cronExpression("0 0 2 * * *")
-                    .timezone("Asia/Kolkata").enabled(true).displayOrder(1).build(),
+                    .timezone("Asia/Kolkata").recheckIntervalHours(20)
+                    .enabled(true).displayOrder(1).build(),
             SchedulerJobConfigEntity.builder().jobId("TmdbTvSync")
                     .jobType(JobType.CRON).cronExpression("0 10 2 * * *")
-                    .timezone("Asia/Kolkata").enabled(true).displayOrder(2).build(),
+                    .timezone("Asia/Kolkata").recheckIntervalHours(20)
+                    .enabled(true).displayOrder(2).build(),
             SchedulerJobConfigEntity.builder().jobId("PersonSyncScheduler")
                     .jobType(JobType.CRON).cronExpression("0 0 3 * * *")
                     .timezone("Asia/Kolkata").enabled(true).displayOrder(3).build(),
@@ -206,6 +208,7 @@ public class SchedulerAdminService {
                     if (c.getCronExpression() != null)        m.put("cronExpression",        c.getCronExpression());
                     if (c.getIntervalSeconds() != null)       m.put("intervalSeconds",       c.getIntervalSeconds());
                     if (c.getStabilityWindowSeconds() != null) m.put("stabilityWindowSeconds", c.getStabilityWindowSeconds());
+                    if (c.getRecheckIntervalHours() != null)   m.put("recheckIntervalHours",   c.getRecheckIntervalHours());
                     if (c.getTimezone() != null)              m.put("timezone",              c.getTimezone());
                     if (c.getNotes() != null && !c.getNotes().isBlank()) m.put("notes", c.getNotes());
                     m.put("enabled",         c.isEnabled());
@@ -296,7 +299,8 @@ public class SchedulerAdminService {
     public void updateSettings(String jobId,
                                String displayName,
                                String notes,
-                               Integer stabilityWindowSeconds) {
+                               Integer stabilityWindowSeconds,
+                               Integer recheckIntervalHours) {
         SchedulerJobConfigEntity config = configRepo.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown job: " + jobId));
 
@@ -313,12 +317,19 @@ public class SchedulerAdminService {
             }
             config.setStabilityWindowSeconds(stabilityWindowSeconds);
         }
+        if (recheckIntervalHours != null) {
+            if (recheckIntervalHours <= 0) {
+                throw new IllegalArgumentException("recheckIntervalHours must be > 0");
+            }
+            config.setRecheckIntervalHours(recheckIntervalHours);
+        }
         configRepo.save(config);
-        log.info("Job {} settings updated (displayName={}, notes={}chars, stabilityWindow={}s)",
+        log.info("Job {} settings updated (displayName={}, notes={}chars, stabilityWindow={}s, recheckIntervalHours={})",
                 jobId,
                 config.getDisplayName(),
                 config.getNotes() != null ? config.getNotes().length() : 0,
-                config.getStabilityWindowSeconds());
+                config.getStabilityWindowSeconds(),
+                config.getRecheckIntervalHours());
     }
 
     /** Reads the stability window for a job, falling back to {@code defaultSec} if unset. */

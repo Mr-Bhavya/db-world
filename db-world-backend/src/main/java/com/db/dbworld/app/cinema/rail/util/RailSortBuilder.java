@@ -28,16 +28,22 @@ public class RailSortBuilder {
     public static final String TAG_PRIORITY_SENTINEL = "__TAG_PRIORITY__";
 
     /**
-     * Maps logical field name → JPQL property path.
+     * Maps logical field name → JPQL property path. These are the canonical fields
+     * exposed to admins (drives the editor dropdown via {@link #availableFields()}).
      * Add new fields here as needed.
      */
     private static final Map<String, String> FIELD_MAP = Map.ofEntries(
             // TmdbEntity fields (require join path)
-            Map.entry("popularity",   "tmdb.popularity"),
-            Map.entry("voteAverage",  "tmdb.voteAverage"),
-            Map.entry("voteCount",    "tmdb.voteCount"),
-            Map.entry("releaseDate",  "tmdb.releaseDate"),
-            Map.entry("firstAirDate", "tmdb.firstAirDate"),
+            Map.entry("popularity",     "tmdb.popularity"),
+            Map.entry("voteAverage",    "tmdb.voteAverage"),
+            Map.entry("voteCount",      "tmdb.voteCount"),
+            // Weighted "Top rated" (Bayesian) score, denormalised on TmdbEntity.
+            Map.entry("topRated",       "tmdb.weightedRating"),
+            // Combined release/air date (movies use releaseDate, series firstAirDate) so
+            // mixed Home rails sort by date correctly. Backed by TmdbEntity.primaryDate.
+            Map.entry("releaseAirDate", "tmdb.primaryDate"),
+            // When TMDB data for the title last changed (manual refresh or batch sync).
+            Map.entry("tmdbUpdatedAt",  "tmdb.updatedAt"),
 
             // RecordEntity fields (direct)
             Map.entry("createdAt", "createdAt"),
@@ -47,6 +53,16 @@ public class RailSortBuilder {
 
             // Tag-priority sort (sentinel — handled specially by RailResolverImpl)
             Map.entry("tagPriority", TAG_PRIORITY_SENTINEL)
+    );
+
+    /**
+     * Back-compat aliases for sort values stored in existing rails / tag definitions
+     * before {@code releaseDate}/{@code firstAirDate} were merged into the combined
+     * {@code releaseAirDate}. Resolved by {@link #build} but NOT exposed in the dropdown.
+     */
+    private static final Map<String, String> LEGACY_ALIASES = Map.ofEntries(
+            Map.entry("releaseDate",  "releaseAirDate"),
+            Map.entry("firstAirDate", "releaseAirDate")
     );
 
     /**
@@ -63,7 +79,10 @@ public class RailSortBuilder {
             return Sort.unsorted();
         }
 
-        String resolvedPath = FIELD_MAP.getOrDefault(field, field);
+        // Resolve legacy aliases (e.g. releaseDate → releaseAirDate) to the canonical
+        // field first, then to its JPQL path.
+        String canonical    = LEGACY_ALIASES.getOrDefault(field, field);
+        String resolvedPath = FIELD_MAP.getOrDefault(canonical, canonical);
 
         Sort.Direction dir = "ASC".equalsIgnoreCase(direction)
                 ? Sort.Direction.ASC

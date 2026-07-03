@@ -5,13 +5,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavig
 import Login from '@features/auth/Login';
 import LogOut from '@features/auth/LogOut';
 import Registration from '@features/users/registration';
-import Weather from '@features/weather/weather';
-import Games from '@features/games/Games';
-import TicTacToe from '@features/games/TicTacToe';
-import Snake from '@features/games/Snake';
-import MemoryMatch from '@features/games/MemoryMatch';
-import Game2048 from '@features/games/Game2048';
-import Home from '@shared/components/layout/Home';
+import Home from '@shared/components/layout/home/Home';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import PasswordManagment from '@features/password-manager/PasswordManagement';
 import GeneratePassword from '@features/password-manager/GeneratePassword';
@@ -24,7 +18,7 @@ import { AuthProvider } from '@features/auth/context/Authentication';
 import PrivateRoute from '@features/auth/PrivateRoute';
 import BackButtonHandler from '@platform/android/BackButtonHandler.js';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Box, createTheme, ThemeProvider, Typography, useMediaQuery } from '@mui/material';
+import { Box, createTheme, ThemeProvider, useMediaQuery } from '@mui/material';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -35,6 +29,7 @@ import { SnackbarProvider } from 'notistack';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
+import AppLoader from '@shared/components/ui/AppLoader';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,7 +50,6 @@ const LazyAdminDashboard       = lazy(() => import('@features/admin/dashboard/Ad
 const LazyActivityCenter       = lazy(() => import('@features/admin/activity-center'));
 const LazyMediaFilesManagement = lazy(() => import('@features/admin/mediafiles'));
 const LazyRequestsAdmin        = lazy(() => import('@features/admin/requests'));
-const LazyTmdbSyncManager      = lazy(() => import('@features/admin/tmdb-sync'));
 const LazyIngestionPage        = lazy(() => import('@features/admin/ingestion'));
 const LazyServerInfo           = lazy(() => import('@features/admin/system-info'));
 const LazyRedisManager         = lazy(() => import('@features/admin/redis'));
@@ -74,56 +68,15 @@ const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-que
 const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybrid/HybridPlayerPage.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
 
-// Loading Component
-const LoadingFallback = () => (
-   <Box
-      sx={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1300,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        backdropFilter: 'blur(2px)',
-      }}
-    >
-      {/* Spinner */}
-      <Box
-        sx={{
-          width: 52,
-          height: 52,
-          borderRadius: '50%',
-          border: '4px solid rgba(255,255,255,0.2)',
-          borderTopColor: 'primary.main',
-          animation: 'spin 0.9s linear infinite',
-          mb: 2,
-        }}
-      />
+// Non-critical standalone routes — split out of the initial (cinema) bundle.
+// Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
+const Weather     = lazy(() => import('@features/weather/weather'));
+const Games       = lazy(() => import('@features/games/Games'));
+const TicTacToe   = lazy(() => import('@features/games/TicTacToe'));
+const Snake       = lazy(() => import('@features/games/Snake'));
+const MemoryMatch = lazy(() => import('@features/games/MemoryMatch'));
+const Game2048    = lazy(() => import('@features/games/Game2048'));
 
-      <Typography
-        variant="body2"
-        sx={{
-          color: 'rgba(255,255,255,0.85)',
-          letterSpacing: 1,
-          textTransform: 'uppercase',
-        }}
-      >
-        Loading, please wait...
-      </Typography>
-
-      {/* Keyframes */}
-      <style>
-        {`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}
-      </style>
-    </Box>
-  );
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -152,16 +105,7 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.reloading) {
-      const isDark = localStorage.getItem('dbworld-theme') !== 'light';
-      return (
-        <div style={{ minHeight: '100vh', background: isDark ? '#000000' : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid rgba(13,148,136,0.25)', borderTopColor: '#0d9488', animation: 'spin 0.9s linear infinite' }} />
-          <div style={{ color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontSize: '0.875rem', letterSpacing: 0.5 }}>
-            Updating to the latest version…
-          </div>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      );
+      return <AppLoader message="Updating to the latest version…" />;
     }
 
     if (this.state.hasError) {
@@ -262,6 +206,10 @@ const routeConfig = {
 const ThemedApp = () => {
   const { mode } = useThemeMode();
   const [loading, setLoading] = useState(true);
+  // Guarantee the boot loader runs at least one full animation loop (~2.6s: the
+  // character build-in + one white-shimmer sweep) before we swap in the app, even
+  // when init resolves faster — so the loader never flashes/cuts off mid-animation.
+  const [minElapsed, setMinElapsed] = useState(false);
   const muiTheme = useMemo(() => buildMuiTheme(mode), [mode]);
   const location = useLocation();
   const navigate = useNavigate();
@@ -343,13 +291,27 @@ const ThemedApp = () => {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <ThemeProvider theme={muiTheme}>
-        <CssBaseline />
-        <LoadingFallback />
-      </ThemeProvider>
-    );
+  useEffect(() => {
+    const t = setTimeout(() => setMinElapsed(true), 2800);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Fade out + remove the pre-React boot loader (lives in index.html, outside
+  // #root) once the app is ready. The boot loader is the ONLY loader on cold
+  // start — it plays its build-in + shimmer once, then we hand off to the app,
+  // so there's no second in-app loader restarting the animation.
+  useEffect(() => {
+    if (loading || !minElapsed) return undefined;
+    const el = document.getElementById('app-loader');
+    if (!el) return undefined;
+    el.classList.add('dbl-hide');
+    const t = setTimeout(() => el.remove(), 500);
+    return () => clearTimeout(t);
+  }, [loading, minElapsed]);
+
+  // Cold start: render nothing while the boot overlay is up (it covers the screen).
+  if (loading || !minElapsed) {
+    return null;
   }
 
   return (
@@ -383,7 +345,7 @@ const ThemedApp = () => {
             >
             {/* Hide app chrome on full-screen player routes so the video isn't blocked. */}
             {!location.pathname.includes('/player') && <Header />}
-            <Suspense fallback={<LoadingFallback />}>
+            <Suspense fallback={<AppLoader variant="bar" />}>
               <Routes location={background || location}>
                 {renderRoutes(routeConfig.public)}
                 <Route element={<PrivateRoute allowedRoles={[Constants.VIEWER_USER_ROLE, Constants.ADMIN_USER_ROLE, Constants.OWNER_USER_ROLE]} />}>
@@ -409,7 +371,8 @@ const ThemedApp = () => {
                     <Route path="media-requests"   element={<Navigate to="../requests?tab=media" replace />} />
                     <Route path="catalog-requests" element={<Navigate to="../requests?tab=catalog" replace />} />
                     <Route path="tag-management" element={<LazyTagManagement />} />
-                    <Route path="tmdb-sync"     element={<LazyTmdbSyncManager />} />
+                    {/* TMDB Sync merged into Records — redirect old links there */}
+                    <Route path="tmdb-sync"     element={<Navigate to="../records" replace />} />
                     <Route path="ingestion"     element={<LazyIngestionPage />} />
                     <Route path="system-info"   element={<LazyServerInfo />} />
                     <Route path="logs"          element={<LazyLogViewer />} />

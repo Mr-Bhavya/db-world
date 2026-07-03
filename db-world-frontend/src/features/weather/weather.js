@@ -12,6 +12,7 @@ import CommonServices from '@shared/services/CommonServices';
 import Map from './Map';
 import { toast } from '@shared/components/ui/Toast';
 import { useT, getFieldSx, getGlowProps } from '@shared/theme';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 const WEATHER_ICONS = {
@@ -47,6 +48,8 @@ const StatCard = ({ emoji, label, value, unit }) => {
 };
 
 function Weather() {
+  usePageMeta('Weather', { description: 'Live local weather, current conditions and forecast on DB World.' });
+
   const T     = useT();
   const FIELD = getFieldSx(T);
   const GLOW  = getGlowProps(T);

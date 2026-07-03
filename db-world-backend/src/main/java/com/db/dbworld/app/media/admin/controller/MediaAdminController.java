@@ -1,5 +1,7 @@
 package com.db.dbworld.app.media.admin.controller;
 
+import com.db.dbworld.app.media.delete.MediaFileDeleteResult;
+import com.db.dbworld.app.media.delete.MediaFileDeletionService;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.dto.MediaFileStatsDto;
 import com.db.dbworld.app.media.info.dto.MediaFileSummaryDto;
@@ -28,8 +30,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MediaAdminController {
 
-    private final MediaInfoService    mediaInfoService;
-    private final SymlinkService      symlinkService;
+    private final MediaInfoService        mediaInfoService;
+    private final SymlinkService          symlinkService;
+    private final MediaFileDeletionService deletionService;
 
     /* â”€â”€ File info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
@@ -59,30 +62,33 @@ public class MediaAdminController {
     }
 
     @DeleteMapping("/files/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteMediaFile(
+    public ResponseEntity<ApiResponse<MediaFileDeleteResult>> deleteMediaFile(
             @PathVariable String id,
             @RequestParam(defaultValue = "false") boolean purge) {
-        mediaInfoService.getById(id).ifPresent(dto -> {
-            if (purge) deleteActualFile(dto.getFilePath(), id);
-            symlinkService.deleteById(id);
-            mediaInfoService.deleteByFilePath(dto.getFilePath());
-        });
-        return ResponseEntity.ok(ApiResponse.success(purge ? "Permanently deleted" : "Removed from library"));
+        MediaFileDeleteResult result = deletionService.deleteById(id, purge);
+        return ResponseEntity.ok(ApiResponse.success(deleteMessage(result, purge), result));
     }
 
     @DeleteMapping("/files")
-    public ResponseEntity<ApiResponse<Void>> deleteMediaFiles(
+    public ResponseEntity<ApiResponse<List<MediaFileDeleteResult>>> deleteMediaFiles(
             @RequestBody List<String> ids,
             @RequestParam(defaultValue = "false") boolean purge) {
-        for (String id : ids) {
-            mediaInfoService.getById(id).ifPresent(dto -> {
-                if (purge) deleteActualFile(dto.getFilePath(), id);
-                symlinkService.deleteById(id);
-                mediaInfoService.deleteByFilePath(dto.getFilePath());
-            });
-        }
-        return ResponseEntity.ok(ApiResponse.success(
-                ids.size() + (purge ? " files permanently deleted" : " files removed from library")));
+        List<MediaFileDeleteResult> results = ids.stream()
+                .map(id -> deletionService.deleteById(id, purge))
+                .toList();
+        long withWarnings = results.stream().filter(r -> !r.clean()).count();
+        String verb = purge ? "permanently deleted" : "removed from library";
+        String msg  = withWarnings == 0
+                ? ids.size() + " file(s) " + verb
+                : ids.size() + " file(s) " + verb + " (" + withWarnings + " with warnings — check logs)";
+        return ResponseEntity.ok(ApiResponse.success(msg, results));
+    }
+
+    /** Honest one-line summary for a single delete: reflects any partial failure. */
+    private String deleteMessage(MediaFileDeleteResult r, boolean purge) {
+        if (!r.found())  return "Media file not found";
+        if (r.clean())   return purge ? "Permanently deleted" : "Removed from library";
+        return "Deleted with warnings: " + String.join("; ", r.warnings());
     }
 
     @PatchMapping("/files/{id}/episode")
@@ -99,8 +105,8 @@ public class MediaAdminController {
         int removed = 0;
         for (MediaFileDto dto : all) {
             if (dto.getFilePath() != null && !Files.exists(Path.of(dto.getFilePath()))) {
-                symlinkService.deleteById(dto.getId());
-                mediaInfoService.deleteByFilePath(dto.getFilePath());
+                // File already gone → keep-file mode; this also clears the symlink + storyboard.
+                deletionService.deleteById(dto.getId(), false);
                 removed++;
             }
         }
@@ -136,20 +142,4 @@ public class MediaAdminController {
         return ResponseEntity.ok(ApiResponse.success("Symlink rebuild completed", result));
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    private void deleteActualFile(String filePath, String id) {
-        if (filePath == null || filePath.isBlank()) return;
-        try {
-            // With the WatchService retired and the reconciliation scan as the
-            // single filesystem→DB writer, there's no concurrent watcher event
-            // for this delete; the next scan tick simply sees no diff. The
-            // deleteByFilePath idempotency safety net (27bfb35) stays in place
-            // for any other concurrent paths but isn't load-bearing here.
-            boolean deleted = Files.deleteIfExists(Path.of(filePath));
-            log.info("[ADMIN] File {} (id={}) deleted from disk: {}", filePath, id, deleted);
-        } catch (Exception e) {
-            log.warn("[ADMIN] Could not delete file {} (id={}): {}", filePath, id, e.getMessage());
-        }
-    }
 }

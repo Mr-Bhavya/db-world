@@ -30,19 +30,19 @@ import { getUserId } from './helpers';
 
 const SECTION_IDS = {
   overview: 'rd-overview',
-  watch:    'rd-watch',
-  seasons:  'rd-seasons',
-  cast:     'rd-cast',
-  gallery:  'rd-gallery',
-  reviews:  'rd-reviews',
-  related:  'rd-related',
+  watch: 'rd-watch',
+  seasons: 'rd-seasons',
+  cast: 'rd-cast',
+  gallery: 'rd-gallery',
+  reviews: 'rd-reviews',
+  related: 'rd-related',
 };
 
 const actionMap = {
   watchlisted: { add: addWatchlist, remove: removeWatchlist },
-  liked:       { add: addLike,      remove: removeLike      },
-  loved:       { add: addLove,      remove: removeLove      },
-  watched:     { add: addWatched,   remove: removeWatched   },
+  liked: { add: addLike, remove: removeLike },
+  loved: { add: addLove, remove: removeLove },
+  watched: { add: addWatched, remove: removeWatched },
 };
 
 /**
@@ -156,14 +156,21 @@ export default function RecordDetailContent({
   }, [userId, toggleMutation, navigate, location]);
 
   // ── First trailer ──────────────────────────────────────────────────────
+
   const firstTrailer = useMemo(() => {
     const videos = record?.tmdb?.videos ?? [];
-    return videos.find((v) => (v.type === 'Trailer' || v.type === 'Teaser') && v.site === 'YouTube') ?? null;
-  }, [record]);
+    return videos.find((v) => {
+      const type = v.type?.toUpperCase();
+      const site = v.site?.toUpperCase();
+      return (type === 'TRAILER' || type === 'TEASER') && site === 'YOUTUBE';
+    }) ?? null;
+  }, [record])
 
-  // ── Page meta — page mode only, not modal (modal preserves underlying URL meta) ──
+
+  // ── Page meta ──
   useEffect(() => {
-    if (inModal || !record) return;
+    if (!record) return;
+    const prev = document.title;
     const tmdb = record.tmdb ?? {};
     const isMovie = record.type === 'MOVIE';
     const year = isMovie ? tmdb.releaseDate?.slice(0, 4) : tmdb.firstAirDate?.slice(0, 4);
@@ -177,23 +184,25 @@ export default function RecordDetailContent({
 
     document.title = `${titleStr} — DB Cinema`;
 
-    const setMeta = (attr, value, content) => {
-      let el = document.querySelector(`meta[${attr}="${value}"]`);
-      if (!el) { el = document.createElement('meta'); el.setAttribute(attr, value); document.head.appendChild(el); }
-      el.setAttribute('content', content);
-    };
-    setMeta('name', 'description', description);
-    setMeta('property', 'og:title', titleStr);
-    setMeta('property', 'og:description', description);
-    setMeta('property', 'og:image', image);
-    setMeta('property', 'og:url', window.location.href);
-    setMeta('property', 'og:type', isMovie ? 'video.movie' : 'video.tv_show');
-    setMeta('name', 'twitter:card', 'summary_large_image');
-    setMeta('name', 'twitter:title', titleStr);
-    setMeta('name', 'twitter:description', description);
-    setMeta('name', 'twitter:image', image);
+    if (!inModal) {
+      const setMeta = (attr, value, content) => {
+        let el = document.querySelector(`meta[${attr}="${value}"]`);
+        if (!el) { el = document.createElement('meta'); el.setAttribute(attr, value); document.head.appendChild(el); }
+        el.setAttribute('content', content);
+      };
+      setMeta('name', 'description', description);
+      setMeta('property', 'og:title', titleStr);
+      setMeta('property', 'og:description', description);
+      setMeta('property', 'og:image', image);
+      setMeta('property', 'og:url', window.location.href);
+      setMeta('property', 'og:type', isMovie ? 'video.movie' : 'video.tv_show');
+      setMeta('name', 'twitter:card', 'summary_large_image');
+      setMeta('name', 'twitter:title', titleStr);
+      setMeta('name', 'twitter:description', description);
+      setMeta('name', 'twitter:image', image);
+    }
 
-    return () => { document.title = 'DB Cinema'; };
+    return () => { document.title = prev; };
   }, [record, inModal]);
 
   // ── Compose section list (Seasons only for TV) ─────────────────────────
@@ -202,12 +211,12 @@ export default function RecordDetailContent({
   const isTv = record?.type === 'TV_SERIES';
   const sectionList = useMemo(() => [
     { id: SECTION_IDS.overview, label: 'Overview' },
-    { id: SECTION_IDS.watch,    label: 'Watch' },
+    { id: SECTION_IDS.watch, label: 'Watch' },
     ...(isTv ? [{ id: SECTION_IDS.seasons, label: 'Seasons' }] : []),
-    { id: SECTION_IDS.cast,     label: 'Cast & Crew' },
-    { id: SECTION_IDS.gallery,  label: 'Gallery' },
-    { id: SECTION_IDS.reviews,  label: 'Reviews' },
-    { id: SECTION_IDS.related,  label: 'More Like This' },
+    { id: SECTION_IDS.cast, label: 'Cast & Crew' },
+    { id: SECTION_IDS.gallery, label: 'Gallery' },
+    { id: SECTION_IDS.reviews, label: 'Reviews' },
+    { id: SECTION_IDS.related, label: 'More Like This' },
   ], [isTv]);
 
   // Use native scrollIntoView so the browser picks the nearest scrolling
@@ -303,16 +312,25 @@ export default function RecordDetailContent({
   }
 
   return (
-    <Box ref={contentRef} sx={{ bgcolor: surface }}>
+    <Box
+      ref={contentRef}
+      sx={{
+        bgcolor: surface,
+        // Gentle fade-in so the full record eases over the loading preview
+        // instead of popping in.
+        animation: 'rdContentIn 0.4s ease both',
+        '@keyframes rdContentIn': { from: { opacity: 0 }, to: { opacity: 1 } },
+      }}
+    >
       <Hero
         record={record}
         interaction={currentInteraction}
         onToggle={handleToggle}
-        interactionLoading={toggleMutation.isPending}
         onPlayTrailer={firstTrailer ? () => setTrailerVideo(firstTrailer) : null}
         onWatchClick={scrollToWatch}
         onBack={inModal ? onClose : undefined}
         inModal={inModal}
+        preview={preview}
       />
 
       <PillNav sections={sectionList} scrollRoot={scrollRoot} stickyOffset={stickyOffset} />

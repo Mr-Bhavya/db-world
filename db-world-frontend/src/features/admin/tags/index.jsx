@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, Chip, CircularProgress, LinearProgress,
   IconButton, Tooltip, Select, MenuItem, Skeleton, useTheme, useMediaQuery,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, Checkbox,
-  Alert, Tabs, Tab, Switch, FormControl, InputLabel, Divider,
+  Alert, Tabs, Tab, Switch, FormControl, InputLabel, Divider, FormHelperText,
 } from '@mui/material';
 import RefreshIcon            from '@mui/icons-material/Refresh';
 import SyncIcon               from '@mui/icons-material/Sync';
@@ -47,14 +47,37 @@ const RULE_TYPES  = [
   { value: 'becauseYouWatched', label: 'Because You Watched' },
 ];
 const BLANK_RULE = { type: 'tag', tag: 'TRENDING', genreId: null, languages: [], field: '', value: '', recordType: '', sort: 'popularity', direction: 'DESC' };
-const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], rule: { ...BLANK_RULE } };
+const BLANK_RAIL = { title: '', priority: 0, limitSize: 20, infiniteScroll: true, active: true, pageTypes: ['HOME'], displayType: '', imageVariant: '', rule: { ...BLANK_RULE } };
 
-// Sub-tab keys for the Rails Tab. ALL = rails configured for >1 page.
+// Which image the cards use. '' = Auto (per display-type default).
+const IMAGE_VARIANTS = [
+  { value: '',             label: 'Auto' },
+  { value: 'WITH_TEXT',    label: 'With text (title art)' },
+  { value: 'WITHOUT_TEXT', label: 'Without text (clean)' },
+];
+
+// Card display types selectable per rail. '' = Auto (client derives from rule
+// type — continueWatching/person — else responsive default: mobile poster / desktop 16:9).
+const DISPLAY_TYPES = [
+  { value: '',            label: 'Auto (default)' },
+  { value: 'standard',    label: 'Standard — 16:9 (poster on mobile)' },
+  { value: 'landscape',   label: 'Landscape — 16:9 (all screens)' },
+  { value: 'wide',        label: 'Wide — 16:9' },
+  { value: 'poster',      label: 'Poster' },
+  { value: 'posterPlain', label: 'Poster (no title)' },
+  { value: 'prime',       label: 'Prime' },
+  { value: 'jumbo',       label: 'Jumbo' },
+  { value: 'top10',       label: 'Top 10 (ranked)' },
+  { value: 'billboard',   label: 'Billboard' },
+];
+
+// Sub-tab keys for the Rails Tab. A rail appears under EVERY tab its pageTypes
+// includes (a HOME+SERIES rail shows under both Home and Series) — there's no
+// separate "All" bucket; multi-page rails are driven purely by their pageTypes.
 const RAIL_SCOPE_TABS = [
   { key: 'HOME',   label: 'Home'   },
   { key: 'MOVIES', label: 'Movies' },
   { key: 'SERIES', label: 'Series' },
-  { key: 'ALL',    label: 'All'    },
 ];
 
 /** Returns the rail's pageTypes array (or empty when missing). */
@@ -62,11 +85,9 @@ function railPageTypes(rail) {
   return Array.isArray(rail?.pageTypes) ? rail.pageTypes : [];
 }
 
-/** Which sub-tab a rail belongs to: its single page, or ALL if it spans more than one. */
-function railScopeKey(rail) {
-  const pages = railPageTypes(rail);
-  if (pages.length > 1) return 'ALL';
-  return pages[0] ?? 'HOME';
+/** True if the rail is configured to appear on the given page (sub-tab). */
+function railOnPage(rail, page) {
+  return railPageTypes(rail).includes(page);
 }
 
 // ── Pagination bar ────────────────────────────────────────────────────────────
@@ -417,17 +438,21 @@ function TagRecordTable({ tagType }) {
 
 // ── Tag definitions panel ─────────────────────────────────────────────────────
 const SORT_FIELD_LABELS = {
-  tagPriority: 'tagPriority ★ (computed score)',
-  popularity: 'popularity',
-  voteAverage: 'voteAverage',
-  voteCount: 'voteCount',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt',
-  releaseDate: 'releaseDate',
-  firstAirDate: 'firstAirDate',
-  name: 'name',
-  id: 'id',
+  tagPriority:    'Smart ranking (tag score) ★',
+  topRated:       'Top rated (weighted)',
+  popularity:     'Popularity',
+  voteAverage:    'Rating (TMDB average)',
+  voteCount:      'Vote count',
+  releaseAirDate: 'Release / air date',
+  tmdbUpdatedAt:  'Last TMDB update',
+  createdAt:      'Date added',
+  updatedAt:      'Last edited',
+  name:           'Title (A–Z)',
+  id:             'Record ID',
 };
+// Pretty label for a sort field, falling back to the raw key for anything unmapped
+// (e.g. a legacy releaseDate/firstAirDate value still stored on an old rail).
+const sortLabel = (f) => SORT_FIELD_LABELS[f] ?? f;
 
 function TagDefinitionsPanel() {
   const T = useT();
@@ -568,9 +593,7 @@ function TagDefinitionsPanel() {
                   MenuProps={getSelectMenuProps(T)}>
                   {sortFields.map(f => (
                     <MenuItem key={f} value={f}>
-                      <Typography sx={{ fontSize: 13, fontFamily: 'monospace' }}>
-                        {f === 'tagPriority' ? 'tagPriority ★ (computed score)' : f}
-                      </Typography>
+                      <Typography sx={{ fontSize: 13 }}>{sortLabel(f)}</Typography>
                     </MenuItem>
                   ))}
                 </Select>
@@ -773,7 +796,7 @@ function RailRow({ rail, onEdit, onDelete, onToggle, dragControls }) {
               sx={{ height: 16, fontSize: '0.6rem', bgcolor: T.glass, color: T.textFaint }} />
           ))}
           {rule.sort && (
-            <Chip label={`${rule.sort} ${rule.direction ?? 'DESC'}`} size="small"
+            <Chip label={`${sortLabel(rule.sort)} ${rule.direction ?? 'DESC'}`} size="small"
               sx={{ height: 16, fontSize: '0.6rem', bgcolor: T.glass, color: T.textFaint }} />
           )}
           {rail.limitSize && (
@@ -812,13 +835,13 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
     queryFn:  getRailMetadata,
     staleTime: Infinity,
   });
-  const sortFields = meta?.sortFields ?? ['popularity', 'voteAverage', 'voteCount', 'createdAt', 'updatedAt', 'releaseDate', 'firstAirDate', 'name', 'id', 'tagPriority'];
+  const sortFields = meta?.sortFields ?? ['popularity', 'voteAverage', 'voteCount', 'topRated', 'releaseAirDate', 'tmdbUpdatedAt', 'createdAt', 'updatedAt', 'name', 'id', 'tagPriority'];
 
   useEffect(() => {
     if (data) {
       // Normalize pageType (legacy) → pageTypes (current) at load time so the form
       // owns a single source of truth.
-      const incoming = { ...BLANK_RAIL, ...data, rule: { ...BLANK_RULE, ...(data.rule ?? {}) } };
+      const incoming = { ...BLANK_RAIL, ...data, displayType: data.type ?? data.displayType ?? '', imageVariant: data.imageVariant ?? '', rule: { ...BLANK_RULE, ...(data.rule ?? {}) } };
       const pageTypes = railPageTypes(incoming);
       setForm({ ...incoming, pageTypes: pageTypes.length ? pageTypes : ['HOME'] });
       setLangInput('');
@@ -907,11 +930,19 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           <TextField label="Priority" type="number" value={form.priority ?? 0} onChange={setField('priority')}
             size="small" inputProps={{ min: 0 }} sx={{ minWidth: 88, ...inputSx }} />
           <TextField label="Limit" type="number" value={form.limitSize ?? 20} onChange={setField('limitSize')}
             size="small" inputProps={{ min: 1, max: 200 }} sx={{ minWidth: 88, ...inputSx }} />
+          <TextField select label="Display Type" value={form.displayType ?? ''} onChange={setField('displayType')}
+            size="small" sx={{ minWidth: 230, ...inputSx }}>
+            {DISPLAY_TYPES.map(o => <MenuItem key={o.value || 'auto'} value={o.value}>{o.label}</MenuItem>)}
+          </TextField>
+          <TextField select label="Image" value={form.imageVariant ?? ''} onChange={setField('imageVariant')}
+            size="small" sx={{ minWidth: 190, ...inputSx }}>
+            {IMAGE_VARIANTS.map(o => <MenuItem key={o.value || 'auto'} value={o.value}>{o.label}</MenuItem>)}
+          </TextField>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 3 }}>
@@ -1058,12 +1089,20 @@ function RailDialog({ open, data, onClose, onSave, saving }) {
               <Select value={rule.sort ?? ''} label="Sort Field"
                 onChange={e => setRuleV('sort', e.target.value)} MenuProps={getSelectMenuProps(T)}>
                 <MenuItem value=""><em>Default (from Tag Config)</em></MenuItem>
-                {sortFields.map(f => (
-                  <MenuItem key={f} value={f}>
-                    {f === 'tagPriority' ? 'tagPriority — computed score ★' : f}
-                  </MenuItem>
-                ))}
+                {/* "Smart ranking (tag score)" only works on tag rails — the computed
+                    record_tags.priority can't be ordered on genre/language/filter/manual
+                    rails. Hide it elsewhere so the broken combo can't be picked. */}
+                {sortFields
+                  .filter(f => f !== 'tagPriority' || rule.type === 'tag')
+                  .map(f => (
+                    <MenuItem key={f} value={f}>{sortLabel(f)}</MenuItem>
+                  ))}
               </Select>
+              {rule.sort === 'tagPriority' && rule.type !== 'tag' && (
+                <FormHelperText sx={{ color: T.warning }}>
+                  “Smart ranking” only applies to tag rails — it’s ignored for this rail type. Pick another sort.
+                </FormHelperText>
+              )}
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 110, ...inputSx }}>
               <InputLabel>Direction</InputLabel>
@@ -1133,17 +1172,22 @@ function RailsTab() {
     }
   }, [rails, orderDirty]);
 
-  // Sub-tab counts — drives the chip on each tab label
+  // Sub-tab counts — drives the chip on each tab label. A multi-page rail counts
+  // toward every page it's on.
   const scopeCounts = useMemo(() => {
-    const counts = { HOME: 0, MOVIES: 0, SERIES: 0, ALL: 0 };
-    for (const r of orderedRails) counts[railScopeKey(r)]++;
+    const counts = { HOME: 0, MOVIES: 0, SERIES: 0 };
+    for (const r of orderedRails) {
+      for (const p of railPageTypes(r)) {
+        if (counts[p] !== undefined) counts[p]++;
+      }
+    }
     return counts;
   }, [orderedRails]);
 
-  // Rails visible in the current sub-tab. Maintains the globally-sorted order so
-  // drag-reorder yields sensible priority deltas.
+  // Rails visible in the current sub-tab = those whose pageTypes include it.
+  // Maintains the globally-sorted order so drag-reorder yields sensible priority deltas.
   const visibleRails = useMemo(
-    () => orderedRails.filter(r => railScopeKey(r) === scope),
+    () => orderedRails.filter(r => railOnPage(r, scope)),
     [orderedRails, scope],
   );
 
@@ -1154,7 +1198,7 @@ function RailsTab() {
    */
   const handleReorder = (newSubset) => {
     const visibleIndexes = [];
-    orderedRails.forEach((r, idx) => { if (railScopeKey(r) === scope) visibleIndexes.push(idx); });
+    orderedRails.forEach((r, idx) => { if (railOnPage(r, scope)) visibleIndexes.push(idx); });
     const next = [...orderedRails];
     visibleIndexes.forEach((globalIdx, i) => { next[globalIdx] = newSubset[i]; });
     setOrderedRails(next);
@@ -1198,11 +1242,11 @@ function RailsTab() {
     onError: () => enqueueSnackbar('Failed to save order', { variant: 'error' }),
   });
 
-  // Default pageTypes for new rails depends on which sub-tab the user is on.
-  // ALL tab seeds with all three pages, single-page tabs seed with just that page.
+  // A new rail seeds with the current sub-tab's page; add more pages in the editor's
+  // "Pages — select one or more" picker to make it span tabs.
   const newRailSeed = () => ({
     ...BLANK_RAIL,
-    pageTypes: scope === 'ALL' ? [...PAGE_TYPES] : [scope],
+    pageTypes: [scope],
   });
 
   return (
@@ -1224,11 +1268,11 @@ function RailsTab() {
         <Button size="small" variant="contained" startIcon={<AddIcon />}
           onClick={() => setRailDialog({ open: true, data: newRailSeed() })}
           sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600, fontSize: 12 }}>
-          {scope === 'ALL' ? 'New Multi-Page Rail' : `New ${RAIL_SCOPE_TABS.find(t => t.key === scope)?.label} Rail`}
+          {`New ${RAIL_SCOPE_TABS.find(t => t.key === scope)?.label} Rail`}
         </Button>
       </Box>
 
-      {/* Sub-tabs: Home / Movies / Series / All */}
+      {/* Sub-tabs: Home / Movies / Series — a rail shows under each page it's on */}
       <Tabs value={scope} onChange={(_, v) => setScope(v)} variant="scrollable" scrollButtons={false}
         sx={{ minHeight: 36, borderBottom: `1px solid ${T.border}`, flexShrink: 0,
           '& .MuiTab-root': { fontSize: 12, color: T.textMuted, textTransform: 'none', minHeight: 36, px: 1.75 },
@@ -1258,9 +1302,7 @@ function RailsTab() {
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <PlaylistPlayIcon sx={{ fontSize: 48, color: T.textFaint, mb: 1 }} />
             <Typography sx={{ color: T.textFaint, fontSize: '0.85rem' }}>
-              {scope === 'ALL'
-                ? 'No multi-page rails yet — these appear on more than one page'
-                : `No rails configured for ${RAIL_SCOPE_TABS.find(t => t.key === scope)?.label}`}
+              {`No rails configured for ${RAIL_SCOPE_TABS.find(t => t.key === scope)?.label}`}
             </Typography>
             <Button size="small" variant="outlined" startIcon={<AddIcon />}
               onClick={() => setRailDialog({ open: true, data: newRailSeed() })}

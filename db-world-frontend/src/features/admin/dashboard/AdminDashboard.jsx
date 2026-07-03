@@ -7,7 +7,7 @@ import {
 import {
   People, Movie, Sync, VideoLibrary, Computer,
   Refresh, Label, Storage, Analytics, ArrowForward,
-  Movie as MovieIcon, Tv, CheckCircle, Error, HourglassEmpty,
+  Movie as MovieIcon, Tv,
   Folder, Schedule, LocalOffer, ManageAccounts,
   Dashboard as DashboardIcon, Insights, WbSunny, NightsStay,
   Inbox,
@@ -43,7 +43,6 @@ const NAV_SECTIONS = [
   { id: 'records',        label: 'Records',          icon: Movie,          path: 'records',        color: A.cyan,    group: 'Content'  },
   { id: 'media-files',    label: 'Media Files',      icon: VideoLibrary,   path: 'media-files',    color: A.violet,  group: 'Content'  },
   { id: 'tag-management', label: 'Tags & Rails',     icon: LocalOffer,     path: 'tag-management', color: A.amber,   group: 'Content'  },
-  { id: 'tmdb-sync',      label: 'TMDB Sync',        icon: Sync,           path: 'tmdb-sync',      color: A.emerald, group: 'Content'  },
   { id: 'ingestion',      label: 'Media Ingestion',  icon: Folder,         path: 'ingestion',      color: A.orange,  group: 'Activity' },
   { id: 'activity-center',label: 'Activity & Insights', icon: Insights,    path: 'activity-center',color: A.red,     group: 'Activity', badge: 'Live' },
   { id: 'system-info',    label: 'System Info',      icon: Computer,       path: 'system-info',    color: A.indigo,  group: 'System'   },
@@ -394,7 +393,7 @@ const AdminDashboard = () => {
           sub={s?.sync ? `${s.sync.pending} pending · ${s.sync.failed} failed` : null}
           badge={s?.sync?.failed > 0 ? `${s.sync.failed} failed` : null}
           loading={loading}
-          onClick={() => nav('tmdb-sync')}
+          onClick={() => nav('records')}
         />
         <StatCard
           icon={Inbox} color={A.red}
@@ -590,42 +589,6 @@ const AdminDashboard = () => {
                     </Box>
                   ))}
                 </Box>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* TMDB Sync */}
-          <Card sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 3, mb: 2.5, backdropFilter: 'blur(12px)' }}>
-            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-              <SectionHeader icon={Sync} label="TMDB Sync" color={A.cyan} onAction={() => nav('tmdb-sync')} actionLabel="Manage" />
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {[
-                  { icon: CheckCircle, color: A.emerald, label: 'Synced',  val: s?.sync?.synced },
-                  { icon: HourglassEmpty, color: A.amber, label: 'Pending', val: s?.sync?.pending },
-                  { icon: Error,        color: A.red,    label: 'Failed',  val: s?.sync?.failed },
-                ].map((row, idx, arr) => {
-                  const RowIcon = row.icon;
-                  return (
-                    <Box key={row.label} sx={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      py: 1,
-                      borderBottom: idx < arr.length - 1 ? `1px solid ${T.border}` : 'none',
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <RowIcon sx={{ fontSize: 15, color: row.color }} />
-                        <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>{row.label}</Typography>
-                      </Box>
-                      {loading
-                        ? <Skeleton variant="text" width={32} sx={{ bgcolor: alpha(T.text, 0.06) }} />
-                        : <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: row.color }}>{row.val ?? '—'}</Typography>}
-                    </Box>
-                  );
-                })}
-              </Box>
-              {s?.sync?.lastSyncedAt && (
-                <Typography sx={{ fontSize: '0.63rem', color: T.textMuted, mt: 1.5, pt: 1, borderTop: `1px solid ${T.border}` }}>
-                  Last sync: {new Date(s.sync.lastSyncedAt * 1000).toLocaleString()}
-                </Typography>
               )}
             </CardContent>
           </Card>

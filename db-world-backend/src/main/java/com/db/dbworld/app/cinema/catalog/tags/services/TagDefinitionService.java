@@ -94,6 +94,26 @@ public class TagDefinitionService {
                         .defaultSort("createdAt").defaultDirection("DESC")
                         .poolSize(200)
                         .refreshCron("0 0 */6 * * *")
+                        .build(),
+
+                "NEW_SEASON", TagDefinitionEntity.builder()
+                        .tagType("NEW_SEASON")
+                        .displayName("New Season")
+                        .description("TV shows that gained a brand-new season within the last 30 days (set at ingest, not re-uploads).")
+                        .automatic(true).active(true)
+                        .defaultSort("tagPriority").defaultDirection("DESC")
+                        .poolSize(60)
+                        .refreshCron("0 0 */6 * * *")
+                        .build(),
+
+                "NEW_EPISODE", TagDefinitionEntity.builder()
+                        .tagType("NEW_EPISODE")
+                        .displayName("New Episode")
+                        .description("TV shows that gained a new episode within the last 30 days (set at ingest, not re-uploads).")
+                        .automatic(true).active(true)
+                        .defaultSort("tagPriority").defaultDirection("DESC")
+                        .poolSize(60)
+                        .refreshCron("0 0 */6 * * *")
                         .build()
         );
     }

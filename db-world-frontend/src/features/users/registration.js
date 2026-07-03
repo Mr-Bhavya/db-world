@@ -21,6 +21,7 @@ import Constants from '@shared/constants';
 import { register } from '@shared/services/ApiServices';
 import { toast } from '@shared/components/ui/Toast';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getFieldSx, getSelectMenuProps, getGlowProps } from '@shared/theme';
 
 // ─── Section label ────────────────────────────────────────────────────────────
@@ -38,6 +39,8 @@ const SectionLabel = ({ children }) => {
 };
 
 const Registration = () => {
+  usePageMeta('Create Account');
+
   const navigate  = useNavigate();
   const T            = useT();
   const FIELD        = getFieldSx(T);

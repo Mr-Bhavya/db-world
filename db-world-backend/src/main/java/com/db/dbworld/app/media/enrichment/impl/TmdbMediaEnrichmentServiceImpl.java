@@ -359,9 +359,11 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
             cmd.addAll(List.of("-i", poster.toAbsolutePath().toString()));
         }
 
-        // Preserve source stream metadata so track titles survive filtering/remuxing.
-        // Global title/description are still overridden explicitly below.
-        cmd.addAll(List.of("-map_metadata", "0"));
+        // Drop ALL source CONTAINER (global) metadata — this strips release-group /
+        // site tags (URLs, comments, "encoded by", etc.) that some rips embed.
+        // Per-stream metadata (track titles, languages) is NOT affected by this and
+        // survives via -c copy; the global title/description we want are re-added below.
+        cmd.addAll(List.of("-map_metadata", "-1"));
 
         boolean hasFilter = filter != null && filter.hasAnyFilter();
 
@@ -412,11 +414,18 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
         applyAudioTrackMetadata(cmd, filter);
         applySubtitleTrackMetadata(cmd, filter);
 
+        // ── Video stream title: codec / resolution / bit depth / HDR / bitrate ──
+        // (Not the movie name — that goes in the global title below.)
+        if (filter != null && filter.getVideoTrack() != null) {
+            String videoTitle = TrackTitleFormatter.formatVideoTitle(filter.getVideoTrack());
+            if (!videoTitle.isBlank()) {
+                cmd.addAll(List.of("-metadata:s:v:0", "title=" + videoTitle));
+            }
+        }
+
         // ── Global metadata ───────────────────────────────────────────────────
         if (metadataTitle != null && !metadataTitle.isBlank()) {
             cmd.addAll(List.of("-metadata", "title=" + metadataTitle));
-            // NOTE: do NOT set -metadata:s:v:0 title here — the stream's own codec
-            // title should reflect the video stream's actual properties, not the movie name
         }
         if (overview != null && !overview.isBlank()) {
             cmd.addAll(List.of("-metadata", "description=" + overview));
@@ -622,14 +631,17 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                 return;
             }
 
+            // Parse total duration for progress bar (never logged)
             Matcher duration = DURATION_PATTERN.matcher(line);
             if (duration.find()) {
                 totalDurationMs = parseClockToMillis(duration.group(1), duration.group(2), duration.group(3), duration.group(4));
                 return;
             }
 
-            if (line.startsWith("out_time_ms=")) {
-                long processedMs = parseLong(line.substring("out_time_ms=".length()));
+            // Update UI progress bar from per-frame timestamps (never logged)
+            if (line.startsWith("out_time_ms=") || line.startsWith("out_time_us=")) {
+                String prefix = line.startsWith("out_time_ms=") ? "out_time_ms=" : "out_time_us=";
+                long processedMs = parseLong(line.substring(prefix.length()));
                 if (processedMs > 0 && totalDurationMs > 0) {
                     long etaSeconds = Math.max(0L, (totalDurationMs - processedMs) / 1000L);
                     trackingService.updateProgress(jobId, new ProgressSnapshot(processedMs, totalDurationMs, 0.0, etaSeconds, "processing"));
@@ -637,12 +649,36 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                 return;
             }
 
-            if (line.startsWith("progress=")) {
-                trackingService.getLogCollector(jobId).info("FFMPEG", line.trim());
-                return;
-            }
+            // Drop high-frequency progress key=value pairs (emitted every ~500ms)
+            if (isProgressKeyValue(line)) return;
 
+            // Drop FFmpeg version/build/library header block
+            if (isVerboseHeader(line)) return;
+
+            // Drop all indented stream/metadata detail lines
+            if (line.startsWith("  ") || line.startsWith("\t")) return;
+
+            // Drop top-level container/stream description headers
+            if (line.startsWith("Input #") || line.startsWith("Output #")
+                    || line.startsWith("Stream mapping") || line.startsWith("Stream #")) return;
+
+            // Everything else is meaningful: final stats line, codec/muxer messages, warnings
             trackingService.getLogCollector(jobId).info("FFMPEG", line.trim());
+        }
+
+        private static boolean isProgressKeyValue(String line) {
+            return line.startsWith("bitrate=") || line.startsWith("total_size=")
+                    || line.startsWith("out_time_us=") || line.startsWith("out_time_ms=")
+                    || line.startsWith("out_time=") || line.startsWith("dup_frames=")
+                    || line.startsWith("drop_frames=") || line.startsWith("speed=")
+                    || line.startsWith("progress=") || line.startsWith("frame=")
+                    || line.startsWith("fps=") || line.startsWith("stream_");
+        }
+
+        private static boolean isVerboseHeader(String line) {
+            return line.startsWith("ffmpeg version") || line.startsWith("built with")
+                    || line.startsWith("configuration:") || line.startsWith("Press [q]")
+                    || line.matches("lib(avutil|avcodec|avformat|avdevice|avfilter|swscale|swresample|postproc).*");
         }
 
         private long parseClockToMillis(String hh, String mm, String ss, String cs) {

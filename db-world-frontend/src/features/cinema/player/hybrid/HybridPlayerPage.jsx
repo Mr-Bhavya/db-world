@@ -8,10 +8,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
+import { buildStoryboard } from '../../utils/storyboard';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
-
-// mediainfo Duration is seconds in the old format, ms in the new — normalise to ms.
-const toMs = (d) => { const n = Number(d) || 0; return n > 100000 ? Math.round(n) : Math.round(n * 1000); };
+import usePageMeta from '@shared/hooks/usePageMeta';
 
 // Resume only if meaningfully into the file and not within 30s of the end.
 async function resumePointFor(fileId) {
@@ -30,7 +29,11 @@ export default function HybridPlayerPage() {
   const navigate  = useNavigate();
   const media     = state?.media;
   const episodes  = media?.episodes || [];
-  const [cur, setCur] = useState(null); // { url, fileId, title, startMs }
+  // The show/movie name stays constant; per-episode info (S#E# · name) is derived
+  // inside the player from `episodes` + `currentEpisodeId`.
+  const showTitle = media?.title || media?.fileName || '';
+  usePageMeta(showTitle ? `${showTitle} — DB Cinema` : 'Now Playing — DB Cinema', { exact: true });
+  const [cur, setCur] = useState(null); // { url, fileId, startMs, audio }
 
   useEffect(() => {
     if (!media?.url) { navigate(-1); return undefined; }
@@ -38,25 +41,33 @@ export default function HybridPlayerPage() {
     (async () => {
       const startMs = await resumePointFor(media.fileId);
       if (!cancelled) setCur({
-        url: media.url, fileId: media.fileId, title: media.title || media.fileName || '', startMs,
-        audio: media.audio || [], mediaFileId: media.mediaFileId || '', durationMs: media.durationMs || 0,
+        url: media.url, fileId: media.fileId, startMs, audio: media.audio || [],
+        storyboard: media.storyboard || null,
       });
     })();
     return () => { cancelled = true; };
   }, [media, navigate]);
 
   const selectEpisode = useCallback(async (ep) => {
+    // Resolve the stream URL and the resume point concurrently — they don't depend
+    // on each other, so running them in parallel halves the wait before playback.
+    const [resolved, startMs] = await Promise.all([
+      (!ep.url && ep.mediaFileId)
+        ? resolveMediaUrl(ep.mediaFileId, 'ONLINE').catch(() => null)
+        : Promise.resolve(null),
+      resumePointFor(ep.fileId),
+    ]);
+
     let url = ep.url;
     let mf = null;
-    if (!url && ep.mediaFileId) {
-      try { const r = await resolveMediaUrl(ep.mediaFileId, 'ONLINE'); url = r?.data?.cdnUrl; mf = r?.data?.mediaFile; } catch { /* ignore */ }
+    let storyboard = ep.storyboard || null;
+    if (resolved?.data?.cdnUrl) {
+      url = resolved.data.cdnUrl;
+      mf = resolved.data.mediaFile;
+      storyboard = buildStoryboard(url, ep.mediaFileId, mf) || storyboard;
     }
     if (!url) return;
-    const startMs = await resumePointFor(ep.fileId);
-    setCur({
-      url, fileId: ep.fileId, title: ep.label, startMs,
-      audio: mf?.audio || [], mediaFileId: ep.mediaFileId || '', durationMs: toMs(mf?.general?.duration),
-    });
+    setCur({ url, fileId: ep.fileId, startMs, audio: mf?.audio || [], storyboard });
   }, []);
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
@@ -75,7 +86,7 @@ export default function HybridPlayerPage() {
     <DbWorldVideoPlayer
       src={cur.url}
       startMs={cur.startMs}
-      title={cur.title}
+      title={showTitle}
       fileId={cur.fileId}
       variants={media.variants || []}
       episodes={episodes}
@@ -84,8 +95,7 @@ export default function HybridPlayerPage() {
       onProgress={handleProgress}
       onClose={() => navigate(-1)}
       audio={cur.audio || []}
-      mediaFileId={cur.mediaFileId || ''}
-      durationMs={cur.durationMs || 0}
+      storyboard={cur.storyboard || null}
     />
   );
 }

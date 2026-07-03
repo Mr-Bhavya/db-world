@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { useDispatch } from 'react-redux';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
-import { addUser } from '@app/redux/action/allActions';
 import axiosInstance, { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
+import constants from '@shared/constants';
 
 const AuthContext = createContext(null);
 
@@ -35,8 +34,18 @@ const INITIAL_AUTH = {
   loading: true,   // true until the initial verify completes
 };
 
+const APP_ROLES = [
+  constants.OWNER_USER_ROLE,
+  constants.ADMIN_USER_ROLE,
+  constants.VIEWER_USER_ROLE,
+];
+
+const extractAppRole = (roles = []) => {
+  if (!Array.isArray(roles)) return null;
+  return roles.find((role) => APP_ROLES.includes(role)) ?? null;
+};
+
 export const AuthProvider = ({ children }) => {
-  const dispatch   = useDispatch();
   const [auth, setAuth] = useState(INITIAL_AUTH);
   const initialized = useRef(false); // guard against strict-mode double-mount
 
@@ -44,11 +53,10 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback((token, user, role) => {
     localStorage.setItem('token', token);
-    localStorage.setItem('user',  JSON.stringify(user));
-    localStorage.setItem('role',  role);
-    dispatch(addUser(user));
+    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('role', role);
     setAuth({ isAuthenticated: true, token, user, role, loading: false });
-  }, [dispatch]);
+  }, []);
 
   /* ── logout ─────────────────────────────────────────────────────── */
 
@@ -61,22 +69,20 @@ export const AuthProvider = ({ children }) => {
       // Intentionally swallowed — client-side cleanup always runs.
     } finally {
       localStorage.clear();
-      dispatch(addUser(null));
       setAuth({ ...INITIAL_AUTH, loading: false });
     }
-  }, [dispatch]);
+  }, []);
 
   /* ── Force-logout event from axios interceptor ───────────────────── */
 
   useEffect(() => {
     const handler = () => {
       // The interceptor already cleared localStorage.
-      dispatch(addUser(null));
       setAuth({ ...INITIAL_AUTH, loading: false });
     };
     window.addEventListener('auth:force-logout', handler);
     return () => window.removeEventListener('auth:force-logout', handler);
-  }, [dispatch]);
+  }, []);
 
   /* ── Keep the session warm when returning to the foreground ──────────
      A long-running background download can outlive the short-lived access
@@ -117,7 +123,7 @@ export const AuthProvider = ({ children }) => {
 
     const verify = async () => {
       const storedToken = localStorage.getItem('token');
-      const storedUser  = JSON.parse(localStorage.getItem('user') || 'null');
+      const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
 
       // No stored credentials → immediately mark as unauthenticated.
       if (!storedToken || !storedUser) {
@@ -128,21 +134,19 @@ export const AuthProvider = ({ children }) => {
       try {
         // verify() carries the Bearer token; if it's expired the axios interceptor
         // silently refreshes it and retries before we ever see the response.
-        const res   = await axiosInstance.get('/api/auth/verify');
+        const res = await axiosInstance.get('/api/auth/verify');
         const roles = res.data?.data?.roles ?? [];
-        const role  = roles[0] ?? null;
+        const role = extractAppRole(roles);
 
         if (!role) {
-          // Token decoded OK but no role claim — treat as invalid.
           localStorage.clear();
-          dispatch(addUser(null));
           setAuth({ ...INITIAL_AUTH, loading: false });
           return;
         }
 
-        // The interceptor may have stored a newer token while refresh happened.
         const freshToken = localStorage.getItem('token') ?? storedToken;
         login(freshToken, storedUser, role);
+
 
       } catch {
         // The interceptor already dispatched 'auth:force-logout' and cleared

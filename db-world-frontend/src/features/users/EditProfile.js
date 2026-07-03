@@ -20,6 +20,7 @@ import { updateUserDetails } from '@shared/services/ApiServices';
 import { toast } from '@shared/components/ui/Toast';
 import { handleApiSuccess } from '@shared/components/ui/utils/successHandler';
 import { handleApiError } from '@shared/components/ui/utils/errorHandler';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getFieldSx, getSelectMenuProps, getGlowProps } from '@shared/theme';
 
 // ── Section label ─────────────────────────────────────────────────────────────
@@ -37,6 +38,8 @@ const SectionLabel = ({ children }) => {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 const EditProfile = ({ user, isFromAdmin }) => {
+  usePageMeta('Edit Profile');
+
   const T           = useT();
   const FIELD       = getFieldSx(T);
   const SELECT_MENU = getSelectMenuProps(T);
