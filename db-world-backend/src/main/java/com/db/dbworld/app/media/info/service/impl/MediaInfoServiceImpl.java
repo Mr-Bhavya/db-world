@@ -9,6 +9,7 @@ import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.entity.track.*;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
+import com.db.dbworld.app.media.info.util.ResolutionUtil;
 import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.config.AppProperties;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -61,11 +63,16 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         // row, then restore the sprite under the new id. A full re-ingest still regenerates it.
         Path stashedSprite = null;
         Integer sbIntervalMs = null, sbCols = null, sbRows = null, sbTileW = null, sbTileH = null, sbCount = null;
+        Integer prevSeason = null, prevEpisode = null;
         var existingOpt = mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString());
         if (existingOpt.isPresent()) {
             MediaFileEntity existing = existingOpt.get();
             log.info("Replacing existing MediaInfo entry for {} (id={})",
                     filePath.getFileName(), existing.getId());
+            // Carry episode numbers forward so a re-collect/rescan doesn't wipe a value
+            // set on ingest or an admin override.
+            prevSeason  = existing.getTmdbSeasonNumber();
+            prevEpisode = existing.getTmdbEpisodeNumber();
             if (existing.getStoryboardCount() != null) {
                 sbIntervalMs = existing.getStoryboardIntervalMs();
                 sbCols       = existing.getStoryboardCols();
@@ -79,6 +86,11 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         }
 
         MediaFileEntity entity = buildEntity(filePath, json, recordId, ingestionJobId);
+        // A prior/manual episode value overrides the filename auto-parse from buildEntity.
+        if (prevSeason != null || prevEpisode != null) {
+            entity.setTmdbSeasonNumber(prevSeason);
+            entity.setTmdbEpisodeNumber(prevEpisode);
+        }
         if (sbCount != null) {
             entity.setStoryboardIntervalMs(sbIntervalMs);
             entity.setStoryboardCols(sbCols);
@@ -250,6 +262,27 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .build();
     }
 
+    private static boolean hasFps(VideoTrackEntity v) {
+        return v.getFrameRate() != null && !v.getFrameRate().isBlank();
+    }
+
+    /**
+     * Whether {@code cand} is a better "primary video" than {@code cur}. Attached cover
+     * art (image-codec video tracks) always loses to a real stream; otherwise a track
+     * with a frame rate beats one without, and finally the taller wins. This keeps the
+     * summary resolution reading the film's dimensions, not an embedded poster's.
+     */
+    private static boolean isBetterVideo(VideoTrackEntity cand, VideoTrackEntity cur) {
+        boolean candArt = ResolutionUtil.isCoverArt(cand.getFormat());
+        boolean curArt  = ResolutionUtil.isCoverArt(cur.getFormat());
+        if (candArt != curArt) return !candArt;
+        boolean candFps = hasFps(cand), curFps = hasFps(cur);
+        if (candFps != curFps) return candFps;
+        int candH = cand.getHeight() != null ? cand.getHeight() : -1;
+        int curH  = cur.getHeight()  != null ? cur.getHeight()  : -1;
+        return candH > curH;
+    }
+
     private MediaFileSummaryDto toSummaryDto(MediaFileEntity entity) {
         MediaFileSummaryDto.MediaFileSummaryDtoBuilder b = MediaFileSummaryDto.builder()
                 .id(entity.getId())
@@ -262,7 +295,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .tmdbSeasonNumber(entity.getTmdbSeasonNumber())
                 .tmdbEpisodeNumber(entity.getTmdbEpisodeNumber())
                 .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt());
+                .updatedAt(entity.getUpdatedAt())
+                .hasStoryboard(entity.getStoryboardCount() != null && entity.getStoryboardCount() > 0);
 
         VideoTrackEntity primaryVideo = null;
         AudioTrackEntity primaryAudio = null;
@@ -274,16 +308,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 general = g;
             } else if (t instanceof VideoTrackEntity v) {
                 videoCount++;
-                boolean vHasFps = v.getFrameRate() != null && !v.getFrameRate().isBlank();
-                if (primaryVideo == null) {
+                if (primaryVideo == null || isBetterVideo(v, primaryVideo)) {
                     primaryVideo = v;
-                } else {
-                    boolean pHasFps = primaryVideo.getFrameRate() != null && !primaryVideo.getFrameRate().isBlank();
-                    int vH = v.getHeight() != null ? v.getHeight() : -1;
-                    int pH = primaryVideo.getHeight() != null ? primaryVideo.getHeight() : -1;
-                    if ((vHasFps && !pHasFps) || (vHasFps == pHasFps && vH > pH)) {
-                        primaryVideo = v;
-                    }
                 }
             } else if (t instanceof AudioTrackEntity a) {
                 audioCount++;
@@ -306,12 +332,19 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         }
 
         if (primaryVideo != null) {
+            ResolutionUtil.ResolutionInfo res = ResolutionUtil.compute(
+                    primaryVideo.getWidth(), primaryVideo.getHeight(), primaryVideo.getDisplayAspectRatio());
             b.videoHeight(primaryVideo.getHeight())
              .videoWidth(primaryVideo.getWidth())
              .videoCodec(primaryVideo.getFormat())
              .hdrFormat(primaryVideo.getHdrFormat())
              .frameRate(primaryVideo.getFrameRate())
-             .videoBitRate(primaryVideo.getBitRate());
+             .videoBitRate(primaryVideo.getBitRate())
+             .displayWidth(res.displayWidth())
+             .displayHeight(res.displayHeight())
+             .resolutionLabel(res.label())
+             .displayAspectRatio(primaryVideo.getDisplayAspectRatio())
+             .anamorphic(res.anamorphic());
         }
 
         if (primaryAudio != null) {
@@ -331,6 +364,40 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         entity.setTmdbSeasonNumber(season);
         entity.setTmdbEpisodeNumber(episode);
         return toDto(mediaFileRepository.save(entity));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void generateStoryboard(String mediaFileId) {
+        MediaFileEntity entity = mediaFileRepository.findById(mediaFileId)
+                .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + mediaFileId));
+
+        Path filePath = Path.of(entity.getFilePath());
+        if (!Files.exists(filePath)) {
+            throw new IllegalStateException("Source file not found on disk: " + entity.getFilePath());
+        }
+        long durationMs = resolveDurationMs(entity);
+        if (durationMs <= 0) {
+            throw new IllegalStateException("Unknown duration — rescan metadata before generating a storyboard");
+        }
+
+        // Generation runs up to ~100 ffmpeg seeks; keep it off the request thread.
+        // StoryboardService.generate is fully best-effort and persists its own geometry.
+        log.info("Storyboard generation requested for {} (durationMs={})", mediaFileId, durationMs);
+        CompletableFuture.runAsync(() -> storyboardService.generate(mediaFileId, filePath, durationMs));
+    }
+
+    /** Longest track duration (ms) — general track first, else the max across tracks; 0 when unknown. */
+    private long resolveDurationMs(MediaFileEntity entity) {
+        long best = 0L;
+        for (TrackEntity t : entity.getTracks()) {
+            Long d = null;
+            if      (t instanceof GeneralTrackEntity g) d = g.getDuration();
+            else if (t instanceof VideoTrackEntity v)   d = v.getDuration();
+            else if (t instanceof AudioTrackEntity a)   d = a.getDuration();
+            if (d != null && d > best) best = d;
+        }
+        return best;
     }
 
     @Override
@@ -417,8 +484,32 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         }
 
         parseTracksInto(entity, json);
+        applyEpisodeFromFileName(entity);
 
         return entity;
+    }
+
+    /** SxxEyy in a filename (also tolerates "S01 E02", "S1.E2", "s01_e02"). */
+    private static final java.util.regex.Pattern SEASON_EPISODE =
+            java.util.regex.Pattern.compile("(?i)s(\\d{1,2})\\s*[._-]?\\s*e(\\d{1,3})");
+
+    /**
+     * Auto-detect season/episode from the filename on ingest so episodes link without
+     * manual entry. Skipped when a value is already present (e.g. carried forward from a
+     * prior row) so it never clobbers an admin override.
+     */
+    private void applyEpisodeFromFileName(MediaFileEntity entity) {
+        if (entity.getTmdbSeasonNumber() != null || entity.getTmdbEpisodeNumber() != null) return;
+        String name = entity.getFileName();
+        if (name == null) return;
+        var m = SEASON_EPISODE.matcher(name);
+        if (m.find()) {
+            try {
+                entity.setTmdbSeasonNumber(Integer.parseInt(m.group(1)));
+                entity.setTmdbEpisodeNumber(Integer.parseInt(m.group(2)));
+                log.debug("Auto-detected S{}E{} from filename {}", m.group(1), m.group(2), name);
+            } catch (NumberFormatException ignored) { /* leave unset */ }
+        }
     }
 
     private void parseTracksInto(MediaFileEntity entity, String json) {
@@ -559,6 +650,9 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         return MediaFileDto.builder()
                 .id(entity.getId())
                 .recordId(entity.getRecord() != null ? entity.getRecord().getId() : null)
+                .recordType(entity.getRecord() != null && entity.getRecord().getType() != null
+                        ? entity.getRecord().getType().name() : null)
+                .recordName(entity.getRecord() != null ? entity.getRecord().getName() : null)
                 .fileName(entity.getFileName())
                 .filePath(entity.getFilePath())
                 .fileSize(entity.getFileSize())
@@ -615,6 +709,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
              .audioCount(g.getAudioCount())
              .textCount(g.getTextCount());
         } else if (track instanceof VideoTrackEntity v) {
+            ResolutionUtil.ResolutionInfo res = ResolutionUtil.compute(
+                    v.getWidth(), v.getHeight(), v.getDisplayAspectRatio());
             b.format(v.getFormat())
              .width(v.getWidth())
              .height(v.getHeight())
@@ -626,7 +722,11 @@ public class MediaInfoServiceImpl implements MediaInfoService {
              .hdrFormatCompatibility(v.getHdrFormatCompatibility())
              .duration(v.getDuration())
              .defaultTrack(v.getDefaultTrack())
-             .forced(v.getForced());
+             .forced(v.getForced())
+             .displayAspectRatio(v.getDisplayAspectRatio())
+             .displayWidth(res.displayWidth())
+             .displayHeight(res.displayHeight())
+             .resolutionLabel(res.label());
         } else if (track instanceof AudioTrackEntity a) {
             b.format(a.getFormat())
              .language(a.getLanguage())
@@ -677,9 +777,13 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             }
 
             case "Video" -> {
+                Integer w = intVal(node, "Width");
+                Integer h = intVal(node, "Height");
+                String dar = text(node, "DisplayAspectRatio_String");
+                ResolutionUtil.ResolutionInfo res = ResolutionUtil.compute(w, h, dar);
                 b.format(text(node, "Format"))
-                        .width(intVal(node, "Width"))
-                        .height(intVal(node, "Height"))
+                        .width(w)
+                        .height(h)
                         .frameRate(text(node, "FrameRate"))
                         .bitRate(longVal(node, "BitRate"))
                         .bitDepth(intVal(node, "BitDepth"))
@@ -688,7 +792,11 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                         .hdrFormatCompatibility(text(node, "HDR_Format_Compatibility"))
                         .duration(parseDurationMs(node, "Duration"))
                         .defaultTrack(text(node, "Default"))
-                        .forced(text(node, "Forced"));
+                        .forced(text(node, "Forced"))
+                        .displayAspectRatio(dar)
+                        .displayWidth(res.displayWidth())
+                        .displayHeight(res.displayHeight())
+                        .resolutionLabel(res.label());
             }
 
             case "Audio" -> {

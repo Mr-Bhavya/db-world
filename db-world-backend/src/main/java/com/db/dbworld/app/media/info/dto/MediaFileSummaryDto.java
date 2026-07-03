@@ -31,6 +31,17 @@ public class MediaFileSummaryDto {
     private String  frameRate;
     private Long    videoBitRate;
 
+    // Derived resolution — display (true) pixels + standard tier. For anamorphic
+    // content displayWidth differs from the stored videoWidth (e.g. 1620 -> 1920).
+    private Integer displayWidth;
+    private Integer displayHeight;
+    private String  resolutionLabel;   // "4K" | "1080p" | "720p" | …
+    private String  displayAspectRatio;
+    private Boolean anamorphic;
+
+    // Whether a scrub-preview storyboard sprite has been generated for this file.
+    private Boolean hasStoryboard;
+
     // Extracted from general track
     private Long    duration;
     private Integer videoCount;

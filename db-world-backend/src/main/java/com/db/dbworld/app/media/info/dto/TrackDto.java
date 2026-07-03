@@ -32,7 +32,7 @@ public class TrackDto {
     private Integer textCount;
 
     // ── Video ─────────────────────────────────────────────────────────────────
-    private Integer width;
+    private Integer width;      // stored (coded) pixels as reported by MediaInfo
     private Integer height;
     private String  frameRate;
     private Long    bitRate;
@@ -40,6 +40,12 @@ public class TrackDto {
     private String  colorSpace;
     private String  hdrFormat;
     private String  hdrFormatCompatibility;
+
+    // Derived: true display pixels (corrected for non-square/anamorphic pixels) + tier.
+    private String  displayAspectRatio;
+    private Integer displayWidth;
+    private Integer displayHeight;
+    private String  resolutionLabel;
 
     // ── Audio / Text ──────────────────────────────────────────────────────────
     private String  language;
