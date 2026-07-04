@@ -246,7 +246,12 @@ public class AdminActivityService {
                 e.getLastEventAt(),
                 e.getCompletedAt(),
                 e.getLastErrorCode(),
-                e.getLastErrorMessage()
+                e.getLastErrorMessage(),
+                e.getAttemptCount(),
+                e.getPauseCount(),
+                e.getResumeCount(),
+                e.getFailCount(),
+                e.getNginxTransferredBytes()
         );
     }
 

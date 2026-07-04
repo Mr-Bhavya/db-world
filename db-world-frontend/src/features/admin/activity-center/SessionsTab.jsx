@@ -30,7 +30,8 @@ const EMPTY_FILTERS = { activity: '', channel: '', clientApp: '', state: '', fro
 // ─── formatting helpers ──────────────────────────────────────────────────────
 
 function fmtBytes(b) {
-  if (!b) return '—';
+  if (b == null) return '—';
+  if (b === 0) return '0 B';
   if (b < 1024 ** 2) return `${(b / 1024).toFixed(0)} KB`;
   if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
   return `${(b / 1024 ** 3).toFixed(2)} GB`;
@@ -289,7 +290,7 @@ export default function SessionsTab() {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['sessions', appliedFilters, page, size],
     queryFn: () => fetchSessions({ ...appliedFilters, page, size }),
-    keepPreviousData: true,
+    placeholderData: (prev) => prev,
   });
 
   const sessions = data?.content ?? [];

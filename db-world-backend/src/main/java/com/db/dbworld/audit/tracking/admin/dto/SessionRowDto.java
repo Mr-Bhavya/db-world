@@ -33,5 +33,10 @@ public record SessionRowDto(
         Instant lastEventAt,
         Instant completedAt,
         String lastErrorCode,
-        String lastErrorMessage
+        String lastErrorMessage,
+        Integer attemptCount,
+        Integer pauseCount,
+        Integer resumeCount,
+        Integer failCount,
+        Long nginxTransferredBytes
 ) {}

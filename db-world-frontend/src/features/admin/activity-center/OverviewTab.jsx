@@ -104,8 +104,8 @@ function KpiGrid({ data, loading, days }) {
 
   const tiles = useMemo(() => ([
     { key: 'activeNow',       accent: 'teal',   icon: <Bolt />,               label: 'Active now',        value: fmtInt(data?.activeNow) },
-    { key: 'streamsToday',    accent: 'blue',   icon: <PlayArrow />,          label: 'Streams today',     value: fmtInt(data?.streamsToday) },
-    { key: 'downloadsToday',  accent: 'purple', icon: <CloudDownload />,      label: 'Downloads today',   value: fmtInt(data?.downloadsToday) },
+    { key: 'streamsToday',    accent: 'blue',   icon: <PlayArrow />,          label: `Streams (${days}d)`,     value: fmtInt(data?.streamsToday) },
+    { key: 'downloadsToday',  accent: 'purple', icon: <CloudDownload />,      label: `Downloads (${days}d)`,   value: fmtInt(data?.downloadsToday) },
     { key: 'uniqueUsers',     accent: 'green',  icon: <Group />,              label: `Unique users (${days}d)`, value: fmtInt(data?.uniqueUsers) },
     { key: 'gbDelivered',     accent: 'amber',  icon: <Storage />,            label: `Delivered (${days}d)`,    value: fmtGb(data?.gbDelivered), suffix: 'GB' },
     { key: 'avgSpeedBps',     accent: 'blue',   icon: <Speed />,              label: 'Avg speed',         value: fmtSpeed(data?.avgSpeedBps), suffix: 'MB/s' },
