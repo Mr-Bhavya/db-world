@@ -1,8 +1,8 @@
 package com.db.dbworld.audit.tracking.parse;
 
 import com.db.dbworld.audit.tracking.enums.ActivityKind;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;

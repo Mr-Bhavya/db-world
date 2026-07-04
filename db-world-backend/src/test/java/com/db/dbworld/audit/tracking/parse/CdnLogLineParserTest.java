@@ -1,7 +1,7 @@
 package com.db.dbworld.audit.tracking.parse;
 
 import com.db.dbworld.audit.tracking.enums.ActivityKind;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
