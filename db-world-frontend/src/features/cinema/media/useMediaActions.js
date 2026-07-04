@@ -88,6 +88,7 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
       if (!cdnUrl) throw new Error('No CDN URL');
       if (Capacitor.getPlatform() === 'android') {
         await DbWorldDownload.ensurePermissions();
+        const requestId = res?.data?.requestId;
         const dlResult = await DbWorldDownload.startDownload({
           url: cdnUrl,
           fileName: mediaInfo.general?.fileName || 'download',
@@ -97,6 +98,7 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
           mediaFileId: String(mediaInfo.mediaFileId || mediaInfo.id || ''),
           recordId: String(record?.id || record?.recordId || res?.data?.recordId || ''),
           mimeType: res?.data?.mimeType || '',
+          requestId,
         });
         if (dlResult?.alreadyDownloaded) {
           enqueueSnackbar(`Already downloaded: ${mediaInfo.general?.fileName || 'file'}`, { variant: 'info', autoHideDuration: 3000 });

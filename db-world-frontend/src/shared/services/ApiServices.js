@@ -1113,3 +1113,13 @@ export const getLogs = async (url, params, signal) => {
     throw error;
   }
 };
+
+/**
+ * Client event-ingest (telemetry). Fire-and-forget: errors are swallowed so a
+ * tracking failure never disrupts the UX (download/stream/search flows).
+ */
+export const postTrackEvents = (events) =>
+  axiosInstance
+    .post('/api/track/events', { events }, { headers: { 'X-DbWorld-Client': 'app' } })
+    .then(r => r.data)
+    .catch(() => {});
