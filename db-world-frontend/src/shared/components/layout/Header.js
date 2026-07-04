@@ -31,6 +31,7 @@ import {
   Cloud as WeatherIcon,
   DarkMode as DarkModeIcon,
   HowToReg as RegisterIcon,
+  Insights as ActivityIcon,
   LightMode as LightModeIcon,
   Lock as LockIcon,
   Logout as LogoutIcon,
@@ -732,6 +733,11 @@ const Header = () => {
         <MenuItem onClick={() => handleNav(Constants.USER_PROFILE_ROUTE)}>
           <PersonIcon sx={{ fontSize: 18, mr: 1.5, color: T.teal }} />
           My Profile
+        </MenuItem>
+
+        <MenuItem onClick={() => handleNav(Constants.DB_MY_ACTIVITY_ROUTE)}>
+          <ActivityIcon sx={{ fontSize: 18, mr: 1.5, color: T.teal }} />
+          My Activity
         </MenuItem>
 
         {isAdmin && (
