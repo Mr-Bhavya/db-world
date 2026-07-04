@@ -1,11 +1,13 @@
 package com.db.dbworld.app.stream.service.impl;
 
+import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.stream.dto.CdnResolveDto;
 import com.db.dbworld.app.stream.enums.StreamType;
 import com.db.dbworld.app.stream.service.CdnUrlBuilder;
 import com.db.dbworld.app.stream.service.StreamService;
 import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
+import com.db.dbworld.audit.tracking.ingest.TrackingIngestService;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.config.AppProperties;
@@ -38,6 +40,7 @@ public class StreamServiceImpl implements StreamService {
     private final UserCinemaActivityService activityService;
     private final MediaInfoService          mediaInfoService;
     private final CdnUrlBuilder             cdnUrlBuilder;
+    private final TrackingIngestService     trackingIngestService;
 
     private final Map<String, String> normalizedCache = new ConcurrentHashMap<>();
 
@@ -67,6 +70,9 @@ public class StreamServiceImpl implements StreamService {
         String cdnUrl = cdnUrlBuilder.buildByMediaFileId(mediaFileId, user, type, fileName, downloadId, requestId);
 
         trackResolveActivity(user, realFile, fileSize, inline, remoteAddr, userAgent, downloadId, cdnUrl);
+        recordResolveEvent(user, inline, requestId, mediaFile.getId(), mediaFile.getRecordId(),
+                mediaFile.getTmdbSeasonNumber(), mediaFile.getTmdbEpisodeNumber(),
+                realFile.toString(), mediaFile.getFileName(), fileSize, remoteAddr, userAgent);
 
         return CdnResolveDto.builder()
                 .cdnUrl(cdnUrl)
@@ -113,10 +119,18 @@ public class StreamServiceImpl implements StreamService {
                 .type(type.name());
 
         // Enrich from DB if a MediaFileEntity exists for this path
-        mediaInfoService.getByFilePath(realFile.toAbsolutePath().toString()).ifPresent(mf ->
+        var enrichedMediaFile = mediaInfoService.getByFilePath(realFile.toAbsolutePath().toString());
+        enrichedMediaFile.ifPresent(mf ->
                 builder.mediaFileId(mf.getId())
                        .recordId(mf.getRecordId())
                        .mediaFile(mf));
+
+        recordResolveEvent(user, inline, requestId,
+                enrichedMediaFile.map(MediaFileDto::getId).orElse(null),
+                enrichedMediaFile.map(MediaFileDto::getRecordId).orElse(null),
+                enrichedMediaFile.map(MediaFileDto::getTmdbSeasonNumber).orElse(null),
+                enrichedMediaFile.map(MediaFileDto::getTmdbEpisodeNumber).orElse(null),
+                realFile.toString(), fileName, fileSize, remoteAddr, userAgent);
 
         return builder.build();
     }
@@ -133,6 +147,23 @@ public class StreamServiceImpl implements StreamService {
                     size, ip, ua, inline, downloadId, cdnUrl);
         } catch (Exception e) {
             log.warn("Resolve activity tracking failed for user={}", user, e);
+        }
+    }
+
+    /**
+     * Emits the new-pipeline RESOLVE tracking event (Plan 1B). Best-effort only — any
+     * failure here (bad args, downstream exception) must never affect the resolve response
+     * or the live streaming path, so every exception is swallowed and merely logged.
+     */
+    private void recordResolveEvent(String user, boolean inline, String requestId, String mediaFileId,
+                                     Long recordId, Integer seasonNumber, Integer episodeNumber,
+                                     String filePath, String fileName, long fileSize,
+                                     String remoteAddr, String userAgent) {
+        try {
+            trackingIngestService.recordResolve(user, inline, requestId, mediaFileId, recordId,
+                    seasonNumber, episodeNumber, filePath, fileName, fileSize, remoteAddr, userAgent);
+        } catch (Exception e) {
+            log.warn("recordResolveEvent failed for user={}, requestId={}", user, requestId, e);
         }
     }
 
