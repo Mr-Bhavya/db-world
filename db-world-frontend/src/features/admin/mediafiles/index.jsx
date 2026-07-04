@@ -243,7 +243,11 @@ function fileActionItems(file, actions, close) {
 
 function FileActionsMenu({ file, anchorEl, onClose, ...actions }) {
   return (
+    // stopPropagation: the Menu portals to <body> in the DOM but stays a React child
+    // of the clickable row/card, so item/backdrop clicks would otherwise bubble
+    // (through the portal) into the row onClick and open the detail modal.
     <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={onClose}
+      onClick={(e) => e.stopPropagation()}
       transformOrigin={{ horizontal: 'right', vertical: 'top' }}
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}>
       {fileActionItems(file, actions, onClose)}
@@ -936,6 +940,7 @@ export default function MediaFilesPage() {
   const [linkTarget, setLinkTarget] = useState(null);
   const [detailFileId, setDetailFileId] = useState(null);
   const [mainBusy, setMainBusy] = useState(false);
+  const [bulkAnchor, setBulkAnchor] = useState(null);
 
   const sentinelRef = useRef(null);
 
@@ -1031,6 +1036,26 @@ export default function MediaFilesPage() {
     navigator.clipboard?.writeText(path ?? '');
     enqueueSnackbar('Path copied', { variant: 'info' });
   }, [enqueueSnackbar]);
+
+  // Bulk versions of the per-file actions (rescan / storyboard / repair) — run the
+  // existing endpoints across the selection, then refresh and leave select mode.
+  const doBulkAction = useCallback(async (action, ids) => {
+    const map = {
+      rescan:     { fn: rescanMediaFile,    verb: 'Rescan',                delay: 2500 },
+      storyboard: { fn: generateStoryboard, verb: 'Storyboard generation', delay: 15000 },
+      repair:     { fn: repairSymlink,      verb: 'Symlink repair',        delay: 1500 },
+    };
+    const cfg = map[action];
+    if (!cfg || !ids.length) return;
+    const results = await Promise.allSettled(ids.map(id => cfg.fn(id)));
+    const ok = results.filter(r => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    enqueueSnackbar(`${cfg.verb} started for ${ok} file(s)${fail ? ` · ${fail} failed` : ''}`,
+      { variant: fail ? 'warning' : 'info' });
+    setTimeout(invalidateAll, cfg.delay);
+    setSelectMode(false);
+    setSelected(new Set());
+  }, [enqueueSnackbar, invalidateAll]);
 
   const doMaintenance = useCallback(async (action) => {
     setMainBusy(true);
@@ -1215,8 +1240,26 @@ export default function MediaFilesPage() {
               <Typography variant="body2" fontWeight={700} sx={{ whiteSpace: 'nowrap' }}>{selected.size} selected</Typography>
               <Button size="small" onClick={toggleAll} sx={{ textTransform: 'none', minWidth: 0 }}>{allSelected ? 'None' : 'All'}</Button>
               <Box sx={{ flex: 1 }} />
-              <Button size="small" color="error" variant="contained" startIcon={<Delete />} disabled={selected.size === 0}
-                onClick={() => setDeleteTarget([...selected])}>Delete</Button>
+              <Button size="small" variant="contained" endIcon={<KeyboardArrowDown />} disabled={selected.size === 0}
+                onClick={(e) => setBulkAnchor(e.currentTarget)}
+                sx={{ bgcolor: T.teal, '&:hover': { bgcolor: '#0f766e' } }}>Actions</Button>
+              <Menu anchorEl={bulkAnchor} open={!!bulkAnchor} onClose={() => setBulkAnchor(null)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+                <MenuItem onClick={() => { doBulkAction('rescan', [...selected]); setBulkAnchor(null); }}>
+                  <ListItemIcon><Refresh fontSize="small" /></ListItemIcon><ListItemText>Rescan metadata</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { doBulkAction('storyboard', [...selected]); setBulkAnchor(null); }}>
+                  <ListItemIcon><Theaters fontSize="small" /></ListItemIcon><ListItemText>Generate storyboards</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { doBulkAction('repair', [...selected]); setBulkAnchor(null); }}>
+                  <ListItemIcon><Build fontSize="small" /></ListItemIcon><ListItemText>Repair symlinks</ListItemText>
+                </MenuItem>
+                <Divider />
+                <MenuItem onClick={() => { setDeleteTarget([...selected]); setBulkAnchor(null); }} sx={{ color: 'error.main' }}>
+                  <ListItemIcon><Delete fontSize="small" color="error" /></ListItemIcon><ListItemText>Delete</ListItemText>
+                </MenuItem>
+              </Menu>
               <Button size="small" variant="outlined" onClick={exitSelect}>Done</Button>
             </Paper>
           </motion.div>

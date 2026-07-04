@@ -311,7 +311,7 @@ export default function RecordTable({ rows, totalElements, loading, onDelete }) 
       onColumnVisibilityModelChange={setColumnVisibilityModel}
       rowHeight={58}
       columnHeaderHeight={44}
-      hideFooterPagination
+      hideFooter
       sx={gridSx}
       slotProps={{
         loadingOverlay: { variant: 'skeleton', noRowsVariant: 'skeleton' },

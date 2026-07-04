@@ -10,9 +10,12 @@ import com.db.dbworld.core.role.enums.Role;
 import com.db.dbworld.core.role.repository.UserRoleRepository;
 import com.db.dbworld.core.user.dto.*;
 import com.db.dbworld.core.user.entity.UserEntity;
+import com.db.dbworld.core.user.enums.Gender;
 import com.db.dbworld.core.user.mapper.UserMapper;
 import com.db.dbworld.core.user.repository.UserRepository;
 import com.db.dbworld.core.user.service.UserService;
+import com.db.dbworld.security.entity.RefreshTokenEntity;
+import com.db.dbworld.security.repository.RefreshTokenRepository;
 
 import com.db.dbworld.config.AppConstants;
 import jakarta.persistence.criteria.Predicate;
@@ -27,6 +30,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.Set;
 
@@ -42,6 +46,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserContext userContext;
     private final LoginDataRepository loginDataRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     // ==============================
     // âœ… CREATE USER
@@ -52,6 +57,7 @@ public class UserServiceImpl implements UserService {
 
         UserEntity entity = userMapper.toEntity(request);
 
+        entity.setGender(Gender.normalize(entity.getGender()));
         entity.setPassword(passwordEncoder.encode(request.getPassword()));
 
         RoleEntity role;
@@ -208,7 +214,19 @@ public class UserServiceImpl implements UserService {
 
         UserEntity entity = getUserEntityById(userId);
 
+        // Email change → enforce uniqueness before the mapper applies it.
+        String newEmail = request.getEmail();
+        if (newEmail != null && !newEmail.isBlank() && !newEmail.equalsIgnoreCase(entity.getEmail())) {
+            userRepository.findByEmail(newEmail).ifPresent(other -> {
+                if (other.getUserId() != entity.getUserId()) {
+                    log.warn("updateUser rejected: email [{}] already in use", newEmail);
+                    throw new DbWorldException("Email already in use");
+                }
+            });
+        }
+
         userMapper.updateUserFromRequest(request, entity);
+        entity.setGender(Gender.normalize(entity.getGender()));
 
         boolean passwordChanged = request.getPassword() != null && !request.getPassword().isBlank();
         if (passwordChanged) {
@@ -239,6 +257,106 @@ public class UserServiceImpl implements UserService {
 
         userRepository.save(user);
         log.info("Password changed for user [{}]", user.getEmail());
+    }
+
+    // ==============================
+    // 🔐 ADMIN RESET PASSWORD
+    // ==============================
+    @Override
+    public void adminSetPassword(Long userId, String newPassword) {
+        log.debug("adminSetPassword called for userId={}", userId);
+        UserEntity user = getUserEntityById(userId);
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.warn("Password reset for user [{}] (id={}) by admin [{}]",
+                user.getEmail(), userId, userContext.userId());
+    }
+
+    // ==============================
+    // 🔐 SESSIONS (refresh tokens) + login history
+    // ==============================
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getUserSessions(Long userId) {
+        getUserEntityById(userId); // validate existence
+        Instant now = Instant.now();
+
+        List<RefreshTokenEntity> tokens = refreshTokenRepository.findByUser_UserId(userId);
+        List<Map<String, Object>> sessions = tokens.stream()
+                .sorted(Comparator.comparing(RefreshTokenEntity::getCreated,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(t -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", t.getId() != null ? t.getId().toString() : null);
+                    m.put("created", t.getCreated());
+                    m.put("expiry", t.getExpiry());
+                    m.put("lastUsed", t.getLastUsed());
+                    m.put("refreshCount", t.getRefreshCount() != null ? t.getRefreshCount() : 0);
+                    m.put("active", t.getExpiry() != null && t.getExpiry().isAfter(now));
+                    return m;
+                })
+                .toList();
+
+        long activeCount = tokens.stream()
+                .filter(t -> t.getExpiry() != null && t.getExpiry().isAfter(now))
+                .count();
+
+        List<Map<String, Object>> loginHistory = loginDataRepository.getLoginDataFromUserId(userId).stream()
+                .map(ld -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("date", ld.getLastLoginDate());
+                    m.put("agent", ld.getLoginAgent());
+                    return m;
+                })
+                .toList();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("activeCount", activeCount);
+        result.put("sessions", sessions);
+        result.put("loginHistory", loginHistory);
+        return result;
+    }
+
+    @Override
+    public int revokeUserSessions(Long userId) {
+        getUserEntityById(userId); // validate existence
+        long removed = refreshTokenRepository.deleteByUser_UserId(userId);
+        log.warn("Revoked {} session(s) for user id={} by admin [{}]",
+                removed, userId, userContext.userId());
+        return (int) removed;
+    }
+
+    // Enable / disable (lock) a user.
+    @Override
+    public UserDto setUserEnabled(Long userId, boolean enabled) {
+        log.debug("setUserEnabled called: userId={} enabled={}", userId, enabled);
+
+        if (!enabled && userId.equals(userContext.userId())) {
+            log.warn("setUserEnabled rejected: user [{}] attempted to disable themselves", userId);
+            throw new DbWorldException("You cannot disable your own account");
+        }
+
+        UserEntity user = getUserEntityById(userId);
+
+        if (!enabled && user.getRole() != null && user.getRole().getName() == Role.ADMIN
+                && userRepository.countByRoleName(Role.ADMIN) <= 1) {
+            log.warn("setUserEnabled rejected: cannot disable the last ADMIN (userId={})", userId);
+            throw new DbWorldException("Cannot disable the last admin user");
+        }
+
+        user.setEnabled(enabled);
+        UserEntity saved = userRepository.save(user);
+
+        // Disabling revokes sessions so existing refresh tokens can't mint new access
+        // tokens; the short-lived access token then expires and the user is locked out.
+        if (!enabled) {
+            long revoked = refreshTokenRepository.deleteByUser_UserId(userId);
+            log.warn("User [{}] (id={}) disabled by admin [{}] — revoked {} session(s)",
+                    saved.getEmail(), userId, userContext.userId(), revoked);
+        } else {
+            log.info("User [{}] (id={}) enabled by admin [{}]", saved.getEmail(), userId, userContext.userId());
+        }
+        return userMapper.toDto(saved);
     }
 
     // ==============================

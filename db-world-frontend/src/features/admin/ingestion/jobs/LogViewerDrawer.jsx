@@ -4,13 +4,11 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
-  Paper,
   Slide,
   Stack,
   Tooltip,
@@ -21,6 +19,7 @@ import {
 import { useT } from '@shared/theme';
 import {
   Close,
+  CloseFullscreen,
   Download,
   Notes,
   OpenInFull,
@@ -92,6 +91,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
   const [html, setHtml] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [maximized, setMaximized] = useState(false);
 
   const themedHtml = useMemo(() => {
     if (!html || typeof html !== 'string') return '';
@@ -130,25 +130,33 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
 
     a.href = url;
     a.download = `job-${jobId}.html`;
+    // Must be in the DOM for the click to trigger a download in Firefox/Safari.
+    document.body.appendChild(a);
     a.click();
+    a.remove();
 
     URL.revokeObjectURL(url);
   }, [html, jobId]);
+
+  // Maximize = fill the viewport. The explicit Paper sizing below must yield to it,
+  // otherwise the fullScreen prop has no visible effect.
+  const full = isMobile || maximized;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      fullScreen={isMobile}
+      fullScreen={full}
       fullWidth
       maxWidth="xl"
       TransitionComponent={Transition}
       PaperProps={{
         sx: {
-          width: { xs: '100%', sm: '92vw', lg: '88vw' },
-          maxWidth: { xs: '100%', sm: 1100, xl: 1360 },
-          height: { xs: '100%', sm: '88vh' },
-          borderRadius: { xs: 0, sm: 4 },
+          width: full ? '100%' : { xs: '100%', sm: '92vw', lg: '88vw' },
+          maxWidth: full ? '100%' : { xs: '100%', sm: 1100, xl: 1360 },
+          height: full ? '100%' : { xs: '100%', sm: '88vh' },
+          m: full ? 0 : undefined,
+          borderRadius: full ? 0 : { xs: 0, sm: 4 },
           overflow: 'hidden',
           background:
             theme.palette.mode === 'dark'
@@ -172,9 +180,9 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
         }}
       >
         <Stack
-          direction={{ xs: 'column', sm: 'row' }}
+          direction="row"
           spacing={1}
-          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          alignItems="center"
           justifyContent="space-between"
         >
           <Stack direction="row" spacing={1.1} alignItems="center" minWidth={0}>
@@ -194,47 +202,24 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
             </Box>
 
             <Box minWidth={0}>
-              <Typography variant="subtitle1" fontWeight={800}>
+              <Typography variant="subtitle1" fontWeight={800} noWrap>
                 Job Logs
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                HTML execution report viewer
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                {jobId ? `Report · ${jobId.slice(0, 8)}…` : 'HTML execution report'}
               </Typography>
             </Box>
           </Stack>
 
-          <Stack
-            direction="row"
-            spacing={0.5}
-            alignItems="center"
-            flexWrap="wrap"
-            useFlexGap
-          >
-            {jobId ? (
-              <Chip
-                label={`${jobId.slice(0, 8)}…`}
-                size="small"
-                variant="outlined"
-                sx={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  borderRadius: 999,
-                }}
-              />
-            ) : null}
-
+          {/* Uniform action buttons — kept as one right-aligned, non-wrapping row so
+              they always line up (no mixed-height chips). */}
+          <Stack direction="row" spacing={0.25} alignItems="center" flexShrink={0}>
             {!isMobile ? (
-              <Chip
-                icon={<OpenInFull sx={{ fontSize: '14px !important' }} />}
-                label="Large viewer"
-                size="small"
-                variant="outlined"
-                sx={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  borderRadius: 999,
-                }}
-              />
+              <Tooltip title={maximized ? 'Restore size' : 'Maximize'}>
+                <IconButton size="small" onClick={() => setMaximized((m) => !m)}>
+                  {maximized ? <CloseFullscreen fontSize="small" /> : <OpenInFull fontSize="small" />}
+                </IconButton>
+              </Tooltip>
             ) : null}
 
             <Tooltip title="Refresh">
@@ -245,13 +230,13 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
               </span>
             </Tooltip>
 
-            {html ? (
-              <Tooltip title="Download HTML report">
-                <IconButton size="small" onClick={downloadHtml}>
+            <Tooltip title="Download HTML report">
+              <span>
+                <IconButton size="small" onClick={downloadHtml} disabled={!html}>
                   <Download fontSize="small" />
                 </IconButton>
-              </Tooltip>
-            ) : null}
+              </span>
+            </Tooltip>
 
             <Tooltip title="Close">
               <IconButton size="small" onClick={onClose}>
@@ -265,7 +250,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
       {/* Content */}
       <DialogContent
         sx={{
-          p: { xs: 1.25, sm: 1.5 },
+          p: 0,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -273,16 +258,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
         }}
       >
         {loading ? (
-          <Paper
-            variant="outlined"
-            sx={{
-              flex: 1,
-              borderRadius: 4,
-              display: 'grid',
-              placeItems: 'center',
-              minHeight: 280,
-            }}
-          >
+          <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 280 }}>
             <Stack spacing={1.25} alignItems="center">
               <CircularProgress />
               <Typography variant="body2" fontWeight={700}>
@@ -292,15 +268,9 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
                 Fetching the latest HTML job output.
               </Typography>
             </Stack>
-          </Paper>
+          </Box>
         ) : error ? (
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 2,
-              borderRadius: 4,
-            }}
-          >
+          <Box sx={{ p: 2 }}>
             <Stack spacing={1.25}>
               <Alert severity="error" sx={{ borderRadius: 3 }}>
                 {error}
@@ -315,15 +285,13 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
                 </Button>
               </Stack>
             </Stack>
-          </Paper>
+          </Box>
         ) : themedHtml ? (
-          <Paper
-            variant="outlined"
+          <Box
             sx={{
               flex: 1,
               minHeight: 0,
               overflow: 'hidden',
-              borderRadius: 4,
               bgcolor: isDark ? 'rgba(0,0,0,0.18)' : alpha('#0f172a', 0.02),
             }}
           >
@@ -341,21 +309,9 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
               }}
               sandbox="allow-same-origin"
             />
-          </Paper>
+          </Box>
         ) : (
-          <Paper
-            variant="outlined"
-            sx={{
-              flex: 1,
-              borderRadius: 4,
-              display: 'grid',
-              placeItems: 'center',
-              minHeight: 280,
-              px: 2,
-              textAlign: 'center',
-              borderStyle: 'dashed',
-            }}
-          >
+          <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 280, px: 2, textAlign: 'center' }}>
             <Stack spacing={1.1} alignItems="center">
               <Box
                 sx={{
@@ -383,7 +339,7 @@ function LogViewerDrawerComponent({ jobId, open, onClose }) {
                 Refresh
               </Button>
             </Stack>
-          </Paper>
+          </Box>
         )}
       </DialogContent>
     </Dialog>

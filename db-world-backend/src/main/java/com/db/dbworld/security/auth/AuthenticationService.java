@@ -14,6 +14,7 @@ import lombok.extern.log4j.Log4j2;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 
@@ -80,14 +81,25 @@ public class AuthenticationService {
                     return new BadCredentialsException("Invalid or expired refresh token");
                 });
 
-        String newAccessToken = jwtService.generateToken(entity.getUser());
-        log.info("Access token refreshed for user [{}]", entity.getUser().getEmail());
+        UserEntity user = entity.getUser();
+        if (!user.isEnabled() || !user.isAccountNonLocked()) {
+            log.warn("Refresh rejected: account disabled/locked for user [{}]", user.getEmail());
+            throw new DisabledException("Account is disabled");
+        }
+
+        // Track access-token refresh activity for this session (last-used + count).
+        entity.setLastUsed(Instant.now());
+        entity.setRefreshCount((entity.getRefreshCount() == null ? 0 : entity.getRefreshCount()) + 1);
+        refreshTokenRepository.save(entity);
+
+        String newAccessToken = jwtService.generateToken(user);
+        log.info("Access token refreshed for user [{}] (session refreshes={})", user.getEmail(), entity.getRefreshCount());
 
         return new AuthToken(
                 newAccessToken,
                 refreshToken,
                 Duration.between(Instant.now(), entity.getExpiry()),
-                userMapper.toDto(entity.getUser())
+                userMapper.toDto(user)
         );
     }
 

@@ -22,6 +22,7 @@ import { getRecordsTable, deleteRecord, getTmdbSyncStats, refreshRecordFromTmdb,
 import { useRecordStore } from '../stores/useRecordStore';
 import RecordFilters      from './RecordFilters';
 import RecordTable        from './RecordTable';
+import RecordMobileList   from './RecordMobileList';
 import RecordDetailDrawer from './RecordDetailDrawer';
 import RecordCreateModal  from './RecordCreateModal';
 import RecordEditModal    from './RecordEditModal';
@@ -397,7 +398,9 @@ export default function RecordManagementV2() {
         '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 3 } }}>
         {isLoading
           ? <SkeletonRows T={T} />
-          : <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />}
+          : isMobile
+            ? <RecordMobileList rows={rows} onDelete={handleDelete} />
+            : <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />}
       </Box>
 
       {/* Pagination */}
