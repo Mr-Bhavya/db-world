@@ -249,3 +249,28 @@ export const reopenMediaRequest = (id) =>
 /** Cheap counter for sidebar/dashboard badge: { count: number }. */
 export const fetchAdminMediaRequestsPendingCount = () =>
   axiosInstance.get(`${BASE}/admin/media-requests/pending-count`).then(unwrap);
+
+// ─── Search History ("Recent searches") ──────────────────────────────────────
+// Note: these live under /api/me, not /api/cinema.
+
+/**
+ * POST /api/me/search-history  body: { query, resultCount, openedRecordId? }
+ * Fire-and-forget — callers should not await UI state on this; errors are swallowed.
+ */
+export const recordSearch = ({ query, resultCount, openedRecordId }) =>
+  axiosInstance
+    .post('/api/me/search-history', { query, resultCount, openedRecordId })
+    .then(r => r.data)
+    .catch(() => {});
+
+/** GET /api/me/search-history?limit=8 → string[] (recent distinct raw queries) */
+export const fetchRecentSearches = (limit = 8) =>
+  axiosInstance.get('/api/me/search-history', { params: { limit } }).then(r => r.data.data);
+
+/** DELETE /api/me/search-history/{query} */
+export const deleteRecentSearch = (query) =>
+  axiosInstance.delete(`/api/me/search-history/${encodeURIComponent(query)}`).then(unwrap);
+
+/** DELETE /api/me/search-history — clear all */
+export const clearRecentSearches = () =>
+  axiosInstance.delete('/api/me/search-history').then(unwrap);

@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { saveUserEventInfo, searchRecord, searchStreamFile } from '@shared/services/ApiServices';
+import { searchRecord, searchStreamFile } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { debounce } from 'lodash-es';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
 import {
   Box,
   Button,
+  Chip,
   IconButton,
   InputBase,
   Skeleton,
@@ -22,7 +24,14 @@ import SearchIcon from '@mui/icons-material/Search';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import HistoryIcon from '@mui/icons-material/History';
 import { toast } from '@shared/components/ui/Toast';
+import {
+  recordSearch,
+  fetchRecentSearches,
+  deleteRecentSearch,
+  clearRecentSearches,
+} from '../../api/cinemaApi';
 
 const PAGE_SIZE = 12;
 
@@ -193,6 +202,44 @@ const EmptyState = styled(Box)(({ theme }) => ({
   color: 'rgba(255,255,255,0.35)',
 }));
 
+const RecentSearchesBlock = styled(Box)(() => ({
+  width: '100%',
+  maxWidth: 520,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 12,
+}));
+
+const RecentSearchesHeaderRow = styled(Box)(() => ({
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+}));
+
+const RecentSearchesChipRow = styled(Box)(() => ({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  justifyContent: 'center',
+}));
+
+const RecentSearchChip = styled(Chip)(() => ({
+  backgroundColor: 'rgba(255,255,255,0.08)',
+  color: 'rgba(255,255,255,0.85)',
+  fontWeight: 500,
+  '&:hover': {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  '& .MuiChip-deleteIcon': {
+    color: 'rgba(255,255,255,0.4)',
+    '&:hover': {
+      color: 'rgba(255,255,255,0.8)',
+    },
+  },
+}));
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildRoute(record) {
@@ -262,6 +309,8 @@ function SearchOverlay({ onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
   const overlayRef = useRef(null);
+  const queryClient = useQueryClient();
+  const lastRecordedTermRef = useRef(null);
 
   // Records state
   const [records, setRecords] = useState([]);
@@ -310,7 +359,6 @@ function SearchOverlay({ onClose }) {
         setHasMoreRecords(true);
         setIsSearchRecordResDone(false);
       }
-      saveUserEventInfo('SEARCH', searchTerm);
       const modifiedQuery = CommonServices.modifySearchQuery(searchTerm);
       const res = await searchRecord(modifiedQuery, page, PAGE_SIZE);
 
@@ -339,7 +387,6 @@ function SearchOverlay({ onClose }) {
     try {
       setStreamList([]);
       setIsSearchStreamResDone(false);
-      saveUserEventInfo('SEARCH', searchTerm);
       const modifiedQuery = CommonServices.modifySearchQuery(searchTerm);
       const res = await searchStreamFile(modifiedQuery);
 
@@ -364,6 +411,21 @@ function SearchOverlay({ onClose }) {
     searchRecords(0, false);
     searchStreams();
   }, [searchTerm]);
+
+  // ── Record search history ───────────────────────────────────────────────────
+  // Fires once per settled term, when the first page of record results has
+  // loaded — not on every keystroke (the 500ms debounce already collapses
+  // those into a single `searchTerm` change). Guards against re-firing for
+  // the same term (e.g. re-render, pagination) via lastRecordedTermRef.
+  useEffect(() => {
+    const trimmed = searchTerm.trim();
+    if (trimmed.length < 2) return;
+    if (!isSearchRecordResDone) return;
+    if (lastRecordedTermRef.current === trimmed) return;
+
+    lastRecordedTermRef.current = trimmed;
+    recordSearch({ query: trimmed, resultCount: records.length });
+  }, [searchTerm, isSearchRecordResDone, records.length]);
 
   // ── Infinite scroll ─────────────────────────────────────────────────────────
 
@@ -427,6 +489,10 @@ function SearchOverlay({ onClose }) {
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const handleRecordClick = (record) => {
+    const trimmed = searchTerm.trim();
+    if (trimmed.length >= 2) {
+      recordSearch({ query: trimmed, resultCount: records.length, openedRecordId: record.id });
+    }
     navigate(buildRoute(record));
     onClose();
   };
@@ -439,6 +505,31 @@ function SearchOverlay({ onClose }) {
   const handleCloseModal = () => {
     setShowFileModal(false);
     setSelectedFile(null);
+  };
+
+  // ── Recent searches ─────────────────────────────────────────────────────────
+
+  const { data: recentSearches = [] } = useQuery({
+    queryKey: ['recentSearches'],
+    queryFn: () => fetchRecentSearches(8),
+    staleTime: 60000,
+  });
+
+  const deleteRecentSearchMutation = useMutation({
+    mutationFn: (q) => deleteRecentSearch(q),
+    onSuccess: () => queryClient.invalidateQueries(['recentSearches']),
+  });
+
+  const clearRecentSearchesMutation = useMutation({
+    mutationFn: () => clearRecentSearches(),
+    onSuccess: () => queryClient.invalidateQueries(['recentSearches']),
+  });
+
+  // Clicking a recent-search chip re-runs that search immediately, same as typing it.
+  const handleRecentSearchClick = (q) => {
+    setTerm(q);
+    debouncedSearch.cancel();
+    setSearchTerm(q);
   };
 
   // ── Render helpers ──────────────────────────────────────────────────────────
@@ -537,9 +628,37 @@ function SearchOverlay({ onClose }) {
               <Typography sx={{ fontSize: '1rem', fontWeight: 300 }}>
                 Search for movies and series
               </Typography>
-              <Typography sx={{ fontSize: '0.8rem' }}>
-                Trending: Dune, The Bear, Oppenheimer, Shogun
-              </Typography>
+              {recentSearches.length > 0 ? (
+                <RecentSearchesBlock>
+                  <RecentSearchesHeaderRow>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>
+                      Recent searches
+                    </Typography>
+                    <Button
+                      size="small"
+                      onClick={() => clearRecentSearchesMutation.mutate()}
+                      sx={{ color: 'rgba(255,255,255,0.4)', textTransform: 'none', fontSize: '0.75rem', minWidth: 0, p: 0, '&:hover': { color: '#fff', bgcolor: 'transparent' } }}
+                    >
+                      Clear all
+                    </Button>
+                  </RecentSearchesHeaderRow>
+                  <RecentSearchesChipRow>
+                    {recentSearches.map((q) => (
+                      <RecentSearchChip
+                        key={q}
+                        icon={<HistoryIcon sx={{ fontSize: '1rem', color: 'rgba(255,255,255,0.4) !important' }} />}
+                        label={q}
+                        onClick={() => handleRecentSearchClick(q)}
+                        onDelete={() => deleteRecentSearchMutation.mutate(q)}
+                      />
+                    ))}
+                  </RecentSearchesChipRow>
+                </RecentSearchesBlock>
+              ) : (
+                <Typography sx={{ fontSize: '0.8rem' }}>
+                  Trending: Dune, The Bear, Oppenheimer, Shogun
+                </Typography>
+              )}
             </EmptyState>
           ) : (
             <AnimatePresence mode="wait">
