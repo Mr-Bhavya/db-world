@@ -75,6 +75,10 @@ public class SessionAggregator {
         if (s.getActivity() == null) s.setActivity(t.activity());
         if (t.fileTotal() != null && s.getFileSize() == null) s.setFileSize(t.fileTotal());
         if (t.realIp() != null) s.setRemoteAddr(t.realIp());
+        // NOTE: additive (not idempotent). A shipper crash between ingest and offset-persist can
+        // re-read lines and over-count this raw metric; unique_bytes/completion stay correct via
+        // the idempotent range union. Do not "fix" by making it absolute without also making the
+        // shipper offset crash-atomic.
         s.setNginxTransferredBytes(nzL(s.getNginxTransferredBytes()) + t.transferredBytes());
         s.setPeakConnections(Math.max(nz(s.getPeakConnections()), t.peakConnections()));
         if (t.maxSpeedBps() != null) s.setMaxSpeedBps(Math.max(nzL(s.getMaxSpeedBps()), t.maxSpeedBps()));

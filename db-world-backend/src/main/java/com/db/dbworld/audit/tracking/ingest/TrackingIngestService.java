@@ -51,7 +51,7 @@ public class TrackingIngestService {
      * null field, DB hiccup) must never affect the resolve response or the live streaming
      * path that depends on it. This is best-effort telemetry only.
      */
-    @Async
+    @Async("trackingExecutor")
     public void recordResolve(String userEmail, boolean inline, String requestId, String mediaFileId,
                                Long recordId, Integer seasonNumber, Integer episodeNumber,
                                String filePath, String fileName, Long fileSize,

@@ -4,6 +4,7 @@ import com.db.dbworld.audit.tracking.aggregate.TrackEvent;
 import com.db.dbworld.audit.tracking.config.TrackingProperties;
 import com.db.dbworld.audit.tracking.enums.*;
 import com.db.dbworld.audit.tracking.repository.ActivityEventRepository;
+import com.db.dbworld.core.user.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,10 +22,11 @@ class TrackingIngestServiceTest {
     @Mock ActivityEventRepository eventRepo;
     @Mock TrackingSessionWriter writer;
     @Mock TrackingProperties props;
+    @Mock UserService userService;
 
     TrackingIngestService service;
     @org.junit.jupiter.api.BeforeEach void setUp() {
-        service = new TrackingIngestService(eventRepo, writer, props);
+        service = new TrackingIngestService(eventRepo, writer, props, userService);
     }
 
     private TrackEvent resolve() {

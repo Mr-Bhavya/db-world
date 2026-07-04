@@ -51,6 +51,7 @@ public class TrackingSweeper {
         for (ActivitySessionEntity session : candidates) {
             boolean shouldAbort = session.getActivity() == ActivityKind.STREAM
                     || (session.getActivity() == ActivityKind.DOWNLOAD
+                        && session.getLastEventAt() != null
                         && session.getLastEventAt().isBefore(now.minus(Duration.ofMinutes(props.getDownloadTimeoutMin()))));
             if (!shouldAbort) continue;
 
