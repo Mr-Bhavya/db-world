@@ -265,6 +265,7 @@ public class DbWorldDownloadPlugin extends Plugin {
         final String mediaId  = orEmpty(call.getString("mediaFileId", ""));
         final String recordId = orEmpty(call.getString("recordId", ""));
         final String mimeArg  = orEmpty(call.getString("mimeType", ""));
+        final String requestId = orEmpty(call.getString("requestId", ""));
 
         if (url == null || url.isEmpty()) { call.reject("URL is required"); return; }
         final String fileName = (fileNameArg == null || fileNameArg.isEmpty()) ? "download" : fileNameArg;
@@ -323,6 +324,7 @@ public class DbWorldDownloadPlugin extends Plugin {
                 meta.put("mediaFileId", mediaId);
                 meta.put("recordId", recordId);
                 meta.put("mimeType", mime);
+                meta.put("requestId", requestId);
                 meta.put("dir", downloadDir.getAbsolutePath());
                 meta.put("path", new File(downloadDir, fileName).getAbsolutePath());
                 meta.put("status", startPaused ? "paused" : "pending");
@@ -764,6 +766,7 @@ public class DbWorldDownloadPlugin extends Plugin {
         long eta = (speed > 0 && total > completed) ? (total - completed) / speed : -1;
         String localUri = meta.optString("localUri", "");
         boolean done = "success".equals(status);
+        int connections = live != null ? live.optInt("connections", 0) : 0;
 
         JSObject o = new JSObject();
         o.put("downloadId",       gid);
@@ -781,6 +784,8 @@ public class DbWorldDownloadPlugin extends Plugin {
         o.put("thumbnailUrl",     meta.optString("thumbnailUrl", ""));
         o.put("mediaFileId",      meta.optString("mediaFileId", ""));
         o.put("recordId",         meta.optString("recordId", ""));
+        o.put("requestId",        meta.optString("requestId", ""));
+        o.put("connections",      connections);
         o.put("canPlay",          done && !localUri.isEmpty());
         return o;
     }
