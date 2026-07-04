@@ -179,6 +179,20 @@ dbworld:
     batch-tick-ms: 5000
     max-accumulator-entries: 10000
     max-bytes-per-tick: 5242880
+  tracking:
+    enabled: ${TRACKING_V2_ENABLED:true}
+    v2:
+      enabled: ${TRACKING_V2_ENABLED:true}
+    cdn-log-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}
+    rotated-suffix: ".1"
+    batch-tick-ms: 5000
+    max-bytes-per-tick: 5242880
+    max-accumulator-entries: 10000
+    stream-timeout-min: 15
+    download-timeout-min: 30
+    sweeper-tick-ms: 60000
+    event-retention-days: 90
+    search-prefix-collapse-sec: 30
   aborted-sweeper:
     enabled: true
     stream-timeout-min: 15
