@@ -10,6 +10,7 @@ import com.db.dbworld.audit.tracking.entity.ActivitySessionEntity;
 import com.db.dbworld.audit.tracking.enums.ActivityKind;
 import com.db.dbworld.audit.tracking.enums.SessionState;
 import com.db.dbworld.audit.tracking.enums.TrackChannel;
+import com.db.dbworld.audit.tracking.me.dto.MeSummaryProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -200,4 +201,25 @@ public interface ActivitySessionRepository
             LIMIT :limit
             """, nativeQuery = true)
     List<TopUserProjection> findTopUsers(@Param("days") int days, @Param("limit") int limit);
+
+    /**
+     * Header-stats aggregate for the personal {@code /me/activity} page, over all of the
+     * caller's own sessions (no time window — modeled on {@link #findOverview} but scoped
+     * by {@code user_id} instead of a trailing-days cutoff).
+     */
+    @Query(value = """
+            SELECT
+                SUM(CASE WHEN activity = 'STREAM'   THEN 1 ELSE 0 END)              AS streamCount,
+                SUM(CASE WHEN activity = 'DOWNLOAD' THEN 1 ELSE 0 END)              AS downloadCount,
+                COUNT(DISTINCT CASE WHEN activity IN ('STREAM', 'DOWNLOAD') THEN record_id END) AS distinctTitles,
+                COALESCE(SUM(unique_bytes), 0)                                      AS uniqueBytes,
+                COALESCE(SUM(CASE WHEN activity = 'STREAM' THEN watch_duration_ms ELSE 0 END), 0) AS watchDurationMs,
+                COALESCE(AVG(completion_percent), 0)                                AS avgCompletionPercent,
+                SUM(CASE WHEN state = 'COMPLETED' THEN 1 ELSE 0 END)                AS completedCount,
+                COUNT(*)                                                            AS totalCount
+            FROM activity_session
+            WHERE user_id = :userId
+              AND activity IN ('DOWNLOAD', 'STREAM')
+            """, nativeQuery = true)
+    MeSummaryProjection findMeSummary(@Param("userId") Long userId);
 }
