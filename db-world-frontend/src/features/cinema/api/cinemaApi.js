@@ -267,9 +267,9 @@ export const recordSearch = ({ query, resultCount, openedRecordId }) =>
 export const fetchRecentSearches = (limit = 8) =>
   axiosInstance.get('/api/me/search-history', { params: { limit } }).then(r => r.data.data);
 
-/** DELETE /api/me/search-history/{query} */
+/** DELETE /api/me/search-history?query=  (request param, not a path segment — queries may contain '/') */
 export const deleteRecentSearch = (query) =>
-  axiosInstance.delete(`/api/me/search-history/${encodeURIComponent(query)}`).then(unwrap);
+  axiosInstance.delete('/api/me/search-history', { params: { query } }).then(unwrap);
 
 /** DELETE /api/me/search-history — clear all */
 export const clearRecentSearches = () =>

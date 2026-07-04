@@ -43,15 +43,20 @@ public class MeSearchHistoryController {
         return ApiResponse.success(searchHistoryService.recent(userContext.userId(), limit));
     }
 
-    @DeleteMapping("")
-    public ApiResponse<Void> clearAll() {
-        searchHistoryService.clearAll(userContext.userId());
+    /**
+     * Clear-all vs. delete-one are disambiguated by presence of the {@code query}
+     * request param (both map to the same {@code DELETE ""} path — a path-variable
+     * form like {@code DELETE /{query}} breaks for queries containing '/').
+     */
+    @DeleteMapping(params = "query")
+    public ApiResponse<Void> deleteOne(@RequestParam("query") String query) {
+        searchHistoryService.clearOne(userContext.userId(), query);
         return ApiResponse.success(null);
     }
 
-    @DeleteMapping("/{query}")
-    public ApiResponse<Void> clearOne(@PathVariable String query) {
-        searchHistoryService.clearOne(userContext.userId(), query);
+    @DeleteMapping
+    public ApiResponse<Void> clearAll() {
+        searchHistoryService.clearAll(userContext.userId());
         return ApiResponse.success(null);
     }
 }

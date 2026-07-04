@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Container, Tab, Tabs, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -20,22 +20,33 @@ const MyActivityPage = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [type, setType] = useState('');
 
-  const onErr = (label) => (err) => {
-    enqueueSnackbar(`Failed to load ${label}: ${err?.response?.data?.message ?? err.message}`,
-      { variant: 'error' });
-  };
-
   const summaryQ = useQuery({
     queryKey: ['me', 'activity', 'summary'],
     queryFn: fetchMyActivitySummary,
-    onError: onErr('summary'),
   });
 
   const listQ = useQuery({
     queryKey: ['me', 'activity', 'list', type],
     queryFn: () => fetchMyActivities({ type: type || undefined, page: 0, size: PAGE_SIZE }),
-    onError: onErr('activity timeline'),
   });
+
+  // useQuery's onError was removed in TanStack Query v5 — surface fetch failures
+  // via isError/error instead, same user-visible toast as before.
+  useEffect(() => {
+    if (summaryQ.isError) {
+      const err = summaryQ.error;
+      enqueueSnackbar(`Failed to load summary: ${err?.response?.data?.message ?? err.message}`,
+        { variant: 'error' });
+    }
+  }, [summaryQ.isError, summaryQ.error, enqueueSnackbar]);
+
+  useEffect(() => {
+    if (listQ.isError) {
+      const err = listQ.error;
+      enqueueSnackbar(`Failed to load activity timeline: ${err?.response?.data?.message ?? err.message}`,
+        { variant: 'error' });
+    }
+  }, [listQ.isError, listQ.error, enqueueSnackbar]);
 
   const timelineItems = listQ.data?.content;
 

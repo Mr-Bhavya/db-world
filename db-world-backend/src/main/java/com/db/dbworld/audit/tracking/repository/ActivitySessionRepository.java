@@ -214,7 +214,6 @@ public interface ActivitySessionRepository
                 COUNT(DISTINCT CASE WHEN activity IN ('STREAM', 'DOWNLOAD') THEN record_id END) AS distinctTitles,
                 COALESCE(SUM(unique_bytes), 0)                                      AS uniqueBytes,
                 COALESCE(SUM(CASE WHEN activity = 'STREAM' THEN watch_duration_ms ELSE 0 END), 0) AS watchDurationMs,
-                COALESCE(AVG(completion_percent), 0)                                AS avgCompletionPercent,
                 SUM(CASE WHEN state = 'COMPLETED' THEN 1 ELSE 0 END)                AS completedCount,
                 COUNT(*)                                                            AS totalCount
             FROM activity_session

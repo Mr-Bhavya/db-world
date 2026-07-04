@@ -517,12 +517,12 @@ function SearchOverlay({ onClose }) {
 
   const deleteRecentSearchMutation = useMutation({
     mutationFn: (q) => deleteRecentSearch(q),
-    onSuccess: () => queryClient.invalidateQueries(['recentSearches']),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['recentSearches'] }),
   });
 
   const clearRecentSearchesMutation = useMutation({
     mutationFn: () => clearRecentSearches(),
-    onSuccess: () => queryClient.invalidateQueries(['recentSearches']),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['recentSearches'] }),
   });
 
   // Clicking a recent-search chip re-runs that search immediately, same as typing it.
