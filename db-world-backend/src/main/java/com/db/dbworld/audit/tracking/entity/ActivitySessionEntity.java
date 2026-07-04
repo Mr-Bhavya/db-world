@@ -42,6 +42,7 @@ public class ActivitySessionEntity {
     @Column(name = "nginx_transferred_bytes") private Long nginxTransferredBytes;
     @Column(name = "completion_percent", precision = 5, scale = 2) private BigDecimal completionPercent;
     @Column(name = "peak_connections") private Integer peakConnections;
+    // avg_speed_bps: populated in Plan 1B (needs live elapsed-time data). Consumers derive wasted bytes = nginxTransferredBytes - uniqueBytes.
     @Column(name = "avg_speed_bps") private Long avgSpeedBps;
     @Column(name = "max_speed_bps") private Long maxSpeedBps;
 
@@ -66,5 +67,5 @@ public class ActivitySessionEntity {
     @Column(name = "user_agent", length = 512) private String userAgent;
 
     /** Coalesced delivered inclusive byte intervals, serialized as "s:e,s:e". */
-    @Lob @Column(name = "range_intervals") private String rangeIntervals;
+    @Column(name = "range_intervals", length = 4096) private String rangeIntervals;
 }

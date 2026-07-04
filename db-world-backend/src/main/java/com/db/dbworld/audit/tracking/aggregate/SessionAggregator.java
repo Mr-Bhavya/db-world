@@ -62,6 +62,7 @@ public class SessionAggregator {
                 s.setLastErrorCode(e.errorCode()); s.setLastErrorMessage(e.errorMessage());
                 s.setState(SessionState.FAILED);
             }
+            // COMPLETE forces 100% by design, even if reported bytes are partial.
             case COMPLETE -> { s.setState(SessionState.COMPLETED); s.setCompletedAt(e.eventTime());
                                s.setCompletionPercent(BigDecimal.valueOf(100)); }
             case ABORT, STREAM_STOP -> { /* leave state; sweeper/close handles */ }
@@ -86,7 +87,7 @@ public class SessionAggregator {
 
         if (!Boolean.TRUE.equals(s.getHasClientEvents())) {
             // nginx is the authority for this session.
-            if (s.getClientApp() == null || "UNKNOWN".equals(s.getClientApp()))
+            if (s.getClientApp() == null || ClientApp.UNKNOWN.name().equals(s.getClientApp()))
                 s.setClientApp(t.clientApp() != null ? t.clientApp().name() : null);
             recomputeNginxCompletion(s);
             if (s.getState() == SessionState.RESOLVING) s.setState(SessionState.ACTIVE);

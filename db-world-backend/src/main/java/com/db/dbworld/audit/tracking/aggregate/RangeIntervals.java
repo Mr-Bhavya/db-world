@@ -6,12 +6,15 @@ import java.util.List;
 /** Serializes a coalesced set of inclusive byte intervals as "s:e,s:e". */
 public final class RangeIntervals {
 
+    private static final int MAX_INTERVALS = 128;
+
     private RangeIntervals() {}
 
     public static String add(String existing, List<long[]> newRanges) {
         List<long[]> all = new ArrayList<>(parse(existing));
         if (newRanges != null) all.addAll(newRanges);
         List<long[]> merged = coalesce(all);
+        if (merged.size() > MAX_INTERVALS) merged = capIntervals(merged);
         StringBuilder sb = new StringBuilder();
         for (long[] iv : merged) {
             if (sb.length() > 0) sb.append(',');
@@ -47,5 +50,31 @@ public final class RangeIntervals {
         }
         out.add(new long[]{s, e});
         return out;
+    }
+
+    /**
+     * Reduces a sorted, coalesced interval list to at most MAX_INTERVALS entries by
+     * repeatedly merging the adjacent pair with the smallest gap. Only ever over-counts
+     * covered bytes (by the merged gaps), never under-counts.
+     */
+    private static List<long[]> capIntervals(List<long[]> merged) {
+        List<long[]> result = new ArrayList<>(merged);
+        while (result.size() > MAX_INTERVALS) {
+            int bestIdx = 0;
+            long bestGap = Long.MAX_VALUE;
+            for (int i = 0; i < result.size() - 1; i++) {
+                long gap = result.get(i + 1)[0] - result.get(i)[1];
+                if (gap < bestGap) {
+                    bestGap = gap;
+                    bestIdx = i;
+                }
+            }
+            long[] a = result.get(bestIdx);
+            long[] b = result.get(bestIdx + 1);
+            long[] mergedPair = {a[0], Math.max(a[1], b[1])};
+            result.set(bestIdx, mergedPair);
+            result.remove(bestIdx + 1);
+        }
+        return result;
     }
 }

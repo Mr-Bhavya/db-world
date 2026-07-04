@@ -19,4 +19,16 @@ class RangeIntervalsTest {
         assertThat(s).isEqualTo("0:199");           // adjacent -> coalesced
         assertThat(RangeIntervals.covered(s)).isEqualTo(200);
     }
+    @org.junit.jupiter.api.Test void addManyDisjointIntervals_isCappedButCoversAtLeastTrueUnion() {
+        String s = null;
+        long trueUnion = 0;
+        for (int i = 0; i < 500; i++) {           // 500 disjoint 10-byte ranges, gap 90
+            long start = i * 100L;
+            s = RangeIntervals.add(s, java.util.List.of(new long[]{start, start + 9}));
+            trueUnion += 10;
+        }
+        int intervalCount = s.isEmpty() ? 0 : s.split(",").length;
+        org.assertj.core.api.Assertions.assertThat(intervalCount).isLessThanOrEqualTo(128);
+        org.assertj.core.api.Assertions.assertThat(RangeIntervals.covered(s)).isGreaterThanOrEqualTo(trueUnion);
+    }
 }
