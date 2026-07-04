@@ -12,6 +12,8 @@ import com.db.dbworld.audit.tracking.admin.dto.TrendDto;
 import com.db.dbworld.audit.tracking.enums.ActivityKind;
 import com.db.dbworld.audit.tracking.enums.SessionState;
 import com.db.dbworld.audit.tracking.enums.TrackChannel;
+import com.db.dbworld.audit.tracking.search.SearchHistoryService;
+import com.db.dbworld.audit.tracking.search.dto.SearchKeywordDto;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +34,7 @@ import java.util.List;
 public class AdminActivityController {
 
     private final AdminActivityService activityService;
+    private final SearchHistoryService searchHistoryService;
 
     @AdminAccess
     @GetMapping("/overview")
@@ -106,5 +109,20 @@ public class AdminActivityController {
             @RequestParam(defaultValue = "20") int limit
     ) {
         return ApiResponse.success(activityService.getTopUsers(days, limit));
+    }
+
+    /**
+     * Top search keywords over a trailing window, with zero-result counts. Delegates
+     * to {@link SearchHistoryService} directly (rather than routing through
+     * {@link AdminActivityService}) — search history is a distinct read model from
+     * the session-based activity aggregates this controller otherwise fronts.
+     */
+    @AdminAccess
+    @GetMapping("/search-keywords")
+    public ApiResponse<List<SearchKeywordDto>> searchKeywords(
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        return ApiResponse.success(searchHistoryService.topKeywords(days, limit));
     }
 }
