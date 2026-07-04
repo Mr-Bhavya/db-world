@@ -1,6 +1,6 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Skeleton, Chip, useTheme } from '@mui/material';
-import { AccessTime, Download, CheckCircle, Whatshot } from '@mui/icons-material';
+import { Box, Card, CardContent, Typography, Skeleton, useTheme } from '@mui/material';
+import { AccessTime, Download, CheckCircle, PlayArrow, Movie } from '@mui/icons-material';
 
 const StatTile = ({ icon, label, value, suffix }) => {
   const theme = useTheme();
@@ -42,26 +42,24 @@ const ActivitySummaryCard = ({ summary, loading }) => {
   }
   if (!summary) return null;
 
-  const hours = Number(summary.totalStreamHours ?? 0).toFixed(1);
-  const gb    = Number(summary.totalDownloadGB ?? 0).toFixed(2);
-  const pct   = Number(summary.completionRate ?? 0).toFixed(0);
-  const topGenres = summary.topGenres ?? [];
+  const hours     = Number(summary.watchHours ?? 0).toFixed(1);
+  const gb        = Number(summary.gbDelivered ?? 0).toFixed(2);
+  const pct       = Number(summary.completionRate ?? 0).toFixed(0);
+  const streams   = Number(summary.streamCount ?? 0);
+  const downloads = Number(summary.downloadCount ?? 0);
+  const titles    = Number(summary.distinctTitles ?? 0);
 
   return (
     <Card variant="outlined">
       <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch' }}>
-          <StatTile icon={<AccessTime />}  label="Hours streamed" value={hours} suffix="h" />
-          <StatTile icon={<Download />}    label="Downloaded"     value={gb}    suffix="GB" />
-          <StatTile icon={<CheckCircle />} label="Completion"     value={pct}   suffix="%" />
-          <StatTile icon={<Whatshot />}    label="Top genres"
-                    value={topGenres.length || '—'} suffix={topGenres.length === 1 ? 'genre' : 'genres'} />
+          <StatTile icon={<AccessTime />}  label="Hours streamed" value={hours}     suffix="h" />
+          <StatTile icon={<Download />}    label="Downloaded"     value={gb}        suffix="GB" />
+          <StatTile icon={<CheckCircle />} label="Completion"     value={pct}       suffix="%" />
+          <StatTile icon={<PlayArrow />}   label="Streams"        value={streams}   suffix={streams === 1 ? 'stream' : 'streams'} />
+          <StatTile icon={<Download />}    label="Downloads"      value={downloads} suffix={downloads === 1 ? 'file' : 'files'} />
+          <StatTile icon={<Movie />}       label="Titles watched" value={titles}    suffix={titles === 1 ? 'title' : 'titles'} />
         </Box>
-        {topGenres.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1, pl: 2 }}>
-            {topGenres.map((g) => <Chip key={g} label={g} size="small" />)}
-          </Box>
-        )}
       </CardContent>
     </Card>
   );

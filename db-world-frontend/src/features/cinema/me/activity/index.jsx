@@ -4,9 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 
 import ActivitySummaryCard from './components/ActivitySummaryCard';
-import TopRewatchesStrip from './components/TopRewatchesStrip';
 import ActivityTimelineList from './components/ActivityTimelineList';
-import { fetchMyActivitySummary, fetchTopRewatches, fetchMyActivities } from './api/myActivityApi';
+import { fetchMyActivitySummary, fetchMyActivities } from './api/myActivityApi';
 
 const TYPE_TABS = [
   { value: '',         label: 'All' },
@@ -32,17 +31,13 @@ const MyActivityPage = () => {
     onError: onErr('summary'),
   });
 
-  const rewatchQ = useQuery({
-    queryKey: ['me', 'activity', 'top-rewatches'],
-    queryFn: () => fetchTopRewatches(6),
-    onError: onErr('top rewatches'),
-  });
-
   const listQ = useQuery({
     queryKey: ['me', 'activity', 'list', type],
     queryFn: () => fetchMyActivities({ type: type || undefined, page: 0, size: PAGE_SIZE }),
     onError: onErr('activity timeline'),
   });
+
+  const timelineItems = listQ.data?.content;
 
   return (
     <Container maxWidth="md" sx={{ py: 3 }}>
@@ -54,13 +49,6 @@ const MyActivityPage = () => {
         <ActivitySummaryCard summary={summaryQ.data} loading={summaryQ.isLoading} />
 
         <Box>
-          <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Top rewatches
-          </Typography>
-          <TopRewatchesStrip items={rewatchQ.data} loading={rewatchQ.isLoading} />
-        </Box>
-
-        <Box>
           <Tabs
             value={type}
             onChange={(_, v) => setType(v)}
@@ -68,7 +56,7 @@ const MyActivityPage = () => {
           >
             {TYPE_TABS.map(t => <Tab key={t.value || 'all'} value={t.value} label={t.label} />)}
           </Tabs>
-          <ActivityTimelineList items={listQ.data} loading={listQ.isLoading} />
+          <ActivityTimelineList items={timelineItems} loading={listQ.isLoading} />
         </Box>
       </Box>
     </Container>
