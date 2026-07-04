@@ -68,4 +68,7 @@ public class ActivitySessionEntity {
 
     /** Coalesced delivered inclusive byte intervals, serialized as "s:e,s:e". */
     @Column(name = "range_intervals", length = 4096) private String rangeIntervals;
+
+    /** Optimistic lock: nginx shipper and client API paths both read-modify-write this row concurrently. */
+    @Version @Column(name = "row_version") private Long version;
 }
