@@ -10,6 +10,7 @@ import com.db.dbworld.app.media.info.entity.track.*;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.media.info.util.ResolutionUtil;
+import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.config.AppProperties;
@@ -45,6 +46,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final ObjectMapper objectMapper;
     private final AppProperties properties;
     private final StoryboardService storyboardService;
+    private final SymlinkService symlinkService;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Public API
@@ -64,9 +66,11 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         Path stashedSprite = null;
         Integer sbIntervalMs = null, sbCols = null, sbRows = null, sbTileW = null, sbTileH = null, sbCount = null;
         Integer prevSeason = null, prevEpisode = null;
+        String replacedId = null;
         var existingOpt = mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString());
         if (existingOpt.isPresent()) {
             MediaFileEntity existing = existingOpt.get();
+            replacedId = existing.getId();
             log.info("Replacing existing MediaInfo entry for {} (id={})",
                     filePath.getFileName(), existing.getId());
             // Carry episode numbers forward so a re-collect/rescan doesn't wipe a value
@@ -101,6 +105,23 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         }
         MediaFileEntity saved = mediaFileRepository.save(entity);
         if (stashedSprite != null) storyboardService.restoreSprite(stashedSprite, saved.getId());
+
+        // Symlinks are keyed by media-file id, and a re-collect (rescan / re-ingest) assigns a
+        // NEW id — leaving the old link orphaned and the new id with none, which breaks
+        // streaming and download. Re-point the symlink to the new id and drop the stale one.
+        // (First ingest creates its link via the processing pipeline; only re-collects hit this.)
+        // Best-effort — never fail persistence over a link.
+        if (replacedId != null) {
+            try {
+                symlinkService.create(saved.getId(), saved.getFilePath());
+                if (!replacedId.equals(saved.getId())) {
+                    symlinkService.deleteById(replacedId);
+                }
+            } catch (Exception e) {
+                log.warn("collectAndPersist: symlink refresh failed for id={} ({}): {}",
+                        saved.getId(), filePath.getFileName(), e.getMessage());
+            }
+        }
 
         log.info("MediaInfo persisted: id={}, file={}, tracks={}, recordId={}",
                 saved.getId(), filePath.getFileName(), saved.getTracks().size(), recordId);
