@@ -47,7 +47,10 @@ public class SessionAggregator {
             s.setClientBytes(Math.max(nzL(s.getClientBytes()), e.cumulativeBytes()));
             recomputeClientCompletion(s);
         }
-        if (e.positionMs() != null) s.setWatchPositionMs(e.positionMs());
+        // watchPositionMs tracks the FURTHEST point reached in the stream, not merely the
+        // latest report — a SEEK backward (e.g. user rewinds to rewatch a scene) must not
+        // regress "how far they've watched" for watchedPercent purposes.
+        if (e.positionMs() != null) s.setWatchPositionMs(Math.max(nzL(s.getWatchPositionMs()), e.positionMs()));
         if (e.durationMs() != null) s.setWatchDurationMs(e.durationMs());
 
         switch (e.type()) {
@@ -66,7 +69,12 @@ public class SessionAggregator {
             // COMPLETE forces 100% by design, even if reported bytes are partial.
             case COMPLETE -> { s.setState(SessionState.COMPLETED); s.setCompletedAt(e.eventTime());
                                s.setCompletionPercent(BigDecimal.valueOf(100)); }
-            case ABORT, STREAM_STOP -> { /* leave state; sweeper/close handles */ }
+            // STREAM_STOP is terminal: the player reported a clean end of the viewing
+            // session (unlike byte-completion downloads, COMPLETED here does NOT mean
+            // "watched to the end" — the real signal for that is watchedPercent, derived
+            // from watchPositionMs/watchDurationMs. ABORT is left alone; sweeper/close handles it.
+            case STREAM_STOP -> { s.setState(SessionState.COMPLETED); s.setCompletedAt(e.eventTime()); }
+            case ABORT -> { /* leave state; sweeper/close handles */ }
             case RESOLVE, SEARCH -> { /* no state transition */ }
         }
     }

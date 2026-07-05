@@ -168,4 +168,38 @@ class SessionAggregatorTest {
         assertThat(s.getWatchDurationMs()).isEqualTo(5_400_000L);
         assertThat(s.getState()).isEqualTo(SessionState.ACTIVE);
     }
+
+    @Test void streamTick_watchPositionTracksFurthestPoint_notLatest() {
+        // User watches to 61s, then seeks back to 30s (e.g. to rewatch a scene). The furthest
+        // point reached (61s) is the meaningful "how far watched" signal for watchedPercent,
+        // so a later, smaller positionMs must NOT regress watchPositionMs.
+        TrackEvent.TrackEventBuilder sb = base(TrackEventType.RESOLVE)
+                .activity(ActivityKind.STREAM).type(TrackEventType.RESOLVE);
+        ActivitySessionEntity s = agg.initFromResolve(sb.build());
+        agg.applyClientEvent(s, base(TrackEventType.STREAM_TICK).activity(ActivityKind.STREAM)
+                .positionMs(61_000L).durationMs(5_400_000L).build());
+        agg.applyClientEvent(s, base(TrackEventType.SEEK).activity(ActivityKind.STREAM)
+                .positionMs(30_000L).durationMs(5_400_000L).build());
+        assertThat(s.getWatchPositionMs()).isEqualTo(61_000L);
+        assertThat(s.getWatchDurationMs()).isEqualTo(5_400_000L);
+    }
+
+    @Test void streamStop_isTerminal_setsCompletedStateAndTimestamp() {
+        // STREAM_STOP means the viewing session ended cleanly — NOT that the title was
+        // watched to completion (byte/duration "completeness" for streams is meaningless;
+        // the real "how much did they watch" story is watchedPercent, derived separately
+        // from watchPositionMs/watchDurationMs).
+        TrackEvent.TrackEventBuilder sb = base(TrackEventType.RESOLVE)
+                .activity(ActivityKind.STREAM).type(TrackEventType.RESOLVE);
+        ActivitySessionEntity s = agg.initFromResolve(sb.build());
+        agg.applyClientEvent(s, base(TrackEventType.STREAM_START).activity(ActivityKind.STREAM).build());
+        agg.applyClientEvent(s, base(TrackEventType.STREAM_TICK).activity(ActivityKind.STREAM)
+                .positionMs(2_700_000L).durationMs(5_400_000L).build());
+        Instant stopTime = Instant.parse("2026-07-04T10:05:00Z");
+        agg.applyClientEvent(s, base(TrackEventType.STREAM_STOP).activity(ActivityKind.STREAM)
+                .eventTime(stopTime).positionMs(2_700_000L).durationMs(5_400_000L).build());
+        assertThat(s.getState()).isEqualTo(SessionState.COMPLETED);
+        assertThat(s.getCompletedAt()).isEqualTo(stopTime);
+        assertThat(s.getWatchPositionMs()).isEqualTo(2_700_000L);
+    }
 }

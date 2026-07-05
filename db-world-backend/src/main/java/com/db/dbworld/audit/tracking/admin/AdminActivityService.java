@@ -121,6 +121,9 @@ public class AdminActivityService {
                         p.getClientApp(),
                         p.getState(),
                         p.getCompletionPercent(),
+                        watchedPercent(p.getActivity(), p.getWatchPositionMs(), p.getWatchDurationMs()),
+                        p.getWatchPositionMs(),
+                        p.getWatchDurationMs(),
                         p.getAvgSpeedBps(),
                         p.getMaxSpeedBps(),
                         p.getPeakConnections(),
@@ -277,6 +280,9 @@ public class AdminActivityService {
                 e.getClientApp(),
                 e.getState() != null ? e.getState().name() : null,
                 e.getCompletionPercent(),
+                watchedPercent(e.getActivity(), e.getWatchPositionMs(), e.getWatchDurationMs()),
+                e.getWatchPositionMs(),
+                e.getWatchDurationMs(),
                 e.getUniqueBytes(),
                 e.getFileSize(),
                 e.getAvgSpeedBps(),
@@ -297,6 +303,35 @@ public class AdminActivityService {
 
     private static long nz(Long value) {
         return value != null ? value : 0L;
+    }
+
+    /**
+     * "Watched %" for STREAM sessions — how far the viewer got, derived from the furthest
+     * reported {@code watchPositionMs} over the reported {@code watchDurationMs} (both fed by
+     * {@code SessionAggregator#applyClientEvent} from STREAM_START/STREAM_TICK/SEEK/STREAM_PAUSE
+     * event positionMs/durationMs). This is deliberately separate from the byte-based
+     * {@code completionPercent}: a STREAM session's {@code state} goes to COMPLETED as soon as
+     * the player reports STREAM_STOP (a clean end of the viewing session), which says nothing
+     * about how much of the title was actually watched — {@code watchedPercent} is that signal.
+     * Downloads have no watch position, so this is null for them (the UI falls back to the byte
+     * {@code completionPercent} there).
+     */
+    private static BigDecimal watchedPercent(String activity, Long watchPositionMs, Long watchDurationMs) {
+        return watchedPercent(ActivityKind.STREAM.name().equals(activity), watchPositionMs, watchDurationMs);
+    }
+
+    private static BigDecimal watchedPercent(ActivityKind activity, Long watchPositionMs, Long watchDurationMs) {
+        return watchedPercent(activity == ActivityKind.STREAM, watchPositionMs, watchDurationMs);
+    }
+
+    private static BigDecimal watchedPercent(boolean isStream, Long watchPositionMs, Long watchDurationMs) {
+        if (!isStream || watchDurationMs == null || watchDurationMs <= 0 || watchPositionMs == null) {
+            return null;
+        }
+        BigDecimal pct = BigDecimal.valueOf(watchPositionMs)
+                .multiply(HUNDRED)
+                .divide(BigDecimal.valueOf(watchDurationMs), 2, RoundingMode.HALF_UP);
+        return pct.min(HUNDRED);
     }
 
     /**

@@ -16,6 +16,8 @@ public interface LiveSessionProjection {
     String getClientApp();
     String getState();
     BigDecimal getCompletionPercent();
+    Long getWatchPositionMs();
+    Long getWatchDurationMs();
     Long getAvgSpeedBps();
     Long getMaxSpeedBps();
     Integer getPeakConnections();

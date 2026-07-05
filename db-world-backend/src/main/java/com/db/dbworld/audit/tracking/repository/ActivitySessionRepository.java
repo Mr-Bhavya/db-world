@@ -127,6 +127,8 @@ public interface ActivitySessionRepository
                 s.client_app          AS clientApp,
                 s.state               AS state,
                 s.completion_percent  AS completionPercent,
+                s.watch_position_ms   AS watchPositionMs,
+                s.watch_duration_ms   AS watchDurationMs,
                 s.avg_speed_bps       AS avgSpeedBps,
                 s.max_speed_bps       AS maxSpeedBps,
                 s.peak_connections    AS peakConnections,
