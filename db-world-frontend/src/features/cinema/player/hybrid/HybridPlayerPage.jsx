@@ -33,7 +33,7 @@ export default function HybridPlayerPage() {
   // inside the player from `episodes` + `currentEpisodeId`.
   const showTitle = media?.title || media?.fileName || '';
   usePageMeta(showTitle ? `${showTitle} — DB Cinema` : 'Now Playing — DB Cinema', { exact: true });
-  const [cur, setCur] = useState(null); // { url, fileId, startMs, audio }
+  const [cur, setCur] = useState(null); // { url, fileId, startMs, audio, requestId, mediaFileId, recordId }
 
   useEffect(() => {
     if (!media?.url) { navigate(-1); return undefined; }
@@ -43,6 +43,12 @@ export default function HybridPlayerPage() {
       if (!cancelled) setCur({
         url: media.url, fileId: media.fileId, startMs, audio: media.audio || [],
         storyboard: media.storyboard || null,
+        // Initial load doesn't go through resolveMediaUrl here, so there's no
+        // requestId yet — the player simply won't report telemetry until the
+        // first resolve happens (e.g. an episode switch).
+        requestId: media.requestId || null,
+        mediaFileId: media.mediaFileId || media.fileId || null,
+        recordId: media.recordId ?? null,
       });
     })();
     return () => { cancelled = true; };
@@ -61,14 +67,21 @@ export default function HybridPlayerPage() {
     let url = ep.url;
     let mf = null;
     let storyboard = ep.storyboard || null;
+    let requestId = null;
+    let recordId = media?.recordId ?? null;
     if (resolved?.data?.cdnUrl) {
       url = resolved.data.cdnUrl;
       mf = resolved.data.mediaFile;
       storyboard = buildStoryboard(url, ep.mediaFileId, mf) || storyboard;
+      requestId = resolved.data.requestId || null;
+      recordId = resolved.data.recordId ?? recordId;
     }
     if (!url) return;
-    setCur({ url, fileId: ep.fileId, startMs, audio: mf?.audio || [], storyboard });
-  }, []);
+    setCur({
+      url, fileId: ep.fileId, startMs, audio: mf?.audio || [], storyboard,
+      requestId, mediaFileId: ep.mediaFileId || ep.fileId || null, recordId,
+    });
+  }, [media]);
 
   const handleProgress = useCallback(({ positionMs, durationMs, ended }) => {
     if (!cur?.fileId) return;
@@ -96,6 +109,9 @@ export default function HybridPlayerPage() {
       onClose={() => navigate(-1)}
       audio={cur.audio || []}
       storyboard={cur.storyboard || null}
+      requestId={cur.requestId || null}
+      mediaFileId={cur.mediaFileId || null}
+      recordId={cur.recordId ?? null}
     />
   );
 }

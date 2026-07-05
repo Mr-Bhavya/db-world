@@ -1111,3 +1111,17 @@ export const postTrackEvents = (events) =>
     .post('/api/track/events', { events }, { headers: { 'X-DbWorld-Client': 'app' } })
     .then(r => r.data)
     .catch(() => {});
+
+/**
+ * Stream playback telemetry (STREAM_START/TICK/PAUSE/SEEK/STOP), used by the
+ * hybrid video player to compute "watched %". Fire-and-forget: errors are
+ * swallowed so a tracking failure never disrupts playback.
+ *
+ * No 'X-DbWorld-Client' header for web (backend maps channel=WEB); pass
+ * { app: true } from the native webview so the backend maps channel=APP.
+ */
+export const postStreamTrackEvents = (events, { app = false } = {}) =>
+  axiosInstance
+    .post('/api/track/events', { events }, app ? { headers: { 'X-DbWorld-Client': 'app' } } : undefined)
+    .then(r => r.data)
+    .catch(() => {});
