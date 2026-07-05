@@ -6,7 +6,6 @@ import com.db.dbworld.app.stream.dto.CdnResolveDto;
 import com.db.dbworld.app.stream.enums.StreamType;
 import com.db.dbworld.app.stream.service.CdnUrlBuilder;
 import com.db.dbworld.app.stream.service.StreamService;
-import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
 import com.db.dbworld.audit.tracking.ingest.TrackingIngestService;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
@@ -37,7 +36,6 @@ public class StreamServiceImpl implements StreamService {
 
     private final AppProperties  runtime;
     private final DbWorldUtils              dbWorldUtils;
-    private final UserCinemaActivityService activityService;
     private final MediaInfoService          mediaInfoService;
     private final CdnUrlBuilder             cdnUrlBuilder;
     private final TrackingIngestService     trackingIngestService;
@@ -69,7 +67,6 @@ public class StreamServiceImpl implements StreamService {
 
         String cdnUrl = cdnUrlBuilder.buildByMediaFileId(mediaFileId, user, type, fileName, downloadId, requestId);
 
-        trackResolveActivity(user, realFile, fileSize, inline, remoteAddr, userAgent, downloadId, cdnUrl);
         recordResolveEvent(user, inline, requestId, mediaFile.getId(), mediaFile.getRecordId(),
                 mediaFile.getTmdbSeasonNumber(), mediaFile.getTmdbEpisodeNumber(),
                 realFile.toString(), mediaFile.getFileName(), fileSize, remoteAddr, userAgent);
@@ -107,8 +104,6 @@ public class StreamServiceImpl implements StreamService {
         String cdnUrl = cdnUrlBuilder.buildByRelativePath(
                 relativePath, user, type, fileName, downloadId, requestId);
 
-        trackResolveActivity(user, realFile, fileSize, inline, remoteAddr, userAgent, downloadId, cdnUrl);
-
         CdnResolveDto.CdnResolveDtoBuilder builder = CdnResolveDto.builder()
                 .cdnUrl(cdnUrl)
                 .downloadId(downloadId)
@@ -138,17 +133,6 @@ public class StreamServiceImpl implements StreamService {
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Activity tracking
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    private void trackResolveActivity(String user, Path file, long size, boolean inline,
-                                       String ip, String ua, String downloadId, String cdnUrl) {
-        try {
-            activityService.trackResolveActivity(
-                    user, file.toString(), file.getFileName().toString(),
-                    size, ip, ua, inline, downloadId, cdnUrl);
-        } catch (Exception e) {
-            log.warn("Resolve activity tracking failed for user={}", user, e);
-        }
-    }
 
     /**
      * Emits the new-pipeline RESOLVE tracking event (Plan 1B). Best-effort only — any

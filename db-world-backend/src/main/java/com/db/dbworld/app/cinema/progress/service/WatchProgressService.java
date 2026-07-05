@@ -9,8 +9,6 @@ import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
-import com.db.dbworld.audit.activity.entity.UserCinemaActivityEntity.ActivityType;
-import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
@@ -43,7 +41,6 @@ public class WatchProgressService {
             Pattern.compile("(?i)[._ -]S(\\d{1,2})E(\\d{1,3})(?:[._ -]|$)");
 
     private final WatchProgressRepository       repository;
-    private final UserCinemaActivityRepository  userCinemaActivityRepository;
     private final RecordRepository              recordRepository;
     private final MediaInfoService              mediaInfoService;
 
@@ -72,19 +69,6 @@ public class WatchProgressService {
                 audioLang, subLang,
                 Instant.now()
         );
-
-        // Phase 3 — backfill user_cinema_activity.watch_progress_id for STREAM rows
-        // whose /resolve happened before the user first ticked progress. Idempotent:
-        // the setter no-ops when the FK is already populated.
-        // We also reuse this read for milestone logging (avoid a second DB hit on the
-        // hot per-second-save path).
-        Optional<WatchProgressEntity> saved = repository.findByUserIdAndFileId(userId, fileId);
-        saved.ifPresent(wp ->
-                userCinemaActivityRepository
-                        .findByUserIdAndMediaFileIdAndActivityType(userId, fileId, ActivityType.STREAM)
-                        .filter(uca -> uca.getWatchProgressId() == null)
-                        .ifPresent(uca -> userCinemaActivityRepository
-                                .setWatchProgressIdById(uca.getId(), wp.getId())));
 
         // Milestone logging — keep per-second ticks at DEBUG; promote to INFO only when
         // the user has reached the ≥95% completion threshold (will fire repeatedly on
