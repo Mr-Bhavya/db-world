@@ -621,10 +621,11 @@ export default function DbWorldVideoPlayer({
         }
       }
       // Controls hidden → the first (non-arrow) key reveals them + focuses Play (TV/remote).
-      if (!controls && e.key !== 'Escape') {
+      // Exception: space / k are play-pause — they must toggle immediately, not just reveal.
+      if (!controls && e.key !== 'Escape' && e.key !== ' ' && e.key !== 'k') {
         kbdRevealRef.current = true;
         showControls();
-        if (e.key === ' ' || e.key === 'k' || e.key === 'Enter') e.preventDefault();
+        if (e.key === 'Enter') e.preventDefault();
         return;
       }
       switch (e.key) {
