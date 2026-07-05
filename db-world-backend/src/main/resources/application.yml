@@ -159,6 +159,25 @@ springdoc:
     path: /docs
 
 # =========================================================
+# App — CDN URL signing (nginx secure_link)
+# =========================================================
+# Signs the /id/ and /path/ CDN URLs so they cannot be forged and expire on their own
+# (the CDN has no other auth). The secret MUST byte-for-byte match the `secure_link_md5`
+# directive in server_config/dbworld.conf.
+#
+# ROLLOUT (avoids an outage): deploy the backend with a secret set FIRST — URLs become
+# signed but nginx still ignores the extra params — verify playback + downloads, THEN
+# enable the secure_link directives in nginx and reload. Leaving the secret blank keeps
+# signing inert (URLs served unsigned) so dev/boot never breaks.
+app:
+  cdn:
+    signing:
+      enabled: ${CDN_SIGNING_ENABLED:true}
+      secret: ${CDN_SIGNING_SECRET:}
+      stream-ttl-seconds: ${CDN_SIGNING_STREAM_TTL:21600}       # 6h  — covers a full watch session
+      download-ttl-seconds: ${CDN_SIGNING_DOWNLOAD_TTL:172800}  # 48h — copy-paste + slow/resumed downloads
+
+# =========================================================
 # db-world feature configs
 # =========================================================
 dbworld:

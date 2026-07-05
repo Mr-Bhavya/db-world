@@ -15,7 +15,7 @@ class CdnLogLineParserTest {
         "method":"GET","uri":"/id/abc","status":206,"bytes_sent":1024,\
         "content_range":"bytes 0-1023/10000","range_header":"bytes=0-",\
         "file":"m.mkv","file_id":"/id/abc","user":"u@x.com",\
-        "download_id":"DL_1","request_id":"req-1","type":"DOWNLOAD",\
+        "request_id":"req-1","type":"DOWNLOAD",\
         "event":"PARTIAL","duration_sec":"0.50","user_agent":"aria2/1.36",\
         "conn":"42","server":"cdn"}""";
 

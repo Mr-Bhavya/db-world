@@ -30,6 +30,17 @@ public interface StreamService {
                                String userAgent, String remoteAddr);
 
     /**
+     * Resolve several record-linked media files in one call (e.g. all quality variants of a
+     * title, or an episode + its qualities) so the client makes ONE request instead of N.
+     * Individual files that fail to resolve are skipped, not fatal to the batch.
+     *
+     * @param mediaFileIds UUIDs to resolve; null/blank entries are ignored
+     * @return one {@link CdnResolveDto} per successfully-resolved id, in input order
+     */
+    List<CdnResolveDto> resolveBatch(String user, List<String> mediaFileIds, boolean inline,
+                                     String userAgent, String remoteAddr);
+
+    /**
      * Resolve an unassigned media file by its path relative to the stream root
      * and return its CDN URL + metadata (enriched from DB if a MediaFileEntity exists).
      *

@@ -6,7 +6,6 @@ import java.time.Instant;
 /** Typed view of one nginx cdn_json access-log line (media requests only). */
 public record CdnLogLine(
         String requestId,
-        String downloadId,
         ActivityKind activity,   // DOWNLOAD (type=DOWNLOAD) | STREAM (type=ONLINE)
         Instant time,
         int status,

@@ -42,6 +42,9 @@ public class StreamServiceImpl implements StreamService {
 
     private final Map<String, String> normalizedCache = new ConcurrentHashMap<>();
 
+    /** Defensive cap on a single batch-resolve call (a title has only a handful of variants). */
+    private static final int MAX_BATCH_RESOLVE = 50;
+
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Resolve â€” returns CDN URL as JSON for direct player / download use
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -60,12 +63,11 @@ public class StreamServiceImpl implements StreamService {
         }
 
         StreamType type       = inline ? StreamType.ONLINE : StreamType.DOWNLOAD;
-        String     downloadId = cdnUrlBuilder.generateDownloadId(user, mediaFileId);
         String     requestId  = cdnUrlBuilder.generateRequestId();
         String     fileName   = mediaFile.getFileName();
         long       fileSize   = resolveFileSize(mediaFile.getFileSize(), realFile);
 
-        String cdnUrl = cdnUrlBuilder.buildByMediaFileId(mediaFileId, user, type, fileName, downloadId, requestId);
+        String cdnUrl = cdnUrlBuilder.buildByMediaFileId(mediaFileId, user, type, fileName, requestId);
 
         recordResolveEvent(user, inline, requestId, mediaFile.getId(), mediaFile.getRecordId(),
                 mediaFile.getTmdbSeasonNumber(), mediaFile.getTmdbEpisodeNumber(),
@@ -73,7 +75,6 @@ public class StreamServiceImpl implements StreamService {
 
         return CdnResolveDto.builder()
                 .cdnUrl(cdnUrl)
-                .downloadId(downloadId)
                 .requestId(requestId)
                 .fileName(fileName)
                 .fileSize(fileSize)
@@ -83,6 +84,30 @@ public class StreamServiceImpl implements StreamService {
                 .recordId(mediaFile.getRecordId())
                 .mediaFile(mediaFile)
                 .build();
+    }
+
+    @Override
+    public List<CdnResolveDto> resolveBatch(String user, List<String> mediaFileIds, boolean inline,
+                                            String userAgent, String remoteAddr) {
+        if (mediaFileIds == null || mediaFileIds.isEmpty()) return List.of();
+
+        List<CdnResolveDto> out = new ArrayList<>(Math.min(mediaFileIds.size(), MAX_BATCH_RESOLVE));
+        int resolved = 0;
+        for (String id : mediaFileIds) {
+            if (id == null || id.isBlank()) continue;
+            if (resolved >= MAX_BATCH_RESOLVE) {
+                log.warn("resolveBatch: capped at {} ids (requested {})", MAX_BATCH_RESOLVE, mediaFileIds.size());
+                break;
+            }
+            try {
+                out.add(resolveById(user, id, inline, userAgent, remoteAddr));
+                resolved++;
+            } catch (Exception e) {
+                // One bad/missing file must not fail the whole batch.
+                log.warn("resolveBatch: skipping mediaFileId={}: {}", id, e.getMessage());
+            }
+        }
+        return out;
     }
 
     @Override
@@ -96,17 +121,15 @@ public class StreamServiceImpl implements StreamService {
         }
 
         StreamType type       = inline ? StreamType.ONLINE : StreamType.DOWNLOAD;
-        String     downloadId = cdnUrlBuilder.generateDownloadId(user, relativePath);
         String     requestId  = cdnUrlBuilder.generateRequestId();
         String     fileName   = realFile.getFileName().toString();
         long       fileSize   = resolveFileSize(null, realFile);
 
         String cdnUrl = cdnUrlBuilder.buildByRelativePath(
-                relativePath, user, type, fileName, downloadId, requestId);
+                relativePath, user, type, fileName, requestId);
 
         CdnResolveDto.CdnResolveDtoBuilder builder = CdnResolveDto.builder()
                 .cdnUrl(cdnUrl)
-                .downloadId(downloadId)
                 .requestId(requestId)
                 .fileName(fileName)
                 .fileSize(fileSize)

@@ -14,7 +14,6 @@ import lombok.Builder;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CdnResolveDto(
         String cdnUrl,
-        String downloadId,
         String requestId,
         String fileName,
         Long   fileSize,
