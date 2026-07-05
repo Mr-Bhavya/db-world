@@ -3,7 +3,7 @@
 // HTML5 <video> (web), abstracted by playerAdapter. Phase 1: transport + scrub +
 // double-tap seek + brightness/volume gestures + rotation/lock + speed + buffering.
 // Audio/subtitle/quality + settings sheet + episodes arrive in later phases.
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useContext } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -39,6 +39,12 @@ import { tmdbImg } from '../../api/cinemaApi';
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 const HIDE_MS = 3500;
 const TEAL = '#0d9488';   // app theme accent
+
+// UI scale factor for large monitors / TVs — controls, text and panels grow so the
+// player is legible from across a room. Provided via context so the reusable buttons
+// (IconBtn/CtrlBtn) and the settings-sheet rows scale without threading a prop everywhere.
+const ScaleCtx = React.createContext(1);
+const scaleFor = (w) => (w >= 3000 ? 1.9 : w >= 2200 ? 1.55 : w >= 1600 ? 1.28 : 1);
 
 // Remembered selections (global, per device).
 const PREF_AUDIO = 'dbworld:player:audioLang';
@@ -122,7 +128,9 @@ const PLAYER_CSS = `
 .dbw-scroll::-webkit-scrollbar-track { background: transparent; }
 .dbw-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
 .dbw-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
-.dbw-epfocus:focus-visible { outline: 2px solid #14b8a6; outline-offset: -2px; }`;
+.dbw-epfocus:focus-visible { outline: 2px solid #14b8a6; outline-offset: -2px; }
+/* TV / keyboard focus ring on every player control (D-pad + Tab friendly). */
+.dbw-player :focus-visible { outline: 3px solid #14b8a6; outline-offset: 2px; border-radius: 8px; }`;
 
 const fmt = (ms) => {
   if (!ms || ms < 0) return '0:00';
@@ -195,9 +203,28 @@ export default function DbWorldVideoPlayer({
   const [hud, setHud]             = useState(null);    // { kind:'volume'|'brightness'|'zoom', value }
   const [seekFx, setSeekFx]       = useState(null);    // { dir:'fwd'|'back', id } — double-tap/seek feedback
   const [upNextDismissed, setUpNextDismissed] = useState(false);
+  const [uiScale, setUiScale] = useState(() => (typeof window !== 'undefined' ? scaleFor(window.innerWidth) : 1));
   const seekFxTimer = useRef(null);
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const volHudTimer = useRef(null);                    // auto-hides the wheel/slider volume HUD
+  const playBtnRef  = useRef(null);                    // focus target when controls reveal (TV/keyboard)
+  const kbdRevealRef = useRef(false);                  // true when controls were last revealed by a key
+
+  // Grow the UI on large monitors / TVs.
+  useEffect(() => {
+    const onResize = () => setUiScale(scaleFor(window.innerWidth));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // When the controls are revealed by a key/D-pad press, move focus to Play so the
+  // remote can navigate from there; don't steal focus on mouse/touch reveals.
+  useEffect(() => {
+    if (controls && kbdRevealRef.current) {
+      kbdRevealRef.current = false;
+      playBtnRef.current?.focus?.();
+    }
+  }, [controls]);
 
   // Apply remembered/default audio (Hindi) + subtitle (off) once per load.
   const applyPreferredTracks = useCallback((audio, text) => {
@@ -528,18 +555,30 @@ export default function DbWorldVideoPlayer({
   // Keyboard shortcuts (web): space/k play, ←/→ seek, m mute, Esc close; any key reveals controls.
   useEffect(() => {
     const onKey = (e) => {
+      // Controls hidden → the first key just reveals them and moves focus to Play
+      // (so a TV remote / keyboard can navigate from there).
+      if (!controls && e.key !== 'Escape') {
+        kbdRevealRef.current = true;
+        showControls();
+        if (e.key === ' ' || e.key === 'k' || e.key === 'Enter') e.preventDefault();
+        return;
+      }
       switch (e.key) {
         case ' ': case 'k': e.preventDefault(); togglePlay(); break;
         case 'ArrowRight': seekBy(10000); break;
         case 'ArrowLeft':  seekBy(-10000); break;
         case 'f': case 'F': if (!isNative) toggleFullscreen(); break;
-        case 'Escape':     if (!document.fullscreenElement) close(); break;
-        default:           showControls();
+        case 'Escape':
+          if (settingsOpen)      setSettingsOpen(false);   // Back closes the open panel first
+          else if (episodesOpen) setEpisodesOpen(false);
+          else if (!document.fullscreenElement) close();
+          break;
+        default: showControls();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, seekBy, showControls, toggleFullscreen, isNative]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [controls, settingsOpen, episodesOpen, togglePlay, seekBy, showControls, toggleFullscreen, isNative]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── seek bar drag + hover preview ───────────────────────────────────────────
   // Builds the { leftPx, time } preview from a 0..1 fraction along the bar,
@@ -644,8 +683,10 @@ export default function DbWorldVideoPlayer({
   const showUpNext = nextEpisode && !ended && nearEnd && !upNextDismissed && countdown == null;
 
   return (
+    <ScaleCtx.Provider value={uiScale}>
     <div
       ref={rootRef}
+      className="dbw-player"
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
       onMouseMove={!isNative ? showControls : undefined}   // desktop: reveal controls on mouse move
       onWheel={!isNative ? onWheelVolume : undefined}       // desktop: scroll to change volume
@@ -742,9 +783,9 @@ export default function DbWorldVideoPlayer({
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
               <IconBtn onClick={close} ariaLabel="Close player"><CloseIcon /></IconBtn>
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+                <span style={{ fontWeight: 700, fontSize: Math.round(16 * uiScale), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
                 {curEp && (
-                  <span style={{ fontSize: 13, color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: Math.round(13 * uiScale), color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {epTitle(curEp)}
                   </span>
                 )}
@@ -762,12 +803,12 @@ export default function DbWorldVideoPlayer({
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 48, pointerEvents: 'none' }}>
             <IconBtn big onClick={() => seekBy(-10000)} ariaLabel="Rewind 10 seconds"><Replay10Icon sx={{ fontSize: 38 }} /></IconBtn>
-            <IconBtn big onClick={togglePlay} ariaLabel={playing ? 'Pause' : 'Play'}>
+            <IconBtn big focusRef={playBtnRef} onClick={togglePlay} ariaLabel={playing ? 'Pause' : 'Play'}>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span key={playing ? 'pause' : 'play'} style={{ display: 'flex' }}
                   initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}>
-                  {playing ? <PauseIcon sx={{ fontSize: 52 }} /> : <PlayArrowIcon sx={{ fontSize: 52 }} />}
+                  {playing ? <PauseIcon sx={{ fontSize: 52 * uiScale }} /> : <PlayArrowIcon sx={{ fontSize: 52 * uiScale }} />}
                 </motion.span>
               </AnimatePresence>
             </IconBtn>
@@ -805,7 +846,7 @@ export default function DbWorldVideoPlayer({
 
             {/* time below the bar, on the edges */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6,
-              fontSize: 12, color: '#ccc', fontVariantNumeric: 'tabular-nums' }}>
+              fontSize: Math.round(12 * uiScale), color: '#ccc', fontVariantNumeric: 'tabular-nums' }}>
               <span>{fmt(displayPos)}</span>
               <span>{fmt(duration)}</span>
             </div>
@@ -950,7 +991,7 @@ export default function DbWorldVideoPlayer({
             style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.35)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
             <div onClick={(e) => e.stopPropagation()}
-              style={{ width: settingsView === 'audiosubs' ? 'min(560px, 96%)' : 'min(420px, 94%)',
+              style={{ width: settingsView === 'audiosubs' ? `min(${Math.round(560 * uiScale)}px, 96%)` : `min(${Math.round(420 * uiScale)}px, 94%)`,
                 maxHeight: '86%', display: 'flex', flexDirection: 'column',
                 background: 'rgba(16,16,16,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
                 borderRadius: 14, border: '1px solid rgba(255,255,255,0.12)', overflow: 'hidden' }}>
@@ -1003,43 +1044,47 @@ export default function DbWorldVideoPlayer({
         );
       })()}
     </div>
+    </ScaleCtx.Provider>
   );
 }
 
 // ── settings-sheet helpers ──────────────────────────────────────────────────
 function SheetHeader({ title, onBack }) {
+  const scale = useContext(ScaleCtx);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px',
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `${Math.round(14 * scale)}px 16px`,
       borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
       {onBack && (
-        <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex' }}>
-          <ArrowBackIcon fontSize="small" />
+        <button onClick={onBack} aria-label="Back" style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex' }}>
+          <ArrowBackIcon sx={{ fontSize: Math.round(20 * scale) }} />
         </button>
       )}
-      <span style={{ fontWeight: 700, fontSize: 16 }}>{title}</span>
+      <span style={{ fontWeight: 700, fontSize: Math.round(16 * scale) }}>{title}</span>
     </div>
   );
 }
 function MasterRow({ icon, label, value, onClick }) {
+  const scale = useContext(ScaleCtx);
   return (
     <button onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '14px 16px',
-        background: 'transparent', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 15, textAlign: 'left' }}>
+      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: `${Math.round(14 * scale)}px 16px`,
+        background: 'transparent', border: 'none', cursor: 'pointer', color: '#fff', fontSize: Math.round(15 * scale), textAlign: 'left' }}>
       <span style={{ display: 'flex', color: '#bbb' }}>{icon}</span>
       <span style={{ flex: 1, fontWeight: 600 }}>{label}</span>
-      <span style={{ color: '#9aa', fontSize: 13, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
-      <ChevronRightIcon sx={{ fontSize: 18, color: '#888' }} />
+      <span style={{ color: '#9aa', fontSize: Math.round(13 * scale), maxWidth: Math.round(160 * scale), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+      <ChevronRightIcon sx={{ fontSize: Math.round(18 * scale), color: '#888' }} />
     </button>
   );
 }
 function SheetRow({ label, selected, onClick }) {
+  const scale = useContext(ScaleCtx);
   return (
     <button onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10,
-        padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer',
-        color: selected ? '#0d9488' : '#fff', fontWeight: selected ? 700 : 500, fontSize: 14, textAlign: 'left', whiteSpace: 'nowrap' }}>
+        padding: `${Math.round(10 * scale)}px 16px`, background: 'transparent', border: 'none', cursor: 'pointer',
+        color: selected ? '#0d9488' : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left', whiteSpace: 'nowrap' }}>
       <span>{label}</span>
-      {selected && <CheckIcon sx={{ fontSize: 16 }} />}
+      {selected && <CheckIcon sx={{ fontSize: Math.round(16 * scale) }} />}
     </button>
   );
 }
@@ -1095,10 +1140,17 @@ function SheetSection({ children }) {
 const row = (position, extra) => ({ position, display: 'flex', alignItems: 'center', ...extra });
 
 // Round icon button (top bar + big center transport), with hover/tap motion.
-function IconBtn({ children, onClick, big, ariaLabel }) {
+function IconBtn({ children, onClick, big, ariaLabel, focusRef }) {
   const reduce = useReducedMotion();
+  const scale = useContext(ScaleCtx);
+  const dim = Math.round((big ? 64 : 44) * scale);
+  // Scale MUI icon children by uiScale (adding an ignored sx to a non-icon child is harmless).
+  const scaled = React.Children.map(children, (ch) =>
+    React.isValidElement(ch)
+      ? React.cloneElement(ch, { sx: { ...(ch.props.sx || {}), fontSize: Math.round((ch.props.sx?.fontSize || 24) * scale) } })
+      : ch);
   return (
-    <motion.button type="button" aria-label={ariaLabel}
+    <motion.button type="button" aria-label={ariaLabel} ref={focusRef}
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
       whileHover={reduce ? undefined : { scale: 1.1 }}
       whileTap={reduce ? undefined : { scale: 0.88 }}
@@ -1107,9 +1159,9 @@ function IconBtn({ children, onClick, big, ariaLabel }) {
         pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         background: big ? 'rgba(0,0,0,0.4)' : 'transparent',
         border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '50%',
-        width: big ? 64 : 44, height: big ? 64 : 44, padding: 0,
+        width: dim, height: dim, padding: 0,
       }}>
-      {children}
+      {scaled}
     </motion.button>
   );
 }
@@ -1118,6 +1170,10 @@ function IconBtn({ children, onClick, big, ariaLabel }) {
 // an active (teal) state. Min 44px tall for touch.
 function CtrlBtn({ icon, label, onClick, active, ariaLabel }) {
   const reduce = useReducedMotion();
+  const scale = useContext(ScaleCtx);
+  const scaledIcon = React.isValidElement(icon)
+    ? React.cloneElement(icon, { sx: { ...(icon.props.sx || {}), fontSize: Math.round((icon.props.sx?.fontSize || 22) * scale) } })
+    : icon;
   return (
     <motion.button type="button" aria-label={ariaLabel || label}
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
@@ -1125,12 +1181,13 @@ function CtrlBtn({ icon, label, onClick, active, ariaLabel }) {
       whileTap={reduce ? undefined : { scale: 0.92 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       style={{
-        pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7,
-        minHeight: 44, padding: '8px 12px', borderRadius: 12, border: 'none', cursor: 'pointer',
+        pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: Math.round(7 * scale),
+        minHeight: Math.round(44 * scale), padding: `${Math.round(8 * scale)}px ${Math.round(12 * scale)}px`,
+        borderRadius: 12, border: 'none', cursor: 'pointer',
         background: active ? 'rgba(20,184,166,0.18)' : 'transparent',
-        color: active ? TEAL : '#fff', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+        color: active ? TEAL : '#fff', fontSize: Math.round(13 * scale), fontWeight: 600, whiteSpace: 'nowrap',
       }}>
-      {icon}
+      {scaledIcon}
       {label && <span>{label}</span>}
     </motion.button>
   );
