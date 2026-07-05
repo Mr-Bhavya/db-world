@@ -61,6 +61,18 @@ function fmtPositionMs(ms) {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
+// Formats a millisecond duration as H:MM:SS (once past an hour) or M:SS —
+// used for the watch-time tile (watchPositionMs / watchDurationMs).
+function fmtDuration(ms) {
+  if (ms == null) return '—';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
 // ─── chip color maps (mirror SessionsTab) ─────────────────────────────────────
 
 const ACTIVITY_COLOR = { DOWNLOAD: '#0d9488', STREAM: '#3b82f6', SEARCH: '#f59e0b' };
@@ -125,12 +137,18 @@ function SummaryGrid({ session }) {
     ? Math.max(0, session.nginxTransferredBytes - session.uniqueBytes)
     : null;
   const pct = fmtPct(session.completionPercent);
+  const watchedPct = fmtPct(session.watchedPercent);
+  const isStream = session.activity === 'STREAM' && session.watchDurationMs > 0;
 
   const metrics = [
     ['State', session.state ? <StateChip key="s" state={session.state} /> : '—'],
     ['Activity', session.activity ? <ActivityChip key="a" activity={session.activity} /> : '—'],
     ['Channel', session.channel],
     ['Client app', session.clientApp],
+    ...(isStream ? [
+      ['Watched %', watchedPct != null ? `${watchedPct.toFixed(1)}%` : '—'],
+      ['Watch time', `${fmtDuration(session.watchPositionMs)} / ${fmtDuration(session.watchDurationMs)}`],
+    ] : []),
     ['Completion', pct != null ? `${pct.toFixed(1)}%` : '—'],
     ['Unique bytes', fmtBytes(session.uniqueBytes)],
     ...(session.nginxTransferredBytes != null ? [['Transferred (nginx)', fmtBytes(session.nginxTransferredBytes)]] : []),

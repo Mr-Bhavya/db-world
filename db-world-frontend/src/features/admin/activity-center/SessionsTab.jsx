@@ -50,6 +50,17 @@ function fmtPct(p) {
   return Math.max(0, Math.min(100, Number(p)));
 }
 
+// STREAM sessions track playback progress via watchedPercent (how far the user
+// watched); the byte completionPercent is small/misleading for streams since
+// bytes reflect buffered range, not watch time. DOWNLOAD sessions keep the
+// byte-based completionPercent as the meaningful progress metric.
+function progressFor(session) {
+  if (session.activity === 'STREAM' && session.watchedPercent != null) {
+    return { pct: session.watchedPercent, label: 'watched' };
+  }
+  return { pct: session.completionPercent, label: '' };
+}
+
 function fmtClock(ts) {
   if (!ts) return '—';
   return new Date(ts).toLocaleString([], {
@@ -96,7 +107,7 @@ function ChannelClientChip({ channel, clientApp }) {
   return <Chip label={label} size="small" variant="outlined" sx={chipSx} />;
 }
 
-function ProgressBar({ pct, width }) {
+function ProgressBar({ pct, width, label }) {
   const T = useT();
   const v = fmtPct(pct);
   return (
@@ -108,8 +119,8 @@ function ProgressBar({ pct, width }) {
           transition: 'width .4s ease',
         }} />
       </Box>
-      <Typography variant="caption" sx={{ color: T.textMuted, minWidth: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-        {v.toFixed(1)}%
+      <Typography variant="caption" sx={{ color: T.textMuted, minWidth: label ? 74 : 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+        {v.toFixed(1)}%{label ? ` ${label}` : ''}
       </Typography>
     </Stack>
   );
@@ -153,7 +164,7 @@ function SessionRow({ session, isLg, isXl, onOpen }) {
       <TableCell><ActivityChip activity={session.activity} /></TableCell>
       <TableCell><ChannelClientChip channel={session.channel} clientApp={session.clientApp} /></TableCell>
       <TableCell><StateChip state={session.state} /></TableCell>
-      <TableCell><ProgressBar pct={session.completionPercent} /></TableCell>
+      <TableCell><ProgressBar {...progressFor(session)} /></TableCell>
       {isLg && (
         <TableCell align="right">
           <Typography variant="caption" color="text.secondary">
@@ -215,7 +226,7 @@ function SessionCard({ session, onOpen }) {
       </Stack>
 
       <Box sx={{ mt: 1 }}>
-        <ProgressBar pct={session.completionPercent} width="100%" />
+        <ProgressBar {...progressFor(session)} width="100%" />
       </Box>
 
       <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mt: 0.75 }}>

@@ -35,6 +35,16 @@ function fmtPct(p) {
   return Math.max(0, Math.min(100, Number(p)));
 }
 
+// STREAM live sessions surface playback progress via watchedPercent (how far
+// the user watched); the byte completionPercent is small/misleading for
+// streams. DOWNLOAD sessions keep the byte-based completionPercent.
+function progressFor(session) {
+  if (session.activity === 'STREAM' && session.watchedPercent != null) {
+    return { pct: session.watchedPercent, label: 'watched' };
+  }
+  return { pct: session.completionPercent, label: '' };
+}
+
 function fmtDuration(startedAt) {
   if (!startedAt) return '—';
   const ms = Date.now() - new Date(startedAt).getTime();
@@ -100,7 +110,7 @@ function ChannelClientChip({ channel, clientApp }) {
 
 // ─── progress bar ─────────────────────────────────────────────────────────────
 
-function ProgressBar({ pct, width }) {
+function ProgressBar({ pct, width, label }) {
   const T = useT();
   const v = fmtPct(pct);
   return (
@@ -112,8 +122,8 @@ function ProgressBar({ pct, width }) {
           transition: 'width .4s ease',
         }} />
       </Box>
-      <Typography variant="caption" sx={{ color: T.textMuted, minWidth: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-        {v.toFixed(1)}%
+      <Typography variant="caption" sx={{ color: T.textMuted, minWidth: label ? 74 : 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+        {v.toFixed(1)}%{label ? ` ${label}` : ''}
       </Typography>
     </Stack>
   );
@@ -172,7 +182,7 @@ function LiveRow({ session, isLg, isXl }) {
       </TableCell>
       <TableCell><ActivityChip activity={session.activity} /></TableCell>
       <TableCell><ChannelClientChip channel={session.channel} clientApp={session.clientApp} /></TableCell>
-      <TableCell><ProgressBar pct={session.completionPercent} /></TableCell>
+      <TableCell><ProgressBar {...progressFor(session)} /></TableCell>
       <TableCell>
         <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
           {fmtSpeed(session.avgSpeedBps)}
@@ -231,7 +241,7 @@ function LiveCard({ session }) {
       </Stack>
 
       <Box sx={{ mt: 1 }}>
-        <ProgressBar pct={session.completionPercent} width="100%" />
+        <ProgressBar {...progressFor(session)} width="100%" />
       </Box>
 
       <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mt: 0.75 }}>
