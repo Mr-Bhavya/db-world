@@ -11,7 +11,7 @@ import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.audit.activity.recommend.GenreAffinityService;
 import com.db.dbworld.audit.activity.recommend.RewatchTrendService;
-import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
+import com.db.dbworld.audit.tracking.repository.ActivitySessionRepository;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import com.db.dbworld.app.cinema.rail.entity.RailItemEntity;
 import com.db.dbworld.app.cinema.rail.repository.RailItemRepository;
@@ -36,7 +36,7 @@ public class RailResolverImpl implements RailResolver {
     private final RecordRepository recordRepository;
     private final TagDefinitionService tagDefinitionService;
     private final WatchProgressRepository watchProgressRepository;
-    private final UserCinemaActivityRepository activityRepository;
+    private final ActivitySessionRepository activitySessionRepository;
     private final UserContext userContext;
     private final GenreAffinityService genreAffinityService;
     private final RewatchTrendService rewatchTrendService;
@@ -208,8 +208,9 @@ public class RailResolverImpl implements RailResolver {
      * rail's natural ordering (typically popularity DESC).
      */
     private Slice<Long> resolveBecauseYouWatchedIds(RecordType effectiveType, Pageable pageable) {
-        // Source pick now spans BOTH watch_progress and user_cinema_activity (downloads
-        // + completed streams), so users who mostly download still get a useful recommendation.
+        // Source pick now spans BOTH watch_progress and activity_session (STREAM
+        // sessions), so users who mostly stream (rather than track progress) still get
+        // a useful recommendation.
         Long sourceRecordId = pickBecauseYouWatchedSource();
         if (sourceRecordId == null) return new SliceImpl<>(List.of(), pageable, false);
 
@@ -227,8 +228,8 @@ public class RailResolverImpl implements RailResolver {
      * Resolves the source record for a "Because you watched" rail. Looks at:
      * <ol>
      *   <li>{@link WatchProgressRepository#findMostRecentRecordIdsByUser} — actual playback,</li>
-     *   <li>{@link UserCinemaActivityRepository#findMostRecentRecordIdsByUser} — completed
-     *       downloads/streams (covers the "user mostly downloads" use case),</li>
+     *   <li>{@link ActivitySessionRepository#findMostRecentRecordIdsByUser} — recent STREAM
+     *       sessions (covers users whose watch_progress hasn't ticked yet),</li>
      * </ol>
      * and picks the most recent of the two. Returns null if neither source has data.
      */
@@ -241,7 +242,7 @@ public class RailResolverImpl implements RailResolver {
         }
         Pageable top1 = PageRequest.of(0, 1);
         List<Long> fromProgress = watchProgressRepository.findMostRecentRecordIdsByUser(userId, top1);
-        List<Long> fromActivity = activityRepository.findMostRecentRecordIdsByUser(userId, top1);
+        List<Long> fromActivity = activitySessionRepository.findMostRecentRecordIdsByUser(userId, top1);
         if (!fromProgress.isEmpty()) return fromProgress.get(0);
         if (!fromActivity.isEmpty()) return fromActivity.get(0);
         return null;

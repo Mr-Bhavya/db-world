@@ -1,6 +1,6 @@
 package com.db.dbworld.audit.activity.recommend;
 
-import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
+import com.db.dbworld.audit.tracking.repository.ActivitySessionRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -25,8 +25,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RewatchTrendService {
 
-    private final RecommendProperties           props;
-    private final UserCinemaActivityRepository  activityRepository;
+    private final RecommendProperties       props;
+    private final ActivitySessionRepository activitySessionRepository;
 
     private volatile List<Long> topRecordIds = List.of();
 
@@ -43,7 +43,7 @@ public class RewatchTrendService {
     @Scheduled(cron = "${dbworld.recommend.rewatch.refresh-cron:0 0 * * * *}")
     public void refresh() {
         if (!props.getRewatch().isEnabled()) return;
-        List<Long> latest = activityRepository.findTopRewatchedRecordIds(
+        List<Long> latest = activitySessionRepository.findTopRewatchedRecordIds(
                 props.getRewatch().getWindowDays(),
                 props.getRewatch().getMinScore(),
                 props.getRewatch().getTopN());

@@ -23,6 +23,13 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.util.List;
 
+// NOTE: methods below in the "RECOMMENDATION SIGNALS" section are the
+// activity_session-backed replacements for the old
+// UserCinemaActivityRepository#findTopEngagedGenreIdsByUser /
+// #countEngagedRecordsByUser / #findTopRewatchedRecordIds /
+// #findMostRecentRecordIdsByUser. See class-level Javadoc on each method for
+// how the semantics were adapted to the one-row-per-session model.
+
 @Repository
 public interface ActivitySessionRepository
         extends JpaRepository<ActivitySessionEntity, String>,
@@ -221,4 +228,113 @@ public interface ActivitySessionRepository
               AND activity IN ('DOWNLOAD', 'STREAM')
             """, nativeQuery = true)
     MeSummaryProjection findMeSummary(@Param("userId") Long userId);
+
+    /* =========================================================================
+       RECOMMENDATION SIGNALS — activity_session replacements for the old
+       UserCinemaActivityRepository "PHASE 5" queries. Old system stays intact
+       (not yet deleted); these are the new home for the rail/recommend path.
+       ========================================================================= */
+
+    /**
+     * Top genres for a user by count of distinct engaged records, replicating
+     * {@code UserCinemaActivityRepository#findTopEngagedGenreIdsByUser}. A session is
+     * "engaged" when {@code state = 'COMPLETED'} or {@code completion_percent >= :completionThreshold},
+     * restricted to STREAM activity (the old query's {@code download_count >= 1} branch has no
+     * one-row-per-session equivalent here — a completed DOWNLOAD session already satisfies
+     * {@code state = 'COMPLETED'} above, so DOWNLOAD engagement is still captured without a
+     * separate branch). Joins records → tmdb_genres → genres, same path as the old query.
+     */
+    @Query(value = """
+            SELECT g.id AS genreId
+            FROM activity_session s
+            JOIN records r        ON r.id = s.record_id
+            JOIN tmdb_genres tg   ON tg.tmdb_id = r.tmdb_id
+            JOIN genres g         ON g.id = tg.genre_id
+            WHERE s.user_id = :userId
+              AND s.record_id IS NOT NULL
+              AND s.activity = 'STREAM'
+              AND (s.state = 'COMPLETED' OR s.completion_percent >= :completionThreshold)
+            GROUP BY g.id
+            ORDER BY COUNT(DISTINCT s.record_id) DESC, MAX(s.last_event_at) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findTopEngagedGenreIdsByUser(
+            @Param("userId")              Long userId,
+            @Param("completionThreshold") int completionThreshold,
+            @Param("limit")               int limit
+    );
+
+    /**
+     * Count of distinct engaged records for a user — the cold-start guard for
+     * {@link #findTopEngagedGenreIdsByUser}, replacing
+     * {@code UserCinemaActivityRepository#countEngagedRecordsByUser}. Same engagement
+     * definition as above (STREAM sessions that are COMPLETED or past the completion threshold).
+     */
+    @Query(value = """
+            SELECT COUNT(DISTINCT record_id)
+            FROM activity_session
+            WHERE user_id = :userId
+              AND record_id IS NOT NULL
+              AND activity = 'STREAM'
+              AND (state = 'COMPLETED' OR completion_percent >= :completionThreshold)
+            """, nativeQuery = true)
+    long countEngagedRecordsByUser(
+            @Param("userId")              Long userId,
+            @Param("completionThreshold") int completionThreshold
+    );
+
+    /**
+     * Site-wide top-rewatched record IDs in the last {@code :windowDays} days, replacing
+     * {@code UserCinemaActivityRepository#findTopRewatchedRecordIds}.
+     *
+     * <p><b>Ranking-choice note:</b> the old table was one-row-per-(user,file,activityType)
+     * with lifetime {@code download_count}/{@code stream_count} counters, so "rewatch score"
+     * was simply {@code SUM(download_count + stream_count)} per record. The new schema is
+     * one-row-per-session, so a "rewatch" is a user starting more than one STREAM session for
+     * the same record. We rank records by total repeat-session volume:
+     * {@code COUNT(*) - COUNT(DISTINCT user_id)} per record — i.e. every session beyond a
+     * user's first counts as one rewatch. This is the closest one-pass equivalent of the old
+     * cumulative counter and naturally yields 0 for records nobody has rewatched, so the
+     * {@code HAVING ... >= :minScore} filter still behaves the same way (minScore=0 lets all
+     * engaged records through; minScore>=1 requires at least one actual repeat session).
+     */
+    @Query(value = """
+            SELECT record_id
+            FROM activity_session
+            WHERE last_event_at >= (NOW() - INTERVAL :windowDays DAY)
+              AND activity = 'STREAM'
+              AND record_id IS NOT NULL
+            GROUP BY record_id
+            HAVING (COUNT(*) - COUNT(DISTINCT user_id)) >= :minScore
+            ORDER BY (COUNT(*) - COUNT(DISTINCT user_id)) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findTopRewatchedRecordIds(
+            @Param("windowDays") int windowDays,
+            @Param("minScore")   int minScore,
+            @Param("limit")      int limit
+    );
+
+    /**
+     * A user's most recent distinct record IDs from STREAM sessions, ordered by recency,
+     * replacing {@code UserCinemaActivityRepository#findMostRecentRecordIdsByUser}. JPQL
+     * (not native) so Spring Data applies {@code LIMIT}/{@code OFFSET} from the {@link Pageable}
+     * automatically, matching the old method's signature exactly (every call site passes
+     * {@code PageRequest.of(0, 1)} and only ever reads the first element, so — same as the old
+     * query — this intentionally does not de-duplicate record IDs across sessions).
+     *
+     * <p>Scoped to STREAM only: the old query covered both STREAM and DOWNLOAD, but "most
+     * recently watched" (used to seed the becauseYouWatched rail / dynamic title) is a playback
+     * signal — DOWNLOAD-only engagement is already covered by
+     * {@code WatchProgressRepository#findMostRecentRecordIdsByUser}, which every caller of this
+     * method tries first, falling back here only when that is empty.
+     */
+    @Query("""
+            SELECT a.recordId FROM ActivitySessionEntity a
+            WHERE a.userId = :userId
+              AND a.recordId IS NOT NULL
+              AND a.activity = com.db.dbworld.audit.tracking.enums.ActivityKind.STREAM
+            ORDER BY a.lastEventAt DESC
+            """)
+    List<Long> findMostRecentRecordIdsByUser(@Param("userId") Long userId, Pageable pageable);
 }
