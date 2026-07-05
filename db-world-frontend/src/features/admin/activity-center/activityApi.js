@@ -55,26 +55,6 @@ export const fetchTopContent = (days = 30, limit = 20) =>
 export const fetchTopUsers = (days = 30, limit = 20) =>
   axiosInstance.get(`${ACTIVITY}/top-users`, { params: { days, limit } }).then(r => r.data.data);
 
-// ─── Cinema activity ──────────────────────────────────────────────────────────
-
-const CINEMA = '/api/user-cinema-activity/admin';
-
-export const fetchCinemaDashboard = (days = 7) =>
-  axiosInstance.get(`${CINEMA}/dashboard-stats`, { params: { days } }).then(r => r.data.data);
-
-export const fetchCinemaRecent = ({ limit = 100, activityType = '', hours = 24 } = {}) =>
-  axiosInstance.get(`${CINEMA}/all-recent`, {
-    params: { limit, hours, ...(activityType && { activityType }) },
-  }).then(r => r.data.data);
-
-export const fetchCinemaUsers = (hours = 24) =>
-  axiosInstance.get(`${CINEMA}/user-list`, { params: { hours } }).then(r => r.data.data);
-
-export const fetchUserActivities = ({ userEmail, limit = 50, activityType = '', hours = 24 } = {}) =>
-  axiosInstance.get(`${CINEMA}/user-activities`, {
-    params: { userEmail, limit, hours, ...(activityType && { activityType }) },
-  }).then(r => r.data.data);
-
 // ─── HTTP activity logs ───────────────────────────────────────────────────────
 
 const API_LOGS = '/api/admin/activity-logs';

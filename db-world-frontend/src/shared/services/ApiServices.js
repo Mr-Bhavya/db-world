@@ -678,18 +678,6 @@ export const deleteTempFile = async () => {
   }
 };
 
-// Event Tracking
-export const saveUserEventInfo = async (_event, _value) => {
-return;
-//  try {
-//    const response = await axiosInstance.post('/api/event-info/', { event, value });
-//    return response.data;
-//  } catch (error) {
-//    console.error('Error saving user event:', error);
-//    throw error;
-//  }
-};
-
 // Media File Management
 export const deleteMediaFileInfoById = async (id) => {
   try {
