@@ -138,18 +138,21 @@ function SummaryGrid({ session }) {
     : null;
   const pct = fmtPct(session.completionPercent);
   const watchedPct = fmtPct(session.watchedPercent);
-  const isStream = session.activity === 'STREAM' && session.watchDurationMs > 0;
+  const isStream = session.activity === 'STREAM';
+  const hasWatch = isStream && session.watchDurationMs > 0;
 
   const metrics = [
     ['State', session.state ? <StateChip key="s" state={session.state} /> : '—'],
     ['Activity', session.activity ? <ActivityChip key="a" activity={session.activity} /> : '—'],
     ['Channel', session.channel],
     ['Client app', session.clientApp],
-    ...(isStream ? [
+    ...(hasWatch ? [
       ['Watched %', watchedPct != null ? `${watchedPct.toFixed(1)}%` : '—'],
       ['Watch time', `${fmtDuration(session.watchPositionMs)} / ${fmtDuration(session.watchDurationMs)}`],
     ] : []),
-    ['Completion', pct != null ? `${pct.toFixed(1)}%` : '—'],
+    // Byte-based completion is meaningful for downloads but misleading for streams
+    // (watched% is the real progress metric there) — hide it for STREAM sessions.
+    ...(isStream ? [] : [['Completion', pct != null ? `${pct.toFixed(1)}%` : '—']]),
     ['Unique bytes', fmtBytes(session.uniqueBytes)],
     ...(session.nginxTransferredBytes != null ? [['Transferred (nginx)', fmtBytes(session.nginxTransferredBytes)]] : []),
     ...(wasted != null ? [['Wasted (re-transfer)', fmtBytes(wasted)]] : []),
