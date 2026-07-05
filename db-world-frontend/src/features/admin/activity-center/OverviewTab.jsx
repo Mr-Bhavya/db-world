@@ -20,9 +20,16 @@ import {
   fetchTopContent, fetchTopUsers,
 } from './activityApi';
 
-const KPI_DAYS_OPTIONS = [7, 30];
-const CHART_DAYS = 30;
+// days = 0 is the backend's "all time" convention (see fetchActivityOverview etc.).
+const KPI_DAYS_OPTIONS = [
+  { value: 7,  label: '7d' },
+  { value: 30, label: '30d' },
+  { value: 0,  label: 'All time' },
+];
 const TOP_LIMIT = 20;
+
+// Human-readable window label used in tile/section headings.
+const windowLabel = (days) => (days > 0 ? `${days}d` : 'All time');
 
 // ─── formatting helpers ──────────────────────────────────────────────────────
 
@@ -102,15 +109,17 @@ function KpiTile({ icon, label, value, suffix, accent, index = 0 }) {
 function KpiGrid({ data, loading, days }) {
   const T = useT();
 
+  const win = windowLabel(days);
+
   const tiles = useMemo(() => ([
     { key: 'activeNow',       accent: 'teal',   icon: <Bolt />,               label: 'Active now',        value: fmtInt(data?.activeNow) },
-    { key: 'streamsToday',    accent: 'blue',   icon: <PlayArrow />,          label: `Streams (${days}d)`,     value: fmtInt(data?.streamsToday) },
-    { key: 'downloadsToday',  accent: 'purple', icon: <CloudDownload />,      label: `Downloads (${days}d)`,   value: fmtInt(data?.downloadsToday) },
-    { key: 'uniqueUsers',     accent: 'green',  icon: <Group />,              label: `Unique users (${days}d)`, value: fmtInt(data?.uniqueUsers) },
-    { key: 'gbDelivered',     accent: 'amber',  icon: <Storage />,            label: `Delivered (${days}d)`,    value: fmtGb(data?.gbDelivered), suffix: 'GB' },
+    { key: 'streamsToday',    accent: 'blue',   icon: <PlayArrow />,          label: `Streams (${win})`,     value: fmtInt(data?.streamsToday) },
+    { key: 'downloadsToday',  accent: 'purple', icon: <CloudDownload />,      label: `Downloads (${win})`,   value: fmtInt(data?.downloadsToday) },
+    { key: 'uniqueUsers',     accent: 'green',  icon: <Group />,              label: `Unique users (${win})`, value: fmtInt(data?.uniqueUsers) },
+    { key: 'gbDelivered',     accent: 'amber',  icon: <Storage />,            label: `Delivered (${win})`,    value: fmtGb(data?.gbDelivered), suffix: 'GB' },
     { key: 'avgSpeedBps',     accent: 'blue',   icon: <Speed />,              label: 'Avg speed',         value: fmtSpeed(data?.avgSpeedBps), suffix: 'MB/s' },
     { key: 'completionRate',  accent: 'green',  icon: <CheckCircleOutline />, label: 'Completion rate',   value: fmtPct(data?.completionRate), suffix: '%' },
-  ]), [data, days]);
+  ]), [data, win]);
 
   if (loading) {
     return (
@@ -165,26 +174,26 @@ export default function OverviewTab() {
   });
 
   const trendQ = useQuery({
-    queryKey: ['activityTrend', CHART_DAYS],
-    queryFn: () => fetchActivityTrend(CHART_DAYS),
+    queryKey: ['activityTrend', kpiDays],
+    queryFn: () => fetchActivityTrend(kpiDays),
     staleTime: 30_000,
   });
 
   const breakdownQ = useQuery({
-    queryKey: ['activityClientBreakdown', CHART_DAYS],
-    queryFn: () => fetchClientBreakdown(CHART_DAYS),
+    queryKey: ['activityClientBreakdown', kpiDays],
+    queryFn: () => fetchClientBreakdown(kpiDays),
     staleTime: 30_000,
   });
 
   const topContentQ = useQuery({
-    queryKey: ['activityTopContent', CHART_DAYS, TOP_LIMIT],
-    queryFn: () => fetchTopContent(CHART_DAYS, TOP_LIMIT),
+    queryKey: ['activityTopContent', kpiDays, TOP_LIMIT],
+    queryFn: () => fetchTopContent(kpiDays, TOP_LIMIT),
     staleTime: 30_000,
   });
 
   const topUsersQ = useQuery({
-    queryKey: ['activityTopUsers', CHART_DAYS, TOP_LIMIT],
-    queryFn: () => fetchTopUsers(CHART_DAYS, TOP_LIMIT),
+    queryKey: ['activityTopUsers', kpiDays, TOP_LIMIT],
+    queryFn: () => fetchTopUsers(kpiDays, TOP_LIMIT),
     staleTime: 30_000,
   });
 
@@ -221,12 +230,17 @@ export default function OverviewTab() {
     }}>
       {/* ── KPI strip ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-        <Typography sx={{
-          fontSize: 11, color: T.textFaint, textTransform: 'uppercase',
-          letterSpacing: '0.08em', fontWeight: 700,
-        }}>
-          Overview
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+          <Typography sx={{
+            fontSize: 11, color: T.textFaint, textTransform: 'uppercase',
+            letterSpacing: '0.08em', fontWeight: 700,
+          }}>
+            Overview
+          </Typography>
+          <Typography sx={{ fontSize: 11, color: T.textMuted }}>
+            Showing {windowLabel(kpiDays).toLowerCase()}
+          </Typography>
+        </Box>
         <ToggleButtonGroup
           value={kpiDays}
           exclusive
@@ -241,8 +255,8 @@ export default function OverviewTab() {
             },
           }}
         >
-          {KPI_DAYS_OPTIONS.map((d) => (
-            <ToggleButton key={d} value={d}>{d}d</ToggleButton>
+          {KPI_DAYS_OPTIONS.map((opt) => (
+            <ToggleButton key={opt.value} value={opt.value}>{opt.label}</ToggleButton>
           ))}
         </ToggleButtonGroup>
       </Box>
@@ -254,7 +268,7 @@ export default function OverviewTab() {
         display: 'grid', gap: { xs: 1.5, sm: 2 },
         gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' },
       }}>
-        <ActivityTrendChart   data={trendData}     loading={trendQ.isLoading}     days={CHART_DAYS} />
+        <ActivityTrendChart   data={trendData}     loading={trendQ.isLoading}     days={kpiDays} />
         <ClientBreakdownChart data={breakdownData} loading={breakdownQ.isLoading} />
       </Box>
 

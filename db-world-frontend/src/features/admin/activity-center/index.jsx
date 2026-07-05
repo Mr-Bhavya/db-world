@@ -1,14 +1,26 @@
 import React, { useState } from 'react';
-import { Box, Typography, Tabs, Tab, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, Tabs, Tab, IconButton, Tooltip, useMediaQuery, useTheme } from '@mui/material';
 import InsightsIcon     from '@mui/icons-material/Insights';
 import BoltIcon         from '@mui/icons-material/Bolt';
 import DevicesIcon      from '@mui/icons-material/Devices';
 import HttpIcon         from '@mui/icons-material/Http';
+import RefreshIcon      from '@mui/icons-material/Refresh';
+import { useQueryClient } from '@tanstack/react-query';
 import { useT }         from '@shared/theme/ThemeContext';
 import OverviewTab      from './OverviewTab';
 import LiveTab          from './LiveTab';
 import SessionsTab      from './SessionsTab';
 import ApiLogsFeed      from './ApiLogsFeed';
+
+// Query keys used by the tabs' TanStack Query hooks (see OverviewTab, LiveTab,
+// SessionsTab — ApiLogsFeed manages its own fetch/state and isn't query-cache
+// backed, so it's refreshed independently below).
+const ACTIVITY_QUERY_KEYS = [
+  'activityOverview', 'activityTrend', 'activityClientBreakdown',
+  'activityTopContent', 'activityTopUsers',
+  'liveSessions',
+  'sessions', 'activityUsers',
+];
 
 // ─── Tab config ────────────────────────────────────────────────────────────────
 const TABS = [
@@ -23,8 +35,21 @@ export default function ActivityCenter() {
   const T = useT();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
+  const queryClient = useQueryClient();
 
   const [tab, setTab] = useState('overview');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey?.[0];
+        return typeof k === 'string' && ACTIVITY_QUERY_KEYS.includes(k);
+      },
+    });
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 500);
+  };
 
   return (
     <Box sx={{
@@ -33,16 +58,44 @@ export default function ActivityCenter() {
     }}>
       <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
         {/* ── Header ── */}
-        <Box sx={{ mb: 2 }}>
-          <Typography sx={{
-            fontWeight: 800, fontSize: { xs: 18, md: 22 },
-            color: T.text, lineHeight: 1.2,
-          }}>
-            Activity &amp; Insights
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: T.textFaint, mt: 0.2 }}>
-            Site-wide overview · live activity · sessions · request log — unified view
-          </Typography>
+        <Box sx={{ mb: 2, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+          <Box>
+            <Typography sx={{
+              fontWeight: 800, fontSize: { xs: 18, md: 22 },
+              color: T.text, lineHeight: 1.2,
+            }}>
+              Activity &amp; Insights
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: T.textFaint, mt: 0.2 }}>
+              Site-wide overview · live activity · sessions · request log — unified view
+            </Typography>
+          </Box>
+          <Tooltip title="Refresh">
+            <span>
+              <IconButton
+                size="small"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                sx={{
+                  color: T.textFaint,
+                  border: `1px solid ${T.border}`,
+                  bgcolor: T.glass,
+                  '&:hover': { color: T.teal, borderColor: T.teal },
+                }}
+              >
+                <RefreshIcon
+                  fontSize="small"
+                  sx={{
+                    animation: refreshing ? 'activity-refresh-spin .5s linear' : 'none',
+                    '@keyframes activity-refresh-spin': {
+                      from: { transform: 'rotate(0deg)' },
+                      to:   { transform: 'rotate(360deg)' },
+                    },
+                  }}
+                />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Box>
 
         {/* ── Tab shell ── */}
