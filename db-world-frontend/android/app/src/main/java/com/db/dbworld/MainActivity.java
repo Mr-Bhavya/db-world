@@ -1,15 +1,19 @@
 package com.db.dbworld;
 
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
 import com.db.dbworld.appupdate.AppUpdatePlugin;
 import com.db.dbworld.download.DbWorldDownloadPlugin;
 import com.db.dbworld.player.HybridPlayerPlugin;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
 
@@ -52,6 +56,18 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         setImmersiveMode();
+    }
+
+    /** Forward PiP enter/exit to the hybrid player so it can hide/show the React overlay. */
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        try {
+            PluginHandle h = getBridge().getPlugin("HybridPlayer");
+            if (h != null && h.getInstance() instanceof HybridPlayerPlugin) {
+                ((HybridPlayerPlugin) h.getInstance()).handlePipModeChanged(isInPictureInPictureMode);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override

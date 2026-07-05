@@ -1,15 +1,25 @@
 package com.db.dbworld.player;
 
+import android.app.PendingIntent;
+import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.database.ContentObserver;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Rect;
+import android.graphics.drawable.Icon;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.util.Rational;
 import android.view.TextureView;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -79,6 +89,10 @@ public class HybridPlayerPlugin extends Plugin {
     private AudioManager   audioManager;
     private ContentObserver volumeObserver;
     private int            lastVolPercent = -1;
+    // Picture-in-Picture: a play/pause RemoteAction routed back through this receiver.
+    private static final String PIP_ACTION = "com.db.dbworld.player.PIP_CONTROL";
+    private BroadcastReceiver pipReceiver;
+    private boolean inPip = false;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
@@ -344,6 +358,28 @@ public class HybridPlayerPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Enter Android Picture-in-Picture with a play/pause action. No-op below API 26. */
+    @PluginMethod
+    public void enterPip(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && player != null) {
+                registerPipReceiver();
+                try { getActivity().enterPictureInPictureMode(buildPipParams()); }
+                catch (Exception e) { android.util.Log.w(TAG, "enterPip failed", e); }
+            }
+        });
+        call.resolve();
+    }
+
+    /** Invoked by MainActivity.onPictureInPictureModeChanged — tell the React overlay to hide/show. */
+    public void handlePipModeChanged(boolean isInPip) {
+        inPip = isInPip;
+        JSObject e = new JSObject();
+        e.put("pip", isInPip);
+        notifyListeners("playerPipChanged", e);
+        if (!isInPip) unregisterPipReceiver();
+    }
+
     @PluginMethod
     public void release(PluginCall call) {
         getActivity().runOnUiThread(() -> {
@@ -351,6 +387,7 @@ public class HybridPlayerPlugin extends Plugin {
             if (player != null) { player.release(); player = null; }
             detachSurface();
             unregisterVolumeObserver();
+            unregisterPipReceiver();
             getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
             Window w = getActivity().getWindow();
             w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // allow the screen to sleep again
@@ -504,6 +541,67 @@ public class HybridPlayerPlugin extends Plugin {
         return slash >= 0 ? mime.substring(slash + 1).toUpperCase() : mime.toUpperCase();
     }
 
+    // ─── Picture-in-Picture ───────────────────────────────────────────────────
+
+    private PictureInPictureParams buildPipParams() {
+        PictureInPictureParams.Builder b = new PictureInPictureParams.Builder();
+        int w = (int) Math.max(1, videoW * pixelRatio), h = (int) Math.max(1, videoH);
+        // Android rejects extreme ratios (allowed ≈ 0.42…2.39) — clamp to be safe.
+        double ratio = (h > 0) ? (double) w / h : (16.0 / 9.0);
+        ratio = Math.max(0.42, Math.min(2.38, ratio));
+        b.setAspectRatio(new Rational((int) Math.round(ratio * 1000), 1000));
+        if (videoView != null && videoView.getWidth() > 0) {
+            int[] loc = new int[2];
+            videoView.getLocationOnScreen(loc);
+            b.setSourceRectHint(new Rect(loc[0], loc[1], loc[0] + videoView.getWidth(), loc[1] + videoView.getHeight()));
+        }
+        b.setActions(java.util.Collections.singletonList(playPauseAction()));
+        return b.build();
+    }
+
+    /** The single PiP-window action, reflecting the current play/pause state. */
+    private RemoteAction playPauseAction() {
+        boolean playing = player != null && player.getPlayWhenReady();
+        int iconRes = playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+        String title = playing ? "Pause" : "Play";
+        Intent i = new Intent(PIP_ACTION).setPackage(getContext().getPackageName());
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT
+                | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
+        PendingIntent pi = PendingIntent.getBroadcast(getContext(), 1, i, flags);
+        return new RemoteAction(Icon.createWithResource(getContext(), iconRes), title, title, pi);
+    }
+
+    private void registerPipReceiver() {
+        if (pipReceiver != null) return;
+        pipReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context ctx, Intent intent) {
+                if (player == null) return;
+                player.setPlayWhenReady(!player.getPlayWhenReady());
+                updatePipActions();
+            }
+        };
+        IntentFilter filter = new IntentFilter(PIP_ACTION);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getContext().registerReceiver(pipReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            getContext().registerReceiver(pipReceiver, filter);
+        }
+    }
+
+    private void unregisterPipReceiver() {
+        if (pipReceiver != null) {
+            try { getContext().unregisterReceiver(pipReceiver); } catch (Exception ignored) {}
+            pipReceiver = null;
+        }
+    }
+
+    /** Refresh the PiP action so its icon tracks play↔pause while in PiP. */
+    private void updatePipActions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && inPip) {
+            try { getActivity().setPictureInPictureParams(buildPipParams()); } catch (Exception ignored) {}
+        }
+    }
+
     private void applyTransform() {
         if (videoView == null || videoW <= 0 || videoH <= 0) return;
         int vw = videoView.getWidth(), vh = videoView.getHeight();
@@ -576,6 +674,7 @@ public class HybridPlayerPlugin extends Plugin {
             JSObject e = new JSObject();
             e.put("playing", isPlaying);
             notifyListeners("playerState", e);
+            updatePipActions();   // keep the PiP-window play/pause icon in sync too
         }
         @Override public void onTracksChanged(@NonNull Tracks tracks) {
             emitTracks(tracks);
@@ -617,6 +716,7 @@ public class HybridPlayerPlugin extends Plugin {
     protected void handleOnDestroy() {
         ui.removeCallbacks(ticker);
         unregisterVolumeObserver();
+        unregisterPipReceiver();
         if (player != null) { player.release(); player = null; }
         try { getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); }
         catch (Exception ignored) { }

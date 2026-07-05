@@ -31,6 +31,7 @@ import ChevronRightIcon  from '@mui/icons-material/ChevronRight';
 import ErrorOutlineIcon  from '@mui/icons-material/ErrorOutline';
 import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
@@ -206,6 +207,7 @@ export default function DbWorldVideoPlayer({
   const [errorMsg, setErrorMsg]   = useState(null);
   const [infoMsg, setInfoMsg]     = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pipActive, setPipActive] = useState(false);   // Android Picture-in-Picture active
   const [hud, setHud]             = useState(null);    // { kind:'volume'|'brightness'|'zoom', value }
   const [seekFx, setSeekFx]       = useState(null);    // { dir:'fwd'|'back', id } — double-tap/seek feedback
   const [upNextDismissed, setUpNextDismissed] = useState(false);
@@ -213,6 +215,8 @@ export default function DbWorldVideoPlayer({
   const seekFxTimer = useRef(null);
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
+  const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
+  const pipPendingRef = useRef(false);                 // PiP requested, awaiting confirmation
   const playBtnRef  = useRef(null);                    // focus target when controls reveal (TV/keyboard)
   const kbdRevealRef = useRef(false);                  // true when controls were last revealed by a key
 
@@ -310,6 +314,13 @@ export default function DbWorldVideoPlayer({
       adapter.on('volume', (d) => {
         if (typeof d?.value === 'number') setVolume(d.value);
       }),
+      // Android PiP enter/exit → hide/show the React overlay so only the video shows.
+      adapter.on('pip', (d) => {
+        const on = !!d?.pip;
+        pipActiveRef.current = on;
+        pipPendingRef.current = false;
+        setPipActive(on);
+      }),
     ];
     // Initialise the bar from the current device media volume.
     adapter.getVolume?.().then((r) => {
@@ -375,6 +386,7 @@ export default function DbWorldVideoPlayer({
   // button / app switch on Android, tab hidden or window blur on web.
   useEffect(() => {
     const pauseForBackground = () => {
+      if (pipActiveRef.current || pipPendingRef.current) return;  // keep playing in Picture-in-Picture
       const a = adapterRef.current;
       if (!a) return;
       a.pause();
@@ -462,6 +474,13 @@ export default function DbWorldVideoPlayer({
 
   const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
   const openEpisodes = () => { setEpisodesOpen(true); showControls(); };
+  // Android PiP. Mark pending BEFORE the app backgrounds so the background-pause is skipped;
+  // pipActive is confirmed by the 'pip' event (or pending clears on failure/timeout).
+  const enterPip = () => {
+    pipPendingRef.current = true;
+    adapterRef.current?.enterPip?.();
+    setTimeout(() => { pipPendingRef.current = false; }, 1500);
+  };
 
   const rotate = () => {
     const next = !landscape; setLandscape(next); setLocked(false);
@@ -717,6 +736,10 @@ export default function DbWorldVideoPlayer({
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
       )}
 
+      {/* In Android PiP the whole window is the tiny video — hide every overlay so only the
+          native video (behind the transparent WebView) shows. */}
+      {!pipActive && (<>
+
       {/* Double-tap / seek feedback (±10s ripple on the relevant side) */}
       {seekFx && (
         <div key={seekFx.id} style={{ position: 'absolute', top: 0, bottom: 0, width: '34%', zIndex: 24,
@@ -894,6 +917,9 @@ export default function DbWorldVideoPlayer({
               )}
 
               <CtrlBtn icon={<SettingsIcon />} label="Settings" ariaLabel="Settings" onClick={() => openSettings('main')} />
+              {isNative && (
+                <CtrlBtn icon={<PictureInPictureAltIcon />} label="PiP" ariaLabel="Picture in picture" onClick={enterPip} />
+              )}
               {!isNative && (
                 <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
                   label={isFullscreen ? 'Exit' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
@@ -1058,6 +1084,7 @@ export default function DbWorldVideoPlayer({
           </div>
         );
       })()}
+      </>)}
     </div>
     </ScaleCtx.Provider>
   );

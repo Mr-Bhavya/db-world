@@ -11,7 +11,7 @@ import { registerPlugin, Capacitor } from '@capacitor/core';
 
 const HybridPlayer = registerPlugin('HybridPlayer');
 
-const EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', tracks: 'playerTracks', info: 'playerInfo', volume: 'playerVolume' };
+const EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', tracks: 'playerTracks', info: 'playerInfo', volume: 'playerVolume', pip: 'playerPipChanged' };
 
 function createNativeAdapter() {
   return {
@@ -29,6 +29,7 @@ function createNativeAdapter() {
     selectTextTrack:  (id) => HybridPlayer.selectTextTrack({ id }),
     setDecoderMode:(mode) => HybridPlayer.setDecoderMode({ mode }),
     setOrientation:(mode) => HybridPlayer.setOrientation({ mode }),
+    enterPip:      () => HybridPlayer.enterPip(),
     release:       () => HybridPlayer.release(),
     on: (event, cb) => {
       let handle;
@@ -118,6 +119,7 @@ function createWebAdapter(getVideo) {
     selectTextTrack:  (id) => { ensure(); const ts = v?.textTracks; if (ts) for (let i = 0; i < ts.length; i++) ts[i].mode = (i === id ? 'showing' : 'disabled'); },
     setDecoderMode:() => {},   // browser-managed on web
     setOrientation:() => {},   // best-effort no-op on web
+    enterPip:      () => {},   // Android-only feature; no-op on web
     release: () => {
       if (v) { try { v.pause(); listeners.forEach(([ev, fn]) => v.removeEventListener(ev, fn)); attached = false; } catch { /* ignore */ } }
     },
