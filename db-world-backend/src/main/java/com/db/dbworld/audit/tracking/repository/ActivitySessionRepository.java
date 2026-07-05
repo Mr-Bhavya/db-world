@@ -1,5 +1,6 @@
 package com.db.dbworld.audit.tracking.repository;
 
+import com.db.dbworld.audit.tracking.admin.dto.ActivityUserProjection;
 import com.db.dbworld.audit.tracking.admin.dto.ClientBreakdownProjection;
 import com.db.dbworld.audit.tracking.admin.dto.LiveSessionProjection;
 import com.db.dbworld.audit.tracking.admin.dto.OverviewProjection;
@@ -209,6 +210,23 @@ public interface ActivitySessionRepository
             LIMIT :limit
             """, nativeQuery = true)
     List<TopUserProjection> findTopUsers(@Param("days") int days, @Param("limit") int limit);
+
+    /**
+     * Distinct users who have at least one {@code activity_session} row — backs the
+     * "users with activity" dropdown source on the admin Activity console (so the
+     * dropdown doesn't have to be populated from the full {@code users} table).
+     */
+    @Query(value = """
+            SELECT DISTINCT
+                u.id         AS userId,
+                u.email      AS email,
+                u.first_name AS firstName,
+                u.last_name  AS lastName
+            FROM activity_session s
+            JOIN users u ON u.id = s.user_id
+            ORDER BY u.email
+            """, nativeQuery = true)
+    List<ActivityUserProjection> findDistinctActivityUsers();
 
     /**
      * Header-stats aggregate for the personal {@code /me/activity} page, over all of the

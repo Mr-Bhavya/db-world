@@ -2,6 +2,7 @@ package com.db.dbworld.audit.tracking.admin;
 
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.audit.tracking.admin.dto.ActivityOverviewDto;
+import com.db.dbworld.audit.tracking.admin.dto.ActivityUserDto;
 import com.db.dbworld.audit.tracking.admin.dto.ClientBreakdownDto;
 import com.db.dbworld.audit.tracking.admin.dto.LiveSessionDto;
 import com.db.dbworld.audit.tracking.admin.dto.SessionEventDto;
@@ -27,6 +28,10 @@ import java.util.List;
  * Thin read-only REST facade over {@link AdminActivityService} for the admin
  * Activity console. No business logic lives here — every endpoint just wires
  * request params to the service and wraps the result in {@link ApiResponse}.
+ *
+ * <p>On every {@code days}-windowed endpoint below, a value {@code <= 0} means
+ * "all time" — the service maps that to an effectively unbounded window rather
+ * than the request being rejected or clamped up to 1 day.
  */
 @RestController
 @RequestMapping("/api/admin/activity")
@@ -50,6 +55,16 @@ public class AdminActivityController {
             @RequestParam(defaultValue = "30") int withinMinutes
     ) {
         return ApiResponse.success(activityService.getLiveSessions(withinMinutes));
+    }
+
+    /**
+     * Distinct users who have any tracked activity — source list for the user-filter
+     * dropdown on the admin Activity console (narrower than the full user directory).
+     */
+    @AdminAccess
+    @GetMapping("/users")
+    public ApiResponse<List<ActivityUserDto>> getActivityUsers() {
+        return ApiResponse.success(activityService.getActivityUsers());
     }
 
     @AdminAccess

@@ -3,6 +3,7 @@ package com.db.dbworld.audit.tracking.admin;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.audit.tracking.admin.dto.ActivityOverviewDto;
+import com.db.dbworld.audit.tracking.admin.dto.ActivityUserDto;
 import com.db.dbworld.audit.tracking.admin.dto.ClientBreakdownDto;
 import com.db.dbworld.audit.tracking.admin.dto.LiveSessionDto;
 import com.db.dbworld.audit.tracking.admin.dto.OverviewProjection;
@@ -51,6 +52,28 @@ public class AdminActivityService {
 
     /** "Active now" heartbeat window — sessions with no event in this long are considered stale, not live. */
     private static final int LIVE_HEARTBEAT_MINUTES = 5;
+
+    /**
+     * Convention: a {@code days} param {@code <= 0} means "all time". Rather than
+     * branching the native {@code INTERVAL :days DAY} queries into a windowed and an
+     * unwindowed variant, "all time" is modeled as a very large window (~100 years) —
+     * comfortably longer than any real {@code activity_session} history — so every
+     * existing query keeps its single {@code WHERE last_event_at >= (NOW() - INTERVAL
+     * :days DAY)} shape.
+     */
+    private static final int EFFECTIVE_ALL_TIME_DAYS = 36_500;
+
+    /** Sane upper bound for an explicit positive {@code days} window (10 years). */
+    private static final int MAX_DAYS = 3650;
+
+    /**
+     * The daily trend endpoint groups by {@code DATE(last_event_at)}, so an all-time
+     * request could otherwise return one row per day of the site's entire history.
+     * Capped separately (and more tightly) at ~1 year so the trend chart payload stays
+     * bounded; the other aggregates (overview/client-breakdown/top-content/top-users)
+     * are single-row or LIMIT-bounded already and don't need this extra cap.
+     */
+    private static final int MAX_TREND_DAYS = 365;
 
     private final ActivitySessionRepository activitySessionRepository;
     private final ActivityEventRepository activityEventRepository;
@@ -170,7 +193,7 @@ public class AdminActivityService {
     }
 
     public List<TrendDto> getTrend(int days) {
-        int safeDays = safeDays(days);
+        int safeDays = safeTrendDays(days);
         log.debug("getTrend days={} (clamped={})", days, safeDays);
         return activitySessionRepository.findTrend(safeDays).stream()
                 .map(p -> new TrendDto(
@@ -221,6 +244,23 @@ public class AdminActivityService {
                 .toList();
     }
 
+    /**
+     * Distinct users who have at least one {@code activity_session} row — feeds the
+     * user-filter dropdown on the admin Activity console (as opposed to the full
+     * {@code users} table, which would include users with zero tracked activity).
+     */
+    public List<ActivityUserDto> getActivityUsers() {
+        log.debug("getActivityUsers");
+        return activitySessionRepository.findDistinctActivityUsers().stream()
+                .map(p -> new ActivityUserDto(
+                        p.getUserId(),
+                        p.getEmail(),
+                        p.getFirstName(),
+                        p.getLastName()
+                ))
+                .toList();
+    }
+
     private SessionRowDto toSessionRowDto(
             ActivitySessionEntity e, Map<Long, String> emailsById, Map<Long, String> namesById) {
         return new SessionRowDto(
@@ -259,8 +299,18 @@ public class AdminActivityService {
         return value != null ? value : 0L;
     }
 
+    /**
+     * Clamps a caller-supplied {@code days} window. {@code days <= 0} means "all time"
+     * (see {@link #EFFECTIVE_ALL_TIME_DAYS}); positive values are capped at
+     * {@link #MAX_DAYS} so a client can't request an unreasonably large native-query window.
+     */
     private static int safeDays(int days) {
-        return Math.max(1, Math.min(days, 365));
+        return days <= 0 ? EFFECTIVE_ALL_TIME_DAYS : Math.min(days, MAX_DAYS);
+    }
+
+    /** Same "all time" convention as {@link #safeDays}, but capped at {@link #MAX_TREND_DAYS} for the daily trend. */
+    private static int safeTrendDays(int days) {
+        return days <= 0 ? MAX_TREND_DAYS : Math.min(days, MAX_TREND_DAYS);
     }
 
     private static int safeLimit(int limit) {
