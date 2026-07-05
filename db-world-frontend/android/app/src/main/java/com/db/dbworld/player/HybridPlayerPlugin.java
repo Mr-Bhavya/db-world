@@ -485,6 +485,25 @@ public class HybridPlayerPlugin extends Plugin {
         }
     }
 
+    /** Short display codec name from an ExoPlayer sampleMimeType (e.g. audio/eac3 → E-AC3). */
+    private static String codecName(String mime) {
+        if (mime == null) return null;
+        String m = mime.toLowerCase();
+        if (m.contains("eac3") || m.contains("e-ac3"))     return "E-AC3";
+        if (m.contains("ac4"))                             return "AC4";
+        if (m.contains("ac3"))                             return "AC3";
+        if (m.contains("truehd") || m.contains("true-hd")) return "TrueHD";
+        if (m.contains("dts"))                             return "DTS";
+        if (m.contains("mp4a") || m.contains("aac"))       return "AAC";
+        if (m.contains("opus"))                            return "Opus";
+        if (m.contains("flac"))                            return "FLAC";
+        if (m.contains("mpeg") || m.contains("mp3"))       return "MP3";
+        if (m.contains("vorbis"))                          return "Vorbis";
+        if (m.contains("raw") || m.contains("pcm"))        return "PCM";
+        int slash = mime.indexOf('/');   // audio/xyz → XYZ
+        return slash >= 0 ? mime.substring(slash + 1).toUpperCase() : mime.toUpperCase();
+    }
+
     private void applyTransform() {
         if (videoView == null || videoW <= 0 || videoH <= 0) return;
         int vw = videoView.getWidth(), vh = videoView.getHeight();
@@ -516,8 +535,13 @@ public class HybridPlayerPlugin extends Plugin {
                 Format f = tg.getFormat(0);
                 JSObject o = new JSObject();
                 o.put("id", id);
-                o.put("language", langName(f.language));
+                // Null language → leave null so the JS label falls back to codec/title;
+                // a fallback/unsupported track no longer renders as "Default"/"Unknown".
+                o.put("language", f.language != null ? langName(f.language) : null);
+                if (f.label != null) o.put("title", f.label);
+                o.put("codec", codecName(f.sampleMimeType));
                 o.put("channels", f.channelCount > 0 ? f.channelCount : 0);
+                if (f.bitrate > 0) o.put("bitRate", f.bitrate);   // bps → JS shows kbps
                 audio.put(o);
                 if (g.isSelected()) selAudio = id;
                 audioGroups.add(tg);
@@ -527,7 +551,9 @@ public class HybridPlayerPlugin extends Plugin {
                 Format f = tg.getFormat(0);
                 JSObject o = new JSObject();
                 o.put("id", id);
-                o.put("language", langName(f.language));
+                o.put("language", f.language != null ? langName(f.language) : null);
+                if (f.label != null) o.put("title", f.label);
+                o.put("format", f.sampleMimeType);   // → JS maps to SRT / PGS / ASS / VTT…
                 o.put("forced", (f.selectionFlags & C.SELECTION_FLAG_FORCED) != 0);
                 text.put(o);
                 if (g.isSelected()) selText = id;
