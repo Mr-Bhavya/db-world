@@ -33,7 +33,7 @@ import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
-import { postStreamTrackEvents } from '@shared/services/ApiServices';
+import { usePlayerReporting } from './usePlayerReporting';
 
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 const HIDE_MS = 3500;
@@ -96,59 +96,11 @@ export default function DbWorldVideoPlayer({
   const hideTimer   = useRef(null);
   const tapRef      = useRef({ last: 0, x: 0 });
   const gestureRef  = useRef(null);
-  const progressRef = useRef({ positionMs: 0, durationMs: 0 });
-  const onProgressRef = useRef(onProgress);
-  onProgressRef.current = onProgress;
-  const report = useCallback((ended = false) => {
-    onProgressRef.current?.({ ...progressRef.current, ended });
-  }, []);
-
-  // ── stream playback telemetry (fire-and-forget; never touches playback) ────
-  // Mirrors STREAM_START/TICK/PAUSE/SEEK/STOP to /api/track/events so the
-  // backend can compute "watched %". Entirely best-effort: every emit is
-  // wrapped in try/catch and the underlying API call swallows its own errors.
-  const streamStartedRef = useRef(false); // guards STREAM_START firing once per session
-  const streamStoppedRef = useRef(false); // guards STREAM_STOP firing once per session
-  const requestIdRef = useRef(requestId);
-  requestIdRef.current = requestId;
-  const mediaFileIdRef = useRef(mediaFileId);
-  mediaFileIdRef.current = mediaFileId;
-  const recordIdRef = useRef(recordId);
-  recordIdRef.current = recordId;
-
-  const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-  const emitStreamEvent = useCallback((type, overrides = {}) => {
-    try {
-      const rid = requestIdRef.current;
-      if (!rid) return; // no resolved session for this file — skip entirely
-      const event = {
-        sessionId: rid,
-        activity: 'STREAM',
-        clientApp: isNative ? 'APP' : 'WEB',
-        type,
-        occurredAt: new Date().toISOString(),
-        clientEventId: genId(),
-        mediaFileId: mediaFileIdRef.current || null,
-        recordId: recordIdRef.current ? Number(recordIdRef.current) : null,
-        positionMs: Math.round(progressRef.current.positionMs) || null,
-        durationMs: Math.round(progressRef.current.durationMs) || null,
-        ...overrides,
-      };
-      postStreamTrackEvents([event], { app: isNative });
-    } catch {
-      // telemetry must never affect playback
-    }
-  }, [isNative]);
-
-  // Re-arm the start/stop guards whenever the session (requestId) changes —
-  // covers episode switches so the new session reports its own START/STOP.
-  useEffect(() => {
-    streamStartedRef.current = false;
-    streamStoppedRef.current = false;
-  }, [requestId]);
+  // Watch-progress save (resume) + fire-and-forget STREAM_* telemetry both read a single
+  // progress ref that the adapter 'time' handler below keeps current. Extracted into a hook
+  // to keep this component focused on UI/transport.
+  const { progressRef, report, emitStreamEvent, streamStartedRef, streamStoppedRef } =
+    usePlayerReporting({ isNative, requestId, mediaFileId, recordId, onProgress });
 
   const [position, setPosition]   = useState(0);
   const [duration, setDuration]   = useState(0);
@@ -349,7 +301,7 @@ export default function DbWorldVideoPlayer({
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', pauseForBackground);
     };
-  }, [report]);
+  }, [report, isNative]);
 
   // ── controls auto-hide ──────────────────────────────────────────────────────
   const scheduleHide = useCallback(() => {
