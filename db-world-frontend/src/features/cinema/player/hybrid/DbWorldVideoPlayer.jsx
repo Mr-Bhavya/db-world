@@ -61,15 +61,17 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore 
 // a sparse track still renders something sensible.
 const chLayout = (t) => t.channelLayout
   || (t.channels >= 8 ? '7.1' : t.channels >= 6 ? '5.1' : t.channels === 2 ? 'Stereo' : t.channels === 1 ? 'Mono' : '');
+// Atmos rides on E-AC3 (JOC) or TrueHD — detect it separately so the label reads
+// "DDP Atmos" / "TrueHD Atmos" instead of a plain channel count.
+const isAtmos = (t) => /ATMOS|JOC/.test(String(t.formatCommercial || t.format || t.codecId || t.codec || '').toUpperCase());
 const audioCodec = (t) => {
   const raw = String(t.formatCommercial || t.format || t.codecId || t.codec || '').toUpperCase();
   if (!raw) return '';
-  if (raw.includes('ATMOS'))                            return 'Atmos';
-  if (raw.includes('E-AC-3') || raw.includes('EAC3') || raw.includes('E-AC3')) return 'E-AC3';
+  if (raw.includes('E-AC-3') || raw.includes('EAC3') || raw.includes('E-AC3')) return 'DDP';   // Dolby Digital Plus
   if (raw.includes('TRUEHD') || raw.includes('TRUE-HD'))return 'TrueHD';
   if (raw.includes('DTS-HD') || raw.includes('DTSHD'))  return 'DTS-HD';
   if (raw.includes('DTS'))                              return 'DTS';
-  if (raw.includes('AC-3') || raw.includes('AC3'))      return 'AC3';
+  if (raw.includes('AC-3') || raw.includes('AC3'))      return 'DD';    // Dolby Digital
   if (raw.includes('AAC'))                              return 'AAC';
   if (raw.includes('OPUS'))                             return 'Opus';
   if (raw.includes('FLAC'))                             return 'FLAC';
@@ -81,8 +83,12 @@ const audioCodec = (t) => {
 const kbps = (bps) => bps > 0 ? `${Math.round(bps / 1000)} kbps` : '';
 const audioLabel = (t) => {
   const codec = audioCodec(t);
-  const name  = t.language || t.title || codec || `Audio ${(Number(t.id) || 0) + 1}`;
-  return [name, name === codec ? '' : codec, chLayout(t), kbps(t.bitRate)].filter(Boolean).join(' · ');
+  // "DDP Atmos" / "TrueHD Atmos" / "Atmos", else "DDP 5.1" / "AAC Stereo".
+  const codecCh = isAtmos(t)
+    ? `${codec ? codec + ' ' : ''}Atmos`
+    : [codec, chLayout(t)].filter(Boolean).join(' ');
+  const name = t.language || t.title || codec || `Audio ${(Number(t.id) || 0) + 1}`;
+  return [name, name === codecCh ? '' : codecCh, kbps(t.bitRate)].filter(Boolean).join(' · ');
 };
 const subFormat = (t) => {
   const raw = String(t.format || t.codecId || '').toUpperCase();
@@ -824,24 +830,26 @@ export default function DbWorldVideoPlayer({
 
             {/* full-width progress bar — wrapper carries hover→time math + the preview bubble.
                 Fill is a 3-stop gradient: teal (played) → light (buffered) → dark (unloaded). */}
-            <div ref={barRef} style={{ position: 'relative' }} onMouseMove={onBarHover} onMouseLeave={onBarLeave}>
+            <div ref={barRef} style={{ position: 'relative', height: 16 }} onMouseMove={onBarHover} onMouseLeave={onBarLeave}>
               {preview && (
                 <ScrubPreview leftPx={preview.leftPx} time={preview.time} fmt={fmt}
                   thumb={storyboardTile(storyboard, preview.time)} />
               )}
-              {/* Track + loaded segments, behind the transparent-track seek input and
-                  vertically centered on it. The input paints only the played (teal) fill. */}
+              {/* One 5px strip (track → loaded segments → played fill), centered in the row,
+                  so every layer shares the same 0–100% coordinate system and stays aligned.
+                  The seek input overlays it with a transparent track — only its thumb shows. */}
               <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
-                height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.22)', pointerEvents: 'none' }}>
+                height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.22)', overflow: 'hidden', pointerEvents: 'none' }}>
                 {bufferedSegs.map(([s, e], i) => (
                   <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${s}%`,
-                    width: `${Math.max(0, e - s)}%`, background: 'rgba(255,255,255,0.5)', borderRadius: 999 }} />
+                    width: `${Math.max(0, e - s)}%`, background: 'rgba(255,255,255,0.5)' }} />
                 ))}
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${pct}%`, background: TEAL }} />
               </div>
               <input className="dbw-range" type="range" min={0} max={duration || 0} aria-label="Seek"
                 value={Math.min(displayPos, duration || displayPos)}
                 onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
-                style={{ position: 'relative', background: `linear-gradient(to right, ${TEAL} ${pct}%, transparent ${pct}%)` }} />
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 0, background: 'transparent' }} />
             </div>
 
             {/* time below the bar, on the edges */}
