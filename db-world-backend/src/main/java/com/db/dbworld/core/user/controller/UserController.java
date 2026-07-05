@@ -102,6 +102,8 @@ public class UserController {
         profile.setLastName(userDto.getLastName());
         profile.setEmail(userDto.getEmail());
         profile.setMobileNo(userDto.getMobileNo());
+        profile.setGender(userDto.getGender());
+        profile.setDob(userDto.getDob());
         profile.setUserRole(userDto.getUserRole());
 
         profile.setNoOfLogin(

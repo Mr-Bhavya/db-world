@@ -1039,6 +1039,32 @@ const Header = () => {
                   />
                 </ListItemButton>
 
+                <ListItemButton
+                  onClick={() => handleNav(Constants.DB_MY_ACTIVITY_ROUTE)}
+                  sx={{
+                    borderRadius: 1.7,
+                    mb: 0.5,
+                    minHeight: 50,
+                    ...focusSx(T.teal),
+                    '&:hover': {
+                      bgcolor: T.tealBg,
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: T.teal, minWidth: 38 }}>
+                    <ActivityIcon />
+                  </ListItemIcon>
+
+                  <ListItemText
+                    primary="My Activity"
+                    primaryTypographyProps={{
+                      fontSize: '0.9rem',
+                      color: T.text,
+                      fontWeight: 700,
+                    }}
+                  />
+                </ListItemButton>
+
                 {isAdmin && (
                   <ListItemButton
                     onClick={() =>
