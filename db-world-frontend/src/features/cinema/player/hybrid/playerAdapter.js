@@ -79,15 +79,18 @@ function createWebAdapter(getVideo) {
   const onEnded   = () => emit('ended', {});
   const onError   = () => emit('error', { code: v?.error?.code, message: 'video error' });
   const onWaiting = () => emit('state', { state: 2 }); // buffering
-  const onPlaying = () => emit('state', { state: 3 }); // ready/playing
-  // Mirror the element's real play/pause so the UI icon can't desync when playback is
+  const onPlaying = () => emit('state', { state: 3, playing: true }); // actually playing
+  // 'canplay' = ready (clear the buffering spinner) but it also fires after a seek while
+  // paused — so respect v.paused instead of forcing "playing" (which used to auto-resume).
+  const onCanplay = () => emit('state', { state: 3, playing: !(v && v.paused) });
+  // Mirror the element's real play/pause so the icon can't desync when playback is
   // paused/resumed by anything other than our own button (OS, fullscreen, tab/screen off).
-  const onPlay  = () => emit('state', { state: 3, playing: true });
+  const onPlay  = () => emit('state', { playing: true });
   const onPause = () => emit('state', { playing: false });
   const listeners = [
     ['timeupdate', onTime], ['durationchange', onTime], ['progress', onTime],
     ['ended', onEnded], ['error', onError],
-    ['waiting', onWaiting], ['playing', onPlaying], ['canplay', onPlaying],
+    ['waiting', onWaiting], ['playing', onPlaying], ['canplay', onCanplay],
     ['play', onPlay], ['pause', onPause],
   ];
 

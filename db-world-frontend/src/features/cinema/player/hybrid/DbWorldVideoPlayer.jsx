@@ -18,6 +18,7 @@ import LockOpenIcon      from '@mui/icons-material/LockOpen';
 import SpeedIcon         from '@mui/icons-material/Speed';
 import BrightnessHighIcon from '@mui/icons-material/BrightnessHigh';
 import VolumeUpIcon      from '@mui/icons-material/VolumeUp';
+import VolumeDownIcon    from '@mui/icons-material/VolumeDown';
 import VolumeOffIcon     from '@mui/icons-material/VolumeOff';
 import SettingsIcon      from '@mui/icons-material/Settings';
 import AudiotrackIcon    from '@mui/icons-material/Audiotrack';
@@ -212,6 +213,7 @@ export default function DbWorldVideoPlayer({
   const [pauseInfo, setPauseInfo] = useState(false);   // Netflix-style info card while paused + idle
   const [hud, setHud]             = useState(null);    // { kind:'volume'|'brightness'|'zoom', value }
   const [seekFx, setSeekFx]       = useState(null);    // { dir:'fwd'|'back', id } — double-tap/seek feedback
+  const [volFx, setVolFx]         = useState(null);    // { dir:'up'|'down', value, id } — arrow-key volume pop
   const [upNextDismissed, setUpNextDismissed] = useState(false);
   const [uiScale, setUiScale] = useState(() => (typeof window !== 'undefined' ? scaleFor(window.innerWidth) : 1));
   const seekFxTimer = useRef(null);
@@ -282,13 +284,12 @@ export default function DbWorldVideoPlayer({
       }),
       adapter.on('state', d => {
         if (typeof d.state === 'number') setBuffering(d.state === 2);
-        // Keep the play/pause icon synced with the real element state (play/pause events).
-        if (typeof d.playing === 'boolean') setPlaying(d.playing);
-        if (d.state === 3) {
-          setPlaying(true);
-          // First actual 'playing' for this session → STREAM_START (fires once
-          // per requestId; re-armed above whenever requestId changes).
-          if (!streamStartedRef.current) {
+        // Play/pause is driven ONLY by the real play state — never by "ready"/buffering
+        // transitions — so seeking or re-buffering while paused can't auto-resume the icon.
+        if (typeof d.playing === 'boolean') {
+          setPlaying(d.playing);
+          // First time we're actually playing this session → STREAM_START (once per requestId).
+          if (d.playing && !streamStartedRef.current) {
             streamStartedRef.current = true;
             emitStreamEvent('STREAM_START');
           }
@@ -482,9 +483,10 @@ export default function DbWorldVideoPlayer({
   const bumpVolume = useCallback((delta) => {
     const v = Math.max(0, Math.min(1, volume + delta));
     setVol(v);
-    setHud({ kind: 'volume', value: v });
+    // Centered volume-up/down icon, re-keyed each press so it re-pops like a button click.
+    setVolFx({ dir: delta > 0 ? 'up' : 'down', value: v, id: Date.now() });
     clearTimeout(hudTimer.current);
-    hudTimer.current = setTimeout(() => setHud(null), 900);
+    hudTimer.current = setTimeout(() => setVolFx(null), 700);
   }, [volume, setVol]);
 
   const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
@@ -787,6 +789,20 @@ export default function DbWorldVideoPlayer({
             animation: 'dbw-seekfx 0.65s ease-out forwards' }}>
             {seekFx.dir === 'fwd' ? <Forward10Icon sx={{ fontSize: 36 }} /> : <Replay10Icon sx={{ fontSize: 36 }} />}
             <span style={{ fontSize: 13, fontWeight: 700 }}>{seekFx.dir === 'fwd' ? '+10s' : '-10s'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Arrow-key volume feedback — a centered icon that pops on each key press */}
+      {volFx && (
+        <div key={volFx.id} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+            width: 120, height: 120, borderRadius: '50%', background: 'rgba(0,0,0,0.5)',
+            animation: 'dbw-seekfx 0.65s ease-out forwards' }}>
+            {volFx.value === 0
+              ? <VolumeOffIcon sx={{ fontSize: 42 }} />
+              : volFx.dir === 'up' ? <VolumeUpIcon sx={{ fontSize: 42 }} /> : <VolumeDownIcon sx={{ fontSize: 42 }} />}
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{Math.round(volFx.value * 100)}%</span>
           </div>
         </div>
       )}
