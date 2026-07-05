@@ -4,7 +4,7 @@
 // drives episode navigation (resolving each episode's resume point on switch).
 //
 // Expected navigation: navigate(DB_PLAYER_ROUTE, { state: { media: {
-//   url, fileId, title, fileName, recordId, variants, episodes } } })
+//   url, fileId, title, fileName, recordId, requestId, mediaFileId, variants, episodes } } })
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
@@ -43,9 +43,9 @@ export default function HybridPlayerPage() {
       if (!cancelled) setCur({
         url: media.url, fileId: media.fileId, startMs, audio: media.audio || [],
         storyboard: media.storyboard || null,
-        // Initial load doesn't go through resolveMediaUrl here, so there's no
-        // requestId yet — the player simply won't report telemetry until the
-        // first resolve happens (e.g. an episode switch).
+        // requestId comes from the ONLINE resolve handlePlay already performed
+        // (movie or first episode). Null-safe: if the caller launched the
+        // player without a resolve, telemetry is simply skipped.
         requestId: media.requestId || null,
         mediaFileId: media.mediaFileId || media.fileId || null,
         recordId: media.recordId ?? null,

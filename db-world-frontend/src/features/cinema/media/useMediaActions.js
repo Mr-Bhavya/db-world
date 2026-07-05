@@ -38,6 +38,10 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
           streamUrl:   type === 'ONLINE'   ? cdnUrl : f.streamUrl,
           downloadUrl: type === 'DOWNLOAD' ? cdnUrl : f.downloadUrl,
           storyboard:  buildStoryboard(cdnUrl, f.mediaFileId, res?.data?.mediaFile) || f.storyboard,
+          // Stream telemetry session id for this resolve — only meaningful for
+          // the ONLINE (play) path; carried through so the player can report.
+          requestId:   type === 'ONLINE'   ? (res?.data?.requestId || null) : f.requestId,
+          recordId:    res?.data?.recordId ?? f.recordId,
         };
       } catch { return f; }
     }));
@@ -65,7 +69,12 @@ export function useMediaActions(mediaInfo, record = null, allFiles = []) {
             fileId:   String(mediaInfo.id || mediaInfo.mediaFileId || ''),
             title:    record?.tmdb?.title || record?.title || mediaInfo.general?.fileName || '',
             fileName: mediaInfo.general?.fileName || '',
-            recordId: record?.id || record?.recordId || null,
+            recordId: record?.id || record?.recordId || current.recordId || null,
+            // Stream telemetry session for the initial (movie / first-episode)
+            // play — resolved above via resolveAll('ONLINE'). Null-safe: if the
+            // resolve didn't return one, the player just won't report.
+            requestId: current.requestId || null,
+            mediaFileId: current.mediaFileId || null,
             variants,
             episodes,
             storyboard: current.storyboard || null,
