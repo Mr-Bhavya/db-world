@@ -99,6 +99,22 @@ public class MediaAdminController {
         return ResponseEntity.ok(ApiResponse.success(mediaInfoService.updateEpisodeNumbers(id, season, episode)));
     }
 
+    /** (Re)generate the scrub-preview storyboard sprite for a single file. Runs async. */
+    @PostMapping("/files/{id}/storyboard")
+    public ResponseEntity<ApiResponse<Void>> generateStoryboard(@PathVariable String id) {
+        try {
+            mediaInfoService.generateStoryboard(id);
+            return ResponseEntity.accepted()
+                    .body(ApiResponse.success("Storyboard generation started"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(404, e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(400, e.getMessage()));
+        }
+    }
+
     @PostMapping("/files/cleanup")
     public ResponseEntity<ApiResponse<Map<String, Object>>> cleanupMediaFiles() {
         List<MediaFileDto> all = mediaInfoService.findAll();

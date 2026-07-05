@@ -27,6 +27,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { SnackbarProvider } from 'notistack';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
+import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
@@ -213,6 +214,11 @@ const ThemedApp = () => {
   const muiTheme = useMemo(() => buildMuiTheme(mode), [mode]);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // App-wide download lifecycle → /api/track/events reporter (Android-only,
+  // no-op elsewhere). Mounted here (not in the download-queue page) so it
+  // keeps listening regardless of which screen is on top.
+  useDownloadEventReporter();
 
   // A download-notification tap persists a one-shot route flag natively (see
   // MainActivity). We pull it from the plugin on mount (cold launch) and whenever the

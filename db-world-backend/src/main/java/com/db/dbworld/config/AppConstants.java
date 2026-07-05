@@ -91,7 +91,6 @@ public final class AppConstants {
             "/swagger-ui/**",
             "/ws/status",
             "/ws/application-logs",
-            "/ws/user-cinema-activity",
             "/api/stream/resolve/**",
             "/*", "/db-world/**", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**",

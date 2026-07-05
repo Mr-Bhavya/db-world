@@ -1,13 +1,20 @@
 import { useRef } from 'react';
-import { Box, TextField, InputAdornment, IconButton, Tooltip } from '@mui/material';
-import SearchIcon   from '@mui/icons-material/Search';
-import ClearIcon    from '@mui/icons-material/Clear';
-import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import { useT }     from '@shared/theme';
+import { Box, TextField, InputAdornment, IconButton, MenuItem } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon  from '@mui/icons-material/Clear';
+import { useT, getSelectMenuProps } from '@shared/theme';
 
 const ROLE_OPTIONS = ['ALL', 'OWNER', 'ADMIN', 'VIEWER'];
+const SORT_OPTIONS = [
+  { label: 'Newest',    by: 'userId',       dir: 'desc' },
+  { label: 'Oldest',    by: 'userId',       dir: 'asc'  },
+  { label: 'Name A–Z',  by: 'firstName',    dir: 'asc'  },
+  { label: 'Name Z–A',  by: 'firstName',    dir: 'desc' },
+  { label: 'Email A–Z', by: 'email',        dir: 'asc'  },
+  { label: 'Recently joined', by: 'creationDate', dir: 'desc' },
+];
 
-export default function UserFilters({ search, role, onSearch, onRole, onAddUser }) {
+export default function UserFilters({ search, role, sortBy, sortDir, onSearch, onRole, onSort }) {
   const T        = useT();
   const timerRef = useRef(null);
 
@@ -17,12 +24,15 @@ export default function UserFilters({ search, role, onSearch, onRole, onAddUser 
     timerRef.current = setTimeout(() => onSearch(v), 300);
   };
 
+  const sortValue = `${sortBy}:${sortDir}`;
+
   return (
     <Box sx={{
       display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center',
-      px: { xs: 1.5, md: 2.5 }, py: 1.25,
+      px: { xs: 1.5, md: 3 }, py: 1.25,
       borderBottom: `1px solid ${T.border}`,
       bgcolor: T.glass,
+      position: 'sticky', top: 0, zIndex: 3,
     }}>
       {/* Search */}
       <TextField
@@ -73,13 +83,28 @@ export default function UserFilters({ search, role, onSearch, onRole, onAddUser 
         ))}
       </Box>
 
-      {/* Add user */}
-      <Tooltip title="Add User">
-        <IconButton onClick={onAddUser}
-          sx={{ bgcolor: '#0d9488', color: '#fff', borderRadius: 2, ml: 'auto', '&:hover': { bgcolor: '#0f766e' } }}>
-          <GroupAddIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
+      {/* Sort */}
+      <TextField
+        select size="small" value={sortValue}
+        onChange={e => { const [by, dir] = e.target.value.split(':'); onSort(by, dir); }}
+        SelectProps={{ MenuProps: getSelectMenuProps(T) }}
+        sx={{
+          minWidth: 150, ml: { xs: 0, sm: 'auto' },
+          '& .MuiOutlinedInput-root': {
+            bgcolor: T.bg, borderRadius: 2, color: T.text,
+            '& fieldset': { borderColor: T.border },
+            '&:hover fieldset': { borderColor: '#0d9488' },
+            '&.Mui-focused fieldset': { borderColor: '#0d9488' },
+          },
+          '& .MuiSelect-select': { fontSize: 13, color: T.text, py: 1 },
+          '& .MuiSelect-icon': { color: T.textMuted },
+        }}>
+        {SORT_OPTIONS.map(s => (
+          <MenuItem key={`${s.by}:${s.dir}`} value={`${s.by}:${s.dir}`} sx={{ color: T.textPrimary, fontSize: 13 }}>
+            {s.label}
+          </MenuItem>
+        ))}
+      </TextField>
     </Box>
   );
 }

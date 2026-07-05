@@ -33,6 +33,7 @@ import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
+import { postStreamTrackEvents } from '@shared/services/ApiServices';
 
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 const HIDE_MS = 3500;
@@ -84,6 +85,7 @@ export default function DbWorldVideoPlayer({
   onProgress, onClose,
   audio = [], // file audio-track metadata (seeds the audio menu on web)
   storyboard = null, // scrub-preview sprite { url, intervalMs, cols, rows, tileW, tileH, count } | null
+  requestId = null, mediaFileId = null, recordId = null, // stream telemetry session (null → reporting is skipped)
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
   const reduce   = useReducedMotion();          // honour prefers-reduced-motion
@@ -100,6 +102,53 @@ export default function DbWorldVideoPlayer({
   const report = useCallback((ended = false) => {
     onProgressRef.current?.({ ...progressRef.current, ended });
   }, []);
+
+  // ── stream playback telemetry (fire-and-forget; never touches playback) ────
+  // Mirrors STREAM_START/TICK/PAUSE/SEEK/STOP to /api/track/events so the
+  // backend can compute "watched %". Entirely best-effort: every emit is
+  // wrapped in try/catch and the underlying API call swallows its own errors.
+  const streamStartedRef = useRef(false); // guards STREAM_START firing once per session
+  const streamStoppedRef = useRef(false); // guards STREAM_STOP firing once per session
+  const requestIdRef = useRef(requestId);
+  requestIdRef.current = requestId;
+  const mediaFileIdRef = useRef(mediaFileId);
+  mediaFileIdRef.current = mediaFileId;
+  const recordIdRef = useRef(recordId);
+  recordIdRef.current = recordId;
+
+  const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const emitStreamEvent = useCallback((type, overrides = {}) => {
+    try {
+      const rid = requestIdRef.current;
+      if (!rid) return; // no resolved session for this file — skip entirely
+      const event = {
+        sessionId: rid,
+        activity: 'STREAM',
+        clientApp: isNative ? 'APP' : 'WEB',
+        type,
+        occurredAt: new Date().toISOString(),
+        clientEventId: genId(),
+        mediaFileId: mediaFileIdRef.current || null,
+        recordId: recordIdRef.current ? Number(recordIdRef.current) : null,
+        positionMs: Math.round(progressRef.current.positionMs) || null,
+        durationMs: Math.round(progressRef.current.durationMs) || null,
+        ...overrides,
+      };
+      postStreamTrackEvents([event], { app: isNative });
+    } catch {
+      // telemetry must never affect playback
+    }
+  }, [isNative]);
+
+  // Re-arm the start/stop guards whenever the session (requestId) changes —
+  // covers episode switches so the new session reports its own START/STOP.
+  useEffect(() => {
+    streamStartedRef.current = false;
+    streamStoppedRef.current = false;
+  }, [requestId]);
 
   const [position, setPosition]   = useState(0);
   const [duration, setDuration]   = useState(0);
@@ -183,9 +232,23 @@ export default function DbWorldVideoPlayer({
       }),
       adapter.on('state', d => {
         setBuffering(d.state === 2);
-        if (d.state === 3) setPlaying(true);
+        if (d.state === 3) {
+          setPlaying(true);
+          // First actual 'playing' for this session → STREAM_START (fires once
+          // per requestId; re-armed above whenever requestId changes).
+          if (!streamStartedRef.current) {
+            streamStartedRef.current = true;
+            emitStreamEvent('STREAM_START');
+          }
+        }
       }),
-      adapter.on('ended', () => { setPlaying(false); setBuffering(false); report(true); setEnded(true); }),
+      adapter.on('ended', () => {
+        setPlaying(false); setBuffering(false); report(true); setEnded(true);
+        if (!streamStoppedRef.current) {
+          streamStoppedRef.current = true;
+          emitStreamEvent('STREAM_STOP');
+        }
+      }),
       adapter.on('error', (d) => { setBuffering(false); setErrorMsg(d?.message || 'This video could not be played.'); }),
       adapter.on('info', (d) => { setBuffering(false); if (d?.message) { setInfoMsg(d.message); setTimeout(() => setInfoMsg(null), 3000); } }),
       adapter.on('tracks', d => {
@@ -230,13 +293,23 @@ export default function DbWorldVideoPlayer({
     if (isNative) adapter.setOrientation('landscape'); // default to full-screen landscape
     scheduleHide();
 
-    // Periodic save so progress survives a crash / force-kill.
-    const saveTimer = setInterval(() => { if (progressRef.current.positionMs > 0) report(false); }, 20000);
+    // Periodic save so progress survives a crash / force-kill. Piggyback the
+    // stream TICK on this same ~20s cadence rather than adding a second timer.
+    const saveTimer = setInterval(() => {
+      if (progressRef.current.positionMs > 0) {
+        report(false);
+        emitStreamEvent('STREAM_TICK');
+      }
+    }, 20000);
 
     return () => {
       offs.forEach(f => f());
       clearInterval(saveTimer);
       report(false); // save on close/unmount
+      if (!streamStoppedRef.current) {
+        streamStoppedRef.current = true;
+        emitStreamEvent('STREAM_STOP');
+      }
       adapter.release();
       clearTimeout(hideTimer.current);
       clearTimeout(seekFxTimer.current);
@@ -289,10 +362,17 @@ export default function DbWorldVideoPlayer({
   const togglePlay = useCallback(() => {
     const a = adapterRef.current;
     if (!a) return;
-    if (playing) { a.pause(); setPlaying(false); report(false); }
-    else         { a.play();  setPlaying(true); }
+    if (playing) {
+      a.pause(); setPlaying(false); report(false);
+      emitStreamEvent('STREAM_PAUSE');
+    } else {
+      a.play(); setPlaying(true);
+      // Play-after-pause: report a TICK (not a new START) so the session
+      // returns to ACTIVE on the backend.
+      emitStreamEvent('STREAM_TICK');
+    }
     showControls();
-  }, [playing, showControls, report]);
+  }, [playing, showControls, report, emitStreamEvent]);
 
   // Brief on-screen ±10s feedback (double-tap, seek buttons, arrow keys).
   const flashSeek = useCallback((dir) => {
@@ -306,7 +386,8 @@ export default function DbWorldVideoPlayer({
     const target = Math.max(0, Math.min(duration || Infinity, position + deltaMs));
     a.seekTo(target); setPosition(target); showControls();
     flashSeek(deltaMs >= 0 ? 'fwd' : 'back');
-  }, [position, duration, showControls, flashSeek]);
+    emitStreamEvent('SEEK', { positionMs: Math.round(target) || null });
+  }, [position, duration, showControls, flashSeek, emitStreamEvent]);
 
   const toggleMute = useCallback(() => {
     const a = adapterRef.current; if (!a) return;
@@ -449,7 +530,10 @@ export default function DbWorldVideoPlayer({
     if (duration) previewAt(ms / duration);
   };
   const onScrubCommit = () => {
-    if (scrub != null) { adapterRef.current?.seekTo(scrub); setPosition(scrub); }
+    if (scrub != null) {
+      adapterRef.current?.seekTo(scrub); setPosition(scrub);
+      emitStreamEvent('SEEK', { positionMs: Math.round(scrub) || null });
+    }
     setScrub(null); setPreview(null);
   };
 

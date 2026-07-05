@@ -1,24 +1,62 @@
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
-// ─── Cinema activity ──────────────────────────────────────────────────────────
+// ─── Activity tracking (new) ──────────────────────────────────────────────────
+// New unified admin activity-tracking endpoints. Replaces the legacy cinema
+// activity + HTTP log endpoints below at cutover; kept side-by-side for now.
 
-const CINEMA = '/api/user-cinema-activity/admin';
+const ACTIVITY = '/api/admin/activity';
 
-export const fetchCinemaDashboard = (days = 7) =>
-  axiosInstance.get(`${CINEMA}/dashboard-stats`, { params: { days } }).then(r => r.data.data);
+export const fetchActivityOverview = (days = 7) =>
+  axiosInstance.get(`${ACTIVITY}/overview`, { params: { days } }).then(r => r.data.data);
 
-export const fetchCinemaRecent = ({ limit = 100, activityType = '', hours = 24 } = {}) =>
-  axiosInstance.get(`${CINEMA}/all-recent`, {
-    params: { limit, hours, ...(activityType && { activityType }) },
+export const fetchLiveSessions = (withinMinutes = 30) =>
+  axiosInstance.get(`${ACTIVITY}/live`, { params: { withinMinutes } }).then(r => r.data.data);
+
+export const fetchSessions = ({
+  userId,
+  activity,
+  channel,
+  clientApp,
+  state,
+  recordId,
+  from,
+  to,
+  page = 0,
+  size = 25,
+  sort,
+} = {}) =>
+  axiosInstance.get(`${ACTIVITY}/sessions`, {
+    params: {
+      page, size,
+      ...(userId != null && { userId }),
+      ...(activity && { activity }),
+      ...(channel && { channel }),
+      ...(clientApp && { clientApp }),
+      ...(state && { state }),
+      ...(recordId != null && { recordId }),
+      ...(from && { from }),
+      ...(to && { to }),
+      ...(sort && { sort }),
+    },
   }).then(r => r.data.data);
 
-export const fetchCinemaUsers = (hours = 24) =>
-  axiosInstance.get(`${CINEMA}/user-list`, { params: { hours } }).then(r => r.data.data);
+export const fetchSessionEvents = (sessionId) =>
+  axiosInstance.get(`${ACTIVITY}/sessions/${sessionId}/events`).then(r => r.data.data);
 
-export const fetchUserActivities = ({ userEmail, limit = 50, activityType = '', hours = 24 } = {}) =>
-  axiosInstance.get(`${CINEMA}/user-activities`, {
-    params: { userEmail, limit, hours, ...(activityType && { activityType }) },
-  }).then(r => r.data.data);
+export const fetchActivityUsers = () =>
+  axiosInstance.get(`${ACTIVITY}/users`).then(r => r.data.data);
+
+export const fetchActivityTrend = (days = 30) =>
+  axiosInstance.get(`${ACTIVITY}/trend`, { params: { days } }).then(r => r.data.data);
+
+export const fetchClientBreakdown = (days = 30) =>
+  axiosInstance.get(`${ACTIVITY}/client-breakdown`, { params: { days } }).then(r => r.data.data);
+
+export const fetchTopContent = (days = 30, limit = 20) =>
+  axiosInstance.get(`${ACTIVITY}/top-content`, { params: { days, limit } }).then(r => r.data.data);
+
+export const fetchTopUsers = (days = 30, limit = 20) =>
+  axiosInstance.get(`${ACTIVITY}/top-users`, { params: { days, limit } }).then(r => r.data.data);
 
 // ─── HTTP activity logs ───────────────────────────────────────────────────────
 

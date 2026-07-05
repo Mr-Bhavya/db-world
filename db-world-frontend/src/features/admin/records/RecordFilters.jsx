@@ -19,14 +19,6 @@ const SORT_OPTIONS = [
   { value: 'lastSyncedAt,desc', label: 'Recently synced' },
 ];
 
-const STATUS_OPTIONS = [
-  { value: '',        label: 'All sync' },
-  { value: 'SUCCESS', label: 'Synced' },
-  { value: 'FAILED',  label: 'Failed' },
-  { value: 'SKIPPED', label: 'Skipped' },
-  { value: 'RUNNING', label: 'Running' },
-];
-
 export default function RecordFilters() {
   const T = useT();
   const theme = useTheme();
@@ -89,14 +81,6 @@ export default function RecordFilters() {
         <MenuItem value="TV_SERIES">Series</MenuItem>
       </TextField>
 
-      <TextField select size="small" label="Sync" value={filters.status}
-        onChange={e => setFilter('status', e.target.value)}
-        sx={{ ...inputSx, minWidth: 120 }}
-        InputLabelProps={{ shrink: true }}
-        SelectProps={{ displayEmpty: true, MenuProps: getSelectMenuProps(T) }}>
-        {STATUS_OPTIONS.map(o => <MenuItem key={o.value || 'all'} value={o.value}>{o.label}</MenuItem>)}
-      </TextField>
-
       {/* Year + TMDB ID — inline on sm+, behind a "More filters" popover on xs. */}
       <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 1 }}>
         <TextField size="small" label="Year" type="number" defaultValue={filters.year}
@@ -154,8 +138,8 @@ export default function RecordFilters() {
         onChange={handleSortChange}
         startAdornment={<SortIcon sx={{ fontSize: 14, color: T.textFaint, mr: 0.5, display: { xs: 'none', sm: 'inline-flex' } }} />}
         sx={{
-          color: T.textPrimary, fontSize: 12, height: 32,
-          minWidth: { xs: 90, sm: 110 },
+          color: T.textPrimary, fontSize: 12, height: 40,
+          minWidth: { xs: 90, sm: 120 },
           bgcolor: T.inputBg,
           '& .MuiOutlinedInput-notchedOutline': { borderColor: T.glassBorder },
           '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },

@@ -1,13 +1,14 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Grid, TextField, MenuItem, IconButton, CircularProgress } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Grid, MenuItem, IconButton, CircularProgress } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { useT, getSelectMenuProps } from '@shared/theme';
+import { useT } from '@shared/theme';
 import { createUserSchema } from '../schemas/userSchemas';
 import { createUser } from '../api/adminApi';
-import { getInputSx, getDialogSx } from './constants';
+import { getDialogSx } from './constants';
+import { TextInput, SelectInput, GENDER_OPTIONS, ROLE_OPTIONS } from './formFields';
 
 export default function UserCreateModal({ open, onClose }) {
   const T  = useT();
@@ -29,12 +30,7 @@ export default function UserCreateModal({ open, onClose }) {
     onError: (err) => enqueueSnackbar(err?.response?.data?.message ?? 'Failed to create user', { variant: 'error' }),
   });
 
-  const F = ({ name, label, type = 'text', ...props }) => (
-    <Controller name={name} control={control} render={({ field }) => (
-      <TextField {...field} label={label} type={type} size="small" fullWidth sx={getInputSx(T)}
-        error={!!errors[name]} helperText={errors[name]?.message} {...props} />
-    )} />
-  );
+  const fp = { control, errors, T };
 
   return (
     <Dialog open={open} onClose={onClose} {...getDialogSx(T)} fullWidth maxWidth="sm">
@@ -45,31 +41,20 @@ export default function UserCreateModal({ open, onClose }) {
       <form onSubmit={handleSubmit(d => mutate(d))}>
         <DialogContent sx={{ pt: 1 }}>
           <Grid container spacing={2}>
-            <Grid item xs={6}><F name="firstName" label="First Name" /></Grid>
-            <Grid item xs={6}><F name="lastName"  label="Last Name" /></Grid>
-            <Grid item xs={12}><F name="email"    label="Email" type="email" /></Grid>
-            <Grid item xs={6}><F name="password"  label="Password" type="password" /></Grid>
-            <Grid item xs={6}><F name="mobileNo"  label="Mobile No" type="number" /></Grid>
-            <Grid item xs={6}><F name="dob"       label="Date of Birth" type="date" InputLabelProps={{ shrink: true }} /></Grid>
-            <Grid item xs={6}>
-              <Controller name="gender" control={control} render={({ field }) => (
-                <TextField {...field} select label="Gender" size="small" fullWidth sx={getInputSx(T)}
-                  SelectProps={{ MenuProps: getSelectMenuProps(T) }}
-                  error={!!errors.gender} helperText={errors.gender?.message}>
-                  {['Male', 'Female', 'Other'].map(g => <MenuItem key={g} value={g} sx={{ color: T.textPrimary }}>{g}</MenuItem>)}
-                </TextField>
-              )} />
+            <Grid item xs={12} sm={6}><TextInput {...fp} name="firstName" label="First Name" /></Grid>
+            <Grid item xs={12} sm={6}><TextInput {...fp} name="lastName"  label="Last Name" /></Grid>
+            <Grid item xs={12}><TextInput {...fp} name="email" label="Email" type="email" /></Grid>
+            <Grid item xs={12} sm={6}><TextInput {...fp} name="password" label="Password" type="password" /></Grid>
+            <Grid item xs={12} sm={6}><TextInput {...fp} name="mobileNo" label="Mobile No" type="number" /></Grid>
+            <Grid item xs={12} sm={6}><TextInput {...fp} name="dob" label="Date of Birth" type="date" InputLabelProps={{ shrink: true }} /></Grid>
+            <Grid item xs={12} sm={6}>
+              <SelectInput {...fp} name="gender" label="Gender" options={GENDER_OPTIONS} />
             </Grid>
             <Grid item xs={12}>
-              <Controller name="roleId" control={control} render={({ field }) => (
-                <TextField {...field} select label="Role (optional)" size="small" fullWidth sx={getInputSx(T)}
-                  SelectProps={{ MenuProps: getSelectMenuProps(T) }}>
-                  <MenuItem value="" sx={{ color: T.textMuted }}><em>Default (Viewer)</em></MenuItem>
-                  <MenuItem value={1} sx={{ color: T.textPrimary }}>Owner</MenuItem>
-                  <MenuItem value={2} sx={{ color: T.textPrimary }}>Admin</MenuItem>
-                  <MenuItem value={3} sx={{ color: T.textPrimary }}>Viewer</MenuItem>
-                </TextField>
-              )} />
+              <SelectInput {...fp} name="roleId" label="Role (optional)">
+                <MenuItem value="" sx={{ color: T.textMuted }}><em>Default (Viewer)</em></MenuItem>
+                {ROLE_OPTIONS.map(r => <MenuItem key={r.value} value={r.value} sx={{ color: T.textPrimary }}>{r.label}</MenuItem>)}
+              </SelectInput>
             </Grid>
           </Grid>
         </DialogContent>

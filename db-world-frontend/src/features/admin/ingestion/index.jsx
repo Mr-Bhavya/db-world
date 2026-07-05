@@ -10,8 +10,10 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
+  createTheme,
+  ThemeProvider,
 } from '@mui/material';
-import { useT } from '@shared/theme';
+import { useT, useThemeMode } from '@shared/theme';
 import {
   Add,
   CloudDownload,
@@ -492,9 +494,26 @@ const PageTabs = memo(function PageTabs({
 export default function IngestionPage() {
   useIngestionWS();
 
+  const { mode } = useThemeMode();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Scope MUI's palette to the admin theme so the whole workspace (which branches
+  // on theme.palette.mode + MUI palette colours) renders correctly on the admin
+  // light/dark theme, instead of following the global cinema theme.
+  const adminMuiTheme = useMemo(() => createTheme({
+    palette: {
+      mode,
+      primary: { main: '#0d9488', contrastText: '#ffffff' },
+      secondary: { main: '#4db6ac' },
+      background: {
+        default: mode === 'dark' ? '#000000' : '#ffffff',
+        paper: mode === 'dark' ? '#111111' : '#ffffff',
+      },
+    },
+    shape: { borderRadius: 8 },
+    typography: { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
+  }), [mode]);
 
   const activeTab = useIngestionStore((s) => s.activeTab);
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
@@ -514,12 +533,14 @@ export default function IngestionPage() {
   );
 
   return (
+    <ThemeProvider theme={adminMuiTheme}>
     <Box
       sx={{
         maxWidth: 1440,
         mx: 'auto',
         px: isCompactMobile ? 0.75 : { xs: 1, sm: 2, lg: 3 },
         py: isCompactMobile ? 0.75 : { xs: 1.25, sm: 2, lg: 2.5 },
+        color: 'text.primary',
       }}
     >
       <Stack spacing={isCompactMobile ? 1 : 2.25}>
@@ -536,20 +557,20 @@ export default function IngestionPage() {
         <Paper
           elevation={0}
           variant='outlined'
-          sx={{
+          sx={(t) => ({
             borderRadius: isCompactMobile ? 3 : 4,
             overflow: 'hidden',
-            borderColor: alpha(theme.palette.divider, 0.75),
+            borderColor: alpha(t.palette.divider, 0.75),
             background:
-              theme.palette.mode === 'dark'
+              t.palette.mode === 'dark'
                 ? 'linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)'
                 : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)',
             boxShadow: isCompactMobile
               ? 'none'
-              : theme.palette.mode === 'dark'
+              : t.palette.mode === 'dark'
                 ? '0 10px 30px rgba(0,0,0,0.18)'
                 : '0 10px 30px rgba(15, 23, 42, 0.05)',
-          }}
+          })}
         >
           {/* Tabs */}
           <PageTabs
@@ -584,5 +605,6 @@ export default function IngestionPage() {
         </Paper>
       </Stack>
     </Box>
+    </ThemeProvider>
   );
 }

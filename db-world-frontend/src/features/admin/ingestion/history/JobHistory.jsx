@@ -14,7 +14,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
   useTheme,
 } from '@mui/material';
 import { useT } from '@shared/theme';
@@ -34,6 +33,7 @@ import {
   Pause,
   CloudDownload,
   FilterAltOff,
+  Close,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
@@ -251,7 +251,6 @@ const GridLoadingOverlay = memo(function GridLoadingOverlay() {
 export default function JobHistory() {
   const T = useT();
   const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
 
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
@@ -525,110 +524,64 @@ export default function JobHistory() {
 
   return (
     <Box>
-      <Stack spacing={2}>
-        {/* Summary */}
-        <Stack direction="row" flexWrap="wrap" gap={1} useFlexGap>
-          <SummaryChip
-            icon={<HistoryIcon sx={{ fontSize: 14 }} />}
-            label={`Total: ${counts.total}`}
-          />
-          <SummaryChip
-            icon={<CheckCircle sx={{ fontSize: 14 }} />}
-            label={`Success: ${counts.success}`}
-            color="success"
-          />
-          <SummaryChip
-            icon={<ErrorIcon sx={{ fontSize: 14 }} />}
-            label={`Failed: ${counts.failed}`}
-            color="error"
-          />
-          <SummaryChip
-            icon={<Delete sx={{ fontSize: 14 }} />}
-            label={`Cancelled: ${counts.cancelled}`}
-          />
-          <SummaryChip
-            icon={<Pause sx={{ fontSize: 14 }} />}
-            label={`Paused: ${counts.paused}`}
-            color="warning"
-          />
-          <SummaryChip
-            icon={<CloudDownload sx={{ fontSize: 14 }} />}
-            label={`Processing: ${counts.processing}`}
-            color="primary"
-          />
-        </Stack>
-
-        {/* Toolbar */}
-        <Paper
-          elevation={0}
-          variant="outlined"
-          sx={{
-            borderRadius: 4,
-            p: { xs: 1.25, sm: 1.5 },
-          }}
+      <Stack spacing={1.5}>
+        {/* Compact toolbar — search + status summary + refresh in one wrapping row */}
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          alignItems={{ sm: 'center' }}
+          useFlexGap
         >
+          <TextField
+            size="small"
+            placeholder="Search file, URL, job ID, record…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ flexGrow: 1, minWidth: 0, maxWidth: { sm: 380 } }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: search ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={clearSearch}>
+                    <Close fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+
           <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={1.25}
-            alignItems={{ xs: 'stretch', md: 'center' }}
-            justifyContent="space-between"
+            direction="row"
+            spacing={0.75}
+            alignItems="center"
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ ml: { sm: 'auto' } }}
           >
-            <Stack spacing={0.35} minWidth={0}>
-              <Typography variant="subtitle2" fontWeight={800}>
-                Job history
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Search previous jobs, rerun them, open logs, or delete old entries.
-              </Typography>
-            </Stack>
-
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={1}
-              alignItems={{ xs: 'stretch', sm: 'center' }}
-              sx={{ width: { xs: '100%', md: 'auto' } }}
-            >
-              <TextField
-                size="small"
-                placeholder="Search by file, URL, job ID, record…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                sx={{
-                  minWidth: { xs: '100%', sm: 320, md: 360 },
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search fontSize="small" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<Refresh />}
-                onClick={() => refetch()}
-                disabled={isLoading}
-                sx={{ minWidth: 108 }}
-              >
-                Refresh
-              </Button>
-
-              <Chip
-                label={`${rows.length} job${rows.length !== 1 ? 's' : ''}`}
-                size="small"
-                variant="outlined"
-                sx={{
-                  fontWeight: 700,
-                  borderRadius: 999,
-                  alignSelf: { xs: 'flex-start', sm: 'center' },
-                }}
-              />
-            </Stack>
+            <SummaryChip icon={<HistoryIcon sx={{ fontSize: 14 }} />} label={`Total ${counts.total}`} />
+            <SummaryChip icon={<CheckCircle sx={{ fontSize: 14 }} />} label={`${counts.success}`} color="success" />
+            <SummaryChip icon={<ErrorIcon sx={{ fontSize: 14 }} />} label={`${counts.failed}`} color="error" />
+            {counts.cancelled > 0 && <SummaryChip icon={<Delete sx={{ fontSize: 14 }} />} label={`${counts.cancelled}`} />}
+            {counts.paused > 0 && <SummaryChip icon={<Pause sx={{ fontSize: 14 }} />} label={`${counts.paused}`} color="warning" />}
+            {counts.processing > 0 && <SummaryChip icon={<CloudDownload sx={{ fontSize: 14 }} />} label={`${counts.processing}`} color="primary" />}
+            <Tooltip title="Refresh">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => refetch()}
+                  disabled={isLoading}
+                  sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5 }}
+                >
+                  {isLoading ? <CircularProgress size={16} /> : <Refresh fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
           </Stack>
-        </Paper>
+        </Stack>
 
         {/* Error */}
         {error ? (

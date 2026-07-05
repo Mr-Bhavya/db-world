@@ -91,7 +91,9 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
                    "WHERE track_type = 'Video' AND v_hdr_format IS NOT NULL", nativeQuery = true)
     long countHdr();
 
+    // 4K/UHD by width OR height so ultrawide crops (e.g. 3840×1600) are counted,
+    // not just full-height 16:9 (…×2160).
     @Query(value = "SELECT COUNT(DISTINCT media_file_id) FROM media_tracks " +
-                   "WHERE track_type = 'Video' AND v_height >= 2160", nativeQuery = true)
+                   "WHERE track_type = 'Video' AND (v_width >= 3840 OR v_height >= 2160)", nativeQuery = true)
     long countUhd();
 }

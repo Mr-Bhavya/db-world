@@ -1,5 +1,6 @@
 package com.db.dbworld.app.media.info.dto;
 
+import com.db.dbworld.app.media.info.util.ResolutionUtil;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,6 +15,8 @@ public class MediaFileDto {
 
     private String  id;
     private Long    recordId;
+    private String  recordType;   // MOVIE | TV_SERIES — null when unlinked
+    private String  recordName;   // linked record's title — null when unlinked
     private String  fileName;
     private String  filePath;
     private Long    fileSize;
@@ -45,6 +48,14 @@ public class MediaFileDto {
         return tracks.stream()
                 .filter(t -> "Video".equals(t.getType()))
                 .max((left, right) -> {
+                    // 0. Attached cover art (image-codec "video" tracks) is never the
+                    //    primary video — its dimensions are the poster's, not the film's.
+                    boolean leftArt  = ResolutionUtil.isCoverArt(left.getFormat());
+                    boolean rightArt = ResolutionUtil.isCoverArt(right.getFormat());
+                    if (leftArt != rightArt) {
+                        return leftArt ? -1 : 1; // the non-art track is "greater" → chosen by max()
+                    }
+
                     // 1. Frame-rate presence: real video always has a frame rate;
                     //    cover art / attached_pic images never do.
                     //    This is the strongest signal and must be checked first.

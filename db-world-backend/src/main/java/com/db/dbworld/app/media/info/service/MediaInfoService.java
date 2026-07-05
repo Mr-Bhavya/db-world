@@ -81,4 +81,14 @@ public interface MediaInfoService {
 
     /** Set (or clear) the TMDB season/episode numbers for a media file. */
     MediaFileDto updateEpisodeNumbers(String id, Integer season, Integer episode);
+
+    /**
+     * (Re)generate the scrub-preview storyboard sprite for a media file on demand.
+     * Validates the file/duration on the calling thread, then runs the (slow,
+     * ffmpeg-heavy) generation asynchronously so the HTTP request returns promptly.
+     *
+     * @throws IllegalArgumentException when no media file has the given id
+     * @throws IllegalStateException    when the source file is missing or its duration is unknown
+     */
+    void generateStoryboard(String mediaFileId);
 }

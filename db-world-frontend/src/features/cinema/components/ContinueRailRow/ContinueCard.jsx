@@ -3,6 +3,15 @@ import { Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { PlayArrow, Close } from '@mui/icons-material';
 import { tmdbImg } from '../../api/cinemaApi';
 
+// "1h 45m" / "12m" — used for the watched/total time line below the title.
+const formatTime = (ms) => {
+  if (!ms || ms <= 0) return '0m';
+  const totalMin = Math.round(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+
 // Landscape (16:9) Continue Watching card: backdrop + progress bar + resume.
 // Click anywhere resumes; the ✕ removes the title from the row.
 const ContinueCard = ({ item, onResume, onRemove }) => {
@@ -14,6 +23,7 @@ const ContinueCard = ({ item, onResume, onRemove }) => {
   const epLabel = isSeries && item.season != null && item.episode != null
     ? `S${item.season}:E${item.episode}`
     : null;
+  const timeLabel = dur > 0 ? `${formatTime(pos)} / ${formatTime(dur)}` : null;
 
   const img = tmdbImg(item.backdropPath ?? item.posterPath, 'w780');
 
@@ -74,9 +84,9 @@ const ContinueCard = ({ item, onResume, onRemove }) => {
         }}>
           {item.title}
         </Typography>
-        {epLabel && (
+        {(epLabel || timeLabel) && (
           <Typography sx={{ color: 'rgba(255,255,255,.7)', fontSize: '0.66rem', mt: 0.1 }}>
-            {epLabel}
+            {[epLabel, timeLabel].filter(Boolean).join('  ·  ')}
           </Typography>
         )}
       </Box>

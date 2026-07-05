@@ -35,6 +35,22 @@ export const changePassword = (body) =>
 export const searchUsers = (q, limit = 5) =>
   axiosInstance.get('/api/user/search', { params: { q, limit } }).then(r => r.data.data);
 
+/** Admin resets another user's password (dedicated endpoint — no full-profile payload). */
+export const adminSetPassword = (userId, password) =>
+  axiosInstance.patch(`/api/user/${userId}/password`, { password }).then(r => r.data);
+
+/** Active refresh-token sessions + login history for a user. */
+export const getUserSessions = (userId) =>
+  axiosInstance.get(`/api/user/${userId}/sessions`).then(r => r.data.data);
+
+/** Revoke all of a user's refresh-token sessions (force logout everywhere). */
+export const revokeUserSessions = (userId) =>
+  axiosInstance.delete(`/api/user/${userId}/sessions`).then(r => r.data);
+
+/** Enable or disable (lock) a user. Disabling also revokes their sessions. */
+export const setUserStatus = (userId, enabled) =>
+  axiosInstance.patch(`/api/user/${userId}/status`, null, { params: { enabled } }).then(r => r.data);
+
 /* ─── RECORD APIS ───────────────────────────────────────────────── */
 
 export const getRecordsTable = (params) =>
@@ -147,8 +163,14 @@ export const scanStreamMigration = () =>
 export const linkMediaFileToRecord = (mediaFileId, recordId) =>
   axiosInstance.patch(`/api/media/info/${mediaFileId}/link-record`, null, { params: { recordId } }).then(r => r.data);
 
+// Returns the updated MediaFileDto so the caller can reflect it immediately.
 export const updateMediaFileEpisode = (id, season, episode) =>
-  axiosInstance.patch(`/api/admin/media/files/${id}/episode`, null, { params: { season, episode } }).then(r => r.data);
+  axiosInstance.patch(`/api/admin/media/files/${id}/episode`, null, { params: { season, episode } })
+    .then(r => r.data?.data ?? r.data);
+
+// (Re)generate the scrub-preview storyboard sprite for a single file (async on server).
+export const generateStoryboard = (id) =>
+  axiosInstance.post(`/api/admin/media/files/${id}/storyboard`).then(r => r.data);
 
 /* ─── TAG ADMIN ─────────────────────────────────────────────────── */
 

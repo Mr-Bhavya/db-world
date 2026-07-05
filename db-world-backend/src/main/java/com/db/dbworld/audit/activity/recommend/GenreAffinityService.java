@@ -1,6 +1,6 @@
 package com.db.dbworld.audit.activity.recommend;
 
-import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
+import com.db.dbworld.audit.tracking.repository.ActivitySessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Picks a "you might like this genre" recommendation for the genre-affinity rail.
  *
- * <p>Computes the user's top engaged genres from {@code user_cinema_activity} joined to
+ * <p>Computes the user's top engaged genres from {@code activity_session} joined to
  * {@code tmdb_genres}; results are cached per-user for {@link RecommendProperties.Genre#getCacheTtlMin}
  * minutes to avoid hitting MySQL on every rail render.
  *
@@ -26,8 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class GenreAffinityService {
 
-    private final RecommendProperties           props;
-    private final UserCinemaActivityRepository  activityRepository;
+    private final RecommendProperties       props;
+    private final ActivitySessionRepository activitySessionRepository;
 
     /** userId → (pickedGenreId, expiresAt). pickedGenreId may be null (= cold-start no-op). */
     private final Map<Long, CacheEntry> cache = new ConcurrentHashMap<>();
@@ -44,14 +44,14 @@ public class GenreAffinityService {
             return entry.genreId;
         }
 
-        long engaged = activityRepository.countEngagedRecordsByUser(
+        long engaged = activitySessionRepository.countEngagedRecordsByUser(
                 userId, props.getGenre().getCompletionThreshold());
         if (engaged < props.getGenre().getMinEngagedRecords()) {
             cache.put(userId, new CacheEntry(null, expiry()));
             return null;
         }
 
-        List<Long> top = activityRepository.findTopEngagedGenreIdsByUser(
+        List<Long> top = activitySessionRepository.findTopEngagedGenreIdsByUser(
                 userId,
                 props.getGenre().getCompletionThreshold(),
                 props.getGenre().getTopN());

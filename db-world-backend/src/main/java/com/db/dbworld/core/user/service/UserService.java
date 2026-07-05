@@ -44,10 +44,22 @@ public interface UserService {
 
     UserDto updateUserRole(Long userId, Long roleId);
 
+    /** Enable/disable a user. Disabling revokes their sessions and blocks login. */
+    UserDto setUserEnabled(Long userId, boolean enabled);
+
     // ==============================
     // 🔐 SECURITY
     // ==============================
     void changePassword(ChangePasswordRequest request);
+
+    /** Admin resets another user's password (no old-password check, no full-profile payload). */
+    void adminSetPassword(Long userId, String newPassword);
+
+    /** Active refresh-token sessions + login history for a user (admin view). */
+    java.util.Map<String, Object> getUserSessions(Long userId);
+
+    /** Revoke every refresh-token session for a user (force logout). Returns count removed. */
+    int revokeUserSessions(Long userId);
 
     String getRoleForUser();
 

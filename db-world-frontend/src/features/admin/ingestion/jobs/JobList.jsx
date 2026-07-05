@@ -12,13 +12,11 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { useT } from '@shared/theme';
 import {
   AllInclusive,
   CheckCircle,
   CloudDownload,
   Error as ErrorIcon,
-  HourglassTop,
   Pause,
   PlayArrow,
   Queue,
@@ -99,262 +97,7 @@ function getWsEmptyMessage(wsStatus, filter) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Summary
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SummaryTile = memo(function SummaryTile({
-  label,
-  value,
-  color,
-  icon,
-  outlined = false,
-  isMobile = false,
-}) {
-  const theme = useTheme();
-
-  return (
-    <Paper
-      elevation={0}
-      variant={isMobile ? undefined : 'outlined'}
-      sx={{
-        minWidth: { xs: 'calc(50% - 4px)', sm: 140 },
-        flex: { xs: '1 1 calc(50% - 4px)', sm: '0 1 auto' },
-        p: isMobile ? 0.75 : 1.2,
-        borderRadius: isMobile ? 2.1 : 3,
-        borderColor: outlined
-          ? alpha(theme.palette.divider, 0.85)
-          : alpha(color, 0.2),
-        bgcolor: outlined
-          ? 'background.paper'
-          : alpha(color, isMobile ? 0.09 : 0.07),
-        boxShadow: 'none',
-      }}
-    >
-      <Stack direction="row" spacing={isMobile ? 0.7 : 1} alignItems="center">
-        <Box
-          sx={{
-            width: isMobile ? 26 : 34,
-            height: isMobile ? 26 : 34,
-            borderRadius: isMobile ? 1.6 : 2,
-            display: 'grid',
-            placeItems: 'center',
-            color: outlined ? 'text.secondary' : color,
-            bgcolor: outlined
-              ? alpha(theme.palette.text.primary, 0.04)
-              : alpha(color, isMobile ? 0.14 : 0.12),
-            flexShrink: 0,
-          }}
-        >
-          {icon}
-        </Box>
-
-        <Box minWidth={0}>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{
-              display: 'block',
-              fontSize: isMobile ? '0.62rem' : undefined,
-              lineHeight: 1.05,
-            }}
-          >
-            {label}
-          </Typography>
-          <Typography
-            variant={isMobile ? 'body2' : 'body1'}
-            fontWeight={800}
-            lineHeight={1.05}
-          >
-            {value}
-          </Typography>
-        </Box>
-      </Stack>
-    </Paper>
-  );
-});
-
-const SummaryBar = memo(function SummaryBar({ jobs, isMobile }) {
-  const T = useT();
-
-  const counts = useMemo(() => {
-    let active = 0;
-    let queued = 0;
-    let paused = 0;
-    let done = 0;
-    let failed = 0;
-    let totalSpeed = 0;
-
-    Object.values(jobs).forEach((j) => {
-      const status = j.status;
-
-      if (['STARTED', 'DOWNLOADING', 'PROCESSING'].includes(status)) active += 1;
-      else if (status === 'QUEUED') queued += 1;
-      else if (status === 'PAUSED') paused += 1;
-      else if (status === 'SUCCESS') done += 1;
-      else if (status === 'FAILED' || status === 'CANCELLED') failed += 1;
-
-      if (j?.progress?.speed) {
-        totalSpeed += Number(j.progress.speed) || 0;
-      }
-    });
-
-    return {
-      active,
-      queued,
-      paused,
-      done,
-      failed,
-      totalSpeed,
-      total: Object.keys(jobs).length,
-    };
-  }, [jobs]);
-
-  if (isMobile) {
-    return (
-      <Stack direction="row" flexWrap="wrap" gap={0.6} useFlexGap>
-        <Chip
-          size="small"
-          label={`All ${counts.total}`}
-          variant="outlined"
-          sx={{
-            fontWeight: 700,
-            borderRadius: 999,
-            height: 22,
-            fontSize: '0.66rem',
-          }}
-        />
-        <Chip
-          size="small"
-          label={`Active ${counts.active}`}
-          sx={{
-            bgcolor: alpha(T.teal, 0.1),
-            color: T.teal,
-            fontWeight: 700,
-            borderRadius: 999,
-            height: 22,
-            fontSize: '0.66rem',
-          }}
-        />
-        <Chip
-          size="small"
-          label={`Queued ${counts.queued}`}
-          sx={{
-            bgcolor: alpha('#0288d1', 0.1),
-            color: '#0288d1',
-            fontWeight: 700,
-            borderRadius: 999,
-            height: 22,
-            fontSize: '0.66rem',
-          }}
-        />
-        <Chip
-          size="small"
-          label={`Done ${counts.done}`}
-          sx={{
-            bgcolor: alpha(T.success, 0.1),
-            color: T.success,
-            fontWeight: 700,
-            borderRadius: 999,
-            height: 22,
-            fontSize: '0.66rem',
-          }}
-        />
-        <Chip
-          size="small"
-          label={`Failed ${counts.failed}`}
-          sx={{
-            bgcolor: alpha(T.error, 0.1),
-            color: T.error,
-            fontWeight: 700,
-            borderRadius: 999,
-            height: 22,
-            fontSize: '0.66rem',
-          }}
-        />
-        {counts.totalSpeed > 0 ? (
-          <Chip
-            size="small"
-            label={formatSpeed(counts.totalSpeed)}
-            variant="outlined"
-            sx={{
-              fontWeight: 700,
-              borderRadius: 999,
-              height: 22,
-              fontSize: '0.66rem',
-            }}
-          />
-        ) : null}
-      </Stack>
-    );
-  }
-
-  return (
-    <Stack spacing={1.25}>
-      <Stack direction="row" flexWrap="wrap" gap={1} useFlexGap>
-        <SummaryTile
-          label="Active"
-          value={counts.active}
-          color={T.teal}
-          icon={<PlayArrow sx={{ fontSize: 18 }} />}
-        />
-        <SummaryTile
-          label="Queued"
-          value={counts.queued}
-          color="#0288d1"
-          icon={<HourglassTop sx={{ fontSize: 18 }} />}
-        />
-        <SummaryTile
-          label="Paused"
-          value={counts.paused}
-          color="#ed6c02"
-          icon={<Pause sx={{ fontSize: 18 }} />}
-        />
-        <SummaryTile
-          label="Done"
-          value={counts.done}
-          color={T.success}
-          icon={<CheckCircle sx={{ fontSize: 18 }} />}
-        />
-        <SummaryTile
-          label="Failed"
-          value={counts.failed}
-          color={T.error}
-          icon={<ErrorIcon sx={{ fontSize: 18 }} />}
-        />
-
-        {counts.totalSpeed > 0 ? (
-          <SummaryTile
-            label="Total speed"
-            value={formatSpeed(counts.totalSpeed)}
-            color={T.textMuted}
-            icon={<Speed sx={{ fontSize: 18 }} />}
-            outlined
-          />
-        ) : null}
-      </Stack>
-
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-        <Chip
-          size="small"
-          variant="outlined"
-          label={`Total jobs: ${counts.total}`}
-          sx={{ fontWeight: 700, borderRadius: 999 }}
-        />
-        {counts.totalSpeed > 0 ? (
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`Throughput: ${formatSpeed(counts.totalSpeed)}`}
-            sx={{ fontWeight: 700, borderRadius: 999 }}
-          />
-        ) : null}
-      </Stack>
-    </Stack>
-  );
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Filter bar
+// Filter bar — the status toggles double as the summary (each carries its count)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const FilterBar = memo(function FilterBar({
@@ -521,6 +264,11 @@ export default function JobList() {
     return counts;
   }, [jobArray]);
 
+  const totalSpeed = useMemo(
+    () => jobArray.reduce((sum, j) => sum + (Number(j?.progress?.speed) || 0), 0),
+    [jobArray]
+  );
+
   const filtered = useMemo(() => {
     const group = GROUPS.find((g) => g.key === filter);
     if (!group?.statuses) return jobArray;
@@ -539,98 +287,30 @@ export default function JobList() {
 
   const hasJobs = sorted.length > 0;
 
-  const activeFilterLabel = useMemo(
-    () => GROUPS.find((g) => g.key === filter)?.label || 'All',
-    [filter]
-  );
-
   return (
-    <Box sx={{ px: isMobile ? 0 : undefined }}>
-      <Stack spacing={isMobile ? 0.9 : 2}>
-        {/* Summary */}
-        <SummaryBar jobs={jobs} isMobile={isMobile} />
-
-        {/* Filters */}
-        {isMobile ? (
-          <Stack spacing={0.55}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ px: 0.2 }}
-            >
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>
-                {sorted.length} job{sorted.length !== 1 ? 's' : ''} · {activeFilterLabel}
-              </Typography>
-
-              {filter !== 'all' ? (
-                <Chip
-                  size="small"
-                  label={activeFilterLabel}
-                  color="primary"
-                  variant="outlined"
-                  sx={{
-                    fontWeight: 700,
-                    borderRadius: 999,
-                    height: 20,
-                    fontSize: '0.64rem',
-                  }}
-                />
-              ) : null}
-            </Stack>
-
+    <Box>
+      <Stack spacing={isMobile ? 0.9 : 1.5}>
+        {/* Compact filter row — status toggles (with counts) + live throughput */}
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             <FilterBar
               filter={filter}
               setFilter={setFilter}
               groupedCounts={groupedCounts}
               isMobile={isMobile}
             />
-          </Stack>
-        ) : (
-          <Paper
-            elevation={0}
-            variant="outlined"
-            sx={{
-              borderRadius: 4,
-              p: 1.5,
-            }}
-          >
-            <Stack spacing={1.1}>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1}
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                justifyContent="space-between"
-              >
-                <Box>
-                  <Typography variant="subtitle2" fontWeight={800}>
-                    Filter live jobs
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Showing {sorted.length} job{sorted.length !== 1 ? 's' : ''} in {activeFilterLabel.toLowerCase()} view
-                  </Typography>
-                </Box>
-
-                {filter !== 'all' ? (
-                  <Chip
-                    size="small"
-                    label={`Filter: ${activeFilterLabel}`}
-                    color="primary"
-                    variant="outlined"
-                    sx={{ fontWeight: 700, borderRadius: 999 }}
-                  />
-                ) : null}
-              </Stack>
-
-              <FilterBar
-                filter={filter}
-                setFilter={setFilter}
-                groupedCounts={groupedCounts}
-                isMobile={isMobile}
-              />
-            </Stack>
-          </Paper>
-        )}
+          </Box>
+          {totalSpeed > 0 ? (
+            <Chip
+              size="small"
+              icon={<Speed sx={{ fontSize: 15 }} />}
+              label={formatSpeed(totalSpeed)}
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 700, borderRadius: 999, flexShrink: 0 }}
+            />
+          ) : null}
+        </Stack>
 
         {/* Optional preview for local UI testing only */}
         {SHOW_PREVIEW ? <JobCardPreview /> : null}

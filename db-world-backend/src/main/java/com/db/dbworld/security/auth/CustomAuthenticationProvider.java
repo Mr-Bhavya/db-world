@@ -56,6 +56,17 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
             }
         }
 
+        // Gate on account state — the custom provider bypasses Spring's default
+        // DaoAuthenticationProvider checks, so enforce them explicitly here.
+        if (!user.isEnabled()) {
+            log.warn("Login rejected: account disabled for email={}", email);
+            throw new DisabledException("Your account has been disabled");
+        }
+        if (!user.isAccountNonLocked()) {
+            log.warn("Login rejected: account locked for email={}", email);
+            throw new LockedException("Your account is locked");
+        }
+
         // Build authenticated user
         UserDetailsImpl userDetails = new UserDetailsImpl(
                 user.getUserId(),

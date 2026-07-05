@@ -678,18 +678,6 @@ export const deleteTempFile = async () => {
   }
 };
 
-// Event Tracking
-export const saveUserEventInfo = async (_event, _value) => {
-return;
-//  try {
-//    const response = await axiosInstance.post('/api/event-info/', { event, value });
-//    return response.data;
-//  } catch (error) {
-//    console.error('Error saving user event:', error);
-//    throw error;
-//  }
-};
-
 // Media File Management
 export const deleteMediaFileInfoById = async (id) => {
   try {
@@ -1113,3 +1101,27 @@ export const getLogs = async (url, params, signal) => {
     throw error;
   }
 };
+
+/**
+ * Client event-ingest (telemetry). Fire-and-forget: errors are swallowed so a
+ * tracking failure never disrupts the UX (download/stream/search flows).
+ */
+export const postTrackEvents = (events) =>
+  axiosInstance
+    .post('/api/track/events', { events }, { headers: { 'X-DbWorld-Client': 'app' } })
+    .then(r => r.data)
+    .catch(() => {});
+
+/**
+ * Stream playback telemetry (STREAM_START/TICK/PAUSE/SEEK/STOP), used by the
+ * hybrid video player to compute "watched %". Fire-and-forget: errors are
+ * swallowed so a tracking failure never disrupts playback.
+ *
+ * No 'X-DbWorld-Client' header for web (backend maps channel=WEB); pass
+ * { app: true } from the native webview so the backend maps channel=APP.
+ */
+export const postStreamTrackEvents = (events, { app = false } = {}) =>
+  axiosInstance
+    .post('/api/track/events', { events }, app ? { headers: { 'X-DbWorld-Client': 'app' } } : undefined)
+    .then(r => r.data)
+    .catch(() => {});

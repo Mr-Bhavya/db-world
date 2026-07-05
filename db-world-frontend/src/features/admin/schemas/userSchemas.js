@@ -16,12 +16,20 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   firstName: z.string().min(2, 'Min 2 chars').max(20, 'Max 20 chars'),
   lastName:  z.string().min(1, 'Min 1 char').max(20, 'Max 20 chars'),
+  email:     z.string().email('Invalid email'),
   dob:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: yyyy-MM-dd').optional().or(z.literal('')),
   gender:    z.string().min(1, 'Required'),
   mobileNo:  z.coerce.number()
                .min(999999999, 'Must be at least 9 digits')
                .max(9999999999, 'Must be at most 10 digits'),
-  password:  z.string().min(6, 'Min 6 chars').max(100, 'Max 100 chars'),
+});
+
+// Admin reset-password (dedicated endpoint) — no current-password needed.
+export const adminPasswordSchema = z.object({
+  newPassword:     z.string().min(6, 'Min 6 chars').max(100, 'Max 100 chars'),
+  confirmPassword: z.string(),
+}).refine(d => d.newPassword === d.confirmPassword, {
+  message: 'Passwords do not match', path: ['confirmPassword'],
 });
 
 export const changePasswordSchema = z.object({

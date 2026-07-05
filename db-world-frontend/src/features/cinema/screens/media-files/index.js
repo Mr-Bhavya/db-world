@@ -24,6 +24,7 @@ import { tmdbImg, toggleMediaRequestVote, fetchMyMediaRequests } from '../../api
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 import { buildHybridEpisodes } from '../../utils/episodeUtils';
+import { buildStoryboard } from '../../utils/storyboard';
 
 // All media files for the current record — so play can build the full episode/quality
 // list regardless of which grouped subset rendered the Play button.
@@ -58,7 +59,10 @@ function useFileActions(file, allFiles, record) {
       const variantFiles = all.filter(f => isSeries ? epKey(f) === epKey(current) : true);
       const resolved = await Promise.all(variantFiles.map(async (f) => {
         if (!f?.mediaFileId) return f;
-        try { const r = await resolveMediaUrl(f.mediaFileId, 'ONLINE'); return { ...f, streamUrl: r?.data?.cdnUrl }; }
+        try {
+          const r = await resolveMediaUrl(f.mediaFileId, 'ONLINE');
+          return { ...f, streamUrl: r?.data?.cdnUrl, mediaFile: r?.data?.mediaFile, requestId: r?.data?.requestId };
+        }
         catch { return f; }
       }));
       const currentResolved = resolved.find(f => f.mediaFileId === current.mediaFileId) ?? resolved[0];
@@ -68,6 +72,8 @@ function useFileActions(file, allFiles, record) {
       const variants = resolved
         .filter(f => f.streamUrl)
         .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
+
+      const storyboard = buildStoryboard(currentResolved.streamUrl, currentResolved.mediaFileId, currentResolved.mediaFile) || null;
 
       navigate(Constants.DB_PLAYER_ROUTE, {
         state: {
@@ -81,6 +87,8 @@ function useFileActions(file, allFiles, record) {
             audio:       currentResolved.audio || [],
             variants,
             episodes,
+            storyboard,
+            requestId:   currentResolved.requestId ?? null,
           },
         },
       });

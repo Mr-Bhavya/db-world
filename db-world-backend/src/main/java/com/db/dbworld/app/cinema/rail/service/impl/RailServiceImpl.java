@@ -4,7 +4,7 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
-import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
+import com.db.dbworld.audit.tracking.repository.ActivitySessionRepository;
 import com.db.dbworld.app.cinema.rail.builder.RailRecordBuilder;
 import com.db.dbworld.app.cinema.rail.cache.RailCacheService;
 import com.db.dbworld.app.cinema.rail.dto.*;
@@ -56,7 +56,7 @@ public class RailServiceImpl implements RailService {
 
     private final InteractionRepository interactionRepository;
     private final WatchProgressRepository watchProgressRepository;
-    private final UserCinemaActivityRepository activityRepository;
+    private final ActivitySessionRepository activitySessionRepository;
     private final UserContext userContext;
 
     private final RailMapper railMapper;
@@ -157,10 +157,11 @@ public class RailServiceImpl implements RailService {
             Long userId = userContext.userId();
             Pageable top1 = PageRequest.of(0, 1);
             // Mirror the resolver's source-pick: watch_progress first, fall back to
-            // user_cinema_activity so download-only users still see a useful title.
+            // activity_session (recent STREAM sessions) so users whose progress hasn't
+            // ticked yet still see a useful title.
             Long sourceId = watchProgressRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
                     .findFirst()
-                    .orElseGet(() -> activityRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
+                    .orElseGet(() -> activitySessionRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
                             .findFirst().orElse(null));
             if (sourceId == null) return dto;
             recordRepository.findById(sourceId).ifPresent(source -> {
@@ -205,11 +206,11 @@ public class RailServiceImpl implements RailService {
         if ("becauseYouWatched".equals(ruleType)) {
             try {
                 // Mirror RailResolverImpl.pickBecauseYouWatchedSource: source can come
-                // from watch_progress OR user_cinema_activity (downloads/completed streams),
-                // so download-only users still get the rail.
+                // from watch_progress OR activity_session (recent STREAM sessions), so
+                // users whose progress hasn't ticked yet still get the rail.
                 Long userId = userContext.userId();
                 if (watchProgressRepository.existsByUserIdAndRecordIdNotNull(userId)) return true;
-                return !activityRepository.findMostRecentRecordIdsByUser(userId, PageRequest.of(0, 1)).isEmpty();
+                return !activitySessionRepository.findMostRecentRecordIdsByUser(userId, PageRequest.of(0, 1)).isEmpty();
             } catch (Exception e) {
                 log.debug("hasContent becauseYouWatched check failed for railId={}; reason={}",
                         rail.getId(), e.getMessage());
