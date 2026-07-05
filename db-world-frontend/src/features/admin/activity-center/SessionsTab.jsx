@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Box, Typography, Paper, Stack, Chip, TextField, MenuItem, IconButton, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination,
+  TableSortLabel, Autocomplete, CircularProgress,
   Skeleton, LinearProgress, alpha, useMediaQuery, useTheme as useMuiTheme,
 } from '@mui/material';
 import DevicesIcon from '@mui/icons-material/Devices';
@@ -11,7 +12,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme/ThemeContext';
-import { fetchSessions } from './activityApi';
+import { fetchSessions, fetchActivityUsers } from './activityApi';
 import SessionDetailModal from './SessionDetailModal';
 
 // ─── enum options (mirrors backend enums exactly — see
@@ -112,6 +113,13 @@ function ProgressBar({ pct, width }) {
       </Typography>
     </Stack>
   );
+}
+
+function userLabel(user) {
+  if (!user) return '';
+  const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
+  if (name && user.email) return `${name} (${user.email})`;
+  return name || user.email || `User #${user.userId}`;
 }
 
 function titleOf(session) {
@@ -222,6 +230,29 @@ function SessionCard({ session, onOpen }) {
   );
 }
 
+// ─── sortable header cell (mirrors ApiLogsFeed.SortTH) ────────────────────────
+
+function SortTH({ children, field, sort, onSort, align, sx = {} }) {
+  const T = useT();
+  const active = sort.field === field;
+  return (
+    <TableCell align={align} sx={{ whiteSpace: 'nowrap', ...sx }}>
+      <TableSortLabel
+        active={active}
+        direction={active ? sort.dir : 'desc'}
+        onClick={() => onSort(field)}
+        sx={{
+          color: 'inherit',
+          '& .MuiTableSortLabel-icon': { color: `${active ? T.teal : T.textFaint} !important` },
+          '&.Mui-active': { color: `${T.teal} !important` },
+        }}
+      >
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
+}
+
 // ─── skeletons ────────────────────────────────────────────────────────────────
 
 function SkeletonRow({ cols }) {
@@ -256,40 +287,40 @@ export default function SessionsTab() {
   const isLg = useMediaQuery(muiTheme.breakpoints.up('lg'));
   const isXl = useMediaQuery(muiTheme.breakpoints.up('xl'));
 
-  const [userQuery, setUserQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [showFilters, setShowFilters] = useState(!isMobile);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(25);
+  const [sort, setSort] = useState({ field: 'lastEventAt', dir: 'desc' });
   const [selectedSession, setSelectedSession] = useState(null);
 
-  // The API's `userId` filter is numeric (see activityApi.fetchSessions / the
-  // backend's ActivitySessionRepository.search). We surface a single free-text
-  // "user" field for convenience — when it parses as an integer we send it as
-  // userId; otherwise it's just not applied (no username/email search endpoint
-  // exists on /sessions today, see task-p2-7-report.md for detail).
-  const userIdFilter = useMemo(() => {
-    const trimmed = userQuery.trim();
-    if (!trimmed) return undefined;
-    return /^\d+$/.test(trimmed) ? Number(trimmed) : undefined;
-  }, [userQuery]);
-  const userQueryIsNonNumeric = userQuery.trim() !== '' && userIdFilter === undefined;
+  // Users who have activity (for the searchable user filter dropdown) — see
+  // GET /api/admin/activity/users. Cached for 5 minutes since this list changes
+  // rarely relative to session polling.
+  const { data: activityUsers = [], isLoading: usersLoading } = useQuery({
+    queryKey: ['activityUsers'],
+    queryFn: fetchActivityUsers,
+    staleTime: 300000,
+  });
 
   const appliedFilters = useMemo(() => ({
-    userId: userIdFilter,
+    userId: selectedUser?.userId ?? undefined,
     activity: filters.activity || undefined,
     channel: filters.channel || undefined,
     clientApp: filters.clientApp || undefined,
     state: filters.state || undefined,
     from: filters.from ? new Date(filters.from).toISOString() : undefined,
     to: filters.to ? new Date(filters.to).toISOString() : undefined,
-  }), [userIdFilter, filters]);
+  }), [selectedUser, filters]);
 
   const hasActiveFilters = Object.values(appliedFilters).some((v) => v !== undefined);
 
+  const sortParam = `${sort.field},${sort.dir}`;
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['sessions', appliedFilters, page, size],
-    queryFn: () => fetchSessions({ ...appliedFilters, page, size }),
+    queryKey: ['sessions', appliedFilters, page, size, sortParam],
+    queryFn: () => fetchSessions({ ...appliedFilters, page, size, sort: sortParam }),
     placeholderData: (prev) => prev,
   });
 
@@ -303,8 +334,16 @@ export default function SessionsTab() {
   };
 
   const clearFilters = () => {
-    setUserQuery('');
+    setSelectedUser(null);
     setFilters(EMPTY_FILTERS);
+    setPage(0);
+  };
+
+  const handleSort = (field) => {
+    setSort((prev) => ({
+      field,
+      dir: prev.field === field && prev.dir === 'desc' ? 'asc' : 'desc',
+    }));
     setPage(0);
   };
 
@@ -354,11 +393,44 @@ export default function SessionsTab() {
                 gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
                 px: 1.5, pb: 1.5, borderTop: `1px solid ${T.border}`, pt: 1.5,
               }}>
-                <TextField
-                  size="small" label="User (numeric ID)" value={userQuery}
-                  onChange={(e) => { setUserQuery(e.target.value); setPage(0); }}
-                  error={userQueryIsNonNumeric}
-                  helperText={userQueryIsNonNumeric ? 'Numeric user ID only' : ' '}
+                <Autocomplete
+                  size="small"
+                  options={activityUsers}
+                  loading={usersLoading}
+                  value={selectedUser}
+                  onChange={(_, val) => { setSelectedUser(val); setPage(0); }}
+                  getOptionLabel={userLabel}
+                  isOptionEqualToValue={(a, b) => a?.userId === b?.userId}
+                  renderOption={(props, option) => (
+                    <li {...props} key={option.userId}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" noWrap>
+                          {`${option.firstName ?? ''} ${option.lastName ?? ''}`.trim() || option.email}
+                        </Typography>
+                        {(option.firstName || option.lastName) && (
+                          <Typography variant="caption" color="text.secondary" noWrap component="div">
+                            {option.email}
+                          </Typography>
+                        )}
+                      </Box>
+                    </li>
+                  )}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="User"
+                      placeholder="Search users…"
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {usersLoading && <CircularProgress size={16} />}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
                   fullWidth
                 />
                 <TextField select size="small" label="Activity" value={filters.activity}
@@ -424,22 +496,22 @@ export default function SessionsTab() {
           {sessions.map((s) => <SessionCard key={s.sessionId} session={s} onOpen={setSelectedSession} />)}
         </Stack>
       ) : (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflowX: 'auto' }}>
           {isFetching && <LinearProgress sx={{ height: 2 }} />}
-          <Table size="small" stickyHeader sx={{ '& td, & th': { borderColor: alpha(T.border, 0.6) } }}>
+          <Table size="small" stickyHeader sx={{ minWidth: 900, '& td, & th': { borderColor: alpha(T.border, 0.6) } }}>
             <TableHead>
               <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '.04em', color: 'text.secondary', bgcolor: 'background.paper' } }}>
                 <TableCell>User</TableCell>
                 <TableCell>Title</TableCell>
-                <TableCell>Activity</TableCell>
+                <SortTH field="activity" sort={sort} onSort={handleSort}>Activity</SortTH>
                 <TableCell>Channel / Client</TableCell>
-                <TableCell>State</TableCell>
-                <TableCell>Progress</TableCell>
-                {isLg && <TableCell align="right">Size</TableCell>}
-                {isLg && <TableCell align="right">Conn.</TableCell>}
-                {isXl && <TableCell align="right">Speed</TableCell>}
-                {isXl && <TableCell>Started</TableCell>}
-                <TableCell>Last activity</TableCell>
+                <SortTH field="state" sort={sort} onSort={handleSort}>State</SortTH>
+                <SortTH field="completionPercent" sort={sort} onSort={handleSort}>Progress</SortTH>
+                {isLg && <SortTH field="uniqueBytes" sort={sort} onSort={handleSort} align="right">Size</SortTH>}
+                {isLg && <SortTH field="peakConnections" sort={sort} onSort={handleSort} align="right">Conn.</SortTH>}
+                {isXl && <SortTH field="avgSpeedBps" sort={sort} onSort={handleSort} align="right">Speed</SortTH>}
+                {isXl && <SortTH field="startedAt" sort={sort} onSort={handleSort}>Started</SortTH>}
+                <SortTH field="lastEventAt" sort={sort} onSort={handleSort}>Last activity</SortTH>
               </TableRow>
             </TableHead>
             <TableBody>

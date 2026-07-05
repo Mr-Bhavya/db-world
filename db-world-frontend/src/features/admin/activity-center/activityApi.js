@@ -43,6 +43,9 @@ export const fetchSessions = ({
 export const fetchSessionEvents = (sessionId) =>
   axiosInstance.get(`${ACTIVITY}/sessions/${sessionId}/events`).then(r => r.data.data);
 
+export const fetchActivityUsers = () =>
+  axiosInstance.get(`${ACTIVITY}/users`).then(r => r.data.data);
+
 export const fetchActivityTrend = (days = 30) =>
   axiosInstance.get(`${ACTIVITY}/trend`, { params: { days } }).then(r => r.data.data);
 
