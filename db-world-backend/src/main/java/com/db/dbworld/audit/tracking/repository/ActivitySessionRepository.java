@@ -111,9 +111,10 @@ public interface ActivitySessionRepository
     long countLiveSessions(@Param("cutoff") Instant cutoff);
 
     /**
-     * Live sessions table: currently ACTIVE/PAUSED sessions with a recent heartbeat,
-     * enriched with user email and record title/type via LEFT JOIN (both may be
-     * absent for orphaned rows).
+     * Live sessions table: currently RESOLVING/ACTIVE/PAUSED sessions with a recent
+     * heartbeat, enriched with user email and record title/type via LEFT JOIN (both
+     * may be absent for orphaned rows). RESOLVING is included so a resolved-but-not-
+     * yet-transferring session (e.g. a queued external download) still shows as live.
      */
     @Query(value = """
             SELECT
@@ -135,7 +136,7 @@ public interface ActivitySessionRepository
             FROM activity_session s
             LEFT JOIN users   u ON u.id = s.user_id
             LEFT JOIN records r ON r.id = s.record_id
-            WHERE s.state IN ('ACTIVE', 'PAUSED')
+            WHERE s.state IN ('RESOLVING', 'ACTIVE', 'PAUSED')
               AND s.last_event_at >= :cutoff
             ORDER BY s.last_event_at DESC
             """, nativeQuery = true)

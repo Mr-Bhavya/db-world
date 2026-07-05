@@ -49,8 +49,13 @@ public class NginxTickBuilder {
         ActivityKind activity = group.get(0).activity();
 
         for (CdnLogLine line : group) {
-            if (line.rangeStart() != null && line.rangeEnd() != null) {
-                deliveredRanges.add(new long[] { line.rangeStart(), line.rangeEnd() });
+            if (line.bytesSent() > 0) {
+                long start = line.rangeStart() != null ? line.rangeStart() : 0L;
+                long end = start + line.bytesSent() - 1;
+                if (line.rangeEnd() != null && end > line.rangeEnd()) {
+                    end = line.rangeEnd(); // safety; shouldn't exceed the requested span
+                }
+                deliveredRanges.add(new long[] { start, end });
             }
 
             transferredBytes += line.bytesSent();
@@ -80,9 +85,11 @@ public class NginxTickBuilder {
                 lastEventAt = line.time();
             }
 
-            if (line.isComplete()) {
-                sawComplete = true;
-            }
+            // Completion is now decided by the aggregator from real coverage (union of
+            // deliveredRanges vs. file size), not from a single line's requested range
+            // reaching the file tail — that heuristic falsely marked truncated/aborted
+            // transfers as complete.
+            sawComplete = false;
         }
 
         int peakConnections = TransferMath.peakConcurrent(timeWindows);

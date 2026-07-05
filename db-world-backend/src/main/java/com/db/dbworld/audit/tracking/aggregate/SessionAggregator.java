@@ -2,6 +2,7 @@ package com.db.dbworld.audit.tracking.aggregate;
 
 import com.db.dbworld.audit.tracking.entity.ActivitySessionEntity;
 import com.db.dbworld.audit.tracking.enums.*;
+import com.db.dbworld.audit.tracking.parse.ClientAppDetector;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -90,12 +91,17 @@ public class SessionAggregator {
         s.setUniqueBytes(covered);
 
         if (!Boolean.TRUE.equals(s.getHasClientEvents())) {
-            // nginx is the authority for this session.
-            if (s.getClientApp() == null || ClientApp.UNKNOWN.name().equals(s.getClientApp()))
-                s.setClientApp(t.clientApp() != null ? t.clientApp().name() : null);
+            // nginx is the authority for this session — including WHO is transferring.
+            // The resolve step only knows the browser that hit the resolve endpoint; the
+            // actual bytes may be pulled by an external downloader (1DM/aria2/IDM) with a
+            // different UA. Let the nginx-detected client win whenever it identified someone.
+            if (t.clientApp() != null && t.clientApp() != ClientApp.UNKNOWN) {
+                s.setClientApp(t.clientApp().name());
+                s.setChannel(ClientAppDetector.channel(t.clientApp(), false));
+            }
             recomputeNginxCompletion(s);
             if (s.getState() == SessionState.RESOLVING) s.setState(SessionState.ACTIVE);
-            if (t.sawComplete() || (s.getFileSize() != null && covered >= s.getFileSize())) {
+            if (s.getFileSize() != null && s.getFileSize() > 0 && covered >= s.getFileSize()) {
                 s.setState(SessionState.COMPLETED);
                 if (s.getCompletedAt() == null) s.setCompletedAt(t.lastEventAt());
                 s.setCompletionPercent(BigDecimal.valueOf(100));

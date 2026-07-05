@@ -16,6 +16,12 @@ class ClientAppDetectorTest {
     @Test void detects1dm() {
         assertThat(ClientAppDetector.detect("1DM/13.0 (Android)")).isEqualTo(ClientApp.ONEDM);
     }
+    @Test void detects1dmVariants() {
+        assertThat(ClientAppDetector.detect("1DMP/16.4 (Android)")).isEqualTo(ClientApp.ONEDM);
+        assertThat(ClientAppDetector.detect("ADM/2.9 (Linux;Android 13)")).isEqualTo(ClientApp.ONEDM);
+        assertThat(ClientAppDetector.detect("Advanced Download Manager/16.4"))
+                .isEqualTo(ClientApp.ONEDM);
+    }
     @Test void detectsVlc() {
         assertThat(ClientAppDetector.detect("VLC/3.0.18 LibVLC/3.0.18")).isEqualTo(ClientApp.VLC);
     }

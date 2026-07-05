@@ -52,8 +52,36 @@ class NginxTickBuilderTest {
         assertThat(agg.clientApp()).isEqualTo(ClientApp.ARIA2);
         assertThat(agg.realIp()).isEqualTo("10.0.0.5");
         assertThat(agg.lastEventAt()).isEqualTo(base.plusMillis(500));
-        // rangeEnd (9999) reaches fileTotal-1 (9999) on line2 -> complete.
-        assertThat(agg.sawComplete()).isTrue();
+        // sawComplete is now always false from nginx; the aggregator derives completion
+        // from real coverage instead of a line's requested range reaching the file tail.
+        assertThat(agg.sawComplete()).isFalse();
+    }
+
+    @Test
+    void build_truncatedTransfer_deliveredRangeReflectsActualBytesSent() {
+        Instant base = Instant.parse("2026-07-04T10:30:00Z");
+
+        // Client requested bytes 0-9999 (full file) but disconnected after 3000 bytes.
+        CdnLogLine line = new CdnLogLine(
+                "req-C", "dl-3", ActivityKind.DOWNLOAD,
+                base, 206, 3000L,
+                0L, 9999L, 10000L,
+                "10.0.0.7", "aria2/1.36.0",
+                1.0, 300L
+        );
+
+        List<NginxTickAggregate> aggregates = builder.build(List.of(line));
+
+        assertThat(aggregates).hasSize(1);
+        NginxTickAggregate agg = aggregates.get(0);
+
+        assertThat(agg.deliveredRanges()).hasSize(1);
+        long[] range = agg.deliveredRanges().get(0);
+        assertThat(range[0]).isEqualTo(0L);
+        // end == rangeStart + bytesSent - 1, NOT the requested rangeEnd (9999).
+        assertThat(range[1]).isEqualTo(0L + 3000L - 1L);
+        assertThat(agg.transferredBytes()).isEqualTo(3000L);
+        assertThat(agg.sawComplete()).isFalse();
     }
 
     @Test
@@ -75,12 +103,16 @@ class NginxTickBuilderTest {
 
         assertThat(agg.sessionId()).isEqualTo("req-B");
         assertThat(agg.activity()).isEqualTo(ActivityKind.STREAM);
-        assertThat(agg.deliveredRanges()).isEmpty();
+        // No Content-Range on this line, but bytesSent > 0 still yields a delivered
+        // interval anchored at 0 (start defaults to 0 when rangeStart is null).
+        assertThat(agg.deliveredRanges()).hasSize(1);
+        assertThat(agg.deliveredRanges().get(0)).containsExactly(0L, 19999L);
         assertThat(agg.transferredBytes()).isEqualTo(20000L);
         assertThat(agg.fileTotal()).isNull();
         assertThat(agg.peakConnections()).isEqualTo(1);
         assertThat(agg.clientApp()).isEqualTo(ClientApp.CHROME);
-        assertThat(agg.sawComplete()).isTrue();
+        // sawComplete is always false from nginx now; the aggregator decides completion.
+        assertThat(agg.sawComplete()).isFalse();
     }
 
     @Test

@@ -17,7 +17,8 @@ public final class ClientAppDetector {
         if (ua.contains("aria2"))                         return ClientApp.ARIA2;
         if (ua.contains("internet download manager")
                 || ua.contains("idm/") || ua.contains("idman")) return ClientApp.IDM;
-        if (ua.contains("1dm") || ua.contains("adm/"))    return ClientApp.ONEDM;
+        if (ua.contains("1dm") || ua.contains("1dmp") || ua.contains("adm/")
+                || ua.contains("advanced download manager"))  return ClientApp.ONEDM;
         if (ua.contains("vlc"))                           return ClientApp.VLC;
         if (ua.contains("mpv"))                           return ClientApp.MPV;
         if (ua.contains("kodi") || ua.contains("xbmc"))   return ClientApp.KODI;
