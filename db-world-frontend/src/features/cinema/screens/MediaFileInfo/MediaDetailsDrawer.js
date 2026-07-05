@@ -28,6 +28,8 @@ import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { tmdbImg } from '../../api/cinemaApi';
+import { resolveAndBuildMedia } from '../../media/playerLaunch';
+import { buildStoryboard } from '../../utils/storyboard';
 
 
 // ─── CopyButton — shows check on success ─────────────────────────────────────
@@ -93,40 +95,44 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
     throw new Error('No media identifier or file path available');
   };
 
-  const resolveAll = async (type) => {
-    const files = (allFiles?.length > 0 ? allFiles : [mediaInfo]);
-    return Promise.all(files.map(async (f) => {
-      try {
-        const res = await resolveOne(f, type);
-        const cdnUrl = res?.data?.cdnUrl;
-        return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
-      } catch { return f; }
-    }));
-  };
-
   const handlePlay = async () => {
     setResolving(true);
     onClose();
     try {
-      const enriched = await resolveAll('ONLINE');
-      const current = enriched.find(f => matchesCurrentFile(f, mediaInfo)) ?? enriched[0];
-      if (!current?.streamUrl) throw new Error('No stream URL');
-      const heightOf = (f) => Number(f.video?.resolution?.split('x')?.[1]) || 0;
-      const variants = enriched
-        .filter(f => f.streamUrl)
-        .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
-      navigate(Constants.DB_PLAYER_ROUTE, {
-        state: {
-          media: {
-            url:      current.streamUrl,
-            fileId:   String(mediaInfo.id || mediaInfo.mediaFileId || ''),
-            title:    record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName || '',
-            fileName: general?.fileName || '',
-            recordId: record?.id || record?.recordId || null,
-            variants,
-          },
-        },
-      });
+      const files = allFiles?.length ? allFiles : [mediaInfo];
+      const current = files.find(f => matchesCurrentFile(f, mediaInfo)) ?? mediaInfo;
+      const title = record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName || '';
+
+      let media;
+      if (current?.mediaFileId) {
+        // Record-linked file: shared batch resolve + uniform payload (storyboard, requestId, ids).
+        media = await resolveAndBuildMedia({
+          current,
+          variantFiles: files,
+          record,
+          title,
+          fileId: mediaInfo.id || mediaInfo.mediaFileId,
+        });
+      } else {
+        // Unassigned file (path-based, no mediaFileId): single resolve, no batch.
+        const res = await resolveOne(current, 'ONLINE');
+        const url = res?.data?.cdnUrl;
+        if (!url) throw new Error('No stream URL');
+        media = {
+          url,
+          fileId:      String(mediaInfo.id || mediaInfo.mediaFileId || ''),
+          mediaFileId: res?.data?.mediaFileId || null,
+          title,
+          fileName:    general?.fileName || '',
+          recordId:    record?.id || record?.recordId || res?.data?.recordId || null,
+          audio:       res?.data?.mediaFile?.audio || [],
+          variants:    [{ url, label: getQuality(current.video, current.general?.fileName), mediaFileId: current.mediaFileId }],
+          episodes:    [],
+          storyboard:  buildStoryboard(url, res?.data?.mediaFileId, res?.data?.mediaFile) || null,
+          requestId:   res?.data?.requestId || null,
+        };
+      }
+      navigate(Constants.DB_PLAYER_ROUTE, { state: { media } });
     } catch (_e) {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally {

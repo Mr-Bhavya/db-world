@@ -3,15 +3,14 @@ import { motion } from 'framer-motion';
 import { Box, Typography, IconButton, useMediaQuery, useTheme } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import Constants from '@shared/constants';
-import { resolveMediaUrl, loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
 import { parseEpisode } from '../../utils/episodeUtils';
-import { buildStoryboard } from '../../utils/storyboard';
-import { getQuality } from '../../media/helpers';
+import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
 import ContinueCard from './ContinueCard';
 
 // Build the player's episode list from a record's media files (one entry per
@@ -34,10 +33,6 @@ function buildEpisodes(files) {
     }));
 }
 
-// Same height derivation Record-Details (media-files/index.js) uses, so the
-// quality switcher's height-based fallback/sort logic matches exactly.
-const heightOf = (f) => Number(f.video?.resolution?.split('x')?.[1]) || 0;
-
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
 
@@ -50,7 +45,6 @@ const ContinueRailRow = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
-  const location = useLocation();
   const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -85,70 +79,26 @@ const ContinueRailRow = () => {
     if (resuming) return;
     setResuming(true);
     try {
-      // Resolve the stream URL and the record's media files (for the episode list
-      // on series, and the sibling quality files on both movies + series) in parallel.
       const isSeries = item.type === 'TV_SERIES';
-      const [res, infoResp] = await Promise.all([
-        resolveMediaUrl(item.resumeFileId, 'ONLINE'),
-        loadStreamFileInfoByRecordId(item.recordId).catch(() => null),
-      ]);
-      const url = res?.data?.cdnUrl;
-      if (!url) throw new Error('No stream URL');
-
+      const infoResp = await loadStreamFileInfoByRecordId(item.recordId).catch(() => null);
       const rawFiles = infoResp?.data ?? [];
       const episodes = isSeries ? buildEpisodes(rawFiles) : [];
-      const storyboard = buildStoryboard(url, item.resumeFileId, res?.data?.mediaFile) || null;
 
-      // Quality variants for the resumed title/episode — converted through the
-      // same CommonServices helper Record-Details uses so getQuality()/height
-      // derivation (and therefore the labels shown in the player) match exactly.
-      // epKey mirrors Record-Details' handlePlay (media-files/index.js): prefer
-      // the TMDB season/episode fields, else fall back to filename parsing.
+      // Converted through the same helper Record-Details uses, so quality labels match.
       const converted = CommonServices.convertMediaInfoToCustomFormat(null, rawFiles);
-      const epKey = (f) => {
-        const ep = parseEpisode(f.general?.fileName);
-        const s = f.tmdbSeasonNumber != null ? f.tmdbSeasonNumber : ep?.season;
-        const e = f.tmdbEpisodeNumber != null ? f.tmdbEpisodeNumber : ep?.episode;
-        return `${s}-${e}`;
-      };
-      const resumedKey = isSeries
-        ? (item.season != null && item.episode != null
-            ? `${item.season}-${item.episode}`
-            : epKey(converted.find(f => f.mediaFileId === item.resumeFileId) ?? {}))
-        : null;
-      const candidates = isSeries
-        ? converted.filter(f => epKey(f) === resumedKey)
-        : converted;
-
-      const resolvedVariants = await Promise.all(candidates.map(async (f) => {
-        if (f.mediaFileId === item.resumeFileId) return { ...f, streamUrl: url };
-        if (!f?.mediaFileId) return null;
-        try {
-          const r = await resolveMediaUrl(f.mediaFileId, 'ONLINE');
-          return r?.data?.cdnUrl ? { ...f, streamUrl: r.data.cdnUrl } : null;
-        } catch {
-          return null;
-        }
-      }));
-      const variants = resolvedVariants
-        .filter(f => f?.streamUrl)
-        .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
+      const current = converted.find(f => f.mediaFileId === item.resumeFileId)
+                   ?? { mediaFileId: item.resumeFileId, id: item.resumeFileId };
 
       // The player resumes from the saved progress for this fileId automatically.
-      navigate(Constants.DB_PLAYER_ROUTE, {
-        state: {
-          media: {
-            url,
-            fileId: item.resumeFileId,
-            title: item.title,
-            recordId: item.recordId,
-            episodes,
-            storyboard,
-            variants,
-            requestId: res?.data?.requestId ?? null,
-          },
-        },
+      const media = await resolveAndBuildMedia({
+        current,
+        variantFiles: variantFilesFor(converted, current, isSeries),
+        episodes,
+        record: { recordId: item.recordId },
+        title: item.title,
+        fileId: item.resumeFileId,
       });
+      navigate(Constants.DB_PLAYER_ROUTE, { state: { media } });
     } catch {
       enqueueSnackbar('Could not resume playback.', { variant: 'error' });
     } finally {

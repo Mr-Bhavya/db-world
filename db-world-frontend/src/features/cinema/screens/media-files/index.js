@@ -24,7 +24,7 @@ import { tmdbImg, toggleMediaRequestVote, fetchMyMediaRequests } from '../../api
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
 import { buildHybridEpisodes } from '../../utils/episodeUtils';
-import { buildStoryboard } from '../../utils/storyboard';
+import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
 
 // All media files for the current record — so play can build the full episode/quality
 // list regardless of which grouped subset rendered the Play button.
@@ -50,48 +50,15 @@ function useFileActions(file, allFiles, record) {
       const episodes = buildHybridEpisodes(all, current, record?.tmdb?.seasons);
       const isSeries = episodes.length > 0;
 
-      const epKey = (f) => {
-        const s = f.tmdbSeasonNumber != null ? f.tmdbSeasonNumber : getSeason(f.general?.fileName);
-        const e = f.tmdbEpisodeNumber != null ? f.tmdbEpisodeNumber : getEpisodeNumber(f.general?.fileName);
-        return `${s}-${e}`;
-      };
-      // Quality variants for the current title/episode — resolve just these now.
-      const variantFiles = all.filter(f => isSeries ? epKey(f) === epKey(current) : true);
-      const resolved = await Promise.all(variantFiles.map(async (f) => {
-        if (!f?.mediaFileId) return f;
-        try {
-          const r = await resolveMediaUrl(f.mediaFileId, 'ONLINE');
-          return { ...f, streamUrl: r?.data?.cdnUrl, mediaFile: r?.data?.mediaFile, requestId: r?.data?.requestId };
-        }
-        catch { return f; }
-      }));
-      const currentResolved = resolved.find(f => f.mediaFileId === current.mediaFileId) ?? resolved[0];
-      if (!currentResolved?.streamUrl) throw new Error('No stream URL');
-
-      const heightOf = (f) => Number(f.video?.resolution?.split('x')?.[1]) || 0;
-      const variants = resolved
-        .filter(f => f.streamUrl)
-        .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
-
-      const storyboard = buildStoryboard(currentResolved.streamUrl, currentResolved.mediaFileId, currentResolved.mediaFile) || null;
-
-      navigate(Constants.DB_PLAYER_ROUTE, {
-        state: {
-          media: {
-            url:         currentResolved.streamUrl,
-            fileId:      String(current.id || current.mediaFileId || ''),
-            mediaFileId: current.mediaFileId || '',
-            title:       record?.tmdb?.title || record?.tmdb?.name || record?.name || current.general?.fileName || '',
-            fileName:    current.general?.fileName || '',
-            recordId:    record?.id || record?.recordId || null,
-            audio:       currentResolved.audio || [],
-            variants,
-            episodes,
-            storyboard,
-            requestId:   currentResolved.requestId ?? null,
-          },
-        },
+      const media = await resolveAndBuildMedia({
+        current,
+        variantFiles: variantFilesFor(all, current, isSeries),
+        episodes,
+        record,
+        title: record?.tmdb?.title || record?.tmdb?.name || record?.name || current.general?.fileName || '',
+        fileId: current.id || current.mediaFileId,
       });
+      navigate(Constants.DB_PLAYER_ROUTE, { state: { media } });
     } catch {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally { setResolving(false); }
