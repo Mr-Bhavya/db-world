@@ -9,7 +9,7 @@
 import { resolveMediaBatch } from '@shared/services/ApiServices';
 import { buildStoryboard } from '../utils/storyboard';
 import { parseEpisode } from '../utils/episodeUtils';
-import { getQuality } from './helpers';
+import { getQuality, getCodec, getHdrTags } from './helpers';
 
 const heightOf = (f) => Number(f?.video?.resolution?.split('x')?.[1]) || 0;
 
@@ -62,6 +62,8 @@ export async function resolveAndBuildMedia({ current, variantFiles, episodes = [
         label: getQuality(f.video, f.general?.fileName),
         height: heightOf(f),
         mediaFileId: f.mediaFileId,
+        codec: getCodec(f.video?.format),                                          // H.265 / H.264 / AV1…
+        hdr: getHdrTags(f.video?.hdrFormat || f.video?.hdrFormatCompatibility, f.general?.fileName), // ['DV','HDR10']
       };
     })
     .filter(Boolean);

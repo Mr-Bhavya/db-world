@@ -34,6 +34,7 @@ import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
+import { tmdbImg } from '../../api/cinemaApi';
 
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 const HIDE_MS = 3500;
@@ -48,7 +49,54 @@ const DEFAULT_SUB   = 'off';
 const DECODERS = [{ id: 'auto', label: 'Auto' }, { id: 'hw', label: 'Hardware' }, { id: 'sw', label: 'Software' }];
 const lsGet = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } };
-const audioLabel = (t) => `${t.language}${t.channels >= 6 ? ' 5.1' : t.channels === 2 ? ' Stereo' : ''}`;
+// ── Track-label helpers ──────────────────────────────────────────────────────
+// Build rich, human labels from whatever track metadata is present (web seeds from
+// the file's MediaInfo; native ExoPlayer emits a subset). Every part is optional so
+// a sparse track still renders something sensible.
+const chLayout = (t) => t.channelLayout
+  || (t.channels >= 8 ? '7.1' : t.channels >= 6 ? '5.1' : t.channels === 2 ? 'Stereo' : t.channels === 1 ? 'Mono' : '');
+const audioCodec = (t) => {
+  const raw = String(t.formatCommercial || t.format || t.codecId || t.codec || '').toUpperCase();
+  if (!raw) return '';
+  if (raw.includes('ATMOS'))                            return 'Atmos';
+  if (raw.includes('E-AC-3') || raw.includes('EAC3') || raw.includes('E-AC3')) return 'E-AC3';
+  if (raw.includes('TRUEHD') || raw.includes('TRUE-HD'))return 'TrueHD';
+  if (raw.includes('DTS-HD') || raw.includes('DTSHD'))  return 'DTS-HD';
+  if (raw.includes('DTS'))                              return 'DTS';
+  if (raw.includes('AC-3') || raw.includes('AC3'))      return 'AC3';
+  if (raw.includes('AAC'))                              return 'AAC';
+  if (raw.includes('OPUS'))                             return 'Opus';
+  if (raw.includes('FLAC'))                             return 'FLAC';
+  if (raw.includes('MP3') || raw.includes('MPEG AUDIO'))return 'MP3';
+  if (raw.includes('VORBIS'))                           return 'Vorbis';
+  if (raw.includes('PCM'))                              return 'PCM';
+  return t.format || t.formatCommercial || '';
+};
+const kbps = (bps) => bps > 0 ? `${Math.round(bps / 1000)} kbps` : '';
+const audioLabel = (t) => {
+  const codec = audioCodec(t);
+  const name  = t.language || t.title || codec || `Audio ${(Number(t.id) || 0) + 1}`;
+  return [name, name === codec ? '' : codec, chLayout(t), kbps(t.bitRate)].filter(Boolean).join(' · ');
+};
+const subFormat = (t) => {
+  const raw = String(t.format || t.codecId || '').toUpperCase();
+  if (raw.includes('PGS') || raw.includes('HDMV'))    return 'PGS';
+  if (raw.includes('SUBRIP') || raw.includes('SRT') || raw.includes('S_TEXT/UTF8')) return 'SRT';
+  if (raw.includes('ASS'))                            return 'ASS';
+  if (raw.includes('SSA'))                            return 'SSA';
+  if (raw.includes('VOBSUB') || raw.includes('VOB'))  return 'VobSub';
+  if (raw.includes('WEBVTT') || raw.includes('VTT'))  return 'VTT';
+  if (raw.includes('DVB'))                            return 'DVB';
+  if (raw.includes('TELETEXT'))                       return 'Teletext';
+  return '';
+};
+const isForced = (t) => t.forced === true || t.forced === 1
+  || String(t.forced).toLowerCase() === 'yes' || String(t.forced).toLowerCase() === 'true';
+const subtitleLabel = (t) => {
+  const name = t.language || t.title || `Subtitle ${(Number(t.id) || 0) + 1}`;
+  return [name, subFormat(t), isForced(t) ? 'Forced' : ''].filter(Boolean).join(' · ');
+};
+const qualityLabel = (v) => [v.label, v.codec, ...(v.hdr || [])].filter(Boolean).join(' · ');
 
 // "S1:E2 · Episode Name" (drops the name when TMDB has none, drops the whole
 // thing for movies). withName=false → just "S1:E2".
@@ -68,7 +116,13 @@ const PLAYER_CSS = `
 .dbw-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); transition: transform 0.15s ease; }
 .dbw-range:hover::-webkit-slider-thumb, .dbw-range:active::-webkit-slider-thumb { transform: scale(1.3); }
 .dbw-range::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); }
-@media (prefers-reduced-motion: reduce) { .dbw-range, .dbw-range::-webkit-slider-thumb { transition: none; } }`;
+@media (prefers-reduced-motion: reduce) { .dbw-range, .dbw-range::-webkit-slider-thumb { transition: none; } }
+.dbw-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.28) transparent; }
+.dbw-scroll::-webkit-scrollbar { width: 8px; }
+.dbw-scroll::-webkit-scrollbar-track { background: transparent; }
+.dbw-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
+.dbw-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
+.dbw-epfocus:focus-visible { outline: 2px solid #14b8a6; outline-offset: -2px; }`;
 
 const fmt = (ms) => {
   if (!ms || ms < 0) return '0:00';
@@ -230,7 +284,12 @@ export default function DbWorldVideoPlayer({
     // language if present, else the first). Native (ExoPlayer) emits 'tracks' and
     // applies prefs via applyPreferredTracks instead.
     if (!isNative && audio.length) {
-      const webTracks = audio.map((a, i) => ({ id: i, language: a.language, channels: a.channels, format: a.format }));
+      const webTracks = audio.map((a, i) => ({
+        id: i, language: a.language, title: a.title,
+        channels: a.channels, channelLayout: a.channelLayout,
+        format: a.format, formatCommercial: a.formatCommercial, codecId: a.codecId,
+        bitRate: a.bitRate,
+      }));
       setAudioTracks(webTracks);
       let idx = audio.findIndex(a => a.language === lsGet(PREF_AUDIO, DEFAULT_AUDIO));
       if (idx < 0) idx = 0;
@@ -778,32 +837,56 @@ export default function DbWorldVideoPlayer({
         </div>
       )}
 
-      {/* Episode panel (right drawer) */}
+      {/* Episode panel (right drawer) — Netflix-style rows: still thumbnail + title +
+          runtime + 2-line synopsis, current episode highlighted, smooth styled scroll. */}
       {episodesOpen && (
         <div onClick={() => setEpisodesOpen(false)}
-          style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.35)', display: 'flex', justifyContent: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ width: 340, maxWidth: '85%', height: '100%', background: 'rgba(15,15,15,0.92)',
-              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', overflowY: 'auto', padding: '16px 0' }}>
-            <div style={{ padding: '0 18px 10px', fontWeight: 700, fontSize: 16 }}>Episodes</div>
+          style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
+            style={{ width: 420, maxWidth: '92%', height: '100%', background: 'rgba(14,14,14,0.96)',
+              backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', overflowY: 'auto', padding: '14px 0',
+              borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px 12px' }}>
+              <span style={{ fontWeight: 700, fontSize: 17 }}>Episodes</span>
+              <IconBtn onClick={() => setEpisodesOpen(false)} ariaLabel="Close episodes"><CloseIcon /></IconBtn>
+            </div>
             {Object.keys(seasonsMap).sort((a, b) => a - b).map(s => (
               <div key={s}>
-                <div style={{ padding: '8px 18px', color: '#bbb', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Season {s}</div>
+                <div style={{ padding: '10px 18px 6px', color: '#9aa', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Season {s}</div>
                 {seasonsMap[s].map(ep => {
                   const isCur = ep.id === currentEpisodeId || ep.fileId === currentEpisodeId;
                   return (
-                    <button key={ep.id} onClick={() => { switchEpisode(ep); setEpisodesOpen(false); }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 18px',
-                        background: isCur ? 'rgba(13,148,136,0.18)' : 'transparent', border: 'none', cursor: 'pointer',
-                        color: isCur ? TEAL : '#fff', fontWeight: isCur ? 700 : 500, fontSize: 14, textAlign: 'left' }}>
-                      {isCur ? <PlayArrowIcon sx={{ fontSize: 18 }} /> : <span style={{ width: 18 }} />}
-                      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                        <span>{ep.label}</span>
+                    <button key={ep.id} className="dbw-epfocus"
+                      onClick={() => { switchEpisode(ep); setEpisodesOpen(false); }}
+                      style={{ display: 'flex', gap: 12, width: '100%', padding: '10px 16px', textAlign: 'left',
+                        background: isCur ? 'rgba(13,148,136,0.14)' : 'transparent', cursor: 'pointer',
+                        border: 'none', borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}` }}>
+                      {/* still thumbnail (16:9) */}
+                      <div style={{ position: 'relative', width: 132, flexShrink: 0, aspectRatio: '16 / 9',
+                        borderRadius: 8, overflow: 'hidden', background: '#1c1c1c' }}>
+                        {ep.stillPath
+                          ? <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                          : <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: '#555' }}>
+                              <PlaylistPlayIcon /></div>}
+                        {isCur && (
+                          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.4)' }}>
+                            <PlayArrowIcon sx={{ fontSize: 30, color: TEAL }} /></div>)}
+                      </div>
+                      {/* text */}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: isCur ? TEAL : '#fff', flexShrink: 0 }}>{ep.label}</span>
+                          {ep.runtime ? <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>{ep.runtime}m</span> : null}
+                        </div>
                         {ep.name && (
-                          <span style={{ fontSize: 12, fontWeight: 400, color: isCur ? TEAL : '#aaa',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.name}</span>
-                        )}
-                      </span>
+                          <div style={{ fontSize: 13, color: isCur ? TEAL : '#e0e0e0', marginTop: 1,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.name}</div>)}
+                        {ep.overview && (
+                          <div style={{ fontSize: 11.5, color: '#8f9296', marginTop: 3, lineHeight: 1.35,
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {ep.overview}</div>)}
+                      </div>
                     </button>
                   );
                 })}
@@ -861,11 +944,11 @@ export default function DbWorldVideoPlayer({
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <SheetSection>Subtitles</SheetSection>
                           <SheetRow selected={curText < 0} label="Off" onClick={() => chooseSub(null)} />
-                          {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={`${t.language}${t.forced ? ' (Forced)' : ''}`} onClick={() => chooseSub(t)} />)}
+                          {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={subtitleLabel(t)} onClick={() => chooseSub(t)} />)}
                         </div>
                       </div>
                     )}
-                    {settingsView === 'quality' && variants.map(v => <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId} label={v.label} onClick={() => { chooseQuality(v); back(); }} />)}
+                    {settingsView === 'quality' && variants.map(v => <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId} label={qualityLabel(v)} onClick={() => { chooseQuality(v); back(); }} />)}
                     {settingsView === 'speed' && SPEEDS.map((s, i) => <SheetRow key={s} selected={i === rateIdx} label={`${s}×${s === 1 ? ' (Normal)' : ''}`} onClick={() => { chooseSpeed(i); back(); }} />)}
                     {settingsView === 'decoder' && DECODERS.map(d => <SheetRow key={d.id} selected={d.id === decoder} label={d.label} onClick={() => { chooseDecoder(d.id); back(); }} />)}
                   </div>

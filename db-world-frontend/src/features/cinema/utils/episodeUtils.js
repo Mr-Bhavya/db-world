@@ -41,15 +41,23 @@ export function buildEpisodeMap(files) {
 }
 
 /**
+ * Look up the full TMDB episode object for a season/episode number.
+ * `tmdbSeasons` is record.tmdb.seasons: [{ seasonNumber, episodes:[{ episodeNumber,
+ * name, overview, stillPath, runtime, airDate, voteAverage }] }].
+ * Returns null when not found.
+ */
+export function tmdbEpisode(tmdbSeasons, season, episode) {
+  if (!Array.isArray(tmdbSeasons)) return null;
+  const s = tmdbSeasons.find(x => Number(x?.seasonNumber) === Number(season));
+  return s?.episodes?.find(x => Number(x?.episodeNumber) === Number(episode)) ?? null;
+}
+
+/**
  * Look up a TMDB episode name for a given season/episode number.
- * `tmdbSeasons` is record.tmdb.seasons: [{ seasonNumber, episodes:[{ episodeNumber, name }] }].
  * Returns '' when not found (so callers can fall back to the S##E## label).
  */
 export function tmdbEpisodeName(tmdbSeasons, season, episode) {
-  if (!Array.isArray(tmdbSeasons)) return '';
-  const s = tmdbSeasons.find(x => Number(x?.seasonNumber) === Number(season));
-  const e = s?.episodes?.find(x => Number(x?.episodeNumber) === Number(episode));
-  return e?.name ?? '';
+  return tmdbEpisode(tmdbSeasons, season, episode)?.name ?? '';
 }
 
 /**
@@ -68,14 +76,18 @@ export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
     .filter(({ ep }) => ep !== null)
     .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
     .map(({ f, ep }) => {
-      const name = tmdbEpisodeName(tmdbSeasons, ep.season, ep.episode);
+      const meta = tmdbEpisode(tmdbSeasons, ep.season, ep.episode);
       return {
         id:          String(f.id ?? f.mediaFileId ?? ''),
         fileId:      String(f.id ?? f.mediaFileId ?? ''),
         mediaFileId: f.mediaFileId ?? f.id ?? '',
         season:      ep.season,
         episode:     ep.episode,
-        name,                                    // TMDB episode title ('' if unknown)
+        name:        meta?.name ?? '',           // TMDB episode title ('' if unknown)
+        overview:    meta?.overview ?? '',       // TMDB episode synopsis
+        stillPath:   meta?.stillPath ?? null,    // TMDB still image path (→ tmdbImg)
+        runtime:     meta?.runtime ?? null,      // minutes
+        airDate:     meta?.airDate ?? null,
         label:       `S${pad(ep.season)}E${pad(ep.episode)}`,
         url:         f.streamUrl ?? '',          // may be empty → resolved lazily on selection
       };
