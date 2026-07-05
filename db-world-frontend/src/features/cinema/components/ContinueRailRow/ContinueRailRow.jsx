@@ -7,9 +7,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import Constants from '@shared/constants';
 import { resolveMediaUrl, loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import CommonServices from '@shared/services/CommonServices';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
 import { parseEpisode } from '../../utils/episodeUtils';
 import { buildStoryboard } from '../../utils/storyboard';
+import { getQuality } from '../../media/helpers';
 import ContinueCard from './ContinueCard';
 
 // Build the player's episode list from a record's media files (one entry per
@@ -31,6 +33,10 @@ function buildEpisodes(files) {
       label: `S${pad(ep.season)}E${pad(ep.episode)}`, name: '', url: '',
     }));
 }
+
+// Same height derivation Record-Details (media-files/index.js) uses, so the
+// quality switcher's height-based fallback/sort logic matches exactly.
+const heightOf = (f) => Number(f.video?.resolution?.split('x')?.[1]) || 0;
 
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
@@ -79,18 +85,54 @@ const ContinueRailRow = () => {
     if (resuming) return;
     setResuming(true);
     try {
-      // Resolve the stream URL and (for series) the record's media files in parallel,
-      // so the player gets the episode list + Next/Episodes buttons.
+      // Resolve the stream URL and the record's media files (for the episode list
+      // on series, and the sibling quality files on both movies + series) in parallel.
       const isSeries = item.type === 'TV_SERIES';
       const [res, infoResp] = await Promise.all([
         resolveMediaUrl(item.resumeFileId, 'ONLINE'),
-        isSeries ? loadStreamFileInfoByRecordId(item.recordId).catch(() => null) : Promise.resolve(null),
+        loadStreamFileInfoByRecordId(item.recordId).catch(() => null),
       ]);
       const url = res?.data?.cdnUrl;
       if (!url) throw new Error('No stream URL');
 
-      const episodes = isSeries ? buildEpisodes(infoResp?.data ?? []) : [];
+      const rawFiles = infoResp?.data ?? [];
+      const episodes = isSeries ? buildEpisodes(rawFiles) : [];
       const storyboard = buildStoryboard(url, item.resumeFileId, res?.data?.mediaFile) || null;
+
+      // Quality variants for the resumed title/episode — converted through the
+      // same CommonServices helper Record-Details uses so getQuality()/height
+      // derivation (and therefore the labels shown in the player) match exactly.
+      // epKey mirrors Record-Details' handlePlay (media-files/index.js): prefer
+      // the TMDB season/episode fields, else fall back to filename parsing.
+      const converted = CommonServices.convertMediaInfoToCustomFormat(null, rawFiles);
+      const epKey = (f) => {
+        const ep = parseEpisode(f.general?.fileName);
+        const s = f.tmdbSeasonNumber != null ? f.tmdbSeasonNumber : ep?.season;
+        const e = f.tmdbEpisodeNumber != null ? f.tmdbEpisodeNumber : ep?.episode;
+        return `${s}-${e}`;
+      };
+      const resumedKey = isSeries
+        ? (item.season != null && item.episode != null
+            ? `${item.season}-${item.episode}`
+            : epKey(converted.find(f => f.mediaFileId === item.resumeFileId) ?? {}))
+        : null;
+      const candidates = isSeries
+        ? converted.filter(f => epKey(f) === resumedKey)
+        : converted;
+
+      const resolvedVariants = await Promise.all(candidates.map(async (f) => {
+        if (f.mediaFileId === item.resumeFileId) return { ...f, streamUrl: url };
+        if (!f?.mediaFileId) return null;
+        try {
+          const r = await resolveMediaUrl(f.mediaFileId, 'ONLINE');
+          return r?.data?.cdnUrl ? { ...f, streamUrl: r.data.cdnUrl } : null;
+        } catch {
+          return null;
+        }
+      }));
+      const variants = resolvedVariants
+        .filter(f => f?.streamUrl)
+        .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
 
       // The player resumes from the saved progress for this fileId automatically.
       navigate(Constants.DB_PLAYER_ROUTE, {
@@ -102,6 +144,8 @@ const ContinueRailRow = () => {
             recordId: item.recordId,
             episodes,
             storyboard,
+            variants,
+            requestId: res?.data?.requestId ?? null,
           },
         },
       });
