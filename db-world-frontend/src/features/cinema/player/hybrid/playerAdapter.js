@@ -58,10 +58,22 @@ function createWebAdapter(getVideo) {
       return r.end(r.length - 1) * 1000; // fall back to the last range
     } catch { return 0; }
   };
+  // All buffered [startMs, endMs] ranges — the browser keeps disjoint segments after
+  // seeks, so the UI can draw each loaded chunk (not just one contiguous fill).
+  const bufferedRangesMs = () => {
+    try {
+      const r = v?.buffered;
+      if (!r || r.length === 0) return [];
+      const out = [];
+      for (let i = 0; i < r.length; i++) out.push([r.start(i) * 1000, r.end(i) * 1000]);
+      return out;
+    } catch { return []; }
+  };
   const onTime    = () => emit('time', {
     positionMs: (v?.currentTime || 0) * 1000,
     durationMs: (v && isFinite(v.duration) ? v.duration * 1000 : 0),
     bufferedMs: bufferedEndMs(),
+    bufferedRanges: bufferedRangesMs(),
   });
   const onEnded   = () => emit('ended', {});
   const onError   = () => emit('error', { code: v?.error?.code, message: 'video error' });

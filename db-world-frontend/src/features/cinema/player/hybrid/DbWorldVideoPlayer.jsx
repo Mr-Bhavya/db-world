@@ -158,7 +158,8 @@ export default function DbWorldVideoPlayer({
 
   const [position, setPosition]   = useState(0);
   const [duration, setDuration]   = useState(0);
-  const [buffered, setBuffered]   = useState(0);      // preloaded position (ms) for the loaded fill
+  const [buffered, setBuffered]   = useState(0);      // preloaded position (ms) — native single-fill fallback
+  const [bufferedRanges, setBufferedRanges] = useState([]); // web: all loaded [startMs,endMs] segments
   const [scrub, setScrub]         = useState(null);   // non-null while dragging the bar
   const [preview, setPreview]     = useState(null);   // hover/scrub preview: { leftPx, time } | null
   const barRef      = useRef(null);                   // progress-bar wrapper (for pointer→time math)
@@ -196,6 +197,7 @@ export default function DbWorldVideoPlayer({
   const [upNextDismissed, setUpNextDismissed] = useState(false);
   const seekFxTimer = useRef(null);
   const muteRef     = useRef(1);                       // remembers pre-mute volume
+  const volHudTimer = useRef(null);                    // auto-hides the wheel/slider volume HUD
 
   // Apply remembered/default audio (Hindi) + subtitle (off) once per load.
   const applyPreferredTracks = useCallback((audio, text) => {
@@ -234,6 +236,7 @@ export default function DbWorldVideoPlayer({
         setPosition(d.positionMs || 0);
         if (d.durationMs) setDuration(d.durationMs);
         if (typeof d.bufferedMs === 'number') setBuffered(d.bufferedMs);
+        if (Array.isArray(d.bufferedRanges)) setBufferedRanges(d.bufferedRanges);
         progressRef.current = { positionMs: d.positionMs || 0, durationMs: d.durationMs || progressRef.current.durationMs };
       }),
       adapter.on('state', d => {
@@ -324,6 +327,7 @@ export default function DbWorldVideoPlayer({
       adapter.release();
       clearTimeout(hideTimer.current);
       clearTimeout(seekFxTimer.current);
+      clearTimeout(volHudTimer.current);
       if (isNative) {
         document.documentElement.style.background = prevHtmlBg;
         document.body.style.background = prevBodyBg;
@@ -406,6 +410,23 @@ export default function DbWorldVideoPlayer({
     else            { const v = muteRef.current || 1; a.setVolume(v); setVolume(v); }
     showControls();
   }, [volume, showControls]);
+
+  // Web/desktop: set volume + flash a brief HUD (shared by the scroll-wheel and the
+  // inline slider). Native uses the system stream + swipe gesture instead.
+  const setVolumeHud = useCallback((val) => {
+    const v = Math.max(0, Math.min(1, val));
+    adapterRef.current?.setVolume(v);
+    setVolume(v);
+    if (v > 0) muteRef.current = v;
+    setHud({ kind: 'volume', value: v });
+    clearTimeout(volHudTimer.current);
+    volHudTimer.current = setTimeout(() => setHud(null), 900);
+  }, []);
+  const onWheelVolume = useCallback((e) => {
+    if (settingsOpen || episodesOpen) return;   // let an open panel scroll instead
+    setVolumeHud(volume + (e.deltaY < 0 ? 0.05 : -0.05));
+    showControls();
+  }, [volume, settingsOpen, episodesOpen, setVolumeHud, showControls]);
 
   const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
   const openEpisodes = () => { setEpisodesOpen(true); showControls(); };
@@ -609,8 +630,14 @@ export default function DbWorldVideoPlayer({
 
   const displayPos = scrub != null ? scrub : position;
   const pct = duration > 0 ? Math.min(100, (displayPos / duration) * 100) : 0;
-  // Buffered (preloaded) fill — never less than the played fill so it reads cleanly.
-  const bufPct = duration > 0 ? Math.min(100, Math.max(pct, (buffered / duration) * 100)) : 0;
+  // Loaded segments as % of duration. Web sends real (possibly disjoint) ranges after
+  // seeks; native sends one contiguous bufferedMs. Drawn behind the seek input so a seek
+  // into an already-loaded (light) segment reads as instant, not a fresh load.
+  const bufferedSegs = duration > 0
+    ? (bufferedRanges.length
+        ? bufferedRanges.map(([s, e]) => [Math.max(0, (s / duration) * 100), Math.min(100, (e / duration) * 100)])
+        : [[0, Math.min(100, (buffered / duration) * 100)]])
+    : [];
   // "Up next" card appears in the last 60s — series these days end on 1–3 min of
   // credits, so prompt the next episode before the file actually finishes.
   const nearEnd = duration > 0 && position > 0 && (duration - position) <= 60000;
@@ -621,6 +648,7 @@ export default function DbWorldVideoPlayer({
       ref={rootRef}
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
       onMouseMove={!isNative ? showControls : undefined}   // desktop: reveal controls on mouse move
+      onWheel={!isNative ? onWheelVolume : undefined}       // desktop: scroll to change volume
       onClick={!isNative ? (e) => { if (!e.target.closest('button, input')) showControls(); } : undefined}
       style={{ position: 'fixed', inset: 0, zIndex: 2000, background: isNative ? 'transparent' : '#000',
                overflow: 'hidden', color: '#fff', fontFamily: 'system-ui, sans-serif', touchAction: 'none',
@@ -760,10 +788,19 @@ export default function DbWorldVideoPlayer({
                 <ScrubPreview leftPx={preview.leftPx} time={preview.time} fmt={fmt}
                   thumb={storyboardTile(storyboard, preview.time)} />
               )}
+              {/* Track + loaded segments, behind the transparent-track seek input and
+                  vertically centered on it. The input paints only the played (teal) fill. */}
+              <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
+                height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.22)', pointerEvents: 'none' }}>
+                {bufferedSegs.map(([s, e], i) => (
+                  <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${s}%`,
+                    width: `${Math.max(0, e - s)}%`, background: 'rgba(255,255,255,0.5)', borderRadius: 999 }} />
+                ))}
+              </div>
               <input className="dbw-range" type="range" min={0} max={duration || 0} aria-label="Seek"
                 value={Math.min(displayPos, duration || displayPos)}
                 onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
-                style={{ background: `linear-gradient(to right, ${TEAL} ${pct}%, rgba(255,255,255,0.5) ${pct}%, rgba(255,255,255,0.5) ${bufPct}%, rgba(255,255,255,0.22) ${bufPct}%)` }} />
+                style={{ position: 'relative', background: `linear-gradient(to right, ${TEAL} ${pct}%, transparent ${pct}%)` }} />
             </div>
 
             {/* time below the bar, on the edges */}
@@ -777,8 +814,15 @@ export default function DbWorldVideoPlayer({
                 web-only (rotate/lock live top-right on Android) */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 }}>
               {!isNative && (
-                <CtrlBtn icon={volume === 0 ? <VolumeOffIcon /> : <VolumeUpIcon />} label="Volume"
-                  active={volume === 0} ariaLabel={volume === 0 ? 'Unmute' : 'Mute'} onClick={toggleMute} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CtrlBtn icon={volume === 0 ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                    active={volume === 0} ariaLabel={volume === 0 ? 'Unmute' : 'Mute'} onClick={toggleMute} />
+                  <input className="dbw-range" type="range" min={0} max={1} step={0.02} value={volume}
+                    aria-label="Volume"
+                    onChange={(e) => setVolumeHud(Number(e.target.value))}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ width: 96, background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%)` }} />
+                </div>
               )}
               <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} active={rateIdx !== 1}
                 ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
