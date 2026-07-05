@@ -11,7 +11,6 @@ const TYPE_TABS = [
   { value: '',         label: 'All' },
   { value: 'STREAM',   label: 'Streams' },
   { value: 'DOWNLOAD', label: 'Downloads' },
-  { value: 'SEARCH',   label: 'Searches' },
 ];
 
 const PAGE_SIZE = 30;
@@ -51,7 +50,7 @@ const MyActivityPage = () => {
   const timelineItems = listQ.data?.content;
 
   return (
-    <Container maxWidth="md" sx={{ py: 3 }}>
+    <Container maxWidth="md" sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, pb: 3 }}>
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
         My Activity
       </Typography>
