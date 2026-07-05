@@ -80,6 +80,7 @@ export async function resolveAndBuildMedia({ current, variantFiles, episodes = [
     mediaFileId: current?.mediaFileId || null,
     title:       title || current?.general?.fileName || '',
     fileName:    current?.general?.fileName || '',
+    overview:    record?.tmdb?.overview ?? '',   // shown on the pause info card (movies)
     recordId:    record?.id ?? record?.recordId ?? currentResolved?.recordId ?? null,
     audio:       currentResolved?.mediaFile?.audio || current?.audio || [],
     variants,

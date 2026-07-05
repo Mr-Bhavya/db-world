@@ -154,6 +154,7 @@ export default function DbWorldVideoPlayer({
   onProgress, onClose,
   audio = [], // file audio-track metadata (seeds the audio menu on web)
   storyboard = null, // scrub-preview sprite { url, intervalMs, cols, rows, tileW, tileH, count } | null
+  overview = '', // show/movie synopsis — shown on the pause info card (episodes use their own)
   requestId = null, mediaFileId = null, recordId = null, // stream telemetry session (null → reporting is skipped)
 }) {
   const isNative = Capacitor.getPlatform() === 'android';
@@ -208,6 +209,7 @@ export default function DbWorldVideoPlayer({
   const [infoMsg, setInfoMsg]     = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pipActive, setPipActive] = useState(false);   // Android Picture-in-Picture active
+  const [pauseInfo, setPauseInfo] = useState(false);   // Netflix-style info card while paused + idle
   const [hud, setHud]             = useState(null);    // { kind:'volume'|'brightness'|'zoom', value }
   const [seekFx, setSeekFx]       = useState(null);    // { dir:'fwd'|'back', id } — double-tap/seek feedback
   const [upNextDismissed, setUpNextDismissed] = useState(false);
@@ -217,6 +219,8 @@ export default function DbWorldVideoPlayer({
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
   const pipPendingRef = useRef(false);                 // PiP requested, awaiting confirmation
+  const hudTimer    = useRef(null);                    // auto-hides the arrow-key volume HUD
+  const pauseTimer  = useRef(null);                    // delay before the pause info card appears
   const playBtnRef  = useRef(null);                    // focus target when controls reveal (TV/keyboard)
   const kbdRevealRef = useRef(false);                  // true when controls were last revealed by a key
 
@@ -373,6 +377,7 @@ export default function DbWorldVideoPlayer({
       adapter.release();
       clearTimeout(hideTimer.current);
       clearTimeout(seekFxTimer.current);
+      clearTimeout(hudTimer.current);
       if (isNative) {
         document.documentElement.style.background = prevHtmlBg;
         document.body.style.background = prevBodyBg;
@@ -417,7 +422,7 @@ export default function DbWorldVideoPlayer({
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setControls(false), HIDE_MS);
   }, []);
-  const showControls = useCallback(() => { setControls(true); scheduleHide(); }, [scheduleHide]);
+  const showControls = useCallback(() => { setControls(true); setPauseInfo(false); scheduleHide(); }, [scheduleHide]);
 
   // ── transport ───────────────────────────────────────────────────────────────
   const togglePlay = useCallback(() => {
@@ -442,10 +447,11 @@ export default function DbWorldVideoPlayer({
     seekFxTimer.current = setTimeout(() => setSeekFx(null), 650);
   }, []);
 
-  const seekBy = useCallback((deltaMs) => {
+  const seekBy = useCallback((deltaMs, showUi = true) => {
     const a = adapterRef.current; if (!a) return;
     const target = Math.max(0, Math.min(duration || Infinity, position + deltaMs));
-    a.seekTo(target); setPosition(target); showControls();
+    a.seekTo(target); setPosition(target);
+    if (showUi) showControls();     // arrow keys pass false → just the ±10s ripple, no control bar
     flashSeek(deltaMs >= 0 ? 'fwd' : 'back');
     emitStreamEvent('SEEK', { positionMs: Math.round(target) || null });
   }, [position, duration, showControls, flashSeek, emitStreamEvent]);
@@ -471,6 +477,15 @@ export default function DbWorldVideoPlayer({
     setVol(volume + (e.deltaY < 0 ? 0.05 : -0.05));
     showControls();
   }, [volume, settingsOpen, episodesOpen, setVol, showControls]);
+  // Arrow-key volume (desktop/TV): adjust + flash a brief volume HUD, without revealing the
+  // control bar (mirrors the ±10s ripple on left/right seek).
+  const bumpVolume = useCallback((delta) => {
+    const v = Math.max(0, Math.min(1, volume + delta));
+    setVol(v);
+    setHud({ kind: 'volume', value: v });
+    clearTimeout(hudTimer.current);
+    hudTimer.current = setTimeout(() => setHud(null), 900);
+  }, [volume, setVol]);
 
   const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
   const openEpisodes = () => { setEpisodesOpen(true); showControls(); };
@@ -557,6 +572,19 @@ export default function DbWorldVideoPlayer({
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
+  // Pause info card (Netflix-style): a short idle after pausing reveals show/episode info
+  // (and hides the controls for a clean screen); any interaction — which routes through
+  // showControls — dismisses it. Never shown while buffering / ended / errored / in PiP.
+  useEffect(() => {
+    clearTimeout(pauseTimer.current);
+    if (!playing && !buffering && !ended && !errorMsg && !pipActive) {
+      pauseTimer.current = setTimeout(() => { setPauseInfo(true); setControls(false); }, 1500);
+    } else {
+      setPauseInfo(false);
+    }
+    return () => clearTimeout(pauseTimer.current);
+  }, [playing, buffering, ended, errorMsg, pipActive]);
+
   // ── auto-downgrade quality on a fatal decode error ──────────────────────────
   // Fires after native HW→SW fallback also failed. Picks the next lower variant.
   useEffect(() => {
@@ -579,8 +607,18 @@ export default function DbWorldVideoPlayer({
   // Keyboard shortcuts (web): space/k play, ←/→ seek, m mute, Esc close; any key reveals controls.
   useEffect(() => {
     const onKey = (e) => {
-      // Controls hidden → the first key just reveals them and moves focus to Play
-      // (so a TV remote / keyboard can navigate from there).
+      // Arrow keys → volume (↑/↓) + seek (←/→) with just a HUD / ±10s ripple and NO control
+      // bar — unless a panel is open, where arrows navigate it (focus) instead.
+      if (!settingsOpen && !episodesOpen) {
+        switch (e.key) {
+          case 'ArrowUp':    e.preventDefault(); bumpVolume(0.05);  return;
+          case 'ArrowDown':  e.preventDefault(); bumpVolume(-0.05); return;
+          case 'ArrowRight': seekBy(10000, false);  return;
+          case 'ArrowLeft':  seekBy(-10000, false); return;
+          default: break;
+        }
+      }
+      // Controls hidden → the first (non-arrow) key reveals them + focuses Play (TV/remote).
       if (!controls && e.key !== 'Escape') {
         kbdRevealRef.current = true;
         showControls();
@@ -589,8 +627,6 @@ export default function DbWorldVideoPlayer({
       }
       switch (e.key) {
         case ' ': case 'k': e.preventDefault(); togglePlay(); break;
-        case 'ArrowRight': seekBy(10000); break;
-        case 'ArrowLeft':  seekBy(-10000); break;
         case 'f': case 'F': if (!isNative) toggleFullscreen(); break;
         case 'Escape':
           if (settingsOpen)      setSettingsOpen(false);   // Back closes the open panel first
@@ -602,7 +638,7 @@ export default function DbWorldVideoPlayer({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [controls, settingsOpen, episodesOpen, togglePlay, seekBy, showControls, toggleFullscreen, isNative]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [controls, settingsOpen, episodesOpen, togglePlay, seekBy, showControls, toggleFullscreen, isNative, bumpVolume]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── seek bar drag + hover preview ───────────────────────────────────────────
   // Builds the { leftPx, time } preview from a 0..1 fraction along the bar,
@@ -676,6 +712,7 @@ export default function DbWorldVideoPlayer({
     const g = gestureRef.current; gestureRef.current = null;
     if (g?.skip) return;
     if (g?.pinch || g?.moved) { setTimeout(() => setHud(null), 600); return; }
+    setPauseInfo(false);   // any tap dismisses the pause info card
     // It was a tap → detect double-tap on a side third for seek, else toggle controls.
     const now = Date.now();
     const isDouble = now - tapRef.current.last < 300;
@@ -761,6 +798,36 @@ export default function DbWorldVideoPlayer({
         </div>
       )}
 
+      {/* Pause info card (appears ~1.5s after pausing; any interaction dismisses it) */}
+      {pauseInfo && (
+        <motion.div
+          initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
+          style={{ position: 'absolute', inset: 0, zIndex: 22, pointerEvents: 'none', display: 'flex', alignItems: 'center',
+            padding: `0 ${Math.round(64 * uiScale)}px`,
+            background: 'linear-gradient(90deg, rgba(0,0,0,0.85), rgba(0,0,0,0.45) 45%, transparent 72%)' }}>
+          <div style={{ maxWidth: Math.round(560 * uiScale), minWidth: 0 }}>
+            <div style={{ fontSize: Math.round(13 * uiScale), color: '#bbb', letterSpacing: 1, textTransform: 'uppercase' }}>
+              {curEp ? 'You’re watching' : 'Paused'}
+            </div>
+            <div style={{ fontSize: Math.round(34 * uiScale), fontWeight: 800, lineHeight: 1.1, marginTop: 6,
+              overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+              {title}
+            </div>
+            {curEp && (
+              <div style={{ fontSize: Math.round(16 * uiScale), color: TEAL, fontWeight: 600, marginTop: 8 }}>
+                {epTitle(curEp)}{curEp.runtime ? ` · ${curEp.runtime}m` : ''}
+              </div>
+            )}
+            {(curEp?.overview || overview) && (
+              <div style={{ fontSize: Math.round(14 * uiScale), color: '#dcdcdc', lineHeight: 1.5, marginTop: 12,
+                display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {curEp?.overview || overview}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       {/* Transient info toast (e.g. decoder fallback) */}
       {infoMsg && (
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 26,
@@ -829,6 +896,7 @@ export default function DbWorldVideoPlayer({
             </div>
             {isNative && (
               <div style={{ display: 'flex', gap: 4 }}>
+                <IconBtn onClick={enterPip} ariaLabel="Picture in picture"><PictureInPictureAltIcon /></IconBtn>
                 <IconBtn onClick={rotate} ariaLabel="Rotate screen"><ScreenRotationIcon /></IconBtn>
                 <IconBtn onClick={toggleLock} ariaLabel={locked ? 'Unlock controls' : 'Lock controls'}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>
               </div>
@@ -917,9 +985,6 @@ export default function DbWorldVideoPlayer({
               )}
 
               <CtrlBtn icon={<SettingsIcon />} label="Settings" ariaLabel="Settings" onClick={() => openSettings('main')} />
-              {isNative && (
-                <CtrlBtn icon={<PictureInPictureAltIcon />} label="PiP" ariaLabel="Picture in picture" onClick={enterPip} />
-              )}
               {!isNative && (
                 <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
                   label={isFullscreen ? 'Exit' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />

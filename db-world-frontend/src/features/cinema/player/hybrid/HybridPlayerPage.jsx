@@ -100,6 +100,7 @@ export default function HybridPlayerPage() {
       src={cur.url}
       startMs={cur.startMs}
       title={showTitle}
+      overview={media?.overview || ''}
       fileId={cur.fileId}
       variants={media.variants || []}
       episodes={episodes}
