@@ -212,7 +212,7 @@ export default function DbWorldVideoPlayer({
   const [uiScale, setUiScale] = useState(() => (typeof window !== 'undefined' ? scaleFor(window.innerWidth) : 1));
   const seekFxTimer = useRef(null);
   const muteRef     = useRef(1);                       // remembers pre-mute volume
-  const volHudTimer = useRef(null);                    // auto-hides the wheel/slider volume HUD
+  const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const playBtnRef  = useRef(null);                    // focus target when controls reveal (TV/keyboard)
   const kbdRevealRef = useRef(false);                  // true when controls were last revealed by a key
 
@@ -273,7 +273,9 @@ export default function DbWorldVideoPlayer({
         progressRef.current = { positionMs: d.positionMs || 0, durationMs: d.durationMs || progressRef.current.durationMs };
       }),
       adapter.on('state', d => {
-        setBuffering(d.state === 2);
+        if (typeof d.state === 'number') setBuffering(d.state === 2);
+        // Keep the play/pause icon synced with the real element state (play/pause events).
+        if (typeof d.playing === 'boolean') setPlaying(d.playing);
         if (d.state === 3) {
           setPlaying(true);
           // First actual 'playing' for this session → STREAM_START (fires once
@@ -360,7 +362,6 @@ export default function DbWorldVideoPlayer({
       adapter.release();
       clearTimeout(hideTimer.current);
       clearTimeout(seekFxTimer.current);
-      clearTimeout(volHudTimer.current);
       if (isNative) {
         document.documentElement.style.background = prevHtmlBg;
         document.body.style.background = prevBodyBg;
@@ -444,22 +445,20 @@ export default function DbWorldVideoPlayer({
     showControls();
   }, [volume, showControls]);
 
-  // Web/desktop: set volume + flash a brief HUD (shared by the scroll-wheel and the
-  // inline slider). Native uses the system stream + swipe gesture instead.
-  const setVolumeHud = useCallback((val) => {
+  // Web/desktop volume (scroll-wheel + inline slider). No floating HUD — the always-visible
+  // slider in the control row is the feedback (showControls reveals it), so a second bar is
+  // redundant. Native keeps the swipe-gesture HUD (it has no slider).
+  const setVol = useCallback((val) => {
     const v = Math.max(0, Math.min(1, val));
     adapterRef.current?.setVolume(v);
     setVolume(v);
     if (v > 0) muteRef.current = v;
-    setHud({ kind: 'volume', value: v });
-    clearTimeout(volHudTimer.current);
-    volHudTimer.current = setTimeout(() => setHud(null), 900);
   }, []);
   const onWheelVolume = useCallback((e) => {
     if (settingsOpen || episodesOpen) return;   // let an open panel scroll instead
-    setVolumeHud(volume + (e.deltaY < 0 ? 0.05 : -0.05));
+    setVol(volume + (e.deltaY < 0 ? 0.05 : -0.05));
     showControls();
-  }, [volume, settingsOpen, episodesOpen, setVolumeHud, showControls]);
+  }, [volume, settingsOpen, episodesOpen, setVol, showControls]);
 
   const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
   const openEpisodes = () => { setEpisodesOpen(true); showControls(); };
@@ -618,6 +617,7 @@ export default function DbWorldVideoPlayer({
   const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
   const onTouchStart = (e) => {
+    touchedRef.current = Date.now();         // mark touch so the trailing click is ignored
     if (e.touches.length === 2) {            // pinch-to-zoom
       gestureRef.current = { pinch: true, startDist: dist(e.touches[0], e.touches[1]), startZoom: zoom };
       return;
@@ -675,14 +675,17 @@ export default function DbWorldVideoPlayer({
 
   const displayPos = scrub != null ? scrub : position;
   const pct = duration > 0 ? Math.min(100, (displayPos / duration) * 100) : 0;
-  // Loaded segments as % of duration. Web sends real (possibly disjoint) ranges after
-  // seeks; native sends one contiguous bufferedMs. Drawn behind the seek input so a seek
-  // into an already-loaded (light) segment reads as instant, not a fresh load.
-  const bufferedSegs = duration > 0
-    ? (bufferedRanges.length
-        ? bufferedRanges.map(([s, e]) => [Math.max(0, (s / duration) * 100), Math.min(100, (e / duration) * 100)])
-        : [[0, Math.min(100, (buffered / duration) * 100)]])
-    : [];
+  // Loaded indicator = the ONE contiguous buffered region around the current playhead
+  // (like YouTube), so a stray earlier/later range doesn't read as "loaded after a gap".
+  // Web sends real ranges (v.buffered); native sends a single contiguous bufferedMs.
+  const bufferedSegs = (() => {
+    if (!(duration > 0)) return [];
+    if (bufferedRanges.length) {
+      const cover = bufferedRanges.find(([s, e]) => position >= s - 300 && position <= e + 300);
+      return cover ? [[Math.max(0, (cover[0] / duration) * 100), Math.min(100, (cover[1] / duration) * 100)]] : [];
+    }
+    return buffered > 0 ? [[0, Math.min(100, (buffered / duration) * 100)]] : [];
+  })();
   // "Up next" card appears in the last 60s — series these days end on 1–3 min of
   // credits, so prompt the next episode before the file actually finishes.
   const nearEnd = duration > 0 && position > 0 && (duration - position) <= 60000;
@@ -696,7 +699,11 @@ export default function DbWorldVideoPlayer({
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
       onMouseMove={!isNative ? showControls : undefined}   // desktop: reveal controls on mouse move
       onWheel={!isNative ? onWheelVolume : undefined}       // desktop: scroll to change volume
-      onClick={!isNative ? (e) => { if (!e.target.closest('button, input')) showControls(); } : undefined}
+      onClick={!isNative ? (e) => {
+        if (e.target.closest('button, input')) return;        // controls handle their own clicks
+        if (Date.now() - touchedRef.current < 700) return;    // a touch tap already handled it
+        togglePlay();                                         // desktop click = play/pause (also reveals controls)
+      } : undefined}
       style={{ position: 'fixed', inset: 0, zIndex: 2000, background: isNative ? 'transparent' : '#000',
                overflow: 'hidden', color: '#fff', fontFamily: 'system-ui, sans-serif', touchAction: 'none',
                // Desktop: hide the cursor while the controls are hidden; mouse move re-shows both.
@@ -868,7 +875,7 @@ export default function DbWorldVideoPlayer({
                     active={volume === 0} ariaLabel={volume === 0 ? 'Unmute' : 'Mute'} onClick={toggleMute} />
                   <input className="dbw-range" type="range" min={0} max={1} step={0.02} value={volume}
                     aria-label="Volume"
-                    onChange={(e) => setVolumeHud(Number(e.target.value))}
+                    onChange={(e) => setVol(Number(e.target.value))}
                     onClick={(e) => e.stopPropagation()}
                     style={{ width: 96, background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%)` }} />
                 </div>

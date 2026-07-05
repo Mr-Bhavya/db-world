@@ -79,10 +79,15 @@ function createWebAdapter(getVideo) {
   const onError   = () => emit('error', { code: v?.error?.code, message: 'video error' });
   const onWaiting = () => emit('state', { state: 2 }); // buffering
   const onPlaying = () => emit('state', { state: 3 }); // ready/playing
+  // Mirror the element's real play/pause so the UI icon can't desync when playback is
+  // paused/resumed by anything other than our own button (OS, fullscreen, tab/screen off).
+  const onPlay  = () => emit('state', { state: 3, playing: true });
+  const onPause = () => emit('state', { playing: false });
   const listeners = [
     ['timeupdate', onTime], ['durationchange', onTime], ['progress', onTime],
     ['ended', onEnded], ['error', onError],
     ['waiting', onWaiting], ['playing', onPlaying], ['canplay', onPlaying],
+    ['play', onPlay], ['pause', onPause],
   ];
 
   const attach = () => { if (!attached && v) { listeners.forEach(([ev, fn]) => v.addEventListener(ev, fn)); attached = true; } };

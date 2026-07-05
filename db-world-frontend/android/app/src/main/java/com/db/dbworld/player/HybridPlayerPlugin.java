@@ -572,6 +572,10 @@ public class HybridPlayerPlugin extends Plugin {
         @Override public void onIsPlayingChanged(boolean isPlaying) {
             // Keep the screen on only while actually playing; let it sleep when paused.
             setKeepScreenOn(isPlaying);
+            // Mirror the real play/pause to the UI so the button icon can't desync.
+            JSObject e = new JSObject();
+            e.put("playing", isPlaying);
+            notifyListeners("playerState", e);
         }
         @Override public void onTracksChanged(@NonNull Tracks tracks) {
             emitTracks(tracks);
