@@ -16,10 +16,6 @@ import {
   ButtonBase,
   Box,
   Badge,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
   useTheme,
   useMediaQuery,
   styled,
@@ -34,8 +30,6 @@ import {
   ArrowBack as BackIcon,
   FileDownload as DownloadIcon,
   Tune as TuneIcon,
-  Insights as ActivityIcon,
-  AccountCircle as AccountIcon,
 } from '@mui/icons-material';
 import { AnimatePresence } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
@@ -330,7 +324,6 @@ function Navbar({ coverColor, onGenreSelect }) {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [unreadCount,       setUnreadCount]       = useState(0);
   const [bellAnchorEl,      setBellAnchorEl]      = useState(null);
-  const [accountAnchorEl,   setAccountAnchorEl]   = useState(null);
 
   // All page navigation items (used by desktop nav + routing sync)
   const navItems = useMemo(() => [
@@ -507,13 +500,6 @@ function Navbar({ coverColor, onGenreSelect }) {
   const handleBellClose = () => setBellAnchorEl(null);
   const handleUnreadClear = useCallback(() => setUnreadCount(0), []);
 
-  const handleAccountClick = (e) => setAccountAnchorEl(e.currentTarget);
-  const handleAccountClose = () => setAccountAnchorEl(null);
-  const handleMyActivity = useCallback(() => {
-    setAccountAnchorEl(null);
-    navigate(Constants.DB_MY_ACTIVITY_ROUTE);
-  }, [navigate]);
-
   // ─── Derived state ───────────────────────────────────────────────────────────
 
   const isMediaPage = selectedNav && (selectedNav.id === 1 || selectedNav.id === 2);
@@ -655,10 +641,6 @@ function Navbar({ coverColor, onGenreSelect }) {
             {!isMobile && (
               iconBtn(() => setSearchActive(true), <SearchIcon sx={{ fontSize: '1.35rem' }} />)
             )}
-
-            {/* Account — shown on all screen sizes; houses account-level links
-                (e.g. My Activity) that don't fit the mobile bottom pill nav. */}
-            {iconBtn(handleAccountClick, <AccountIcon sx={{ fontSize: '1.3rem' }} />)}
           </Box>
         </Toolbar>
       </StyledAppBar>
@@ -680,22 +662,6 @@ function Navbar({ coverColor, onGenreSelect }) {
         onClose={handleBellClose}
         onUnreadClear={handleUnreadClear}
       />
-
-      {/* ── Account menu (desktop + mobile, via the top-bar account icon) ── */}
-      <Menu
-        anchorEl={accountAnchorEl}
-        open={Boolean(accountAnchorEl)}
-        onClose={handleAccountClose}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-      >
-        <MenuItem onClick={handleMyActivity}>
-          <ListItemIcon>
-            <ActivityIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>My Activity</ListItemText>
-        </MenuItem>
-      </Menu>
 
       {/* ── Search Overlay ── */}
       <AnimatePresence>
