@@ -252,6 +252,8 @@ export default function DbWorldVideoPlayer({
   const [curQualityId, setCurQualityId] = useState(fileId); // active quality, by mediaFileId (urls can collide)
   const [episodesOpen, setEpisodesOpen] = useState(false);
   const [epPos, setEpPos] = useState(null);   // { left, width, bottom } — popover anchored above its button
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const [speedPos, setSpeedPos] = useState(null);
   const [ended, setEnded]         = useState(false);
   const [countdown, setCountdown] = useState(null);    // seconds to next-episode autoplay
   const appliedRef = useRef(false);                    // preferred tracks applied for this load
@@ -293,6 +295,7 @@ export default function DbWorldVideoPlayer({
   const epHoverTimer = useRef(null);
   const epCloseTimer = useRef(null);
   const epBtnRef = useRef(null);   // the active Episodes button, so the popover can anchor above it
+  const speedBtnRef = useRef(null);   // the active Speed button, for the speed popover
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
@@ -585,19 +588,27 @@ export default function DbWorldVideoPlayer({
     hudTimer.current = setTimeout(() => setVolFx(null), 700);
   }, [volume, setVol]);
 
-  const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
+  const openSettings = (view) => { setSpeedOpen(false); setSettingsView(view); setSettingsOpen(true); showControls(); };
+  // Position a popover centered above `el`, clamped to the viewport. Shared by the
+  // episode list and the speed popover so both anchor to their button consistently.
+  const anchorAbove = (el, desiredW) => {
+    const r = el.getBoundingClientRect();
+    const w = Math.min(Math.round(desiredW * uiScale), Math.round(window.innerWidth * 0.92));
+    const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
+    return { left, width: w, bottom: Math.round(window.innerHeight - r.top + 8) };
+  };
   const openEpisodes = () => {
     clearTimeout(epCloseTimer.current);
-    // Anchor the popover directly above the Episodes button (centered, clamped to the
-    // viewport); it opens upward, covering the progress bar/time only while it's open.
-    const el = epBtnRef.current;
-    if (el) {
-      const r = el.getBoundingClientRect();
-      const w = Math.min(Math.round(400 * uiScale), Math.round(window.innerWidth * 0.92));
-      const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
-      setEpPos({ left, width: w, bottom: Math.round(window.innerHeight - r.top + 8) });
-    }
+    setSpeedOpen(false);
+    if (epBtnRef.current) setEpPos(anchorAbove(epBtnRef.current, 400));
     setEpisodesOpen(true);
+    showControls();
+  };
+  // Speed: a compact horizontal chip popover above the Speed button (toggles).
+  const openSpeed = () => {
+    if (!speedOpen && speedBtnRef.current) setSpeedPos(anchorAbove(speedBtnRef.current, 360));
+    setEpisodesOpen(false); setSettingsOpen(false);
+    setSpeedOpen((v) => !v);
     showControls();
   };
   // Desktop hover menu: close the episode popover shortly after the pointer leaves BOTH
@@ -1150,8 +1161,10 @@ export default function DbWorldVideoPlayer({
                   <VolumeControl volume={volume} hasHover={hasHover} onToggleMute={toggleMute} onSetVol={setVol} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} tip="Playback speed"
-                    active={rateIdx !== 1} ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
+                  <span ref={speedBtnRef} style={{ display: 'inline-flex' }}>
+                    <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} tip="Playback speed"
+                      active={rateIdx !== 1} ariaLabel="Playback speed" onClick={openSpeed} />
+                  </span>
                   <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles"
                     ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
                   {episodes.length > 1 && (
@@ -1174,8 +1187,10 @@ export default function DbWorldVideoPlayer({
                   <VolumeControl volume={volume} hasHover={hasHover} label="Volume" labelLeft
                     onToggleMute={toggleMute} onSetVol={setVol} />
                 )}
-                <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} labelLeft active={rateIdx !== 1}
-                  ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
+                <span ref={speedBtnRef} style={{ display: 'inline-flex' }}>
+                  <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} labelLeft active={rateIdx !== 1}
+                    ariaLabel="Playback speed" onClick={openSpeed} />
+                </span>
                 <CtrlBtn icon={<AudiotrackIcon />} label="Audio" labelLeft
                   ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
                 {episodes.length > 1 && (
@@ -1298,6 +1313,32 @@ export default function DbWorldVideoPlayer({
         </div>
       )}
 
+      {/* Speed — compact horizontal chip popover above the Speed button (Netflix-style),
+          instead of drilling into the full settings sheet. */}
+      {speedOpen && speedPos && (
+        <div onClick={() => setSpeedOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 31 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ position: 'absolute', left: speedPos.left, bottom: speedPos.bottom, width: speedPos.width,
+              maxWidth: '92vw', padding: Math.round(10 * uiScale), ...PANEL_LOOK }}>
+            <div style={{ fontSize: Math.round(11 * uiScale), color: '#9aa', textTransform: 'uppercase',
+              letterSpacing: 0.6, fontWeight: 700, marginBottom: Math.round(8 * uiScale), textAlign: 'center' }}>Playback speed</div>
+            <div style={{ display: 'flex', gap: Math.round(6 * uiScale), justifyContent: 'center', flexWrap: 'wrap' }}>
+              {SPEEDS.map((s, i) => (
+                <button key={s} onClick={() => { chooseSpeed(i); setSpeedOpen(false); }}
+                  style={{ flex: '0 0 auto', padding: `${Math.round(7 * uiScale)}px ${Math.round(12 * uiScale)}px`,
+                    borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
+                    border: i === rateIdx ? `1px solid ${TEAL}` : '1px solid rgba(255,255,255,0.16)',
+                    background: i === rateIdx ? 'rgba(13,148,136,0.22)' : 'rgba(255,255,255,0.06)',
+                    color: i === rateIdx ? TEAL : '#fff', fontWeight: i === rateIdx ? 700 : 500,
+                    fontSize: Math.round(13 * uiScale) }}>
+                  {s === 1 ? 'Normal' : `${s}×`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Settings: two-level (category list → options) so it fits any screen / font size */}
       {settingsOpen && (() => {
         const subLabel = curText < 0 ? 'Off' : `${textTracks.find(t => t.id === curText)?.language ?? 'On'}`;
@@ -1310,8 +1351,7 @@ export default function DbWorldVideoPlayer({
             <div onClick={(e) => e.stopPropagation()}
               style={{ width: settingsView === 'audiosubs' ? `min(${Math.round(560 * uiScale)}px, 96%)` : `min(${Math.round(420 * uiScale)}px, 94%)`,
                 maxHeight: '86%', display: 'flex', flexDirection: 'column',
-                background: 'rgba(16,16,16,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                borderRadius: 14, border: '1px solid rgba(255,255,255,0.12)', overflow: 'hidden' }}>
+                overflow: 'hidden', ...PANEL_LOOK }}>
               {settingsView === 'main' ? (
                 <>
                   <SheetHeader title="Settings" />
