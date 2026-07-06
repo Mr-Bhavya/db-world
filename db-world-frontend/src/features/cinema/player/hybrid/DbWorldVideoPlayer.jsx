@@ -87,11 +87,42 @@ const audioLabel = (t) => {
   const codec = audioCodec(t);
   // "DDP Atmos" / "TrueHD Atmos" / "Atmos", else "DDP 5.1" / "AAC Stereo".
   const codecCh = isAtmos(t)
-    ? `${codec ? codec + ' ' : ''}Atmos`
-    : [codec, chLayout(t)].filter(Boolean).join(' ');
+    ? [codec, 'Atmos', chLayout(t)].filter(Boolean).join(' ')   // "DDP Atmos 5.1"
+    : [codec, chLayout(t)].filter(Boolean).join(' ');           // "DDP 5.1"
   const name = t.language || t.title || codec || `Audio ${(Number(t.id) || 0) + 1}`;
   return [name, name === codecCh ? '' : codecCh, kbps(t.bitRate)].filter(Boolean).join(' · ');
 };
+// Native ExoPlayer often labels a track with a raw channel-position dump
+// ("Hindi DDP L R C LFE Ls Rs") and omits structured fields. When the file's MediaInfo
+// is available (the `audio` prop that seeds the web menu), copy channels/format/bitRate
+// onto the matching native track — same index when counts match, else by language — so
+// audioLabel() can render "Hindi · DDP Atmos 5.1 · 548 kbps".
+function enrichAudioTracks(nativeTracks, meta) {
+  if (!Array.isArray(nativeTracks) || !nativeTracks.length) return nativeTracks || [];
+  if (!Array.isArray(meta) || !meta.length) return nativeTracks;
+  const sameLen = nativeTracks.length === meta.length;
+  const used = new Set();
+  const byLang = (lang) => {
+    const i = meta.findIndex((m, idx) => !used.has(idx)
+      && String(m.language || '').toLowerCase() === String(lang || '').toLowerCase());
+    if (i < 0) return null;
+    used.add(i); return meta[i];
+  };
+  return nativeTracks.map((t, i) => {
+    const m = sameLen ? meta[i] : byLang(t.language);
+    if (!m) return t;
+    return {
+      ...t,
+      language:         t.language || m.language,
+      channels:         t.channels ?? m.channels,
+      channelLayout:    t.channelLayout || m.channelLayout,
+      format:           t.format || m.format,
+      formatCommercial: t.formatCommercial || m.formatCommercial,
+      codecId:          t.codecId || m.codecId,
+      bitRate:          t.bitRate ?? m.bitRate,
+    };
+  });
+}
 const subFormat = (t) => {
   const raw = String(t.format || t.codecId || '').toUpperCase();
   if (raw.includes('PGS') || raw.includes('HDMV'))    return 'PGS';
@@ -138,7 +169,9 @@ const PLAYER_CSS = `
 .dbw-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
 .dbw-epfocus:focus-visible { outline: 2px solid #14b8a6; outline-offset: -2px; }
 /* TV / keyboard focus ring on every player control (D-pad + Tab friendly). */
-.dbw-player :focus-visible { outline: 3px solid #14b8a6; outline-offset: 2px; border-radius: 8px; }`;
+.dbw-player :focus-visible { outline: 3px solid #14b8a6; outline-offset: 2px; border-radius: 8px; }
+.dbw-tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.92); color: #fff; font-size: 12px; white-space: nowrap; padding: 4px 8px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 0.12s ease; z-index: 50; }
+.dbw-tip:hover::after { opacity: 1; }`;
 
 const fmt = (ms) => {
   if (!ms || ms < 0) return '0:00';
@@ -216,6 +249,9 @@ export default function DbWorldVideoPlayer({
   const [volFx, setVolFx]         = useState(null);    // { dir:'up'|'down', value, id } — arrow-key volume pop
   const [upNextDismissed, setUpNextDismissed] = useState(false);
   const [uiScale, setUiScale] = useState(() => (typeof window !== 'undefined' ? scaleFor(window.innerWidth) : 1));
+  // Mouse/desktop vs touch (mobile/tablet/native) — drives the control-bar layout.
+  const [hasHover, setHasHover] = useState(() =>
+    typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches);
   const seekFxTimer = useRef(null);
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
@@ -231,6 +267,17 @@ export default function DbWorldVideoPlayer({
     const onResize = () => setUiScale(scaleFor(window.innerWidth));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Track hover capability so the layout can switch if the input device changes
+  // (e.g. a tablet docked to a mouse). Desktop = clustered icon-only bar; touch =
+  // centered transport + labelled row.
+  useEffect(() => {
+    const mq = window.matchMedia?.('(hover: hover) and (pointer: fine)');
+    if (!mq) return undefined;
+    const on = () => setHasHover(mq.matches);
+    mq.addEventListener?.('change', on);
+    return () => mq.removeEventListener?.('change', on);
   }, []);
 
   // When the controls are revealed by a key/D-pad press, move focus to Play so the
@@ -305,12 +352,15 @@ export default function DbWorldVideoPlayer({
       adapter.on('error', (d) => { setBuffering(false); setErrorMsg(d?.message || 'This video could not be played.'); }),
       adapter.on('info', (d) => { setBuffering(false); if (d?.message) { setInfoMsg(d.message); setTimeout(() => setInfoMsg(null), 3000); } }),
       adapter.on('tracks', d => {
-        const audio = d.audio || [], text = d.text || [];
-        setAudioTracks(audio); setTextTracks(text);
+        // `audio` (the file-metadata prop) enriches native tracks so the menu shows clean
+        // labels instead of ExoPlayer's raw channel-position dump.
+        const audioTr = enrichAudioTracks(d.audio || [], audio);
+        const text = d.text || [];
+        setAudioTracks(audioTr); setTextTracks(text);
         setCurAudio(d.selectedAudio); setCurText(d.selectedText);
-        if (!appliedRef.current && (audio.length || text.length)) {
+        if (!appliedRef.current && (audioTr.length || text.length)) {
           appliedRef.current = true;
-          applyPreferredTracks(audio, text);
+          applyPreferredTracks(audioTr, text);
         }
       }),
       // Device volume changed via the hardware keys — keep the in-app bar in
@@ -911,16 +961,19 @@ export default function DbWorldVideoPlayer({
                 )}
               </div>
             </div>
-            {isNative && (
+            {(isNative || !hasHover) && (
               <div style={{ display: 'flex', gap: 4 }}>
-                <IconBtn onClick={enterPip} ariaLabel="Picture in picture"><PictureInPictureAltIcon /></IconBtn>
-                <IconBtn onClick={rotate} ariaLabel="Rotate screen"><ScreenRotationIcon /></IconBtn>
-                <IconBtn onClick={toggleLock} ariaLabel={locked ? 'Unlock controls' : 'Lock controls'}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>
+                {isNative && <IconBtn onClick={enterPip} ariaLabel="Picture in picture"><PictureInPictureAltIcon /></IconBtn>}
+                {isNative && <IconBtn onClick={rotate} ariaLabel="Rotate screen"><ScreenRotationIcon /></IconBtn>}
+                {/* On touch, Settings lives top-right (kept out of the bottom row). */}
+                {!hasHover && <IconBtn onClick={() => openSettings('main')} ariaLabel="Settings"><SettingsIcon /></IconBtn>}
+                {isNative && <IconBtn onClick={toggleLock} ariaLabel={locked ? 'Unlock controls' : 'Lock controls'}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>}
               </div>
             )}
           </div>
 
-          {/* Center transport (screen-centered) */}
+          {/* Center transport — touch only (desktop moves play/seek to the bottom-left bar) */}
+          {!hasHover && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 48, pointerEvents: 'none' }}>
             <IconBtn big onClick={() => seekBy(-10000)} ariaLabel="Rewind 10 seconds"><Replay10Icon sx={{ fontSize: 38 }} /></IconBtn>
@@ -935,6 +988,7 @@ export default function DbWorldVideoPlayer({
             </IconBtn>
             <IconBtn big onClick={() => seekBy(10000)} ariaLabel="Forward 10 seconds"><Forward10Icon sx={{ fontSize: 38 }} /></IconBtn>
           </div>
+          )}
 
           {/* Bottom bar: full-width progress → time → control row (icon + label) */}
           <motion.div
@@ -974,39 +1028,55 @@ export default function DbWorldVideoPlayer({
               <span>{fmt(duration)}</span>
             </div>
 
-            {/* control row — spreads across the full width; volume/fullscreen are
-                web-only (rotate/lock live top-right on Android) */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 }}>
-              {!isNative && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CtrlBtn icon={volume === 0 ? <VolumeOffIcon /> : <VolumeUpIcon />}
-                    active={volume === 0} ariaLabel={volume === 0 ? 'Unmute' : 'Mute'} onClick={toggleMute} />
-                  <input className="dbw-range" type="range" min={0} max={1} step={0.02} value={volume}
-                    aria-label="Volume"
-                    onChange={(e) => setVol(Number(e.target.value))}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ width: 96, background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%)` }} />
+            {/* Control row. Desktop: transport + volume clustered left, everything else
+                right, icon-only with hover tooltips. Touch: centered, equal-spaced,
+                labelled buttons (label left of icon); Settings lives top-right instead. */}
+            {hasHover ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <CtrlBtn icon={playing ? <PauseIcon /> : <PlayArrowIcon />} tip={playing ? 'Pause' : 'Play'}
+                    ariaLabel={playing ? 'Pause' : 'Play'} focusRef={playBtnRef} onClick={togglePlay} />
+                  <CtrlBtn icon={<Replay10Icon />} tip="Back 10s" ariaLabel="Rewind 10 seconds" onClick={() => seekBy(-10000)} />
+                  <CtrlBtn icon={<Forward10Icon />} tip="Forward 10s" ariaLabel="Forward 10 seconds" onClick={() => seekBy(10000)} />
+                  <VolumeControl volume={volume} hasHover={hasHover} onToggleMute={toggleMute} onSetVol={setVol} />
                 </div>
-              )}
-              <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} active={rateIdx !== 1}
-                ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
-
-              <CtrlBtn icon={<AudiotrackIcon />} label="Audio & Subtitles"
-                ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
-
-              {episodes.length > 1 && (
-                <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
-              )}
-              {nextEpisode && (
-                <CtrlBtn icon={<SkipNextIcon />} label="Next" ariaLabel="Next episode" onClick={goNext} />
-              )}
-
-              <CtrlBtn icon={<SettingsIcon />} label="Settings" ariaLabel="Settings" onClick={() => openSettings('main')} />
-              {!isNative && (
-                <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
-                  label={isFullscreen ? 'Exit' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
-              )}
-            </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} tip="Playback speed"
+                    active={rateIdx !== 1} ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
+                  <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles"
+                    ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
+                  {episodes.length > 1 && (
+                    <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
+                  )}
+                  {nextEpisode && <NextEpisodeButton nextEpisode={nextEpisode} onClick={goNext} />}
+                  <CtrlBtn icon={<SettingsIcon />} tip="Settings" ariaLabel="Settings" onClick={() => openSettings('main')} />
+                  <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                    tip={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
+                marginTop: 6, gap: Math.round(6 * uiScale) }}>
+                {!isNative && (
+                  <VolumeControl volume={volume} hasHover={hasHover} label="Volume" labelLeft
+                    onToggleMute={toggleMute} onSetVol={setVol} />
+                )}
+                <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} labelLeft active={rateIdx !== 1}
+                  ariaLabel="Playback speed" onClick={() => openSettings('speed')} />
+                <CtrlBtn icon={<AudiotrackIcon />} label="Audio" labelLeft
+                  ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
+                {episodes.length > 1 && (
+                  <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" labelLeft ariaLabel="Episode list" onClick={openEpisodes} />
+                )}
+                {nextEpisode && (
+                  <CtrlBtn icon={<SkipNextIcon />} label="Next" labelLeft ariaLabel="Next episode" onClick={goNext} />
+                )}
+                {!isNative && (
+                  <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                    label={isFullscreen ? 'Exit' : 'Fullscreen'} labelLeft ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
+                )}
+              </div>
+            )}
           </motion.div>
         </>
       )}
@@ -1290,29 +1360,125 @@ function IconBtn({ children, onClick, big, ariaLabel, focusRef }) {
   );
 }
 
+// Volume: a mute-toggle icon with a horizontal slider that expands from width 0.
+// Desktop — hover expands, click the icon mutes. Touch — tap the icon expands (drag
+// the slider to 0 to mute). Lives in the control row, below the scrubber, so the
+// slider can never overlap the progress bar.
+function VolumeControl({ volume, hasHover, label, labelLeft, onToggleMute, onSetVol }) {
+  const reduce = useReducedMotion();
+  const scale = useContext(ScaleCtx);
+  const [open, setOpen] = useState(false);
+  const muted = volume === 0;
+  const w = Math.round(90 * scale);
+  const onBtn = (e) => {
+    e.stopPropagation();
+    if (hasHover) onToggleMute();
+    else setOpen((o) => !o);
+  };
+  const text = label ? <span>{label}</span> : null;
+  const icon = <span style={{ display: 'inline-flex', fontSize: Math.round(22 * scale) }}>
+    {muted ? <VolumeOffIcon sx={{ fontSize: Math.round(22 * scale) }} /> : <VolumeUpIcon sx={{ fontSize: Math.round(22 * scale) }} />}
+  </span>;
+  return (
+    <div
+      style={{ display: 'inline-flex', alignItems: 'center' }}
+      onMouseEnter={hasHover ? () => setOpen(true) : undefined}
+      onMouseLeave={hasHover ? () => setOpen(false) : undefined}
+    >
+      <motion.button type="button" aria-label={muted ? 'Unmute' : 'Mute'}
+        onClick={onBtn}
+        whileHover={reduce ? undefined : { scale: 1.06 }} whileTap={reduce ? undefined : { scale: 0.92 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+        style={{
+          pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: label ? Math.round(7 * scale) : 0,
+          minHeight: Math.round(44 * scale), padding: `${Math.round(8 * scale)}px ${Math.round((label ? 12 : 10) * scale)}px`,
+          borderRadius: 12, border: 'none', cursor: 'pointer', background: 'transparent',
+          color: muted ? TEAL : '#fff', fontSize: Math.round(13 * scale), fontWeight: 600, whiteSpace: 'nowrap',
+        }}>
+        {labelLeft ? <>{text}{icon}</> : <>{icon}{text}</>}
+      </motion.button>
+      <div style={{ width: open ? w : 0, overflow: 'hidden', transition: 'width 0.2s ease',
+        display: 'flex', alignItems: 'center' }}>
+        <input className="dbw-range" type="range" min={0} max={1} step={0.02} value={volume} aria-label="Volume"
+          onChange={(e) => onSetVol(Number(e.target.value))}
+          onClick={(e) => e.stopPropagation()}
+          style={{ width: w, background: `linear-gradient(to right, #fff ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%)` }} />
+      </div>
+    </div>
+  );
+}
+
 // Labelled control-row button (icon + text beside it), with hover/tap motion +
 // an active (teal) state. Min 44px tall for touch.
-function CtrlBtn({ icon, label, onClick, active, ariaLabel }) {
+function CtrlBtn({ icon, label, labelLeft, tip, onClick, active, ariaLabel, focusRef }) {
   const reduce = useReducedMotion();
   const scale = useContext(ScaleCtx);
   const scaledIcon = React.isValidElement(icon)
     ? React.cloneElement(icon, { sx: { ...(icon.props.sx || {}), fontSize: Math.round((icon.props.sx?.fontSize || 22) * scale) } })
     : icon;
+  const text = label ? <span>{label}</span> : null;
   return (
-    <motion.button type="button" aria-label={ariaLabel || label}
+    <motion.button type="button" aria-label={ariaLabel || label || tip} ref={focusRef}
+      className={tip ? 'dbw-tip' : undefined} data-tip={tip || undefined}
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
       whileHover={reduce ? undefined : { scale: 1.06, backgroundColor: active ? 'rgba(20,184,166,0.26)' : 'rgba(255,255,255,0.14)' }}
       whileTap={reduce ? undefined : { scale: 0.92 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       style={{
-        pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: Math.round(7 * scale),
-        minHeight: Math.round(44 * scale), padding: `${Math.round(8 * scale)}px ${Math.round(12 * scale)}px`,
+        position: 'relative',
+        pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: label ? Math.round(7 * scale) : 0,
+        minHeight: Math.round(44 * scale), padding: `${Math.round(8 * scale)}px ${Math.round((label ? 12 : 10) * scale)}px`,
         borderRadius: 12, border: 'none', cursor: 'pointer',
         background: active ? 'rgba(20,184,166,0.18)' : 'transparent',
         color: active ? TEAL : '#fff', fontSize: Math.round(13 * scale), fontWeight: 600, whiteSpace: 'nowrap',
       }}>
-      {scaledIcon}
-      {label && <span>{label}</span>}
+      {labelLeft ? <>{text}{scaledIcon}</> : <>{scaledIcon}{text}</>}
     </motion.button>
+  );
+}
+
+// The "Next" control-row button plus a hover preview of the upcoming episode
+// (still thumbnail + "S#:E# · title" + short synopsis). Pointer-only affordance;
+// touch users get the on-screen "Up next" card and the episode drawer instead.
+function NextEpisodeButton({ nextEpisode: ep, onClick }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <CtrlBtn icon={<SkipNextIcon />} ariaLabel="Next episode" onClick={onClick} />
+      {hover && ep && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 10px)', right: 0, zIndex: 40,
+          width: 300, maxWidth: '80vw', background: 'rgba(0,0,0,0.94)', borderRadius: 12,
+          overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', pointerEvents: 'none',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+        }}>
+          {ep.stillPath && (
+            <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
+              style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block' }} />
+          )}
+          <div style={{ padding: 12 }}>
+            <div style={{ fontSize: 10.5, color: TEAL, fontWeight: 800, letterSpacing: 0.6, marginBottom: 5 }}>UP NEXT</div>
+            <div style={{
+              fontWeight: 700, fontSize: 14, lineHeight: 1.3, marginBottom: ep.overview ? 6 : 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+            }}>
+              {epTitle(ep)}{ep.runtime ? ` · ${ep.runtime}m` : ''}
+            </div>
+            {ep.overview && (
+              <div style={{
+                fontSize: 12, color: '#9aa0a6', lineHeight: 1.4,
+                display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+              }}>
+                {ep.overview}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

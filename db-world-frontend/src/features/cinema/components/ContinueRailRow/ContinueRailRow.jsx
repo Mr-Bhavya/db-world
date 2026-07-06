@@ -8,30 +8,10 @@ import { useSnackbar } from 'notistack';
 import Constants from '@shared/constants';
 import { loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
-import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
-import { parseEpisode } from '../../utils/episodeUtils';
+import { getContinueWatching, removeContinueWatching, fetchRecord } from '../../api/cinemaApi';
+import { buildHybridEpisodes } from '../../utils/episodeUtils';
 import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
 import ContinueCard from './ContinueCard';
-
-// Build the player's episode list from a record's media files (one entry per
-// season/episode), so resuming a series gets the episode picker + Next button.
-const pad = (n) => String(n).padStart(2, '0');
-function buildEpisodes(files) {
-  const byEp = new Map();
-  for (const f of files || []) {
-    const ep = parseEpisode(f.fileName);
-    if (!ep) continue;
-    const key = `${ep.season}x${ep.episode}`;
-    if (!byEp.has(key)) byEp.set(key, { f, ep });
-  }
-  return [...byEp.values()]
-    .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
-    .map(({ f, ep }) => ({
-      id: String(f.id), fileId: String(f.id), mediaFileId: f.id,
-      season: ep.season, episode: ep.episode,
-      label: `S${pad(ep.season)}E${pad(ep.episode)}`, name: '', url: '',
-    }));
-}
 
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
@@ -51,7 +31,7 @@ const ContinueRailRow = () => {
   const scrollRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
-  const [resuming, setResuming] = useState(false);
+  const [resumingId, setResumingId] = useState(null);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -76,25 +56,37 @@ const ContinueRailRow = () => {
   });
 
   const onResume = useCallback(async (item) => {
-    if (resuming) return;
-    setResuming(true);
+    if (resumingId) return;
+    setResumingId(item.recordId);
     try {
       const isSeries = item.type === 'TV_SERIES';
-      const infoResp = await loadStreamFileInfoByRecordId(item.recordId).catch(() => null);
+
+      // Load the media files AND the full catalog record (TMDB seasons) in parallel, so a
+      // resumed series gets the SAME rich episode list — names, still images, synopses —
+      // that Record-Details builds. Previously only the files were fetched, leaving the
+      // episode bar with bare S##E## numbers and no metadata.
+      const [infoResp, record] = await Promise.all([
+        loadStreamFileInfoByRecordId(item.recordId).catch(() => null),
+        fetchRecord(item.recordId).catch(() => null),
+      ]);
       const rawFiles = infoResp?.data ?? [];
-      const episodes = isSeries ? buildEpisodes(rawFiles) : [];
 
       // Converted through the same helper Record-Details uses, so quality labels match.
       const converted = CommonServices.convertMediaInfoToCustomFormat(null, rawFiles);
       const current = converted.find(f => f.mediaFileId === item.resumeFileId)
                    ?? { mediaFileId: item.resumeFileId, id: item.resumeFileId };
 
+      // Rich episode list (TMDB name / still / overview per episode); [] for movies.
+      const episodes = isSeries
+        ? buildHybridEpisodes(converted, current, record?.tmdb?.seasons)
+        : [];
+
       // The player resumes from the saved progress for this fileId automatically.
       const media = await resolveAndBuildMedia({
         current,
         variantFiles: variantFilesFor(converted, current, isSeries),
         episodes,
-        record: { recordId: item.recordId },
+        record: record ?? { recordId: item.recordId },
         title: item.title,
         fileId: item.resumeFileId,
       });
@@ -102,9 +94,9 @@ const ContinueRailRow = () => {
     } catch {
       enqueueSnackbar('Could not resume playback.', { variant: 'error' });
     } finally {
-      setResuming(false);
+      setResumingId(null);
     }
-  }, [resuming, navigate, enqueueSnackbar]);
+  }, [resumingId, navigate, enqueueSnackbar]);
 
   const updateButtons = useCallback(() => {
     const el = scrollRef.current;
@@ -176,6 +168,7 @@ const ContinueRailRow = () => {
               <ContinueCard
                 key={item.recordId}
                 item={item}
+                loading={resumingId === item.recordId}
                 onResume={onResume}
                 onRemove={(it) => removeMut.mutate(it.recordId)}
               />
