@@ -41,6 +41,16 @@ import { tmdbImg } from '../../api/cinemaApi';
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 const HIDE_MS = 3500;
 const TEAL = '#0d9488';   // app theme accent
+// Shared popover look — the episode list and the Next-episode preview use the same panel
+// style so they read as one design language.
+const PANEL_LOOK = {
+  background: 'rgba(14,14,14,0.98)',
+  border: '1px solid rgba(255,255,255,0.12)',
+  borderRadius: 12,
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+};
 
 // UI scale factor for large monitors / TVs — controls, text and panels grow so the
 // player is legible from across a room. Provided via context so the reusable buttons
@@ -1217,9 +1227,7 @@ export default function DbWorldVideoPlayer({
             onMouseEnter={cancelEpisodesClose} onMouseLeave={scheduleEpisodesClose}
             style={{ position: 'absolute', right: Math.round(16 * uiScale), bottom: Math.round(96 * uiScale),
               width: Math.round(400 * uiScale), maxWidth: '92vw', maxHeight: '62vh',
-              background: 'rgba(14,14,14,0.98)', borderRadius: 12,
-              backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', overflowY: 'auto', padding: '12px 0',
-              border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
+              overflowY: 'auto', padding: '12px 0', ...PANEL_LOOK }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `0 ${Math.round(18 * uiScale)}px 12px` }}>
               <span style={{ fontWeight: 700, fontSize: Math.round(17 * uiScale) }}>Episodes</span>
               <IconBtn onClick={() => setEpisodesOpen(false)} ariaLabel="Close episodes"><CloseIcon /></IconBtn>
@@ -1566,11 +1574,10 @@ function NextEpisodeButton({ nextEpisode: ep, onClick }) {
       <CtrlBtn icon={<SkipNextIcon />} ariaLabel="Next episode" onClick={onClick} />
       {hover && ep && (
         <div style={{
-          position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%',
+          position: 'absolute', bottom: `calc(100% + ${Math.round(56 * scale)}px)`, left: '50%',
           transform: `translateX(calc(-50% + ${shift}px))`, zIndex: 40,
-          width: cardW, maxWidth: '80vw', background: 'rgba(0,0,0,0.94)', borderRadius: 12,
-          overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', pointerEvents: 'none',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+          width: cardW, maxWidth: '80vw', overflow: 'hidden', pointerEvents: 'none',
+          ...PANEL_LOOK,
         }}>
           {ep.stillPath && (
             <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
