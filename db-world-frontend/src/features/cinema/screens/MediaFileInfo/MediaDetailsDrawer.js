@@ -132,7 +132,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
           requestId:   res?.data?.requestId || null,
         };
       }
-      navigate(Constants.DB_PLAYER_ROUTE, { state: { media } });
+      navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
     } catch (_e) {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally {

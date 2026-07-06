@@ -289,7 +289,7 @@ export default function DownloadsPage() {
   const handlePlay = (item) => {
     const url = item.playableUri || item.localUri;
     if (!url) return;
-    navigate(Constants.DB_PLAYER_ROUTE, {
+    navigate(Constants.playerPath(String(item.downloadId || item.fileName || 'download')), {
       state: {
         media: {
           url,

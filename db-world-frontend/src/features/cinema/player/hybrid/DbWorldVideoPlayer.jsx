@@ -61,8 +61,19 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore 
 // Build rich, human labels from whatever track metadata is present (web seeds from
 // the file's MediaInfo; native ExoPlayer emits a subset). Every part is optional so
 // a sparse track still renders something sensible.
-const chLayout = (t) => t.channelLayout
-  || (t.channels >= 8 ? '7.1' : t.channels >= 6 ? '5.1' : t.channels === 2 ? 'Stereo' : t.channels === 1 ? 'Mono' : '');
+const chLayout = (t) => {
+  const n = Number(t.channels);
+  if (n >= 8) return '7.1';
+  if (n >= 6) return '5.1';
+  if (n === 2) return 'Stereo';
+  if (n === 1) return 'Mono';
+  // channels missing → accept only an already-clean token ("5.1", "Stereo"), never
+  // MediaInfo's raw channel-position dump ("L R C LFE Ls Rs").
+  const cl = String(t.channelLayout || '').trim();
+  if (/^\d(\.\d)?$/.test(cl)) return cl;
+  if (/^(mono|stereo|surround)$/i.test(cl)) return cl;
+  return '';
+};
 // Atmos rides on E-AC3 (JOC) or TrueHD — detect it separately so the label reads
 // "DDP Atmos" / "TrueHD Atmos" instead of a plain channel count.
 const isAtmos = (t) => /ATMOS|JOC/.test(String(t.formatCommercial || t.format || t.codecId || t.codec || '').toUpperCase());
@@ -158,9 +169,15 @@ const PLAYER_CSS = `
 @keyframes dbw-seekfx { 0% { opacity: 0; transform: scale(0.6); } 18% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }
 .dbw-range { -webkit-appearance: none; appearance: none; width: 100%; height: 5px; border-radius: 999px; outline: none; cursor: pointer; transition: height 0.15s ease; }
 .dbw-range:hover { height: 7px; }
-.dbw-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); transition: transform 0.15s ease; }
+.dbw-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); transition: transform 0.15s ease, opacity 0.15s ease; }
 .dbw-range:hover::-webkit-slider-thumb, .dbw-range:active::-webkit-slider-thumb { transform: scale(1.3); }
 .dbw-range::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); }
+/* Seek bar only: hide the scrubber knob until hover/drag, so the played bar reads as a
+   clean line — the knob + glow otherwise looks like a height bump at the playhead. */
+.dbw-seek::-webkit-slider-thumb { opacity: 0; }
+.dbw-seek:hover::-webkit-slider-thumb, .dbw-seek:active::-webkit-slider-thumb { opacity: 1; }
+.dbw-seek::-moz-range-thumb { opacity: 0; }
+.dbw-seek:hover::-moz-range-thumb, .dbw-seek:active::-moz-range-thumb { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .dbw-range, .dbw-range::-webkit-slider-thumb { transition: none; } }
 .dbw-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.28) transparent; }
 .dbw-scroll::-webkit-scrollbar { width: 8px; }
@@ -168,6 +185,9 @@ const PLAYER_CSS = `
 .dbw-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
 .dbw-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
 .dbw-epfocus:focus-visible { outline: 2px solid #14b8a6; outline-offset: -2px; }
+.dbw-ep { background: transparent; transition: background 0.12s ease; }
+.dbw-ep:hover { background: rgba(255,255,255,0.08); }
+.dbw-ep.cur { background: rgba(13,148,136,0.14); }
 /* TV / keyboard focus ring on every player control (D-pad + Tab friendly). */
 .dbw-player :focus-visible { outline: 3px solid #14b8a6; outline-offset: 2px; border-radius: 8px; }
 .dbw-tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.92); color: #fff; font-size: 12px; white-space: nowrap; padding: 4px 8px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 0.12s ease; z-index: 50; }
@@ -233,6 +253,13 @@ export default function DbWorldVideoPlayer({
   const curEp = curIdx >= 0 ? episodes[curIdx] : null;
   const nextEpisode = curIdx >= 0 && curIdx < episodes.length - 1 ? episodes[curIdx + 1] : null;
   const seasonsMap = episodes.reduce((m, ep) => { (m[ep.season] ||= []).push(ep); return m; }, {});
+  // Touch bottom-row button count (excluding Settings). When the row would be sparse we
+  // pull Settings down into it to keep a balanced set; otherwise it lives top-right.
+  const touchRowButtons = (isNative ? 0 : 2)          // volume + fullscreen (web only)
+    + 2                                               // speed, audio
+    + (episodes.length > 1 ? 1 : 0)                   // episodes
+    + (nextEpisode ? 1 : 0);                          // next
+  const settingsInRow = !hasHover && touchRowButtons < 4;
   const [locked, setLocked]       = useState(false);
   const [landscape, setLandscape] = useState(isNative); // default landscape on the app
   const [volume, setVolume]       = useState(1);
@@ -247,12 +274,15 @@ export default function DbWorldVideoPlayer({
   const [hud, setHud]             = useState(null);    // { kind:'volume'|'brightness'|'zoom', value }
   const [seekFx, setSeekFx]       = useState(null);    // { dir:'fwd'|'back', id } — double-tap/seek feedback
   const [volFx, setVolFx]         = useState(null);    // { dir:'up'|'down', value, id } — arrow-key volume pop
+  const [playFx, setPlayFx]       = useState(null);    // { playing, id } — centered play/pause pop
   const [upNextDismissed, setUpNextDismissed] = useState(false);
   const [uiScale, setUiScale] = useState(() => (typeof window !== 'undefined' ? scaleFor(window.innerWidth) : 1));
   // Mouse/desktop vs touch (mobile/tablet/native) — drives the control-bar layout.
   const [hasHover, setHasHover] = useState(() =>
     typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches);
   const seekFxTimer = useRef(null);
+  const playFxTimer = useRef(null);
+  const epHoverTimer = useRef(null);
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
@@ -479,6 +509,7 @@ export default function DbWorldVideoPlayer({
   const togglePlay = useCallback(() => {
     const a = adapterRef.current;
     if (!a) return;
+    const willPlay = !playing;
     if (playing) {
       a.pause(); setPlaying(false); report(false);
       emitStreamEvent('STREAM_PAUSE');
@@ -488,6 +519,11 @@ export default function DbWorldVideoPlayer({
       // returns to ACTIVE on the backend.
       emitStreamEvent('STREAM_TICK');
     }
+    // Brief centered play/pause pop (mirrors the arrow-key volume feedback) — gives
+    // desktop click-to-toggle a visual cue now that there's no centered play button.
+    setPlayFx({ playing: willPlay, id: Date.now() });
+    clearTimeout(playFxTimer.current);
+    playFxTimer.current = setTimeout(() => setPlayFx(null), 500);
     showControls();
   }, [playing, showControls, report, emitStreamEvent]);
 
@@ -558,6 +594,32 @@ export default function DbWorldVideoPlayer({
     adapterRef.current?.setOrientation(next ? 'locked' : 'sensor'); showControls();
   };
   const close = () => { adapterRef.current?.release(); onClose?.(); };
+
+  // Mobile web: force landscape by entering fullscreen + locking the screen orientation.
+  // Works on Android Chrome (orientation lock requires fullscreen); iOS Safari has no
+  // lock API and desktop is excluded, so both are graceful no-ops. The native app drives
+  // orientation through the plugin instead.
+  const lockLandscape = useCallback(async () => {
+    if (isNative || hasHover) return;
+    try {
+      const root = rootRef.current;
+      if (root?.requestFullscreen && !document.fullscreenElement) await root.requestFullscreen();
+      await window.screen?.orientation?.lock?.('landscape');
+    } catch { /* best-effort — user-gesture / iOS / desktop limits */ }
+  }, [isNative, hasHover]);
+
+  useEffect(() => {
+    if (isNative || hasHover) return undefined;
+    lockLandscape();                          // attempt now (some browsers need a gesture)…
+    const root = rootRef.current;
+    const onFirst = () => lockLandscape();    // …and on the first touch, which guarantees one
+    root?.addEventListener('pointerdown', onFirst, { once: true });
+    return () => {
+      root?.removeEventListener('pointerdown', onFirst);
+      try { window.screen?.orientation?.unlock?.(); } catch { /* ignore */ }
+      try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
+    };
+  }, [isNative, hasHover, lockLandscape]);
 
   // ── settings (audio / subtitle / quality / speed) ───────────────────────────
   const chooseAudio = (t) => { adapterRef.current?.selectAudioTrack(t.id); setCurAudio(t.id); lsSet(PREF_AUDIO, t.language); };
@@ -858,6 +920,20 @@ export default function DbWorldVideoPlayer({
         </div>
       )}
 
+      {/* Play/pause pop — brief centered icon on every toggle (mirrors the volume
+          feedback; desktop click-to-toggle has no persistent center button). */}
+      {playFx && (
+        <div key={playFx.id} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 24 }}>
+          <div style={{ display: 'grid', placeItems: 'center',
+            width: Math.round(96 * uiScale), height: Math.round(96 * uiScale), borderRadius: '50%',
+            background: 'rgba(0,0,0,0.5)', animation: 'dbw-seekfx 0.5s ease-out forwards' }}>
+            {playFx.playing
+              ? <PlayArrowIcon sx={{ fontSize: Math.round(46 * uiScale) }} />
+              : <PauseIcon sx={{ fontSize: Math.round(46 * uiScale) }} />}
+          </div>
+        </div>
+      )}
+
       {/* Buffering spinner */}
       {buffering && !errorMsg && (
         <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
@@ -965,8 +1041,9 @@ export default function DbWorldVideoPlayer({
               <div style={{ display: 'flex', gap: 4 }}>
                 {isNative && <IconBtn onClick={enterPip} ariaLabel="Picture in picture"><PictureInPictureAltIcon /></IconBtn>}
                 {isNative && <IconBtn onClick={rotate} ariaLabel="Rotate screen"><ScreenRotationIcon /></IconBtn>}
-                {/* On touch, Settings lives top-right (kept out of the bottom row). */}
-                {!hasHover && <IconBtn onClick={() => openSettings('main')} ariaLabel="Settings"><SettingsIcon /></IconBtn>}
+                {/* On touch, Settings lives top-right — unless the bottom row is sparse,
+                    then it drops into the row to keep it balanced (see settingsInRow). */}
+                {!hasHover && !settingsInRow && <IconBtn onClick={() => openSettings('main')} ariaLabel="Settings"><SettingsIcon /></IconBtn>}
                 {isNative && <IconBtn onClick={toggleLock} ariaLabel={locked ? 'Unlock controls' : 'Lock controls'}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>}
               </div>
             )}
@@ -1015,7 +1092,7 @@ export default function DbWorldVideoPlayer({
                 ))}
                 <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${pct}%`, background: TEAL }} />
               </div>
-              <input className="dbw-range" type="range" min={0} max={duration || 0} aria-label="Seek"
+              <input className="dbw-range dbw-seek" type="range" min={0} max={duration || 0} aria-label="Seek"
                 value={Math.min(displayPos, duration || displayPos)}
                 onChange={onScrubChange} onPointerUp={onScrubCommit} onTouchEnd={onScrubCommit} onMouseUp={onScrubCommit}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 0, background: 'transparent' }} />
@@ -1046,7 +1123,11 @@ export default function DbWorldVideoPlayer({
                   <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles"
                     ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
                   {episodes.length > 1 && (
-                    <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
+                    <span style={{ display: 'inline-flex' }}
+                      onMouseEnter={() => { clearTimeout(epHoverTimer.current); epHoverTimer.current = setTimeout(openEpisodes, 350); }}
+                      onMouseLeave={() => clearTimeout(epHoverTimer.current)}>
+                      <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
+                    </span>
                   )}
                   {nextEpisode && <NextEpisodeButton nextEpisode={nextEpisode} onClick={goNext} />}
                   <CtrlBtn icon={<SettingsIcon />} tip="Settings" ariaLabel="Settings" onClick={() => openSettings('main')} />
@@ -1056,7 +1137,7 @@ export default function DbWorldVideoPlayer({
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
-                marginTop: 6, gap: Math.round(6 * uiScale) }}>
+                marginTop: 6, rowGap: 10, columnGap: 'clamp(14px, 6vw, 40px)' }}>
                 {!isNative && (
                   <VolumeControl volume={volume} hasHover={hasHover} label="Volume" labelLeft
                     onToggleMute={toggleMute} onSetVol={setVol} />
@@ -1070,6 +1151,9 @@ export default function DbWorldVideoPlayer({
                 )}
                 {nextEpisode && (
                   <CtrlBtn icon={<SkipNextIcon />} label="Next" labelLeft ariaLabel="Next episode" onClick={goNext} />
+                )}
+                {settingsInRow && (
+                  <CtrlBtn icon={<SettingsIcon />} label="Settings" labelLeft ariaLabel="Settings" onClick={() => openSettings('main')} />
                 )}
                 {!isNative && (
                   <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
@@ -1121,26 +1205,26 @@ export default function DbWorldVideoPlayer({
         <div onClick={() => setEpisodesOpen(false)}
           style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
-            style={{ width: 420, maxWidth: '92%', height: '100%', background: 'rgba(14,14,14,0.96)',
+            style={{ width: Math.round(420 * uiScale), maxWidth: '92%', height: '100%', background: 'rgba(14,14,14,0.96)',
               backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', overflowY: 'auto', padding: '14px 0',
               borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px 12px' }}>
-              <span style={{ fontWeight: 700, fontSize: 17 }}>Episodes</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `0 ${Math.round(18 * uiScale)}px 12px` }}>
+              <span style={{ fontWeight: 700, fontSize: Math.round(17 * uiScale) }}>Episodes</span>
               <IconBtn onClick={() => setEpisodesOpen(false)} ariaLabel="Close episodes"><CloseIcon /></IconBtn>
             </div>
             {Object.keys(seasonsMap).sort((a, b) => a - b).map(s => (
               <div key={s}>
-                <div style={{ padding: '10px 18px 6px', color: '#9aa', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Season {s}</div>
+                <div style={{ padding: `10px ${Math.round(18 * uiScale)}px 6px`, color: '#9aa', fontSize: Math.round(12 * uiScale), fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Season {s}</div>
                 {seasonsMap[s].map(ep => {
                   const isCur = ep.id === currentEpisodeId || ep.fileId === currentEpisodeId;
                   return (
-                    <button key={ep.id} className="dbw-epfocus"
+                    <button key={ep.id} className={`dbw-epfocus dbw-ep${isCur ? ' cur' : ''}`}
                       onClick={() => { switchEpisode(ep); setEpisodesOpen(false); }}
-                      style={{ display: 'flex', gap: 12, width: '100%', padding: '10px 16px', textAlign: 'left',
-                        background: isCur ? 'rgba(13,148,136,0.14)' : 'transparent', cursor: 'pointer',
-                        border: 'none', borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}` }}>
+                      style={{ display: 'flex', gap: Math.round(12 * uiScale), width: '100%',
+                        padding: `${Math.round(10 * uiScale)}px ${Math.round(16 * uiScale)}px`, textAlign: 'left',
+                        cursor: 'pointer', border: 'none', borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}` }}>
                       {/* still thumbnail (16:9) */}
-                      <div style={{ position: 'relative', width: 132, flexShrink: 0, aspectRatio: '16 / 9',
+                      <div style={{ position: 'relative', width: Math.round(132 * uiScale), flexShrink: 0, aspectRatio: '16 / 9',
                         borderRadius: 8, overflow: 'hidden', background: '#1c1c1c' }}>
                         {ep.stillPath
                           ? <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
@@ -1149,19 +1233,19 @@ export default function DbWorldVideoPlayer({
                               <PlaylistPlayIcon /></div>}
                         {isCur && (
                           <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.4)' }}>
-                            <PlayArrowIcon sx={{ fontSize: 30, color: TEAL }} /></div>)}
+                            <PlayArrowIcon sx={{ fontSize: Math.round(30 * uiScale), color: TEAL }} /></div>)}
                       </div>
                       {/* text */}
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: isCur ? TEAL : '#fff', flexShrink: 0 }}>{ep.label}</span>
-                          {ep.runtime ? <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>{ep.runtime}m</span> : null}
+                          <span style={{ fontWeight: 700, fontSize: Math.round(13 * uiScale), color: isCur ? TEAL : '#fff', flexShrink: 0 }}>{ep.label}</span>
+                          {ep.runtime ? <span style={{ fontSize: Math.round(11 * uiScale), color: '#888', flexShrink: 0 }}>{ep.runtime}m</span> : null}
                         </div>
                         {ep.name && (
-                          <div style={{ fontSize: 13, color: isCur ? TEAL : '#e0e0e0', marginTop: 1,
+                          <div style={{ fontSize: Math.round(13 * uiScale), color: isCur ? TEAL : '#e0e0e0', marginTop: 1,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.name}</div>)}
                         {ep.overview && (
-                          <div style={{ fontSize: 11.5, color: '#8f9296', marginTop: 3, lineHeight: 1.35,
+                          <div style={{ fontSize: Math.round(11.5 * uiScale), color: '#8f9296', marginTop: 3, lineHeight: 1.35,
                             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {ep.overview}</div>)}
                       </div>
@@ -1442,6 +1526,7 @@ function CtrlBtn({ icon, label, labelLeft, tip, onClick, active, ariaLabel, focu
 // touch users get the on-screen "Up next" card and the episode drawer instead.
 function NextEpisodeButton({ nextEpisode: ep, onClick }) {
   const [hover, setHover] = useState(false);
+  const scale = useContext(ScaleCtx);
   return (
     <div
       style={{ position: 'relative', display: 'inline-flex' }}
@@ -1452,7 +1537,7 @@ function NextEpisodeButton({ nextEpisode: ep, onClick }) {
       {hover && ep && (
         <div style={{
           position: 'absolute', bottom: 'calc(100% + 10px)', right: 0, zIndex: 40,
-          width: 300, maxWidth: '80vw', background: 'rgba(0,0,0,0.94)', borderRadius: 12,
+          width: Math.round(320 * scale), maxWidth: '80vw', background: 'rgba(0,0,0,0.94)', borderRadius: 12,
           overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', pointerEvents: 'none',
           boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
         }}>
@@ -1460,17 +1545,17 @@ function NextEpisodeButton({ nextEpisode: ep, onClick }) {
             <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
               style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block' }} />
           )}
-          <div style={{ padding: 12 }}>
-            <div style={{ fontSize: 10.5, color: TEAL, fontWeight: 800, letterSpacing: 0.6, marginBottom: 5 }}>UP NEXT</div>
+          <div style={{ padding: Math.round(12 * scale) }}>
+            <div style={{ fontSize: Math.round(11 * scale), color: TEAL, fontWeight: 800, letterSpacing: 0.6, marginBottom: Math.round(5 * scale) }}>UP NEXT</div>
             <div style={{
-              fontWeight: 700, fontSize: 14, lineHeight: 1.3, marginBottom: ep.overview ? 6 : 0,
+              fontWeight: 700, fontSize: Math.round(15 * scale), lineHeight: 1.3, marginBottom: ep.overview ? Math.round(6 * scale) : 0,
               overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
             }}>
               {epTitle(ep)}{ep.runtime ? ` · ${ep.runtime}m` : ''}
             </div>
             {ep.overview && (
               <div style={{
-                fontSize: 12, color: '#9aa0a6', lineHeight: 1.4,
+                fontSize: Math.round(12.5 * scale), color: '#9aa0a6', lineHeight: 1.4,
                 display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
               }}>
                 {ep.overview}

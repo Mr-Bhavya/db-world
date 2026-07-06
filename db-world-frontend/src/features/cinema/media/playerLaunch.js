@@ -6,9 +6,11 @@
 // class of bugs where one launch path silently dropped a field (missing storyboard /
 // variants / requestId). The quality variants of the current title are resolved in ONE
 // batch call (POST /api/stream/resolve-batch) instead of N per-file resolves.
-import { resolveMediaBatch } from '@shared/services/ApiServices';
+import { resolveMediaBatch, loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
+import CommonServices from '@shared/services/CommonServices';
 import { buildStoryboard } from '../utils/storyboard';
-import { parseEpisode } from '../utils/episodeUtils';
+import { parseEpisode, buildHybridEpisodes } from '../utils/episodeUtils';
+import { fetchRecord } from '../api/cinemaApi';
 import { getQuality, getCodec, getHdrTags } from './helpers';
 
 const heightOf = (f) => Number(f?.video?.resolution?.split('x')?.[1]) || 0;
@@ -88,4 +90,52 @@ export async function resolveAndBuildMedia({ current, variantFiles, episodes = [
     storyboard,
     requestId:   currentResolved?.requestId ?? null,
   };
+}
+
+/**
+ * Build the full player `media` payload from just a mediaFileId — used on refresh, a
+ * shared deep-link (`/player/:mediaFileId`), and the instant Continue-Watching launch
+ * (navigate first, resolve inside the player). Assembles the SAME shape as
+ * resolveAndBuildMedia for an in-app launch: quality variants + rich episode list.
+ *
+ * @param {string} mediaFileId
+ * @param {object} [hints]  { recordId, title, type } — lets callers that already know the
+ *                          record (Continue-Watching) skip the discovery resolve.
+ * @returns {Promise<object>} the media payload
+ * @throws if the file can't be resolved to a stream URL
+ */
+export async function buildMediaFromFileId(mediaFileId, hints = {}) {
+  if (!mediaFileId) throw new Error('No mediaFileId');
+
+  // Discover the parent record. A cold deep-link resolves the file once to learn it;
+  // Continue-Watching passes it as a hint and skips this round-trip.
+  let recordId = hints.recordId ?? null;
+  if (!recordId) {
+    const resolved = await resolveMediaBatch([mediaFileId], 'ONLINE');
+    const r = (resolved || []).find((x) => x.mediaFileId === mediaFileId) || (resolved || [])[0];
+    if (!r?.cdnUrl) throw new Error('No stream URL');
+    recordId = r.recordId ?? null;
+  }
+
+  // Record (TMDB seasons/title/overview) + its files (quality variants + episode list).
+  const [record, infoResp] = await Promise.all([
+    recordId ? fetchRecord(recordId).catch(() => null) : Promise.resolve(null),
+    recordId ? loadStreamFileInfoByRecordId(recordId).catch(() => null) : Promise.resolve(null),
+  ]);
+  const rawFiles  = infoResp?.data ?? [];
+  const converted = CommonServices.convertMediaInfoToCustomFormat(null, rawFiles);
+  const current   = converted.find((f) => f.mediaFileId === mediaFileId)
+    ?? { mediaFileId, id: mediaFileId };
+
+  const episodes = buildHybridEpisodes(converted, current, record?.tmdb?.seasons);
+  const isSeries = episodes.length > 0;
+
+  return resolveAndBuildMedia({
+    current,
+    variantFiles: variantFilesFor(converted, current, isSeries),
+    episodes,
+    record: record ?? { recordId },
+    title: hints.title || record?.tmdb?.title || record?.tmdb?.name || record?.name || current.general?.fileName || '',
+    fileId: mediaFileId,
+  });
 }

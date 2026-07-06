@@ -58,7 +58,7 @@ function useFileActions(file, allFiles, record) {
         title: record?.tmdb?.title || record?.tmdb?.name || record?.name || current.general?.fileName || '',
         fileId: current.id || current.mediaFileId,
       });
-      navigate(Constants.DB_PLAYER_ROUTE, { state: { media } });
+      navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
     } catch {
       enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
     } finally { setResolving(false); }

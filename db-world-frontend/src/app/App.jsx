@@ -195,7 +195,7 @@ const routeConfig = {
     { path: Constants.DB_MOVIE_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_SERIES_DETIALS_ROUTE, element: <LazyRecordDetailPage /> },
     { path: Constants.DB_DOWNLOAD_QUEUE_ROUTE, element: <LazyDownloadQueuePage /> },
-    { path: Constants.DB_PLAYER_ROUTE, element: <LazyHybridPlayerPage /> },
+    { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
