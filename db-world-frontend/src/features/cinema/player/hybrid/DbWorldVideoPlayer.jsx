@@ -251,6 +251,7 @@ export default function DbWorldVideoPlayer({
   const [curText, setCurText]     = useState(-1);
   const [curQualityId, setCurQualityId] = useState(fileId); // active quality, by mediaFileId (urls can collide)
   const [episodesOpen, setEpisodesOpen] = useState(false);
+  const [epPos, setEpPos] = useState(null);   // { left, width, bottom } — popover anchored above its button
   const [ended, setEnded]         = useState(false);
   const [countdown, setCountdown] = useState(null);    // seconds to next-episode autoplay
   const appliedRef = useRef(false);                    // preferred tracks applied for this load
@@ -291,6 +292,7 @@ export default function DbWorldVideoPlayer({
   const playFxTimer = useRef(null);
   const epHoverTimer = useRef(null);
   const epCloseTimer = useRef(null);
+  const epBtnRef = useRef(null);   // the active Episodes button, so the popover can anchor above it
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
@@ -584,14 +586,27 @@ export default function DbWorldVideoPlayer({
   }, [volume, setVol]);
 
   const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
-  const openEpisodes = () => { clearTimeout(epCloseTimer.current); setEpisodesOpen(true); showControls(); };
+  const openEpisodes = () => {
+    clearTimeout(epCloseTimer.current);
+    // Anchor the popover directly above the Episodes button (centered, clamped to the
+    // viewport); it opens upward, covering the progress bar/time only while it's open.
+    const el = epBtnRef.current;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const w = Math.min(Math.round(400 * uiScale), Math.round(window.innerWidth * 0.92));
+      const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
+      setEpPos({ left, width: w, bottom: Math.round(window.innerHeight - r.top + 8) });
+    }
+    setEpisodesOpen(true);
+    showControls();
+  };
   // Desktop hover menu: close the episode popover shortly after the pointer leaves BOTH
   // the button and the panel (the grace delay bridges the gap between them). On touch
   // there's no hover to leave, so it stays open until an outside tap / the ✕ / a pick.
   const scheduleEpisodesClose = () => {
     if (!hasHover) return;
     clearTimeout(epCloseTimer.current);
-    epCloseTimer.current = setTimeout(() => setEpisodesOpen(false), 600);
+    epCloseTimer.current = setTimeout(() => setEpisodesOpen(false), 1200);
   };
   const cancelEpisodesClose = () => clearTimeout(epCloseTimer.current);
   // Android PiP. Mark pending BEFORE the app backgrounds so the background-pause is skipped;
@@ -1140,7 +1155,7 @@ export default function DbWorldVideoPlayer({
                   <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles"
                     ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
                   {episodes.length > 1 && (
-                    <span style={{ display: 'inline-flex' }}
+                    <span ref={epBtnRef} style={{ display: 'inline-flex' }}
                       onMouseEnter={() => { cancelEpisodesClose(); clearTimeout(epHoverTimer.current); epHoverTimer.current = setTimeout(openEpisodes, 350); }}
                       onMouseLeave={() => { clearTimeout(epHoverTimer.current); scheduleEpisodesClose(); }}>
                       <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
@@ -1164,7 +1179,9 @@ export default function DbWorldVideoPlayer({
                 <CtrlBtn icon={<AudiotrackIcon />} label="Audio" labelLeft
                   ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
                 {episodes.length > 1 && (
-                  <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" labelLeft ariaLabel="Episode list" onClick={openEpisodes} />
+                  <span ref={epBtnRef} style={{ display: 'inline-flex' }}>
+                    <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" labelLeft ariaLabel="Episode list" onClick={openEpisodes} />
+                  </span>
                 )}
                 {nextEpisode && (
                   <CtrlBtn icon={<SkipNextIcon />} label="Next" labelLeft ariaLabel="Next episode" onClick={goNext} />
@@ -1225,8 +1242,11 @@ export default function DbWorldVideoPlayer({
               not a full-height drawer — Netflix-style. */}
           <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
             onMouseEnter={cancelEpisodesClose} onMouseLeave={scheduleEpisodesClose}
-            style={{ position: 'absolute', right: Math.round(16 * uiScale), bottom: Math.round(96 * uiScale),
-              width: Math.round(400 * uiScale), maxWidth: '92vw', maxHeight: '62vh',
+            style={{ position: 'absolute',
+              ...(epPos
+                ? { left: epPos.left, bottom: epPos.bottom, width: epPos.width }
+                : { right: Math.round(16 * uiScale), bottom: Math.round(96 * uiScale), width: Math.round(400 * uiScale) }),
+              maxWidth: '92vw', maxHeight: '62vh',
               overflowY: 'auto', padding: '12px 0', ...PANEL_LOOK }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `0 ${Math.round(18 * uiScale)}px 12px` }}>
               <span style={{ fontWeight: 700, fontSize: Math.round(17 * uiScale) }}>Episodes</span>
@@ -1574,7 +1594,7 @@ function NextEpisodeButton({ nextEpisode: ep, onClick }) {
       <CtrlBtn icon={<SkipNextIcon />} ariaLabel="Next episode" onClick={onClick} />
       {hover && ep && (
         <div style={{
-          position: 'absolute', bottom: `calc(100% + ${Math.round(56 * scale)}px)`, left: '50%',
+          position: 'absolute', bottom: `calc(100% + ${Math.round(8 * scale)}px)`, left: '50%',
           transform: `translateX(calc(-50% + ${shift}px))`, zIndex: 40,
           width: cardW, maxWidth: '80vw', overflow: 'hidden', pointerEvents: 'none',
           ...PANEL_LOOK,
