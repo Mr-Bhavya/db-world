@@ -1527,18 +1527,37 @@ function CtrlBtn({ icon, label, labelLeft, tip, onClick, active, ariaLabel, focu
 // touch users get the on-screen "Up next" card and the episode drawer instead.
 function NextEpisodeButton({ nextEpisode: ep, onClick }) {
   const [hover, setHover] = useState(false);
+  const [shift, setShift] = useState(0);   // px nudge to keep the centered card on-screen
   const scale = useContext(ScaleCtx);
+  const wrapRef = useRef(null);
+  const cardW = Math.min(Math.round(320 * scale),
+    typeof window !== 'undefined' ? Math.round(window.innerWidth * 0.8) : 320);
+  // Center the preview over the button, then nudge it back inside the viewport if it
+  // would overflow — the Next button sits near the right edge of the control bar, so a
+  // purely centered card would clip on the right.
+  const onEnter = () => {
+    setHover(true);
+    const el = wrapRef.current;
+    if (!el) { setShift(0); return; }
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const rightOver = (cx + cardW / 2) - (window.innerWidth - 8);
+    const leftOver = 8 - (cx - cardW / 2);
+    setShift(Math.round(rightOver > 0 ? -rightOver : (leftOver > 0 ? leftOver : 0)));
+  };
   return (
     <div
+      ref={wrapRef}
       style={{ position: 'relative', display: 'inline-flex' }}
-      onMouseEnter={() => setHover(true)}
+      onMouseEnter={onEnter}
       onMouseLeave={() => setHover(false)}
     >
       <CtrlBtn icon={<SkipNextIcon />} ariaLabel="Next episode" onClick={onClick} />
       {hover && ep && (
         <div style={{
-          position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
-          width: Math.round(320 * scale), maxWidth: '80vw', background: 'rgba(0,0,0,0.94)', borderRadius: 12,
+          position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%',
+          transform: `translateX(calc(-50% + ${shift}px))`, zIndex: 40,
+          width: cardW, maxWidth: '80vw', background: 'rgba(0,0,0,0.94)', borderRadius: 12,
           overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', pointerEvents: 'none',
           boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
         }}>
