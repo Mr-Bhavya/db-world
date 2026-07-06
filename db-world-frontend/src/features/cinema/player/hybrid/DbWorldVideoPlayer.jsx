@@ -22,13 +22,9 @@ import VolumeDownIcon    from '@mui/icons-material/VolumeDown';
 import VolumeOffIcon     from '@mui/icons-material/VolumeOff';
 import SettingsIcon      from '@mui/icons-material/Settings';
 import AudiotrackIcon    from '@mui/icons-material/Audiotrack';
-import HighQualityIcon   from '@mui/icons-material/HighQuality';
 import CheckIcon         from '@mui/icons-material/Check';
 import PlaylistPlayIcon  from '@mui/icons-material/PlaylistPlay';
 import SkipNextIcon      from '@mui/icons-material/SkipNext';
-import MemoryIcon        from '@mui/icons-material/Memory';
-import ArrowBackIcon     from '@mui/icons-material/ArrowBack';
-import ChevronRightIcon  from '@mui/icons-material/ChevronRight';
 import ErrorOutlineIcon  from '@mui/icons-material/ErrorOutline';
 import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
@@ -244,7 +240,9 @@ export default function DbWorldVideoPlayer({
   const [controls, setControls]   = useState(true);
   const [rateIdx, setRateIdx]     = useState(1);       // index into SPEEDS (1 → 1×)
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsView, setSettingsView] = useState('main'); // main | audio | subtitles | quality | speed | decoder
+  const [settingsPos, setSettingsPos] = useState(null);
+  const [audioSubsOpen, setAudioSubsOpen] = useState(false);
+  const [audioSubsPos, setAudioSubsPos] = useState(null);
   const [audioTracks, setAudioTracks]   = useState([]);
   const [textTracks, setTextTracks]     = useState([]);
   const [curAudio, setCurAudio]   = useState(-1);
@@ -296,6 +294,8 @@ export default function DbWorldVideoPlayer({
   const epCloseTimer = useRef(null);
   const epBtnRef = useRef(null);   // the active Episodes button, so the popover can anchor above it
   const speedBtnRef = useRef(null);   // the active Speed button, for the speed popover
+  const audioBtnRef = useRef(null);   // the active Audio & Subtitles button
+  const settingsBtnRef = useRef(null);   // the active Settings (gear) button
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
@@ -588,18 +588,34 @@ export default function DbWorldVideoPlayer({
     hudTimer.current = setTimeout(() => setVolFx(null), 700);
   }, [volume, setVol]);
 
-  const openSettings = (view) => { setSpeedOpen(false); setSettingsView(view); setSettingsOpen(true); showControls(); };
-  // Position a popover centered above `el`, clamped to the viewport. Shared by the
-  // episode list and the speed popover so both anchor to their button consistently.
+  // Anchor a popover above a control-row button (opens upward), clamped to the viewport.
   const anchorAbove = (el, desiredW) => {
     const r = el.getBoundingClientRect();
     const w = Math.min(Math.round(desiredW * uiScale), Math.round(window.innerWidth * 0.92));
     const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
     return { left, width: w, bottom: Math.round(window.innerHeight - r.top + 8) };
   };
+  // Same, but opens DOWNWARD when the button is in the top half (the top-right gear).
+  const anchorToButton = (el, desiredW) => {
+    const r = el.getBoundingClientRect();
+    if (r.top >= window.innerHeight / 2) return anchorAbove(el, desiredW);
+    const w = Math.min(Math.round(desiredW * uiScale), Math.round(window.innerWidth * 0.92));
+    const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
+    return { left, width: w, top: Math.round(r.bottom + 8) };
+  };
+  const openSettings = (btnRef) => {
+    setSpeedOpen(false); setEpisodesOpen(false); setAudioSubsOpen(false);
+    if (btnRef?.current) setSettingsPos(anchorToButton(btnRef.current, 340));
+    setSettingsOpen(true); showControls();
+  };
+  const openAudioSubs = (btnRef) => {
+    setSpeedOpen(false); setEpisodesOpen(false); setSettingsOpen(false);
+    if (btnRef?.current) setAudioSubsPos(anchorAbove(btnRef.current, 520));
+    setAudioSubsOpen(true); showControls();
+  };
   const openEpisodes = () => {
     clearTimeout(epCloseTimer.current);
-    setSpeedOpen(false);
+    setSpeedOpen(false); setAudioSubsOpen(false); setSettingsOpen(false);
     if (epBtnRef.current) setEpPos(anchorAbove(epBtnRef.current, 400));
     setEpisodesOpen(true);
     showControls();
@@ -607,7 +623,7 @@ export default function DbWorldVideoPlayer({
   // Speed: a compact horizontal chip popover above the Speed button (toggles).
   const openSpeed = () => {
     if (!speedOpen && speedBtnRef.current) setSpeedPos(anchorAbove(speedBtnRef.current, 360));
-    setEpisodesOpen(false); setSettingsOpen(false);
+    setEpisodesOpen(false); setSettingsOpen(false); setAudioSubsOpen(false);
     setSpeedOpen((v) => !v);
     showControls();
   };
@@ -766,7 +782,7 @@ export default function DbWorldVideoPlayer({
     const onKey = (e) => {
       // Arrow keys → volume (↑/↓) + seek (←/→) with just a HUD / ±10s ripple and NO control
       // bar — unless a panel is open, where arrows navigate it (focus) instead.
-      if (!settingsOpen && !episodesOpen) {
+      if (!settingsOpen && !episodesOpen && !speedOpen && !audioSubsOpen) {
         switch (e.key) {
           case 'ArrowUp':    e.preventDefault(); bumpVolume(0.05);  return;
           case 'ArrowDown':  e.preventDefault(); bumpVolume(-0.05); return;
@@ -1086,7 +1102,7 @@ export default function DbWorldVideoPlayer({
                 {isNative && <IconBtn onClick={rotate} ariaLabel="Rotate screen"><ScreenRotationIcon /></IconBtn>}
                 {/* On touch, Settings lives top-right — unless the bottom row is sparse,
                     then it drops into the row to keep it balanced (see settingsInRow). */}
-                {!hasHover && !settingsInRow && <IconBtn onClick={() => openSettings('main')} ariaLabel="Settings"><SettingsIcon /></IconBtn>}
+                {!hasHover && !settingsInRow && <span ref={settingsBtnRef} style={{ display: 'inline-flex' }}><IconBtn onClick={() => openSettings(settingsBtnRef)} ariaLabel="Settings"><SettingsIcon /></IconBtn></span>}
                 {isNative && <IconBtn onClick={toggleLock} ariaLabel={locked ? 'Unlock controls' : 'Lock controls'}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>}
               </div>
             )}
@@ -1165,8 +1181,10 @@ export default function DbWorldVideoPlayer({
                     <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} tip="Playback speed"
                       active={rateIdx !== 1} ariaLabel="Playback speed" onClick={openSpeed} />
                   </span>
-                  <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles"
-                    ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
+                  <span ref={audioBtnRef} style={{ display: 'inline-flex' }}>
+                    <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles"
+                      ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
+                  </span>
                   {episodes.length > 1 && (
                     <span ref={epBtnRef} style={{ display: 'inline-flex' }}
                       onMouseEnter={() => { cancelEpisodesClose(); clearTimeout(epHoverTimer.current); epHoverTimer.current = setTimeout(openEpisodes, 350); }}
@@ -1175,7 +1193,9 @@ export default function DbWorldVideoPlayer({
                     </span>
                   )}
                   {nextEpisode && <NextEpisodeButton nextEpisode={nextEpisode} onClick={goNext} />}
-                  <CtrlBtn icon={<SettingsIcon />} tip="Settings" ariaLabel="Settings" onClick={() => openSettings('main')} />
+                  <span ref={settingsBtnRef} style={{ display: 'inline-flex' }}>
+                    <CtrlBtn icon={<SettingsIcon />} tip="Settings" ariaLabel="Settings" onClick={() => openSettings(settingsBtnRef)} />
+                  </span>
                   <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
                     tip={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
                 </div>
@@ -1191,8 +1211,10 @@ export default function DbWorldVideoPlayer({
                   <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} labelLeft active={rateIdx !== 1}
                     ariaLabel="Playback speed" onClick={openSpeed} />
                 </span>
-                <CtrlBtn icon={<AudiotrackIcon />} label="Audio" labelLeft
-                  ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
+                <span ref={audioBtnRef} style={{ display: 'inline-flex' }}>
+                  <CtrlBtn icon={<AudiotrackIcon />} label="Audio" labelLeft
+                    ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
+                </span>
                 {episodes.length > 1 && (
                   <span ref={epBtnRef} style={{ display: 'inline-flex' }}>
                     <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" labelLeft ariaLabel="Episode list" onClick={openEpisodes} />
@@ -1202,7 +1224,9 @@ export default function DbWorldVideoPlayer({
                   <CtrlBtn icon={<SkipNextIcon />} label="Next" labelLeft ariaLabel="Next episode" onClick={goNext} />
                 )}
                 {settingsInRow && (
-                  <CtrlBtn icon={<SettingsIcon />} label="Settings" labelLeft ariaLabel="Settings" onClick={() => openSettings('main')} />
+                  <span ref={settingsBtnRef} style={{ display: 'inline-flex' }}>
+                    <CtrlBtn icon={<SettingsIcon />} label="Settings" labelLeft ariaLabel="Settings" onClick={() => openSettings(settingsBtnRef)} />
+                  </span>
                 )}
                 {!isNative && (
                   <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
@@ -1339,67 +1363,53 @@ export default function DbWorldVideoPlayer({
         </div>
       )}
 
-      {/* Settings: two-level (category list → options) so it fits any screen / font size */}
-      {settingsOpen && (() => {
-        const subLabel = curText < 0 ? 'Off' : `${textTracks.find(t => t.id === curText)?.language ?? 'On'}`;
-        const audioCur = audioTracks.find(a => a.id === curAudio);
-        const back = () => setSettingsView('main');
-        return (
-          <div onClick={() => setSettingsOpen(false)}
-            style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.35)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-            <div onClick={(e) => e.stopPropagation()}
-              style={{ width: settingsView === 'audiosubs' ? `min(${Math.round(560 * uiScale)}px, 96%)` : `min(${Math.round(420 * uiScale)}px, 94%)`,
-                maxHeight: '86%', display: 'flex', flexDirection: 'column',
-                overflow: 'hidden', ...PANEL_LOOK }}>
-              {settingsView === 'main' ? (
-                <>
-                  <SheetHeader title="Settings" />
-                  <div style={{ overflowY: 'auto' }}>
-                    <MasterRow icon={<AudiotrackIcon fontSize="small" />} label="Audio & Subtitles"
-                      value={`${audioCur ? audioLabel(audioCur) : 'Default'} · ${subLabel}`} onClick={() => setSettingsView('audiosubs')} />
-                    {variants.length > 1 && (
-                      <MasterRow icon={<HighQualityIcon fontSize="small" />} label="Quality" value={variants.find(v => v.mediaFileId === curQualityId)?.label ?? ''} onClick={() => setSettingsView('quality')} />
-                    )}
-                    <MasterRow icon={<SpeedIcon fontSize="small" />} label="Speed" value={`${SPEEDS[rateIdx]}×`} onClick={() => setSettingsView('speed')} />
-                    {isNative && (
-                      <MasterRow icon={<MemoryIcon fontSize="small" />} label="Decoder" value={DECODERS.find(d => d.id === decoder)?.label ?? 'Auto'} onClick={() => setSettingsView('decoder')} />
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <SheetHeader title={{ audiosubs: 'Audio & Subtitles', quality: 'Quality', speed: 'Speed', decoder: 'Decoder' }[settingsView]} onBack={back} />
-                  <div style={{ overflowY: 'auto' }}>
-                    {settingsView === 'audiosubs' && (
-                      <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                        {/* left: audio */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <SheetSection>Audio</SheetSection>
-                          {audioTracks.length
-                            ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => chooseAudio(t)} />)
-                            : <SheetEmpty>No alternate audio tracks</SheetEmpty>}
-                        </div>
-                        {/* divider */}
-                        <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
-                        {/* right: subtitles */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <SheetSection>Subtitles</SheetSection>
-                          <SheetRow selected={curText < 0} label="Off" onClick={() => chooseSub(null)} />
-                          {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={subtitleLabel(t)} onClick={() => chooseSub(t)} />)}
-                        </div>
-                      </div>
-                    )}
-                    {settingsView === 'quality' && variants.map(v => <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId} label={qualityLabel(v)} onClick={() => { chooseQuality(v); back(); }} />)}
-                    {settingsView === 'speed' && SPEEDS.map((s, i) => <SheetRow key={s} selected={i === rateIdx} label={`${s}×${s === 1 ? ' (Normal)' : ''}`} onClick={() => { chooseSpeed(i); back(); }} />)}
-                    {settingsView === 'decoder' && DECODERS.map(d => <SheetRow key={d.id} selected={d.id === decoder} label={d.label} onClick={() => { chooseDecoder(d.id); back(); }} />)}
-                  </div>
-                </>
-              )}
+      {/* Audio & Subtitles — two-column popover anchored above its button. */}
+      {audioSubsOpen && audioSubsPos && (
+        <div onClick={() => setAudioSubsOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 31 }}>
+          <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
+            style={{ position: 'absolute', left: audioSubsPos.left, bottom: audioSubsPos.bottom, width: audioSubsPos.width,
+              maxWidth: '92vw', maxHeight: '60vh', overflowY: 'auto', padding: '8px 0', ...PANEL_LOOK }}>
+            <div style={{ display: 'flex', alignItems: 'stretch' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SheetSection>Audio</SheetSection>
+                {audioTracks.length
+                  ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => chooseAudio(t)} />)
+                  : <SheetEmpty>No alternate audio</SheetEmpty>}
+              </div>
+              <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SheetSection>Subtitles</SheetSection>
+                <SheetRow selected={curText < 0} label="Off" onClick={() => chooseSub(null)} />
+                {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={subtitleLabel(t)} onClick={() => chooseSub(t)} />)}
+              </div>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
+
+      {/* Settings (gear) — Quality + Decoder, popover anchored to its button. */}
+      {settingsOpen && settingsPos && (
+        <div onClick={() => setSettingsOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 31 }}>
+          <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
+            style={{ position: 'absolute', left: settingsPos.left, width: settingsPos.width,
+              ...(settingsPos.top != null ? { top: settingsPos.top } : { bottom: settingsPos.bottom }),
+              maxWidth: '92vw', maxHeight: '60vh', overflowY: 'auto', padding: '8px 0', ...PANEL_LOOK }}>
+            {variants.length > 1 && (
+              <>
+                <SheetSection>Quality</SheetSection>
+                {variants.map(v => <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId} label={qualityLabel(v)} onClick={() => { chooseQuality(v); setSettingsOpen(false); }} />)}
+              </>
+            )}
+            {isNative && (
+              <>
+                <SheetSection>Decoder</SheetSection>
+                {DECODERS.map(d => <SheetRow key={d.id} selected={d.id === decoder} label={d.label} onClick={() => { chooseDecoder(d.id); setSettingsOpen(false); }} />)}
+              </>
+            )}
+            {variants.length <= 1 && !isNative && <SheetEmpty>No additional settings</SheetEmpty>}
+          </div>
+        </div>
+      )}
       </>)}
     </div>
     </ScaleCtx.Provider>
@@ -1407,33 +1417,6 @@ export default function DbWorldVideoPlayer({
 }
 
 // ── settings-sheet helpers ──────────────────────────────────────────────────
-function SheetHeader({ title, onBack }) {
-  const scale = useContext(ScaleCtx);
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `${Math.round(14 * scale)}px 16px`,
-      borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-      {onBack && (
-        <button onClick={onBack} aria-label="Back" style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex' }}>
-          <ArrowBackIcon sx={{ fontSize: Math.round(20 * scale) }} />
-        </button>
-      )}
-      <span style={{ fontWeight: 700, fontSize: Math.round(16 * scale) }}>{title}</span>
-    </div>
-  );
-}
-function MasterRow({ icon, label, value, onClick }) {
-  const scale = useContext(ScaleCtx);
-  return (
-    <button onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: `${Math.round(14 * scale)}px 16px`,
-        background: 'transparent', border: 'none', cursor: 'pointer', color: '#fff', fontSize: Math.round(15 * scale), textAlign: 'left' }}>
-      <span style={{ display: 'flex', color: '#bbb' }}>{icon}</span>
-      <span style={{ flex: 1, fontWeight: 600 }}>{label}</span>
-      <span style={{ color: '#9aa', fontSize: Math.round(13 * scale), maxWidth: Math.round(160 * scale), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
-      <ChevronRightIcon sx={{ fontSize: Math.round(18 * scale), color: '#888' }} />
-    </button>
-  );
-}
 function SheetRow({ label, selected, onClick }) {
   const scale = useContext(ScaleCtx);
   return (
