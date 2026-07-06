@@ -280,6 +280,7 @@ export default function DbWorldVideoPlayer({
   const seekFxTimer = useRef(null);
   const playFxTimer = useRef(null);
   const epHoverTimer = useRef(null);
+  const epCloseTimer = useRef(null);
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
@@ -573,7 +574,16 @@ export default function DbWorldVideoPlayer({
   }, [volume, setVol]);
 
   const openSettings = (view) => { setSettingsView(view); setSettingsOpen(true); showControls(); };
-  const openEpisodes = () => { setEpisodesOpen(true); showControls(); };
+  const openEpisodes = () => { clearTimeout(epCloseTimer.current); setEpisodesOpen(true); showControls(); };
+  // Desktop hover menu: close the episode popover shortly after the pointer leaves BOTH
+  // the button and the panel (the grace delay bridges the gap between them). On touch
+  // there's no hover to leave, so it stays open until an outside tap / the ✕ / a pick.
+  const scheduleEpisodesClose = () => {
+    if (!hasHover) return;
+    clearTimeout(epCloseTimer.current);
+    epCloseTimer.current = setTimeout(() => setEpisodesOpen(false), 600);
+  };
+  const cancelEpisodesClose = () => clearTimeout(epCloseTimer.current);
   // Android PiP. Mark pending BEFORE the app backgrounds so the background-pause is skipped;
   // pipActive is confirmed by the 'pip' event (or pending clears on failure/timeout).
   const enterPip = () => {
@@ -1121,8 +1131,8 @@ export default function DbWorldVideoPlayer({
                     ariaLabel="Audio and subtitles" onClick={() => openSettings('audiosubs')} />
                   {episodes.length > 1 && (
                     <span style={{ display: 'inline-flex' }}
-                      onMouseEnter={() => { clearTimeout(epHoverTimer.current); epHoverTimer.current = setTimeout(openEpisodes, 350); }}
-                      onMouseLeave={() => clearTimeout(epHoverTimer.current)}>
+                      onMouseEnter={() => { cancelEpisodesClose(); clearTimeout(epHoverTimer.current); epHoverTimer.current = setTimeout(openEpisodes, 350); }}
+                      onMouseLeave={() => { clearTimeout(epHoverTimer.current); scheduleEpisodesClose(); }}>
                       <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
                     </span>
                   )}
@@ -1204,6 +1214,7 @@ export default function DbWorldVideoPlayer({
           {/* Bounded popover anchored above the control bar (near the Episodes button),
               not a full-height drawer — Netflix-style. */}
           <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
+            onMouseEnter={cancelEpisodesClose} onMouseLeave={scheduleEpisodesClose}
             style={{ position: 'absolute', right: Math.round(16 * uiScale), bottom: Math.round(96 * uiScale),
               width: Math.round(400 * uiScale), maxWidth: '92vw', maxHeight: '62vh',
               background: 'rgba(14,14,14,0.98)', borderRadius: 12,
