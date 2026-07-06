@@ -169,15 +169,11 @@ const PLAYER_CSS = `
 @keyframes dbw-seekfx { 0% { opacity: 0; transform: scale(0.6); } 18% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }
 .dbw-range { -webkit-appearance: none; appearance: none; width: 100%; height: 5px; border-radius: 999px; outline: none; cursor: pointer; transition: height 0.15s ease; }
 .dbw-range:hover { height: 7px; }
-.dbw-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); transition: transform 0.15s ease, opacity 0.15s ease; }
-.dbw-range:hover::-webkit-slider-thumb, .dbw-range:active::-webkit-slider-thumb { transform: scale(1.3); }
-.dbw-range::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 8px rgba(20,184,166,0.75); }
-/* Seek bar only: hide the scrubber knob until hover/drag, so the played bar reads as a
-   clean line — the knob + glow otherwise looks like a height bump at the playhead. */
-.dbw-seek::-webkit-slider-thumb { opacity: 0; }
-.dbw-seek:hover::-webkit-slider-thumb, .dbw-seek:active::-webkit-slider-thumb { opacity: 1; }
-.dbw-seek::-moz-range-thumb { opacity: 0; }
-.dbw-seek:hover::-moz-range-thumb, .dbw-seek:active::-moz-range-thumb { opacity: 1; }
+/* Scrubber knob always visible; a soft dark shadow gives it definition without the big
+   teal glow that used to read as a height bump at the playhead. */
+.dbw-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%; background: #14b8a6; box-shadow: 0 1px 4px rgba(0,0,0,0.55); transition: transform 0.15s ease; }
+.dbw-range:hover::-webkit-slider-thumb, .dbw-range:active::-webkit-slider-thumb { transform: scale(1.25); }
+.dbw-range::-moz-range-thumb { width: 13px; height: 13px; border: none; border-radius: 50%; background: #14b8a6; box-shadow: 0 1px 4px rgba(0,0,0,0.55); }
 @media (prefers-reduced-motion: reduce) { .dbw-range, .dbw-range::-webkit-slider-thumb { transition: none; } }
 .dbw-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.28) transparent; }
 .dbw-scroll::-webkit-scrollbar { width: 8px; }
@@ -1204,11 +1200,15 @@ export default function DbWorldVideoPlayer({
           runtime + 2-line synopsis, current episode highlighted, smooth styled scroll. */}
       {episodesOpen && (
         <div onClick={() => setEpisodesOpen(false)}
-          style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'flex-end' }}>
+          style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
+          {/* Bounded popover anchored above the control bar (near the Episodes button),
+              not a full-height drawer — Netflix-style. */}
           <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
-            style={{ width: Math.round(420 * uiScale), maxWidth: '92%', height: '100%', background: 'rgba(14,14,14,0.96)',
-              backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', overflowY: 'auto', padding: '14px 0',
-              borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+            style={{ position: 'absolute', right: Math.round(16 * uiScale), bottom: Math.round(96 * uiScale),
+              width: Math.round(400 * uiScale), maxWidth: '92vw', maxHeight: '62vh',
+              background: 'rgba(14,14,14,0.98)', borderRadius: 12,
+              backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', overflowY: 'auto', padding: '12px 0',
+              border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `0 ${Math.round(18 * uiScale)}px 12px` }}>
               <span style={{ fontWeight: 700, fontSize: Math.round(17 * uiScale) }}>Episodes</span>
               <IconBtn onClick={() => setEpisodesOpen(false)} ariaLabel="Close episodes"><CloseIcon /></IconBtn>
@@ -1537,7 +1537,7 @@ function NextEpisodeButton({ nextEpisode: ep, onClick }) {
       <CtrlBtn icon={<SkipNextIcon />} ariaLabel="Next episode" onClick={onClick} />
       {hover && ep && (
         <div style={{
-          position: 'absolute', bottom: 'calc(100% + 10px)', right: 0, zIndex: 40,
+          position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
           width: Math.round(320 * scale), maxWidth: '80vw', background: 'rgba(0,0,0,0.94)', borderRadius: 12,
           overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', pointerEvents: 'none',
           boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
