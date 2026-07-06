@@ -253,13 +253,6 @@ export default function DbWorldVideoPlayer({
   const curEp = curIdx >= 0 ? episodes[curIdx] : null;
   const nextEpisode = curIdx >= 0 && curIdx < episodes.length - 1 ? episodes[curIdx + 1] : null;
   const seasonsMap = episodes.reduce((m, ep) => { (m[ep.season] ||= []).push(ep); return m; }, {});
-  // Touch bottom-row button count (excluding Settings). When the row would be sparse we
-  // pull Settings down into it to keep a balanced set; otherwise it lives top-right.
-  const touchRowButtons = (isNative ? 0 : 2)          // volume + fullscreen (web only)
-    + 2                                               // speed, audio
-    + (episodes.length > 1 ? 1 : 0)                   // episodes
-    + (nextEpisode ? 1 : 0);                          // next
-  const settingsInRow = !hasHover && touchRowButtons < 4;
   const [locked, setLocked]       = useState(false);
   const [landscape, setLandscape] = useState(isNative); // default landscape on the app
   const [volume, setVolume]       = useState(1);
@@ -280,6 +273,14 @@ export default function DbWorldVideoPlayer({
   // Mouse/desktop vs touch (mobile/tablet/native) — drives the control-bar layout.
   const [hasHover, setHasHover] = useState(() =>
     typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches);
+  // Touch bottom-row button count (excluding Settings). When the row would be sparse we
+  // pull Settings down into it to keep a balanced set; otherwise it lives top-right.
+  // Declared here — AFTER hasHover — so it isn't read before initialization.
+  const touchRowButtons = (isNative ? 0 : 2)          // volume + fullscreen (web only)
+    + 2                                               // speed, audio
+    + (episodes.length > 1 ? 1 : 0)                   // episodes
+    + (nextEpisode ? 1 : 0);                          // next
+  const settingsInRow = !hasHover && touchRowButtons < 4;
   const seekFxTimer = useRef(null);
   const playFxTimer = useRef(null);
   const epHoverTimer = useRef(null);
