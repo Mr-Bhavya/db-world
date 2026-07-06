@@ -37,6 +37,7 @@ import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
+import androidx.media3.common.text.CueGroup;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -46,6 +47,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.upstream.DefaultAllocator;
+import androidx.media3.ui.SubtitleView;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -77,6 +79,7 @@ public class HybridPlayerPlugin extends Plugin {
 
     private ExoPlayer   player;
     private TextureView videoView;
+    private SubtitleView subtitleView;   // renders the selected text track's cues over the video
     private String  currentUrl;       // for decoder-mode recreate
     private int     decoderMode = 0;  // 0 auto · 1 hardware · 2 software
     // Aspect-fit transform state — without this a raw TextureView stretches the video.
@@ -415,6 +418,18 @@ public class HybridPlayerPlugin extends Plugin {
             parent.addView(videoView, 0, new ViewGroup.LayoutParams(   // index 0 = behind WebView
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
+        // Subtitle layer: sits directly ABOVE the video TextureView but still BEHIND the
+        // transparent WebView, so cues composite over the video and show through the React
+        // overlay. setUserDefault* honours the device's system caption style/size.
+        if (subtitleView == null) {
+            subtitleView = new SubtitleView(getContext());
+            subtitleView.setUserDefaultStyle();
+            subtitleView.setUserDefaultTextSize();
+        }
+        if (subtitleView.getParent() == null) {
+            parent.addView(subtitleView, 1, new ViewGroup.LayoutParams(   // index 1 = above video, below WebView
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         player.setVideoTextureView(videoView);
         // Make the WebView (and its page) see-through so the video shows behind the overlay,
         // and paint the area behind the video black so letterbox/pillarbox bars are black
@@ -431,6 +446,9 @@ public class HybridPlayerPlugin extends Plugin {
         if (player != null) player.clearVideoTextureView(videoView);
         if (videoView != null && videoView.getParent() != null) {
             ((ViewGroup) videoView.getParent()).removeView(videoView);
+        }
+        if (subtitleView != null && subtitleView.getParent() != null) {
+            ((ViewGroup) subtitleView.getParent()).removeView(subtitleView);
         }
     }
 
@@ -639,7 +657,8 @@ public class HybridPlayerPlugin extends Plugin {
                 if (f.label != null) o.put("title", f.label);
                 o.put("codec", codecName(f.sampleMimeType));
                 o.put("channels", f.channelCount > 0 ? f.channelCount : 0);
-                if (f.bitrate > 0) o.put("bitRate", f.bitrate);   // bps → JS shows kbps
+                if (f.bitrate > 0) o.put("bitRate", f.bitrate);        // bps → JS shows kbps
+                if (f.sampleRate > 0) o.put("sampleRate", f.sampleRate); // Hz → JS shows kHz
                 audio.put(o);
                 if (g.isSelected()) selAudio = id;
                 audioGroups.add(tg);
@@ -678,6 +697,11 @@ public class HybridPlayerPlugin extends Plugin {
         }
         @Override public void onTracksChanged(@NonNull Tracks tracks) {
             emitTracks(tracks);
+        }
+        // Draw the decoded subtitle cues (empty list when subtitles are off / none selected).
+        // Without this sink the selected text track is decoded but never rendered anywhere.
+        @Override public void onCues(@NonNull CueGroup cueGroup) {
+            if (subtitleView != null) subtitleView.setCues(cueGroup.cues);
         }
         @Override public void onVideoSizeChanged(@NonNull VideoSize vs) {
             videoW = vs.width; videoH = vs.height;

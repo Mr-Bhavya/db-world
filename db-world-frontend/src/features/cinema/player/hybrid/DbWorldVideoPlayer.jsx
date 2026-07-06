@@ -20,7 +20,7 @@ import BrightnessHighIcon from '@mui/icons-material/BrightnessHigh';
 import VolumeUpIcon      from '@mui/icons-material/VolumeUp';
 import VolumeDownIcon    from '@mui/icons-material/VolumeDown';
 import VolumeOffIcon     from '@mui/icons-material/VolumeOff';
-import SettingsIcon      from '@mui/icons-material/Settings';
+import HighQualityIcon   from '@mui/icons-material/HighQuality';
 import AudiotrackIcon    from '@mui/icons-material/Audiotrack';
 import CheckIcon         from '@mui/icons-material/Check';
 import PlaylistPlayIcon  from '@mui/icons-material/PlaylistPlay';
@@ -29,12 +29,14 @@ import ErrorOutlineIcon  from '@mui/icons-material/ErrorOutline';
 import FullscreenIcon     from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
+import InfoOutlinedIcon  from '@mui/icons-material/InfoOutlined';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createPlayerAdapter } from './playerAdapter';
 import { usePlayerReporting } from './usePlayerReporting';
 import { tmdbImg } from '../../api/cinemaApi';
 
-const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];   // Netflix-style set
+const SPEED_NORMAL_IDX = SPEEDS.indexOf(1);
 const HIDE_MS = 3500;
 const TEAL = '#0d9488';   // app theme accent
 // Shared popover look — the episode list and the Next-episode preview use the same panel
@@ -57,10 +59,8 @@ const scaleFor = (w) => (w >= 3000 ? 1.9 : w >= 2200 ? 1.55 : w >= 1600 ? 1.28 :
 // Remembered selections (global, per device).
 const PREF_AUDIO = 'dbworld:player:audioLang';
 const PREF_SUB   = 'dbworld:player:subLang';
-const PREF_DECODER = 'dbworld:player:decoder';
 const DEFAULT_AUDIO = 'Hindi';
 const DEFAULT_SUB   = 'off';
-const DECODERS = [{ id: 'auto', label: 'Auto' }, { id: 'hw', label: 'Hardware' }, { id: 'sw', label: 'Software' }];
 const lsGet = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } };
 // ── Track-label helpers ──────────────────────────────────────────────────────
@@ -100,6 +100,14 @@ const audioCodec = (t) => {
   return t.format || t.formatCommercial || '';
 };
 const kbps = (bps) => bps > 0 ? `${Math.round(bps / 1000)} kbps` : '';
+// Bitrate can arrive as a NUMBER (native ExoPlayer, bps) or a pre-formatted STRING from the
+// backend MediaInfo (e.g. "625 kb/s"). Render either; empty when truly absent.
+const bitrateText = (t) => {
+  const n = Number(t.bitRate);
+  if (Number.isFinite(n) && n > 0) return kbps(n);
+  if (typeof t.bitRate === 'string' && t.bitRate.trim()) return t.bitRate.trim();
+  return '';
+};
 const audioLabel = (t) => {
   const codec = audioCodec(t);
   // "DDP Atmos" / "TrueHD Atmos" / "Atmos", else "DDP 5.1" / "AAC Stereo".
@@ -107,7 +115,7 @@ const audioLabel = (t) => {
     ? [codec, 'Atmos', chLayout(t)].filter(Boolean).join(' ')   // "DDP Atmos 5.1"
     : [codec, chLayout(t)].filter(Boolean).join(' ');           // "DDP 5.1"
   const name = t.language || t.title || codec || `Audio ${(Number(t.id) || 0) + 1}`;
-  return [name, name === codecCh ? '' : codecCh, kbps(t.bitRate)].filter(Boolean).join(' · ');
+  return [name, name === codecCh ? '' : codecCh, bitrateText(t)].filter(Boolean).join(' · ');
 };
 // Native ExoPlayer often labels a track with a raw channel-position dump
 // ("Hindi DDP L R C LFE Ls Rs") and omits structured fields. When the file's MediaInfo
@@ -137,6 +145,8 @@ function enrichAudioTracks(nativeTracks, meta) {
       formatCommercial: t.formatCommercial || m.formatCommercial,
       codecId:          t.codecId || m.codecId,
       bitRate:          t.bitRate ?? m.bitRate,
+      sampleRate:       t.sampleRate ?? m.sampleRate,
+      samplingRate:     t.samplingRate ?? m.samplingRate,
     };
   });
 }
@@ -159,6 +169,30 @@ const subtitleLabel = (t) => {
   return [name, subFormat(t), isForced(t) ? 'Forced' : ''].filter(Boolean).join(' · ');
 };
 const qualityLabel = (v) => [v.label, v.codec, ...(v.hdr || [])].filter(Boolean).join(' · ');
+
+// ── media-info helpers (the read-only Info panel) ────────────────────────────
+// Fuller, human codec name (the compact track menu uses the short audioCodec()).
+const AUDIO_CODEC_FULL = {
+  DDP: 'Dolby Digital Plus', DD: 'Dolby Digital', TrueHD: 'Dolby TrueHD',
+  'DTS-HD': 'DTS-HD', DTS: 'DTS', AAC: 'AAC', Opus: 'Opus', FLAC: 'FLAC',
+  MP3: 'MP3', Vorbis: 'Vorbis', PCM: 'PCM (Linear)',
+};
+const audioCodecFull = (t) => {
+  const short = audioCodec(t);
+  const base = AUDIO_CODEC_FULL[short] || t.formatCommercial || t.format || short || 'Audio';
+  return isAtmos(t) ? `${base} with Dolby Atmos` : base;
+};
+const chLayoutFull = (t) => {
+  const l = chLayout(t);   // "5.1" | "7.1" | "Stereo" | "Mono" | ""
+  if (l === '5.1') return '5.1 Surround';
+  if (l === '7.1') return '7.1 Surround';
+  return l;
+};
+const sampleRateLabel = (t) => {
+  const hz = Number(t.sampleRate ?? t.samplingRate);   // native emits sampleRate; backend uses samplingRate
+  if (!(hz > 0)) return '';
+  return `${(hz / 1000).toFixed(hz % 1000 === 0 ? 0 : 1)} kHz`;
+};
 
 // "S1:E2 · Episode Name" (drops the name when TMDB has none, drops the whole
 // thing for movies). withName=false → just "S1:E2".
@@ -190,6 +224,20 @@ const PLAYER_CSS = `
 .dbw-ep { background: transparent; transition: background 0.12s ease; }
 .dbw-ep:hover { background: rgba(255,255,255,0.08); }
 .dbw-ep.cur { background: rgba(13,148,136,0.14); }
+/* Menu rows (audio / subtitles / quality / decoder) — pointer hover highlight + press feedback.
+   Background lives here (NOT inline) so the :hover rule isn't overridden by an inline style. */
+.dbw-row { background: transparent; transition: background 0.12s ease; }
+@media (hover: hover) and (pointer: fine) { .dbw-row:hover { background: rgba(255,255,255,0.09); } }
+.dbw-row:active { background: rgba(255,255,255,0.14); }
+/* Speed slider ticks — brighten the label on hover (the knob itself scales inline). */
+@media (hover: hover) and (pointer: fine) { .dbw-speedtick:hover span:last-child { color: #fff; } }
+/* Netflix-style: still scrolls, but no visible scrollbar (used on the mobile bottom sheets). */
+.dbw-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+.dbw-noscroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+/* Mobile bottom-sheet entrance. */
+@keyframes dbw-sheet-up { from { transform: translateY(14%); opacity: 0.3; } to { transform: translateY(0); opacity: 1; } }
+@keyframes dbw-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dbw-sheet, .dbw-sheet-bg { animation: none !important; } }
 /* TV / keyboard focus ring on every player control (D-pad + Tab friendly). */
 .dbw-player :focus-visible { outline: 3px solid #14b8a6; outline-offset: 2px; border-radius: 8px; }
 .dbw-tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.92); color: #fff; font-size: 12px; white-space: nowrap; padding: 4px 8px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 0.12s ease; z-index: 50; }
@@ -238,9 +286,11 @@ export default function DbWorldVideoPlayer({
   const [playing, setPlaying]     = useState(true);
   const [buffering, setBuffering] = useState(true);
   const [controls, setControls]   = useState(true);
-  const [rateIdx, setRateIdx]     = useState(1);       // index into SPEEDS (1 → 1×)
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsPos, setSettingsPos] = useState(null);
+  const [rateIdx, setRateIdx]     = useState(SPEED_NORMAL_IDX);   // index into SPEEDS (→ 1× default)
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [qualityPos, setQualityPos] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoPos, setInfoPos] = useState(null);
   const [audioSubsOpen, setAudioSubsOpen] = useState(false);
   const [audioSubsPos, setAudioSubsPos] = useState(null);
   const [audioTracks, setAudioTracks]   = useState([]);
@@ -252,6 +302,8 @@ export default function DbWorldVideoPlayer({
   const [epPos, setEpPos] = useState(null);   // { left, width, bottom } — popover anchored above its button
   const [speedOpen, setSpeedOpen] = useState(false);
   const [speedPos, setSpeedPos] = useState(null);
+  const [nextOpen, setNextOpen] = useState(false);   // desktop "Up next" hover preview — a menu in the switch system
+  const [nextShift, setNextShift] = useState(0);     // px nudge to keep the centered preview on-screen
   const [ended, setEnded]         = useState(false);
   const [countdown, setCountdown] = useState(null);    // seconds to next-episode autoplay
   const appliedRef = useRef(false);                    // preferred tracks applied for this load
@@ -260,12 +312,15 @@ export default function DbWorldVideoPlayer({
   const curEp = curIdx >= 0 ? episodes[curIdx] : null;
   const nextEpisode = curIdx >= 0 && curIdx < episodes.length - 1 ? episodes[curIdx + 1] : null;
   const seasonsMap = episodes.reduce((m, ep) => { (m[ep.season] ||= []).push(ep); return m; }, {});
+  // Quality picker only makes sense when there's more than one variant; the button shows
+  // the active resolution (e.g. "1080p") as its label — like the speed button shows "1×".
+  const hasQuality = variants.length > 1;
+  const curQualityLabel = variants.find(v => v.mediaFileId === curQualityId)?.label || '';
   const [locked, setLocked]       = useState(false);
   const [landscape, setLandscape] = useState(isNative); // default landscape on the app
   const [volume, setVolume]       = useState(1);
   const [brightness, setBrightness] = useState(0.5);
   const [zoom, setZoom]           = useState(1);
-  const [decoder, setDecoder]     = useState(() => lsGet(PREF_DECODER, 'auto'));
   const [errorMsg, setErrorMsg]   = useState(null);
   const [infoMsg, setInfoMsg]     = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -280,22 +335,17 @@ export default function DbWorldVideoPlayer({
   // Mouse/desktop vs touch (mobile/tablet/native) — drives the control-bar layout.
   const [hasHover, setHasHover] = useState(() =>
     typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches);
-  // Touch bottom-row button count (excluding Settings). When the row would be sparse we
-  // pull Settings down into it to keep a balanced set; otherwise it lives top-right.
-  // Declared here — AFTER hasHover — so it isn't read before initialization.
-  const touchRowButtons = (isNative ? 0 : 2)          // volume + fullscreen (web only)
-    + 2                                               // speed, audio
-    + (episodes.length > 1 ? 1 : 0)                   // episodes
-    + (nextEpisode ? 1 : 0);                          // next
-  const settingsInRow = !hasHover && touchRowButtons < 4;
   const seekFxTimer = useRef(null);
   const playFxTimer = useRef(null);
-  const epHoverTimer = useRef(null);
-  const epCloseTimer = useRef(null);
+  const menuHoverTimer = useRef(null);   // desktop: delay before a hovered menu opens
+  const menuCloseTimer = useRef(null);   // desktop: grace delay before an open menu closes
+  const switchTimer = useRef(null);      // stagger: close the OLD menu a beat after the new one opens
   const epBtnRef = useRef(null);   // the active Episodes button, so the popover can anchor above it
   const speedBtnRef = useRef(null);   // the active Speed button, for the speed popover
   const audioBtnRef = useRef(null);   // the active Audio & Subtitles button
-  const settingsBtnRef = useRef(null);   // the active Settings (gear) button
+  const qualityBtnRef = useRef(null);   // the active Quality button
+  const infoBtnRef = useRef(null);   // the active Media-info button
+  const nextBtnRef = useRef(null);   // the Next-episode button, for the "Up next" preview anchor
   const muteRef     = useRef(1);                       // remembers pre-mute volume
   const touchedRef  = useRef(0);                       // ts of last touch — suppresses the trailing click
   const pipActiveRef  = useRef(false);                 // in PiP → don't background-pause
@@ -424,7 +474,7 @@ export default function DbWorldVideoPlayer({
     adapter.getVolume?.().then((r) => {
       if (typeof r?.value === 'number') setVolume(r.value);
     }).catch(() => {});
-    adapter.setDecoderMode?.(lsGet(PREF_DECODER, 'auto')); // set before load so the player builds with it
+    adapter.setDecoderMode?.('auto'); // always auto — the player already falls back HW→SW on a decode error
 
     // Web: the adapter never emits a 'tracks' event, so seed the audio menu from
     // the file metadata and reflect which track is active up front (preferred
@@ -435,7 +485,7 @@ export default function DbWorldVideoPlayer({
         id: i, language: a.language, title: a.title,
         channels: a.channels, channelLayout: a.channelLayout,
         format: a.format, formatCommercial: a.formatCommercial, codecId: a.codecId,
-        bitRate: a.bitRate,
+        bitRate: a.bitRate, sampleRate: a.sampleRate, samplingRate: a.samplingRate,
       }));
       setAudioTracks(webTracks);
       let idx = audio.findIndex(a => a.language === lsGet(PREF_AUDIO, DEFAULT_AUDIO));
@@ -573,10 +623,10 @@ export default function DbWorldVideoPlayer({
     if (v > 0) muteRef.current = v;
   }, []);
   const onWheelVolume = useCallback((e) => {
-    if (settingsOpen || episodesOpen) return;   // let an open panel scroll instead
+    if (qualityOpen || episodesOpen || infoOpen) return;   // let an open panel scroll instead
     setVol(volume + (e.deltaY < 0 ? 0.05 : -0.05));
     showControls();
-  }, [volume, settingsOpen, episodesOpen, setVol, showControls]);
+  }, [volume, qualityOpen, episodesOpen, infoOpen, setVol, showControls]);
   // Arrow-key volume (desktop/TV): adjust + flash a brief volume HUD, without revealing the
   // control bar (mirrors the ±10s ripple on left/right seek).
   const bumpVolume = useCallback((delta) => {
@@ -595,47 +645,63 @@ export default function DbWorldVideoPlayer({
     const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
     return { left, width: w, bottom: Math.round(window.innerHeight - r.top + 8) };
   };
-  // Same, but opens DOWNWARD when the button is in the top half (the top-right gear).
-  const anchorToButton = (el, desiredW) => {
+  const setMenuOpen = { speed: setSpeedOpen, audioSubs: setAudioSubsOpen, quality: setQualityOpen, info: setInfoOpen, episodes: setEpisodesOpen, next: setNextOpen };
+  const closeMenus = () => { clearTimeout(switchTimer.current); setSpeedOpen(false); setEpisodesOpen(false); setAudioSubsOpen(false); setQualityOpen(false); setInfoOpen(false); setNextOpen(false); };
+  // Switch by CLOSING the current menu first, then opening the new one a beat later — so
+  // only one panel is ever on screen (the old leaves, then the new arrives): a clean,
+  // one-at-a-time handoff. `setPos` anchors the incoming panel up front. The Next-episode
+  // hover preview participates too, so moving to/from it behaves like every other menu.
+  const openMenu = (which, setPos) => {
+    clearTimeout(menuCloseTimer.current);
+    setPos?.();
+    const isOpen = { speed: speedOpen, audioSubs: audioSubsOpen, quality: qualityOpen, info: infoOpen, episodes: episodesOpen, next: nextOpen };
+    if (isOpen[which]) { showControls(); return; }        // already open → nothing to switch
+    const elseOpen = Object.keys(isOpen).some(k => k !== which && isOpen[k]);
+    closeMenus();                                          // current menu animates out
+    clearTimeout(switchTimer.current);
+    if (elseOpen) switchTimer.current = setTimeout(() => setMenuOpen[which](true), 130);  // then the new one in
+    else setMenuOpen[which](true);                         // nothing was open → open immediately
+    showControls();
+  };
+  const openQuality   = (btnRef) => openMenu('quality',   () => { if (btnRef?.current) setQualityPos(anchorAbove(btnRef.current, 340)); });
+  const openAudioSubs = (btnRef) => openMenu('audioSubs', () => { if (btnRef?.current) setAudioSubsPos(anchorAbove(btnRef.current, 520)); });
+  const openInfo      = (btnRef) => openMenu('info',      () => { if (btnRef?.current) setInfoPos(anchorAbove(btnRef.current, 440)); });
+  const openEpisodes  = ()       => openMenu('episodes',  () => { if (epBtnRef.current) setEpPos(anchorAbove(epBtnRef.current, 400)); });
+  // Speed: a horizontal slider popover above the Speed button.
+  const openSpeed     = ()       => openMenu('speed',     () => { if (speedBtnRef.current) setSpeedPos(anchorAbove(speedBtnRef.current, 460)); });
+  // Next-episode "Up next" preview — computes the on-screen nudge for its centered card.
+  const openNext      = ()       => openMenu('next',      () => {
+    const el = nextBtnRef.current; if (!el) { setNextShift(0); return; }
     const r = el.getBoundingClientRect();
-    if (r.top >= window.innerHeight / 2) return anchorAbove(el, desiredW);
-    const w = Math.min(Math.round(desiredW * uiScale), Math.round(window.innerWidth * 0.92));
-    const left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)));
-    return { left, width: w, top: Math.round(r.bottom + 8) };
-  };
-  const openSettings = (btnRef) => {
-    setSpeedOpen(false); setEpisodesOpen(false); setAudioSubsOpen(false);
-    if (btnRef?.current) setSettingsPos(anchorToButton(btnRef.current, 340));
-    setSettingsOpen(true); showControls();
-  };
-  const openAudioSubs = (btnRef) => {
-    setSpeedOpen(false); setEpisodesOpen(false); setSettingsOpen(false);
-    if (btnRef?.current) setAudioSubsPos(anchorAbove(btnRef.current, 520));
-    setAudioSubsOpen(true); showControls();
-  };
-  const openEpisodes = () => {
-    clearTimeout(epCloseTimer.current);
-    setSpeedOpen(false); setAudioSubsOpen(false); setSettingsOpen(false);
-    if (epBtnRef.current) setEpPos(anchorAbove(epBtnRef.current, 400));
-    setEpisodesOpen(true);
-    showControls();
-  };
-  // Speed: a compact horizontal chip popover above the Speed button (toggles).
-  const openSpeed = () => {
-    if (!speedOpen && speedBtnRef.current) setSpeedPos(anchorAbove(speedBtnRef.current, 360));
-    setEpisodesOpen(false); setSettingsOpen(false); setAudioSubsOpen(false);
-    setSpeedOpen((v) => !v);
-    showControls();
-  };
-  // Desktop hover menu: close the episode popover shortly after the pointer leaves BOTH
-  // the button and the panel (the grace delay bridges the gap between them). On touch
-  // there's no hover to leave, so it stays open until an outside tap / the ✕ / a pick.
-  const scheduleEpisodesClose = () => {
+    const cardW = Math.min(Math.round(320 * uiScale), Math.round(window.innerWidth * 0.8));
+    const cx = r.left + r.width / 2;
+    const rightOver = (cx + cardW / 2) - (window.innerWidth - 8);
+    const leftOver = 8 - (cx - cardW / 2);
+    setNextShift(Math.round(rightOver > 0 ? -rightOver : (leftOver > 0 ? leftOver : 0)));
+  });
+  // Desktop hover-to-open for EVERY control-bar menu (mirrors the episodes behaviour):
+  // hovering a button opens its menu after a short delay; leaving both the button and the
+  // panel closes it after a grace period (which bridges the gap between them). On touch
+  // there's no hover, so menus open on tap and stay until an outside tap / the ✕ / a pick.
+  const cancelMenuClose = () => clearTimeout(menuCloseTimer.current);
+  const scheduleMenuClose = () => {
     if (!hasHover) return;
-    clearTimeout(epCloseTimer.current);
-    epCloseTimer.current = setTimeout(() => setEpisodesOpen(false), 1200);
+    // Short grace — just enough to bridge the small gap between a button and its panel;
+    // feels like an instant close when the pointer leaves the hover area.
+    clearTimeout(menuCloseTimer.current);
+    menuCloseTimer.current = setTimeout(closeMenus, 180);
   };
-  const cancelEpisodesClose = () => clearTimeout(epCloseTimer.current);
+  const hoverOpen = (openFn) => {
+    if (!hasHover) return;
+    cancelMenuClose();
+    clearTimeout(menuHoverTimer.current);
+    menuHoverTimer.current = setTimeout(openFn, 300);
+  };
+  const hoverLeaveBtn = () => {
+    if (!hasHover) return;
+    clearTimeout(menuHoverTimer.current);
+    scheduleMenuClose();
+  };
   // Android PiP. Mark pending BEFORE the app backgrounds so the background-pause is skipped;
   // pipActive is confirmed by the 'pip' event (or pending clears on failure/timeout).
   const enterPip = () => {
@@ -680,7 +746,7 @@ export default function DbWorldVideoPlayer({
     };
   }, [isNative, hasHover, lockLandscape]);
 
-  // ── settings (audio / subtitle / quality / speed) ───────────────────────────
+  // ── track / speed / quality selection ───────────────────────────────────────
   const chooseAudio = (t) => { adapterRef.current?.selectAudioTrack(t.id); setCurAudio(t.id); lsSet(PREF_AUDIO, t.language); };
   const chooseSub   = (t) => {
     if (!t) { adapterRef.current?.selectTextTrack(-1); setCurText(-1); lsSet(PREF_SUB, DEFAULT_SUB); }
@@ -691,11 +757,6 @@ export default function DbWorldVideoPlayer({
     appliedRef.current = false;                 // re-apply track prefs after the reload
     adapterRef.current?.load(v.url, progressRef.current.positionMs);
     setCurQualityId(v.mediaFileId);
-  };
-  const chooseDecoder = (mode) => {
-    appliedRef.current = false;                 // player is recreated → re-apply track prefs
-    adapterRef.current?.setDecoderMode(mode);
-    setDecoder(mode); lsSet(PREF_DECODER, mode);
   };
 
   // ── next-episode autoplay (default ON, 10s) ─────────────────────────────────
@@ -745,18 +806,19 @@ export default function DbWorldVideoPlayer({
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
-  // Pause info card (Netflix-style): a short idle after pausing reveals show/episode info
-  // (and hides the controls for a clean screen); any interaction — which routes through
-  // showControls — dismisses it. Never shown while buffering / ended / errored / in PiP.
+  // Pause info card (Netflix-style): once the controls idle-hide while the video is paused,
+  // reveal show/episode info for a clean screen. Keyed off `controls` going false (the idle
+  // signal, reset on every interaction via scheduleHide) so the card RE-ARMS after any
+  // interaction that leaves the video paused — previously it fired once and never returned —
+  // and never pops mid-interaction. Never shown while playing / buffering / ended / errored / PiP.
   useEffect(() => {
     clearTimeout(pauseTimer.current);
-    if (!playing && !buffering && !ended && !errorMsg && !pipActive) {
-      pauseTimer.current = setTimeout(() => { setPauseInfo(true); setControls(false); }, 1500);
-    } else {
-      setPauseInfo(false);
-    }
+    const menuOpen = speedOpen || audioSubsOpen || qualityOpen || infoOpen || episodesOpen || nextOpen;
+    const idlePaused = !controls && !menuOpen && !playing && !buffering && !ended && !errorMsg && !pipActive;
+    if (idlePaused) pauseTimer.current = setTimeout(() => setPauseInfo(true), 250);
+    else setPauseInfo(false);
     return () => clearTimeout(pauseTimer.current);
-  }, [playing, buffering, ended, errorMsg, pipActive]);
+  }, [controls, speedOpen, audioSubsOpen, qualityOpen, infoOpen, episodesOpen, nextOpen, playing, buffering, ended, errorMsg, pipActive]);
 
   // ── auto-downgrade quality on a fatal decode error ──────────────────────────
   // Fires after native HW→SW fallback also failed. Picks the next lower variant.
@@ -782,7 +844,7 @@ export default function DbWorldVideoPlayer({
     const onKey = (e) => {
       // Arrow keys → volume (↑/↓) + seek (←/→) with just a HUD / ±10s ripple and NO control
       // bar — unless a panel is open, where arrows navigate it (focus) instead.
-      if (!settingsOpen && !episodesOpen && !speedOpen && !audioSubsOpen) {
+      if (!qualityOpen && !episodesOpen && !speedOpen && !audioSubsOpen && !infoOpen) {
         switch (e.key) {
           case 'ArrowUp':    e.preventDefault(); bumpVolume(0.05);  return;
           case 'ArrowDown':  e.preventDefault(); bumpVolume(-0.05); return;
@@ -803,8 +865,8 @@ export default function DbWorldVideoPlayer({
         case ' ': case 'k': e.preventDefault(); togglePlay(); break;
         case 'f': case 'F': if (!isNative) toggleFullscreen(); break;
         case 'Escape':
-          if (settingsOpen)      setSettingsOpen(false);   // Back closes the open panel first
-          else if (episodesOpen) setEpisodesOpen(false);
+          // Back closes any open panel first, else closes the player.
+          if (qualityOpen || episodesOpen || speedOpen || audioSubsOpen || infoOpen) closeMenus();
           else if (!document.fullscreenElement) close();
           break;
         default: showControls();
@@ -812,7 +874,7 @@ export default function DbWorldVideoPlayer({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [controls, settingsOpen, episodesOpen, togglePlay, seekBy, showControls, toggleFullscreen, isNative, bumpVolume]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [controls, qualityOpen, episodesOpen, speedOpen, audioSubsOpen, infoOpen, togglePlay, seekBy, showControls, toggleFullscreen, isNative, bumpVolume]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── seek bar drag + hover preview ───────────────────────────────────────────
   // Builds the { leftPx, time } preview from a 0..1 fraction along the bar,
@@ -903,6 +965,15 @@ export default function DbWorldVideoPlayer({
     }
   };
 
+  // Any control-bar menu OR the "Up next" preview → hides the progress bar + pins the
+  // controls, so every overlay behaves identically.
+  const anyMenuOpen = speedOpen || audioSubsOpen || qualityOpen || infoOpen || episodesOpen || nextOpen;
+  // While one is open: keep the controls pinned (never idle-hide) so it isn't orphaned;
+  // resume the normal auto-hide once everything closes.
+  useEffect(() => {
+    if (anyMenuOpen) { clearTimeout(hideTimer.current); setControls(true); }
+    else scheduleHide();
+  }, [anyMenuOpen, scheduleHide]);
   const displayPos = scrub != null ? scrub : position;
   const pct = duration > 0 ? Math.min(100, (displayPos / duration) * 100) : 0;
   // Loaded indicator = the ONE contiguous buffered region around the current playhead
@@ -980,8 +1051,9 @@ export default function DbWorldVideoPlayer({
       )}
 
       {/* Play/pause pop — brief centered icon on every toggle (mirrors the volume
-          feedback; desktop click-to-toggle has no persistent center button). */}
-      {playFx && (
+          feedback). Desktop only: touch/mobile already has the center transport buttons
+          (play/pause + seek), so a centered pop would just overlap them. */}
+      {playFx && hasHover && (
         <div key={playFx.id} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 24 }}>
           <div style={{ display: 'grid', placeItems: 'center',
             width: Math.round(96 * uiScale), height: Math.round(96 * uiScale), borderRadius: '50%',
@@ -1100,9 +1172,6 @@ export default function DbWorldVideoPlayer({
               <div style={{ display: 'flex', gap: 4 }}>
                 {isNative && <IconBtn onClick={enterPip} ariaLabel="Picture in picture"><PictureInPictureAltIcon /></IconBtn>}
                 {isNative && <IconBtn onClick={rotate} ariaLabel="Rotate screen"><ScreenRotationIcon /></IconBtn>}
-                {/* On touch, Settings lives top-right — unless the bottom row is sparse,
-                    then it drops into the row to keep it balanced (see settingsInRow). */}
-                {!hasHover && !settingsInRow && <span ref={settingsBtnRef} style={{ display: 'inline-flex' }}><IconBtn onClick={() => openSettings(settingsBtnRef)} ariaLabel="Settings"><SettingsIcon /></IconBtn></span>}
                 {isNative && <IconBtn onClick={toggleLock} ariaLabel={locked ? 'Unlock controls' : 'Lock controls'}>{locked ? <LockIcon /> : <LockOpenIcon />}</IconBtn>}
               </div>
             )}
@@ -1133,6 +1202,9 @@ export default function DbWorldVideoPlayer({
             transition={{ duration: 0.2, ease: 'easeOut' }}
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 28px 16px' }}>
 
+            {/* Progress bar + time. Hidden while a menu is open (Netflix-style — the menu
+                gets a clean, uncluttered backdrop). */}
+            {!anyMenuOpen && (<>
             {/* full-width progress bar — wrapper carries hover→time math + the preview bubble.
                 Fill is a 3-stop gradient: teal (played) → light (buffered) → dark (unloaded). */}
             <div ref={barRef} style={{ position: 'relative', height: 16 }} onMouseMove={onBarHover} onMouseLeave={onBarLeave}>
@@ -1163,6 +1235,7 @@ export default function DbWorldVideoPlayer({
               <span>{fmt(displayPos)}</span>
               <span>{fmt(duration)}</span>
             </div>
+            </>)}
 
             {/* Control row. Desktop: transport + volume clustered left, everything else
                 right, icon-only with hover tooltips. Touch: centered, equal-spaced,
@@ -1177,24 +1250,39 @@ export default function DbWorldVideoPlayer({
                   <VolumeControl volume={volume} hasHover={hasHover} onToggleMute={toggleMute} onSetVol={setVol} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <span ref={speedBtnRef} style={{ display: 'inline-flex' }}>
+                  <span ref={speedBtnRef} style={{ display: 'inline-flex' }}
+                    onMouseEnter={() => hoverOpen(openSpeed)} onMouseLeave={hoverLeaveBtn}>
                     <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} tip="Playback speed"
-                      active={rateIdx !== 1} ariaLabel="Playback speed" onClick={openSpeed} />
+                      active={rateIdx !== SPEED_NORMAL_IDX} ariaLabel="Playback speed" onClick={openSpeed} />
                   </span>
-                  <span ref={audioBtnRef} style={{ display: 'inline-flex' }}>
-                    <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles"
+                  <span ref={audioBtnRef} style={{ display: 'inline-flex' }}
+                    onMouseEnter={() => hoverOpen(() => openAudioSubs(audioBtnRef))} onMouseLeave={hoverLeaveBtn}>
+                    <CtrlBtn icon={<AudiotrackIcon />} tip="Audio & subtitles" active={audioSubsOpen}
                       ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                   </span>
                   {episodes.length > 1 && (
                     <span ref={epBtnRef} style={{ display: 'inline-flex' }}
-                      onMouseEnter={() => { cancelEpisodesClose(); clearTimeout(epHoverTimer.current); epHoverTimer.current = setTimeout(openEpisodes, 350); }}
-                      onMouseLeave={() => { clearTimeout(epHoverTimer.current); scheduleEpisodesClose(); }}>
-                      <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" ariaLabel="Episode list" onClick={openEpisodes} />
+                      onMouseEnter={() => hoverOpen(openEpisodes)} onMouseLeave={hoverLeaveBtn}>
+                      <CtrlBtn icon={<PlaylistPlayIcon />} tip="Episodes" active={episodesOpen} ariaLabel="Episode list" onClick={openEpisodes} />
                     </span>
                   )}
-                  {nextEpisode && <NextEpisodeButton nextEpisode={nextEpisode} onClick={goNext} />}
-                  <span ref={settingsBtnRef} style={{ display: 'inline-flex' }}>
-                    <CtrlBtn icon={<SettingsIcon />} tip="Settings" ariaLabel="Settings" onClick={() => openSettings(settingsBtnRef)} />
+                  {nextEpisode && (
+                    <NextEpisodeButton nextEpisode={nextEpisode} onClick={goNext}
+                      open={nextOpen} shift={nextShift} btnRef={nextBtnRef}
+                      onEnter={() => hoverOpen(openNext)} onLeave={hoverLeaveBtn}
+                      cardEnter={cancelMenuClose} cardLeave={scheduleMenuClose} />
+                  )}
+                  {hasQuality && (
+                    <span ref={qualityBtnRef} style={{ display: 'inline-flex' }}
+                      onMouseEnter={() => hoverOpen(() => openQuality(qualityBtnRef))} onMouseLeave={hoverLeaveBtn}>
+                      <CtrlBtn icon={<HighQualityIcon />} label={curQualityLabel} tip="Quality" active={qualityOpen}
+                        ariaLabel="Video quality" onClick={() => openQuality(qualityBtnRef)} />
+                    </span>
+                  )}
+                  <span ref={infoBtnRef} style={{ display: 'inline-flex' }}
+                    onMouseEnter={() => hoverOpen(() => openInfo(infoBtnRef))} onMouseLeave={hoverLeaveBtn}>
+                    <CtrlBtn icon={<InfoOutlinedIcon />} tip="Media info" active={infoOpen}
+                      ariaLabel="Media info" onClick={() => openInfo(infoBtnRef)} />
                   </span>
                   <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
                     tip={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
@@ -1204,33 +1292,38 @@ export default function DbWorldVideoPlayer({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
                 marginTop: 6, rowGap: 10, columnGap: 'clamp(14px, 6vw, 40px)' }}>
                 {!isNative && (
-                  <VolumeControl volume={volume} hasHover={hasHover} label="Volume" labelLeft
+                  <VolumeControl volume={volume} hasHover={hasHover} label="Volume"
                     onToggleMute={toggleMute} onSetVol={setVol} />
                 )}
                 <span ref={speedBtnRef} style={{ display: 'inline-flex' }}>
-                  <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} labelLeft active={rateIdx !== 1}
+                  <CtrlBtn icon={<SpeedIcon />} label={`${SPEEDS[rateIdx]}×`} active={rateIdx !== SPEED_NORMAL_IDX}
                     ariaLabel="Playback speed" onClick={openSpeed} />
                 </span>
                 <span ref={audioBtnRef} style={{ display: 'inline-flex' }}>
-                  <CtrlBtn icon={<AudiotrackIcon />} label="Audio" labelLeft
+                  <CtrlBtn icon={<AudiotrackIcon />} label="Audio & Subtitles" active={audioSubsOpen}
                     ariaLabel="Audio and subtitles" onClick={() => openAudioSubs(audioBtnRef)} />
                 </span>
                 {episodes.length > 1 && (
                   <span ref={epBtnRef} style={{ display: 'inline-flex' }}>
-                    <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" labelLeft ariaLabel="Episode list" onClick={openEpisodes} />
+                    <CtrlBtn icon={<PlaylistPlayIcon />} label="Episodes" active={episodesOpen} ariaLabel="Episode list" onClick={openEpisodes} />
                   </span>
                 )}
                 {nextEpisode && (
-                  <CtrlBtn icon={<SkipNextIcon />} label="Next" labelLeft ariaLabel="Next episode" onClick={goNext} />
+                  <CtrlBtn icon={<SkipNextIcon />} label="Next" ariaLabel="Next episode" onClick={goNext} />
                 )}
-                {settingsInRow && (
-                  <span ref={settingsBtnRef} style={{ display: 'inline-flex' }}>
-                    <CtrlBtn icon={<SettingsIcon />} label="Settings" labelLeft ariaLabel="Settings" onClick={() => openSettings(settingsBtnRef)} />
+                {hasQuality && (
+                  <span ref={qualityBtnRef} style={{ display: 'inline-flex' }}>
+                    <CtrlBtn icon={<HighQualityIcon />} label={curQualityLabel} active={qualityOpen}
+                      ariaLabel="Video quality" onClick={() => openQuality(qualityBtnRef)} />
                   </span>
                 )}
+                <span ref={infoBtnRef} style={{ display: 'inline-flex' }}>
+                  <CtrlBtn icon={<InfoOutlinedIcon />} label="Info" active={infoOpen}
+                    ariaLabel="Media info" onClick={() => openInfo(infoBtnRef)} />
+                </span>
                 {!isNative && (
                   <CtrlBtn icon={isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
-                    label={isFullscreen ? 'Exit' : 'Fullscreen'} labelLeft ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
+                    label={isFullscreen ? 'Exit' : 'Fullscreen'} ariaLabel="Toggle fullscreen" onClick={toggleFullscreen} />
                 )}
               </div>
             )}
@@ -1272,144 +1365,45 @@ export default function DbWorldVideoPlayer({
         </div>
       )}
 
-      {/* Episode panel (right drawer) — Netflix-style rows: still thumbnail + title +
-          runtime + 2-line synopsis, current episode highlighted, smooth styled scroll. */}
-      {episodesOpen && (
-        <div onClick={() => setEpisodesOpen(false)}
-          style={{ position: 'absolute', inset: 0, zIndex: 30 }}>
-          {/* Bounded popover anchored above the control bar (near the Episodes button),
-              not a full-height drawer — Netflix-style. */}
-          <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
-            onMouseEnter={cancelEpisodesClose} onMouseLeave={scheduleEpisodesClose}
-            style={{ position: 'absolute',
-              ...(epPos
-                ? { left: epPos.left, bottom: epPos.bottom, width: epPos.width }
-                : { right: Math.round(16 * uiScale), bottom: Math.round(96 * uiScale), width: Math.round(400 * uiScale) }),
-              maxWidth: '92vw', maxHeight: '62vh',
-              overflowY: 'auto', padding: '12px 0', ...PANEL_LOOK }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `0 ${Math.round(18 * uiScale)}px 12px` }}>
-              <span style={{ fontWeight: 700, fontSize: Math.round(17 * uiScale) }}>Episodes</span>
-              <IconBtn onClick={() => setEpisodesOpen(false)} ariaLabel="Close episodes"><CloseIcon /></IconBtn>
-            </div>
-            {Object.keys(seasonsMap).sort((a, b) => a - b).map(s => (
-              <div key={s}>
-                <div style={{ padding: `10px ${Math.round(18 * uiScale)}px 6px`, color: '#9aa', fontSize: Math.round(12 * uiScale), fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Season {s}</div>
-                {seasonsMap[s].map(ep => {
-                  const isCur = ep.id === currentEpisodeId || ep.fileId === currentEpisodeId;
-                  return (
-                    <button key={ep.id} className={`dbw-epfocus dbw-ep${isCur ? ' cur' : ''}`}
-                      onClick={() => { switchEpisode(ep); setEpisodesOpen(false); }}
-                      style={{ display: 'flex', gap: Math.round(12 * uiScale), width: '100%',
-                        padding: `${Math.round(10 * uiScale)}px ${Math.round(16 * uiScale)}px`, textAlign: 'left',
-                        cursor: 'pointer', border: 'none', borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}` }}>
-                      {/* still thumbnail (16:9) */}
-                      <div style={{ position: 'relative', width: Math.round(132 * uiScale), flexShrink: 0, aspectRatio: '16 / 9',
-                        borderRadius: 8, overflow: 'hidden', background: '#1c1c1c' }}>
-                        {ep.stillPath
-                          ? <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                          : <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: '#555' }}>
-                              <PlaylistPlayIcon /></div>}
-                        {isCur && (
-                          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.4)' }}>
-                            <PlayArrowIcon sx={{ fontSize: Math.round(30 * uiScale), color: TEAL }} /></div>)}
-                      </div>
-                      {/* text */}
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                          <span style={{ fontWeight: 700, fontSize: Math.round(13 * uiScale), color: isCur ? TEAL : '#fff', flexShrink: 0 }}>{ep.label}</span>
-                          {ep.runtime ? <span style={{ fontSize: Math.round(11 * uiScale), color: '#888', flexShrink: 0 }}>{ep.runtime}m</span> : null}
-                        </div>
-                        {ep.name && (
-                          <div style={{ fontSize: Math.round(13 * uiScale), color: isCur ? TEAL : '#e0e0e0', marginTop: 1,
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.name}</div>)}
-                        {ep.overview && (
-                          <div style={{ fontSize: Math.round(11.5 * uiScale), color: '#8f9296', marginTop: 3, lineHeight: 1.35,
-                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                            {ep.overview}</div>)}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* All rendered ALWAYS (open toggles) so AnimatePresence can animate the close.
+          Desktop: hover-anchored popover, no backdrop. Touch: bottom-sheet modal. */}
 
-      {/* Speed — compact horizontal chip popover above the Speed button (Netflix-style),
-          instead of drilling into the full settings sheet. */}
-      {speedOpen && speedPos && (
-        <div onClick={() => setSpeedOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 31 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ position: 'absolute', left: speedPos.left, bottom: speedPos.bottom, width: speedPos.width,
-              maxWidth: '92vw', padding: Math.round(10 * uiScale), ...PANEL_LOOK }}>
-            <div style={{ fontSize: Math.round(11 * uiScale), color: '#9aa', textTransform: 'uppercase',
-              letterSpacing: 0.6, fontWeight: 700, marginBottom: Math.round(8 * uiScale), textAlign: 'center' }}>Playback speed</div>
-            <div style={{ display: 'flex', gap: Math.round(6 * uiScale), justifyContent: 'center', flexWrap: 'wrap' }}>
-              {SPEEDS.map((s, i) => (
-                <button key={s} onClick={() => { chooseSpeed(i); setSpeedOpen(false); }}
-                  style={{ flex: '0 0 auto', padding: `${Math.round(7 * uiScale)}px ${Math.round(12 * uiScale)}px`,
-                    borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
-                    border: i === rateIdx ? `1px solid ${TEAL}` : '1px solid rgba(255,255,255,0.16)',
-                    background: i === rateIdx ? 'rgba(13,148,136,0.22)' : 'rgba(255,255,255,0.06)',
-                    color: i === rateIdx ? TEAL : '#fff', fontWeight: i === rateIdx ? 700 : 500,
-                    fontSize: Math.round(13 * uiScale) }}>
-                  {s === 1 ? 'Normal' : `${s}×`}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Episodes — Netflix-style rows (still + title + runtime + 2-line synopsis). */}
+      <Sheet open={episodesOpen} hasHover={hasHover} pos={epPos} title="Episodes" onClose={() => setEpisodesOpen(false)}
+        mobileFull desktopHeader desktopPad="12px 0" desktopMaxH="62vh"
+        panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        <EpisodeList seasonsMap={seasonsMap} currentEpisodeId={currentEpisodeId}
+          onPick={(ep) => { switchEpisode(ep); setEpisodesOpen(false); }} />
+      </Sheet>
 
-      {/* Audio & Subtitles — two-column popover anchored above its button. */}
-      {audioSubsOpen && audioSubsPos && (
-        <div onClick={() => setAudioSubsOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 31 }}>
-          <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
-            style={{ position: 'absolute', left: audioSubsPos.left, bottom: audioSubsPos.bottom, width: audioSubsPos.width,
-              maxWidth: '92vw', maxHeight: '60vh', overflowY: 'auto', padding: '8px 0', ...PANEL_LOOK }}>
-            <div style={{ display: 'flex', alignItems: 'stretch' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <SheetSection>Audio</SheetSection>
-                {audioTracks.length
-                  ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => chooseAudio(t)} />)
-                  : <SheetEmpty>No alternate audio</SheetEmpty>}
-              </div>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <SheetSection>Subtitles</SheetSection>
-                <SheetRow selected={curText < 0} label="Off" onClick={() => chooseSub(null)} />
-                {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={subtitleLabel(t)} onClick={() => chooseSub(t)} />)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Speed — Netflix-style slider. */}
+      <Sheet open={speedOpen} hasHover={hasHover} pos={speedPos} title="Playback speed" onClose={() => setSpeedOpen(false)}
+        desktopPad={0} panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        <SpeedSlider rateIdx={rateIdx} showLabel={hasHover} onPick={chooseSpeed} />
+      </Sheet>
 
-      {/* Settings (gear) — Quality + Decoder, popover anchored to its button. */}
-      {settingsOpen && settingsPos && (
-        <div onClick={() => setSettingsOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 31 }}>
-          <div onClick={(e) => e.stopPropagation()} className="dbw-scroll"
-            style={{ position: 'absolute', left: settingsPos.left, width: settingsPos.width,
-              ...(settingsPos.top != null ? { top: settingsPos.top } : { bottom: settingsPos.bottom }),
-              maxWidth: '92vw', maxHeight: '60vh', overflowY: 'auto', padding: '8px 0', ...PANEL_LOOK }}>
-            {variants.length > 1 && (
-              <>
-                <SheetSection>Quality</SheetSection>
-                {variants.map(v => <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId} label={qualityLabel(v)} onClick={() => { chooseQuality(v); setSettingsOpen(false); }} />)}
-              </>
-            )}
-            {isNative && (
-              <>
-                <SheetSection>Decoder</SheetSection>
-                {DECODERS.map(d => <SheetRow key={d.id} selected={d.id === decoder} label={d.label} onClick={() => { chooseDecoder(d.id); setSettingsOpen(false); }} />)}
-              </>
-            )}
-            {variants.length <= 1 && !isNative && <SheetEmpty>No additional settings</SheetEmpty>}
-          </div>
-        </div>
-      )}
+      {/* Audio & Subtitles — two columns. */}
+      <Sheet open={audioSubsOpen} hasHover={hasHover} pos={audioSubsPos} title="Audio & Subtitles" onClose={() => setAudioSubsOpen(false)}
+        panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        <AudioSubsColumns audioTracks={audioTracks} textTracks={textTracks}
+          curAudio={curAudio} curText={curText}
+          onAudio={chooseAudio} onSub={chooseSub} />
+      </Sheet>
+
+      {/* Quality — resolution picker (decoder removed — HW→SW fallback is automatic). */}
+      <Sheet open={qualityOpen} hasHover={hasHover} pos={qualityPos} title="Quality" onClose={() => setQualityOpen(false)}
+        panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        <QualityList variants={variants} curQualityId={curQualityId}
+          onQuality={(v) => { chooseQuality(v); setQualityOpen(false); }} />
+      </Sheet>
+
+      {/* Media info — read-only details of the current video/audio/subtitle tracks. */}
+      <Sheet open={infoOpen} hasHover={hasHover} pos={infoPos} title="Media info" onClose={() => setInfoOpen(false)}
+        panelHandlers={{ onMouseEnter: cancelMenuClose, onMouseLeave: scheduleMenuClose }}>
+        <MediaInfoContent
+          variants={variants} curQualityId={curQualityId}
+          audioTracks={audioTracks} textTracks={textTracks} curAudio={curAudio} curText={curText} />
+      </Sheet>
       </>)}
     </div>
     </ScaleCtx.Provider>
@@ -1420,12 +1414,13 @@ export default function DbWorldVideoPlayer({
 function SheetRow({ label, selected, onClick }) {
   const scale = useContext(ScaleCtx);
   return (
-    <button onClick={onClick}
+    <button onClick={onClick} className="dbw-row"
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10,
-        padding: `${Math.round(10 * scale)}px 16px`, background: 'transparent', border: 'none', cursor: 'pointer',
-        color: selected ? '#0d9488' : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left', whiteSpace: 'nowrap' }}>
-      <span>{label}</span>
-      {selected && <CheckIcon sx={{ fontSize: Math.round(16 * scale) }} />}
+        minHeight: Math.round(44 * scale),
+        padding: `${Math.round(10 * scale)}px 16px`, border: 'none', cursor: 'pointer',
+        color: selected ? TEAL : '#fff', fontWeight: selected ? 700 : 500, fontSize: Math.round(14 * scale), textAlign: 'left' }}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      {selected && <CheckIcon sx={{ fontSize: Math.round(16 * scale), flexShrink: 0 }} />}
     </button>
   );
 }
@@ -1584,44 +1579,33 @@ function CtrlBtn({ icon, label, labelLeft, tip, onClick, active, ariaLabel, focu
   );
 }
 
-// The "Next" control-row button plus a hover preview of the upcoming episode
-// (still thumbnail + "S#:E# · title" + short synopsis). Pointer-only affordance;
-// touch users get the on-screen "Up next" card and the episode drawer instead.
-function NextEpisodeButton({ nextEpisode: ep, onClick }) {
-  const [hover, setHover] = useState(false);
-  const [shift, setShift] = useState(0);   // px nudge to keep the centered card on-screen
+// The "Next" control-row button plus a hover preview of the upcoming episode (still
+// thumbnail + "S#:E# · title" + short synopsis). Controlled by the parent's menu-switch
+// system (open/shift/handlers) so it opens/closes like every other menu — close-old-then-
+// open-new. Pointer-only; touch users get the on-screen "Up next" card + the episode drawer.
+function NextEpisodeButton({ nextEpisode: ep, onClick, open, shift, btnRef, onEnter, onLeave, cardEnter, cardLeave }) {
   const scale = useContext(ScaleCtx);
-  const wrapRef = useRef(null);
+  const reduce = useReducedMotion();
   const cardW = Math.min(Math.round(320 * scale),
     typeof window !== 'undefined' ? Math.round(window.innerWidth * 0.8) : 320);
-  // Center the preview over the button, then nudge it back inside the viewport if it
-  // would overflow — the Next button sits near the right edge of the control bar, so a
-  // purely centered card would clip on the right.
-  const onEnter = () => {
-    setHover(true);
-    const el = wrapRef.current;
-    if (!el) { setShift(0); return; }
-    const r = el.getBoundingClientRect();
-    const cx = r.left + r.width / 2;
-    const rightOver = (cx + cardW / 2) - (window.innerWidth - 8);
-    const leftOver = 8 - (cx - cardW / 2);
-    setShift(Math.round(rightOver > 0 ? -rightOver : (leftOver > 0 ? leftOver : 0)));
-  };
+  const { mounted, shown } = useMountTransition(open, 180);
+  const anim = reduce ? { opacity: shown ? 1 : 0 }
+    : { opacity: shown ? 1 : 0, transform: shown ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.97)' };
   return (
-    <div
-      ref={wrapRef}
-      style={{ position: 'relative', display: 'inline-flex' }}
-      onMouseEnter={onEnter}
-      onMouseLeave={() => setHover(false)}
-    >
-      <CtrlBtn icon={<SkipNextIcon />} ariaLabel="Next episode" onClick={onClick} />
-      {hover && ep && (
-        <div style={{
-          position: 'absolute', bottom: `calc(100% + ${Math.round(8 * scale)}px)`, left: '50%',
-          transform: `translateX(calc(-50% + ${shift}px))`, zIndex: 40,
-          width: cardW, maxWidth: '80vw', overflow: 'hidden', pointerEvents: 'none',
-          ...PANEL_LOOK,
-        }}>
+    <div ref={btnRef} style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={onEnter} onMouseLeave={onLeave}>
+      <CtrlBtn icon={<SkipNextIcon />} ariaLabel="Next episode" active={open} onClick={onClick} />
+      {mounted && ep && (
+        <div role="button" tabIndex={0} aria-label="Play next episode"
+          onMouseEnter={cardEnter} onMouseLeave={cardLeave}
+          onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+          style={{
+            position: 'absolute', bottom: `calc(100% + ${Math.round(8 * scale)}px)`, left: '50%',
+            marginLeft: Math.round(-cardW / 2 + (shift || 0)), transformOrigin: 'bottom center', zIndex: 40,
+            width: cardW, maxWidth: '80vw', overflow: 'hidden', cursor: 'pointer',
+            transition: reduce ? 'opacity 0.12s ease' : 'opacity 0.16s ease, transform 0.16s ease', ...anim, ...PANEL_LOOK,
+          }}>
           {ep.stillPath && (
             <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
               style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block' }} />
@@ -1646,5 +1630,341 @@ function NextEpisodeButton({ nextEpisode: ep, onClick }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Self-managed enter/exit: keeps the element mounted for `duration` after `open` flips
+// false so a CSS transition can play, then unmounts. Reliable (plain setTimeout) — unlike
+// AnimatePresence, which was leaving exited popovers stuck in the DOM here. Returns
+// { mounted } (render the node) and { shown } (drive the CSS transition target).
+function useMountTransition(open, duration) {
+  const [mounted, setMounted] = useState(open);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    let raf1, raf2, t;
+    if (open) {
+      setMounted(true);
+      // two rAFs so the browser paints the initial (hidden) state before we flip to shown
+      raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => setShown(true)); });
+    } else {
+      setShown(false);
+      t = setTimeout(() => setMounted(false), duration);
+    }
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); clearTimeout(t); };
+  }, [open, duration]);
+  return { mounted, shown };
+}
+
+// ── responsive menu container ────────────────────────────────────────────────
+// One wrapper for all control-bar menus (Speed / Audio & Subtitles / Quality / Info /
+// Episodes). Desktop (hover + fine pointer): an anchored popover with a fade/slide
+// open+close animation and NO full-screen backdrop, so the control bar stays live under
+// it (cursor + button hover keep working) and hover-out drives the close. Touch (mobile /
+// native): a Netflix-style bottom sheet that slides up — grab handle, title + close,
+// hidden scrollbar, content-height ("half") or near-full-height (`mobileFull`), with a
+// dim backdrop. Enter/exit are CSS transitions gated by useMountTransition (guaranteed unmount).
+function Sheet({
+  open, hasHover, pos, title, onClose,
+  mobileFull = false, desktopHeader = false, desktopPad = '8px 0', desktopMaxH = '60vh',
+  panelHandlers = {}, children,
+}) {
+  const scale = useContext(ScaleCtx);
+  const reduce = useReducedMotion();
+  const { mounted, shown } = useMountTransition(open, hasHover ? 180 : 300);
+
+  if (hasHover) {
+    if (!mounted || !pos) return null;
+    const anim = reduce ? { opacity: shown ? 1 : 0 }
+      : { opacity: shown ? 1 : 0, transform: shown ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.97)' };
+    return (
+      <div className="dbw-scroll" {...panelHandlers} onClick={(e) => e.stopPropagation()}
+        style={{ position: 'absolute', left: pos.left, width: pos.width,
+          ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }),
+          transformOrigin: pos.top != null ? 'top center' : 'bottom center',
+          transition: reduce ? 'opacity 0.12s ease' : 'opacity 0.16s ease, transform 0.16s ease', ...anim,
+          maxWidth: '92vw', maxHeight: desktopMaxH, overflowY: 'auto', padding: desktopPad, zIndex: 31, ...PANEL_LOOK }}>
+        {desktopHeader && title && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: `0 ${Math.round(18 * scale)}px 12px` }}>
+            <span style={{ fontWeight: 700, fontSize: Math.round(17 * scale) }}>{title}</span>
+            <IconBtn onClick={onClose} ariaLabel="Close"><CloseIcon /></IconBtn>
+          </div>
+        )}
+        {children}
+      </div>
+    );
+  }
+
+  // Touch: bottom sheet. Swallow player gestures so tapping inside/behind never toggles
+  // play/controls; the dim backdrop closes it.
+  if (!mounted) return null;
+  const swallow = (e) => e.stopPropagation();
+  return (
+    <div className="dbw-sheet-bg" onClick={onClose}
+      onTouchStart={swallow} onTouchMove={swallow} onTouchEnd={swallow}
+      style={{ position: 'absolute', inset: 0, zIndex: 31, display: 'flex', alignItems: 'flex-end',
+        background: 'rgba(0,0,0,0.55)', opacity: shown ? 1 : 0, transition: 'opacity 0.2s ease' }}>
+      <div className="dbw-sheet" onClick={(e) => e.stopPropagation()}
+        style={{ width: '100%', display: 'flex', flexDirection: 'column',
+          ...(mobileFull ? { height: '92vh' } : { maxHeight: '78vh' }),
+          // Frosted glass: slightly translucent over a blurred view of the dimmed video behind.
+          background: 'rgba(20,20,22,0.82)', backdropFilter: 'blur(22px)', WebkitBackdropFilter: 'blur(22px)',
+          borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: '1px solid rgba(255,255,255,0.14)',
+          boxShadow: '0 -16px 50px rgba(0,0,0,0.7)', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          transform: shown ? 'translateY(0)' : 'translateY(100%)',
+          transition: reduce ? 'none' : 'transform 0.28s cubic-bezier(0.2,0.8,0.2,1)' }}>
+        {/* grab handle */}
+        <div style={{ display: 'grid', placeItems: 'center', paddingTop: 10, flexShrink: 0 }}>
+          <div style={{ width: 40, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.28)' }} />
+        </div>
+        {/* header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 6px 8px 20px', flexShrink: 0 }}>
+          <span style={{ fontWeight: 800, fontSize: 18 }}>{title}</span>
+          <IconBtn onClick={onClose} ariaLabel="Close"><CloseIcon /></IconBtn>
+        </div>
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+        {/* body — full-width sheet, but readable content is capped + centered */}
+        <div className="dbw-noscroll" style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1,
+          padding: '6px 0 14px', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── shared menu bodies (rendered by both the desktop popover and the mobile sheet) ──
+// Netflix-style playback-speed slider: a plain track with a tick per speed, the active one
+// a filled/haloed knob, labels below. Clicking anywhere in a tick column (dot OR label)
+// selects that speed. No progress fill — the highlighted knob marks the current speed.
+function SpeedSlider({ rateIdx, onPick, showLabel }) {
+  const scale = useContext(ScaleCtx);
+  const n = SPEEDS.length;
+  const DOTBOX = Math.round(22 * scale);
+  const lineTop = Math.round(DOTBOX / 2 - 1.5);
+  return (
+    <div style={{ padding: `${Math.round(showLabel ? 12 : 8 * scale)}px ${Math.round(16 * scale)}px ${Math.round(6 * scale)}px` }}>
+      {showLabel && (
+        <div style={{ fontSize: Math.round(15 * scale), fontWeight: 700, marginBottom: Math.round(14 * scale) }}>Playback Speed</div>
+      )}
+      <div style={{ position: 'relative' }}>
+        {/* base track, spanning the first→last dot centres. pointerEvents:none so the whole
+            tick column (dot included) stays clickable — the line never eats the click. */}
+        <div style={{ position: 'absolute', left: `${50 / n}%`, right: `${50 / n}%`, top: lineTop, height: 3,
+          background: 'rgba(255,255,255,0.22)', borderRadius: 999, pointerEvents: 'none' }} />
+        <div style={{ display: 'flex' }}>
+          {SPEEDS.map((s, i) => {
+            const cur = i === rateIdx;
+            const dot = cur ? Math.round(16 * scale) : Math.round(11 * scale);
+            return (
+              <button key={s} onClick={() => onPick(i)} aria-label={`${s}x`}
+                className="dbw-speedtick"
+                style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <span style={{ height: DOTBOX, display: 'grid', placeItems: 'center' }}>
+                  <span style={{ width: dot, height: dot, borderRadius: '50%',
+                    background: cur ? TEAL : 'rgba(255,255,255,0.55)',
+                    boxShadow: cur ? `0 0 0 ${Math.round(4 * scale)}px rgba(13,148,136,0.25)` : 'none',
+                    transition: 'width 0.12s ease, height 0.12s ease, background 0.12s ease' }} />
+                </span>
+                <span style={{ marginTop: Math.round(4 * scale), fontSize: Math.round(12 * scale), whiteSpace: 'nowrap',
+                  color: cur ? '#fff' : '#9aa0a6', fontWeight: cur ? 700 : 500 }}>
+                  {s === 1 ? '1x (Normal)' : `${s}x`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AudioSubsColumns({ audioTracks, textTracks, curAudio, curText, onAudio, onSub }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <SheetSection>Audio</SheetSection>
+        {audioTracks.length
+          ? audioTracks.map(t => <SheetRow key={t.id} selected={t.id === curAudio} label={audioLabel(t)} onClick={() => onAudio(t)} />)
+          : <SheetEmpty>No alternate audio</SheetEmpty>}
+      </div>
+      <div style={{ width: 1, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <SheetSection>Subtitles</SheetSection>
+        <SheetRow selected={curText < 0} label="Off" onClick={() => onSub(null)} />
+        {textTracks.map(t => <SheetRow key={t.id} selected={t.id === curText} label={subtitleLabel(t)} onClick={() => onSub(t)} />)}
+      </div>
+    </div>
+  );
+}
+
+// Resolution picker rows. Only opened when there's more than one variant, so the sheet
+// header ("Quality") is enough context — no extra section label needed.
+function QualityList({ variants, curQualityId, onQuality }) {
+  return (
+    <>
+      {variants.map(v => (
+        <SheetRow key={v.mediaFileId ?? v.url} selected={v.mediaFileId === curQualityId}
+          label={qualityLabel(v)} onClick={() => onQuality(v)} />
+      ))}
+    </>
+  );
+}
+
+// One key/value line in the Media-info panel.
+function InfoKV({ k, v }) {
+  const scale = useContext(ScaleCtx);
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'baseline',
+      padding: `${Math.round(3 * scale)}px ${Math.round(14 * scale)}px`, fontSize: Math.round(13 * scale) }}>
+      <span style={{ color: '#9aa0a6', flexShrink: 0 }}>{k}</span>
+      <span style={{ color: '#e6e8ea', textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+    </div>
+  );
+}
+// Section heading (teal, uppercase) + optional count.
+function InfoSectionTitle({ label, count }) {
+  const scale = useContext(ScaleCtx);
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: `${Math.round(4 * scale)}px ${Math.round(16 * scale)}px ${Math.round(2 * scale)}px`,
+      fontSize: Math.round(11.5 * scale), fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: '#7fd4ca' }}>
+      <span>{label}</span>
+      {count != null && <span style={{ color: '#6b7075', fontWeight: 600, letterSpacing: 0 }}>{count}</span>}
+    </div>
+  );
+}
+// Thin rule between sections.
+function InfoDivider() {
+  const scale = useContext(ScaleCtx);
+  return <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: `${Math.round(8 * scale)}px ${Math.round(16 * scale)}px` }} />;
+}
+// A rounded card grouping one track's details; teal-tinted + "PLAYING" badge when active.
+function InfoCard({ name, playing, rows }) {
+  const scale = useContext(ScaleCtx);
+  return (
+    <div style={{ margin: `${Math.round(6 * scale)}px ${Math.round(14 * scale)}px`, borderRadius: 10, overflow: 'hidden',
+      background: playing ? 'rgba(13,148,136,0.12)' : 'rgba(255,255,255,0.04)',
+      border: `1px solid ${playing ? 'rgba(13,148,136,0.42)' : 'rgba(255,255,255,0.08)'}` }}>
+      {name != null && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          padding: `${Math.round(8 * scale)}px ${Math.round(14 * scale)}px`,
+          borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <span style={{ fontWeight: 700, fontSize: Math.round(14 * scale), color: playing ? TEAL : '#fff',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+          {playing && (
+            <span style={{ flexShrink: 0, fontSize: Math.round(9.5 * scale), fontWeight: 800, letterSpacing: 0.6, color: TEAL,
+              border: `1px solid ${TEAL}`, borderRadius: 999, padding: `${Math.round(2 * scale)}px ${Math.round(7 * scale)}px` }}>PLAYING</span>
+          )}
+        </div>
+      )}
+      <div style={{ padding: `${Math.round(5 * scale)}px 0` }}>
+        {rows.map(([k, v]) => <InfoKV key={k} k={k} v={v} />)}
+      </div>
+    </div>
+  );
+}
+
+// Read-only details of the current video + all audio/subtitle tracks (the currently
+// playing one flagged). Doubles as a diagnostic: shows whether a subtitle is actually
+// selected and its format.
+function MediaInfoContent({ variants, curQualityId, audioTracks, textTracks, curAudio, curText }) {
+  const scale = useContext(ScaleCtx);
+  const cur = variants.find(v => v.mediaFileId === curQualityId) || variants[0] || null;
+  return (
+    <div style={{ paddingBottom: Math.round(10 * scale) }}>
+      {cur && (
+        <>
+          <InfoSectionTitle label="Video" />
+          <InfoCard rows={[
+            ['Resolution', cur.label || '—'],
+            ...(cur.codec ? [['Codec', cur.codec]] : []),
+            ['Dynamic range', (cur.hdr && cur.hdr.length) ? cur.hdr.join(', ') : 'SDR'],
+          ]} />
+          <InfoDivider />
+        </>
+      )}
+
+      <InfoSectionTitle label="Audio" count={audioTracks.length} />
+      {audioTracks.length ? audioTracks.map(t => (
+        <InfoCard key={t.id} playing={t.id === curAudio}
+          name={t.language || t.title || `Audio ${(Number(t.id) || 0) + 1}`}
+          rows={[
+            ['Format', audioCodecFull(t)],
+            ...(chLayoutFull(t) ? [['Channels', chLayoutFull(t)]] : []),
+            ['Bitrate', bitrateText(t) || 'Unknown'],
+            ['Sample rate', sampleRateLabel(t) || 'Unknown'],
+          ]} />
+      )) : <SheetEmpty>No audio tracks</SheetEmpty>}
+
+      <InfoDivider />
+
+      <InfoSectionTitle label="Subtitles" count={textTracks.length} />
+      {curText < 0 && (
+        <div style={{ padding: `${Math.round(2 * scale)}px ${Math.round(16 * scale)}px ${Math.round(4 * scale)}px`,
+          color: '#9aa0a6', fontSize: Math.round(12.5 * scale) }}>Currently off</div>
+      )}
+      {textTracks.length ? textTracks.map(t => (
+        <InfoCard key={t.id} playing={t.id === curText}
+          name={t.language || t.title || `Subtitle ${(Number(t.id) || 0) + 1}`}
+          rows={[
+            ['Format', subFormat(t) || t.format || 'Unknown'],
+            ['Forced', isForced(t) ? 'Yes' : 'No'],
+          ]} />
+      )) : <SheetEmpty>No subtitles</SheetEmpty>}
+    </div>
+  );
+}
+
+// Netflix-style episode rows: still thumbnail + title + runtime + 2-line synopsis,
+// current episode highlighted. Shared by the desktop popover and the mobile sheet.
+function EpisodeList({ seasonsMap, currentEpisodeId, onPick }) {
+  const scale = useContext(ScaleCtx);
+  return (
+    <>
+      {Object.keys(seasonsMap).sort((a, b) => a - b).map(s => (
+        <div key={s}>
+          <div style={{ padding: `10px ${Math.round(18 * scale)}px 6px`, color: '#9aa', fontSize: Math.round(12 * scale), fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Season {s}</div>
+          {seasonsMap[s].map(ep => {
+            const isCur = ep.id === currentEpisodeId || ep.fileId === currentEpisodeId;
+            return (
+              <button key={ep.id} className={`dbw-epfocus dbw-ep${isCur ? ' cur' : ''}`}
+                onClick={() => onPick(ep)}
+                style={{ display: 'flex', gap: Math.round(12 * scale), width: '100%',
+                  padding: `${Math.round(10 * scale)}px ${Math.round(16 * scale)}px`, textAlign: 'left',
+                  cursor: 'pointer', border: 'none', borderLeft: `3px solid ${isCur ? TEAL : 'transparent'}` }}>
+                {/* still thumbnail (16:9) */}
+                <div style={{ position: 'relative', width: Math.round(132 * scale), flexShrink: 0, aspectRatio: '16 / 9',
+                  borderRadius: 8, overflow: 'hidden', background: '#1c1c1c' }}>
+                  {ep.stillPath
+                    ? <img src={tmdbImg(ep.stillPath, 'w300')} alt="" loading="lazy"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    : <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: '#555' }}>
+                        <PlaylistPlayIcon /></div>}
+                  {isCur && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.4)' }}>
+                      <PlayArrowIcon sx={{ fontSize: Math.round(30 * scale), color: TEAL }} /></div>)}
+                </div>
+                {/* text */}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: Math.round(13 * scale), color: isCur ? TEAL : '#fff', flexShrink: 0 }}>{ep.label}</span>
+                    {ep.runtime ? <span style={{ fontSize: Math.round(11 * scale), color: '#888', flexShrink: 0 }}>{ep.runtime}m</span> : null}
+                  </div>
+                  {ep.name && (
+                    <div style={{ fontSize: Math.round(13 * scale), color: isCur ? TEAL : '#e0e0e0', marginTop: 1,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.name}</div>)}
+                  {ep.overview && (
+                    <div style={{ fontSize: Math.round(11.5 * scale), color: '#8f9296', marginTop: 3, lineHeight: 1.35,
+                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {ep.overview}</div>)}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </>
   );
 }
