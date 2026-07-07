@@ -10,6 +10,8 @@ import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
+import com.db.dbworld.app.media.ingestion.tracking.FileSubStep;
+import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.app.cinema.catalog.tags.services.NewContentTaggingService;
 import com.db.dbworld.app.media.link.SymlinkService;
 import com.db.dbworld.app.media.storyboard.StoryboardService;
@@ -62,6 +64,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final SmartTrackFilterService    smartTrackFilterService;
     private final StoryboardService          storyboardService;
     private final NewContentTaggingService   newContentTaggingService;
+    private final TrackingService            trackingService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -91,7 +94,10 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 result.setErrorMessage("Downloaded temp file not found: " + sourceFile);
                 return result;
             }
-            return processSingleFile(ctx, sourceFile);
+            trackingService.initFiles(ctx.getJobId(), List.of(sourceFile.getFileName().toString()));
+            ProcessingResult single = processSingleFile(ctx, sourceFile, 1);
+            trackingService.finishFile(ctx.getJobId(), 1, single.isSuccess());
+            return single;
         } catch (IOException e) {
             log.error("[{}] FfmpegProcessingStrategy failed: {}", ctx.getJobId(), e.getMessage());
             ctx.logError("FFMPEG", "Failed: " + e.getMessage());
@@ -157,20 +163,28 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
         ctx.log("FFMPEG", "Processing " + toProcess.size() + " of " + mediaFiles.size() + " media file(s)");
 
+        // Register the files up front so the UI can render the full per-file breakdown
+        // (N of M) immediately, before any single file starts processing.
+        trackingService.initFiles(ctx.getJobId(),
+                toProcess.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList()));
+
         Path lastFinalFile = null;
         Map<String, Object> lastMediaInfo = null;
         int successCount = 0;
+        int fileIndex = 0;
 
         for (Path file : toProcess) {
+            fileIndex++;
             if (perFileEpisode) {
                 EpisodeRef ref = detectFromFilename(file); // non-null by construction
                 ctx.getRequest().setSeason(ref.season());
                 ctx.getRequest().setEpisode(ref.episode());
             }
 
-            ctx.log("FFMPEG", "Processing: " + file.getFileName());
+            ctx.log("FFMPEG", "Processing (" + fileIndex + "/" + toProcess.size() + "): " + file.getFileName());
             try {
-                ProcessingResult fileResult = processSingleFile(ctx, file);
+                ProcessingResult fileResult = processSingleFile(ctx, file, fileIndex);
+                trackingService.finishFile(ctx.getJobId(), fileIndex, fileResult.isSuccess());
                 if (fileResult.isSuccess()) {
                     lastFinalFile = fileResult.getFinalFile();
                     lastMediaInfo = fileResult.getMediaInfo();
@@ -179,6 +193,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                     ctx.logError("FFMPEG", "Failed on " + file.getFileName() + ": " + fileResult.getErrorMessage());
                 }
             } catch (Exception e) {
+                trackingService.finishFile(ctx.getJobId(), fileIndex, false);
                 ctx.logError("FFMPEG", "Error on " + file.getFileName() + ": " + e.getMessage());
             }
 
@@ -206,19 +221,21 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     // ── Single-file processing ────────────────────────────────────────────────
 
-    private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile) throws IOException {
+    private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile, int fileIndex) throws IOException {
         ProcessingResult result = new ProcessingResult();
 
         // ── 1. Stage file in temp working directory ────────────────────
         Path workingFile = stageForProcessing(ctx, sourceFile);
 
         // ── 2. TMDB enrichment: cover art + series naming + metadata ───
+        trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.FFMPEG);
         Path stagedFile = enrichWithTmdb(ctx, workingFile);
 
         // ── 3. Collect metadata, rename in temp, then move to final ────
         // Clean up orphan records left by any previous failed run for this record
         purgeOrphanTempRecords(ctx, stagedFile.getParent());
 
+        trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.MEDIA_INFO);
         MediaFileDto mediaInfo = mediaInfoService.collectAndPersist(
                 stagedFile,
                 ctx.getRecordId(),
@@ -241,14 +258,20 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                     ? canonicalDto
                     : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
             latestDto = finalDto;
+            trackingService.updateFilePercent(ctx.getJobId(), fileIndex, FileSubStep.MEDIA_INFO, 100);
 
             symlinkService.create(finalDto.getId(), finalDto.getFilePath());
 
             // Scrub-preview storyboard (best-effort; never fails ingestion).
             try {
                 ctx.log("STORYBOARD", "Generating scrub-preview storyboard…");
+                trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.STORYBOARD);
                 storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto),
-                        msg -> ctx.log("STORYBOARD", msg));
+                        (done, total) -> {
+                            ctx.log("STORYBOARD", done + "/" + total + " tiles");
+                            trackingService.updateFilePercent(ctx.getJobId(), fileIndex,
+                                    FileSubStep.STORYBOARD, total > 0 ? done * 100.0 / total : 0);
+                        });
             } catch (Exception e) {
                 ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
             }

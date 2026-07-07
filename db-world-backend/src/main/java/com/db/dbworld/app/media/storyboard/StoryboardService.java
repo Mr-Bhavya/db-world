@@ -19,7 +19,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Generates a "storyboard" sprite sheet of thumbnail frames for scrub-bar
@@ -126,11 +125,17 @@ public class StoryboardService {
         MediaFileStoryboardCleanupListener.setStoryboardService(this);
     }
 
+    /** Reports storyboard tile progress: {@code done} of {@code total} tiles rendered. */
+    @FunctionalInterface
+    public interface ProgressListener {
+        void onProgress(int done, int total);
+    }
+
     public void generate(String mediaFileId, Path videoFile, long durationMs) {
         generate(mediaFileId, videoFile, durationMs, null);
     }
 
-    public void generate(String mediaFileId, Path videoFile, long durationMs, Consumer<String> progress) {
+    public void generate(String mediaFileId, Path videoFile, long durationMs, ProgressListener progress) {
         if (mediaFileId == null || videoFile == null || durationMs <= 0) {
             log.debug("Storyboard skipped (missing id/file/duration) for {}", mediaFileId);
             return;
@@ -177,8 +182,7 @@ public class StoryboardService {
                 if (progress != null) {
                     int quarter = (i + 1) * 4 / count; // 0..4
                     if (quarter > lastReportedQuarter) {
-                        int pct = (i + 1) * 100 / count;
-                        progress.accept((i + 1) + "/" + count + " tiles (" + pct + "%)");
+                        progress.onProgress(i + 1, count);
                         lastReportedQuarter = quarter;
                     }
                 }

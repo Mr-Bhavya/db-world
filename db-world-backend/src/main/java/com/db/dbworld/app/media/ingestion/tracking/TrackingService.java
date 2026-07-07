@@ -14,6 +14,20 @@ public interface TrackingService {
 
     void updateProgress(String jobId, ProgressSnapshot progress);
 
+    // ── Per-file breakdown (season packs process multiple files sequentially) ──
+
+    /** Register the ordered set of files this job will process; marks each pending and sets N-of-M. */
+    void initFiles(String jobId, java.util.List<String> fileNames);
+
+    /** Mark the file at {@code fileIndex} (1-based) active and note which sub-step is starting. */
+    void startFileSubStep(String jobId, int fileIndex, FileSubStep subStep);
+
+    /** Set the percent (0-100) of {@code subStep} for the file at {@code fileIndex}. */
+    void updateFilePercent(String jobId, int fileIndex, FileSubStep subStep, double percent);
+
+    /** Mark the file at {@code fileIndex} done (or failed) and clear it as the active file. */
+    void finishFile(String jobId, int fileIndex, boolean success);
+
     /** Store display metadata broadcast via WebSocket (sourceType, fileName, uri, recordId, recordName). */
     void updateJobMeta(String jobId, String sourceType, String fileName, String uri,
                        Long recordId, String recordName);

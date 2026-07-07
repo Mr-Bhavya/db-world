@@ -10,10 +10,13 @@ import com.db.dbworld.app.media.ingestion.tracking.log.LogCollector;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
+import com.db.dbworld.app.media.ingestion.tracking.FileSubStep;
+
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * In-memory implementation of TrackingService.
@@ -77,7 +80,75 @@ public class InMemoryTrackingService implements TrackingService {
 
     @Override
     public void updateProgress(String jobId, ProgressSnapshot progress) {
-        getOrCreate(jobId).progress.set(progress);
+        JobState state = getOrCreate(jobId);
+        state.progress.set(progress);
+        // Route ffmpeg timeline progress to the active file's FFMPEG sub-step. Within a job,
+        // files are processed sequentially (only one active at a time), so currentFile is
+        // unambiguous. Skipped during EXTRACT (no file active yet) and download (bytes phase).
+        if (progress != null && "processing".equals(progress.phase()) && progress.totalBytes() > 0) {
+            FileProgressState f = state.currentFile();
+            if (f != null && "ffmpeg".equals(f.subStep)) {
+                // downloadedBytes/totalBytes carry ffmpeg out_time/duration in ms during processing.
+                f.ffmpegPositionMs = progress.downloadedBytes();
+                f.ffmpegDurationMs = progress.totalBytes();
+                f.ffmpegPercent    = clampPercent(progress.downloadedBytes() * 100.0 / progress.totalBytes());
+            }
+        }
+    }
+
+    @Override
+    public void initFiles(String jobId, List<String> fileNames) {
+        JobState state = getOrCreate(jobId);
+        state.files.clear();
+        int i = 1;
+        for (String name : fileNames) {
+            state.files.put(i, new FileProgressState(i, name));
+            i++;
+        }
+        state.fileTotal = fileNames.size();
+        state.currentFileIndex = -1;
+    }
+
+    @Override
+    public void startFileSubStep(String jobId, int fileIndex, FileSubStep subStep) {
+        JobState state = getOrCreate(jobId);
+        FileProgressState f = state.files.get(fileIndex);
+        if (f == null) return;
+        state.currentFileIndex = fileIndex;
+        f.status  = "active";
+        f.subStep = subStep.name().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public void updateFilePercent(String jobId, int fileIndex, FileSubStep subStep, double percent) {
+        JobState state = getOrCreate(jobId);
+        FileProgressState f = state.files.get(fileIndex);
+        if (f == null) return;
+        double p = clampPercent(percent);
+        switch (subStep) {
+            case FFMPEG     -> f.ffmpegPercent     = p;
+            case MEDIA_INFO -> f.mediaInfoPercent  = p;
+            case STORYBOARD -> f.storyboardPercent = p;
+        }
+    }
+
+    @Override
+    public void finishFile(String jobId, int fileIndex, boolean success) {
+        JobState state = getOrCreate(jobId);
+        FileProgressState f = state.files.get(fileIndex);
+        if (f != null) {
+            f.status  = success ? "done" : "failed";
+            f.subStep = null;
+            if (success) {
+                // FFmpeg + MediaInfo always complete on success; storyboard is best-effort
+                // (legitimately skipped for very short clips), so its percent is left as-is.
+                f.ffmpegPercent    = 100.0;
+                f.mediaInfoPercent = 100.0;
+            }
+        }
+        if (state.currentFileIndex == fileIndex) {
+            state.currentFileIndex = -1;
+        }
     }
 
     @Override
@@ -181,6 +252,14 @@ public class InMemoryTrackingService implements TrackingService {
             || status == MirrorStatus.CANCELLED  || status == MirrorStatus.COMPLETED;
     }
 
+    private static double clampPercent(double pct) {
+        return Math.max(0.0, Math.min(100.0, pct));
+    }
+
+    private static double round1(double v) {
+        return Math.round(v * 10.0) / 10.0;
+    }
+
     private void markFinished(String jobId, JobState state) {
         if (state.finishedAt == null) {
             state.finishedAt = System.currentTimeMillis();
@@ -228,6 +307,40 @@ public class InMemoryTrackingService implements TrackingService {
             }
             map.put("progress", progressMap);
         }
+
+        // Per-file breakdown (season packs / multi-file jobs). Absent for jobs that never
+        // registered files (e.g. still downloading), so the UI falls back to the single bar.
+        if (state.fileTotal > 0) {
+            map.put("fileTotal", state.fileTotal);
+            map.put("fileIndex", state.currentFileIndex > 0 ? state.currentFileIndex : null);
+            List<Map<String, Object>> files = state.files.values().stream()
+                    .sorted(Comparator.comparingInt(f -> f.index))
+                    .map(f -> {
+                        Map<String, Object> fm = new LinkedHashMap<>();
+                        fm.put("index",             f.index);
+                        fm.put("name",              f.fileName);
+                        fm.put("status",            f.status);
+                        fm.put("subStep",           f.subStep);
+                        fm.put("ffmpegPercent",     round1(f.ffmpegPercent));
+                        fm.put("mediaInfoPercent",  round1(f.mediaInfoPercent));
+                        fm.put("storyboardPercent", round1(f.storyboardPercent));
+                        fm.put("ffmpegPositionMs",  f.ffmpegPositionMs);
+                        fm.put("ffmpegDurationMs",  f.ffmpegDurationMs);
+                        return fm;
+                    })
+                    .collect(Collectors.toList());
+            map.put("files", files);
+
+            // Whole-job progress: each file is 1/N of the bar. Done/failed files count as a full
+            // unit (so the bar completes even on a failure); the active file contributes its
+            // ffmpeg fraction. This is a clean 0-100 that can never render as a bogus time.
+            double units = 0;
+            for (FileProgressState f : state.files.values()) {
+                if ("done".equals(f.status) || "failed".equals(f.status)) units += 1.0;
+                else if ("active".equals(f.status)) units += f.ffmpegPercent / 100.0;
+            }
+            map.put("overallPercent", round1(Math.min(100.0, units / state.fileTotal * 100.0)));
+        }
         return map;
     }
 
@@ -252,6 +365,15 @@ public class InMemoryTrackingService implements TrackingService {
         volatile Long   recordId;
         volatile String recordName;
 
+        // Per-file breakdown
+        volatile int fileTotal;
+        volatile int currentFileIndex = -1;
+        final Map<Integer, FileProgressState> files = new ConcurrentHashMap<>();
+
+        FileProgressState currentFile() {
+            return currentFileIndex > 0 ? files.get(currentFileIndex) : null;
+        }
+
         JobState(String jobId) {
             this.jobId     = jobId;
             this.startTime = System.currentTimeMillis();
@@ -260,6 +382,25 @@ public class InMemoryTrackingService implements TrackingService {
         JobState(String jobId, long startTime) {
             this.jobId     = jobId;
             this.startTime = startTime;
+        }
+    }
+
+    /** Mutable per-file progress within a job. Fields are volatile — written by the
+     *  processing thread, read by the 2s WebSocket broadcast thread. */
+    private static class FileProgressState {
+        final int index;
+        volatile String fileName;
+        volatile String status = "pending";   // pending | active | done | failed
+        volatile String subStep;               // ffmpeg | media_info | storyboard | null
+        volatile double ffmpegPercent;
+        volatile double mediaInfoPercent;
+        volatile double storyboardPercent;
+        volatile long   ffmpegPositionMs;   // encode position (ms) — for the guarded time readout
+        volatile long   ffmpegDurationMs;   // clip duration (ms)
+
+        FileProgressState(int index, String fileName) {
+            this.index    = index;
+            this.fileName = fileName;
         }
     }
 }

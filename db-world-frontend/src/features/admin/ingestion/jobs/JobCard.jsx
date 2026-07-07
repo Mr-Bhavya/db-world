@@ -76,6 +76,27 @@ function fmtDurationMs(ms) {
   return `${ss}s`;
 }
 
+function fmtClock(ms) {
+  const total = Number(ms);
+  if (!Number.isFinite(total) || total < 0) return null;
+  const s = Math.floor(total / 1000);
+  const hh = Math.floor(s / 3600);
+  const pad = (n) => String(n).padStart(2, '0');
+  const body = `${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+  return hh > 0 ? `${hh}:${body}` : body;
+}
+
+// Guarded "12:03 / 25:40" encode readout: only shown when the position is within the clip's
+// own duration and the duration itself is sane — so a stale/wrong-unit value can never render
+// as hundreds of hours. Returns null (→ hidden) otherwise.
+function encodeTime(positionMs, durationMs) {
+  const pos = Number(positionMs);
+  const dur = Number(durationMs);
+  if (!Number.isFinite(dur) || dur <= 0 || dur > 24 * 3600 * 1000) return null;
+  if (!Number.isFinite(pos) || pos < 0 || pos > dur * 1.05) return null;
+  return `${fmtClock(pos)} / ${fmtClock(dur)}`;
+}
+
 function fmtSpeed(bps) {
   if (!bps) return null;
   const n = Number(bps);
@@ -303,6 +324,165 @@ function StageBar({ step, status }) {
         );
       })}
     </Stack>
+  );
+}
+
+// One thin sub-step bar (FFmpeg / Info / Storyboard) inside a file row.
+function SubStepBar({ label, pct, active, T }) {
+  const value = Math.min(100, Math.max(0, Number(pct) || 0));
+  return (
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.15 }}>
+        <Typography sx={{ fontSize: 9.5, fontWeight: active ? 700 : 500, opacity: active ? 1 : 0.6 }}>
+          {label}
+        </Typography>
+        <Typography sx={{ fontSize: 9.5, opacity: 0.65 }}>{Math.round(value)}%</Typography>
+      </Stack>
+      <LinearProgress
+        variant="determinate"
+        value={value}
+        sx={{
+          height: 3,
+          borderRadius: 999,
+          bgcolor: alpha(T.text ?? '#888', 0.1),
+          '& .MuiLinearProgress-bar': { bgcolor: active ? (T.teal ?? '#00bcd4') : (T.success ?? '#4caf50') },
+        }}
+      />
+    </Box>
+  );
+}
+
+const FILE_STATUS_LABEL = { active: 'Processing', done: 'Done', failed: 'Failed' };
+
+function fileStatusColor(T, status) {
+  switch (status) {
+    case 'active': return T.teal ?? '#00bcd4';
+    case 'done':   return T.success ?? '#4caf50';
+    case 'failed': return T.error ?? '#f44336';
+    default:       return alpha(T.text ?? '#888', 0.55); // pending
+  }
+}
+
+// The three sub-step bars (FFmpeg / Info / Board) for one file. Wrap to a second line on the
+// narrowest screens so labels + percents never get crushed.
+function SubStepRow({ f, T }) {
+  const active = f.status === 'active';
+  return (
+    <Stack direction="row" spacing={0.75} sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 0.5, sm: 0 } }}>
+      <SubStepBar label="FFmpeg" pct={f.ffmpegPercent} active={active && f.subStep === 'ffmpeg'} T={T} />
+      <SubStepBar label="Info" pct={f.mediaInfoPercent} active={active && f.subStep === 'media_info'} T={T} />
+      <SubStepBar label="Board" pct={f.storyboardPercent} active={active && f.subStep === 'storyboard'} T={T} />
+    </Stack>
+  );
+}
+
+// One file's row: index + name + status chip, and (when active/done) its sub-step bars.
+// The active file also shows a guarded "12:03 / 25:40" encode readout (hidden on mobile).
+function FileRow({ f, fileTotal, T, showIndex = true }) {
+  const color = fileStatusColor(T, f.status);
+  const active = f.status === 'active';
+  const showBars = active || f.status === 'done';
+  const clock = active ? encodeTime(f.ffmpegPositionMs, f.ffmpegDurationMs) : null;
+  return (
+    <Box
+      sx={{
+        px: 0.75,
+        py: 0.5,
+        borderRadius: 1.5,
+        bgcolor: alpha(color, active ? 0.09 : 0.04),
+        border: `1px solid ${alpha(color, 0.18)}`,
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: showBars ? 0.4 : 0 }}>
+        {showIndex ? (
+          <Typography sx={{ fontSize: 10, fontWeight: 700, opacity: 0.55, minWidth: 30 }}>
+            {f.index}/{fileTotal}
+          </Typography>
+        ) : null}
+        <Tooltip title={f.name}>
+          <Typography noWrap sx={{ fontSize: 11, flex: 1, minWidth: 0 }}>
+            {f.name}
+          </Typography>
+        </Tooltip>
+        {clock ? (
+          <Typography
+            sx={{
+              fontSize: 9.5,
+              color: alpha(T.text ?? '#888', 0.7),
+              whiteSpace: 'nowrap',
+              display: { xs: 'none', sm: 'block' },
+            }}
+          >
+            {clock}
+          </Typography>
+        ) : null}
+        <Chip
+          size="small"
+          label={FILE_STATUS_LABEL[f.status] ?? 'Queued'}
+          sx={{
+            height: 16,
+            fontSize: 9,
+            fontWeight: 700,
+            color,
+            bgcolor: alpha(color, 0.14),
+            '& .MuiChip-label': { px: 0.6 },
+          }}
+        />
+      </Stack>
+      {showBars ? <SubStepRow f={f} T={T} /> : null}
+    </Box>
+  );
+}
+
+// Single-file jobs: no "N of M" list — the overall bar already IS this file, so just show its
+// three sub-step bars (+ guarded encode time) inline.
+function SingleFileSteps({ file }) {
+  const T = useT();
+  if (!file) return null;
+  const clock = file.status === 'active' ? encodeTime(file.ffmpegPositionMs, file.ffmpegDurationMs) : null;
+  return (
+    <Box sx={{ mt: 0.75 }}>
+      {clock ? (
+        <Typography sx={{ fontSize: 10, color: alpha(T.text ?? '#888', 0.7), mb: 0.4 }}>{clock}</Typography>
+      ) : null}
+      <SubStepRow f={file} T={T} />
+    </Box>
+  );
+}
+
+// Multi-file (season-pack) breakdown: collapsible "Files · N of M" header + a height-capped,
+// scrollable list of file rows. Collapsed by default for large packs (> 8 files).
+function FileBreakdown({ files, fileIndex, fileTotal }) {
+  const T = useT();
+  const [open, setOpen] = useState(fileTotal <= 8);
+  if (!files || files.length === 0) return null;
+
+  return (
+    <Box sx={{ mt: 0.5 }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={0.5}
+        onClick={() => setOpen((o) => !o)}
+        sx={{ cursor: 'pointer', userSelect: 'none' }}
+      >
+        <Typography sx={{ fontSize: 11, fontWeight: 700, opacity: 0.75 }}>
+          {fileIndex ? `Files · ${fileIndex} of ${fileTotal}` : `Files · ${fileTotal}`}
+        </Typography>
+        <Box sx={{ flex: 1 }} />
+        <IconButton size="small" sx={{ p: 0.1 }}>
+          {open ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+        </IconButton>
+      </Stack>
+
+      <Collapse in={open}>
+        <Stack spacing={0.5} sx={{ mt: 0.35, maxHeight: 260, overflowY: 'auto', pr: 0.25 }}>
+          {files.map((f) => (
+            <FileRow key={f.index} f={f} fileTotal={fileTotal} T={T} />
+          ))}
+        </Stack>
+      </Collapse>
+    </Box>
   );
 }
 
@@ -552,6 +732,10 @@ function JobCardComponent({ job }) {
     elapsedMs,
     recordId,
     recordName,
+    files,
+    fileIndex,
+    fileTotal,
+    overallPercent,
   } = job;
 
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.STARTED;
@@ -576,26 +760,30 @@ function JobCardComponent({ job }) {
   const isDownload = !isFfmpeg && !isExtract && !isMerging &&
     (step === 'DOWNLOAD' || progress?.phase === 'downloading');
 
+  const hasFiles = Array.isArray(files) && files.length > 0;
+  const isMultiFile = Number(fileTotal) > 1;
+  // Main bar shows WHOLE-JOB progress once files are registered — a clean 0-100% that can never
+  // render as a time. Falls back to the download/extract byte-percent before files exist.
+  const mainPct = hasFiles
+    ? Math.min(100, Math.max(0, Number(overallPercent ?? pct)))
+    : pct;
+
   const progressLeft = useMemo(() => {
     if (isMerging) return 'Merging audio + video…';
-    if (isFfmpeg) {
-      return `${fmtDurationMs(progress?.downloaded)} / ${fmtDurationMs(progress?.total)}`;
-    }
-    if (isExtract) {
-      return pct > 0 ? `${pct.toFixed(1)}%` : 'Extracting…';
-    }
+    if (hasFiles) return isMultiFile ? `File ${fileIndex ?? '—'} of ${fileTotal}` : 'Processing';
+    if (isExtract) return 'Extracting…';
     return `${fmtBytes(progress?.downloaded)} / ${fmtBytes(progress?.total)}`;
-  }, [isMerging, isFfmpeg, isExtract, pct, progress?.downloaded, progress?.total]);
+  }, [isMerging, hasFiles, isMultiFile, fileIndex, fileTotal, isExtract, progress?.downloaded, progress?.total]);
 
   const progressRight = useMemo(() => {
     return [
       isDownload && speed ? speed : null,
       isDownload && eta ? `ETA ${eta}` : null,
-      pct > 0 && !isExtract && !isMerging ? `${pct.toFixed(1)}%` : null,
+      mainPct > 0 && !isMerging ? `${mainPct.toFixed(1)}%` : null,
     ]
       .filter(Boolean)
       .join('  ·  ');
-  }, [isDownload, speed, eta, pct, isExtract, isMerging]);
+  }, [isDownload, speed, eta, mainPct, isMerging]);
 
   const showProgress = useMemo(() => {
     return (
@@ -862,8 +1050,8 @@ function JobCardComponent({ job }) {
                 <ProgressInfo left={progressLeft} right={progressRight} />
 
                 <LinearProgress
-                  variant={isMerging || pct === 0 ? 'indeterminate' : 'determinate'}
-                  value={pct}
+                  variant={isMerging || mainPct === 0 ? 'indeterminate' : 'determinate'}
+                  value={mainPct}
                   sx={{
                     height: isSmDown ? 5 : 6,
                     borderRadius: 999,
@@ -880,6 +1068,13 @@ function JobCardComponent({ job }) {
                   mt: 0.1,
                 }}
               />
+            ) : null}
+
+            {/* Per-file breakdown: full list for season packs, inline sub-steps for a single file */}
+            {hasFiles && isMultiFile ? (
+              <FileBreakdown files={files} fileIndex={fileIndex} fileTotal={fileTotal} />
+            ) : hasFiles ? (
+              <SingleFileSteps file={files[0]} />
             ) : null}
 
             {/* Failure block */}
