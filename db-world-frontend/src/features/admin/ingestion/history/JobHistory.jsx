@@ -24,6 +24,7 @@ import {
   Http,
   Refresh,
   Replay,
+  Tune,
   Search,
   YouTube,
   Link as LinkIcon,
@@ -41,6 +42,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useJobHistory } from '../hooks/useJobHistory';
 import { deleteJob, rerunJob } from '../services/ingestionApi';
 import LogViewerDrawer from '../jobs/LogViewerDrawer';
+import RerunEditDialog from '../jobs/RerunEditDialog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -256,6 +258,7 @@ export default function JobHistory() {
   const qc = useQueryClient();
 
   const [logJobId, setLogJobId] = useState(null);
+  const [rerunEditJobId, setRerunEditJobId] = useState(null);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState({});
 
@@ -481,7 +484,7 @@ export default function JobHistory() {
       {
         field: 'actions',
         headerName: 'Actions',
-        width: 138,
+        width: 176,
         sortable: false,
         filterable: false,
         align: 'center',
@@ -497,6 +500,14 @@ export default function JobHistory() {
                 disabled={!!busy[`${id}_Rerun`] || !!busy[`${id}_Delete`]}
                 onClick={() => act(id, 'Rerun', () => rerunJob(id))}
                 icon={<Replay fontSize="small" />}
+              />
+
+              <HistoryActionButton
+                title="Edit & rerun"
+                color="primary"
+                disabled={!!busy[`${id}_Rerun`] || !!busy[`${id}_Delete`]}
+                onClick={() => setRerunEditJobId(id)}
+                icon={<Tune fontSize="small" />}
               />
 
               <HistoryActionButton
@@ -653,6 +664,15 @@ export default function JobHistory() {
         jobId={logJobId}
         open={!!logJobId}
         onClose={() => setLogJobId(null)}
+      />
+
+      <RerunEditDialog
+        jobId={rerunEditJobId}
+        open={!!rerunEditJobId}
+        onClose={() => {
+          setRerunEditJobId(null);
+          qc.invalidateQueries({ queryKey: ['ingestion-history'] });
+        }}
       />
     </Box>
   );

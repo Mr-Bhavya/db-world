@@ -31,6 +31,12 @@ export const rerunJob = async (jobId) => {
   return res.data;
 };
 
+/** Re-editable snapshot of a job's original request (for rerun-with-edit). */
+export const getJobParams = async (jobId) => {
+  const res = await axiosInstance.get(`/api/ingestion/${jobId}/params`);
+  return res.data;
+};
+
 export const deleteJob = async (jobId) => {
   const res = await axiosInstance.delete(`/api/ingestion/${jobId}`);
   return res.data;

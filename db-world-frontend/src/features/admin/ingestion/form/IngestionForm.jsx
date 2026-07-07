@@ -497,10 +497,35 @@ const UrlRow = memo(function UrlRow({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Default form values
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EMPTY_DEFAULTS = {
+  urls: [{ url: '', customName: '', rename: false, episode: null }],
+  record: null,
+  season: null,
+  episode: null,
+  username: '',
+  password: '',
+  useAuth: false,
+  extract: false,
+  zipPwd: '',
+  audioOnly: false,
+  videoITag: null,
+  audioITag: null,
+  videoQuality: 'best',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Form
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function IngestionForm({ onSubmitted }) {
+export default function IngestionForm({
+  onSubmitted,
+  initialValues = null,
+  dialogMode = false,
+  onCancel,
+}) {
   const theme = useTheme();
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
@@ -517,6 +542,13 @@ export default function IngestionForm({ onSubmitted }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showZipPassword, setShowZipPassword] = useState(false);
 
+  // In dialog / rerun-with-edit mode the caller passes a form-shaped snapshot;
+  // otherwise start from the empty defaults.
+  const defaults = useMemo(
+    () => (initialValues ? { ...EMPTY_DEFAULTS, ...initialValues } : EMPTY_DEFAULTS),
+    [initialValues]
+  );
+
   const {
     control,
     handleSubmit,
@@ -526,21 +558,7 @@ export default function IngestionForm({ onSubmitted }) {
     formState: { isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: {
-      urls: [{ url: '', customName: '', rename: false, episode: null }],
-      record: null,
-      season: null,
-      episode: null,
-      username: '',
-      password: '',
-      useAuth: false,
-      extract: false,
-      zipPwd: '',
-      audioOnly: false,
-      videoITag: null,
-      audioITag: null,
-      videoQuality: 'best',
-    },
+    defaultValues: defaults,
     mode: 'onSubmit',
     reValidateMode: 'onChange',
   });
@@ -624,22 +642,9 @@ export default function IngestionForm({ onSubmitted }) {
   }, []);
 
   const handleReset = useCallback(() => {
-    reset({
-      urls: [{ url: '', customName: '', rename: false, episode: null }],
-      record: null,
-      season: null,
-      episode: null,
-      username: '',
-      password: '',
-      useAuth: false,
-      extract: false,
-      zipPwd: '',
-      audioOnly: false,
-      videoITag: null,
-      audioITag: null,
-    });
+    reset(defaults);
     clearTransientState();
-  }, [reset, clearTransientState]);
+  }, [reset, clearTransientState, defaults]);
 
   const handleTorrentFile = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -861,23 +866,29 @@ export default function IngestionForm({ onSubmitted }) {
       component="form"
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      sx={{
-        maxWidth: 1480,
-        mx: 'auto',
-        px: { xs: 1, sm: 1.5, lg: 2.5 },
-        pt: { xs: 1, sm: 1.25 },
-        pb: { xs: 10, md: 11 },
-      }}
+      sx={
+        dialogMode
+          ? { px: 0, pt: 0.5, pb: 0.5 }
+          : {
+              maxWidth: 1480,
+              mx: 'auto',
+              px: { xs: 1, sm: 1.5, lg: 2.5 },
+              pt: { xs: 1, sm: 1.25 },
+              pb: { xs: 10, md: 11 },
+            }
+      }
     >
       <Stack spacing={{ xs: 1.5, sm: 2 }}>
         <Box
           sx={{
             display: 'grid',
             gap: { xs: 1.5, sm: 2 },
-            gridTemplateColumns: {
-              xs: '1fr',
-              xl: 'minmax(0, 1.45fr) minmax(340px, 0.9fr)',
-            },
+            gridTemplateColumns: dialogMode
+              ? '1fr'
+              : {
+                  xs: '1fr',
+                  xl: 'minmax(0, 1.45fr) minmax(340px, 0.9fr)',
+                },
           }}
         >
           {/* LEFT COLUMN */}
@@ -1397,7 +1408,50 @@ export default function IngestionForm({ onSubmitted }) {
           </Stack>
         </Box>
 
-        {/* Sticky action bar */}
+        {/* Action bar — inline (in a dialog) or sticky/fixed (full page) */}
+        {dialogMode ? (
+          <Stack
+            direction="row"
+            spacing={1}
+            justifyContent="flex-end"
+            sx={{ pt: 0.5, flexWrap: 'wrap', gap: 1 }}
+          >
+            {onCancel ? (
+              <Button
+                variant="text"
+                onClick={onCancel}
+                disabled={isSubmitting}
+                sx={{ borderRadius: 999 }}
+              >
+                Cancel
+              </Button>
+            ) : null}
+            <Button
+              variant="outlined"
+              startIcon={<Clear />}
+              onClick={handleReset}
+              disabled={isSubmitting}
+              sx={{ borderRadius: 999 }}
+            >
+              Reset
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={
+                isSubmitting ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <Send />
+                )
+              }
+              disabled={isSubmitting}
+              sx={{ borderRadius: 999, fontWeight: 700 }}
+            >
+              {submitLabel}
+            </Button>
+          </Stack>
+        ) : (
         <Paper
           elevation={10}
           sx={{
@@ -1552,6 +1606,7 @@ export default function IngestionForm({ onSubmitted }) {
             </Stack>
           )}
         </Paper>
+        )}
       </Stack>
     </Box>
   );

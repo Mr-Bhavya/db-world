@@ -1,5 +1,6 @@
 package com.db.dbworld.app.media.ingestion.controller;
 
+import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.ingestion.entity.IngestionJobEntity;
@@ -29,6 +30,7 @@ import java.util.*;
  *   PUT    /api/ingestion/{jobId}/pause    — pause (Aria2 / HTTP-TORRENT only)
  *   PUT    /api/ingestion/{jobId}/resume   — resume a paused Aria2 job
  *   POST   /api/ingestion/{jobId}/rerun    — rerun with same request (new job ID)
+ *   GET    /api/ingestion/{jobId}/params   — re-editable request snapshot (rerun-with-edit)
  *   DELETE /api/ingestion/{jobId}          — purge: cancel + remove from DB
  *
  * Status endpoints:
@@ -213,6 +215,27 @@ public class IngestionController {
                 })
                 .orElse(ApiResponse.error(404,
                         "Job " + jobId + " not found in store or DB", (String) null));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PARAMS  (re-editable snapshot for "rerun with edit")
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Return the original request params for a job so the ingestion form can be
+     * pre-filled for a "rerun with edit" flow. Prefers the in-memory request
+     * (still-tracked jobs), falling back to the persisted DB row.
+     */
+    @GetMapping("/{jobId}/params")
+    public ApiResponse<JobParamsDto> getJobParams(@PathVariable String jobId) {
+        Optional<IngestionRequest> stored = jobStore.getRequest(jobId);
+        if (stored.isPresent()) {
+            return ApiResponse.success(toParamsDto(stored.get()));
+        }
+        return jobRepository.findById(jobId)
+                .map(e -> ApiResponse.success(toParamsDto(reconstructRequest(e))))
+                .orElse(ApiResponse.error(404,
+                        "Job " + jobId + " not found in store or DB", (JobParamsDto) null));
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -451,6 +474,7 @@ public class IngestionController {
         IngestionRequest r = new IngestionRequest();
         r.setUri(entity.getUri());
         r.setFolderName(entity.getFolderName());
+        r.setFileName(entity.getFileName());
         r.setRecordId(entity.getRecordId());
         r.setSeason(entity.getSeasonNumber());
         r.setEpisode(entity.getEpisodeNumber());
@@ -463,5 +487,33 @@ public class IngestionController {
         r.setExtract(Boolean.TRUE.equals(entity.getExtract()));
         r.setRename(Boolean.TRUE.equals(entity.getRename()));
         return r;
+    }
+
+    /**
+     * Map an {@link IngestionRequest} to a re-editable {@link JobParamsDto}, resolving
+     * the linked record (best-effort) so the form's autocomplete can be pre-populated.
+     * Secrets (URL / archive passwords) are never echoed back.
+     */
+    private JobParamsDto toParamsDto(IngestionRequest r) {
+        RecordAutocompleteDto record = r.getRecordId() != null
+                ? recordRepository.findAutocompleteById(r.getRecordId()).orElse(null)
+                : null;
+        boolean rename = Boolean.TRUE.equals(r.getRename());
+        return JobParamsDto.builder()
+                .uri(r.getUri())
+                .recordId(r.getRecordId())
+                .record(record)
+                .season(r.getSeason())
+                .episode(r.getEpisode())
+                .videoITag(r.getVideoITag())
+                .audioITag(r.getAudioITag())
+                .onlyAudio(Boolean.TRUE.equals(r.getOnlyAudio()))
+                .videoQuality(r.getVideoQuality())
+                .extract(Boolean.TRUE.equals(r.getExtract()))
+                .rename(rename)
+                .fileName(rename ? r.getFileName() : null)
+                .urlProtected(Boolean.TRUE.equals(r.getUrlProtected()))
+                .username(r.getUsername())
+                .build();
     }
 }

@@ -461,6 +461,25 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             Pageable pageable
     );
 
+    /**
+     * Autocomplete-shaped projection for a single record id — used to re-hydrate the
+     * ingestion form's RecordSearch field when re-editing a job. LEFT JOIN so records
+     * without a linked TMDB row still resolve (posterPath just comes back null).
+     */
+    @Query("""
+            SELECT new com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto(
+                r.id,
+                r.name,
+                r.type,
+                tmdb.id,
+                tmdb.posterPath
+            )
+            FROM RecordEntity r
+            LEFT JOIN r.tmdb tmdb
+            WHERE r.id = :id
+            """)
+    Optional<RecordAutocompleteDto> findAutocompleteById(@Param("id") Long id);
+
     /* ================================================================
        ADMIN TABLE
     ================================================================= */

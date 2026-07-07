@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
   alpha,
-  Box,
   Button,
   CircularProgress,
   IconButton,
@@ -15,6 +14,7 @@ import {
   Pause,
   PlayArrow,
   Replay,
+  Tune,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
@@ -25,6 +25,7 @@ import {
   rerunJob,
   deleteJob,
 } from '../services/ingestionApi';
+import RerunEditDialog from './RerunEditDialog';
 
 const TERMINAL = ['SUCCESS', 'FAILED', 'CANCELLED'];
 
@@ -170,6 +171,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(null);
+  const [rerunEditOpen, setRerunEditOpen] = useState(false);
 
   const status = job.status;
   const sourceType = job.sourceType;
@@ -252,6 +254,14 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
         icon: <Replay fontSize="small" />,
         onClick: () => act('Rerun', () => rerunJob(job.jobId)),
       });
+      list.push({
+        key: 'EditRerun',
+        label: 'Edit & rerun',
+        colorKey: 'primary',
+        icon: <Tune fontSize="small" />,
+        onClick: () => setRerunEditOpen(true),
+        subtle: true,
+      });
     }
 
     list.push({
@@ -265,6 +275,15 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
 
     return list;
   }, [isActive, isYt, isPaused, isTerminal, act, job.jobId]);
+
+  const closeRerunEdit = useCallback(() => {
+    setRerunEditOpen(false);
+    invalidateHistory();
+  }, [invalidateHistory]);
+
+  const rerunEditDialog = rerunEditOpen ? (
+    <RerunEditDialog jobId={job.jobId} open={rerunEditOpen} onClose={closeRerunEdit} />
+  ) : null;
 
   if (layout === 'mobile') {
     return (
@@ -282,6 +301,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
             compact={compactMobile}
           />
         ))}
+        {rerunEditDialog}
       </Stack>
     );
   }
@@ -300,6 +320,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
           subtle={action.subtle}
         />
       ))}
+      {rerunEditDialog}
     </Stack>
   );
 }
