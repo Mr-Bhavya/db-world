@@ -151,6 +151,15 @@ export default function PlaylistPicker({ entries = [], selected, onChange, loadi
                   {entry.index}. {entry.title}
                 </Typography>
                 <Stack direction="row" spacing={1} mt={0.25} alignItems="center">
+                  {entry.episodeNumber != null && (
+                    <Chip
+                      label={entry.seasonNumber != null
+                        ? `S${entry.seasonNumber}E${entry.episodeNumber}`
+                        : `E${entry.episodeNumber}`}
+                      size="small"
+                      sx={{ height: 16, fontSize: '0.6rem', bgcolor: alpha(T.teal, 0.16), color: T.teal }}
+                    />
+                  )}
                   {entry.duration && (
                     <Stack direction="row" alignItems="center" spacing={0.25}>
                       <AccessTime sx={{ fontSize: 11, color: 'text.disabled' }} />

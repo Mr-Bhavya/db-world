@@ -324,6 +324,10 @@ public class YtFormatService {
                         .thumbnail(textOrNull(e, "thumbnail"))
                         .duration(longOrNull(e, "duration"))
                         .uploader(textOrNull(e, "uploader"))
+                        // Real series metadata when the source exposes it (e.g. Hotstar).
+                        .seasonNumber(intOrNull(e, "season_number"))
+                        .episodeNumber(intOrNull(e, "episode_number"))
+                        .episode(textOrNull(e, "episode"))
                         .build());
             }
         }

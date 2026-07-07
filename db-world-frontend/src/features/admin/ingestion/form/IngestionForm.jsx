@@ -747,11 +747,12 @@ export default function IngestionForm({ onSubmitted }) {
         const jobs = toDownload.map((entry, i) => ({
           ...sharedOptions,
           uris: [entry.url],
-          season: seasonNumber,
+          // Prefer the source's real season/episode (Hotstar etc. expose these via yt-dlp);
+          // fall back to your Season/Episode inputs, then to playlist order.
+          season: entry.seasonNumber ?? seasonNumber,
           episode: isTvRecord
-            ? episodeBase != null
-              ? episodeBase + i
-              : entry.index
+            ? (entry.episodeNumber
+                ?? (episodeBase != null ? episodeBase + i : entry.index))
             : null,
         }));
 

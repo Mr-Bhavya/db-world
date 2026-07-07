@@ -15,4 +15,10 @@ public class YtPlaylistEntry {
     private String thumbnail;
     private Long   duration;   // seconds
     private String uploader;
+
+    // Source-provided series metadata (yt-dlp fills these for extractors like Hotstar;
+    // null for plain YouTube playlists). Preferred over guessing episode order.
+    private Integer seasonNumber;
+    private Integer episodeNumber;
+    private String  episode;    // episode name from the source, when available
 }
