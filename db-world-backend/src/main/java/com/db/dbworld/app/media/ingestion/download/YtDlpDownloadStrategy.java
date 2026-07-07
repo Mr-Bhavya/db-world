@@ -5,6 +5,7 @@ import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.SourceMetadata;
 import com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
+import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.processor.StreamProcessor;
@@ -39,6 +40,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
     private final FileStorageService fileStorageService;
     private final TrackingService  trackingService;
     private final ObjectMapper     objectMapper;
+    private final IngestionJobStore jobStore;
 
     private final ConcurrentMap<String, AtomicBoolean> cancellationFlags = new ConcurrentHashMap<>();
 
@@ -56,17 +58,25 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
                 Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio()));
         AtomicBoolean cancellation = new AtomicBoolean(false);
         cancellationFlags.put(jobId, cancellation);
+        // Register the cancel action so the controller's executeCancelAction actually flips this
+        // flag — ProcessExecutor polls it (every 300ms) and force-terminates yt-dlp. Without this
+        // a cancelled yt-dlp job kept running in the background and updating progress.
+        jobStore.setCancelAction(jobId, () -> cancellation.set(true));
 
         try {
             fileStorageService.prepareDirectories(ctx);
             Path tempDir = fileStorageService.resolveTempDir(ctx);
-            String outputTemplate = tempDir.resolve(ctx.getJobId() + ".%(ext)s").toString();
+            // Name by the video title (+ id for uniqueness) so an UNASSIGNED download keeps a real
+            // name instead of the job UUID. Assigned jobs are renamed again from TMDB in processing.
+            // Byte-limited (.120B) so the name stays under the 255-byte filesystem limit with the id/ext.
+            String outputTemplate = tempDir.resolve("%(title).120B [%(id)s].%(ext)s").toString();
 
             List<String> cmd = buildCommand(ctx, outputTemplate);
             String formatSelector = buildFormatSelector(
                     ctx.getRequest().getVideoITag(),
                     ctx.getRequest().getAudioITag(),
-                    Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio()));
+                    Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio()),
+                    ctx.getRequest().getVideoQuality());
             log.info("[{}] yt-dlp starting — uri={}, format={}, tempDir={}",
                     jobId, ctx.getRequest().getUri(), formatSelector, tempDir);
             ctx.log("YTDLP", "Running yt-dlp for: " + ctx.getRequest().getUri());
@@ -138,7 +148,8 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             ctx.log("YTDLP", "Using cookies: " + cookie.getFileName());
         }
 
-        cmd.addAll(List.of("-f", buildFormatSelector(videoTag, audioTag, onlyAudio)));
+        cmd.addAll(List.of("-f", buildFormatSelector(videoTag, audioTag, onlyAudio,
+                ctx.getRequest().getVideoQuality())));
 
         // Merge separate video+audio into mkv — best HDR/codec support
         if (!onlyAudio) {
@@ -150,6 +161,10 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         cmd.addAll(List.of("--fragment-retries", "10"));
         cmd.addAll(List.of("--no-part"));
 
+        // Each ingestion job is a single item (playlists are expanded to per-item jobs upstream),
+        // so never let a watch?v=…&list=… URL expand into its whole playlist.
+        cmd.add("--no-playlist");
+
         cmd.addAll(List.of("-o", outputTemplate));
         cmd.addAll(List.of("--print", "after_move:filename"));
         cmd.add(uri);
@@ -157,25 +172,37 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         return cmd;
     }
 
-    private String buildFormatSelector(String videoITag, String audioITag, boolean onlyAudio) {
+    private String buildFormatSelector(String videoITag, String audioITag, boolean onlyAudio, String videoQuality) {
         if (onlyAudio) return resolveAudio(audioITag);
 
-        // No specific format requested — pick best available, prefer HDR when present
-        if (videoITag == null || videoITag.isBlank()) {
-            return "bestvideo[ext=mp4]+bestaudio[ext=m4a]"
-                 + "/bestvideo+bestaudio"
-                 + "/best";
-        }
-
-        // "best" sentinel → use yt-dlp's automatic best selection
-        if ("best".equals(videoITag)) {
-            return "bestvideo+" + resolveAudio(audioITag) + "/best";
+        // A specific itag (from the single-video format picker) takes precedence. Otherwise fall
+        // back to a height-based quality preset — the only thing that works across a playlist,
+        // where itags differ per video.
+        if (videoITag == null || videoITag.isBlank() || "best".equals(videoITag)) {
+            return qualitySelector(videoQuality, audioITag);
         }
 
         // Specific format ID selected by user (e.g. from format picker)
-        String video = videoITag;
-        if ("0".equals(audioITag)) return video;           // video-only
-        return video + "+" + resolveAudio(audioITag) + "/best";
+        if ("0".equals(audioITag)) return videoITag;       // video-only
+        return videoITag + "+" + resolveAudio(audioITag) + "/best";
+    }
+
+    /**
+     * Height-based selector applied uniformly — resolves to the best matching format per video,
+     * so it works for every item of a playlist regardless of that item's specific itags.
+     * {@code videoQuality} is "best"/blank or a numeric height cap ("2160", "1080", "720", "480").
+     */
+    private String qualitySelector(String videoQuality, String audioITag) {
+        String audio = resolveAudio(audioITag);
+        if (videoQuality == null || videoQuality.isBlank() || "best".equalsIgnoreCase(videoQuality)) {
+            return "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+" + audio + "/best";
+        }
+        try {
+            int h = Integer.parseInt(videoQuality.trim());
+            return "bestvideo[height<=" + h + "]+" + audio + "/best[height<=" + h + "]/best";
+        } catch (NumberFormatException e) {
+            return "bestvideo+" + audio + "/best";
+        }
     }
 
     private String resolveAudio(String audioITag) {
@@ -201,14 +228,18 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
 
     private Path resolveDownloadedFile(Path tempDir, String jobId, String fileName) {
         try {
-            Path direct = tempDir.resolve(fileName);
-            if (Files.exists(direct)) return direct;
-
+            // Primary: the exact final path yt-dlp printed via --print after_move:filename.
+            if (fileName != null && !fileName.isBlank()) {
+                Path direct = tempDir.resolve(fileName);
+                if (Files.exists(direct)) return direct;
+            }
+            // Fallback (title template means we can't match on jobId): the most recently modified
+            // regular file in the temp dir — the one this job just finished downloading.
             if (Files.isDirectory(tempDir)) {
                 try (var stream = Files.list(tempDir)) {
                     return stream
-                            .filter(p -> p.getFileName().toString().startsWith(jobId))
-                            .findFirst()
+                            .filter(Files::isRegularFile)
+                            .max(java.util.Comparator.comparingLong(p -> p.toFile().lastModified()))
                             .orElse(null);
                 }
             }
@@ -260,6 +291,17 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
                 return;
             }
 
+            // Post-download merge / fixup stage. yt-dlp prints these to stdout OR stderr and they
+            // contain slashes + dots, so they MUST be matched before the filename heuristic below —
+            // otherwise "[Merger] Merging formats into …" was swallowed as a filename and the bar
+            // stayed pinned at the last 100% download snapshot instead of switching to "Merging…".
+            if (line.contains("[Merger]") || line.contains("[ffmpeg]")
+                    || line.contains("[Fixup") || line.contains("Merging formats")) {
+                trackingService.updateProgress(ctx.getJobId(), ProgressSnapshot.merging());
+                ctx.log("YTDLP", line.trim());
+                return;
+            }
+
             // Lines from --print after_move:filename look like file paths
             if (!line.startsWith("{")
                     && (line.contains("/") || line.contains("\\") || line.contains("."))) {
@@ -268,13 +310,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             }
 
             if (isErrorStream) {
-                // Detect ffmpeg merge stage from stderr
-                if (line.contains("[ffmpeg]") || line.contains("[Merger]")) {
-                    trackingService.updateProgress(ctx.getJobId(), ProgressSnapshot.merging());
-                    ctx.log("YTDLP", line.trim());
-                } else {
-                    ctx.logError("YTDLP_STDERR", line);
-                }
+                ctx.logError("YTDLP_STDERR", line);
             }
         }
 

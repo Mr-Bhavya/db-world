@@ -160,6 +160,13 @@ public class DefaultIngestionPipeline implements IngestionPipeline {
                     .orElseThrow(() -> new RuntimeException(
                             "No download strategy for source: " + ctx.getSource().getType()));
 
+            // Advance tracked status + step INTO the download phase. Without this the job sat on
+            // STARTED/"Starting" (step=null) for the entire download + yt-dlp merge, only waking up
+            // when processing set FFMPEG. The download strategies set ctx.setCurrentStep alone,
+            // which never reaches the tracking snapshot the UI reads.
+            trackingService.updateStatus(jobId, MirrorStatus.DOWNLOADING);
+            updateStep(ctx, PipelineStepType.DOWNLOAD);
+
             DownloadResult downloadResult = downloader.download(ctx);
             ctx.setDownload(downloadResult);
 

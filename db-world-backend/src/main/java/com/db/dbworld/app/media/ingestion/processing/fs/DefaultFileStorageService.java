@@ -36,9 +36,13 @@ public class DefaultFileStorageService implements FileStorageService {
                 : (ctx.getRequest() != null ? ctx.getRequest().getRecordId() : null);
 
         String recordTypePath = resolveRecordType(recordId);
-        Path base = runtimeProperties.getStreamPath()
-                .resolve(recordTypePath)
-                .resolve(safeFolderName(ctx));
+        String folder = safeFolderName(ctx);
+        Path base = runtimeProperties.getStreamPath().resolve(recordTypePath);
+        // Only nest a folder segment when it adds information. For an unassigned file with no
+        // explicit folder name both would be "unassigned", producing .../unassigned/unassigned/.
+        if (!recordTypePath.equals(folder)) {
+            base = base.resolve(folder);
+        }
 
         // For TV series, create a season subfolder (S01, S02, â€¦)
         if ("TV_SERIES".equals(recordTypePath)) {
