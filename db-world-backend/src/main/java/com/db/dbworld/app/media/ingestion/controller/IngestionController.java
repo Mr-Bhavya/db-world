@@ -31,6 +31,7 @@ import java.util.*;
  *   PUT    /api/ingestion/{jobId}/resume   — resume a paused Aria2 job
  *   POST   /api/ingestion/{jobId}/rerun    — rerun with same request (new job ID)
  *   GET    /api/ingestion/{jobId}/params   — re-editable request snapshot (rerun-with-edit)
+ *   PATCH  /api/ingestion/{jobId}/params   — live-edit safe fields (season/episode) on a running job
  *   DELETE /api/ingestion/{jobId}          — purge: cancel + remove from DB
  *
  * Status endpoints:
@@ -256,6 +257,28 @@ public class IngestionController {
                 .map(e -> ApiResponse.success(toParamsDto(reconstructRequest(e))))
                 .orElse(ApiResponse.error(404,
                         "Job " + jobId + " not found in store or DB", (JobParamsDto) null));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LIVE EDIT  (patch safe fields on a running job)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Edit safe fields (season/episode) on a still-running job. The edit is applied to the
+     * in-memory request and takes effect when the pipeline reaches the processing stage, so
+     * it's only allowed while the job is active. Returns 400 once the job is terminal.
+     */
+    @PatchMapping("/{jobId}/params")
+    public ApiResponse<Void> editJobParams(@PathVariable String jobId,
+                                           @RequestBody JobEditRequest edit) {
+        boolean applied = jobStore.applyEdit(jobId, edit.getSeason(), edit.getEpisode());
+        if (!applied) {
+            return ApiResponse.error(400,
+                    "Job " + jobId + " is not active — only running jobs can be edited.");
+        }
+        log.info("[{}] Live edit applied — season={}, episode={}",
+                jobId, edit.getSeason(), edit.getEpisode());
+        return ApiResponse.success("Job " + jobId + " updated");
     }
 
     // ══════════════════════════════════════════════════════════════════════════

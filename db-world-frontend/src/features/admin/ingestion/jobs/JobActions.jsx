@@ -11,6 +11,7 @@ import {
 import {
   Cancel,
   Delete,
+  Edit,
   Pause,
   PlayArrow,
   Replay,
@@ -26,6 +27,7 @@ import {
   deleteJob,
 } from '../services/ingestionApi';
 import RerunEditDialog from './RerunEditDialog';
+import LiveEditDialog from './LiveEditDialog';
 
 const TERMINAL = ['SUCCESS', 'FAILED', 'CANCELLED'];
 
@@ -172,6 +174,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
   const qc = useQueryClient();
   const [busy, setBusy] = useState(null);
   const [rerunEditOpen, setRerunEditOpen] = useState(false);
+  const [liveEditOpen, setLiveEditOpen] = useState(false);
 
   const status = job.status;
   const sourceType = job.sourceType;
@@ -238,6 +241,14 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
 
     if (!isTerminal) {
       list.push({
+        key: 'Edit',
+        label: 'Edit season/episode',
+        colorKey: 'primary',
+        icon: <Edit fontSize="small" />,
+        onClick: () => setLiveEditOpen(true),
+        subtle: true,
+      });
+      list.push({
         key: 'Cancel',
         label: 'Cancel',
         colorKey: 'error',
@@ -285,6 +296,14 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
     <RerunEditDialog jobId={job.jobId} open={rerunEditOpen} onClose={closeRerunEdit} />
   ) : null;
 
+  const liveEditDialog = liveEditOpen ? (
+    <LiveEditDialog
+      jobId={job.jobId}
+      open={liveEditOpen}
+      onClose={() => setLiveEditOpen(false)}
+    />
+  ) : null;
+
   if (layout === 'mobile') {
     return (
       <Stack direction="row" spacing={0.4} alignItems="center" flexShrink={0}>
@@ -302,6 +321,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
           />
         ))}
         {rerunEditDialog}
+        {liveEditDialog}
       </Stack>
     );
   }
@@ -321,6 +341,7 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
         />
       ))}
       {rerunEditDialog}
+      {liveEditDialog}
     </Stack>
   );
 }

@@ -88,6 +88,22 @@ public class IngestionJobStore {
         return meta != null ? Optional.of(meta.request) : Optional.empty();
     }
 
+    /**
+     * Live-edit safe request fields on a still-running job. Only season/episode are editable —
+     * both are consumed at PROCESSING time (episode naming + final season folder), so editing
+     * them while the job is downloading takes effect once processing runs. Null args are left
+     * unchanged. Returns false when the job is no longer tracked (terminal / evicted), i.e. it
+     * can no longer be edited.
+     */
+    public boolean applyEdit(String jobId, Integer season, Integer episode) {
+        JobMeta meta = store.get(jobId);
+        if (meta == null) return false;
+        if (season  != null) meta.request.setSeason(season);
+        if (episode != null) meta.request.setEpisode(episode);
+        log.info("[{}] Live-edited request — season={}, episode={}", jobId, season, episode);
+        return true;
+    }
+
     public String getSourceType(String jobId) {
         JobMeta meta = store.get(jobId);
         return meta != null ? meta.sourceType.get() : null;

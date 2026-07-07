@@ -37,6 +37,12 @@ export const getJobParams = async (jobId) => {
   return res.data;
 };
 
+/** Live-edit safe fields (season/episode) on a still-running job. */
+export const editJobParams = async (jobId, body) => {
+  const res = await axiosInstance.patch(`/api/ingestion/${jobId}/params`, body);
+  return res.data;
+};
+
 export const deleteJob = async (jobId) => {
   const res = await axiosInstance.delete(`/api/ingestion/${jobId}`);
   return res.data;
