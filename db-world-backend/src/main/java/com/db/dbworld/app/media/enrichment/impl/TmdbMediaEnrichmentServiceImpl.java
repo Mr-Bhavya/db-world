@@ -638,10 +638,12 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                 return;
             }
 
-            // Update UI progress bar from per-frame timestamps (never logged)
-            if (line.startsWith("out_time_ms=") || line.startsWith("out_time_us=")) {
-                String prefix = line.startsWith("out_time_ms=") ? "out_time_ms=" : "out_time_us=";
-                long processedMs = parseLong(line.substring(prefix.length()));
+            // Update UI progress bar from per-frame timestamps (never logged).
+            // Use out_time_us ONLY — it is always microseconds. out_time_ms is a misnomer:
+            // its value is microseconds in most builds but true milliseconds in others, so
+            // trusting it makes the bar/ETA either correct or 1000x off depending on the build.
+            if (line.startsWith("out_time_us=")) {
+                long processedMs = microsToMillis(line.substring("out_time_us=".length()));
                 if (processedMs > 0 && totalDurationMs > 0) {
                     long etaSeconds = Math.max(0L, (totalDurationMs - processedMs) / 1000L);
                     trackingService.updateProgress(jobId, new ProgressSnapshot(processedMs, totalDurationMs, 0.0, etaSeconds, "processing"));
@@ -688,9 +690,10 @@ public class TmdbMediaEnrichmentServiceImpl implements TmdbMediaEnrichmentServic
                     + (Long.parseLong(cs) * 10L);
         }
 
-        private long parseLong(String value) {
+        /** ffmpeg out_time_us is microseconds; convert to milliseconds. */
+        private long microsToMillis(String micros) {
             try {
-                return Long.parseLong(value.trim()) / 1000L;
+                return Long.parseLong(micros.trim()) / 1000L;
             } catch (Exception e) {
                 return 0L;
             }

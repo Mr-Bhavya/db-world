@@ -64,6 +64,13 @@ public class InMemoryTrackingService implements TrackingService {
         JobState state = getOrCreate(jobId);
         PipelineStepType previous = state.step.get();
         state.step.set(step);
+        // Reset the (overloaded) progress snapshot on any transition away from DOWNLOAD, so a
+        // stale download snapshot — a huge remaining/speed ETA sitting at ~100% — cannot leak
+        // into the EXTRACT/FFMPEG bars. Each processing strategy repopulates it with its own
+        // progress; until it does, the bar reads a neutral 0 rather than a bogus 574h/100%.
+        if (step != null && step != PipelineStepType.DOWNLOAD) {
+            state.progress.set(ProgressSnapshot.processing());
+        }
         state.logCollector.info(step.name(), "Step → " + step);
         log.info("[{}] Step transition {} → {}", jobId, previous, step);
     }
@@ -213,8 +220,11 @@ public class InMemoryTrackingService implements TrackingService {
             progressMap.put("eta",        p.eta());
             progressMap.put("phase",      p.phase() != null ? p.phase() : "downloading");
             if (p.totalBytes() > 0) {
-                progressMap.put("percent",
-                        Math.round(((double) p.downloadedBytes() / p.totalBytes()) * 100 * 10.0) / 10.0);
+                // Clamp to [0,100]: ffmpeg out_time can slightly exceed Duration and yt-dlp's
+                // committed-bytes accounting can overshoot total, which otherwise renders >100%.
+                double pct = ((double) p.downloadedBytes() / p.totalBytes()) * 100.0;
+                pct = Math.max(0.0, Math.min(100.0, pct));
+                progressMap.put("percent", Math.round(pct * 10.0) / 10.0);
             }
             map.put("progress", progressMap);
         }

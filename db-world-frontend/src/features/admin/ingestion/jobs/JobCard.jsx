@@ -564,12 +564,17 @@ function JobCardComponent({ job }) {
     return step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label;
   }, [cfg.label, isTerminal, status, step]);
 
-  const pct = Number(progress?.percent ?? 0);
+  const pct = Math.min(100, Math.max(0, Number(progress?.percent ?? 0)));
   const speed = useMemo(() => fmtSpeed(progress?.speed), [progress?.speed]);
   const eta = useMemo(() => fmtEta(progress?.eta), [progress?.eta]);
   const isFfmpeg = step === 'FFMPEG';
   const isExtract = step === 'EXTRACT';
   const isMerging = progress?.phase === 'merging';
+  // Speed + ETA are only meaningful while downloading. The backend now clears these on the
+  // step transition, but gate here too so a stale download ETA can never render as "574h"
+  // beside a 100% processing bar.
+  const isDownload = !isFfmpeg && !isExtract && !isMerging &&
+    (step === 'DOWNLOAD' || progress?.phase === 'downloading');
 
   const progressLeft = useMemo(() => {
     if (isMerging) return 'Merging audio + video…';
@@ -584,13 +589,13 @@ function JobCardComponent({ job }) {
 
   const progressRight = useMemo(() => {
     return [
-      !isMerging && speed ? speed : null,
-      !isMerging && eta ? `ETA ${eta}` : null,
+      isDownload && speed ? speed : null,
+      isDownload && eta ? `ETA ${eta}` : null,
       pct > 0 && !isExtract && !isMerging ? `${pct.toFixed(1)}%` : null,
     ]
       .filter(Boolean)
       .join('  ·  ');
-  }, [isMerging, speed, eta, pct, isExtract]);
+  }, [isDownload, speed, eta, pct, isExtract, isMerging]);
 
   const showProgress = useMemo(() => {
     return (

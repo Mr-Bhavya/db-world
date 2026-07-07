@@ -14,4 +14,9 @@ public record ProgressSnapshot(
     public static ProgressSnapshot merging() {
         return new ProgressSnapshot(0, 0, 0, 0, "merging");
     }
+    /** Neutral processing snapshot — no bytes, no speed, no ETA. Used to clear a stale
+     *  download snapshot when the job transitions into a processing step. */
+    public static ProgressSnapshot processing() {
+        return new ProgressSnapshot(0, 0, 0, 0, "processing");
+    }
 }
