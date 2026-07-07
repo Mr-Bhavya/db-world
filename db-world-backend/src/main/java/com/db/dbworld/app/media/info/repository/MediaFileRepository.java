@@ -18,8 +18,18 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
     @EntityGraph(attributePaths = "tracks")
     List<MediaFileEntity> findByRecord_Id(Long recordId);
 
+    // ── file_path lookups ─────────────────────────────────────────────────────
+    // file_path is VARCHAR(1000) and can't be indexed directly, so every lookup goes
+    // through the indexed CRC32 hash (file_path_hash) AND a full file_path equality check
+    // (the hash narrows; the path check neutralises collisions). The public signatures are
+    // unchanged — these default methods just compute the hash and delegate.
+
+    default Optional<MediaFileEntity> findByFilePath(String filePath) {
+        return findByFilePathHashAndFilePath(MediaFileEntity.hashPath(filePath), filePath);
+    }
+
     @EntityGraph(attributePaths = "tracks")
-    Optional<MediaFileEntity> findByFilePath(String filePath);
+    Optional<MediaFileEntity> findByFilePathHashAndFilePath(long filePathHash, String filePath);
 
     /**
      * Tolerant variant: returns all rows matching this path. Used by the
@@ -28,23 +38,37 @@ public interface MediaFileRepository extends JpaRepository<MediaFileEntity, Stri
      * single-result enforcement throws IncorrectResultSizeDataAccessException
      * when there are 2+.
      */
+    default List<MediaFileEntity> findAllByFilePath(String filePath) {
+        return findAllByFilePathHashAndFilePath(MediaFileEntity.hashPath(filePath), filePath);
+    }
+
     @EntityGraph(attributePaths = "tracks")
-    List<MediaFileEntity> findAllByFilePath(String filePath);
+    List<MediaFileEntity> findAllByFilePathHashAndFilePath(long filePathHash, String filePath);
 
     /**
      * Lean lookup used by activity tracking — returns just {id, recordId} so we don't
      * drag tracks into a high-volume insert path. Returns array {String id, Long recordId}
      * or empty if no row matches.
      */
-    @Query("SELECT m.id, m.record.id FROM MediaFileEntity m WHERE m.filePath = :filePath")
-    Optional<Object[]> findIdAndRecordIdByFilePath(@Param("filePath") String filePath);
+    default Optional<Object[]> findIdAndRecordIdByFilePath(String filePath) {
+        return findIdAndRecordIdByFilePathHash(MediaFileEntity.hashPath(filePath), filePath);
+    }
+
+    @Query("SELECT m.id, m.record.id FROM MediaFileEntity m " +
+           "WHERE m.filePathHash = :hash AND m.filePath = :filePath")
+    Optional<Object[]> findIdAndRecordIdByFilePathHash(@Param("hash") long filePathHash,
+                                                       @Param("filePath") String filePath);
 
     List<MediaFileEntity> findByIngestionJobId(String ingestionJobId);
 
     @Query("SELECT m FROM MediaFileEntity m WHERE m.record.id = :recordId")
     List<MediaFileEntity> findAllByRecordId(Long recordId);
 
-    void deleteByFilePath(String filePath);
+    default void deleteByFilePath(String filePath) {
+        deleteByFilePathHashAndFilePath(MediaFileEntity.hashPath(filePath), filePath);
+    }
+
+    void deleteByFilePathHashAndFilePath(long filePathHash, String filePath);
 
     void deleteAllByRecord_Id(Long recordId);
 

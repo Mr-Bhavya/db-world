@@ -11,9 +11,11 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.CRC32;
 
 /**
  * Represents a physical media file and its associated track metadata.
@@ -27,10 +29,19 @@ import java.util.List;
 @Table(
         name = "media_files",
         schema = "new_db_world",
+        // Uniqueness keyed on file_path_hash rather than the raw VARCHAR(1000): on utf8mb4,
+        // (record_id, file_path) is ~4008 bytes and exceeds MySQL's index key-length limit.
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_media_file_record_path",
-                columnNames = {"record_id", "file_path"}
-        )
+                name = "uq_media_file_record_path_hash",
+                columnNames = {"record_id", "file_path_hash"}
+        ),
+        indexes = {
+                // ingestion_job_id is a plain column (not a FK) looked up by findByIngestionJobId.
+                @Index(name = "idx_media_files_ingestion_job", columnList = "ingestion_job_id"),
+                // Indexable exact-match key for file_path (see filePathHash); lookups pair it
+                // with a full file_path check, so this stays useful even for 1000-char paths.
+                @Index(name = "idx_media_files_path_hash", columnList = "file_path_hash")
+        }
 )
 @EntityListeners({AuditingEntityListener.class, MediaFileStoryboardCleanupListener.class})
 @Getter
@@ -56,6 +67,18 @@ public class MediaFileEntity {
 
     @Column(name = "file_path", nullable = false, length = 1000)
     private String filePath;
+
+    /**
+     * CRC32 of {@link #filePath}, kept in sync by {@link #syncFilePathHash()}.
+     *
+     * file_path is VARCHAR(1000) — too long to index or unique directly (see @Table). This
+     * fixed-width hash is indexed instead and forms the uniqueness key with record_id. Every
+     * lookup pairs the hash with a full file_path comparison, so a CRC32 collision only costs
+     * an extra row check — never a wrong result. Uses CRC32 specifically because it matches
+     * MySQL's CRC32(), letting existing rows be backfilled in pure SQL.
+     */
+    @Column(name = "file_path_hash", nullable = false)
+    private long filePathHash;
 
     @Column(name = "file_size")
     private Long fileSize;
@@ -124,5 +147,24 @@ public class MediaFileEntity {
     public void addTrack(TrackEntity track) {
         track.setMediaFile(this);
         tracks.add(track);
+    }
+
+    /** Keep {@link #filePathHash} consistent with {@link #filePath} on every insert/update. */
+    @PrePersist
+    @PreUpdate
+    void syncFilePathHash() {
+        this.filePathHash = hashPath(this.filePath);
+    }
+
+    /**
+     * CRC32 of the UTF-8 bytes of {@code path} — matches MySQL's {@code CRC32()} so the DB
+     * backfill agrees with the app. Returns 0 for null (which never persists: file_path is
+     * NOT NULL). Callers building a lookup key must use this exact method.
+     */
+    public static long hashPath(String path) {
+        if (path == null) return 0L;
+        CRC32 crc = new CRC32();
+        crc.update(path.getBytes(StandardCharsets.UTF_8));
+        return crc.getValue();
     }
 }
