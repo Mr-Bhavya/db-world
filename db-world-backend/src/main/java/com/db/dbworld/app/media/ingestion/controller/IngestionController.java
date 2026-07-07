@@ -437,6 +437,7 @@ public class IngestionController {
         r.setVideoITag(base.getVideoITag());
         r.setAudioITag(base.getAudioITag());
         r.setOnlyAudio(Boolean.TRUE.equals(base.getOnlyAudio()));
+        r.setVideoQuality(base.getVideoQuality());
         r.setTorrentBase64(base.getTorrentBase64());
         r.setRecordId(base.getRecordId());
         r.setSeason(base.getSeason());
@@ -453,6 +454,14 @@ public class IngestionController {
         r.setRecordId(entity.getRecordId());
         r.setSeason(entity.getSeasonNumber());
         r.setEpisode(entity.getEpisodeNumber());
+        // Restore the yt-dlp format selection so a DB-sourced rerun keeps the chosen quality
+        // instead of falling back to best.
+        r.setVideoITag(entity.getVideoITag());
+        r.setAudioITag(entity.getAudioITag());
+        r.setOnlyAudio(Boolean.TRUE.equals(entity.getOnlyAudio()));
+        r.setVideoQuality(entity.getVideoQuality());
+        r.setExtract(Boolean.TRUE.equals(entity.getExtract()));
+        r.setRename(Boolean.TRUE.equals(entity.getRename()));
         return r;
     }
 }

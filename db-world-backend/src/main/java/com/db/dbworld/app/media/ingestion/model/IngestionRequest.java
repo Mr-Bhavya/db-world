@@ -35,6 +35,13 @@ public class IngestionRequest {
     private Boolean onlyAudio = false;
 
     /**
+     * Quality preset for playlists (and single videos without a specific itag): "best", "2160",
+     * "1080", "720", "480", or "audio". Playlist items can't share an itag (itags differ per video),
+     * so a height-based selector is applied per item. Ignored when a specific videoITag is set.
+     */
+    private String videoQuality;
+
+    /**
      * Base64-encoded .torrent file content.
      * When set, aria2c's addTorrent RPC is used instead of addUri.
      */

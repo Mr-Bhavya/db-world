@@ -12,6 +12,7 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
+  MenuItem,
   Paper,
   Stack,
   Switch,
@@ -105,6 +106,7 @@ const schema = z.object({
 
   videoITag: z.string().optional().nullable(),
   audioITag: z.string().optional().nullable(),
+  videoQuality: z.string().optional().default('best'),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -537,6 +539,7 @@ export default function IngestionForm({ onSubmitted }) {
       audioOnly: false,
       videoITag: null,
       audioITag: null,
+      videoQuality: 'best',
     },
     mode: 'onSubmit',
     reValidateMode: 'onChange',
@@ -721,6 +724,9 @@ export default function IngestionForm({ onSubmitted }) {
           data.extract && data.zipPwd ? data.zipPwd : undefined,
         videoITag: isYtMode && !data.audioOnly ? data.videoITag : undefined,
         audioITag: isYtMode ? data.audioITag : undefined,
+        // Quality preset — used by playlists (itags differ per video) and ignored by the
+        // backend whenever a specific videoITag is present.
+        videoQuality: isYtMode && !data.audioOnly ? (data.videoQuality || undefined) : undefined,
         ...(torrentBase64 ? { torrentBase64 } : {}),
       };
 
@@ -1170,12 +1176,35 @@ export default function IngestionForm({ onSubmitted }) {
                   ) : null}
 
                   {isPlaylist ? (
-                    <PlaylistPicker
-                      entries={formatsData?.playlistEntries ?? []}
-                      selected={playlistSelected}
-                      onChange={setPlaylistSelected}
-                      loading={formatsLoading}
-                    />
+                    <Stack spacing={1.5}>
+                      <Controller
+                        name="videoQuality"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            {...field}
+                            value={field.value ?? 'best'}
+                            select
+                            size="small"
+                            fullWidth
+                            label="Quality"
+                            helperText="Applied to every selected item (itags differ per video, so a fixed quality is used)"
+                          >
+                            <MenuItem value="best">Best available</MenuItem>
+                            <MenuItem value="2160">2160p (4K)</MenuItem>
+                            <MenuItem value="1080">1080p</MenuItem>
+                            <MenuItem value="720">720p</MenuItem>
+                            <MenuItem value="480">480p</MenuItem>
+                          </TextField>
+                        )}
+                      />
+                      <PlaylistPicker
+                        entries={formatsData?.playlistEntries ?? []}
+                        selected={playlistSelected}
+                        onChange={setPlaylistSelected}
+                        loading={formatsLoading}
+                      />
+                    </Stack>
                   ) : (
                     <YtFormatPicker
                       formatsData={formatsData}

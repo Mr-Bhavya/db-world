@@ -122,6 +122,29 @@ public class IngestionJobEntity {
     @Column(name = "episode_number")
     private Integer episodeNumber;
 
+    // ── yt-dlp format selection — persisted so RERUN reproduces the chosen format/quality
+    //     instead of silently falling back to best (the in-memory request is gone once the job ends).
+    @Column(name = "video_itag", length = 50)
+    private String videoITag;
+
+    @Column(name = "audio_itag", length = 50)
+    private String audioITag;
+
+    @Column(name = "only_audio")
+    private Boolean onlyAudio;
+
+    /** Quality preset (e.g. "best", "2160", "1080", "720", "480", "audio") applied when no itag. */
+    @Column(name = "video_quality", length = 20)
+    private String videoQuality;
+
+    // Reproducible processing flags (also persisted so rerun keeps them; column names avoid the
+    // reserved words EXTRACT/RENAME). extractPassword is intentionally NOT stored (secret).
+    @Column(name = "extract_archive")
+    private Boolean extract;
+
+    @Column(name = "rename_file")
+    private Boolean rename;
+
     @Column(name = "started_at", updatable = false)
     private Instant startedAt;
 
