@@ -25,38 +25,38 @@
 
 -- 1. Add the column (nullable first: instant metadata-only change, backfillable).
 SET @col := (SELECT COUNT(*) FROM information_schema.columns
-             WHERE table_schema = 'new_db_world' AND table_name = 'media_files'
+             WHERE table_schema = 'db_world' AND table_name = 'media_files'
                AND column_name = 'file_path_hash');
 SET @sql := IF(@col = 0,
-    'ALTER TABLE new_db_world.media_files ADD COLUMN file_path_hash BIGINT NULL',
+    'ALTER TABLE db_world.media_files ADD COLUMN file_path_hash BIGINT NULL',
     'SELECT 1');
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- 2. Backfill. MySQL CRC32() == java.util.zip.CRC32 over the same UTF-8 bytes.
-UPDATE new_db_world.media_files
+UPDATE db_world.media_files
    SET file_path_hash = CRC32(file_path)
  WHERE file_path_hash IS NULL;
 
 -- 3. Enforce NOT NULL now that every row has a value.
-ALTER TABLE new_db_world.media_files
+ALTER TABLE db_world.media_files
     MODIFY COLUMN file_path_hash BIGINT NOT NULL;
 
 -- 4. Lookup index (used by findByFilePath / deleteByFilePath / activity tracking).
 SET @ix := (SELECT COUNT(*) FROM information_schema.statistics
-            WHERE table_schema = 'new_db_world' AND table_name = 'media_files'
+            WHERE table_schema = 'db_world' AND table_name = 'media_files'
               AND index_name = 'idx_media_files_path_hash');
 SET @sql := IF(@ix = 0,
-    'ALTER TABLE new_db_world.media_files ADD INDEX idx_media_files_path_hash (file_path_hash)',
+    'ALTER TABLE db_world.media_files ADD INDEX idx_media_files_path_hash (file_path_hash)',
     'SELECT 1');
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- 5. Drop the old (record_id, file_path) unique key if it exists — it may never
 --    have been created (see WHY). Harmless when absent.
 SET @uk := (SELECT COUNT(*) FROM information_schema.statistics
-            WHERE table_schema = 'new_db_world' AND table_name = 'media_files'
+            WHERE table_schema = 'db_world' AND table_name = 'media_files'
               AND index_name = 'uq_media_file_record_path');
 SET @sql := IF(@uk > 0,
-    'ALTER TABLE new_db_world.media_files DROP INDEX uq_media_file_record_path',
+    'ALTER TABLE db_world.media_files DROP INDEX uq_media_file_record_path',
     'SELECT 1');
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
@@ -67,23 +67,23 @@ PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 --    and a note is emitted; dedupe with the diagnostic below, then re-run.
 SET @dupes := (SELECT COUNT(*) FROM (
     SELECT record_id, file_path_hash
-      FROM new_db_world.media_files
+      FROM db_world.media_files
      WHERE record_id IS NOT NULL
      GROUP BY record_id, file_path_hash
     HAVING COUNT(*) > 1
 ) d);
 SET @uk2 := (SELECT COUNT(*) FROM information_schema.statistics
-             WHERE table_schema = 'new_db_world' AND table_name = 'media_files'
+             WHERE table_schema = 'db_world' AND table_name = 'media_files'
                AND index_name = 'uq_media_file_record_path_hash');
 SET @sql := IF(@dupes = 0 AND @uk2 = 0,
-    'ALTER TABLE new_db_world.media_files
+    'ALTER TABLE db_world.media_files
         ADD CONSTRAINT uq_media_file_record_path_hash UNIQUE (record_id, file_path_hash)',
     CONCAT('SELECT ', @dupes, ' AS duplicate_groups_skipping_unique_key'));
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- ── Diagnostic: list duplicate (record_id, file_path) groups to clean up ─────
 -- SELECT record_id, file_path, COUNT(*) AS n
---   FROM new_db_world.media_files
+--   FROM db_world.media_files
 --  WHERE record_id IS NOT NULL
 --  GROUP BY record_id, file_path
 -- HAVING COUNT(*) > 1;

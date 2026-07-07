@@ -27,7 +27,7 @@ import static jakarta.persistence.CascadeType.MERGE;
 import static jakarta.persistence.CascadeType.PERSIST;
 
 @Entity
-@Table(name = "tmdb_data", schema = "new_db_world",
+@Table(name = "tmdb_data", schema = "db_world",
     // Lets findTopByPopularity (ORDER BY popularity DESC LIMIT n) drive from the index
     // and stop early instead of sorting the whole catalog.
     indexes = @Index(name = "idx_tmdb_popularity", columnList = "popularity"))
@@ -118,7 +118,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST, MERGE})
     @JoinTable(
             name = "tmdb_genres",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "genre_id")
     )
@@ -128,7 +128,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST, MERGE})
     @JoinTable(
             name = "tmdb_production_companies",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "company_id")
     )
@@ -138,7 +138,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST, MERGE})
     @JoinTable(
             name = "tmdb_production_countries",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "country_code")
     )
@@ -148,7 +148,7 @@ public class TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY, cascade = {PERSIST})
     @JoinTable(
             name = "tmdb_spoken_languages",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "language_code")
     )

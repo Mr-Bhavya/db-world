@@ -8,7 +8,7 @@ import java.time.Instant;
 
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 @Entity
-@Table(name = "ACTIVITY_EVENT", schema = "new_db_world",
+@Table(name = "ACTIVITY_EVENT", schema = "db_world",
     indexes = {
         @Index(name = "idx_ae_user_time", columnList = "user_id, event_time"),
         @Index(name = "idx_ae_session",   columnList = "session_id"),

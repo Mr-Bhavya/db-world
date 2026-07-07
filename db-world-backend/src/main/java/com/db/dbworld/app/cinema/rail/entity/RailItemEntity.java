@@ -12,7 +12,7 @@ import lombok.*;
 @AllArgsConstructor
 @Table(
         name = "rail_items",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uk_rail_record",

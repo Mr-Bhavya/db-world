@@ -13,14 +13,14 @@
 -- suspenders — but it makes hand-written INSERTs and future schema rebuilds
 -- well-behaved too.
 --
--- Schema: new_db_world — adjust if yours differs.
+-- Schema: db_world — adjust if yours differs.
 -- =============================================================================
 
-ALTER TABLE new_db_world.user_cinema_activity
+ALTER TABLE db_world.user_cinema_activity
     MODIFY COLUMN download_count   INT NOT NULL DEFAULT 0,
     MODIFY COLUMN stream_count     INT NOT NULL DEFAULT 0,
     MODIFY COLUMN connection_count INT NOT NULL DEFAULT 1;
 
 -- Verify
-SHOW COLUMNS FROM new_db_world.user_cinema_activity
+SHOW COLUMNS FROM db_world.user_cinema_activity
     LIKE '%_count';

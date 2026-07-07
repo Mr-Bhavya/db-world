@@ -8,7 +8,7 @@ import lombok.*;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "production_countries", schema = "new_db_world")
+@Table(name = "production_countries", schema = "db_world")
 public class ProductionCountryEntity {
 
     @Id

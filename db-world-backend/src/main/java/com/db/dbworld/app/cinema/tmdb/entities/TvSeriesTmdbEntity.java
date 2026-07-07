@@ -40,7 +40,7 @@ public class TvSeriesTmdbEntity extends TmdbEntity {
     @ElementCollection
     @CollectionTable(
             name = "tmdb_tv_episode_runtime",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "tmdb_id")
     )
     @Column(name = "runtime")
@@ -57,7 +57,7 @@ public class TvSeriesTmdbEntity extends TmdbEntity {
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "tmdb_tv_created_by",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "tmdb_id"),
             inverseJoinColumns = @JoinColumn(name = "person_id")
     )

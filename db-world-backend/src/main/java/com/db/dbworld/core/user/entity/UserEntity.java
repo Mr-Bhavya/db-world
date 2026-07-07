@@ -22,7 +22,7 @@ import java.util.List;
 @Setter
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "USERS", schema = "new_db_world")
+@Table(name = "USERS", schema = "db_world")
 public class UserEntity implements Serializable {
     @Id
     @Column(name = "id")

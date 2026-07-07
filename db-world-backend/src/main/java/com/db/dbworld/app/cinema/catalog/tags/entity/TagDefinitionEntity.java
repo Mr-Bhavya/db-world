@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  * unless the rail provides an explicit sort override.
  */
 @Entity
-@Table(name = "tag_definitions", schema = "new_db_world")
+@Table(name = "tag_definitions", schema = "db_world")
 @Getter
 @Setter
 @Builder

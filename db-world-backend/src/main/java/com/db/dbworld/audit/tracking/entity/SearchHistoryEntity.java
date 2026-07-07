@@ -7,7 +7,7 @@ import java.time.Instant;
 
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 @Entity
-@Table(name = "SEARCH_HISTORY", schema = "new_db_world",
+@Table(name = "SEARCH_HISTORY", schema = "db_world",
     indexes = {
         @Index(name = "idx_sh_user_created", columnList = "user_id, created_at"),
         @Index(name = "idx_sh_query_norm",   columnList = "query_norm")

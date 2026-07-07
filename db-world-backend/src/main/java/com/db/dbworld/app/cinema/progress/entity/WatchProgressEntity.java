@@ -12,7 +12,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Table(
     name = "WATCH_PROGRESS",
-    schema = "new_db_world",
+    schema = "db_world",
     uniqueConstraints = @UniqueConstraint(
         name = "uk_user_file_progress",
         columnNames = {"user_id", "file_id"}

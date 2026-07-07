@@ -9,7 +9,7 @@ import lombok.*;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "images", schema = "new_db_world")
+@Table(name = "images", schema = "db_world")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "image_type")
 public abstract class ImageEntity {

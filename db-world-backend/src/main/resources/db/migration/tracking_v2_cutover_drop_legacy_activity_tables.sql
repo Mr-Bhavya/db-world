@@ -15,7 +15,7 @@
 -- old read APIs, old /me/activity, old admin analytics) has been deleted from the
 -- application, so these tables are now orphaned.
 --
--- Schema: new_db_world.
+-- Schema: db_world.
 -- KEEP (do NOT drop — separate, still-used features):
 --   login_data          (login history)
 --   watch_progress      (playback position)
@@ -25,9 +25,9 @@
 -- ---- 1. SANITY: confirm the new tables exist before dropping the old ones ----
 SELECT COUNT(*) AS activity_session_exists
 FROM information_schema.tables
-WHERE table_schema = 'new_db_world' AND table_name = 'activity_session';
+WHERE table_schema = 'db_world' AND table_name = 'activity_session';
 -- Expect 1. If 0, STOP — the new system is not deployed; do not drop the old tables.
 
 -- ---- 2. Drop the orphaned legacy tables ----
-DROP TABLE IF EXISTS new_db_world.log_shipper_state;
-DROP TABLE IF EXISTS new_db_world.user_cinema_activity;
+DROP TABLE IF EXISTS db_world.log_shipper_state;
+DROP TABLE IF EXISTS db_world.user_cinema_activity;

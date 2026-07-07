@@ -14,7 +14,7 @@ import java.util.List;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "HOST", schema = "new_db_world")
+@Table(name = "HOST", schema = "db_world")
 public class HostEntity {
     @Id
     private String name;

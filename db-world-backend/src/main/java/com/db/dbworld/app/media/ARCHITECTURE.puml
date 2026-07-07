@@ -478,9 +478,9 @@ package "app.cinema (referenced)" #FFF8DC {
 }
 
 ' ════════════════════════════════════════════════════════════════════════════
-' DATABASE TABLES (MySQL, new_db_world schema)
+' DATABASE TABLES (MySQL, db_world schema)
 ' ════════════════════════════════════════════════════════════════════════════
-package "MySQL · new_db_world schema" #F8F0FF {
+package "MySQL · db_world schema" #F8F0FF {
     class "ingestion_jobs" as DB_JOBS <<Database>> {
         job_id VARCHAR(36) PK
         status VARCHAR(20)       -- MirrorStatus enum

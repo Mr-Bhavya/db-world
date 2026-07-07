@@ -26,7 +26,7 @@ import java.util.List;
 @Filter(name = "excludeHidden", condition = "hide_from_rails = false")
 @Table(
         name = "records",
-        schema = "new_db_world",
+        schema = "db_world",
         // Low cardinality, so mainly a covering index for countByType + the admin type filter.
         indexes = @Index(name = "idx_records_type", columnList = "type")
 )

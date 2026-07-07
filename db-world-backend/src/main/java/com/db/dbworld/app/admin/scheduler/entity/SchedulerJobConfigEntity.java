@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "scheduler_job_config", schema = "new_db_world")
+@Table(name = "scheduler_job_config", schema = "db_world")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SchedulerJobConfigEntity {
 

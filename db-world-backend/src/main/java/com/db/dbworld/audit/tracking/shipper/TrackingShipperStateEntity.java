@@ -11,7 +11,7 @@ import java.time.Instant;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "TRACKING_LOG_SHIPPER_STATE", schema = "new_db_world")
+@Table(name = "TRACKING_LOG_SHIPPER_STATE", schema = "db_world")
 public class TrackingShipperStateEntity {
 
     /** Singleton row — always id = 1. */

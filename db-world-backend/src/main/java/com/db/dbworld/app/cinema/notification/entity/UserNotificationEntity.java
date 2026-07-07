@@ -11,7 +11,7 @@ import java.time.Instant;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "USER_NOTIFICATIONS", schema = "new_db_world",
+@Table(name = "USER_NOTIFICATIONS", schema = "db_world",
     // All recipient/actor/record columns are plain scalars (no FK), so nothing here is auto-indexed.
     indexes = {
         @Index(name = "idx_notif_recipient_created", columnList = "recipient_user_id, created_at"), // inbox list

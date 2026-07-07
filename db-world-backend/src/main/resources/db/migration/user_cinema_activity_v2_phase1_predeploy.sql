@@ -11,7 +11,7 @@
 -- After this runs and step 4 returns 0, deploy the new build. Then run
 -- user_cinema_activity_v2_phase2_postdeploy.sql to backfill the new columns.
 --
--- Schema: new_db_world — adjust if yours differs.
+-- Schema: db_world — adjust if yours differs.
 -- =============================================================================
 
 -- ---- 1. DRY-RUN: how many duplicates do you have? --------------------------
@@ -20,7 +20,7 @@ SELECT
     SUM(c) - COUNT(*) AS rows_to_be_deleted
 FROM (
     SELECT user_id, file_path, activity_type, COUNT(*) AS c
-    FROM new_db_world.user_cinema_activity
+    FROM db_world.user_cinema_activity
     GROUP BY user_id, file_path, activity_type
     HAVING COUNT(*) > 1
 ) AS dupes;
@@ -44,12 +44,12 @@ SELECT
     SUM(COALESCE(update_count, 0))      AS total_updates,
     MAX(last_updated)                   AS latest_update,
     MIN(created_time)                   AS earliest_seen
-FROM new_db_world.user_cinema_activity
+FROM db_world.user_cinema_activity
 GROUP BY user_id, file_path, activity_type
 HAVING COUNT(*) > 1;
 
 -- 2b. Roll the aggregate into the canonical row
-UPDATE new_db_world.user_cinema_activity uca
+UPDATE db_world.user_cinema_activity uca
 JOIN   _uca_aggregates agg ON agg.canonical_id = uca.id
 SET    uca.bytes_transferred = agg.total_bytes,
        uca.update_count      = agg.total_updates,
@@ -57,7 +57,7 @@ SET    uca.bytes_transferred = agg.total_bytes,
 
 -- 2c. Delete the non-canonical duplicates
 DELETE uca
-FROM   new_db_world.user_cinema_activity uca
+FROM   db_world.user_cinema_activity uca
 JOIN   _uca_aggregates agg
        ON  uca.user_id       = agg.user_id
        AND uca.file_path     = agg.file_path
@@ -72,7 +72,7 @@ COMMIT;
 SELECT COUNT(*) AS remaining_clusters
 FROM (
     SELECT 1
-    FROM new_db_world.user_cinema_activity
+    FROM db_world.user_cinema_activity
     GROUP BY user_id, file_path, activity_type
     HAVING COUNT(*) > 1
 ) AS x;

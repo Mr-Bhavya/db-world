@@ -22,7 +22,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Table(
         name = "catalog_ingest_requests",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_catalog_ingest_request_tmdb",
                 columnNames = {"tmdb_id", "media_type"}
@@ -85,7 +85,7 @@ public class CatalogIngestRequestEntity implements Serializable {
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "catalog_ingest_request_voters",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "request_id"),
             uniqueConstraints = @UniqueConstraint(
                     name = "uk_catalog_ingest_request_voter",

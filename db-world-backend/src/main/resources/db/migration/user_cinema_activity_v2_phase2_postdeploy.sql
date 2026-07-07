@@ -9,7 +9,7 @@
 -- Existing tracking columns are left alone — Hibernate's update mode preserves
 -- their data when adding columns alongside.
 --
--- Schema: new_db_world — adjust if yours differs.
+-- Schema: db_world — adjust if yours differs.
 -- =============================================================================
 
 -- ---- 1. Quick sanity: columns exist? --------------------------------------
@@ -19,13 +19,13 @@ SELECT
     COUNT(*) AS total_rows,
     SUM(record_id IS NOT NULL)                         AS already_with_record_id,
     SUM(media_file_id IS NOT NULL)                     AS already_with_media_file_id
-FROM new_db_world.user_cinema_activity;
+FROM db_world.user_cinema_activity;
 
 -- ---- 2. Backfill record_id + media_file_id from media_files ---------------
 -- Only touches rows that are still NULL — safe to re-run.
 
-UPDATE new_db_world.user_cinema_activity uca
-JOIN   new_db_world.media_files mf ON mf.file_path = uca.file_path
+UPDATE db_world.user_cinema_activity uca
+JOIN   db_world.media_files mf ON mf.file_path = uca.file_path
 SET    uca.record_id     = COALESCE(uca.record_id,     mf.record_id),
        uca.media_file_id = COALESCE(uca.media_file_id, mf.id)
 WHERE  uca.record_id IS NULL OR uca.media_file_id IS NULL;
@@ -39,7 +39,7 @@ SELECT
     SUM(completion_status = 'COMPLETED')                    AS completed_sessions,
     SUM(activity_type = 'DOWNLOAD')                         AS download_rows,
     SUM(activity_type = 'STREAM')                           AS stream_rows
-FROM new_db_world.user_cinema_activity;
+FROM db_world.user_cinema_activity;
 
 -- 'unenriched' rows are activity entries whose file_path doesn't match any
 -- media_files row. That's expected for activities on files that have since been

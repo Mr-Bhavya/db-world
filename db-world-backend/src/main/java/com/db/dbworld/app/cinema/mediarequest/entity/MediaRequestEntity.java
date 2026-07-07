@@ -17,7 +17,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Table(
         name = "media_requests",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_media_request_record_kind",
                 columnNames = {"record_id", "kind"}
@@ -70,7 +70,7 @@ public class MediaRequestEntity implements Serializable {
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "media_request_voters",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "request_id"),
             uniqueConstraints = @UniqueConstraint(
                     name = "uk_media_request_voter",

@@ -23,12 +23,12 @@ import java.util.zip.CRC32;
  * Replaces the old MediaFileInfoEntity (entities.dbcinema.stream).
  * Uses RecordEntity (new cinema package) instead of DBCinemaRecordsEntity.
  *
- * Table: media_files (new_db_world schema)
+ * Table: media_files (db_world schema)
  */
 @Entity
 @Table(
         name = "media_files",
-        schema = "new_db_world",
+        schema = "db_world",
         // Uniqueness keyed on file_path_hash rather than the raw VARCHAR(1000): on utf8mb4,
         // (record_id, file_path) is ~4008 bytes and exceeds MySQL's index key-length limit.
         uniqueConstraints = @UniqueConstraint(

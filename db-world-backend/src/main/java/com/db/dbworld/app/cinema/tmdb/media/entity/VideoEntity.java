@@ -11,7 +11,7 @@ import lombok.*;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "videos", schema = "new_db_world")
+@Table(name = "videos", schema = "db_world")
 public class VideoEntity {
 
     @Id

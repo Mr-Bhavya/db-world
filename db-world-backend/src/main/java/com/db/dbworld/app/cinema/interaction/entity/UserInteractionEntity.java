@@ -15,7 +15,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Table(
         name = "USER_INTERACTIONS",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uk_user_record_interaction",

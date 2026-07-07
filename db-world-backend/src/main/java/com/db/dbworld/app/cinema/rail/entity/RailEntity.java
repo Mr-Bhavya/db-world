@@ -10,7 +10,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "rails", schema = "new_db_world")
+@Table(name = "rails", schema = "db_world")
 @Getter
 @Setter
 @Builder
@@ -62,7 +62,7 @@ public class RailEntity {
     @ElementCollection(targetClass = PageType.class, fetch = FetchType.EAGER)
     @CollectionTable(
             name = "rails_page_types",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "rail_id")
     )
     @Enumerated(EnumType.STRING)
