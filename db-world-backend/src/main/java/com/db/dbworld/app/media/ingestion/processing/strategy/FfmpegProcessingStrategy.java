@@ -135,9 +135,17 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 .filter(f -> detectFromFilename(f) != null)
                 .collect(Collectors.toList());
 
+        boolean playlistJob = ctx.getRequest().getPlaylistItems() != null
+                && !ctx.getRequest().getPlaylistItems().isEmpty();
+
         List<Path> toProcess;
         boolean perFileEpisode;
-        if (!episodeFiles.isEmpty()) {
+        if (playlistJob) {
+            // A playlist is an explicit N-file job — process EVERY downloaded file (not just the
+            // largest), deriving each file's season/episode from its SxxExx name when present.
+            toProcess = mediaFiles;
+            perFileEpisode = true;
+        } else if (!episodeFiles.isEmpty()) {
             // Season pack (one or more episodes): process each detected episode with its
             // OWN season/episode, ignoring any single value on the request; skip files
             // without an SxxExx pattern so samples/extras don't collide or mis-tag.
@@ -176,9 +184,16 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         for (Path file : toProcess) {
             fileIndex++;
             if (perFileEpisode) {
-                EpisodeRef ref = detectFromFilename(file); // non-null by construction
-                ctx.getRequest().setSeason(ref.season());
-                ctx.getRequest().setEpisode(ref.episode());
+                EpisodeRef ref = detectFromFilename(file);
+                if (ref != null) {
+                    ctx.getRequest().setSeason(ref.season());
+                    ctx.getRequest().setEpisode(ref.episode());
+                } else {
+                    // No SxxExx in the name (e.g. a playlist item with no episode metadata) —
+                    // keep the request's own season/episode (may be null → processed untagged).
+                    ctx.getRequest().setSeason(originalSeason);
+                    ctx.getRequest().setEpisode(originalEpisode);
+                }
             }
 
             ctx.log("FFMPEG", "Processing (" + fileIndex + "/" + toProcess.size() + "): " + file.getFileName());

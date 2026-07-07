@@ -2,6 +2,7 @@ package com.db.dbworld.app.media.ingestion.download;
 
 import com.db.dbworld.app.media.ingestion.model.DownloadResult;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
+import com.db.dbworld.app.media.ingestion.model.PlaylistItem;
 import com.db.dbworld.app.media.ingestion.model.SourceMetadata;
 import com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
@@ -66,12 +67,20 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         try {
             fileStorageService.prepareDirectories(ctx);
             Path tempDir = fileStorageService.resolveTempDir(ctx);
+
+            // Playlist "single-card" job: download every selected item under this one job into a
+            // per-job subdir, then hand the DIRECTORY back so processing fans out per file.
+            List<PlaylistItem> playlistItems = ctx.getRequest().getPlaylistItems();
+            if (playlistItems != null && !playlistItems.isEmpty()) {
+                return downloadPlaylist(ctx, tempDir, playlistItems, cancellation);
+            }
+
             // Name by the video title (+ id for uniqueness) so an UNASSIGNED download keeps a real
             // name instead of the job UUID. Assigned jobs are renamed again from TMDB in processing.
             // Byte-limited (.120B) so the name stays under the 255-byte filesystem limit with the id/ext.
             String outputTemplate = tempDir.resolve("%(title).120B [%(id)s].%(ext)s").toString();
 
-            List<String> cmd = buildCommand(ctx, outputTemplate);
+            List<String> cmd = buildCommand(ctx, ctx.getRequest().getUri(), outputTemplate);
             String formatSelector = buildFormatSelector(
                     ctx.getRequest().getVideoITag(),
                     ctx.getRequest().getAudioITag(),
@@ -116,6 +125,91 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         }
     }
 
+    // ── Playlist (single-card, multi-item) download ────────────────────────────
+
+    /**
+     * Download every selected playlist item under ONE job into a per-job subdirectory,
+     * naming each file with an {@code SxxExx} tag when the episode is known. Returns the
+     * subdirectory as the download result so {@code FfmpegProcessingStrategy.processDirectory}
+     * processes each downloaded episode with the per-file progress breakdown.
+     *
+     * Per-item failures are logged and skipped; the job succeeds if at least one item lands.
+     */
+    private DownloadResult downloadPlaylist(IngestionContext ctx, Path tempDir,
+            List<PlaylistItem> items, AtomicBoolean cancellation) throws Exception {
+        String jobId = ctx.getJobId();
+        // Isolate this job's files from other jobs sharing the record's temp dir, so processing
+        // only sees THIS playlist's downloads.
+        Path playlistDir = tempDir.resolve(jobId);
+        Files.createDirectories(playlistDir);
+
+        ctx.setCurrentStep(PipelineStepType.DOWNLOAD);
+        ctx.log("YTDLP", "Playlist job — downloading " + items.size() + " item(s)");
+        log.info("[{}] yt-dlp playlist download — {} item(s), dir={}", jobId, items.size(), playlistDir);
+
+        int position = 0;
+        int ok = 0;
+        for (PlaylistItem item : items) {
+            position++;
+            if (cancellation.get() || trackingService.isCancelled(jobId)) {
+                ctx.log("YTDLP", "Cancelled before item " + position + "/" + items.size());
+                return DownloadResult.failure(jobId, "Cancelled");
+            }
+            String uri = item.getUri();
+            if (uri == null || uri.isBlank()) continue;
+
+            // Embed SxxExx when the episode is known so processing can identify each episode by
+            // name; a zero-padded position prefix keeps processing order aligned with selection.
+            String tag = "";
+            if (item.getEpisode() != null) {
+                int season = item.getSeason() != null ? item.getSeason() : 1;
+                tag = String.format(" S%02dE%02d", season, item.getEpisode());
+            }
+            String outputTemplate = playlistDir
+                    .resolve(String.format("%03d ", position) + "%(title).100B" + tag + " [%(id)s].%(ext)s")
+                    .toString();
+
+            List<String> cmd = buildCommand(ctx, uri, outputTemplate);
+            ctx.log("YTDLP", "Downloading " + position + "/" + items.size()
+                    + (item.getTitle() != null ? ": " + item.getTitle() : ""));
+
+            // Fresh progress accounting per item (committed-bytes / stream-count reset each time).
+            IngestionProgressProcessor processor = new IngestionProgressProcessor(
+                    ctx, new AtomicReference<>(), new AtomicLong(0), new AtomicLong(0),
+                    trackingService, objectMapper);
+            try {
+                processExecutor.runYtDlpCommand(cmd, processor, cancellation);
+                ok++;
+            } catch (Exception e) {
+                if (cancellation.get() || trackingService.isCancelled(jobId)) {
+                    return DownloadResult.failure(jobId, "Cancelled");
+                }
+                log.warn("[{}] Playlist item {} failed: {}", jobId, position, e.getMessage());
+                ctx.logError("YTDLP", "Item " + position + " failed: " + e.getMessage());
+                // best-effort: continue with remaining items
+            }
+        }
+
+        long dirSize = totalSize(playlistDir);
+        if (ok == 0 || dirSize == 0) {
+            return DownloadResult.failure(jobId, "No playlist items downloaded successfully");
+        }
+        ctx.log("YTDLP", "Playlist download complete — " + ok + "/" + items.size() + " item(s)");
+        log.info("[{}] yt-dlp playlist complete — {}/{} item(s), {} bytes",
+                jobId, ok, items.size(), dirSize);
+        return DownloadResult.success(jobId, playlistDir, playlistDir.getFileName().toString(), dirSize);
+    }
+
+    private long totalSize(Path dir) {
+        try (var stream = Files.walk(dir)) {
+            return stream.filter(Files::isRegularFile).mapToLong(p -> {
+                try { return Files.size(p); } catch (Exception e) { return 0L; }
+            }).sum();
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
     @Override
     public void cancel(String jobId) {
         AtomicBoolean flag = cancellationFlags.get(jobId);
@@ -127,8 +221,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
 
     // ── Command builder ───────────────────────────────────────────────────────
 
-    private List<String> buildCommand(IngestionContext ctx, String outputTemplate) {
-        String uri      = ctx.getRequest().getUri();
+    private List<String> buildCommand(IngestionContext ctx, String uri, String outputTemplate) {
         String videoTag = ctx.getRequest().getVideoITag();
         String audioTag = ctx.getRequest().getAudioITag();
         boolean onlyAudio = Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio());

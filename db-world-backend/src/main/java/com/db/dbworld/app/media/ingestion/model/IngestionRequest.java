@@ -35,6 +35,13 @@ public class IngestionRequest {
     private Boolean onlyAudio = false;
 
     /**
+     * Selected playlist items for a "single-card" playlist job. When non-empty, the whole
+     * list is downloaded and processed under ONE job (one card) instead of fanning out into
+     * N per-item jobs. Each item carries its own season/episode (resolved client-side).
+     */
+    private List<PlaylistItem> playlistItems;
+
+    /**
      * Quality preset for playlists (and single videos without a specific itag): "best", "2160",
      * "1080", "720", "480", or "audio". Playlist items can't share an itag (itags differ per video),
      * so a height-based selector is applied per item. Ignored when a specific videoITag is set.

@@ -749,9 +749,10 @@ export default function IngestionForm({
         const seasonNumber = data.season ? Number(data.season) : null;
         const episodeBase = data.episode ? Number(data.episode) : null;
 
-        const jobs = toDownload.map((entry, i) => ({
-          ...sharedOptions,
-          uris: [entry.url],
+        // ONE job — a single card that downloads + processes every selected item.
+        const playlistItems = toDownload.map((entry, i) => ({
+          uri: entry.url,
+          title: entry.title ?? null,
           // Prefer the source's real season/episode (Hotstar etc. expose these via yt-dlp);
           // fall back to your Season/Episode inputs, then to playlist order.
           season: entry.seasonNumber ?? seasonNumber,
@@ -761,17 +762,33 @@ export default function IngestionForm({
             : null,
         }));
 
-        const { ok, bad } = await queueJobsSequentially(jobs);
+        const body = {
+          ...sharedOptions,
+          uri: toDownload[0].url, // seed so the backend source handler resolves (YOUTUBE)
+          playlistItems,
+        };
 
-        enqueueSnackbar(
-          `${ok} job(s) queued${bad ? `, ${bad} failed` : ''}`,
-          { variant: ok > 0 ? 'success' : 'error' }
-        );
+        try {
+          const res = await startIngestion(body);
 
-        if (ok > 0) {
-          handleReset();
-          setActiveTab(1);
-          onSubmitted?.();
+          if (res?.httpStatusCode === 200 || res?.httpStatusCode === 201) {
+            enqueueSnackbar(
+              `Playlist job started (${playlistItems.length} item${playlistItems.length !== 1 ? 's' : ''})`,
+              { variant: 'success' }
+            );
+            handleReset();
+            setActiveTab(1);
+            onSubmitted?.();
+          } else {
+            enqueueSnackbar(res?.message || 'Failed to start playlist job', {
+              variant: 'error',
+            });
+          }
+        } catch (e) {
+          enqueueSnackbar(
+            e?.response?.data?.message ?? 'Network error',
+            { variant: 'error' }
+          );
         }
 
         return;
@@ -855,7 +872,7 @@ export default function IngestionForm({
   const submitLabel = useMemo(() => {
     if (isSubmitting) return 'Starting…';
     if (isPlaylist) {
-      return `Start ${playlistSelected.size} Job${playlistSelected.size !== 1 ? 's' : ''}`;
+      return `Start Playlist · ${playlistSelected.size} item${playlistSelected.size !== 1 ? 's' : ''}`;
     }
     const count = Math.max(nonEmptyUrlsCount, torrentBase64 ? 1 : 0);
     return `Start ${count > 1 ? `${count} Jobs` : 'Job'}`;

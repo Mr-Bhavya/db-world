@@ -91,6 +91,26 @@ public class IngestionController {
 
     @PostMapping
     public ApiResponse<List<String>> ingest(@RequestBody IngestionRequest request) {
+        // Playlist single-card: one job downloads + processes every selected item.
+        List<PlaylistItem> playlistItems = request.getPlaylistItems();
+        if (playlistItems != null && !playlistItems.isEmpty()) {
+            if (request.getUri() == null || request.getUri().isBlank()) {
+                // Seed the URI from the first item so the source handler resolves (YOUTUBE).
+                request.setUri(playlistItems.get(0).getUri());
+            }
+            try {
+                String jobId = pipeline.start(request);
+                log.info("Playlist job started jobId={} items={}", jobId, playlistItems.size());
+                return ApiResponse.success(
+                        "Playlist job started (" + playlistItems.size() + " items)",
+                        Collections.singletonList(jobId));
+            } catch (Exception e) {
+                log.error("Failed to start playlist job", e);
+                return ApiResponse.error(500,
+                        "Failed to start playlist job: " + e.getMessage(), (List<String>) null);
+            }
+        }
+
         List<String> uris = Optional.ofNullable(request.getUris())
                 .filter(l -> !l.isEmpty())
                 .orElseGet(() -> Collections.singletonList(request.getUri()));
@@ -467,6 +487,7 @@ public class IngestionController {
         r.setEpisode(base.getEpisode());
         r.setTrackFilter(base.getTrackFilter());
         r.setLocalFilePath(base.getLocalFilePath());
+        r.setPlaylistItems(base.getPlaylistItems());
         return r;
     }
 
