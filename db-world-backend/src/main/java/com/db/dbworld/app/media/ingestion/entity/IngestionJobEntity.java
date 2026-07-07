@@ -32,7 +32,13 @@ import java.time.Instant;
  *  from in-memory store after a restart).
  */
 @Entity
-@Table(name = "ingestion_jobs", schema = "new_db_world")
+@Table(name = "ingestion_jobs", schema = "new_db_world",
+    // No JPA associations here, so status/record_id are unindexed; both are polled frequently.
+    indexes = {
+        @Index(name = "idx_ingestion_status", columnList = "status"),   // findByStatus / findByStatusNotIn (active jobs)
+        @Index(name = "idx_ingestion_record", columnList = "record_id") // findByRecordId
+    }
+)
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter

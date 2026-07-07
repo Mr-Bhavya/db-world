@@ -26,7 +26,9 @@ import java.util.Set;
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_catalog_ingest_request_tmdb",
                 columnNames = {"tmdb_id", "media_type"}
-        )
+        ),
+        // Admin queue: countByStatus + findAllByStatus ORDER BY created_at.
+        indexes = @Index(name = "idx_catalog_req_status_created", columnList = "status, created_at")
 )
 public class CatalogIngestRequestEntity implements Serializable {
 

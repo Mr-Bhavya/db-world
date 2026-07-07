@@ -12,7 +12,9 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "tmdb_people", schema = "new_db_world")
+@Table(name = "tmdb_people", schema = "new_db_world",
+    // Background people-sync scans for the small "not yet synced" subset repeatedly.
+    indexes = @Index(name = "idx_people_synced", columnList = "person_synced"))
 public class PersonEntity {
 
     @Id

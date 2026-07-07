@@ -27,7 +27,10 @@ import static jakarta.persistence.CascadeType.MERGE;
 import static jakarta.persistence.CascadeType.PERSIST;
 
 @Entity
-@Table(name = "tmdb_data", schema = "new_db_world")
+@Table(name = "tmdb_data", schema = "new_db_world",
+    // Lets findTopByPopularity (ORDER BY popularity DESC LIMIT n) drive from the index
+    // and stop early instead of sorting the whole catalog.
+    indexes = @Index(name = "idx_tmdb_popularity", columnList = "popularity"))
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "record_type")
 @BatchSize(size = 50)

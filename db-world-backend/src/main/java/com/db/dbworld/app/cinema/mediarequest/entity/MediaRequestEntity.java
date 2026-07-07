@@ -21,7 +21,9 @@ import java.util.Set;
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_media_request_record_kind",
                 columnNames = {"record_id", "kind"}
-        )
+        ),
+        // Admin queue: countByStatus + findAllByStatus ORDER BY created_at.
+        indexes = @Index(name = "idx_media_req_status_created", columnList = "status, created_at")
 )
 public class MediaRequestEntity implements Serializable {
 

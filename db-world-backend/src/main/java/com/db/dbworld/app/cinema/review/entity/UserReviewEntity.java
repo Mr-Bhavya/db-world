@@ -16,7 +16,10 @@ import java.time.Instant;
     uniqueConstraints = @UniqueConstraint(
         name = "uk_user_record_review",
         columnNames = {"user_id", "record_id"}
-    )
+    ),
+    // Listing a title's reviews filters record_id alone + ORDER BY created_at; the unique key is
+    // user_id-leading so it can't be used for record_id lookups.
+    indexes = @Index(name = "idx_reviews_record_created", columnList = "record_id, created_at")
 )
 @Getter
 @Setter

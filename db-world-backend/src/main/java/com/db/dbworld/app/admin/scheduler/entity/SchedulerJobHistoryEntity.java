@@ -9,7 +9,10 @@ import java.time.LocalDateTime;
 @Table(
     name = "scheduler_job_history",
     schema = "new_db_world",
-    indexes = @Index(name = "idx_sch_hist_started", columnList = "started_at")
+    indexes = {
+        @Index(name = "idx_sch_hist_started", columnList = "started_at"),          // full history list
+        @Index(name = "idx_sch_hist_job_started", columnList = "job_name, started_at") // per-job history
+    }
 )
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SchedulerJobHistoryEntity {
