@@ -1,14 +1,18 @@
-// Route wrapper for the hybrid player. Reads the media to play from router state,
-// restores the saved resume position (GET /api/cinema/progress/{fileId}), renders
-// the shared player, persists progress (PUT) on pause/close/end + periodically, and
-// drives episode navigation (resolving each episode's resume point on switch).
+// Route wrapper for the hybrid player. The media to play comes either from router
+// state (fast path — the launcher already resolved the CDN URL + built episodes) or,
+// on refresh / a shared deep-link / the instant Continue-Watching launch, is resolved
+// on mount from the :mediaFileId in the URL. Restores the saved resume position
+// (GET /api/cinema/progress/{fileId}), persists progress, and drives episode navigation.
 //
-// Expected navigation: navigate(DB_PLAYER_ROUTE, { state: { media: {
-//   url, fileId, title, fileName, recordId, requestId, mediaFileId, variants, episodes } } })
+// Route: /db-world/db-cinema/player/:mediaFileId
+//   fast path:    navigate(playerPath(id), { state: { media } })
+//   instant path: navigate(playerPath(id), { state: { resume: { recordId, title, type } } })
 import React, { useCallback, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import CircularProgress from '@mui/material/CircularProgress';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
+import { buildMediaFromFileId } from '../../media/playerLaunch';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
 
@@ -26,8 +30,28 @@ async function resumePointFor(fileId) {
 
 export default function HybridPlayerPage() {
   const { state } = useLocation();
+  const { mediaFileId: routeId } = useParams();
   const navigate  = useNavigate();
-  const media     = state?.media;
+
+  // media: from route state (fast in-app launch) or resolved from the URL id (refresh /
+  // deep-link / instant Continue-Watching). Resolving happens behind the loading screen.
+  const [media, setMedia]   = useState(() => state?.media || null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (media || !routeId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const m = await buildMediaFromFileId(routeId, state?.resume || {});
+        if (!cancelled) setMedia(m);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [routeId, media, state]);
+
   const episodes  = media?.episodes || [];
   // The show/movie name stays constant; per-episode info (S#E# · name) is derived
   // inside the player from `episodes` + `currentEpisodeId`.
@@ -36,23 +60,22 @@ export default function HybridPlayerPage() {
   const [cur, setCur] = useState(null); // { url, fileId, startMs, audio, requestId, mediaFileId, recordId }
 
   useEffect(() => {
-    if (!media?.url) { navigate(-1); return undefined; }
+    if (!media?.url) return undefined;
     let cancelled = false;
     (async () => {
       const startMs = await resumePointFor(media.fileId);
       if (!cancelled) setCur({
         url: media.url, fileId: media.fileId, startMs, audio: media.audio || [],
         storyboard: media.storyboard || null,
-        // requestId comes from the ONLINE resolve handlePlay already performed
-        // (movie or first episode). Null-safe: if the caller launched the
-        // player without a resolve, telemetry is simply skipped.
+        // requestId comes from the ONLINE resolve (movie or first episode). Null-safe:
+        // if the media was built without a resolve, telemetry is simply skipped.
         requestId: media.requestId || null,
         mediaFileId: media.mediaFileId || media.fileId || null,
         recordId: media.recordId ?? null,
       });
     })();
     return () => { cancelled = true; };
-  }, [media, navigate]);
+  }, [media]);
 
   const selectEpisode = useCallback(async (ep) => {
     // Resolve the stream URL and the resume point concurrently — they don't depend
@@ -92,14 +115,41 @@ export default function HybridPlayerPage() {
     }).catch(() => {});
   }, [cur, media]);
 
-  if (!media?.url) return null;
-  if (!cur) return <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 2000 }} />;
+  // Neither a URL id nor route media → nothing to play.
+  useEffect(() => {
+    if (!routeId && !media) navigate(-1);
+  }, [routeId, media, navigate]);
+
+  if (failed) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 2000, display: 'grid',
+        placeItems: 'center', color: '#fff', textAlign: 'center', padding: 24 }}>
+        <div style={{ display: 'grid', gap: 16, placeItems: 'center' }}>
+          <div>Couldn’t load this video.</div>
+          <button onClick={() => navigate(-1)}
+            style={{ padding: '10px 22px', background: '#14b8a6', color: '#fff', border: 'none',
+              borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>
+            Go back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!media || !cur) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 2000, display: 'grid', placeItems: 'center' }}>
+        <CircularProgress sx={{ color: '#14b8a6' }} />
+      </div>
+    );
+  }
 
   return (
     <DbWorldVideoPlayer
       src={cur.url}
       startMs={cur.startMs}
       title={showTitle}
+      overview={media?.overview || ''}
       fileId={cur.fileId}
       variants={media.variants || []}
       episodes={episodes}

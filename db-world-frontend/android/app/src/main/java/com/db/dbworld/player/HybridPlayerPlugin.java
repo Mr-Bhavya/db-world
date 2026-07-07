@@ -1,15 +1,25 @@
 package com.db.dbworld.player;
 
+import android.app.PendingIntent;
+import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.database.ContentObserver;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Rect;
+import android.graphics.drawable.Icon;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.util.Rational;
 import android.view.TextureView;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -27,6 +37,7 @@ import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
+import androidx.media3.common.text.CueGroup;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -36,6 +47,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
 import androidx.media3.exoplayer.upstream.DefaultAllocator;
+import androidx.media3.ui.SubtitleView;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -67,6 +79,7 @@ public class HybridPlayerPlugin extends Plugin {
 
     private ExoPlayer   player;
     private TextureView videoView;
+    private SubtitleView subtitleView;   // renders the selected text track's cues over the video
     private String  currentUrl;       // for decoder-mode recreate
     private int     decoderMode = 0;  // 0 auto · 1 hardware · 2 software
     // Aspect-fit transform state — without this a raw TextureView stretches the video.
@@ -79,6 +92,10 @@ public class HybridPlayerPlugin extends Plugin {
     private AudioManager   audioManager;
     private ContentObserver volumeObserver;
     private int            lastVolPercent = -1;
+    // Picture-in-Picture: a play/pause RemoteAction routed back through this receiver.
+    private static final String PIP_ACTION = "com.db.dbworld.player.PIP_CONTROL";
+    private BroadcastReceiver pipReceiver;
+    private boolean inPip = false;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
@@ -344,6 +361,28 @@ public class HybridPlayerPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Enter Android Picture-in-Picture with a play/pause action. No-op below API 26. */
+    @PluginMethod
+    public void enterPip(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && player != null) {
+                registerPipReceiver();
+                try { getActivity().enterPictureInPictureMode(buildPipParams()); }
+                catch (Exception e) { android.util.Log.w(TAG, "enterPip failed", e); }
+            }
+        });
+        call.resolve();
+    }
+
+    /** Invoked by MainActivity.onPictureInPictureModeChanged — tell the React overlay to hide/show. */
+    public void handlePipModeChanged(boolean isInPip) {
+        inPip = isInPip;
+        JSObject e = new JSObject();
+        e.put("pip", isInPip);
+        notifyListeners("playerPipChanged", e);
+        if (!isInPip) unregisterPipReceiver();
+    }
+
     @PluginMethod
     public void release(PluginCall call) {
         getActivity().runOnUiThread(() -> {
@@ -351,6 +390,7 @@ public class HybridPlayerPlugin extends Plugin {
             if (player != null) { player.release(); player = null; }
             detachSurface();
             unregisterVolumeObserver();
+            unregisterPipReceiver();
             getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
             Window w = getActivity().getWindow();
             w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // allow the screen to sleep again
@@ -378,6 +418,18 @@ public class HybridPlayerPlugin extends Plugin {
             parent.addView(videoView, 0, new ViewGroup.LayoutParams(   // index 0 = behind WebView
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
+        // Subtitle layer: sits directly ABOVE the video TextureView but still BEHIND the
+        // transparent WebView, so cues composite over the video and show through the React
+        // overlay. setUserDefault* honours the device's system caption style/size.
+        if (subtitleView == null) {
+            subtitleView = new SubtitleView(getContext());
+            subtitleView.setUserDefaultStyle();
+            subtitleView.setUserDefaultTextSize();
+        }
+        if (subtitleView.getParent() == null) {
+            parent.addView(subtitleView, 1, new ViewGroup.LayoutParams(   // index 1 = above video, below WebView
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         player.setVideoTextureView(videoView);
         // Make the WebView (and its page) see-through so the video shows behind the overlay,
         // and paint the area behind the video black so letterbox/pillarbox bars are black
@@ -394,6 +446,9 @@ public class HybridPlayerPlugin extends Plugin {
         if (player != null) player.clearVideoTextureView(videoView);
         if (videoView != null && videoView.getParent() != null) {
             ((ViewGroup) videoView.getParent()).removeView(videoView);
+        }
+        if (subtitleView != null && subtitleView.getParent() != null) {
+            ((ViewGroup) subtitleView.getParent()).removeView(subtitleView);
         }
     }
 
@@ -485,6 +540,86 @@ public class HybridPlayerPlugin extends Plugin {
         }
     }
 
+    /** Short display codec name from an ExoPlayer sampleMimeType (e.g. audio/eac3 → E-AC3). */
+    private static String codecName(String mime) {
+        if (mime == null) return null;
+        String m = mime.toLowerCase();
+        if (m.contains("eac3") || m.contains("e-ac3"))     return "E-AC3";
+        if (m.contains("ac4"))                             return "AC4";
+        if (m.contains("ac3"))                             return "AC3";
+        if (m.contains("truehd") || m.contains("true-hd")) return "TrueHD";
+        if (m.contains("dts"))                             return "DTS";
+        if (m.contains("mp4a") || m.contains("aac"))       return "AAC";
+        if (m.contains("opus"))                            return "Opus";
+        if (m.contains("flac"))                            return "FLAC";
+        if (m.contains("mpeg") || m.contains("mp3"))       return "MP3";
+        if (m.contains("vorbis"))                          return "Vorbis";
+        if (m.contains("raw") || m.contains("pcm"))        return "PCM";
+        int slash = mime.indexOf('/');   // audio/xyz → XYZ
+        return slash >= 0 ? mime.substring(slash + 1).toUpperCase() : mime.toUpperCase();
+    }
+
+    // ─── Picture-in-Picture ───────────────────────────────────────────────────
+
+    private PictureInPictureParams buildPipParams() {
+        PictureInPictureParams.Builder b = new PictureInPictureParams.Builder();
+        int w = (int) Math.max(1, videoW * pixelRatio), h = (int) Math.max(1, videoH);
+        // Android rejects extreme ratios (allowed ≈ 0.42…2.39) — clamp to be safe.
+        double ratio = (h > 0) ? (double) w / h : (16.0 / 9.0);
+        ratio = Math.max(0.42, Math.min(2.38, ratio));
+        b.setAspectRatio(new Rational((int) Math.round(ratio * 1000), 1000));
+        if (videoView != null && videoView.getWidth() > 0) {
+            int[] loc = new int[2];
+            videoView.getLocationOnScreen(loc);
+            b.setSourceRectHint(new Rect(loc[0], loc[1], loc[0] + videoView.getWidth(), loc[1] + videoView.getHeight()));
+        }
+        b.setActions(java.util.Collections.singletonList(playPauseAction()));
+        return b.build();
+    }
+
+    /** The single PiP-window action, reflecting the current play/pause state. */
+    private RemoteAction playPauseAction() {
+        boolean playing = player != null && player.getPlayWhenReady();
+        int iconRes = playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+        String title = playing ? "Pause" : "Play";
+        Intent i = new Intent(PIP_ACTION).setPackage(getContext().getPackageName());
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT
+                | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
+        PendingIntent pi = PendingIntent.getBroadcast(getContext(), 1, i, flags);
+        return new RemoteAction(Icon.createWithResource(getContext(), iconRes), title, title, pi);
+    }
+
+    private void registerPipReceiver() {
+        if (pipReceiver != null) return;
+        pipReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context ctx, Intent intent) {
+                if (player == null) return;
+                player.setPlayWhenReady(!player.getPlayWhenReady());
+                updatePipActions();
+            }
+        };
+        IntentFilter filter = new IntentFilter(PIP_ACTION);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getContext().registerReceiver(pipReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            getContext().registerReceiver(pipReceiver, filter);
+        }
+    }
+
+    private void unregisterPipReceiver() {
+        if (pipReceiver != null) {
+            try { getContext().unregisterReceiver(pipReceiver); } catch (Exception ignored) {}
+            pipReceiver = null;
+        }
+    }
+
+    /** Refresh the PiP action so its icon tracks play↔pause while in PiP. */
+    private void updatePipActions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && inPip) {
+            try { getActivity().setPictureInPictureParams(buildPipParams()); } catch (Exception ignored) {}
+        }
+    }
+
     private void applyTransform() {
         if (videoView == null || videoW <= 0 || videoH <= 0) return;
         int vw = videoView.getWidth(), vh = videoView.getHeight();
@@ -516,8 +651,14 @@ public class HybridPlayerPlugin extends Plugin {
                 Format f = tg.getFormat(0);
                 JSObject o = new JSObject();
                 o.put("id", id);
-                o.put("language", langName(f.language));
+                // Null language → leave null so the JS label falls back to codec/title;
+                // a fallback/unsupported track no longer renders as "Default"/"Unknown".
+                o.put("language", f.language != null ? langName(f.language) : null);
+                if (f.label != null) o.put("title", f.label);
+                o.put("codec", codecName(f.sampleMimeType));
                 o.put("channels", f.channelCount > 0 ? f.channelCount : 0);
+                if (f.bitrate > 0) o.put("bitRate", f.bitrate);        // bps → JS shows kbps
+                if (f.sampleRate > 0) o.put("sampleRate", f.sampleRate); // Hz → JS shows kHz
                 audio.put(o);
                 if (g.isSelected()) selAudio = id;
                 audioGroups.add(tg);
@@ -527,7 +668,9 @@ public class HybridPlayerPlugin extends Plugin {
                 Format f = tg.getFormat(0);
                 JSObject o = new JSObject();
                 o.put("id", id);
-                o.put("language", langName(f.language));
+                o.put("language", f.language != null ? langName(f.language) : null);
+                if (f.label != null) o.put("title", f.label);
+                o.put("format", f.sampleMimeType);   // → JS maps to SRT / PGS / ASS / VTT…
                 o.put("forced", (f.selectionFlags & C.SELECTION_FLAG_FORCED) != 0);
                 text.put(o);
                 if (g.isSelected()) selText = id;
@@ -546,9 +689,19 @@ public class HybridPlayerPlugin extends Plugin {
         @Override public void onIsPlayingChanged(boolean isPlaying) {
             // Keep the screen on only while actually playing; let it sleep when paused.
             setKeepScreenOn(isPlaying);
+            // Mirror the real play/pause to the UI so the button icon can't desync.
+            JSObject e = new JSObject();
+            e.put("playing", isPlaying);
+            notifyListeners("playerState", e);
+            updatePipActions();   // keep the PiP-window play/pause icon in sync too
         }
         @Override public void onTracksChanged(@NonNull Tracks tracks) {
             emitTracks(tracks);
+        }
+        // Draw the decoded subtitle cues (empty list when subtitles are off / none selected).
+        // Without this sink the selected text track is decoded but never rendered anywhere.
+        @Override public void onCues(@NonNull CueGroup cueGroup) {
+            if (subtitleView != null) subtitleView.setCues(cueGroup.cues);
         }
         @Override public void onVideoSizeChanged(@NonNull VideoSize vs) {
             videoW = vs.width; videoH = vs.height;
@@ -587,6 +740,7 @@ public class HybridPlayerPlugin extends Plugin {
     protected void handleOnDestroy() {
         ui.removeCallbacks(ticker);
         unregisterVolumeObserver();
+        unregisterPipReceiver();
         if (player != null) { player.release(); player = null; }
         try { getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); }
         catch (Exception ignored) { }

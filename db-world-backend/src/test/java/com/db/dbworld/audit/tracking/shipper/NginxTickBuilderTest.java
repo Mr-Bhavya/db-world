@@ -22,14 +22,14 @@ class NginxTickBuilderTest {
         // Two parallel 206 range requests (aria2-style multi-connection download).
         // Windows: [base-2s, base] and [base-1.5s, base+0.5s] -> overlap -> peakConnections >= 2.
         CdnLogLine line1 = new CdnLogLine(
-                "req-A", "dl-1", ActivityKind.DOWNLOAD,
+                "req-A", ActivityKind.DOWNLOAD,
                 base, 206, 5000L,
                 0L, 4999L, 10000L,
                 "10.0.0.5", "aria2/1.36.0",
                 2.0, 111L
         );
         CdnLogLine line2 = new CdnLogLine(
-                "req-A", "dl-1", ActivityKind.DOWNLOAD,
+                "req-A", ActivityKind.DOWNLOAD,
                 base.plusMillis(500), 206, 7500L,
                 2500L, 9999L, 10000L,
                 "10.0.0.5", "aria2/1.36.0",
@@ -63,7 +63,7 @@ class NginxTickBuilderTest {
 
         // Client requested bytes 0-9999 (full file) but disconnected after 3000 bytes.
         CdnLogLine line = new CdnLogLine(
-                "req-C", "dl-3", ActivityKind.DOWNLOAD,
+                "req-C", ActivityKind.DOWNLOAD,
                 base, 206, 3000L,
                 0L, 9999L, 10000L,
                 "10.0.0.7", "aria2/1.36.0",
@@ -89,7 +89,7 @@ class NginxTickBuilderTest {
         Instant base = Instant.parse("2026-07-04T11:00:00Z");
 
         CdnLogLine line = new CdnLogLine(
-                "req-B", "dl-2", ActivityKind.STREAM,
+                "req-B", ActivityKind.STREAM,
                 base, 200, 20000L,
                 null, null, null,
                 "10.0.0.9", "Mozilla/5.0 Chrome/125.0",
@@ -120,12 +120,12 @@ class NginxTickBuilderTest {
         Instant base = Instant.parse("2026-07-04T12:00:00Z");
 
         CdnLogLine a = new CdnLogLine(
-                "req-A", "dl-1", ActivityKind.DOWNLOAD,
+                "req-A", ActivityKind.DOWNLOAD,
                 base, 206, 5000L, 0L, 4999L, 10000L,
                 "10.0.0.5", "aria2/1.36.0", 2.0, 111L
         );
         CdnLogLine b = new CdnLogLine(
-                "req-B", "dl-2", ActivityKind.STREAM,
+                "req-B", ActivityKind.STREAM,
                 base, 200, 20000L, null, null, null,
                 "10.0.0.9", "Mozilla/5.0 Chrome/125.0", 1.5, 200L
         );

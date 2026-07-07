@@ -4,9 +4,10 @@ import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.stream.dto.CdnResolveDto;
+import com.db.dbworld.app.stream.dto.ResolveBatchRequest;
+import com.db.dbworld.core.context.UserContext;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
-import com.db.dbworld.security.auth.JwtService;
 import com.db.dbworld.app.stream.service.StreamService;
 import com.db.dbworld.config.AppConstants;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,21 +29,23 @@ import java.util.stream.Collectors;
 public class StreamController {
 
     private final StreamService          streamService;
-    private final JwtService             jwtService;
+    private final UserContext            userContext;
     private final MediaInfoService       mediaInfoService;
 
     // CDN URL resolve â€” returns JSON with CDN URL + metadata
     // Client embeds cdnUrl directly in <video src> or <a href>.
+    // Authenticated via the standard Authorization: Bearer header (like every other API);
+    // the CDN URL itself is protected by nginx secure_link signing, not this JWT.
     // type: ONLINE (inline/stream) | DOWNLOAD (attachment)
 
     @GetMapping("/resolve/{mediaFileId}")
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<CdnResolveDto> resolveById(
             @PathVariable String mediaFileId,
-            @RequestParam("t") String token,
             @RequestParam(value = "type", defaultValue = "ONLINE") String type,
             HttpServletRequest request) {
 
-        String user = jwtService.parse(token).email();
+        String user = userContext.email();
         boolean inline = !"DOWNLOAD".equalsIgnoreCase(type);
         log.info("resolve id={} user={} type={}", mediaFileId, user, type);
         CdnResolveDto dto = streamService.resolveById(
@@ -52,14 +55,32 @@ public class StreamController {
         return ApiResponse.success(dto);
     }
 
+    // Batch resolve — one round-trip for all quality variants of a title (kills the client N+1).
+    @PostMapping("/resolve-batch")
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
+    public ApiResponse<List<CdnResolveDto>> resolveBatch(
+            @RequestBody ResolveBatchRequest body,
+            HttpServletRequest request) {
+
+        String user = userContext.email();
+        boolean inline = body.type() == null || !"DOWNLOAD".equalsIgnoreCase(body.type());
+        List<String> ids = body.mediaFileIds();
+        log.info("resolve-batch user={} count={} type={}", user, ids != null ? ids.size() : 0, body.type());
+        List<CdnResolveDto> dtos = streamService.resolveBatch(
+                user, ids, inline,
+                request.getHeader("User-Agent"),
+                getClientIp(request));
+        return ApiResponse.success(dtos);
+    }
+
     @GetMapping("/resolve")
+    @PreAuthorize(AppConstants.ALL_AUTHORIZE)
     public ApiResponse<CdnResolveDto> resolveByPath(
             @RequestParam("path") String path,
-            @RequestParam("t") String token,
             @RequestParam(value = "type", defaultValue = "ONLINE") String type,
             HttpServletRequest request) {
 
-        String user = jwtService.parse(token).email();
+        String user = userContext.email();
         boolean inline = !"DOWNLOAD".equalsIgnoreCase(type);
         log.info("resolve path={} user={} type={}", path, user, type);
         CdnResolveDto dto = streamService.resolveByPath(

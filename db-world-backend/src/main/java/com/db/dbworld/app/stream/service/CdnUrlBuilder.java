@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 public class CdnUrlBuilder {
 
     private final AppProperties runtime;
+    private final CdnSigner     cdnSigner;
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Public builders
@@ -45,9 +46,11 @@ public class CdnUrlBuilder {
      * The UUID doubles as the symlink filename under the symlink root.
      */
     public String buildByMediaFileId(String mediaFileId, String userId, StreamType type,
-                                      String fileName, String downloadId, String requestId) {
-        return base() + "/id/" + mediaFileId
-                + queryParams(userId, type, fileName, downloadId, requestId);
+                                      String fileName, String requestId) {
+        String uriPath = "/id/" + mediaFileId;
+        return base() + uriPath
+                + queryParams(userId, type, fileName, requestId)
+                + cdnSigner.signatureSuffix(uriPath, type);
     }
 
     /**
@@ -55,11 +58,15 @@ public class CdnUrlBuilder {
      * stream / external-videos root.
      */
     public String buildByRelativePath(String relativePath, String userId, StreamType type,
-                                       String fileName, String downloadId, String requestId) {
+                                       String fileName, String requestId) {
         String clean = StringUtils.cleanPath(relativePath);
         if (clean.startsWith("/")) clean = clean.substring(1);
+        // Signature is over the DECODED path (what nginx exposes as $uri); the URL itself
+        // carries the percent-encoded segments.
+        String uriPathDecoded = "/path/" + clean;
         return base() + "/path/" + encodePathSegments(clean)
-                + queryParams(userId, type, fileName, downloadId, requestId);
+                + queryParams(userId, type, fileName, requestId)
+                + cdnSigner.signatureSuffix(uriPathDecoded, type);
     }
 
     /**
@@ -68,7 +75,7 @@ public class CdnUrlBuilder {
      * Throws {@link IllegalArgumentException} if the path is outside all allowed roots.
      */
     public String buildFromAbsolutePath(Path accelPath, String userId, StreamType type,
-                                         String fileName, String downloadId, String requestId) {
+                                         String fileName, String requestId) {
         Path normalized   = accelPath.toAbsolutePath().normalize();
         Path symlinkRoot  = runtime.getSymlinkPath().toAbsolutePath().normalize();
         Path streamRoot   = runtime.getStreamPath().toAbsolutePath().normalize();
@@ -76,13 +83,13 @@ public class CdnUrlBuilder {
 
         if (normalized.startsWith(symlinkRoot)) {
             String mediaFileId = symlinkRoot.relativize(normalized).toString();
-            return buildByMediaFileId(mediaFileId, userId, type, fileName, downloadId, requestId);
+            return buildByMediaFileId(mediaFileId, userId, type, fileName, requestId);
         } else if (normalized.startsWith(streamRoot)) {
             String rel = streamRoot.relativize(normalized).toString().replace('\\', '/');
-            return buildByRelativePath(rel, userId, type, fileName, downloadId, requestId);
+            return buildByRelativePath(rel, userId, type, fileName, requestId);
         } else if (normalized.startsWith(externalRoot)) {
             String rel = externalRoot.relativize(normalized).toString().replace('\\', '/');
-            return buildByRelativePath(rel, userId, type, fileName, downloadId, requestId);
+            return buildByRelativePath(rel, userId, type, fileName, requestId);
         }
 
         log.error("Path outside allowed media roots: {}", normalized);
@@ -94,18 +101,9 @@ public class CdnUrlBuilder {
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * Generates a download-session ID that is stable within the same calendar day
-     * for the same user + file reference (so multiple range requests in one session
-     * share the same ID for nginx-log correlation).
+     * Generates a unique per-request tracing ID. This is the sole correlation key
+     * between the resolve event and the downstream nginx access-log lines.
      */
-    public String generateDownloadId(String userId, String fileRef) {
-        long dayBucket = System.currentTimeMillis() / 86_400_000L;
-        String seed    = userId + "|" + fileRef + "|" + dayBucket;
-        return "DL_" + Integer.toHexString(Math.abs(seed.hashCode()))
-                + "_" + (System.currentTimeMillis() % 100_000L);
-    }
-
-    /** Generates a unique per-request tracing ID. */
     public String generateRequestId() {
         return UUID.randomUUID().toString();
     }
@@ -119,11 +117,10 @@ public class CdnUrlBuilder {
     }
 
     private String queryParams(String userId, StreamType type, String fileName,
-                                String downloadId, String requestId) {
+                                String requestId) {
         return "?userId="       + encode(userId)
              + "&type="         + type.name()
              + "&originalFile=" + encode(fileName)
-             + "&downloadId="   + downloadId
              + "&requestId="    + requestId;
     }
 

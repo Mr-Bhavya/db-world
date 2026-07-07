@@ -51,7 +51,7 @@ public class CdnLogLineParser {
             Instant time = t != null ? OffsetDateTime.parse(t).toInstant() : Instant.now();
 
             return Optional.of(new CdnLogLine(
-                    requestId, text(n, "download_id"), activity, time,
+                    requestId, activity, time,
                     intOr(n, "status", 0), longOr(n, "bytes_sent", 0L),
                     rs, re, total,
                     text(n, "real_ip"), text(n, "user_agent"),

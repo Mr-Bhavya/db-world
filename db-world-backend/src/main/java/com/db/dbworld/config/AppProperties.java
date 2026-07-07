@@ -72,6 +72,12 @@ public class AppProperties {
     private String tmdbAccessToken;
     private String cdnBaseUrl;
 
+    // CDN URL signing (nginx secure_link). Secret is shared with the nginx config.
+    private boolean cdnSigningEnabled;
+    private String  cdnSigningSecret;
+    private long    cdnStreamTtlSeconds;
+    private long    cdnDownloadTtlSeconds;
+
     @Autowired
     private org.springframework.core.env.Environment environment;
 
@@ -113,6 +119,12 @@ public class AppProperties {
         String rawCdn = (cdn != null && StringUtils.hasText(cdn.baseUrl()))
                 ? cdn.baseUrl() : "http://cdn.db-world.in";
         cdnBaseUrl = rawCdn.endsWith("/") ? rawCdn.substring(0, rawCdn.length() - 1) : rawCdn;
+
+        Cdn.Signing signing = cdn != null ? cdn.signing() : null;
+        cdnSigningEnabled     = signing != null && signing.enabled() != null && signing.enabled();
+        cdnSigningSecret      = signing != null ? signing.secret() : null;
+        cdnStreamTtlSeconds   = signing != null && signing.streamTtlSeconds()   != null ? signing.streamTtlSeconds()   : 21_600L;   // 6h
+        cdnDownloadTtlSeconds = signing != null && signing.downloadTtlSeconds() != null ? signing.downloadTtlSeconds() : 172_800L;  // 48h
 
         mediaBasePaths = Stream.of(tempPath, integrationPath)
                 .filter(Objects::nonNull).toList();
@@ -176,6 +188,11 @@ public class AppProperties {
     public String       getTmdbAccessToken()    { return tmdbAccessToken; }
     public String       getCdnBaseUrl()         { return cdnBaseUrl; }
 
+    public boolean      isCdnSigningEnabled()     { return cdnSigningEnabled; }
+    public String       getCdnSigningSecret()     { return cdnSigningSecret; }
+    public long         getCdnStreamTtlSeconds()  { return cdnStreamTtlSeconds; }
+    public long         getCdnDownloadTtlSeconds(){ return cdnDownloadTtlSeconds; }
+
     // ── Setters (required by Spring Boot @ConfigurationProperties binding) ────
 
     public void setName(String v)       { this.name = v; }
@@ -222,7 +239,16 @@ public class AppProperties {
 
     public record ApiKeys(String tmdb) {}
     public record Tokens(String tmdb)  {}
-    public record Cdn(String baseUrl)  {}
+    public record Cdn(String baseUrl, Signing signing) {
+
+        /** nginx secure_link signing. Secret must match the nginx {@code secure_link_md5} directive. */
+        public record Signing(
+                Boolean enabled,
+                String  secret,
+                Long    streamTtlSeconds,
+                Long    downloadTtlSeconds
+        ) {}
+    }
 
     // ── Utilities ─────────────────────────────────────────────────────────────
 

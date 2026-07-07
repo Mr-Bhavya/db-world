@@ -11,7 +11,7 @@ import { registerPlugin, Capacitor } from '@capacitor/core';
 
 const HybridPlayer = registerPlugin('HybridPlayer');
 
-const EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', tracks: 'playerTracks', info: 'playerInfo', volume: 'playerVolume' };
+const EVENT_MAP = { time: 'playerTime', state: 'playerState', ended: 'playerEnded', error: 'playerError', tracks: 'playerTracks', info: 'playerInfo', volume: 'playerVolume', pip: 'playerPipChanged' };
 
 function createNativeAdapter() {
   return {
@@ -29,6 +29,7 @@ function createNativeAdapter() {
     selectTextTrack:  (id) => HybridPlayer.selectTextTrack({ id }),
     setDecoderMode:(mode) => HybridPlayer.setDecoderMode({ mode }),
     setOrientation:(mode) => HybridPlayer.setOrientation({ mode }),
+    enterPip:      () => HybridPlayer.enterPip(),
     release:       () => HybridPlayer.release(),
     on: (event, cb) => {
       let handle;
@@ -58,19 +59,39 @@ function createWebAdapter(getVideo) {
       return r.end(r.length - 1) * 1000; // fall back to the last range
     } catch { return 0; }
   };
+  // All buffered [startMs, endMs] ranges — the browser keeps disjoint segments after
+  // seeks, so the UI can draw each loaded chunk (not just one contiguous fill).
+  const bufferedRangesMs = () => {
+    try {
+      const r = v?.buffered;
+      if (!r || r.length === 0) return [];
+      const out = [];
+      for (let i = 0; i < r.length; i++) out.push([r.start(i) * 1000, r.end(i) * 1000]);
+      return out;
+    } catch { return []; }
+  };
   const onTime    = () => emit('time', {
     positionMs: (v?.currentTime || 0) * 1000,
     durationMs: (v && isFinite(v.duration) ? v.duration * 1000 : 0),
     bufferedMs: bufferedEndMs(),
+    bufferedRanges: bufferedRangesMs(),
   });
   const onEnded   = () => emit('ended', {});
   const onError   = () => emit('error', { code: v?.error?.code, message: 'video error' });
   const onWaiting = () => emit('state', { state: 2 }); // buffering
-  const onPlaying = () => emit('state', { state: 3 }); // ready/playing
+  const onPlaying = () => emit('state', { state: 3, playing: true }); // actually playing
+  // 'canplay' = ready (clear the buffering spinner) but it also fires after a seek while
+  // paused — so respect v.paused instead of forcing "playing" (which used to auto-resume).
+  const onCanplay = () => emit('state', { state: 3, playing: !(v && v.paused) });
+  // Mirror the element's real play/pause so the icon can't desync when playback is
+  // paused/resumed by anything other than our own button (OS, fullscreen, tab/screen off).
+  const onPlay  = () => emit('state', { playing: true });
+  const onPause = () => emit('state', { playing: false });
   const listeners = [
     ['timeupdate', onTime], ['durationchange', onTime], ['progress', onTime],
     ['ended', onEnded], ['error', onError],
-    ['waiting', onWaiting], ['playing', onPlaying], ['canplay', onPlaying],
+    ['waiting', onWaiting], ['playing', onPlaying], ['canplay', onCanplay],
+    ['play', onPlay], ['pause', onPause],
   ];
 
   const attach = () => { if (!attached && v) { listeners.forEach(([ev, fn]) => v.addEventListener(ev, fn)); attached = true; } };
@@ -101,6 +122,7 @@ function createWebAdapter(getVideo) {
     selectTextTrack:  (id) => { ensure(); const ts = v?.textTracks; if (ts) for (let i = 0; i < ts.length; i++) ts[i].mode = (i === id ? 'showing' : 'disabled'); },
     setDecoderMode:() => {},   // browser-managed on web
     setOrientation:() => {},   // best-effort no-op on web
+    enterPip:      () => {},   // Android-only feature; no-op on web
     release: () => {
       if (v) { try { v.pause(); listeners.forEach(([ev, fn]) => v.removeEventListener(ev, fn)); attached = false; } catch { /* ignore */ } }
     },

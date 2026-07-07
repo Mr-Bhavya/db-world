@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, IconButton, Tooltip } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import { PlayArrow, Close } from '@mui/icons-material';
 import { tmdbImg } from '../../api/cinemaApi';
 
@@ -14,7 +14,7 @@ const formatTime = (ms) => {
 
 // Landscape (16:9) Continue Watching card: backdrop + progress bar + resume.
 // Click anywhere resumes; the ✕ removes the title from the row.
-const ContinueCard = ({ item, onResume, onRemove }) => {
+const ContinueCard = ({ item, onResume, onRemove, loading }) => {
   const dur = item.durationMs || 0;
   const pos = item.positionMs || 0;
   const pct = dur > 0 ? Math.min(100, Math.max(2, (pos / dur) * 100)) : 0;
@@ -29,9 +29,9 @@ const ContinueCard = ({ item, onResume, onRemove }) => {
 
   return (
     <Box
-      onClick={() => onResume(item)}
+      onClick={() => { if (!loading) onResume(item); }}
       sx={{
-        flexShrink: 0, position: 'relative', cursor: 'pointer',
+        flexShrink: 0, position: 'relative', cursor: loading ? 'wait' : 'pointer',
         width: { xs: 230, sm: 260, md: 300 },
         aspectRatio: '16/9', borderRadius: 1, overflow: 'hidden',
         bgcolor: 'rgba(255,255,255,.06)',
@@ -44,6 +44,14 @@ const ContinueCard = ({ item, onResume, onRemove }) => {
       {img && (
         <Box component="img" src={img} alt={item.title}
           sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      )}
+
+      {/* Resume in progress — instant feedback while the CDN URL + record resolve */}
+      {loading && (
+        <Box sx={{ position: 'absolute', inset: 0, zIndex: 4, display: 'grid', placeItems: 'center',
+          bgcolor: 'rgba(0,0,0,.55)' }}>
+          <CircularProgress size={30} sx={{ color: '#14b8a6' }} />
+        </Box>
       )}
 
       {/* Remove */}

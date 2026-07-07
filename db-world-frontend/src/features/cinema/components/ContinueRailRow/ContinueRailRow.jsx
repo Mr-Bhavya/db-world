@@ -3,40 +3,11 @@ import { motion } from 'framer-motion';
 import { Box, Typography, IconButton, useMediaQuery, useTheme } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import Constants from '@shared/constants';
-import { resolveMediaUrl, loadStreamFileInfoByRecordId } from '@shared/services/ApiServices';
-import CommonServices from '@shared/services/CommonServices';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
-import { parseEpisode } from '../../utils/episodeUtils';
-import { buildStoryboard } from '../../utils/storyboard';
-import { getQuality } from '../../media/helpers';
 import ContinueCard from './ContinueCard';
-
-// Build the player's episode list from a record's media files (one entry per
-// season/episode), so resuming a series gets the episode picker + Next button.
-const pad = (n) => String(n).padStart(2, '0');
-function buildEpisodes(files) {
-  const byEp = new Map();
-  for (const f of files || []) {
-    const ep = parseEpisode(f.fileName);
-    if (!ep) continue;
-    const key = `${ep.season}x${ep.episode}`;
-    if (!byEp.has(key)) byEp.set(key, { f, ep });
-  }
-  return [...byEp.values()]
-    .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
-    .map(({ f, ep }) => ({
-      id: String(f.id), fileId: String(f.id), mediaFileId: f.id,
-      season: ep.season, episode: ep.episode,
-      label: `S${pad(ep.season)}E${pad(ep.episode)}`, name: '', url: '',
-    }));
-}
-
-// Same height derivation Record-Details (media-files/index.js) uses, so the
-// quality switcher's height-based fallback/sort logic matches exactly.
-const heightOf = (f) => Number(f.video?.resolution?.split('x')?.[1]) || 0;
 
 const SCROLL_AMOUNT = 0.75;
 const QUERY_KEY = ['continue-watching'];
@@ -50,14 +21,12 @@ const ContinueRailRow = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
-  const location = useLocation();
   const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
   const scrollRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
-  const [resuming, setResuming] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -81,80 +50,14 @@ const ContinueRailRow = () => {
     onSettled: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
 
-  const onResume = useCallback(async (item) => {
-    if (resuming) return;
-    setResuming(true);
-    try {
-      // Resolve the stream URL and the record's media files (for the episode list
-      // on series, and the sibling quality files on both movies + series) in parallel.
-      const isSeries = item.type === 'TV_SERIES';
-      const [res, infoResp] = await Promise.all([
-        resolveMediaUrl(item.resumeFileId, 'ONLINE'),
-        loadStreamFileInfoByRecordId(item.recordId).catch(() => null),
-      ]);
-      const url = res?.data?.cdnUrl;
-      if (!url) throw new Error('No stream URL');
-
-      const rawFiles = infoResp?.data ?? [];
-      const episodes = isSeries ? buildEpisodes(rawFiles) : [];
-      const storyboard = buildStoryboard(url, item.resumeFileId, res?.data?.mediaFile) || null;
-
-      // Quality variants for the resumed title/episode — converted through the
-      // same CommonServices helper Record-Details uses so getQuality()/height
-      // derivation (and therefore the labels shown in the player) match exactly.
-      // epKey mirrors Record-Details' handlePlay (media-files/index.js): prefer
-      // the TMDB season/episode fields, else fall back to filename parsing.
-      const converted = CommonServices.convertMediaInfoToCustomFormat(null, rawFiles);
-      const epKey = (f) => {
-        const ep = parseEpisode(f.general?.fileName);
-        const s = f.tmdbSeasonNumber != null ? f.tmdbSeasonNumber : ep?.season;
-        const e = f.tmdbEpisodeNumber != null ? f.tmdbEpisodeNumber : ep?.episode;
-        return `${s}-${e}`;
-      };
-      const resumedKey = isSeries
-        ? (item.season != null && item.episode != null
-            ? `${item.season}-${item.episode}`
-            : epKey(converted.find(f => f.mediaFileId === item.resumeFileId) ?? {}))
-        : null;
-      const candidates = isSeries
-        ? converted.filter(f => epKey(f) === resumedKey)
-        : converted;
-
-      const resolvedVariants = await Promise.all(candidates.map(async (f) => {
-        if (f.mediaFileId === item.resumeFileId) return { ...f, streamUrl: url };
-        if (!f?.mediaFileId) return null;
-        try {
-          const r = await resolveMediaUrl(f.mediaFileId, 'ONLINE');
-          return r?.data?.cdnUrl ? { ...f, streamUrl: r.data.cdnUrl } : null;
-        } catch {
-          return null;
-        }
-      }));
-      const variants = resolvedVariants
-        .filter(f => f?.streamUrl)
-        .map(f => ({ url: f.streamUrl, label: getQuality(f.video, f.general?.fileName), height: heightOf(f), mediaFileId: f.mediaFileId }));
-
-      // The player resumes from the saved progress for this fileId automatically.
-      navigate(Constants.DB_PLAYER_ROUTE, {
-        state: {
-          media: {
-            url,
-            fileId: item.resumeFileId,
-            title: item.title,
-            recordId: item.recordId,
-            episodes,
-            storyboard,
-            variants,
-            requestId: res?.data?.requestId ?? null,
-          },
-        },
-      });
-    } catch {
-      enqueueSnackbar('Could not resume playback.', { variant: 'error' });
-    } finally {
-      setResuming(false);
-    }
-  }, [resuming, navigate, enqueueSnackbar]);
+  const onResume = useCallback((item) => {
+    // Navigate instantly; the player resolves the CDN URL + rich episode metadata on
+    // mount from the mediaFileId in the URL (buildMediaFromFileId), using these hints to
+    // skip the record lookup. Removes the old tap-to-open lag.
+    navigate(Constants.playerPath(item.resumeFileId), {
+      state: { resume: { recordId: item.recordId, title: item.title, type: item.type } },
+    });
+  }, [navigate]);
 
   const updateButtons = useCallback(() => {
     const el = scrollRef.current;
