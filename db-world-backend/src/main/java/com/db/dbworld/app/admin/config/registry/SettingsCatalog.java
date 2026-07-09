@@ -46,8 +46,11 @@ public final class SettingsCatalog {
         // ── Activity Tracking ────────────────────────────────────────────
         bool(TRACKING_ENABLED, C_TRACKING, "Tracking enabled",
              "Master flag — gates all live tracking writes.", true, 0),
-        lng(TRACKING_BATCH_TICK_MS, C_TRACKING, "Batch tick (ms)",
-             "How often the shipper flushes accumulated CDN log lines.", 5000L, 100L, 600000L, 1),
+        // requiresRestart: cadence is baked into @Scheduled at startup (TrackingLogShipper),
+        // so editing this only takes effect after a restart.
+        new SettingDefinition(TRACKING_BATCH_TICK_MS, ConfigValueType.LONG, C_TRACKING, "Batch tick (ms)",
+             "How often the shipper flushes accumulated CDN log lines. Takes effect after restart.",
+             "5000", 100L, 600000L, true, 1),
         lng(TRACKING_MAX_BYTES_PER_TICK, C_TRACKING, "Max bytes per tick",
              "Cap on CDN log bytes processed per tick.", 5242880L, 0L, 1073741824L, 2),
         intg(TRACKING_MAX_ACCUMULATOR_ENTRIES, C_TRACKING, "Max accumulator entries",
@@ -56,8 +59,11 @@ public final class SettingsCatalog {
              "Idle minutes before a stream session is swept closed.", 15, 1L, 1440L, 4),
         intg(TRACKING_DOWNLOAD_TIMEOUT_MIN, C_TRACKING, "Download session timeout (min)",
              "Idle minutes before a download session is swept closed.", 30, 1L, 2880L, 5),
-        lng(TRACKING_SWEEPER_TICK_MS, C_TRACKING, "Sweeper tick (ms)",
-             "How often the staleness sweeper runs.", 60000L, 1000L, 3600000L, 6),
+        // requiresRestart: cadence is baked into @Scheduled at startup (TrackingSweeper),
+        // so editing this only takes effect after a restart.
+        new SettingDefinition(TRACKING_SWEEPER_TICK_MS, ConfigValueType.LONG, C_TRACKING, "Sweeper tick (ms)",
+             "How often the staleness sweeper runs. Takes effect after restart.",
+             "60000", 1000L, 3600000L, true, 6),
         intg(TRACKING_EVENT_RETENTION_DAYS, C_TRACKING, "Event retention (days)",
              "How long activity events are kept before pruning.", 90, 1L, 3650L, 7),
         intg(TRACKING_SEARCH_PREFIX_COLLAPSE_SEC, C_TRACKING, "Search prefix collapse (sec)",
