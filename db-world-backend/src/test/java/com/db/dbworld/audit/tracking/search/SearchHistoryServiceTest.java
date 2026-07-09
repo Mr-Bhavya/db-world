@@ -1,6 +1,7 @@
 package com.db.dbworld.audit.tracking.search;
 
-import com.db.dbworld.audit.tracking.config.TrackingProperties;
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.audit.tracking.entity.SearchHistoryEntity;
 import com.db.dbworld.audit.tracking.repository.SearchHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,18 +22,18 @@ import static org.mockito.Mockito.*;
 class SearchHistoryServiceTest {
 
     @Mock SearchHistoryRepository repository;
-    @Mock TrackingProperties trackingProperties;
+    @Mock SettingsService settings;
 
     SearchHistoryService service;
 
     @BeforeEach
     void setUp() {
-        service = new SearchHistoryService(repository, trackingProperties);
+        service = new SearchHistoryService(repository, settings);
     }
 
     @Test
     void record_prefixWithinWindow_updatesExistingRowInsteadOfInserting() {
-        when(trackingProperties.getSearchPrefixCollapseSec()).thenReturn(30);
+        when(settings.getInt(ConfigKeys.TRACKING_SEARCH_PREFIX_COLLAPSE_SEC)).thenReturn(30);
 
         SearchHistoryEntity existing = SearchHistoryEntity.builder()
                 .id(1L)
@@ -58,7 +59,7 @@ class SearchHistoryServiceTest {
 
     @Test
     void record_reversePrefixWithinWindow_keepsLongerQuery() {
-        when(trackingProperties.getSearchPrefixCollapseSec()).thenReturn(30);
+        when(settings.getInt(ConfigKeys.TRACKING_SEARCH_PREFIX_COLLAPSE_SEC)).thenReturn(30);
 
         SearchHistoryEntity existing = SearchHistoryEntity.builder()
                 .id(2L)
@@ -83,7 +84,7 @@ class SearchHistoryServiceTest {
 
     @Test
     void record_nonPrefix_insertsNewRow() {
-        when(trackingProperties.getSearchPrefixCollapseSec()).thenReturn(30);
+        when(settings.getInt(ConfigKeys.TRACKING_SEARCH_PREFIX_COLLAPSE_SEC)).thenReturn(30);
 
         SearchHistoryEntity existing = SearchHistoryEntity.builder()
                 .id(1L)
@@ -106,7 +107,7 @@ class SearchHistoryServiceTest {
 
     @Test
     void record_prefixButOutsideWindow_insertsNewRow() {
-        when(trackingProperties.getSearchPrefixCollapseSec()).thenReturn(30);
+        when(settings.getInt(ConfigKeys.TRACKING_SEARCH_PREFIX_COLLAPSE_SEC)).thenReturn(30);
 
         SearchHistoryEntity existing = SearchHistoryEntity.builder()
                 .id(1L)

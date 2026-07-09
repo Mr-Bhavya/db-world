@@ -1,8 +1,9 @@
 package com.db.dbworld.audit.tracking.ingest;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.audit.tracking.aggregate.NginxTickAggregate;
 import com.db.dbworld.audit.tracking.aggregate.TrackEvent;
-import com.db.dbworld.audit.tracking.config.TrackingProperties;
 import com.db.dbworld.audit.tracking.enums.ActivityKind;
 import com.db.dbworld.audit.tracking.enums.TrackEventType;
 import com.db.dbworld.audit.tracking.enums.TrackSource;
@@ -24,11 +25,11 @@ public class TrackingIngestService {
 
     private final ActivityEventRepository eventRepo;
     private final TrackingSessionWriter writer;
-    private final TrackingProperties props;
+    private final SettingsService settings;
     private final UserService userService;
 
     public void ingest(TrackEvent e) {
-        if (!props.isEnabled() || e == null || e.sessionId() == null) return;
+        if (!settings.getBoolean(ConfigKeys.TRACKING_ENABLED) || e == null || e.sessionId() == null) return;
 
         if (e.clientEventId() != null
                 && eventRepo.existsBySessionIdAndClientEventId(e.sessionId(), e.clientEventId())) {
@@ -40,7 +41,7 @@ public class TrackingIngestService {
     }
 
     public void ingestNginxTick(NginxTickAggregate tick) {
-        if (!props.isEnabled() || tick == null || tick.sessionId() == null) return;
+        if (!settings.getBoolean(ConfigKeys.TRACKING_ENABLED) || tick == null || tick.sessionId() == null) return;
         OptimisticRetry.run(() -> writer.applyNginxTick(tick));
     }
 

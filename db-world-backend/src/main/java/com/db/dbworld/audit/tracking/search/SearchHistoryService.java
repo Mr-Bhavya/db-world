@@ -1,7 +1,8 @@
 package com.db.dbworld.audit.tracking.search;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.audit.tracking.admin.dto.SearchKeywordProjection;
-import com.db.dbworld.audit.tracking.config.TrackingProperties;
 import com.db.dbworld.audit.tracking.entity.SearchHistoryEntity;
 import com.db.dbworld.audit.tracking.repository.SearchHistoryRepository;
 import com.db.dbworld.audit.tracking.search.dto.SearchKeywordDto;
@@ -28,7 +29,7 @@ public class SearchHistoryService {
     private static final int MAX_RECENT_LIMIT = 20;
 
     private final SearchHistoryRepository searchHistoryRepository;
-    private final TrackingProperties trackingProperties;
+    private final SettingsService settings;
 
     /**
      * Records a search, collapsing prefix-chains typed within a short window
@@ -83,7 +84,7 @@ public class SearchHistoryService {
         if (createdAt == null) {
             return false;
         }
-        long windowSec = trackingProperties.getSearchPrefixCollapseSec();
+        long windowSec = settings.getInt(ConfigKeys.TRACKING_SEARCH_PREFIX_COLLAPSE_SEC);
         boolean withinWindow = ChronoUnit.SECONDS.between(createdAt, now) <= windowSec;
         if (!withinWindow) {
             return false;

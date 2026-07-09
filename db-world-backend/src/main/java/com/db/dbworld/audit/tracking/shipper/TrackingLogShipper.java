@@ -1,5 +1,7 @@
 package com.db.dbworld.audit.tracking.shipper;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.audit.tracking.aggregate.NginxTickAggregate;
 import com.db.dbworld.audit.tracking.config.TrackingProperties;
 import com.db.dbworld.audit.tracking.ingest.TrackingIngestService;
@@ -58,7 +60,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class TrackingLogShipper {
 
+    /** Startup-bound infra paths only — cdn-log-path + rotated-suffix stay in YAML. */
     private final TrackingProperties props;
+    private final SettingsService settings;
     private final TrackingShipperStateRepository stateRepo;
     private final CdnLogLineParser parser;
     private final NginxTickBuilder nginxTickBuilder;
@@ -67,9 +71,13 @@ public class TrackingLogShipper {
     /** Mirrors LogShipperService's tick-level backoff; keeps failure logs from flooding. */
     private final FailureBackoff tickFailureBackoff = FailureBackoff.defaults();
 
-    @Scheduled(fixedDelayString = "${dbworld.tracking.batch-tick-ms:5000}")
+    // Hardcoded to the tracking.batch-tick-ms catalog default (5000ms). This value only sets
+    // the schedule cadence itself (no runtime decision depends on it), and the
+    // "${dbworld.tracking.batch-tick-ms}" YAML key it used to read is removed once the key
+    // moves fully to the DB-backed catalog — a literal here keeps boot from depending on it.
+    @Scheduled(fixedDelay = 5000L)
     public void tick() {
-        if (!props.isEnabled()) return;
+        if (!settings.getBoolean(ConfigKeys.TRACKING_ENABLED)) return;
         if (!tickFailureBackoff.shouldAttempt()) return;
         try {
             runOneTick();
@@ -122,7 +130,7 @@ public class TrackingLogShipper {
         }
 
         // 3. Read forward, bounded by maxBytesPerTick.
-        Result r = readAndIngest(path, offset, props.getMaxBytesPerTick());
+        Result r = readAndIngest(path, offset, settings.getLong(ConfigKeys.TRACKING_MAX_BYTES_PER_TICK));
 
         // 4. Advance + persist state ONLY after ingest calls for this tick complete.
         state.setInode(currentMarker);
@@ -167,7 +175,7 @@ public class TrackingLogShipper {
                             linesProcessed++;
                             Optional<CdnLogLine> parsed = parser.parse(line);
                             parsed.ifPresent(lines::add);
-                            if (lines.size() >= props.getMaxAccumulatorEntries()) break outer;
+                            if (lines.size() >= settings.getInt(ConfigKeys.TRACKING_MAX_ACCUMULATOR_ENTRIES)) break outer;
                         }
                     } else if (b != (byte) '\r') {
                         lineBuf.write(b);
