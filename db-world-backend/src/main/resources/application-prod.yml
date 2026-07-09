@@ -52,6 +52,10 @@ server:
 cors:
   allowed-origins: https://db-world.in
 
+springdoc:
+  swagger-ui:
+    enabled: false
+
 logging:
   level:
     root: INFO

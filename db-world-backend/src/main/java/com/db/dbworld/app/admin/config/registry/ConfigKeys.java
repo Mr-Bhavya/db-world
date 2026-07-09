@@ -34,7 +34,4 @@ public final class ConfigKeys {
     public static final String CDN_SIGNING_ENABLED                  = "app.cdn.signing.enabled";
     public static final String CDN_SIGNING_STREAM_TTL_SECONDS       = "app.cdn.signing.stream-ttl-seconds";
     public static final String CDN_SIGNING_DOWNLOAD_TTL_SECONDS     = "app.cdn.signing.download-ttl-seconds";
-
-    // API docs (restart-required)
-    public static final String SWAGGER_UI_ENABLED                   = "springdoc.swagger-ui.enabled";
 }

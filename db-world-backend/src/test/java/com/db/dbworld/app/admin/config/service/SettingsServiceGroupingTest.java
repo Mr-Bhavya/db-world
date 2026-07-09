@@ -38,7 +38,7 @@ class SettingsServiceGroupingTest {
     void listGrouped_groupsByCategory_andOrders() {
         List<SettingCategoryDto> groups = service.listGrouped();
         assertThat(groups).extracting(SettingCategoryDto::category)
-                .contains("Recommendations", "Activity Tracking", "Weather", "CDN Signing", "API Docs");
+                .contains("Recommendations", "Activity Tracking", "Weather", "CDN Signing");
         // within a category, settings are ordered by displayOrder
         SettingCategoryDto rec = groups.stream()
                 .filter(g -> g.category().equals("Recommendations")).findFirst().orElseThrow();

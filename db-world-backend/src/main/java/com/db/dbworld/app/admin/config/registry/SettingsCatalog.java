@@ -18,7 +18,6 @@ public final class SettingsCatalog {
     private static final String C_TRACKING  = "Activity Tracking";
     private static final String C_WEATHER   = "Weather";
     private static final String C_CDN       = "CDN Signing";
-    private static final String C_DOCS      = "API Docs";
 
     public static final List<SettingDefinition> ALL = List.of(
         // ── Recommendations ──────────────────────────────────────────────
@@ -82,13 +81,7 @@ public final class SettingsCatalog {
              21600, 60L, 604800L, 1),
         intg(CDN_SIGNING_DOWNLOAD_TTL_SECONDS, C_CDN, "Download URL TTL (sec)",
              "How long a signed download URL stays valid (copy-paste + resumed transfers).",
-             172800, 60L, 2592000L, 2),
-
-        // ── API Docs ─────────────────────────────────────────────────────
-        new SettingDefinition(SWAGGER_UI_ENABLED, ConfigValueType.BOOLEAN, C_DOCS,
-            "Swagger UI enabled (restart required)",
-            "Enable the /docs Swagger UI. springdoc binds this at startup, so a change only takes effect after a restart.",
-            "false", null, null, true, 0)
+             172800, 60L, 2592000L, 2)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

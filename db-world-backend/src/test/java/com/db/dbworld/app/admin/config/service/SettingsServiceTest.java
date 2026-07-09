@@ -45,7 +45,7 @@ class SettingsServiceTest {
         int after1 = store.size();
         service.init(); // run again
         assertThat(store.size()).isEqualTo(after1);
-        assertThat(after1).isEqualTo(24);
+        assertThat(after1).isEqualTo(23);
     }
 
     @Test
@@ -56,7 +56,6 @@ class SettingsServiceTest {
     @Test
     void getBoolean_returnsSeededDefault() {
         assertThat(service.getBoolean(ConfigKeys.CDN_SIGNING_ENABLED)).isTrue();
-        assertThat(service.getBoolean(ConfigKeys.SWAGGER_UI_ENABLED)).isFalse();
     }
 
     @Test
