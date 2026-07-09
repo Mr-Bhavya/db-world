@@ -62,11 +62,6 @@ jwt:
 cors:
   allowed-origins: https://cdn.db-world.in
 
-springdoc:
-  swagger-ui:
-    enabled: true
-
-
 
 #https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos
 #https://api.themoviedb.org/3/movie/721048?api_key=${TMDB_API_KEY}&append_to_response=videos
