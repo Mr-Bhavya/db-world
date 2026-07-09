@@ -43,9 +43,11 @@ public class MemoryInfo {
     private Long javaTotalMemory;
     private Long javaFreeMemory;
     private Long javaMaxMemory;
+    private Long javaUsedMemory;
     private String javaTotalFormatted;
     private String javaFreeFormatted;
     private String javaMaxFormatted;
+    private String javaUsedFormatted;
 
     private String error;
 }
