@@ -56,6 +56,7 @@ const LazyServerInfo           = lazy(() => import('@features/admin/system-info'
 const LazyRedisManager         = lazy(() => import('@features/admin/redis'));
 const LazyFileManager          = lazy(() => import('@features/admin/filemanager'));
 const LazySchedulerPanel       = lazy(() => import('@features/admin/Scheduler/SchedulerPanel.jsx'));
+const LazySettingsPanel        = lazy(() => import('@features/admin/settings/SettingsPanel.jsx'));
 const LazyUserManagement       = lazy(() => import('@features/admin/users'));
 const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
 const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer.jsx'));
@@ -385,6 +386,7 @@ const ThemedApp = () => {
                     <Route path="redis"         element={<LazyRedisManager />} />
                     <Route path="files"         element={<LazyFileManager />} />
                     <Route path="scheduler"     element={<LazySchedulerPanel />} />
+                    <Route path="settings"      element={<LazySettingsPanel />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<ErrorPage />} />

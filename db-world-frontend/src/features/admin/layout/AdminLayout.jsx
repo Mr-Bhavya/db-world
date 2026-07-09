@@ -12,7 +12,7 @@ import {
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home,
-  Insights, Inbox,
+  Insights, Inbox, Tune,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
@@ -66,6 +66,7 @@ const NAV = [
       { id: 'redis',       label: 'Redis Cache',   icon: <Storage />,   path: 'redis' },
       { id: 'files',       label: 'File Manager',  icon: <Folder />,    path: 'files' },
       { id: 'scheduler',   label: 'Scheduler',     icon: <Schedule />,  path: 'scheduler' },
+      { id: 'settings',    label: 'Settings',      icon: <Tune />,      path: 'settings' },
     ],
   },
 ];
