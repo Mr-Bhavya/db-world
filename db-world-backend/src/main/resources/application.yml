@@ -148,7 +148,6 @@ weather:
   openweather:
     api-key: ${OPENWEATHER_API_KEY:}
     base-url: https://api.openweathermap.org/data/2.5
-    cache-ttl-seconds: 300
 
 # =========================================================
 # Swagger
@@ -172,10 +171,7 @@ springdoc:
 app:
   cdn:
     signing:
-      enabled: ${CDN_SIGNING_ENABLED:true}
       secret: ${CDN_SIGNING_SECRET:}
-      stream-ttl-seconds: ${CDN_SIGNING_STREAM_TTL:21600}       # 6h  — covers a full watch session
-      download-ttl-seconds: ${CDN_SIGNING_DOWNLOAD_TTL:172800}  # 48h — copy-paste + slow/resumed downloads
 
 # =========================================================
 # db-world feature configs
@@ -192,32 +188,8 @@ dbworld:
     stability-window: 5s   # ignore files modified within the last N seconds
 
   tracking:
-    enabled: ${TRACKING_V2_ENABLED:true}
-    v2:
-      enabled: ${TRACKING_V2_ENABLED:true}
     cdn-log-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}
     rotated-suffix: ".1"
-    batch-tick-ms: 5000
-    max-bytes-per-tick: 5242880
-    max-accumulator-entries: 10000
-    stream-timeout-min: 15
-    download-timeout-min: 30
-    sweeper-tick-ms: 60000
-    event-retention-days: 90
-    search-prefix-collapse-sec: 30
-  recommend:
-    genre:
-      enabled: true
-      top-n: 3
-      min-engaged-records: 3
-      completion-threshold: 70
-      cache-ttl-min: 60
-    rewatch:
-      enabled: true
-      refresh-cron: "0 0 * * * *"
-      window-days: 7
-      min-score: 3
-      top-n: 30
 
 # =========================================================
 # Logging

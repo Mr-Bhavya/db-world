@@ -1,6 +1,7 @@
 package com.db.dbworld.audit.tracking.sweeper;
 
-import com.db.dbworld.audit.tracking.config.TrackingProperties;
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.audit.tracking.entity.ActivitySessionEntity;
 import com.db.dbworld.audit.tracking.enums.ActivityKind;
 import com.db.dbworld.audit.tracking.enums.SessionState;
@@ -32,27 +33,31 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TrackingSweeper {
 
-    private final TrackingProperties props;
+    private final SettingsService settings;
     private final ActivitySessionRepository sessionRepo;
     private final ActivityEventRepository eventRepo;
 
-    @Scheduled(fixedDelayString = "${dbworld.tracking.sweeper-tick-ms:60000}")
+    // Hardcoded to the tracking.sweeper-tick-ms catalog default (60000ms). This value is only
+    // used to set the schedule cadence itself (no runtime decision depends on it), and the
+    // "${dbworld.tracking.sweeper-tick-ms}" YAML key it used to read is removed once the key
+    // moves fully to the DB-backed catalog — a literal here keeps boot from depending on it.
+    @Scheduled(fixedDelay = 60000L)
     public void sweepStale() {
-        if (!props.isEnabled()) return;
+        if (!settings.getBoolean(ConfigKeys.TRACKING_ENABLED)) return;
 
         Instant now = Instant.now();
         // Query once using the shorter (stream) timeout so both kinds are captured;
         // the DOWNLOAD-specific cutoff is re-checked in Java below.
         List<ActivitySessionEntity> candidates = sessionRepo.findByStateInAndLastEventAtBefore(
                 List.of(SessionState.RESOLVING, SessionState.ACTIVE),
-                now.minus(Duration.ofMinutes(props.getStreamTimeoutMin())));
+                now.minus(Duration.ofMinutes(settings.getInt(ConfigKeys.TRACKING_STREAM_TIMEOUT_MIN))));
 
         int abortedCount = 0;
         for (ActivitySessionEntity session : candidates) {
             boolean shouldAbort = session.getActivity() == ActivityKind.STREAM
                     || (session.getActivity() == ActivityKind.DOWNLOAD
                         && session.getLastEventAt() != null
-                        && session.getLastEventAt().isBefore(now.minus(Duration.ofMinutes(props.getDownloadTimeoutMin()))));
+                        && session.getLastEventAt().isBefore(now.minus(Duration.ofMinutes(settings.getInt(ConfigKeys.TRACKING_DOWNLOAD_TIMEOUT_MIN)))));
             if (!shouldAbort) continue;
 
             session.setState(SessionState.ABORTED);
@@ -73,9 +78,9 @@ public class TrackingSweeper {
     @Scheduled(fixedDelayString = "${dbworld.tracking.event-retention-prune-ms:86400000}")
     @Transactional
     public void pruneOldEvents() {
-        if (!props.isEnabled()) return;
+        if (!settings.getBoolean(ConfigKeys.TRACKING_ENABLED)) return;
 
-        Instant cutoff = Instant.now().minus(Duration.ofDays(props.getEventRetentionDays()));
+        Instant cutoff = Instant.now().minus(Duration.ofDays(settings.getInt(ConfigKeys.TRACKING_EVENT_RETENTION_DAYS)));
         long deleted = eventRepo.deleteByEventTimeBefore(cutoff);
         if (deleted > 0) {
             log.info("TrackingSweeper: pruned {} activity event(s) older than {}", deleted, cutoff);

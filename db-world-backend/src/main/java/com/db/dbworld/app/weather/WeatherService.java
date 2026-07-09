@@ -1,5 +1,7 @@
 package com.db.dbworld.app.weather;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import tools.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WeatherService {
 
     private final WeatherProperties props;
+    private final SettingsService settings;
     private final RestClient restClient = RestClient.create();
 
     /** Cache key → (fetchedAt, payload). Bounded implicitly by the small key space. */
@@ -50,7 +53,8 @@ public class WeatherService {
 
     private JsonNode cachedOrFetch(String key, String pathWithQuery) {
         CacheEntry hit = cache.get(key);
-        if (hit != null && Duration.between(hit.at(), Instant.now()).getSeconds() < props.getCacheTtlSeconds()) {
+        if (hit != null && Duration.between(hit.at(), Instant.now()).getSeconds()
+                < settings.getInt(ConfigKeys.WEATHER_CACHE_TTL_SECONDS)) {
             log.debug("Weather cache hit key={}", key);
             return hit.payload();
         }
