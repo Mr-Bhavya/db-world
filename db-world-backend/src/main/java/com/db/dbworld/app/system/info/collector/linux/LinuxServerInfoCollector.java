@@ -273,9 +273,11 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .swapUsedFormatted(formatBytes(swapUsed))
                 .swapUsedPercent(String.format("%.1f", swapPct))
                 .javaTotalMemory(runtime.totalMemory()).javaFreeMemory(runtime.freeMemory()).javaMaxMemory(runtime.maxMemory())
+                .javaUsedMemory(runtime.totalMemory() - runtime.freeMemory())
                 .javaTotalFormatted(formatBytes(runtime.totalMemory()))
                 .javaFreeFormatted(formatBytes(runtime.freeMemory()))
                 .javaMaxFormatted(formatBytes(runtime.maxMemory()))
+                .javaUsedFormatted(formatBytes(runtime.totalMemory() - runtime.freeMemory()))
                 .build();
     }
 
@@ -287,6 +289,10 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         long usedKb  = totalKb - availKb;
         long total = totalKb * 1024L, avail = availKb * 1024L, used = usedKb * 1024L;
         double pct = calculatePercentage(usedKb, totalKb);
+
+        long javaTotal = runtime.totalMemory(), javaFree = runtime.freeMemory(), javaMax = runtime.maxMemory();
+        long javaUsed  = javaTotal - javaFree;
+
         return MemoryInfo.builder()
                 .totalBytes(total).usedBytes(used).freeBytes(avail)
                 .totalFormatted(formatBytes(total))
@@ -294,9 +300,14 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .freeFormatted(formatBytes(avail))
                 .availableFormatted(formatBytes(avail))
                 .usedPercent(String.format("%.1f", pct))
-                .javaTotalMemory(runtime.totalMemory())
-                .javaFreeMemory(runtime.freeMemory())
-                .javaMaxMemory(runtime.maxMemory())
+                .javaTotalMemory(javaTotal)
+                .javaFreeMemory(javaFree)
+                .javaMaxMemory(javaMax)
+                .javaUsedMemory(javaUsed)
+                .javaTotalFormatted(formatBytes(javaTotal))
+                .javaFreeFormatted(formatBytes(javaFree))
+                .javaMaxFormatted(formatBytes(javaMax))
+                .javaUsedFormatted(formatBytes(javaUsed))
                 .build();
     }
 

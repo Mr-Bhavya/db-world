@@ -686,6 +686,13 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
                 }
             }
 
+            // Propagate the (possibly just-augmented) top-level vendor to each core so
+            // per-core vendor isn't left "Unknown" while the top-level says e.g.
+            // "Broadcom BCM2712".
+            if (cpuInfo.getCoreDetails() != null) {
+                cpuInfo.getCoreDetails().forEach(c -> c.setVendor(cpuInfo.getVendor()));
+            }
+
             // Overlay the live ARM clock speed from vcgencmd when available. Fall back
             // to the configured arm_freq in config.txt if vcgencmd is unavailable; if
             // neither source works, keep whatever the /proc-based reading already set.
@@ -1174,27 +1181,6 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         return audioDevices;
     }
 
-    public List<Map<String, Object>> getUsbDevices() {
-        List<Map<String, Object>> usbDevices = new ArrayList<>();
-
-        try {
-            // Use lsusb to get USB devices
-            String lsusbOutput = exec("lsusb");
-            if (!lsusbOutput.isEmpty()) {
-                String[] lines = lsusbOutput.split("\n");
-                for (String line : lines) {
-                    Map<String, Object> device = new HashMap<>();
-                    device.put("description", line.trim());
-                    usbDevices.add(device);
-                }
-            }
-        } catch (Exception e) {
-            log.debug("Error getting USB devices", e);
-        }
-
-        return usbDevices;
-    }
-
     private List<Map<String, Object>> getStorageControllers() {
         List<Map<String, Object>> controllers = new ArrayList<>();
 
@@ -1509,11 +1495,4 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         }
     }
 
-    private HealthStatus.HealthLevel getHealthLevel(int score) {
-        if (score >= 90) return HealthStatus.HealthLevel.EXCELLENT;
-        if (score >= 80) return HealthStatus.HealthLevel.GOOD;
-        if (score >= 70) return HealthStatus.HealthLevel.FAIR;
-        if (score >= 60) return HealthStatus.HealthLevel.POOR;
-        return HealthStatus.HealthLevel.CRITICAL;
-    }
 }

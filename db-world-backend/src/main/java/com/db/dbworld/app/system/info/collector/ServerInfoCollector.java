@@ -408,7 +408,7 @@ public abstract class ServerInfoCollector {
                 .build();
     }
 
-    private HealthStatus.HealthLevel getHealthLevel(int score) {
+    protected HealthStatus.HealthLevel getHealthLevel(int score) {
         if (score >= 90) return HealthStatus.HealthLevel.EXCELLENT;
         if (score >= 80) return HealthStatus.HealthLevel.GOOD;
         if (score >= 70) return HealthStatus.HealthLevel.FAIR;
