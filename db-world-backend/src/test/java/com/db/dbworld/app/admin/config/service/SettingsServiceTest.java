@@ -75,6 +75,21 @@ class SettingsServiceTest {
     }
 
     @Test
+    void getInt_wrongTypeKey_returnsZero_neverThrows() {
+        // TRACKING_ENABLED is BOOLEAN, not INTEGER — getInt must never attempt to
+        // parse its (or the catalog default's) value as a number.
+        assertThat(service.getInt(ConfigKeys.TRACKING_ENABLED)).isZero();
+    }
+
+    @Test
+    void getLong_garbageValue_fallsBackToDefault_neverThrows() {
+        AppConfigEntity row = store.get(ConfigKeys.TRACKING_BATCH_TICK_MS);
+        row.setValue("not-a-number");
+        service.reloadCache();
+        assertThat(service.getLong(ConfigKeys.TRACKING_BATCH_TICK_MS)).isEqualTo(5000L);
+    }
+
+    @Test
     void update_persistsAndRefreshesCache() {
         service.update(ConfigKeys.RECOMMEND_GENRE_TOP_N, "7", "tester");
         assertThat(service.getInt(ConfigKeys.RECOMMEND_GENRE_TOP_N)).isEqualTo(7);

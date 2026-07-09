@@ -96,24 +96,38 @@ public class SettingsService {
 
     public int getInt(String key) {
         String raw = cache.get(key);
-        SettingDefinition def = SettingsCatalog.byKey(key);
-        int fallback = def != null ? Integer.parseInt(def.defaultValue()) : 0;
-        if (raw == null || !ConfigValueType.INTEGER.isValid(raw)) {
-            if (raw != null) log.warn("app_config '{}' value '{}' not an int — using default {}", key, raw, fallback);
-            return fallback;
+        if (raw != null && ConfigValueType.INTEGER.isValid(raw)) {
+            return Integer.parseInt(raw.trim());
         }
-        return Integer.parseInt(raw.trim());
+        SettingDefinition def = SettingsCatalog.byKey(key);
+        int fallback = 0;
+        if (def != null) {
+            try {
+                fallback = Integer.parseInt(def.defaultValue().trim());
+            } catch (NumberFormatException | NullPointerException e) {
+                fallback = 0;
+            }
+        }
+        if (raw != null) log.warn("app_config '{}' value '{}' not an int — using default {}", key, raw, fallback);
+        return fallback;
     }
 
     public long getLong(String key) {
         String raw = cache.get(key);
-        SettingDefinition def = SettingsCatalog.byKey(key);
-        long fallback = def != null ? Long.parseLong(def.defaultValue()) : 0L;
-        if (raw == null || !ConfigValueType.LONG.isValid(raw)) {
-            if (raw != null) log.warn("app_config '{}' value '{}' not a long — using default {}", key, raw, fallback);
-            return fallback;
+        if (raw != null && ConfigValueType.LONG.isValid(raw)) {
+            return Long.parseLong(raw.trim());
         }
-        return Long.parseLong(raw.trim());
+        SettingDefinition def = SettingsCatalog.byKey(key);
+        long fallback = 0L;
+        if (def != null) {
+            try {
+                fallback = Long.parseLong(def.defaultValue().trim());
+            } catch (NumberFormatException | NullPointerException e) {
+                fallback = 0L;
+            }
+        }
+        if (raw != null) log.warn("app_config '{}' value '{}' not a long — using default {}", key, raw, fallback);
+        return fallback;
     }
 
     public String getString(String key) {
