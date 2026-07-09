@@ -240,7 +240,12 @@ function MemoryTab({ info, quick }) {
   if (!mem) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No memory data</Typography>;
 
   const usedPct = mem.usedPercent ? parseFloat(mem.usedPercent) : (mem.usedBytes && mem.totalBytes ? (mem.usedBytes / mem.totalBytes) * 100 : 0);
-  const swapPct = mem.swapUsedPercent ? parseFloat(mem.swapUsedPercent) : 0;
+
+  // Buffers/cached/swap are structural fields the quick payload omits — prefer the full
+  // payload here (mirrors the JVM heap block below), same as `heap`. The live used-%
+  // above stays quick-first so the top number keeps updating every 5s.
+  const memDetail = info?.memory ?? quick?.memory;
+  const swapPct = memDetail?.swapUsedPercent ? parseFloat(memDetail.swapUsedPercent) : 0;
 
   // JVM heap is structural/rarely-changing — prefer the full payload, quick as fallback
   const heap = info?.memory ?? quick?.memory;
@@ -258,17 +263,17 @@ function MemoryTab({ info, quick }) {
         <InfoRow label="Used"      value={mem.usedFormatted} />
         <InfoRow label="Free"      value={mem.freeFormatted} />
         <InfoRow label="Available" value={mem.availableFormatted} />
-        <InfoRow label="Buffers"   value={mem.buffersFormatted} />
-        <InfoRow label="Cached"    value={mem.cachedFormatted} />
+        <InfoRow label="Buffers"   value={memDetail?.buffersFormatted} />
+        <InfoRow label="Cached"    value={memDetail?.cachedFormatted} />
 
-        {mem.swapTotalBytes > 0 && (
+        {memDetail?.swapTotalBytes > 0 && (
           <>
             <Divider sx={{ borderColor: T.border, my: 2 }} />
             <SectionTitle>Swap</SectionTitle>
-            <UsageBar label="Swap Used" usedPct={swapPct} formattedUsed={mem.swapUsedFormatted} formattedTotal={mem.swapTotalFormatted} />
-            <InfoRow label="Total" value={mem.swapTotalFormatted} />
-            <InfoRow label="Used"  value={mem.swapUsedFormatted} />
-            <InfoRow label="Free"  value={mem.swapFreeFormatted} />
+            <UsageBar label="Swap Used" usedPct={swapPct} formattedUsed={memDetail.swapUsedFormatted} formattedTotal={memDetail.swapTotalFormatted} />
+            <InfoRow label="Total" value={memDetail.swapTotalFormatted} />
+            <InfoRow label="Used"  value={memDetail.swapUsedFormatted} />
+            <InfoRow label="Free"  value={memDetail.swapFreeFormatted} />
           </>
         )}
       </Grid>
@@ -345,52 +350,65 @@ function NetworkTab({ info }) {
   const net = info?.network;
   if (!net) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No network data</Typography>;
 
+  const adapterCount = net.adapterCount ?? net.adapters?.length;
+
   return (
     <>
       <Grid container spacing={2} sx={{ mb: 2.5 }}>
         <Grid item xs={12} md={4}>
           <InfoRow label="Hostname"    value={net.hostname} />
-          <InfoRow label="Domain"      value={net.domain} />
-          <InfoRow label="Gateway"     value={net.defaultGateway} />
+          {net.domain && <InfoRow label="Domain" value={net.domain} />}
+          {net.defaultGateway && <InfoRow label="Gateway" value={net.defaultGateway} />}
           <InfoRow label="Connections" value={net.activeConnections} />
         </Grid>
-        <Grid item xs={12} md={4}>
-          <SectionTitle>DNS Servers</SectionTitle>
-          {net.dnsServers?.map((d) => (
-            <Typography key={d} sx={{ fontSize: '0.75rem', fontFamily: 'monospace', color: T.text, mb: 0.25 }}>{d}</Typography>
-          ))}
-        </Grid>
+        {net.dnsServers?.length > 0 && (
+          <Grid item xs={12} md={4}>
+            <SectionTitle>DNS Servers</SectionTitle>
+            {net.dnsServers.map((d) => (
+              <Typography key={d} sx={{ fontSize: '0.75rem', fontFamily: 'monospace', color: T.text, mb: 0.25 }}>{d}</Typography>
+            ))}
+          </Grid>
+        )}
       </Grid>
 
-      <SectionTitle>Adapters ({net.adapterCount})</SectionTitle>
-      {net.adapters?.map((a, i) => (
-        <Card key={i} sx={{ mb: 1.5, border: `1px solid ${T.border}`, bgcolor: T.glass, borderRadius: 2 }}>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <FiberManualRecord sx={{ fontSize: 10, color: a.status === 'Up' ? '#10b981' : '#6b7280' }} />
-              <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: T.text }}>{a.name}</Typography>
-              <Chip label={a.status ?? 'Unknown'} size="small"
-                sx={{ height: 16, fontSize: '0.6rem', bgcolor: a.status === 'Up' ? 'rgba(16,185,129,0.12)' : 'rgba(107,114,128,0.12)',
-                  color: a.status === 'Up' ? '#10b981' : '#6b7280' }} />
-              {a.description && <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>{a.description}</Typography>}
-            </Box>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <InfoRow label="IP"      value={a.ipAddress} />
-                <InfoRow label="MAC"     value={a.macAddress} />
+      <SectionTitle>Adapters {adapterCount != null ? `(${adapterCount})` : ''}</SectionTitle>
+      {net.adapters?.map((a, i) => {
+        // Backend may fill either `a.status` or leave it null; derive from IP presence
+        // when the collector couldn't read operstate. Case-insensitive so "up"/"Up" both count.
+        const hasIp = Boolean(a.ipAddress || a.ipAddresses?.length);
+        const isOnline = a.status != null ? a.status.toLowerCase() === 'up' : hasIp;
+        const statusLabel = a.status ?? (hasIp ? 'Up' : 'Unknown');
+        const rxTotal = a.bytesReceived ?? a.rxBytesTotal;
+        const txTotal = a.bytesSent ?? a.txBytesTotal;
+        return (
+          <Card key={i} sx={{ mb: 1.5, border: `1px solid ${T.border}`, bgcolor: T.glass, borderRadius: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <FiberManualRecord sx={{ fontSize: 10, color: isOnline ? '#10b981' : '#6b7280' }} />
+                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: T.text }}>{a.name}</Typography>
+                <Chip label={statusLabel} size="small"
+                  sx={{ height: 16, fontSize: '0.6rem', bgcolor: isOnline ? 'rgba(16,185,129,0.12)' : 'rgba(107,114,128,0.12)',
+                    color: isOnline ? '#10b981' : '#6b7280' }} />
+                {a.description && <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>{a.description}</Typography>}
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <InfoRow label="IP"      value={a.ipAddress} />
+                  <InfoRow label="MAC"     value={a.macAddress} />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <InfoRow label="Rx Total" value={bytes(rxTotal)} />
+                  <InfoRow label="Tx Total" value={bytes(txTotal)} />
+                  {a.rxBytesPerSecFormatted && <InfoRow label="Rx/s" value={a.rxBytesPerSecFormatted} />}
+                  {a.txBytesPerSecFormatted && <InfoRow label="Tx/s" value={a.txBytesPerSecFormatted} />}
+                  <InfoRow label="Rx Errors" value={a.rxErrors} />
+                  <InfoRow label="Tx Errors" value={a.txErrors} />
+                </Grid>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <InfoRow label="Rx Total" value={bytes(a.bytesReceived)} />
-                <InfoRow label="Tx Total" value={bytes(a.bytesSent)} />
-                {a.rxBytesPerSecFormatted && <InfoRow label="Rx/s" value={a.rxBytesPerSecFormatted} />}
-                {a.txBytesPerSecFormatted && <InfoRow label="Tx/s" value={a.txBytesPerSecFormatted} />}
-                <InfoRow label="Rx Errors" value={a.rxErrors} />
-                <InfoRow label="Tx Errors" value={a.txErrors} />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </>
   );
 }

@@ -54,6 +54,10 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     protected static final Path SYS_HWMON      = Path.of("/sys/class/hwmon");
     protected static final Path SYS_DMI        = Path.of("/sys/class/dmi/id");
     protected static final Path SYS_BLOCK       = Path.of("/sys/class/block");
+    protected static final Path SYS_NET         = Path.of("/sys/class/net");
+
+    // /etc paths
+    protected static final Path ETC_RESOLV_CONF = Path.of("/etc/resolv.conf");
 
     // Cached net stats for zero-sleep delta speed in getPerformanceMetrics()
     private final AtomicReference<Map<String, long[]>> prevNetStats = new AtomicReference<>(Map.of());
@@ -188,6 +192,9 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .name(model.trim())
                 .vendor(vendor.trim())
                 .cores(cores)
+                // Most ARM boards (Pi included) have no SMT, so thread count == core count
+                // unless a subclass overrides with a real value.
+                .threads(cores)
                 .availableProcessors(cores)
                 .architecture(System.getProperty("os.arch"))
                 .clockSpeedMhz(mhz)
@@ -470,12 +477,19 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             String ipAddr = extractIpFromAddrShow(ipInfo);
             String macAddr = extractMacFromAddrShow(ipInfo);
 
+            // Link state from /sys/class/net/<iface>/operstate (best-effort; null on failure)
+            String status = deriveAdapterStatus(iface);
+
             adapters.add(NetworkAdapter.builder()
                     .name(iface)
                     .ipAddress(ipAddr)
                     .macAddress(macAddr)
+                    .status(status)
                     .rxBytesTotal(rxBytes)
                     .txBytesTotal(txBytes)
+                    // Populate the generic DTO names too so both naming conventions agree
+                    .bytesReceived(rxBytes)
+                    .bytesSent(txBytes)
                     .rxBytesPerSec(rxSpeed)
                     .txBytesPerSec(txSpeed)
                     .rxBytesPerSecFormatted(formatBytes(rxSpeed) + "/s")
@@ -491,10 +505,117 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
         return NetworkInfo.builder()
                 .hostname(getHostname())
+                .domain(getNetworkDomain())
                 .ipAddresses(getIpAddresses())
                 .adapters(adapters)
+                .adapterCount(adapters.size())
+                .defaultGateway(getDefaultGateway())
+                .dnsServers(getDnsServers())
                 .activeConnections(connCount)
                 .build();
+    }
+
+    /**
+     * Best-effort link state from /sys/class/net/&lt;iface&gt;/operstate.
+     * Returns "Up" for operstate "up", the capitalized raw value for anything else
+     * (e.g. "Down", "Dormant", "Unknown"), or null if the file is unreadable/missing.
+     */
+    private String deriveAdapterStatus(String iface) {
+        try {
+            String operstate = readFileSafe(SYS_NET.resolve(iface).resolve("operstate"));
+            if (operstate.isEmpty()) return null;
+            return operstate.equalsIgnoreCase("up") ? "Up" : capitalize(operstate);
+        } catch (Exception e) {
+            log.debug("operstate read failed for {}: {}", iface, e.getMessage());
+            return null;
+        }
+    }
+
+    private static String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase();
+    }
+
+    /**
+     * Best-effort default gateway via `ip route show default` (parses "default via X ...").
+     * Never throws; returns null if the command is unavailable or output doesn't match.
+     */
+    private String getDefaultGateway() {
+        try {
+            String route = exec("ip", "route", "show", "default");
+            for (String line : route.split("\n")) {
+                line = line.trim();
+                if (line.startsWith("default via")) {
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 3) return parts[2];
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Default gateway lookup failed: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Best-effort DNS server list: try `resolvectl status` (real upstream servers) first,
+     * fall back to parsing "nameserver" lines from /etc/resolv.conf. Never throws; returns
+     * null (not an empty list) when nothing could be determined.
+     */
+    private List<String> getDnsServers() {
+        List<String> dns = new ArrayList<>();
+        try {
+            String resolvectl = exec(5, "resolvectl", "status");
+            for (String line : resolvectl.split("\n")) {
+                line = line.trim();
+                if (line.startsWith("DNS Servers:")) {
+                    String rest = line.substring("DNS Servers:".length()).trim();
+                    if (!rest.isEmpty()) dns.addAll(Arrays.asList(rest.split("\\s+")));
+                }
+            }
+        } catch (Exception e) {
+            log.debug("resolvectl DNS lookup failed: {}", e.getMessage());
+        }
+        if (dns.isEmpty()) {
+            try {
+                for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+                    line = line.trim();
+                    if (line.startsWith("nameserver")) {
+                        String[] parts = line.split("\\s+");
+                        if (parts.length >= 2) dns.add(parts[1]);
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("resolv.conf DNS parse failed: {}", e.getMessage());
+            }
+        }
+        return dns.isEmpty() ? null : dns;
+    }
+
+    /**
+     * Best-effort domain name from /etc/resolv.conf's "search"/"domain" directive, falling
+     * back to the portion of the hostname after the first dot (if any). Never throws.
+     */
+    private String getNetworkDomain() {
+        try {
+            for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+                line = line.trim();
+                if (line.startsWith("search ") || line.startsWith("domain ")) {
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) return parts[1];
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Domain lookup from resolv.conf failed: {}", e.getMessage());
+        }
+        try {
+            String hostname = getHostname();
+            if (hostname != null && hostname.contains(".")) {
+                return hostname.substring(hostname.indexOf('.') + 1);
+            }
+        } catch (Exception e) {
+            log.debug("Domain lookup from hostname failed: {}", e.getMessage());
+        }
+        return null;
     }
 
     /** Returns map: interface → [rxBytes, rxPackets, rxErrors, rxDrop, ..., txBytes, txPackets, txErrors, ...] */
