@@ -596,6 +596,9 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     // Services (systemd)
     // ──────────────────────────────────────────────────────────────────────────
 
+    /** systemctl status glyphs (●/○/×/↻) shown before failed/degraded/reloading units even with --plain on some systemd builds. */
+    private static final String SYSTEMCTL_STATUS_GLYPHS = "●○×↻";
+
     @Override
     public List<ServiceInfo> getRunningServices() {
         List<ServiceInfo> services = new ArrayList<>();
@@ -603,7 +606,11 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 "--no-pager", "--no-legend", "--plain");
         for (String line : output.split("\n")) {
             try {
-                String[] p = line.trim().split("\\s+", 5);
+                String unit = line.trim();
+                if (!unit.isEmpty() && SYSTEMCTL_STATUS_GLYPHS.indexOf(unit.charAt(0)) >= 0) {
+                    unit = unit.substring(1).trim(); // drop leading status glyph so columns don't shift
+                }
+                String[] p = unit.split("\\s+", 5);
                 if (p.length < 4) continue;
                 services.add(ServiceInfo.builder()
                         .name(p[0].replace(".service", ""))
