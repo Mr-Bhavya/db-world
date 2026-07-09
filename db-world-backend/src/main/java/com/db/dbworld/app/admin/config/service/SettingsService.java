@@ -1,5 +1,7 @@
 package com.db.dbworld.app.admin.config.service;
 
+import com.db.dbworld.app.admin.config.dto.SettingCategoryDto;
+import com.db.dbworld.app.admin.config.dto.SettingDto;
 import com.db.dbworld.app.admin.config.entity.AppConfigEntity;
 import com.db.dbworld.app.admin.config.entity.ConfigValueType;
 import com.db.dbworld.app.admin.config.registry.SettingDefinition;
@@ -12,8 +14,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -176,6 +181,25 @@ public class SettingsService {
         SettingDefinition def = SettingsCatalog.byKey(key);
         if (def == null) throw new IllegalArgumentException("Unknown config key: " + key);
         return update(key, def.defaultValue(), updatedBy);
+    }
+
+    public List<SettingCategoryDto> listGrouped() {
+        Map<String, List<SettingDto>> byCat = new LinkedHashMap<>();
+        for (AppConfigEntity e : findAllOrdered()) {
+            byCat.computeIfAbsent(e.getCategory(), k -> new ArrayList<>()).add(toDto(e));
+        }
+        return byCat.entrySet().stream()
+                .map(en -> new SettingCategoryDto(en.getKey(), en.getValue()))
+                .toList();
+    }
+
+    public SettingDto toDto(AppConfigEntity e) {
+        return new SettingDto(
+                e.getConfigKey(), e.getLabel(), e.getDescription(),
+                e.getValueType().name(), e.getValue(), e.getDefaultValue(),
+                e.getMinValue(), e.getMaxValue(), e.isRequiresRestart(),
+                e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null,
+                e.getUpdatedBy());
     }
 
     private AppConfigEntity seedRow(SettingDefinition d) {
