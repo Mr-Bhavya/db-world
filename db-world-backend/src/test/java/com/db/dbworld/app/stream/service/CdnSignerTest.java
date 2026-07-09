@@ -1,5 +1,7 @@
 package com.db.dbworld.app.stream.service;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.stream.enums.StreamType;
 import com.db.dbworld.config.AppProperties;
 import org.junit.jupiter.api.Test;
@@ -29,29 +31,32 @@ class CdnSignerTest {
     @Test
     void signatureSuffix_emptyWhenDisabled() {
         AppProperties props = Mockito.mock(AppProperties.class);
-        when(props.isCdnSigningEnabled()).thenReturn(false);
+        SettingsService settings = Mockito.mock(SettingsService.class);
+        when(settings.getBoolean(ConfigKeys.CDN_SIGNING_ENABLED)).thenReturn(false);
 
-        assertThat(new CdnSigner(props).signatureSuffix("/id/x", StreamType.ONLINE)).isEmpty();
+        assertThat(new CdnSigner(props, settings).signatureSuffix("/id/x", StreamType.ONLINE)).isEmpty();
     }
 
     @Test
     void signatureSuffix_emptyWhenSecretBlank() {
         AppProperties props = Mockito.mock(AppProperties.class);
-        when(props.isCdnSigningEnabled()).thenReturn(true);
+        SettingsService settings = Mockito.mock(SettingsService.class);
+        when(settings.getBoolean(ConfigKeys.CDN_SIGNING_ENABLED)).thenReturn(true);
         when(props.getCdnSigningSecret()).thenReturn("   ");
 
-        assertThat(new CdnSigner(props).signatureSuffix("/id/x", StreamType.ONLINE)).isEmpty();
+        assertThat(new CdnSigner(props, settings).signatureSuffix("/id/x", StreamType.ONLINE)).isEmpty();
     }
 
     @Test
     void signatureSuffix_appendsMd5AndExpires_withPerIntentTtl() {
         AppProperties props = Mockito.mock(AppProperties.class);
-        when(props.isCdnSigningEnabled()).thenReturn(true);
+        SettingsService settings = Mockito.mock(SettingsService.class);
+        when(settings.getBoolean(ConfigKeys.CDN_SIGNING_ENABLED)).thenReturn(true);
         when(props.getCdnSigningSecret()).thenReturn("s3cr3t");
-        when(props.getCdnStreamTtlSeconds()).thenReturn(3_600L);
-        when(props.getCdnDownloadTtlSeconds()).thenReturn(7_200L);
+        when(settings.getInt(ConfigKeys.CDN_SIGNING_STREAM_TTL_SECONDS)).thenReturn(3_600);
+        when(settings.getInt(ConfigKeys.CDN_SIGNING_DOWNLOAD_TTL_SECONDS)).thenReturn(7_200);
 
-        CdnSigner signer = new CdnSigner(props);
+        CdnSigner signer = new CdnSigner(props, settings);
         String stream   = signer.signatureSuffix("/id/x", StreamType.ONLINE);
         String download = signer.signatureSuffix("/id/x", StreamType.DOWNLOAD);
 

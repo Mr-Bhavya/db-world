@@ -1,5 +1,7 @@
 package com.db.dbworld.app.stream.service;
 
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
 import com.db.dbworld.app.stream.enums.StreamType;
 import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class CdnSigner {
 
     private final AppProperties props;
+    private final SettingsService settings;
     private final AtomicBoolean warnedNoSecret = new AtomicBoolean(false);
 
     /**
@@ -53,9 +56,9 @@ public class CdnSigner {
      * @param type    ONLINE → stream TTL, DOWNLOAD → download TTL
      */
     public String signatureSuffix(String uriPath, StreamType type) {
-        if (!props.isCdnSigningEnabled()) return "";
+        if (!settings.getBoolean(ConfigKeys.CDN_SIGNING_ENABLED)) return "";
 
-        String secret = props.getCdnSigningSecret();
+        String secret = props.getCdnSigningSecret();   // secret stays in env
         if (!StringUtils.hasText(secret)) {
             if (warnedNoSecret.compareAndSet(false, true)) {
                 log.warn("CDN signing is enabled but app.cdn.signing.secret is blank — "
@@ -65,10 +68,9 @@ public class CdnSigner {
         }
 
         long ttl = (type == StreamType.DOWNLOAD)
-                ? props.getCdnDownloadTtlSeconds()
-                : props.getCdnStreamTtlSeconds();
+                ? settings.getInt(ConfigKeys.CDN_SIGNING_DOWNLOAD_TTL_SECONDS)
+                : settings.getInt(ConfigKeys.CDN_SIGNING_STREAM_TTL_SECONDS);
         long expires = Instant.now().getEpochSecond() + ttl;
-
         return "&md5=" + hash(expires, uriPath, secret) + "&expires=" + expires;
     }
 
