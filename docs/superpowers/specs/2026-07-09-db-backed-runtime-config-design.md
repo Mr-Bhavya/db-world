@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-09
 - **Branch:** `feat/db-backed-app-config` (off `development`)
-- **Status:** Design — awaiting user review
+- **Status:** Design — approved; ready for implementation planning
 - **Author:** Claude (Opus 4.8) with bhavya.dudhia
 
 ---
@@ -25,9 +25,10 @@ The existing config splits into three tiers. **Only Tier 3 is in scope.**
    `spring.data.redis.*`, `server.port`, `jpa.hibernate.ddl-auto`, `spring.config.import`,
    `logging.config`.
 2. **Secrets — stay in env/YAML.** `jwt.secret`/`private-key`, `jasypt.password`,
-   `tmdb.bearerToken`/`apiKey`, `aria2.secret`, `openweather.api-key`. These already live in
-   env vars via `../runtime/backend.env`. **Exception:** `app.cdn.signing.secret` is moved,
-   but with special handling (see §7) at the user's explicit request.
+   `tmdb.bearerToken`/`apiKey`, `aria2.secret`, `openweather.api-key`, and
+   `app.cdn.signing.secret`. These already live in env vars via `../runtime/backend.env` and
+   are **not** moved. (`cdn.signing.secret` was considered for the UI but, per decision, stays
+   in env — see §7.)
 3. **Runtime operational / business-logic knobs — MOVE.** The subset in §6.
 
 ### The precedent we are generalizing
@@ -95,7 +96,6 @@ New table `app_config` (schema `db_world`), created by Hibernate `ddl-auto=updat
 | `default_value` | VARCHAR(1000) | seeded default; used for reset + read fallback |
 | `min_value` | BIGINT NULL | numeric lower bound (INTEGER/LONG only) |
 | `max_value` | BIGINT NULL | numeric upper bound |
-| `secret` | BOOLEAN NOT NULL default false | encrypt at rest + mask in API/UI |
 | `requires_restart` | BOOLEAN NOT NULL default false | UI shows "takes effect after restart" |
 | `display_order` | INT NOT NULL default 0 | ordering within a category |
 | `updated_at` | DATETIME | `@PreUpdate` |
@@ -108,7 +108,7 @@ validation.
 
 A static `List<SettingDefinition>` (analogous to `SchedulerAdminService.DEFAULTS`) enumerates
 every managed key with its type, category, label, description, default, bounds, and the
-`secret` / `requiresRestart` flags. This registry — not YAML — owns the defaults and metadata.
+`requiresRestart` flag. This registry — not YAML — owns the defaults and metadata.
 
 Because the registry owns defaults, the migrated keys are **removed from all three YAML files**
 and the corresponding `@ConfigurationProperties` classes are retired (§5).
@@ -125,13 +125,9 @@ and the corresponding `@ConfigurationProperties` classes are retired (§5).
   2. if missing/blank → returns the registry default,
   3. if present but unparseable → logs WARN and returns the registry default.
   **The read path never throws.**
-- For `secret` keys, `getString` decrypts via the existing `jasyptStringEncryptor` bean.
 - Seeding (`@PostConstruct`): idempotent, never overwrites an existing row (preserves admin
-  edits). For `app.cdn.signing.secret`, the seed default is the value currently resolved from
-  the `CDN_SIGNING_SECRET` env var (encrypted before insert) so the live secret is not lost on
-  first boot; if the env var is blank, the row is seeded empty. Seeding is wrapped in
-  try/catch so a DB hiccup cannot block startup (same defensive posture as
-  `SchedulerAdminService.relaxLegacyConstraints`).
+  edits). Seeding is wrapped in try/catch so a DB hiccup cannot block startup (same defensive
+  posture as `SchedulerAdminService.relaxLegacyConstraints`).
 - **Change hooks:** most keys need nothing (picked up on next read). Two exceptions:
   - `recommend.rewatch.refresh-cron` — on change, re-arm the cron trigger (mirror
     `SchedulerAdminService.updateCron`). The rewatch scheduler must expose a reschedule method.
@@ -151,8 +147,9 @@ Replace `@ConfigurationProperties` reads with `SettingsService` reads at point-o
 - `props.getGenre().getTopN()` → `settings.getInt(ConfigKeys.RECOMMEND_GENRE_TOP_N)`
 - Retire `RecommendProperties`, `TrackingProperties`, `WeatherProperties` (defaults are now in
   the registry). `@EnableConfigurationProperties` references to them are removed.
-- CDN signing: `CdnSigner` reads `settings.getString(...secret)` / `getBoolean(...enabled)` /
-  `getInt(...stream-ttl-seconds)` / `getInt(...download-ttl-seconds)`.
+- CDN signing: `CdnSigner`/`CdnUrlBuilder` read `getBoolean(...enabled)`,
+  `getInt(...stream-ttl-seconds)`, `getInt(...download-ttl-seconds)` from `SettingsService`.
+  The signing **secret stays in env** (`@Value`/`AppProperties` as today) — unchanged.
 
 All reads are cache-backed, so no per-request DB round-trips on hot paths.
 
@@ -193,9 +190,7 @@ All reads are cache-backed, so no per-request DB round-trips on hot paths.
 - `app.cdn.signing.download-ttl-seconds` (INTEGER, min 60)
 - `app.cdn.signing.enabled` (BOOLEAN) — UI warning: flipping this must be coordinated with the
   nginx `secure_link` directive per the documented rollout, or playback/downloads break.
-- `app.cdn.signing.secret` (STRING, `secret=true`) — Jasypt-encrypted at rest, write-only in
-  the UI (GET returns a masked placeholder, never the plaintext). UI warning: must byte-match
-  `secure_link_md5` in `server_config/dbworld.conf`.
+- *Not moved:* `app.cdn.signing.secret` — stays in env (Tier 2, see §7).
 
 **API docs** (`springdoc`):
 - `springdoc.swagger-ui.enabled` (BOOLEAN, `requiresRestart=true`).
@@ -204,19 +199,13 @@ All reads are cache-backed, so no per-request DB round-trips on hot paths.
 
 ## 7. Secret Handling (`app.cdn.signing.secret`)
 
-Including a signing secret in a queryable table + admin UI is a security downgrade unless
-mitigated. Mitigations:
-
-- **Encrypted at rest:** stored via the existing `jasyptStringEncryptor` (PBEWithMD5AndDES,
-  `JASYPT_PASSWORD` from env). Equivalent posture to the env-file approach — the secret is
-  protected behind another secret.
-- **Write-only in the UI:** `GET /api/admin/config` returns `"********"` (or `null` + a
-  `hasValue` flag) for `secret` keys — never the decrypted value. The admin can set a new
-  secret but cannot read the current one back.
-- **Not logged:** update logging redacts `secret` values.
-
-If this posture is unacceptable, the fallback is to keep `secret` in env (Tier 2) and expose
-only the two TTLs + `enabled` from the UI.
+**Decision:** the signing secret stays in env (Tier 2) and is **not** moved to the DB/UI.
+Putting a signing secret in a queryable table rendered in an admin UI is a security downgrade,
+and the value changes rarely, so it does not justify the exposure. `CdnSigner` continues to
+read the secret from env (`@Value`/`AppProperties`) exactly as today. Only the two TTLs and the
+`enabled` toggle are moved to the settings surface. There are therefore **no `secret`-typed
+keys** in v1, so no encryption/masking machinery is built (the `app_config` schema has no
+`secret` column).
 
 ---
 
@@ -226,11 +215,9 @@ Follows existing admin controller conventions (JWT-guarded admin routes):
 
 - `GET /api/admin/config` → settings grouped by category:
   `[{ category, settings: [{ key, label, description, valueType, value, defaultValue,
-  minValue, maxValue, secret, requiresRestart, updatedAt, updatedBy }] }]`.
-  `secret` values are masked.
-- `PUT /api/admin/config/{key}` `{ value }` → validate against `valueType` + bounds, encrypt if
-  `secret`, save, refresh cache, fire change hook if any, set `updatedBy` from JWT. Returns the
-  updated (masked-if-secret) setting.
+  minValue, maxValue, requiresRestart, updatedAt, updatedBy }] }]`.
+- `PUT /api/admin/config/{key}` `{ value }` → validate against `valueType` + bounds, save,
+  refresh cache, fire change hook if any, set `updatedBy` from JWT. Returns the updated setting.
 - `POST /api/admin/config/{key}/reset` → restore `default_value`, refresh cache, fire hook.
 
 Validation errors return 400 with a message the UI surfaces.
@@ -239,14 +226,13 @@ Validation errors return 400 with a message the UI surfaces.
 
 ## 9. Admin UI — Settings Page
 
-New page in the admin sidebar (e.g. route `/admin/settings`, "Settings" nav item), built on the
+New page in the admin sidebar at route **`/admin/settings`** ("Settings" nav item), built on the
 AdminV2 stack per the project's consistency rule (TanStack Query, RHF + Zod, MUI, Notistack,
 Framer Motion):
 
 - Categories rendered as sections/accordion (Recommendations, Tracking, Weather, CDN, API Docs).
 - Type-aware inputs: `Switch` (BOOLEAN), bounded number field (INTEGER/LONG with min/max),
-  text field (STRING). Secret keys render a masked password field with a "Set new value"
-  affordance; the current value is never fetched.
+  text field (STRING).
 - Each row shows the label, description as helper text, current vs default, and a
   **reset-to-default** action.
 - `requiresRestart` keys show a "takes effect after restart" chip; `cdn.signing.*` keys show
@@ -274,8 +260,8 @@ Framer Motion):
 - Ship registry + table + service + API + UI + consumer migration together on
   `feat/db-backed-app-config`.
 - Remove migrated keys from the three YAML files in the same change (defaults now in registry).
-- First boot seeds `app_config`; the CDN signing secret is carried over from the current env
-  value so signing is uninterrupted.
+- First boot seeds `app_config` from the registry defaults. The CDN signing secret stays in
+  env, so signing is unaffected by this change.
 - Backend build: JDK 25 + Maven wrapper (per project build notes); Hibernate `ddl-auto=update`
   creates the table automatically — no manual migration required.
 - Fail-safe throughout: bad/missing values → defaults; seeding wrapped so DB issues can't block
@@ -283,9 +269,8 @@ Framer Motion):
 
 ---
 
-## 12. Open Questions
+## 12. Resolved Decisions
 
-1. Secret posture (§7) acceptable, or keep `cdn.signing.secret` in env?
-2. Settings page as its own sidebar route (`/admin/settings`), or folded into an existing
-   admin area?
-3. Any additional Tier-3 keys to include now vs. later?
+1. **Secret posture:** `cdn.signing.secret` stays in env — not moved (§7).
+2. **Settings page:** its own sidebar route `/admin/settings` (§9).
+3. **Catalog:** the §6 set as listed (minus the signing secret) — no additional keys for v1.
