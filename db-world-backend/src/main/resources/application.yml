@@ -131,6 +131,13 @@ jasypt:
     algorithm: PBEWithMD5AndDES
     password: ${JASYPT_PASSWORD}
 
+# Wallet document encryption. Set a dedicated 256-bit key (base64) in ../runtime/backend.env:
+#   WALLET_ENCRYPTION_KEY=<base64 of 32 random bytes>
+# If unset, the key is derived from JASYPT_PASSWORD (dev only — a WARN is logged).
+# WARNING: losing this key makes all stored wallet documents unrecoverable — back it up.
+wallet:
+  encryption-key: ${WALLET_ENCRYPTION_KEY:}
+
 # =========================================================
 # External Services
 # =========================================================
