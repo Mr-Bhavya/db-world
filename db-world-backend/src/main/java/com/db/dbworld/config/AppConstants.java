@@ -94,6 +94,7 @@ public final class AppConstants {
             "/*", "/db-world/**", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**",
             "/api/admin/file-manager/download/stream",
+            "/api/wallet/shared/**",
             "/storyboard/**"
     };
 
