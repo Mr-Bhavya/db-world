@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Box, Typography, Button, TextField, Chip, CircularProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useConfirm } from 'material-ui-confirm';
+import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
 import { useDocuments, useDocumentTypes, useDeleteDocument } from './hooks/useWallet';
 import { fetchContentBlob } from './api/walletApi';
@@ -15,6 +16,7 @@ import ShareDialog from './components/ShareDialog';
 export default function WalletPage() {
   const T = useT();
   const confirm = useConfirm();
+  const { enqueueSnackbar } = useSnackbar();
   const [q, setQ] = useState('');
   const [typeId, setTypeId] = useState('');
   const filters = useMemo(() => ({ typeId, q }), [typeId, q]);
@@ -28,8 +30,12 @@ export default function WalletPage() {
   const [shareDoc, setShareDoc] = useState(null);
 
   const onDownload = async (doc) => {
-    const blob = await fetchContentBlob(doc.id, 'attachment');
-    await downloadBlob(blob, doc.label || 'document');
+    try {
+      const blob = await fetchContentBlob(doc.id, 'attachment');
+      await downloadBlob(blob, doc.label || 'document');
+    } catch (_e) {
+      enqueueSnackbar('Failed to download document', { variant: 'error' });
+    }
   };
   const onDelete = (doc) => {
     confirm({ title: 'Delete document?', description: `"${doc.label}" will be permanently deleted.` })
