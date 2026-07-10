@@ -85,11 +85,11 @@ public class WalletShareService {
 
     private WalletContent resolveContentByHash(String tokenHash) {
         WalletShareEntity share = validShare(tokenHash);
+        if (shareRepo.tryConsumeAccess(share.getId()) == 0) {
+            throw new DbWorldException(HttpStatus.GONE, "Share link has reached its view limit");
+        }
         WalletDocumentEntity doc = loadDoc(share.getDocumentId());
-        share.setAccessCount(share.getAccessCount() + 1);
-        shareRepo.save(share);
-        log.info("Shared document {} accessed via share {} (count={})",
-                doc.getId(), share.getId(), share.getAccessCount());
+        log.info("Shared document {} accessed via share {}", doc.getId(), share.getId());
         return new WalletContent(doc.getOriginalFileName(), doc.getContentType(),
                 storage.load(doc.getUserId(), doc.getStoredFileName()));
     }
