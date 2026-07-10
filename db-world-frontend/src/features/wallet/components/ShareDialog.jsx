@@ -30,6 +30,7 @@ export default function ShareDialog({ doc, open, onClose }) {
   const revoke = useMutation({
     mutationFn: (id) => revokeShare(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['wallet', 'shares', doc.id] }); enqueueSnackbar('Link revoked', { variant: 'success' }); },
+    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to revoke link', { variant: 'error' }),
   });
 
   const copy = (url) => { navigator.clipboard.writeText(url); enqueueSnackbar('Link copied', { variant: 'success' }); };
@@ -46,7 +47,7 @@ export default function ShareDialog({ doc, open, onClose }) {
             {EXPIRY_OPTIONS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
           <TextField size="small" label="Max views (optional)" type="number" value={maxViews}
-            onChange={(e) => setMaxViews(e.target.value)} sx={{ flex: 1 }} />
+            onChange={(e) => setMaxViews(e.target.value)} inputProps={{ min: 1 }} sx={{ flex: 1 }} />
         </Box>
         <Button variant="contained" onClick={() => create.mutate()} disabled={create.isPending}
           sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>Create link</Button>

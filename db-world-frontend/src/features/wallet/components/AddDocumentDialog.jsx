@@ -89,7 +89,7 @@ export default function AddDocumentDialog({ open, onClose }) {
                   <TextField {...field} fullWidth size="small" label="Label (optional)" sx={fieldSx} />
                 )} />
               </Grid>
-              {(pickedType?.requiresNumber ?? true) && (
+              {(pickedType?.requiresNumber ?? false) && (
                 <Grid item xs={12}>
                   <Controller name="number" control={control} render={({ field }) => (
                     <TextField {...field} fullWidth size="small"
