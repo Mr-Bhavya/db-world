@@ -43,4 +43,17 @@ class WalletFileCryptorTest {
         assertThatThrownBy(() -> cryptor.decryptBytes(stored))
                 .isInstanceOf(DbWorldException.class);
     }
+
+    @Test
+    void malformedBase64Key_throwsDbWorldException() {
+        assertThatThrownBy(() -> new WalletFileCryptor("not-valid-base64!!!@@@", ""))
+                .isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
+    void wrongLengthKey_throwsDbWorldException() {
+        String shortKey = Base64.getEncoder().encodeToString(new byte[16]); // 16 bytes, not 32
+        assertThatThrownBy(() -> new WalletFileCryptor(shortKey, ""))
+                .isInstanceOf(DbWorldException.class);
+    }
 }

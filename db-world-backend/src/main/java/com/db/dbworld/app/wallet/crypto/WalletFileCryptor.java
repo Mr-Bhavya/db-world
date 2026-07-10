@@ -29,7 +29,7 @@ public class WalletFileCryptor {
     private static final String TRANSFORM = "AES/GCM/NoPadding";
     private static final int    IV_BYTES  = 12;
     private static final int    TAG_BITS  = 128;
-    private static final byte[] DEV_SALT  = "db-world-wallet-v1".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PBKDF2_SALT  = "db-world-wallet-v1".getBytes(StandardCharsets.UTF_8);
 
     private final SecretKeySpec key;
     private final SecureRandom  random = new SecureRandom();
@@ -42,7 +42,13 @@ public class WalletFileCryptor {
 
     private SecretKeySpec resolveKey(String base64Key, String jasyptPassword) {
         if (base64Key != null && !base64Key.isBlank()) {
-            byte[] raw = Base64.getDecoder().decode(base64Key.trim());
+            byte[] raw;
+            try {
+                raw = Base64.getDecoder().decode(base64Key.trim());
+            } catch (IllegalArgumentException e) {
+                throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "WALLET_ENCRYPTION_KEY is not valid base64", e);
+            }
             if (raw.length != 32) {
                 throw new DbWorldException(HttpStatus.INTERNAL_SERVER_ERROR,
                         "WALLET_ENCRYPTION_KEY must decode to 32 bytes, got " + raw.length);
@@ -57,7 +63,7 @@ public class WalletFileCryptor {
                 + "Set a dedicated WALLET_ENCRYPTION_KEY in production.");
         try {
             SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            byte[] raw = f.generateSecret(new PBEKeySpec(jasyptPassword.toCharArray(), DEV_SALT, 65_536, 256))
+            byte[] raw = f.generateSecret(new PBEKeySpec(jasyptPassword.toCharArray(), PBKDF2_SALT, 65_536, 256))
                           .getEncoded();
             return new SecretKeySpec(raw, "AES");
         } catch (Exception e) {
