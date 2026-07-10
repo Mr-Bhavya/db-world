@@ -68,6 +68,7 @@ const LazyRecordDetailSheet   = lazy(() => import('@features/cinema/screens/Reco
 const LazyCinemaPage          = lazy(() => import('@features/cinema/screens/CinemaPage/CinemaPage.jsx'));
 const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-queue/index.jsx'));
 const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybrid/HybridPlayerPage.jsx'));
+const LazyPlayerDemo          = lazy(() => import('@features/cinema/player/hybrid/PlayerDemo.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
@@ -182,6 +183,7 @@ const routeConfig = {
     { path: Constants.DB_GAMES_MEMORY_MATCH_ROUTE, element: <MemoryMatch /> },
     { path: Constants.DB_GAMES_2048_ROUTE,         element: <Game2048 /> },
     { path: Constants.DB_PASSWORD_MANAGER_ROUTE, element: <PasswordManagment />, exact: true },
+    { path: Constants.DB_PLAYER_DEMO_ROUTE, element: <LazyPlayerDemo /> },
   ],
   protected: [
     { path: Constants.DB_CINEMA_ROUTE, element: <Navigate to={Constants.DB_CINEMA_BROWSE_ROUTE} />, exact: true },

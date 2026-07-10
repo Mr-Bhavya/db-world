@@ -58,6 +58,7 @@ export const DB_PLAYER_ROUTE = `${DB_CINEMA_ROUTE}/player`;
 // The player route carries the file id so URLs are unique + shareable + refreshable.
 export const DB_PLAYER_ROUTE_PATTERN = `${DB_PLAYER_ROUTE}/:mediaFileId`;
 export const playerPath = (mediaFileId) => `${DB_PLAYER_ROUTE}/${encodeURIComponent(mediaFileId ?? '')}`;
+export const DB_PLAYER_DEMO_ROUTE = `${DB_PLAYER_ROUTE}/demo`;
 
 export const DB_WEATHER_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-weather`;
 export const DB_GAMES_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-games`;
@@ -198,6 +199,7 @@ export default {
   DB_PLAYER_ROUTE,
   DB_PLAYER_ROUTE_PATTERN,
   playerPath,
+  DB_PLAYER_DEMO_ROUTE,
 
   DB_WEATHER_ROUTE,
   DB_GAMES_ROUTE,
