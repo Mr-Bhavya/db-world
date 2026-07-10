@@ -1,5 +1,6 @@
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { getApiBaseUrl, publicShareUrl } from '@shared/config/apiBaseUrl';
+import Constants from '@shared/constants';
 
 const BASE = '/api/wallet';
 const unwrap = (r) => r.data?.data ?? r.data;
@@ -49,10 +50,21 @@ export const fetchShares = (id) =>
 export const revokeShare = (shareId) =>
   axiosInstance.delete(`${BASE}/shares/${shareId}`).then((r) => r.data);
 
-/** Full external URL for a share token. NOTE: verify publicShareUrl() returns the web origin. */
-export const buildShareUrl = (token) => `${publicShareUrl()}/db-world/shared-doc/${token}`;
+/** Full external URL for a share token, built from the page origin + the app route constant. */
+export const buildShareUrl = (token) => {
+  let origin;
+  try { origin = new URL(publicShareUrl()).origin; }
+  catch { origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : ''; }
+  return `${origin}${Constants.DB_WALLET_SHARE_ROUTE.replace(':token', encodeURIComponent(token))}`;
+};
 
 export const fetchSharedInfo = (token) =>
   axiosInstance.get(`${BASE}/shared/${encodeURIComponent(token)}/info`).then(unwrap);
 export const sharedContentUrl = (token, disposition = 'inline') =>
   `${getApiBaseUrl()}${BASE}/shared/${encodeURIComponent(token)}/content?disposition=${disposition}`;
+
+/** Public content fetch as a Blob (no auth — used by the public share preview page). */
+export const fetchSharedContentBlob = (token, disposition = 'inline') =>
+  axiosInstance.get(`${BASE}/shared/${encodeURIComponent(token)}/content`, {
+    params: { disposition }, responseType: 'blob',
+  }).then((r) => r.data);
