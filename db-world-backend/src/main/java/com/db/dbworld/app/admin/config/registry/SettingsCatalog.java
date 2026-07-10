@@ -84,7 +84,7 @@ public final class SettingsCatalog {
              "How long a signed download URL stays valid (copy-paste + resumed transfers).",
              172800, 60L, 2592000L, 2),
 
-        // ── Document Wallet ─────────────────────────────────────────────────
+        // ── Document Wallet ───────────────────────────────────────────
         lng(WALLET_MAX_FILE_SIZE_BYTES, C_WALLET, "Max file size (bytes)",
             "Maximum upload size per wallet document.", 10_485_760L, 1_048_576L, 104_857_600L, 0),
         str(WALLET_ALLOWED_CONTENT_TYPES, C_WALLET, "Allowed content types",
