@@ -53,6 +53,6 @@ export const revokeShare = (shareId) =>
 export const buildShareUrl = (token) => `${publicShareUrl()}/db-world/shared-doc/${token}`;
 
 export const fetchSharedInfo = (token) =>
-  axiosInstance.get(`${BASE}/shared/${token}/info`).then(unwrap);
+  axiosInstance.get(`${BASE}/shared/${encodeURIComponent(token)}/info`).then(unwrap);
 export const sharedContentUrl = (token, disposition = 'inline') =>
   `${getApiBaseUrl()}${BASE}/shared/${encodeURIComponent(token)}/content?disposition=${disposition}`;

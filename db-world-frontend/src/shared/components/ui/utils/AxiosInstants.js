@@ -28,6 +28,7 @@ const NO_TOKEN_PATHS = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/refresh-token',
+  '/api/wallet/shared/',
 ];
 
 /** In-flight refresh state */
