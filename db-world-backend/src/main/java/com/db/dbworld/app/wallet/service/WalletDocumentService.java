@@ -62,6 +62,9 @@ public class WalletDocumentService {
         if (file == null || file.isEmpty()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "A file is required");
         }
+        if (typeId == null || typeId.isBlank()) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Document type is required");
+        }
         WalletDocumentTypeEntity type = typeService.get(typeId);
         if (!type.isActive()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Document type is not active");
@@ -119,9 +122,14 @@ public class WalletDocumentService {
     @Transactional
     public void delete(Long userId, String id) {
         WalletDocumentEntity e = getOwnedEntity(userId, id);
+        // Delete the DB row (and its shares) first, then the physical blob last: storage.delete
+        // is best-effort and never throws, so if docRepo.delete were to throw after the blob was
+        // already removed, the transaction would roll back but the file would be gone for good.
+        // Doing the irreversible blob delete last means a rare post-commit failure only leaves a
+        // harmless orphan file, never a document that lists/gets but 404s on content.
         shareRepo.deleteByDocumentId(e.getId());
-        storage.delete(userId, e.getStoredFileName());
         docRepo.delete(e);
+        storage.delete(userId, e.getStoredFileName());
         log.info("Wallet document {} deleted for user {}", id, userId);
     }
 
@@ -146,6 +154,10 @@ public class WalletDocumentService {
         return (semi >= 0 ? raw.substring(0, semi) : raw).trim().toLowerCase();
     }
 
+    // Fail-closed: any content-type present in the settings allow-list that lacks a magic-byte
+    // case below falls through to `default -> false` and is rejected. If a new content type is
+    // added to ConfigKeys.WALLET_ALLOWED_CONTENT_TYPES, a matching case must be added here too,
+    // otherwise uploads of that type will always fail validation.
     private static void validateMagic(byte[] b, String contentType) {
         boolean ok = switch (contentType) {
             case "application/pdf" -> startsWith(b, new byte[]{'%', 'P', 'D', 'F'});
@@ -168,6 +180,12 @@ public class WalletDocumentService {
 
     private static String safeName(String original) {
         if (original == null || original.isBlank()) return "document";
-        return Path.of(original).getFileName().toString();
+        try {
+            return Path.of(original).getFileName().toString();
+        } catch (RuntimeException e) {
+            // Path.of/getFileName throws InvalidPathException (a RuntimeException) for names
+            // containing illegal characters (e.g. NUL); fall back rather than let it propagate.
+            return "document";
+        }
     }
 }

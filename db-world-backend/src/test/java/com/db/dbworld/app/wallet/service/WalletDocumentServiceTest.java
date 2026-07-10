@@ -1,6 +1,7 @@
 package com.db.dbworld.app.wallet.service;
 
 import com.db.dbworld.app.admin.config.service.SettingsService;
+import com.db.dbworld.app.wallet.dto.UpdateDocumentRequest;
 import com.db.dbworld.app.wallet.entity.WalletDocumentEntity;
 import com.db.dbworld.app.wallet.entity.WalletDocumentTypeEntity;
 import com.db.dbworld.app.wallet.mapper.WalletMapper;
@@ -13,9 +14,11 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class WalletDocumentServiceTest {
@@ -87,5 +90,33 @@ class WalletDocumentServiceTest {
         verify(shareRepo).deleteByDocumentId("d1");
         verify(storage).delete(5L, "d1.enc");
         verify(docRepo).delete(e);
+    }
+
+    @Test
+    void update_whenNotOwner_throwsNotFound() {
+        when(docRepo.findByIdAndUserId("d1", 99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.update(99L, "d1", new UpdateDocumentRequest("x", null, null, null, null)))
+                .isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
+    void loadContent_whenNotOwner_throwsNotFound() {
+        when(docRepo.findByIdAndUserId("d1", 99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.loadContent(99L, "d1")).isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
+    void create_happyPath_storesBlobAndReturnsDto() {
+        when(docRepo.save(any())).thenAnswer(a -> {
+            var e = a.getArgument(0, WalletDocumentEntity.class);
+            e.setId("new-id");
+            return e;
+        });
+
+        var dto = service.create(1L, pdf("%PDF-1.4 hello".getBytes()), "t1", null, null, null, null, null);
+
+        assertThat(dto.typeCode()).isEqualTo(activeType.getCode());
+        assertThat(dto.typeDisplayName()).isEqualTo(activeType.getDisplayName());
+        verify(storage).store(eq(1L), anyString(), any(byte[].class));
     }
 }
