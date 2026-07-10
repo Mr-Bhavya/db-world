@@ -100,6 +100,9 @@ export const ADD_RECORD_ROUTE =
 export const EDIT_RECORD_ROUTE =
   `${DB_CINEMA_ROUTE}/edit-record/:title`;
 
+export const DB_WALLET_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-wallet`;
+export const DB_WALLET_SHARE_ROUTE = `${DB_WORLD_HOME_ROUTE}/shared-doc/:token`;
+
 /* =========================
  * USER ROLES
  * ========================= */
@@ -225,6 +228,8 @@ export default {
   DB_ADMIN_BASE_ROUTE,
   ADD_RECORD_ROUTE,
   EDIT_RECORD_ROUTE,
+  DB_WALLET_ROUTE,
+  DB_WALLET_SHARE_ROUTE,
 
   OWNER_USER_ROLE,
   ADMIN_USER_ROLE,
