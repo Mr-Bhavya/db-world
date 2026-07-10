@@ -1,4 +1,5 @@
 import {
+  AccountBalanceWallet as WalletIcon,
   AdminPanelSettings as AdminIcon,
   Lock as PasswordIcon,
   MovieFilter as CinemaIcon,
@@ -45,6 +46,16 @@ export const APPS = [
     description: 'Secure credential vault',
     Icon: PasswordIcon,
     route: Constants.DB_PASSWORD_MANAGER_ROUTE,
+    adminOnly: false,
+    accent: '#0d9488',
+    gradient: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+  },
+  {
+    id: 'wallet',
+    label: 'Document Wallet',
+    description: 'Store Aadhaar, PAN, licence & more',
+    Icon: WalletIcon,
+    route: Constants.DB_WALLET_ROUTE,
     adminOnly: false,
     accent: '#0d9488',
     gradient: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',

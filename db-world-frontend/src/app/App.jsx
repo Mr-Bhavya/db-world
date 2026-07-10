@@ -70,6 +70,7 @@ const LazyDownloadQueuePage   = lazy(() => import('@features/cinema/download-que
 const LazyHybridPlayerPage    = lazy(() => import('@features/cinema/player/hybrid/HybridPlayerPage.jsx'));
 const LazyPlayerDemo          = lazy(() => import('@features/cinema/player/hybrid/PlayerDemo.jsx'));
 const LazyMyActivityPage      = lazy(() => import('@features/cinema/me/activity/index.jsx'));
+const LazyWallet              = lazy(() => import('@features/wallet'));
 
 // Non-critical standalone routes — split out of the initial (cinema) bundle.
 // Weather pulls in Leaflet; Games are five separate mini-apps rarely hit first.
@@ -201,6 +202,7 @@ const routeConfig = {
     { path: Constants.DB_PLAYER_ROUTE_PATTERN, element: <LazyHybridPlayerPage /> },
     { path: Constants.USER_PROFILE_ROUTE, element: <Profile /> },
     { path: Constants.DB_MY_ACTIVITY_ROUTE, element: <LazyMyActivityPage /> },
+    { path: Constants.DB_WALLET_ROUTE, element: <LazyWallet /> },
     { path: Constants.LOGOUT_ROUTE, element: <LogOut /> },
   ],
   admin: []
