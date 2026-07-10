@@ -223,6 +223,14 @@ Unique index on `token_hash`; index on `document_id`.
   - Fallback (dev convenience): if unset, derive a key with PBKDF2 from `JASYPT_PASSWORD` + a
     fixed app salt, and log a WARN recommending an explicit key in prod.
   - Bound as a typed `WalletCryptoProperties`/`@Value`, resolved once at startup.
+  - **Key separation (do NOT share one master key across subsystems):** the wallet file key is
+    dedicated and distinct from (a) the Jasypt passphrase used by the password manager and
+    column encryption, and (b) the CDN signing secret, which is an HMAC URL-signing key shared
+    with nginx. They differ in purpose (encryption vs URL signing), algorithm (AES-GCM vs HMAC),
+    exposure surface (app-only vs edge/nginx), and rotation cadence. Sharing one key would let a
+    leak of the least-sensitive secret (CDN) compromise the most-sensitive data (government IDs)
+    and make independent rotation impossible. The only cross-key touchpoint is the dev-only
+    PBKDF2 fallback above.
   - **Documented hard rule:** losing the key makes all stored files unrecoverable — it must be
     backed up (called out in Rollout §11 and README/runtime docs).
 
