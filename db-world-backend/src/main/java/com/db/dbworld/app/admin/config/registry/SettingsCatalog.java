@@ -18,6 +18,7 @@ public final class SettingsCatalog {
     private static final String C_TRACKING  = "Activity Tracking";
     private static final String C_WEATHER   = "Weather";
     private static final String C_CDN       = "CDN Signing";
+    private static final String C_WALLET    = "Document Wallet";
 
     public static final List<SettingDefinition> ALL = List.of(
         // ── Recommendations ──────────────────────────────────────────────
@@ -81,7 +82,14 @@ public final class SettingsCatalog {
              21600, 60L, 604800L, 1),
         intg(CDN_SIGNING_DOWNLOAD_TTL_SECONDS, C_CDN, "Download URL TTL (sec)",
              "How long a signed download URL stays valid (copy-paste + resumed transfers).",
-             172800, 60L, 2592000L, 2)
+             172800, 60L, 2592000L, 2),
+
+        // ── Document Wallet ─────────────────────────────────────────────────
+        lng(WALLET_MAX_FILE_SIZE_BYTES, C_WALLET, "Max file size (bytes)",
+            "Maximum upload size per wallet document.", 10_485_760L, 1_048_576L, 104_857_600L, 0),
+        str(WALLET_ALLOWED_CONTENT_TYPES, C_WALLET, "Allowed content types",
+            "Comma-separated MIME types accepted for wallet uploads.",
+            "application/pdf,image/png,image/jpeg", false, 1)
     );
 
     private static final Map<String, SettingDefinition> BY_KEY =

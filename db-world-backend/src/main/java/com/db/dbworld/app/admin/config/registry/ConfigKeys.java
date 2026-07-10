@@ -34,4 +34,8 @@ public final class ConfigKeys {
     public static final String CDN_SIGNING_ENABLED                  = "app.cdn.signing.enabled";
     public static final String CDN_SIGNING_STREAM_TTL_SECONDS       = "app.cdn.signing.stream-ttl-seconds";
     public static final String CDN_SIGNING_DOWNLOAD_TTL_SECONDS     = "app.cdn.signing.download-ttl-seconds";
+
+    // Document Wallet
+    public static final String WALLET_MAX_FILE_SIZE_BYTES           = "wallet.max-file-size-bytes";
+    public static final String WALLET_ALLOWED_CONTENT_TYPES         = "wallet.allowed-content-types";
 }

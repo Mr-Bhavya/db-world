@@ -45,7 +45,7 @@ class SettingsServiceTest {
         int after1 = store.size();
         service.init(); // run again
         assertThat(store.size()).isEqualTo(after1);
-        assertThat(after1).isEqualTo(23);
+        assertThat(after1).isEqualTo(25);
     }
 
     @Test
