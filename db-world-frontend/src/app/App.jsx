@@ -61,6 +61,7 @@ const LazyUserManagement       = lazy(() => import('@features/admin/users'));
 const LazyRecordManagement     = lazy(() => import('@features/admin/records'));
 const LazyLogViewer            = lazy(() => import('@features/admin/logs/LogViewer.jsx'));
 const LazyTagManagement        = lazy(() => import('@features/admin/tags'));
+const LazyWalletAdmin          = lazy(() => import('@features/admin/wallet'));
 const LazyMediaFilesPage      = lazy(() => import('@features/cinema/screens/media-files/index.js'));
 const LazyRecordDetailPage    = lazy(() => import('@features/cinema/screens/RecordDetailPage/index.jsx'));
 const LazyRecordDetailModal   = lazy(() => import('@features/cinema/screens/RecordDetailPage/RecordDetailModal.jsx'));
@@ -393,6 +394,7 @@ const ThemedApp = () => {
                     <Route path="files"         element={<LazyFileManager />} />
                     <Route path="scheduler"     element={<LazySchedulerPanel />} />
                     <Route path="settings"      element={<LazySettingsPanel />} />
+                    <Route path="document-wallet" element={<LazyWalletAdmin />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<ErrorPage />} />

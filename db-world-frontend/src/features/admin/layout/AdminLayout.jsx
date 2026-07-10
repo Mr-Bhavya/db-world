@@ -12,7 +12,7 @@ import {
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home,
-  Insights, Inbox, Tune,
+  Insights, Inbox, Tune, AccountBalanceWallet,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
@@ -67,6 +67,7 @@ const NAV = [
       { id: 'files',       label: 'File Manager',  icon: <Folder />,    path: 'files' },
       { id: 'scheduler',   label: 'Scheduler',     icon: <Schedule />,  path: 'scheduler' },
       { id: 'settings',    label: 'Settings',      icon: <Tune />,      path: 'settings' },
+      { id: 'document-wallet', label: 'Document Wallet', icon: <AccountBalanceWallet />, path: 'document-wallet' },
     ],
   },
 ];
