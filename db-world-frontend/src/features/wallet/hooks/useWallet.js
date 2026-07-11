@@ -33,8 +33,9 @@ export function useUpdateDocument() {
   const { enqueueSnackbar } = useSnackbar();
   return useMutation({
     mutationFn: ({ id, body }) => api.updateDocument(id, body),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['wallet', 'documents'] });
+      qc.invalidateQueries({ queryKey: ['wallet', 'document', vars?.id] });
       enqueueSnackbar('Document updated', { variant: 'success' });
     },
     onError: (e) => enqueueSnackbar(errMsg(e, 'Failed to update document'), { variant: 'error' }),

@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Button } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Button, Typography, Divider } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
-import { fetchContentBlob } from '../api/walletApi';
+import { fetchContentBlob, fetchDocument } from '../api/walletApi';
 import { downloadBlob } from '../utils/download';
 
 export default function DocumentPreviewDialog({ doc, open, onClose }) {
@@ -12,7 +16,13 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
   const { enqueueSnackbar } = useSnackbar();
   const [url, setUrl] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [revealed, setRevealed] = useState(false);
   const isPdf = doc.contentType === 'application/pdf';
+
+  const { data: detail } = useQuery({
+    queryKey: ['wallet', 'document', doc.id],
+    queryFn: () => fetchDocument(doc.id),
+  });
 
   useEffect(() => {
     let objectUrl; let cancelled = false;
@@ -33,6 +43,21 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
     }
   };
 
+  const onCopyNumber = async () => {
+    if (!detail?.documentNumber) return;
+    try {
+      await navigator.clipboard.writeText(detail.documentNumber);
+      enqueueSnackbar('Number copied', { variant: 'success' });
+    } catch (_e) {
+      enqueueSnackbar('Failed to copy number', { variant: 'error' });
+    }
+  };
+
+  const typeDisplayName = detail?.typeDisplayName ?? doc.typeDisplayName;
+  const holderName = detail?.holderName ?? doc.holderName;
+  const hasNumber = !!(doc.maskedNumber || detail?.documentNumber);
+  const numberValue = revealed && detail?.documentNumber ? detail.documentNumber : doc.maskedNumber;
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
       PaperProps={{ sx: { bgcolor: T.sidebar } }}>
@@ -43,11 +68,65 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
           <IconButton onClick={onClose} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
         </Box>
       </DialogTitle>
-      <DialogContent sx={{ minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {loading ? <CircularProgress sx={{ color: T.teal }} />
-          : isPdf ? <iframe title={doc.label} src={url} style={{ width: '100%', height: '70vh', border: 0 }} />
-          : <img alt={doc.label} src={url} style={{ maxWidth: '100%', maxHeight: '70vh' }} />}
+      <DialogContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, minHeight: 400 }}>
+        <Box sx={{ flex: { xs: '0 0 auto', md: '1 1 60%' }, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
+          {loading ? <CircularProgress sx={{ color: T.teal }} />
+            : isPdf ? <iframe title={doc.label} src={url} style={{ width: '100%', height: '65vh', border: 0 }} />
+            : <img alt={doc.label} src={url} style={{ maxWidth: '100%', maxHeight: '65vh' }} />}
+        </Box>
+
+        <Box sx={{ flex: { xs: '0 0 auto', md: '0 0 260px' }, display: { xs: 'block', md: 'flex' } }}>
+          <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' }, borderColor: T.glassBorder, mr: 2 }} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1 }}>
+            {typeDisplayName && <MetaRow label="Type" T={T}>{typeDisplayName}</MetaRow>}
+            {holderName && <MetaRow label="Belongs to" T={T}>{holderName}</MetaRow>}
+
+            {hasNumber && (
+              <MetaRow label="Document number" T={T}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: 13, color: T.textPrimary, fontFamily: 'monospace' }}>
+                    {numberValue}
+                  </Typography>
+                  <IconButton size="small" aria-label="Toggle number visibility"
+                    onClick={() => setRevealed((r) => !r)} sx={{ color: T.textFaint }}>
+                    {revealed ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                  </IconButton>
+                  <IconButton size="small" aria-label="Copy number" disabled={!detail?.documentNumber}
+                    onClick={onCopyNumber} sx={{ color: T.textFaint }}>
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </MetaRow>
+            )}
+
+            {detail?.issueDate && <MetaRow label="Issue date" T={T}>{detail.issueDate}</MetaRow>}
+            {detail?.expiryDate && <MetaRow label="Expiry date" T={T}>{detail.expiryDate}</MetaRow>}
+
+            {detail?.notes && (
+              <MetaRow label="Notes" T={T}>
+                <Typography sx={{ fontSize: 13, color: T.textPrimary, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {detail.notes}
+                </Typography>
+              </MetaRow>
+            )}
+          </Box>
+        </Box>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function MetaRow({ label, T, children }) {
+  return (
+    <Box>
+      <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: T.textFaint }}>
+        {label}
+      </Typography>
+      {typeof children === 'string' || typeof children === 'number' ? (
+        <Typography sx={{ fontSize: 13, color: T.textPrimary, mt: 0.25 }}>{children}</Typography>
+      ) : (
+        <Box sx={{ mt: 0.25 }}>{children}</Box>
+      )}
+    </Box>
   );
 }

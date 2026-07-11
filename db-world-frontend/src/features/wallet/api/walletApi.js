@@ -43,6 +43,10 @@ export const fetchContentBlob = (id, disposition = 'inline') =>
     params: { disposition }, responseType: 'blob',
   }).then((r) => r.data);
 
+/** Small JPEG thumbnail (owner-auth). Only present when the summary's `hasThumbnail` is true. */
+export const fetchThumbnailBlob = (id) =>
+  axiosInstance.get(`${BASE}/documents/${id}/thumbnail`, { responseType: 'blob' }).then((r) => r.data);
+
 export const createShare = (id, body) =>
   axiosInstance.post(`${BASE}/documents/${id}/shares`, body).then(unwrap);
 export const fetchShares = (id) =>

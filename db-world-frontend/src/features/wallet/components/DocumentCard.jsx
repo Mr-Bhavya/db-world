@@ -10,8 +10,9 @@ import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
 import IosShareIcon from '@mui/icons-material/IosShare';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import { useT } from '@shared/theme';
-import { fetchContentBlob } from '../api/walletApi';
+import { fetchThumbnailBlob } from '../api/walletApi';
 
 export default function DocumentCard({ doc, onPreview, onDownload, onEdit, onShare, onDelete, index = 0 }) {
   const T = useT();
@@ -52,6 +53,14 @@ export default function DocumentCard({ doc, onPreview, onDownload, onEdit, onSha
             <Typography sx={{ fontSize: 12, color: T.textMuted, fontFamily: 'monospace' }} noWrap>
               {doc.maskedNumber}
             </Typography>
+          )}
+          {doc.holderName && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+              <PersonOutlineIcon sx={{ fontSize: 14, color: T.textFaint }} />
+              <Typography sx={{ fontSize: 11.5, color: T.textFaint }} noWrap>
+                {doc.holderName}
+              </Typography>
+            </Box>
           )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
             <Typography sx={{ fontSize: 11, color: T.textFaint }}>
@@ -98,45 +107,38 @@ export default function DocumentCard({ doc, onPreview, onDownload, onEdit, onSha
 
 function ThumbArea({ doc, isImage, T }) {
   const [url, setUrl] = useState(null);
-  const [loading, setLoading] = useState(isImage);
+  const [loading, setLoading] = useState(!!doc.hasThumbnail);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!isImage) return;
+    if (!doc.hasThumbnail) return;
     let objectUrl; let cancelled = false;
     setLoading(true);
     setError(false);
-    fetchContentBlob(doc.id, 'inline')
+    fetchThumbnailBlob(doc.id)
       .then((blob) => { if (cancelled) return; objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); })
       .catch(() => { if (!cancelled) setError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [doc.id, isImage]);
+  }, [doc.id, doc.hasThumbnail]);
+
+  const showTypeChip = doc.typeDisplayName && doc.label !== doc.typeDisplayName;
 
   return (
     <Box sx={{ width: '100%', height: 132, position: 'relative', flexShrink: 0 }}>
-      {isImage ? (
+      {doc.hasThumbnail ? (
         loading ? (
           <Skeleton variant="rectangular" height={132} sx={{ bgcolor: T.glassHover }} />
         ) : error || !url ? (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: T.glassHover }}>
-            <ImageIcon sx={{ color: T.textFaint, fontSize: 40 }} />
-          </Box>
+          <TypeTile isImage={isImage} T={T} />
         ) : (
           <img src={url} alt={doc.label} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         )
       ) : (
-        <Box sx={{
-          width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 0.5,
-          background: `linear-gradient(135deg, ${T.tealBg}, transparent)`,
-        }}>
-          <PictureAsPdfIcon sx={{ color: T.teal, fontSize: 44 }} />
-          <Typography sx={{ fontSize: 10, fontWeight: 700, color: T.teal, letterSpacing: 0.5 }}>PDF</Typography>
-        </Box>
+        <TypeTile isImage={isImage} T={T} />
       )}
 
-      {doc.typeDisplayName && (
+      {showTypeChip && (
         <Box sx={{
           position: 'absolute', top: 8, left: 8, px: 1, py: 0.25, borderRadius: 1,
           bgcolor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
@@ -158,6 +160,26 @@ function ThumbArea({ doc, isImage, T }) {
           </Box>
         </Tooltip>
       )}
+    </Box>
+  );
+}
+
+function TypeTile({ isImage, T }) {
+  if (isImage) {
+    return (
+      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: T.glassHover }}>
+        <ImageIcon sx={{ color: T.textFaint, fontSize: 40 }} />
+      </Box>
+    );
+  }
+  return (
+    <Box sx={{
+      width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: 0.5,
+      background: `linear-gradient(135deg, ${T.tealBg}, transparent)`,
+    }}>
+      <PictureAsPdfIcon sx={{ color: T.teal, fontSize: 44 }} />
+      <Typography sx={{ fontSize: 10, fontWeight: 700, color: T.teal, letterSpacing: 0.5 }}>PDF</Typography>
     </Box>
   );
 }
