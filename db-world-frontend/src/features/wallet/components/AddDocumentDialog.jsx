@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, IconButton, Box, Typography,
-  LinearProgress, Collapse, Grid, TextField,
+  LinearProgress, Collapse, Grid, TextField, useMediaQuery, useTheme,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -19,6 +19,7 @@ const MAX_BYTES = 10 * 1024 * 1024; // client mirror of the default cap; server 
 export default function AddDocumentDialog({ open, onClose }) {
   const T = useT();
   const { enqueueSnackbar } = useSnackbar();
+  const fullScreen = useMediaQuery(useTheme().breakpoints.down('sm'));
   const inputRef = useRef();
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -27,7 +28,7 @@ export default function AddDocumentDialog({ open, onClose }) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(addDocumentSchema),
-    defaultValues: { typeId: '', label: '', number: '', issueDate: '', expiryDate: '', notes: '', holderName: '' },
+    defaultValues: { typeId: '', label: '', number: '', notes: '', holderName: '' },
   });
   const { mutate, isPending } = useAddDocument();
 
@@ -51,8 +52,8 @@ export default function AddDocumentDialog({ open, onClose }) {
   const fieldSx = { '& .MuiInputBase-root': { color: T.textPrimary }, '& label': { color: T.textMuted } };
 
   return (
-    <Dialog open={open} onClose={close} fullWidth maxWidth="sm"
-      PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, borderRadius: 3 } }}>
+    <Dialog open={open} onClose={close} fullWidth maxWidth="sm" fullScreen={fullScreen}
+      PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, borderRadius: fullScreen ? 0 : 3 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary, fontWeight: 700 }}>
         Add document
         <IconButton size="small" onClick={close} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
@@ -102,18 +103,6 @@ export default function AddDocumentDialog({ open, onClose }) {
                   )} />
                 </Grid>
               )}
-              <Grid item xs={6}>
-                <Controller name="issueDate" control={control} render={({ field }) => (
-                  <TextField {...field} fullWidth size="small" type="date" label="Issue date"
-                    InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                )} />
-              </Grid>
-              <Grid item xs={6}>
-                <Controller name="expiryDate" control={control} render={({ field }) => (
-                  <TextField {...field} fullWidth size="small" type="date" label="Expiry date"
-                    InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                )} />
-              </Grid>
               <Grid item xs={12}>
                 <Controller name="notes" control={control} render={({ field }) => (
                   <TextField {...field} fullWidth size="small" multiline minRows={2} label="Notes" sx={fieldSx} />

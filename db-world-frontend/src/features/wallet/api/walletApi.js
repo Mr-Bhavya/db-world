@@ -35,6 +35,15 @@ export const addDocument = (values, onProgress) => {
 export const updateDocument = (id, body) =>
   axiosInstance.put(`${BASE}/documents/${id}`, body).then(unwrap);
 
+export const replaceDocumentFile = (id, file, onProgress) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return axiosInstance.put(`${BASE}/documents/${id}/file`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (e) => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),
+  }).then(unwrap);
+};
+
 export const deleteDocument = (id) =>
   axiosInstance.delete(`${BASE}/documents/${id}`).then((r) => r.data);
 
