@@ -80,4 +80,9 @@ public class WalletDocumentController {
         WalletContent content = documentService.loadContent(userContext.userId(), id);
         WalletContentWriter.write(response, content, !"attachment".equalsIgnoreCase(disposition));
     }
+
+    @GetMapping("/documents/{id}/thumbnail")
+    public void thumbnail(@PathVariable String id, HttpServletResponse response) {
+        WalletContentWriter.write(response, documentService.loadThumbnail(userContext.userId(), id), true);
+    }
 }

@@ -28,6 +28,7 @@ class WalletDocumentServiceTest {
     WalletTypeService typeService;
     WalletStorageService storage;
     SettingsService settings;
+    WalletThumbnailer thumbnailer;
     WalletDocumentService service;
 
     WalletDocumentTypeEntity activeType;
@@ -39,7 +40,9 @@ class WalletDocumentServiceTest {
         typeService = mock(WalletTypeService.class);
         storage = mock(WalletStorageService.class);
         settings = mock(SettingsService.class);
-        service = new WalletDocumentService(docRepo, shareRepo, typeService, storage, settings, new WalletMapper());
+        thumbnailer = mock(WalletThumbnailer.class);
+        when(thumbnailer.generate(any(), any())).thenReturn(Optional.empty());
+        service = new WalletDocumentService(docRepo, shareRepo, typeService, storage, settings, new WalletMapper(), thumbnailer);
 
         activeType = WalletDocumentTypeEntity.builder().id("t1").code("PAN").displayName("PAN Card").active(true).build();
         when(typeService.get("t1")).thenReturn(activeType);

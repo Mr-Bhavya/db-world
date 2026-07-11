@@ -27,7 +27,7 @@ public class WalletMapper {
                 type != null ? type.getDisplayName() : null,
                 e.getLabel(), mask(e.getDocumentNumber()), e.getIssueDate(), e.getExpiryDate(),
                 e.getContentType(), e.getFileSize(), e.getCreatedAt(), e.getUpdatedAt(), shared,
-                e.getHolderName());
+                e.getHolderName(), e.getThumbnailStoredName() != null);
     }
 
     public WalletDocumentDto toDetail(WalletDocumentEntity e, WalletDocumentTypeEntity type) {

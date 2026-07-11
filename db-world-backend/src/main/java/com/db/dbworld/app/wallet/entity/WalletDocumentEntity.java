@@ -45,6 +45,7 @@ public class WalletDocumentEntity {
     @Column(nullable = false, length = 100) private String contentType;
     @Column(nullable = false) private long fileSize;
     @Column(nullable = false, length = 120) private String storedFileName;
+    @Column(length = 120) private String thumbnailStoredName;
 
     @CreationTimestamp @Column(nullable = false, updatable = false) private Instant createdAt;
     @UpdateTimestamp   @Column(nullable = false)                    private Instant updatedAt;

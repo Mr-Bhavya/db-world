@@ -297,6 +297,13 @@
             <version>${commons-io.version}</version>
         </dependency>
 
+        <!-- ── PDFBox (wallet document thumbnails: PDF first-page render) ── -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
         <!-- ── Dropwizard Metrics ─────────────────────────────────────── -->
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>

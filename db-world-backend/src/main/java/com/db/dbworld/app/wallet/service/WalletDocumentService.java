@@ -33,6 +33,7 @@ public class WalletDocumentService {
     private final WalletStorageService storage;
     private final SettingsService settings;
     private final WalletMapper mapper;
+    private final WalletThumbnailer thumbnailer;
 
     public List<WalletDocumentSummaryDto> list(Long userId, String typeId, String q) {
         List<WalletDocumentEntity> docs = (typeId == null || typeId.isBlank())
@@ -107,6 +108,13 @@ public class WalletDocumentService {
         e.setContentType(contentType);
         e.setFileSize(bytes.length);
         e.setStoredFileName(storedFileName);
+        // Best-effort: a thumbnail failure must never block the upload, so any exception
+        // is already swallowed inside WalletThumbnailer.generate — we just skip storing one.
+        thumbnailer.generate(bytes, contentType).ifPresent(thumb -> {
+            String thumbName = UUID.randomUUID() + ".thumb.enc";
+            storage.store(userId, thumbName, thumb);
+            e.setThumbnailStoredName(thumbName);
+        });
         WalletDocumentEntity saved = docRepo.save(e);
         log.info("Wallet document {} created for user {}", saved.getId(), userId);
         return mapper.toDetail(saved, type);
@@ -135,6 +143,9 @@ public class WalletDocumentService {
         shareRepo.deleteByDocumentId(e.getId());
         docRepo.delete(e);
         storage.delete(userId, e.getStoredFileName());
+        if (e.getThumbnailStoredName() != null) {
+            storage.delete(userId, e.getThumbnailStoredName());
+        }
         log.info("Wallet document {} deleted for user {}", id, userId);
     }
 
@@ -142,6 +153,15 @@ public class WalletDocumentService {
         WalletDocumentEntity e = getOwnedEntity(userId, id);
         return new WalletContent(e.getOriginalFileName(), e.getContentType(),
                 storage.load(userId, e.getStoredFileName()));
+    }
+
+    public WalletContent loadThumbnail(Long userId, String id) {
+        WalletDocumentEntity e = getOwnedEntity(userId, id);
+        if (e.getThumbnailStoredName() == null) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, "No thumbnail");
+        }
+        return new WalletContent(e.getId() + ".jpg", "image/jpeg",
+                storage.load(userId, e.getThumbnailStoredName()));
     }
 
     // ---- helpers ----
