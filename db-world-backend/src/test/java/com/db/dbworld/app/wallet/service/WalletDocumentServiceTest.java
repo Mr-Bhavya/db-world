@@ -119,4 +119,25 @@ class WalletDocumentServiceTest {
         assertThat(dto.typeDisplayName()).isEqualTo(activeType.getDisplayName());
         verify(storage).store(eq(1L), anyString(), any(byte[].class));
     }
+
+    @Test
+    void create_acceptsPdfWithLeadingBom() {
+        when(docRepo.save(any())).thenAnswer(a -> {
+            var e = a.getArgument(0, WalletDocumentEntity.class);
+            e.setId("new-id");
+            return e;
+        });
+        // A UTF-8 BOM (EF BB BF) before the %PDF header — a valid PDF the old
+        // strict offset-0 check wrongly rejected; the 1KB scan must accept it.
+        byte[] bom = { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+        byte[] header = "%PDF-1.7 body".getBytes();
+        byte[] body = new byte[bom.length + header.length];
+        System.arraycopy(bom, 0, body, 0, bom.length);
+        System.arraycopy(header, 0, body, bom.length, header.length);
+
+        var dto = service.create(1L, pdf(body), "t1", null, null, null, null, null);
+
+        assertThat(dto).isNotNull();
+        verify(storage).store(eq(1L), anyString(), any(byte[].class));
+    }
 }

@@ -160,7 +160,10 @@ public class WalletDocumentService {
     // otherwise uploads of that type will always fail validation.
     private static void validateMagic(byte[] b, String contentType) {
         boolean ok = switch (contentType) {
-            case "application/pdf" -> startsWith(b, new byte[]{'%', 'P', 'D', 'F'});
+            // PDFs commonly carry a leading UTF-8 BOM or a few bytes before the header, so —
+            // like real PDF readers — scan the first 1KB for the %PDF signature rather than
+            // requiring it at exact offset 0 (that strict check rejected otherwise-valid PDFs).
+            case "application/pdf" -> containsSignature(b, new byte[]{'%', 'P', 'D', 'F'}, 1024);
             case "image/png"       -> startsWith(b, new byte[]{(byte) 0x89, 'P', 'N', 'G'});
             case "image/jpeg"      -> b.length > 2 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8;
             default                -> false;
@@ -174,6 +177,19 @@ public class WalletDocumentService {
         if (data.length < prefix.length) return false;
         for (int i = 0; i < prefix.length; i++) if (data[i] != prefix[i]) return false;
         return true;
+    }
+
+    /** True if {@code sig} appears anywhere within the first {@code window} bytes of {@code data}. */
+    private static boolean containsSignature(byte[] data, byte[] sig, int window) {
+        int limit = Math.min(data.length - sig.length, window);
+        for (int start = 0; start <= limit; start++) {
+            boolean match = true;
+            for (int j = 0; j < sig.length; j++) {
+                if (data[start + j] != sig[j]) { match = false; break; }
+            }
+            if (match) return true;
+        }
+        return false;
     }
 
     private static String blankToNull(String s) { return (s == null || s.isBlank()) ? null : s.trim(); }
