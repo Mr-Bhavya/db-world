@@ -114,6 +114,22 @@ class WalletShareServiceTest {
     }
 
     @Test
+    void listForDocument_returnsTokenForRecopy() {
+        WalletShareEntity share = new WalletShareEntity();
+        share.setId("s1"); share.setDocumentId("d1"); share.setCreatedByUserId(1L);
+        share.setTokenHash("H"); share.setToken("raw-token-123");
+        share.setExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+        share.setRevoked(false);
+
+        WalletDocumentEntity doc = new WalletDocumentEntity();
+        doc.setId("d1"); doc.setUserId(1L);
+        when(documentService.getOwnedEntity(1L, "d1")).thenReturn(doc);
+        when(shareRepo.findByDocumentIdAndRevokedFalse("d1")).thenReturn(java.util.List.of(share));
+
+        assertThat(service.listForDocument(1L, "d1").get(0).token()).isEqualTo("raw-token-123");
+    }
+
+    @Test
     void revoke_marksRevoked() {
         WalletShareEntity s = new WalletShareEntity();
         s.setId("s1"); s.setDocumentId("d1"); s.setCreatedByUserId(1L); s.setTokenHash("H");

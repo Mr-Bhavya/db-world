@@ -44,6 +44,7 @@ public class WalletShareService {
         e.setDocumentId(documentId);
         e.setCreatedByUserId(userId);
         e.setTokenHash(sha256Hex(rawToken));
+        e.setToken(rawToken);
         e.setExpiresAt(Instant.now().plus(req.expiresInHours(), ChronoUnit.HOURS));
         e.setMaxAccessCount(req.maxAccessCount());
         WalletShareEntity saved = shareRepo.save(e);
@@ -55,7 +56,7 @@ public class WalletShareService {
         documentService.getOwnedEntity(userId, documentId);
         return shareRepo.findByDocumentIdAndRevokedFalse(documentId).stream()
                 .filter(s -> s.getExpiresAt().isAfter(Instant.now()))
-                .map(s -> mapper.toShareDto(s, null))
+                .map(s -> mapper.toShareDto(s, s.getToken()))
                 .toList();
     }
 

@@ -1,5 +1,6 @@
 package com.db.dbworld.app.wallet.entity;
 
+import com.db.dbworld.security.crypto.StringCryptoConverter;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,6 +22,10 @@ public class WalletShareEntity {
     @Column(name = "document_id", nullable = false, length = 36) private String documentId;
     @Column(name = "created_by_user_id", nullable = false) private Long createdByUserId;
     @Column(name = "token_hash", nullable = false, length = 64) private String tokenHash;
+
+    @Convert(converter = StringCryptoConverter.class)
+    @Column(name = "token_enc", length = 512)
+    private String token;
 
     @Column(name = "expires_at", nullable = false) private Instant expiresAt;
     @Column(name = "max_access_count") private Integer maxAccessCount;
