@@ -125,6 +125,41 @@ class WalletDocumentServiceTest {
     }
 
     @Test
+    void replaceFile_happyPath_storesNewBlobUpdatesEntityAndDeletesOld() {
+        WalletDocumentEntity e = new WalletDocumentEntity();
+        e.setId("d1"); e.setUserId(1L);
+        e.setStoredFileName("old.enc");
+        e.setThumbnailStoredName("old.thumb.enc");
+        e.setContentType("image/png");
+        when(docRepo.findByIdAndUserId("d1", 1L)).thenReturn(Optional.of(e));
+        when(docRepo.save(any())).thenAnswer(a -> a.getArgument(0));
+
+        var dto = service.replaceFile(1L, "d1", pdf("%PDF-1.4 x".getBytes()));
+
+        assertThat(dto.contentType()).isEqualTo("application/pdf");
+        verify(storage).store(eq(1L), anyString(), any(byte[].class));
+        verify(storage).delete(1L, "old.enc");
+    }
+
+    @Test
+    void replaceFile_rejectsDisallowedType() {
+        WalletDocumentEntity e = new WalletDocumentEntity();
+        e.setId("d1"); e.setUserId(1L); e.setStoredFileName("old.enc");
+        when(docRepo.findByIdAndUserId("d1", 1L)).thenReturn(Optional.of(e));
+
+        MockMultipartFile exe = new MockMultipartFile("file", "x.exe", "application/x-msdownload", "MZ...".getBytes());
+        assertThatThrownBy(() -> service.replaceFile(1L, "d1", exe))
+                .isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
+    void replaceFile_whenNotOwner_throwsNotFound() {
+        when(docRepo.findByIdAndUserId("d1", 99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.replaceFile(99L, "d1", pdf("%PDF-1.4 x".getBytes())))
+                .isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
     void create_acceptsPdfWithLeadingBom() {
         when(docRepo.save(any())).thenAnswer(a -> {
             var e = a.getArgument(0, WalletDocumentEntity.class);

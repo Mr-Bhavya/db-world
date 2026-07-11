@@ -63,15 +63,82 @@ public class WalletDocumentService {
     public WalletDocumentDto create(Long userId, MultipartFile file, String typeId, String label,
                                     String number, LocalDate issueDate, LocalDate expiryDate, String notes,
                                     String holder) {
-        if (file == null || file.isEmpty()) {
-            throw new DbWorldException(HttpStatus.BAD_REQUEST, "A file is required");
-        }
         if (typeId == null || typeId.isBlank()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Document type is required");
         }
         WalletDocumentTypeEntity type = typeService.get(typeId);
         if (!type.isActive()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Document type is not active");
+        }
+        ValidatedUpload v = validateUpload(file);
+
+        String storedFileName = UUID.randomUUID() + ".enc";
+        storage.store(userId, storedFileName, v.bytes());
+
+        WalletDocumentEntity e = new WalletDocumentEntity();
+        e.setUserId(userId);
+        e.setDocumentTypeId(type.getId());
+        e.setLabel(label == null || label.isBlank() ? type.getDisplayName() : label.trim());
+        e.setDocumentNumber(blankToNull(number));
+        e.setIssueDate(issueDate);
+        e.setExpiryDate(expiryDate);
+        e.setNotes(blankToNull(notes));
+        e.setHolderName(blankToNull(holder));
+        e.setOriginalFileName(v.originalFileName());
+        e.setContentType(v.contentType());
+        e.setFileSize(v.bytes().length);
+        e.setStoredFileName(storedFileName);
+        // Best-effort: a thumbnail failure must never block the upload, so any exception
+        // is already swallowed inside WalletThumbnailer.generate — we just skip storing one.
+        thumbnailer.generate(v.bytes(), v.contentType()).ifPresent(thumb -> {
+            String thumbName = UUID.randomUUID() + ".thumb.enc";
+            storage.store(userId, thumbName, thumb);
+            e.setThumbnailStoredName(thumbName);
+        });
+        WalletDocumentEntity saved = docRepo.save(e);
+        log.info("Wallet document {} created for user {}", saved.getId(), userId);
+        return mapper.toDetail(saved, type);
+    }
+
+    @Transactional
+    public WalletDocumentDto replaceFile(Long userId, String id, MultipartFile file) {
+        WalletDocumentEntity e = getOwnedEntity(userId, id);
+        ValidatedUpload v = validateUpload(file);
+        String oldStored = e.getStoredFileName();
+        String oldThumb  = e.getThumbnailStoredName();
+
+        String newStored = UUID.randomUUID() + ".enc";
+        storage.store(userId, newStored, v.bytes());
+
+        String newThumb = null;
+        var thumb = thumbnailer.generate(v.bytes(), v.contentType());
+        if (thumb.isPresent()) {
+            newThumb = UUID.randomUUID() + ".thumb.enc";
+            storage.store(userId, newThumb, thumb.get());
+        }
+
+        e.setStoredFileName(newStored);
+        e.setThumbnailStoredName(newThumb);
+        e.setContentType(v.contentType());
+        e.setFileSize(v.bytes().length);
+        e.setOriginalFileName(v.originalFileName());
+        WalletDocumentEntity saved = docRepo.save(e);
+
+        // best-effort cleanup of the replaced blobs (after the row is updated)
+        storage.delete(userId, oldStored);
+        if (oldThumb != null) {
+            storage.delete(userId, oldThumb);
+        }
+
+        log.info("Wallet document {} file replaced for user {}", id, userId);
+        return mapper.toDetail(saved, typeService.byId().get(saved.getDocumentTypeId()));
+    }
+
+    private record ValidatedUpload(byte[] bytes, String contentType, String originalFileName) {}
+
+    private ValidatedUpload validateUpload(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "A file is required");
         }
         long maxSize = settings.getLong(ConfigKeys.WALLET_MAX_FILE_SIZE_BYTES);
         if (file.getSize() > maxSize) {
@@ -91,33 +158,7 @@ public class WalletDocumentService {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "File exceeds the maximum size of " + maxSize + " bytes");
         }
         validateMagic(bytes, contentType);
-
-        String storedFileName = UUID.randomUUID() + ".enc";
-        storage.store(userId, storedFileName, bytes);
-
-        WalletDocumentEntity e = new WalletDocumentEntity();
-        e.setUserId(userId);
-        e.setDocumentTypeId(type.getId());
-        e.setLabel(label == null || label.isBlank() ? type.getDisplayName() : label.trim());
-        e.setDocumentNumber(blankToNull(number));
-        e.setIssueDate(issueDate);
-        e.setExpiryDate(expiryDate);
-        e.setNotes(blankToNull(notes));
-        e.setHolderName(blankToNull(holder));
-        e.setOriginalFileName(safeName(file.getOriginalFilename()));
-        e.setContentType(contentType);
-        e.setFileSize(bytes.length);
-        e.setStoredFileName(storedFileName);
-        // Best-effort: a thumbnail failure must never block the upload, so any exception
-        // is already swallowed inside WalletThumbnailer.generate — we just skip storing one.
-        thumbnailer.generate(bytes, contentType).ifPresent(thumb -> {
-            String thumbName = UUID.randomUUID() + ".thumb.enc";
-            storage.store(userId, thumbName, thumb);
-            e.setThumbnailStoredName(thumbName);
-        });
-        WalletDocumentEntity saved = docRepo.save(e);
-        log.info("Wallet document {} created for user {}", saved.getId(), userId);
-        return mapper.toDetail(saved, type);
+        return new ValidatedUpload(bytes, contentType, safeName(file.getOriginalFilename()));
     }
 
     public WalletDocumentDto update(Long userId, String id, UpdateDocumentRequest req) {

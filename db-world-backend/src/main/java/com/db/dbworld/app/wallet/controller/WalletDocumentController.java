@@ -67,6 +67,12 @@ public class WalletDocumentController {
         return ApiResponse.success("Document updated", documentService.update(userContext.userId(), id, req));
     }
 
+    @PutMapping(value = "/documents/{id}/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<WalletDocumentDto> replaceFile(@PathVariable String id,
+                                                      @RequestParam("file") MultipartFile file) {
+        return ApiResponse.success("File updated", documentService.replaceFile(userContext.userId(), id, file));
+    }
+
     @DeleteMapping("/documents/{id}")
     public ApiResponse<Void> delete(@PathVariable String id) {
         documentService.delete(userContext.userId(), id);
