@@ -55,21 +55,21 @@ class WalletDocumentServiceTest {
     void create_rejectsOversizedFile() {
         when(settings.getLong(anyString())).thenReturn(3L); // 3-byte cap
         byte[] body = "%PDF-1.4 hello".getBytes();
-        assertThatThrownBy(() -> service.create(1L, pdf(body), "t1", null, null, null, null, null))
+        assertThatThrownBy(() -> service.create(1L, pdf(body), "t1", null, null, null, null, null, null))
                 .isInstanceOf(DbWorldException.class);
     }
 
     @Test
     void create_rejectsDisallowedContentType() {
         MockMultipartFile exe = new MockMultipartFile("file", "x.exe", "application/x-msdownload", "MZ...".getBytes());
-        assertThatThrownBy(() -> service.create(1L, exe, "t1", null, null, null, null, null))
+        assertThatThrownBy(() -> service.create(1L, exe, "t1", null, null, null, null, null, null))
                 .isInstanceOf(DbWorldException.class);
     }
 
     @Test
     void create_rejectsMagicByteMismatch() {
         byte[] notReallyPdf = "GIF89a".getBytes();
-        assertThatThrownBy(() -> service.create(1L, pdf(notReallyPdf), "t1", null, null, null, null, null))
+        assertThatThrownBy(() -> service.create(1L, pdf(notReallyPdf), "t1", null, null, null, null, null, null))
                 .isInstanceOf(DbWorldException.class);
     }
 
@@ -95,7 +95,7 @@ class WalletDocumentServiceTest {
     @Test
     void update_whenNotOwner_throwsNotFound() {
         when(docRepo.findByIdAndUserId("d1", 99L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.update(99L, "d1", new UpdateDocumentRequest("x", null, null, null, null)))
+        assertThatThrownBy(() -> service.update(99L, "d1", new UpdateDocumentRequest("x", null, null, null, null, null)))
                 .isInstanceOf(DbWorldException.class);
     }
 
@@ -113,10 +113,11 @@ class WalletDocumentServiceTest {
             return e;
         });
 
-        var dto = service.create(1L, pdf("%PDF-1.4 hello".getBytes()), "t1", null, null, null, null, null);
+        var dto = service.create(1L, pdf("%PDF-1.4 hello".getBytes()), "t1", null, null, null, null, null, "Spouse");
 
         assertThat(dto.typeCode()).isEqualTo(activeType.getCode());
         assertThat(dto.typeDisplayName()).isEqualTo(activeType.getDisplayName());
+        assertThat(dto.holderName()).isEqualTo("Spouse");
         verify(storage).store(eq(1L), anyString(), any(byte[].class));
     }
 
@@ -135,7 +136,7 @@ class WalletDocumentServiceTest {
         System.arraycopy(bom, 0, body, 0, bom.length);
         System.arraycopy(header, 0, body, bom.length, header.length);
 
-        var dto = service.create(1L, pdf(body), "t1", null, null, null, null, null);
+        var dto = service.create(1L, pdf(body), "t1", null, null, null, null, null, "Spouse");
 
         assertThat(dto).isNotNull();
         verify(storage).store(eq(1L), anyString(), any(byte[].class));

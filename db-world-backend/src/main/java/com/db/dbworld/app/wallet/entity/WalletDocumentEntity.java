@@ -28,6 +28,7 @@ public class WalletDocumentEntity {
     @Column(name = "user_id", nullable = false) private Long userId;
     @Column(name = "document_type_id", nullable = false, length = 36) private String documentTypeId;
     @Column(nullable = false, length = 150) private String label;
+    @Column(length = 120) private String holderName;
 
     @Convert(converter = StringCryptoConverter.class)
     @Lob @Column(columnDefinition = "LONGTEXT")

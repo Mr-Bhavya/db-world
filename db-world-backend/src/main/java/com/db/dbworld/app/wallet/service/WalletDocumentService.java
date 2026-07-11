@@ -60,7 +60,8 @@ public class WalletDocumentService {
     }
 
     public WalletDocumentDto create(Long userId, MultipartFile file, String typeId, String label,
-                                    String number, LocalDate issueDate, LocalDate expiryDate, String notes) {
+                                    String number, LocalDate issueDate, LocalDate expiryDate, String notes,
+                                    String holder) {
         if (file == null || file.isEmpty()) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "A file is required");
         }
@@ -101,6 +102,7 @@ public class WalletDocumentService {
         e.setIssueDate(issueDate);
         e.setExpiryDate(expiryDate);
         e.setNotes(blankToNull(notes));
+        e.setHolderName(blankToNull(holder));
         e.setOriginalFileName(safeName(file.getOriginalFilename()));
         e.setContentType(contentType);
         e.setFileSize(bytes.length);
@@ -117,6 +119,7 @@ public class WalletDocumentService {
         e.setIssueDate(req.issueDate());
         e.setExpiryDate(req.expiryDate());
         e.setNotes(blankToNull(req.notes()));
+        e.setHolderName(blankToNull(req.holderName()));
         WalletDocumentEntity saved = docRepo.save(e);
         return mapper.toDetail(saved, typeService.byId().get(saved.getDocumentTypeId()));
     }

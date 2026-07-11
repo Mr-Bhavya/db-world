@@ -54,9 +54,10 @@ public class WalletDocumentController {
             @RequestParam(required = false) String number,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate issueDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiryDate,
-            @RequestParam(required = false) String notes) {
+            @RequestParam(required = false) String notes,
+            @RequestParam(required = false) String holder) {
         WalletDocumentDto dto = documentService.create(userContext.userId(), file, typeId, label, number,
-                issueDate, expiryDate, notes);
+                issueDate, expiryDate, notes, holder);
         return ApiResponse.success("Document added", dto);
     }
 

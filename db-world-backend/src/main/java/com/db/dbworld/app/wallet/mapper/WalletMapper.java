@@ -26,7 +26,8 @@ public class WalletMapper {
                 type != null ? type.getCode() : null,
                 type != null ? type.getDisplayName() : null,
                 e.getLabel(), mask(e.getDocumentNumber()), e.getIssueDate(), e.getExpiryDate(),
-                e.getContentType(), e.getFileSize(), e.getCreatedAt(), e.getUpdatedAt(), shared);
+                e.getContentType(), e.getFileSize(), e.getCreatedAt(), e.getUpdatedAt(), shared,
+                e.getHolderName());
     }
 
     public WalletDocumentDto toDetail(WalletDocumentEntity e, WalletDocumentTypeEntity type) {
@@ -35,7 +36,7 @@ public class WalletMapper {
                 type != null ? type.getDisplayName() : null,
                 e.getLabel(), e.getDocumentNumber(), e.getIssueDate(), e.getExpiryDate(), e.getNotes(),
                 e.getOriginalFileName(), e.getContentType(), e.getFileSize(),
-                e.getCreatedAt(), e.getUpdatedAt());
+                e.getCreatedAt(), e.getUpdatedAt(), e.getHolderName());
     }
 
     public ShareDto toShareDto(WalletShareEntity e, String token) {

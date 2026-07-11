@@ -6,4 +6,4 @@ import java.time.LocalDate;
 public record WalletDocumentSummaryDto(String id, String typeId, String typeCode, String typeDisplayName,
                                        String label, String maskedNumber, LocalDate issueDate,
                                        LocalDate expiryDate, String contentType, long fileSize,
-                                       Instant createdAt, Instant updatedAt, boolean shared) {}
+                                       Instant createdAt, Instant updatedAt, boolean shared, String holderName) {}
