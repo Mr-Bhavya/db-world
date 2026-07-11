@@ -25,6 +25,7 @@ export const addDocument = (values, onProgress) => {
   if (values.issueDate)  fd.append('issueDate', values.issueDate);
   if (values.expiryDate) fd.append('expiryDate', values.expiryDate);
   if (values.notes)      fd.append('notes', values.notes);
+  if (values.holderName) fd.append('holder', values.holderName);
   return axiosInstance.post(`${BASE}/documents`, fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (e) => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),

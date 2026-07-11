@@ -15,27 +15,30 @@ export default function EditDocumentDialog({ docId, open, onClose }) {
   const update = useUpdateDocument();
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(editDocumentSchema),
-    defaultValues: { label: '', number: '', issueDate: '', expiryDate: '', notes: '' },
+    defaultValues: { label: '', number: '', issueDate: '', expiryDate: '', notes: '', holderName: '' },
   });
 
   useEffect(() => {
     if (doc) reset({
       label: doc.label ?? '', number: doc.documentNumber ?? '',
       issueDate: doc.issueDate ?? '', expiryDate: doc.expiryDate ?? '', notes: doc.notes ?? '',
+      holderName: doc.holderName ?? '',
     });
   }, [doc, reset]);
 
   const submit = (v) => update.mutate(
-    { id: docId, body: { label: v.label, documentNumber: v.number || null, issueDate: v.issueDate || null, expiryDate: v.expiryDate || null, notes: v.notes || null } },
+    { id: docId, body: { label: v.label, documentNumber: v.number || null, issueDate: v.issueDate || null, expiryDate: v.expiryDate || null, notes: v.notes || null, holderName: v.holderName || null } },
     { onSuccess: onClose },
   );
 
   const sx = { '& .MuiInputBase-root': { color: T.textPrimary }, '& label': { color: T.textMuted } };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: T.sidebar } }}>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', color: T.textPrimary }}>
-        Edit document <IconButton onClick={onClose} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
+      PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, borderRadius: 3 } }}>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary, fontWeight: 700 }}>
+        Edit document
+        <IconButton size="small" onClick={onClose} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
       </DialogTitle>
       {isLoading ? <DialogContent><CircularProgress sx={{ color: T.teal }} /></DialogContent> : (
         <form onSubmit={handleSubmit(submit)}>
@@ -44,6 +47,8 @@ export default function EditDocumentDialog({ docId, open, onClose }) {
               <Grid item xs={12}><Controller name="label" control={control} render={({ field }) => (
                 <TextField {...field} fullWidth size="small" label="Label" sx={sx}
                   error={!!errors.label} helperText={errors.label?.message} />)} /></Grid>
+              <Grid item xs={12}><Controller name="holderName" control={control} render={({ field }) => (
+                <TextField {...field} fullWidth size="small" label="Belongs to" sx={sx} />)} /></Grid>
               <Grid item xs={12}><Controller name="number" control={control} render={({ field }) => (
                 <TextField {...field} fullWidth size="small" label="Document number" sx={sx} />)} /></Grid>
               <Grid item xs={6}><Controller name="issueDate" control={control} render={({ field }) => (

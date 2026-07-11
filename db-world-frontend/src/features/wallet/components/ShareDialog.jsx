@@ -36,9 +36,11 @@ export default function ShareDialog({ doc, open, onClose }) {
   const copy = (url) => { navigator.clipboard.writeText(url); enqueueSnackbar('Link copied', { variant: 'success' }); };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: T.sidebar } }}>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', color: T.textPrimary }}>
-        Share &quot;{doc.label}&quot; <IconButton onClick={onClose} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
+      PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, borderRadius: 3 } }}>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary, fontWeight: 700 }}>
+        Share &quot;{doc.label}&quot;
+        <IconButton size="small" onClick={onClose} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Alert severity="warning">You are sharing a real government document. Anyone with the link can view it until it expires or you revoke it.</Alert>
@@ -64,7 +66,12 @@ export default function ShareDialog({ doc, open, onClose }) {
           {shares.length === 0 && <Typography sx={{ color: T.textMuted, fontSize: 13 }}>No active links.</Typography>}
           {shares.map((s) => (
             <ListItem key={s.id} secondaryAction={
-              <Button size="small" color="error" onClick={() => revoke.mutate(s.id)}>Revoke</Button>}>
+              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                <IconButton size="small" onClick={() => copy(buildShareUrl(s.token))} sx={{ color: T.teal }}>
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+                <Button size="small" color="error" onClick={() => revoke.mutate(s.id)}>Revoke</Button>
+              </Box>}>
               <ListItemText
                 primary={`Expires ${new Date(s.expiresAt).toLocaleString()}`}
                 secondary={`Views: ${s.accessCount}${s.maxAccessCount ? ` / ${s.maxAccessCount}` : ''}`}

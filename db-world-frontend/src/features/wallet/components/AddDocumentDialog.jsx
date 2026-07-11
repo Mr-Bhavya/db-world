@@ -27,7 +27,7 @@ export default function AddDocumentDialog({ open, onClose }) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(addDocumentSchema),
-    defaultValues: { typeId: '', label: '', number: '', issueDate: '', expiryDate: '', notes: '' },
+    defaultValues: { typeId: '', label: '', number: '', issueDate: '', expiryDate: '', notes: '', holderName: '' },
   });
   const { mutate, isPending } = useAddDocument();
 
@@ -52,8 +52,8 @@ export default function AddDocumentDialog({ open, onClose }) {
 
   return (
     <Dialog open={open} onClose={close} fullWidth maxWidth="sm"
-      PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.border}` } }}>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary }}>
+      PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, borderRadius: 3 } }}>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary, fontWeight: 700 }}>
         Add document
         <IconButton size="small" onClick={close} sx={{ color: T.textFaint }}><CloseIcon /></IconButton>
       </DialogTitle>
@@ -87,6 +87,11 @@ export default function AddDocumentDialog({ open, onClose }) {
               <Grid item xs={12}>
                 <Controller name="label" control={control} render={({ field }) => (
                   <TextField {...field} fullWidth size="small" label="Label (optional)" sx={fieldSx} />
+                )} />
+              </Grid>
+              <Grid item xs={12}>
+                <Controller name="holderName" control={control} render={({ field }) => (
+                  <TextField {...field} fullWidth size="small" label="Belongs to (e.g. Self, Spouse, Father)" sx={fieldSx} />
                 )} />
               </Grid>
               {(pickedType?.requiresNumber ?? false) && (

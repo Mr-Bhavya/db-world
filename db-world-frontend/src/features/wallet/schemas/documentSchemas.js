@@ -7,6 +7,7 @@ export const addDocumentSchema = z.object({
   issueDate:  z.string().optional().or(z.literal('')),
   expiryDate: z.string().optional().or(z.literal('')),
   notes:  z.string().max(2000).optional().or(z.literal('')),
+  holderName: z.string().max(120, 'Max 120 chars').optional().or(z.literal('')),
 });
 
 export const editDocumentSchema = z.object({
@@ -15,6 +16,7 @@ export const editDocumentSchema = z.object({
   issueDate:  z.string().optional().or(z.literal('')),
   expiryDate: z.string().optional().or(z.literal('')),
   notes:  z.string().max(2000).optional().or(z.literal('')),
+  holderName: z.string().max(120, 'Max 120 chars').optional().or(z.literal('')),
 });
 
 export const ACCEPTED_MIME = ['application/pdf', 'image/png', 'image/jpeg'];
