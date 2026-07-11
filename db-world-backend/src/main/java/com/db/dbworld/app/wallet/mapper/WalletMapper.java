@@ -21,12 +21,12 @@ public class WalletMapper {
                 e.getIconKey(), e.isRequiresNumber(), e.getNumberLabel(), e.isActive(), e.getSortOrder());
     }
 
-    public WalletDocumentSummaryDto toSummary(WalletDocumentEntity e, WalletDocumentTypeEntity type) {
+    public WalletDocumentSummaryDto toSummary(WalletDocumentEntity e, WalletDocumentTypeEntity type, boolean shared) {
         return new WalletDocumentSummaryDto(e.getId(), e.getDocumentTypeId(),
                 type != null ? type.getCode() : null,
                 type != null ? type.getDisplayName() : null,
                 e.getLabel(), mask(e.getDocumentNumber()), e.getIssueDate(), e.getExpiryDate(),
-                e.getContentType(), e.getFileSize(), e.getCreatedAt(), e.getUpdatedAt());
+                e.getContentType(), e.getFileSize(), e.getCreatedAt(), e.getUpdatedAt(), shared);
     }
 
     public WalletDocumentDto toDetail(WalletDocumentEntity e, WalletDocumentTypeEntity type) {

@@ -39,11 +39,13 @@ public class WalletDocumentService {
                 ? docRepo.findByUserIdOrderByCreatedAtDesc(userId)
                 : docRepo.findByUserIdAndDocumentTypeIdOrderByCreatedAtDesc(userId, typeId);
         Map<String, WalletDocumentTypeEntity> types = typeService.byId();
+        Set<String> sharedIds = new HashSet<>(
+                shareRepo.findActiveDocumentIdsByUser(userId, java.time.Instant.now()));
         String needle = q == null ? null : q.trim().toLowerCase();
         return docs.stream()
                 .filter(d -> needle == null || needle.isEmpty()
                         || d.getLabel().toLowerCase().contains(needle))
-                .map(d -> mapper.toSummary(d, types.get(d.getDocumentTypeId())))
+                .map(d -> mapper.toSummary(d, types.get(d.getDocumentTypeId()), sharedIds.contains(d.getId())))
                 .toList();
     }
 

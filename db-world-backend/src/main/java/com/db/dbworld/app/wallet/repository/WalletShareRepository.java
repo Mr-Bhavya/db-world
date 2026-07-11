@@ -16,6 +16,11 @@ public interface WalletShareRepository extends JpaRepository<WalletShareEntity, 
     List<WalletShareEntity> findByDocumentIdAndRevokedFalse(String documentId);
     long countByRevokedFalseAndExpiresAtAfter(Instant now);
 
+    /** Document ids owned by this user that currently have at least one live (non-revoked, non-expired) share. */
+    @Query("select distinct s.documentId from WalletShareEntity s " +
+           "where s.createdByUserId = :userId and s.revoked = false and s.expiresAt > :now")
+    List<String> findActiveDocumentIdsByUser(@Param("userId") Long userId, @Param("now") Instant now);
+
     @Modifying
     @Transactional
     void deleteByDocumentId(String documentId);
