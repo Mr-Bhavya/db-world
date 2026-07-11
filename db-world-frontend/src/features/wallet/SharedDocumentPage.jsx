@@ -33,7 +33,7 @@ export default function SharedDocumentPage() {
 
   const isPdf = info.contentType === 'application/pdf';
   return (
-    <Box sx={{ p: { xs: 2, sm: 4 }, color: T.textPrimary, maxWidth: 900, mx: 'auto' }}>
+    <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 4 }, pb: 4, color: T.textPrimary, maxWidth: 900, mx: 'auto' }}>
       <Typography sx={{ fontSize: 20, fontWeight: 800 }}>{info.label}</Typography>
       {info.typeDisplayName && <Typography sx={{ color: T.textMuted, mb: 2 }}>{info.typeDisplayName}</Typography>}
       <Box sx={{ my: 2, border: `1px solid ${T.border}`, borderRadius: 2, overflow: 'hidden' }}>

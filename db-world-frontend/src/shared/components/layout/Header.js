@@ -27,56 +27,30 @@ import {
 
 import {
   AdminPanelSettings as AdminIcon,
+  Apps as AppsIcon,
   Close as CloseIcon,
-  Cloud as WeatherIcon,
   DarkMode as DarkModeIcon,
   HowToReg as RegisterIcon,
   Insights as ActivityIcon,
+  KeyboardArrowDown as ArrowDownIcon,
   LightMode as LightModeIcon,
   Lock as LockIcon,
   Logout as LogoutIcon,
   Menu as MenuIcon,
-  Movie as CinemaIcon,
   Person as PersonIcon,
-  SportsEsports as GamesIcon,
-  VpnKey as PasswordIcon,
 } from '@mui/icons-material';
 
 import DbWorldLogo from '@assets/images/db-circle-icon.webp';
 import { useAuth } from '@features/auth/context/Authentication';
 import Constants from '@shared/constants';
 import { useThemeMode } from '@shared/theme';
+import { APPS } from '@shared/components/layout/home/homeData';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Navigation
+// Navigation — apps come from the shared home launcher list (homeData.APPS) so
+// the header never has to be kept in sync by hand and never crowds the bar: all
+// apps live behind a single "Apps" dropdown.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const NAV = [
-  {
-    id: 'cinema',
-    label: 'Cinema',
-    icon: <CinemaIcon />,
-    route: Constants.DB_CINEMA_BROWSE_ROUTE,
-  },
-  {
-    id: 'weather',
-    label: 'Weather',
-    icon: <WeatherIcon />,
-    route: Constants.DB_WEATHER_ROUTE,
-  },
-  {
-    id: 'games',
-    label: 'Games',
-    icon: <GamesIcon />,
-    route: Constants.DB_GAMES_ROUTE,
-  },
-  {
-    id: 'password',
-    label: 'Password Manager',
-    icon: <PasswordIcon />,
-    route: Constants.DB_PASSWORD_MANAGER_ROUTE,
-  },
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -112,69 +86,6 @@ const isRouteActive = (pathname, route) => {
   if (!route) return false;
   return pathname === route || pathname.startsWith(`${route}/`);
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Desktop Nav Link
-// ─────────────────────────────────────────────────────────────────────────────
-
-const NavLink = memo(function NavLink({ item, location, handleNav, T }) {
-  const active = isRouteActive(location.pathname, item.route);
-
-  return (
-    <Box
-      component="button"
-      type="button"
-      onClick={() => handleNav(item.route)}
-      aria-current={active ? 'page' : undefined}
-      sx={{
-        appearance: 'none',
-        border: 'none',
-        cursor: 'pointer',
-        maxWidth: {
-          md: 170,
-          lg: 220,
-          xl: 280,
-        },
-        px: {
-          md: 1.35,
-          lg: 1.75,
-          xl: 2.1,
-        },
-        py: {
-          md: 0.7,
-          xl: 0.9,
-        },
-        borderRadius: 1.7,
-        bgcolor: active ? T.tealBg : 'transparent',
-        color: active ? T.teal : T.textMuted,
-        fontFamily: 'inherit',
-        fontSize: {
-          md: '0.84rem',
-          xl: '0.95rem',
-        },
-        fontWeight: active ? 800 : 650,
-        whiteSpace: 'nowrap',
-        textOverflow: 'ellipsis',
-        overflow: 'hidden',
-        flexShrink: 0,
-        transition:
-          'color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease',
-        boxShadow: active ? `0 2px 0 0 ${T.teal}` : 'none',
-        ...focusSx(T.teal),
-        '&:hover': {
-          color: T.teal,
-          bgcolor: T.tealBg,
-          boxShadow: `0 2px 0 0 ${T.teal}`,
-        },
-      }}
-      title={item.label}
-    >
-      {item.label}
-    </Box>
-  );
-});
-
-NavLink.displayName = 'NavLink';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Theme Toggle Icon
@@ -357,8 +268,16 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
+  const [appsAnchor, setAppsAnchor] = useState(null);
 
   const initial = useMemo(() => getInitial(user), [user]);
+
+  // All launchable apps for this user (admin-only apps hidden for viewers),
+  // sourced from the single home-launcher list so the header never drifts.
+  const visibleApps = useMemo(
+    () => APPS.filter((app) => !app.adminOnly || isAdmin),
+    [isAdmin]
+  );
 
   const scrolledBg =
     mode === 'dark' ? 'rgba(10,10,15,0.88)' : 'rgba(255,255,255,0.92)';
@@ -394,6 +313,7 @@ const Header = () => {
       navigate(route);
       setDrawerOpen(false);
       setMenuAnchor(null);
+      setAppsAnchor(null);
     },
     [navigate]
   );
@@ -461,7 +381,8 @@ const Header = () => {
           >
             <BrandLogo onClick={() => handleNav(Constants.DB_WORLD_HOME_ROUTE)} />
 
-            {/* Desktop nav */}
+            {/* Desktop nav — a single "Apps" dropdown that lists every app, so
+                the bar never crowds as more apps are added. */}
             {!isMobile && isAuth && (
               <Box
                 component="nav"
@@ -469,30 +390,48 @@ const Header = () => {
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: {
-                    md: 0.4,
-                    lg: 0.6,
-                    xl: 0.8,
-                  },
                   flex: '1 1 auto',
                   minWidth: 0,
-                  overflowX: 'auto',
-                  overflowY: 'hidden',
-                  scrollbarWidth: 'none',
-                  '&::-webkit-scrollbar': {
-                    display: 'none',
-                  },
                 }}
               >
-                {NAV.map((item) => (
-                  <NavLink
-                    key={item.id}
-                    item={item}
-                    location={location}
-                    handleNav={handleNav}
-                    T={T}
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={(event) => setAppsAnchor(event.currentTarget)}
+                  aria-haspopup="menu"
+                  aria-expanded={Boolean(appsAnchor)}
+                  sx={{
+                    appearance: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.6,
+                    px: { md: 1.5, xl: 2 },
+                    py: { md: 0.7, xl: 0.9 },
+                    borderRadius: 1.7,
+                    bgcolor: appsAnchor ? T.tealBg : 'transparent',
+                    color: appsAnchor ? T.teal : T.textMuted,
+                    fontFamily: 'inherit',
+                    fontSize: { md: '0.84rem', xl: '0.95rem' },
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'color 0.2s ease, background-color 0.2s ease',
+                    ...focusSx(T.teal),
+                    '&:hover': { color: T.teal, bgcolor: T.tealBg },
+                  }}
+                >
+                  <AppsIcon sx={{ fontSize: { md: 19, xl: 21 } }} />
+                  Apps
+                  <ArrowDownIcon
+                    sx={{
+                      fontSize: { md: 18, xl: 20 },
+                      transition: 'transform 0.2s ease',
+                      transform: appsAnchor ? 'rotate(180deg)' : 'none',
+                    }}
                   />
-                ))}
+                </Box>
               </Box>
             )}
 
@@ -759,6 +698,60 @@ const Header = () => {
         </MenuItem>
       </Menu>
 
+      {/* Desktop apps menu */}
+      <Menu
+        anchorEl={appsAnchor}
+        open={Boolean(appsAnchor)}
+        onClose={() => setAppsAnchor(null)}
+        transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
+        PaperProps={{
+          sx: {
+            mt: 1,
+            minWidth: 240,
+            maxWidth: 300,
+            borderRadius: 2.5,
+            bgcolor: T.sidebar,
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${T.glassBorder}`,
+            backgroundImage: 'none',
+            '& .MuiMenuItem-root': {
+              fontSize: '0.875rem',
+              color: T.textMuted,
+              py: 1.1,
+              minHeight: 44,
+              '&:hover': { bgcolor: T.tealBg, color: T.text },
+              '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal },
+              '&.Mui-selected:hover': { bgcolor: T.tealBg, color: T.teal },
+            },
+          },
+        }}
+      >
+        {visibleApps.map((app) => {
+          const AppIcon = app.Icon;
+          const active = isRouteActive(location.pathname, app.route);
+
+          return (
+            <MenuItem
+              key={app.id}
+              selected={active}
+              onClick={() => handleNav(app.route)}
+            >
+              {AppIcon && (
+                <AppIcon
+                  sx={{
+                    fontSize: 19,
+                    mr: 1.5,
+                    color: active ? T.teal : T.textMuted,
+                  }}
+                />
+              )}
+              {app.label}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+
       {/* Mobile drawer */}
       <Drawer
         anchor="right"
@@ -956,8 +949,9 @@ const Header = () => {
               minWidth: 0,
             }}
           >
-            {(isAuth ? NAV : []).map((item) => {
+            {(isAuth ? visibleApps : []).map((item) => {
               const active = isRouteActive(location.pathname, item.route);
+              const ItemIcon = item.Icon;
 
               return (
                 <ListItemButton
@@ -983,7 +977,7 @@ const Header = () => {
                       minWidth: 38,
                     }}
                   >
-                    {item.icon}
+                    {ItemIcon && <ItemIcon />}
                   </ListItemIcon>
 
                   <ListItemText

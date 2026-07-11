@@ -43,7 +43,7 @@ export default function WalletPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 }, color: T.textPrimary }}>
+    <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 3, color: T.textPrimary }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Typography sx={{ fontSize: 22, fontWeight: 800 }}>Document Wallet</Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddOpen(true)}
