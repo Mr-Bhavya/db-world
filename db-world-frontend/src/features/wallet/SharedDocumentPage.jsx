@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Typography, Button, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
 import { useT } from '@shared/theme';
 import { fetchSharedInfo, fetchSharedContentBlob } from './api/walletApi';
 import { downloadBlob } from './utils/download';
 
 export default function SharedDocumentPage() {
   const T = useT();
+  const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const { token } = useParams();
   const [info, setInfo] = useState(null);
   const [blob, setBlob] = useState(null);
@@ -37,8 +39,8 @@ export default function SharedDocumentPage() {
       <Typography sx={{ fontSize: 20, fontWeight: 800 }}>{info.label}</Typography>
       {info.typeDisplayName && <Typography sx={{ color: T.textMuted, mb: 2 }}>{info.typeDisplayName}</Typography>}
       <Box sx={{ my: 2, border: `1px solid ${T.border}`, borderRadius: 2, overflow: 'hidden' }}>
-        {isPdf ? <iframe title={info.label} src={url} style={{ width: '100%', height: '75vh', border: 0 }} />
-               : <img alt={info.label} src={url} style={{ maxWidth: '100%' }} />}
+        {isPdf ? <iframe title={info.label} src={url} style={{ width: '100%', height: isPhone ? '60vh' : '75vh', border: 0 }} />
+               : <img alt={info.label} src={url} style={{ maxWidth: '100%', maxHeight: isPhone ? '60vh' : '75vh' }} />}
       </Box>
       <Button variant="contained" onClick={() => downloadBlob(blob, info.originalFileName || info.label || 'document')}
         sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>Download</Button>

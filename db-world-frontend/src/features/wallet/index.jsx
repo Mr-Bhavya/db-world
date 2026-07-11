@@ -44,7 +44,7 @@ export default function WalletPage() {
       .then(() => del.mutate(doc.id)).catch(() => {});
   };
 
-  const gridTemplateColumns = { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(3,1fr)' };
+  const gridTemplateColumns = { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(3,1fr)', xl: 'repeat(4,1fr)' };
 
   return (
     <Box sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, px: { xs: 2, sm: 3 }, pb: 3, color: T.textPrimary }}>
@@ -56,22 +56,29 @@ export default function WalletPage() {
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddOpen(true)}
-          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>Add document</Button>
+          sx={{ width: { xs: '100%', sm: 'auto' }, bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>Add document</Button>
       </Box>
 
       <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField size="small" placeholder="Search by label" value={q}
-          onChange={(e) => setQ(e.target.value)} sx={{ minWidth: 220 }} />
-        <Chip label="All" onClick={() => setTypeId('')} color={typeId === '' ? 'primary' : 'default'}
-          sx={{ transition: 'all 0.15s' }} />
-        {types.map((t) => (
-          <Chip key={t.id} label={t.displayName} onClick={() => setTypeId(t.id)}
-            color={typeId === t.id ? 'primary' : 'default'} sx={{ transition: 'all 0.15s' }} />
-        ))}
+          onChange={(e) => setQ(e.target.value)}
+          sx={{ minWidth: { xs: '100%', sm: 220 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }} />
+        <Box sx={{
+          display: 'flex', gap: 1, alignItems: 'center', overflowX: 'auto',
+          flexWrap: { xs: 'nowrap', sm: 'wrap' }, pb: 0.5, flex: { xs: '1 1 100%', sm: '0 0 auto' },
+          '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none',
+        }}>
+          <Chip label="All" onClick={() => setTypeId('')} color={typeId === '' ? 'primary' : 'default'}
+            sx={{ transition: 'all 0.15s', flexShrink: 0 }} />
+          {types.map((t) => (
+            <Chip key={t.id} label={t.displayName} onClick={() => setTypeId(t.id)}
+              color={typeId === t.id ? 'primary' : 'default'} sx={{ transition: 'all 0.15s', flexShrink: 0 }} />
+          ))}
+        </Box>
       </Box>
 
       {isLoading ? (
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns }}>
+        <Box sx={{ display: 'grid', gap: { xs: 1.5, sm: 2 }, gridTemplateColumns }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} variant="rounded" height={230} sx={{ bgcolor: T.glass }} />
           ))}
@@ -92,7 +99,7 @@ export default function WalletPage() {
           </Box>
         </motion.div>
       ) : (
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns }}>
+        <Box sx={{ display: 'grid', gap: { xs: 1.5, sm: 2 }, gridTemplateColumns }}>
           {docs.map((doc, i) => (
             <DocumentCard key={doc.id} doc={doc} index={i}
               onPreview={setPreviewDoc} onDownload={onDownload}

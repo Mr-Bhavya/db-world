@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Button, Typography, Divider } from '@mui/material';
+import {
+  Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Button, Typography, Divider,
+  useMediaQuery, useTheme,
+} from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -13,6 +16,8 @@ import { downloadBlob } from '../utils/download';
 
 export default function DocumentPreviewDialog({ doc, open, onClose }) {
   const T = useT();
+  const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const { enqueueSnackbar } = useSnackbar();
   const [url, setUrl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +64,7 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
   const numberValue = revealed && detail?.documentNumber ? detail.documentNumber : doc.maskedNumber;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={isPhone}
       PaperProps={{ sx: { bgcolor: T.sidebar } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: T.textPrimary }}>
         {doc.label}
@@ -71,8 +76,8 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
       <DialogContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, minHeight: 400 }}>
         <Box sx={{ flex: { xs: '0 0 auto', md: '1 1 60%' }, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
           {loading ? <CircularProgress sx={{ color: T.teal }} />
-            : isPdf ? <iframe title={doc.label} src={url} style={{ width: '100%', height: '65vh', border: 0 }} />
-            : <img alt={doc.label} src={url} style={{ maxWidth: '100%', maxHeight: '65vh' }} />}
+            : isPdf ? <iframe title={doc.label} src={url} style={{ width: '100%', height: isPhone ? '50vh' : '70vh', border: 0 }} />
+            : <img alt={doc.label} src={url} style={{ maxWidth: '100%', maxHeight: isPhone ? '50vh' : '70vh' }} />}
         </Box>
 
         <Box sx={{ flex: { xs: '0 0 auto', md: '0 0 260px' }, display: { xs: 'block', md: 'flex' } }}>
@@ -98,9 +103,6 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
                 </Box>
               </MetaRow>
             )}
-
-            {detail?.issueDate && <MetaRow label="Issue date" T={T}>{detail.issueDate}</MetaRow>}
-            {detail?.expiryDate && <MetaRow label="Expiry date" T={T}>{detail.expiryDate}</MetaRow>}
 
             {detail?.notes && (
               <MetaRow label="Notes" T={T}>

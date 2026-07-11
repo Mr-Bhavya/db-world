@@ -43,10 +43,12 @@ export default function DocumentTypesTab() {
         <Button startIcon={<AddIcon />} variant="contained" onClick={() => setDialog({ open: true, item: null })}
           sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>New type</Button>
       </Box>
-      <div style={{ height: 480 }}>
-        <DataGrid rows={types} columns={columns} loading={isLoading} getRowId={(r) => r.id}
-          disableRowSelectionOnClick density="compact" />
-      </div>
+      <Box sx={{ width: '100%', overflowX: 'auto' }}>
+        <Box sx={{ height: 480, minWidth: 600 }}>
+          <DataGrid rows={types} columns={columns} loading={isLoading} getRowId={(r) => r.id}
+            disableRowSelectionOnClick density="compact" />
+        </Box>
+      </Box>
       <TypeUpsertDialog open={dialog.open} editItem={dialog.item} onClose={() => setDialog({ open: false, item: null })} />
     </Box>
   );

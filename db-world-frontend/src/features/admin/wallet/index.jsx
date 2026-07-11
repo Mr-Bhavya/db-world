@@ -10,7 +10,7 @@ export default function WalletAdminPage() {
   return (
     <Box sx={{ p: { xs: 2, sm: 3 }, color: T.textPrimary }}>
       <Typography sx={{ fontSize: 20, fontWeight: 800, mb: 1 }}>Document Wallet</Typography>
-      <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ mb: 2 }}>
+      <Tabs value={tab} onChange={(_e, v) => setTab(v)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
         <Tab label="Document Types" />
         <Tab label="Monitor" />
       </Tabs>

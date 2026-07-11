@@ -53,7 +53,7 @@ export default function MonitorTab() {
         )}
       </Box>
 
-      <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2, p: 2 }}>
+      <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2, p: 2, width: '100%' }}>
         <Typography sx={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', mb: 1 }}>Documents by type</Typography>
         {perType.length === 0 ? <Typography sx={{ color: T.textMuted, fontSize: 13 }}>No documents yet.</Typography> : (
           <BarChart height={260}
@@ -63,11 +63,15 @@ export default function MonitorTab() {
         )}
       </Box>
 
-      <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2, p: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+      <Box sx={{
+        bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 2, p: 2,
+        display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1, alignItems: { xs: 'stretch', sm: 'center' },
+      }}>
         <TextField size="small" label="Max file size (bytes)" type="number" value={maxSize}
-          onChange={(e) => setMaxSize(e.target.value)} sx={{ maxWidth: 240 }} />
+          onChange={(e) => setMaxSize(e.target.value)}
+          sx={{ maxWidth: { xs: '100%', sm: 240 }, width: { xs: '100%', sm: 'auto' } }} />
         <Button variant="contained" onClick={() => saveConfig.mutate({ key: 'wallet.max-file-size-bytes', value: String(maxSize) })}
-          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover } }}>Save</Button>
+          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, width: { xs: '100%', sm: 'auto' } }}>Save</Button>
         <Typography sx={{ fontSize: 12, color: T.textFaint }}>
           Allowed types and other settings are on the Settings page.
         </Typography>

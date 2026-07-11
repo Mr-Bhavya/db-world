@@ -125,10 +125,10 @@ function ThumbArea({ doc, isImage, T }) {
   const showTypeChip = doc.typeDisplayName && doc.label !== doc.typeDisplayName;
 
   return (
-    <Box sx={{ width: '100%', height: 132, position: 'relative', flexShrink: 0 }}>
+    <Box sx={{ width: '100%', height: { xs: 150, sm: 132 }, position: 'relative', flexShrink: 0 }}>
       {doc.hasThumbnail ? (
         loading ? (
-          <Skeleton variant="rectangular" height={132} sx={{ bgcolor: T.glassHover }} />
+          <Skeleton variant="rectangular" sx={{ height: { xs: 150, sm: 132 }, bgcolor: T.glassHover }} />
         ) : error || !url ? (
           <TypeTile isImage={isImage} T={T} />
         ) : (
