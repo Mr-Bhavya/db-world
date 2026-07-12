@@ -96,6 +96,17 @@ export const downloadTicketUrl = async ({ locationId, path }) => {
 export const thumbnailUrl = ({ locationId, path }) =>
   `${getApiBaseUrl()}${BASE}/thumbnail?locationId=${encodeURIComponent(locationId)}&path=${encodeURIComponent(path)}`;
 
+/**
+ * Fetches the thumbnail as an authenticated Blob. The `/thumbnail` endpoint is
+ * `@AdminAccess`, so a plain `<img src={thumbnailUrl(...)}>` 401s — callers
+ * must fetch the bytes through axios (which carries the auth header) and
+ * render them via `URL.createObjectURL` (see `components/ThumbnailImage.jsx`).
+ */
+export const fetchThumbnailBlob = ({ locationId, path }) =>
+  axiosInstance
+    .get(`${BASE}/thumbnail`, { params: { locationId, path }, responseType: 'blob' })
+    .then(r => r.data);
+
 export const fetchTextPreview = ({ locationId, path }) =>
   axiosInstance
     .get(`${BASE}/preview/text`, { params: { locationId, path } })

@@ -34,6 +34,7 @@ import {
   abortUpload,
   downloadTicketUrl,
   thumbnailUrl,
+  fetchThumbnailBlob,
   fetchTextPreview,
 } from './fileManagerApi';
 
@@ -238,6 +239,19 @@ describe('fileManagerApi', () => {
       `https://api.test${BASE}/thumbnail?locationId=${encodeURIComponent('l1')}&path=${encodeURIComponent('/a b.jpg')}`
     );
     expect(axiosInstance.get).not.toHaveBeenCalled();
+  });
+
+  it('fetchThumbnailBlob GETs /thumbnail as a blob', async () => {
+    const blob = new Blob(['x']);
+    axiosInstance.get.mockResolvedValueOnce({ data: blob });
+
+    const result = await fetchThumbnailBlob({ locationId: 'l1', path: '/a.jpg' });
+
+    expect(axiosInstance.get).toHaveBeenCalledWith(`${BASE}/thumbnail`, {
+      params: { locationId: 'l1', path: '/a.jpg' },
+      responseType: 'blob',
+    });
+    expect(result).toBe(blob);
   });
 
   it('fetchTextPreview calls GET /preview/text', async () => {
