@@ -38,7 +38,7 @@ public class UploadSessionService {
 
     public UploadSessionDto init(InitUploadRequest req) throws IOException {
         locationService.resolveBase(req.locationId()); // validates location exists & is enabled
-        int chunkSize = req.chunkSize() != null ? req.chunkSize() : DEFAULT_CHUNK_SIZE;
+        int chunkSize = (req.chunkSize() == null || req.chunkSize() <= 0) ? DEFAULT_CHUNK_SIZE : req.chunkSize();
         String onConflict = req.onConflict() != null ? req.onConflict() : DEFAULT_ON_CONFLICT;
 
         UploadSessionEntity entity = UploadSessionEntity.builder()
@@ -67,20 +67,30 @@ public class UploadSessionService {
         return toDto(entity);
     }
 
-    public void appendChunk(String uploadId, int index, byte[] data) throws IOException {
+    public UploadSessionDto appendChunk(String uploadId, int index, byte[] data) throws IOException {
         UploadSessionEntity entity = getOrThrow(uploadId);
+
+        // Idempotent no-op: chunk already received (e.g. client retry after a dropped ack).
+        if (index < entity.getNextIndex()) {
+            return toDto(entity);
+        }
+        // Chunks must be written strictly in order so the assembled file is contiguous;
+        // an ahead-of-sequence chunk would zero-fill the gap and silently corrupt the file.
+        if (index > entity.getNextIndex()) {
+            throw new DbWorldException(HttpStatus.BAD_REQUEST,
+                    "Out-of-order chunk: expected index " + entity.getNextIndex() + " but got " + index);
+        }
+
         Path part = partFile(uploadId);
         try (RandomAccessFile raf = new RandomAccessFile(part.toFile(), "rw");
              FileChannel channel = raf.getChannel()) {
             long offset = (long) index * entity.getChunkSize();
             channel.write(ByteBuffer.wrap(data), offset);
         }
-        // Idempotent per index: re-sending an already-received chunk must not double-count.
-        if (index >= entity.getNextIndex()) {
-            entity.setReceivedBytes(entity.getReceivedBytes() + data.length);
-            entity.setNextIndex(index + 1);
-            repo.save(entity);
-        }
+        entity.setReceivedBytes(entity.getReceivedBytes() + data.length);
+        entity.setNextIndex(index + 1);
+        repo.save(entity);
+        return toDto(entity);
     }
 
     public UploadSessionDto status(String uploadId) {
@@ -136,7 +146,12 @@ public class UploadSessionService {
 
     public void abort(String uploadId) throws IOException {
         UploadSessionEntity entity = getOrThrow(uploadId);
-        Files.deleteIfExists(partFile(uploadId));
+        Path part = partFile(uploadId);
+        try {
+            Files.deleteIfExists(part);
+        } catch (IOException ex) {
+            log.warn("Upload abort: failed to delete part file {}", part, ex);
+        }
         repo.delete(entity);
         log.info("Upload session aborted id={}", uploadId);
     }

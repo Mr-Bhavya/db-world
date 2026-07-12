@@ -114,9 +114,28 @@ class UploadSessionServiceTest {
         UploadSessionDto s = svc.init(new InitUploadRequest("l", "/", "hi.txt", 5, 4, null, null));
 
         svc.appendChunk(s.getUploadId(), 0, new byte[]{'h', 'e', 'l', 'l'});
+        // Re-send of an already-received index (0 < nextIndex 1): idempotent no-op.
         svc.appendChunk(s.getUploadId(), 0, new byte[]{'h', 'e', 'l', 'l'});
 
         assertThat(svc.status(s.getUploadId()).getReceivedBytes()).isEqualTo(4);
+        assertThat(svc.status(s.getUploadId()).getNextIndex()).isEqualTo(1);
+    }
+
+    @Test
+    void appendChunk_outOfOrder_throws() throws Exception {
+        UploadSessionDto s = svc.init(new InitUploadRequest("l", "/", "hi.txt", 5, 4, null, null));
+
+        assertThatThrownBy(() -> svc.appendChunk(s.getUploadId(), 2, new byte[]{'o'}))
+                .isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
+    void init_nonPositiveChunkSize_fallsBackToDefault() throws Exception {
+        UploadSessionDto s = svc.init(new InitUploadRequest("l", "/", "big.bin", 20, 0, null, null));
+        assertThat(s.getChunkSize()).isEqualTo(8388608);
+
+        UploadSessionDto s2 = svc.init(new InitUploadRequest("l", "/", "big2.bin", 20, -1, null, null));
+        assertThat(s2.getChunkSize()).isEqualTo(8388608);
     }
 
     @Test
