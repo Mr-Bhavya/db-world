@@ -1,9 +1,10 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Box, Typography, IconButton, Divider, Skeleton } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 import ThumbnailImage from './ThumbnailImage';
@@ -25,6 +26,10 @@ function MobileRow({ item, selected, onOpen, onContextMenu, visibleItems }) {
       pressTimer.current = null;
     }
   };
+
+  // Guard against the pending long-press timer firing (toggling selection)
+  // after the row has already unmounted, e.g. navigating away mid-press.
+  useEffect(() => () => clearTimer(), []);
 
   const handlePointerDown = () => {
     longPressed.current = false;
@@ -78,7 +83,9 @@ function MobileRow({ item, selected, onOpen, onContextMenu, visibleItems }) {
           {item.name}
         </Typography>
         <Typography sx={{ fontSize: 11, color: T.textFaint }}>
-          {item.directory ? `${item.childCount} items` : item.formattedSize}
+          {item.directory
+            ? (item.childCount > 0 ? `${item.childCount} items` : 'Folder')
+            : item.formattedSize}
           {item.lastModified && ` · ${format(new Date(item.lastModified), 'MMM d, yyyy')}`}
         </Typography>
       </Box>
@@ -130,18 +137,26 @@ export default function FileMobileList({ items = [], isLoading = false, onOpen, 
 
   return (
     <Box>
-      {visibleItems.map((item, idx) => (
-        <Box key={item.path}>
-          <MobileRow
-            item={item}
-            selected={selection.has(item.path)}
-            onOpen={onOpen}
-            onContextMenu={onContextMenu}
-            visibleItems={visibleItems}
-          />
-          {idx < visibleItems.length - 1 && <Divider sx={{ borderColor: T.border, mx: 2 }} />}
-        </Box>
-      ))}
+      <AnimatePresence>
+        {visibleItems.map((item, idx) => (
+          <motion.div
+            key={item.path}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ delay: Math.min(idx * 0.012, 0.25), duration: 0.15 }}
+          >
+            <MobileRow
+              item={item}
+              selected={selection.has(item.path)}
+              onOpen={onOpen}
+              onContextMenu={onContextMenu}
+              visibleItems={visibleItems}
+            />
+            {idx < visibleItems.length - 1 && <Divider sx={{ borderColor: T.border, mx: 2 }} />}
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
       {truncated && (
         <Box sx={{ px: 2, py: 1.5, textAlign: 'center' }}>

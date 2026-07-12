@@ -77,7 +77,12 @@ export default function InfoDrawer({ open, item, onClose, onDownload, onRename, 
           <Box sx={{ flex: 1, overflowY: 'auto', px: 2, py: 1.5 }}>
             <Row label="Path" value={item.path} />
             {location && <Row label="Location" value={location.label} />}
-            <Row label="Size" value={item.directory ? `${item.childCount} items` : item.formattedSize} />
+            <Row
+              label="Size"
+              value={item.directory
+                ? (item.childCount > 0 ? `${item.childCount} items` : 'Folder')
+                : item.formattedSize}
+            />
             {!item.directory && <Row label="MIME Type" value={item.mimeType || '—'} />}
             {item.lastModified && (
               <Row label="Modified" value={format(new Date(item.lastModified), 'MMM d, yyyy HH:mm')} />

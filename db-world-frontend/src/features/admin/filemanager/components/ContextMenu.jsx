@@ -28,6 +28,7 @@ export default function ContextMenu({
 }) {
   const T = useT();
   const selection = useFileManagerStore((s) => s.selection);
+  const navigate = useFileManagerStore((s) => s.navigate);
 
   if (!contextState) return null;
 
@@ -40,6 +41,11 @@ export default function ContextMenu({
 
   const fireSingle = (fn) => () => { onClose?.(); fn?.(item); };
   const fireTarget = (fn) => () => { onClose?.(); fn?.(target); };
+  const handleOpen = () => {
+    onClose?.();
+    if (item?.directory) navigate(item.path);
+    else onOpen?.(item);
+  };
 
   return (
     <Menu
@@ -55,7 +61,7 @@ export default function ContextMenu({
       }}
     >
       {!multi && (
-        <MenuItem onClick={fireSingle(onOpen)} sx={menuItemSx}>
+        <MenuItem onClick={handleOpen} sx={menuItemSx}>
           <OpenInNewIcon sx={iconSx} /> Open
         </MenuItem>
       )}

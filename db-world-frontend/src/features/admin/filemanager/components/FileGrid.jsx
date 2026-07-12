@@ -80,7 +80,9 @@ function FileCard({ item, selected, onOpen, onContextMenu, visibleItems }) {
         {item.name}
       </Typography>
       <Typography sx={{ fontSize: 10.5, color: T.textFaint, textAlign: 'center' }}>
-        {item.directory ? `${item.childCount} item${item.childCount === 1 ? '' : 's'}` : item.formattedSize}
+        {item.directory
+          ? (item.childCount > 0 ? `${item.childCount} item${item.childCount === 1 ? '' : 's'}` : 'Folder')
+          : item.formattedSize}
       </Typography>
     </Box>
   );

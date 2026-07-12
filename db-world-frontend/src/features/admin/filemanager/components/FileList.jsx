@@ -108,7 +108,9 @@ function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRen
         </Box>
 
         <Typography sx={{ width: COL.size, fontSize: 12, color: T.textMuted }}>
-          {item.directory ? `${item.childCount} items` : item.formattedSize}
+          {item.directory
+            ? (item.childCount > 0 ? `${item.childCount} items` : 'Folder')
+            : item.formattedSize}
         </Typography>
         <Typography sx={{ width: COL.modified, fontSize: 12, color: T.textMuted }}>
           {item.lastModified ? format(new Date(item.lastModified), 'MMM d, yyyy HH:mm') : '—'}
