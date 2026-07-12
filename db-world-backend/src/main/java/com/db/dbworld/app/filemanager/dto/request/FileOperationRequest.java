@@ -5,6 +5,7 @@ import lombok.Data;
 
 @Data
 public class FileOperationRequest {
+    @NotBlank private String locationId;
     @NotBlank private String sourcePath;
     @NotBlank private String destinationPath;
 }

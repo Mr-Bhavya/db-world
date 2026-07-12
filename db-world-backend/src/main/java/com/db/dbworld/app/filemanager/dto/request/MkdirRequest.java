@@ -5,6 +5,7 @@ import lombok.Data;
 
 @Data
 public class MkdirRequest {
+    @NotBlank private String locationId;
     @NotBlank private String path;
     @NotBlank private String name;
 }
