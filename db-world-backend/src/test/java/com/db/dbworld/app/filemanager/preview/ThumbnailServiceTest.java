@@ -3,8 +3,10 @@ package com.db.dbworld.app.filemanager.preview;
 import com.db.dbworld.app.filemanager.location.FileLocationService;
 import com.db.dbworld.app.wallet.service.WalletThumbnailer;
 import com.db.dbworld.config.AppProperties;
+import com.db.dbworld.core.exception.DbWorldException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -12,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -68,4 +71,20 @@ class ThumbnailServiceTest {
         }
         assertThat(cachedCountAfterSecond).isEqualTo(1);
     }
+
+    @Test
+    void unsupportedType_throwsNotFound_gracefullyNo500() throws Exception {
+        Files.writeString(base.resolve("notes.txt"), "not an image");
+
+        assertThatThrownBy(() -> svc.thumbnail("l1", "/notes.txt"))
+                .isInstanceOf(DbWorldException.class)
+                .extracting(ex -> ((DbWorldException) ex).getHttpStatus())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    // NOTE: the 50MB oversized-source-file cap (MAX_THUMBNAIL_SOURCE_BYTES in ThumbnailService)
+    // is intentionally not covered by a dedicated test here — actually materializing a >50MB temp
+    // file per test run is expensive/slow, and the prod cap constant must not be weakened just to
+    // make it cheap to test. The unsupported-type test above covers the same "graceful 404, never
+    // a 500" contract via a different code path.
 }

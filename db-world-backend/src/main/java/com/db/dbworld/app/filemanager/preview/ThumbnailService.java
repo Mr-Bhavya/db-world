@@ -35,6 +35,9 @@ public class ThumbnailService {
 
     private static final String CACHE_DIR_NAME = "fm-thumbs";
 
+    /** Source files larger than this are never loaded into memory for thumbnailing. */
+    private static final long MAX_THUMBNAIL_SOURCE_BYTES = 52_428_800; // 50 MB
+
     private final FileLocationService locationService;
     private final WalletThumbnailer walletThumbnailer;
     private final AppProperties appProperties;
@@ -42,9 +45,17 @@ public class ThumbnailService {
     public byte[] thumbnail(String locationId, String path) throws IOException {
         log.debug("thumbnail locationId={} path={}", locationId, path);
         Path base = locationService.resolveBase(locationId);
-        Path file = PathJail.resolve(base, path);
+        Path file;
+        try {
+            file = PathJail.resolveReal(base, path);
+        } catch (IOException e) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, "File not found: " + path);
+        }
         if (!Files.isRegularFile(file)) {
             throw new DbWorldException(HttpStatus.NOT_FOUND, "Not a file: " + path);
+        }
+        if (Files.size(file) > MAX_THUMBNAIL_SOURCE_BYTES) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, "File too large for thumbnail: " + path);
         }
 
         BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);

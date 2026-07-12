@@ -33,7 +33,12 @@ public class TextPreviewService {
     public TextPreviewDto readHead(String locationId, String path, int maxBytes) throws IOException {
         log.debug("readHead locationId={} path={} maxBytes={}", locationId, path, maxBytes);
         Path base = locationService.resolveBase(locationId);
-        Path file = PathJail.resolve(base, path);
+        Path file;
+        try {
+            file = PathJail.resolveReal(base, path);
+        } catch (IOException e) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, "File not found: " + path);
+        }
         if (!Files.isRegularFile(file)) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Not a file: " + path);
         }

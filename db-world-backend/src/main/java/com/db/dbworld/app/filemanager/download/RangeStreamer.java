@@ -41,33 +41,37 @@ public final class RangeStreamer {
 
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             String spec = rangeHeader.substring("bytes=".length());
-            String[] parts = spec.split("-", 2);
-            try {
-                long rangeStart = parts[0].isBlank() ? -1 : Long.parseLong(parts[0].trim());
-                long rangeEnd = (parts.length > 1 && !parts[1].isBlank()) ? Long.parseLong(parts[1].trim()) : total - 1;
+            // A blank spec (e.g. bare "bytes=") or one with no "-" isn't a usable range —
+            // fall back to a full 200 response rather than misreading it as a suffix range.
+            if (!spec.isBlank() && spec.contains("-")) {
+                String[] parts = spec.split("-", 2);
+                try {
+                    long rangeStart = parts[0].isBlank() ? -1 : Long.parseLong(parts[0].trim());
+                    long rangeEnd = (parts.length > 1 && !parts[1].isBlank()) ? Long.parseLong(parts[1].trim()) : total - 1;
 
-                if (rangeStart < 0) {
-                    // Suffix range "bytes=-N" — last N bytes.
-                    long suffixLength = rangeEnd;
-                    rangeStart = Math.max(0, total - suffixLength);
-                    rangeEnd = total - 1;
-                }
-                if (rangeEnd >= total) rangeEnd = total - 1;
+                    if (rangeStart < 0) {
+                        // Suffix range "bytes=-N" — last N bytes.
+                        long suffixLength = rangeEnd;
+                        rangeStart = Math.max(0, total - suffixLength);
+                        rangeEnd = total - 1;
+                    }
+                    if (rangeEnd >= total) rangeEnd = total - 1;
 
-                if (rangeStart <= rangeEnd && rangeStart < total) {
-                    start = rangeStart;
-                    end = rangeEnd;
-                    partial = true;
-                } else {
-                    resp.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
-                    resp.setHeader("Content-Range", "bytes */" + total);
-                    return;
+                    if (rangeStart <= rangeEnd && rangeStart < total) {
+                        start = rangeStart;
+                        end = rangeEnd;
+                        partial = true;
+                    } else {
+                        resp.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+                        resp.setHeader("Content-Range", "bytes */" + total);
+                        return;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Malformed range header — fall back to a full 200 response.
+                    partial = false;
+                    start = 0;
+                    end = total == 0 ? 0 : total - 1;
                 }
-            } catch (NumberFormatException ignored) {
-                // Malformed range header — fall back to a full 200 response.
-                partial = false;
-                start = 0;
-                end = total == 0 ? 0 : total - 1;
             }
         }
 

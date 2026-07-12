@@ -37,7 +37,12 @@ public class DownloadService {
     public String issueTicket(String locationId, String path) throws IOException {
         log.debug("issueTicket locationId={} path={}", locationId, path);
         Path base = locationService.resolveBase(locationId);
-        Path file = PathJail.resolve(base, path);
+        Path file;
+        try {
+            file = PathJail.resolveReal(base, path);
+        } catch (IOException e) {
+            throw new DbWorldException(HttpStatus.NOT_FOUND, "File not found: " + path);
+        }
         if (!Files.isRegularFile(file)) {
             throw new DbWorldException(HttpStatus.BAD_REQUEST, "Not a file: " + path);
         }
@@ -61,7 +66,14 @@ public class DownloadService {
             return;
         }
         Path base = locationService.resolveBase(ticket.locationId());
-        Path file = PathJail.resolve(base, ticket.path());
+        Path file;
+        try {
+            file = PathJail.resolveReal(base, ticket.path());
+        } catch (IOException e) {
+            log.warn("Download ticket path no longer resolves: {}", ticket.path());
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "File not found");
+            return;
+        }
         // asAttachment=false: keeps Content-Type as the real MIME so <video>/<audio> tags can play
         // inline and seek via range requests, rather than forcing a browser "Save As" download.
         RangeStreamer.stream(file, rangeHeader, response, false);

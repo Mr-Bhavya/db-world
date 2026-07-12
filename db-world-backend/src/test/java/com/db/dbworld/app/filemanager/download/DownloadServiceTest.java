@@ -1,6 +1,7 @@
 package com.db.dbworld.app.filemanager.download;
 
 import com.db.dbworld.app.filemanager.location.FileLocationService;
+import com.db.dbworld.core.exception.DbWorldException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -9,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -67,5 +69,19 @@ class DownloadServiceTest {
         svc.streamByTicket(ticket, null, resp);
 
         assertThat(resp.getStatus()).isEqualTo(410);
+    }
+
+    @Test
+    void issueTicket_nonExistentPath_throwsDbWorldException() {
+        assertThatThrownBy(() -> svc.issueTicket("l1", "/does-not-exist.txt"))
+                .isInstanceOf(DbWorldException.class);
+    }
+
+    @Test
+    void issueTicket_directoryPath_throwsDbWorldException() throws Exception {
+        Files.createDirectory(base.resolve("subdir"));
+
+        assertThatThrownBy(() -> svc.issueTicket("l1", "/subdir"))
+                .isInstanceOf(DbWorldException.class);
     }
 }
