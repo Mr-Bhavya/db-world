@@ -127,19 +127,19 @@ class FileOperationsServiceTest {
 
     @Test
     void mkdir_rejects_slash_in_name() {
-        assertThatThrownBy(() -> svc.mkdir("l", "/", "a/b")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> svc.mkdir("l", "/", "a/b")).isInstanceOf(DbWorldException.class);
     }
 
     @Test
     void mkdir_rejects_traversal_in_name() {
-        assertThatThrownBy(() -> svc.mkdir("l", "/", "..")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> svc.mkdir("l", "/", "..")).isInstanceOf(DbWorldException.class);
     }
 
     @Test
     void rename_rejects_backslash_in_name() throws Exception {
         svc.mkdir("l", "/", "old");
 
-        assertThatThrownBy(() -> svc.renameItem("l", "/old", "a\\b")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> svc.renameItem("l", "/old", "a\\b")).isInstanceOf(DbWorldException.class);
     }
 
     @Test

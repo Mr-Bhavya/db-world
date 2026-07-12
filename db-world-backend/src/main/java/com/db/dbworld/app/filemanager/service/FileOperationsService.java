@@ -5,9 +5,11 @@ import com.db.dbworld.app.filemanager.dto.FileListDto;
 import com.db.dbworld.app.filemanager.location.FileLocationService;
 import com.db.dbworld.app.filemanager.mapper.FileMetadataMapper;
 import com.db.dbworld.app.filemanager.path.PathJail;
+import com.db.dbworld.core.exception.DbWorldException;
 import jakarta.annotation.Nonnull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -37,7 +39,7 @@ public class FileOperationsService {
         log.debug("list locationId={} path={} sortBy={} order={}", locationId, path, sortBy, order);
         Path base = locationService.resolveBase(locationId);
         Path dir = PathJail.resolve(base, path);
-        if (!Files.isDirectory(dir)) throw new IllegalArgumentException("Not a directory: " + path);
+        if (!Files.isDirectory(dir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Not a directory: " + path);
 
         List<FileItemDto> items = new ArrayList<>();
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
@@ -120,7 +122,7 @@ public class FileOperationsService {
         log.info("mkdir locationId={} parent={} name={}", locationId, parentPath, name);
         Path base = locationService.resolveBase(locationId);
         Path parent = PathJail.resolve(base, parentPath); // validates parentPath is within jail and exists
-        if (!Files.isDirectory(parent)) throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
+        if (!Files.isDirectory(parent)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Parent path is not a directory: " + parentPath);
         rejectUnsafeName(name);
         Path newDir = PathJail.resolve(base, parentPath + "/" + name);
         try {
@@ -155,7 +157,7 @@ public class FileOperationsService {
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolve(base, sourcePath);
         Path destDir = PathJail.resolve(base, destinationPath);
-        if (!Files.isDirectory(destDir)) throw new IllegalArgumentException("Destination must be a directory");
+        if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
         Path dest = PathJail.resolve(base, destinationPath + "/" + source.getFileName().toString());
         if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
         try {
@@ -174,7 +176,7 @@ public class FileOperationsService {
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolveReal(base, sourcePath); // symlink-sensitive: following a link must not escape the jail
         Path destDir = PathJail.resolve(base, destinationPath);
-        if (!Files.isDirectory(destDir)) throw new IllegalArgumentException("Destination must be a directory");
+        if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
         Path dest = PathJail.resolve(base, destinationPath + "/" + source.getFileName().toString());
         try {
             if (Files.isDirectory(source)) {
@@ -243,7 +245,7 @@ public class FileOperationsService {
     private static void rejectUnsafeName(String name) {
         if (name == null || name.contains("/") || name.contains("\\") || name.contains("..")) {
             log.warn("Rejected invalid name: {}", name);
-            throw new IllegalArgumentException("Invalid name: " + name);
+            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Invalid name: " + name);
         }
     }
 }
