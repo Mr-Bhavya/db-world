@@ -21,6 +21,7 @@ export function useInvalidateFm() {
   const invalidateDir = (locationId) => {
     queryClient.invalidateQueries({ queryKey: ['file-manager', locationId] });
     queryClient.invalidateQueries({ queryKey: ['file-manager', 'tree'] });
+    queryClient.invalidateQueries({ queryKey: ['file-manager', 'search', locationId] });
   };
 
   /** Invalidates the locations list (rail, mobile menu, LocationManagerDialog table). */

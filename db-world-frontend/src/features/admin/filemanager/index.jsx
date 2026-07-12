@@ -243,9 +243,14 @@ export default function FileManager() {
   const handlePaste = useCallback(async () => {
     if (!clipboard || !locationId) return;
     const { mode, items: clipItems } = clipboard;
+    if (clipItems.some((item) => item.locationId !== locationId)) {
+      enqueueSnackbar('Cannot paste across locations', { variant: 'warning' });
+      clearClipboard();
+      return;
+    }
     const op = mode === 'copy' ? fmApi.copyItem : fmApi.moveItem;
     const results = await Promise.allSettled(
-      clipItems.map((item) => op({ locationId: item.locationId, sourcePath: item.path, destinationPath: path }))
+      clipItems.map((item) => op({ locationId, sourcePath: item.path, destinationPath: path }))
     );
     invalidateDir(locationId);
     clearClipboard();
@@ -374,6 +379,12 @@ export default function FileManager() {
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
 
+      const anyOverlayOpen = !!(
+        contextMenu || previewItem || infoItem || moveCopyMode || renameTarget
+        || newFolderOpen || locationManagerOpen || confirmDelete?.open
+      );
+      if (e.key !== 'Escape' && anyOverlayOpen) return;
+
       const mod = e.ctrlKey || e.metaKey;
 
       if (e.key === 'F2') {
@@ -422,6 +433,8 @@ export default function FileManager() {
   }, [
     isMobile, resolveItems, items, selectAll, openRename, handleDeleteRequest,
     handleCopyToClipboard, handleCutToClipboard, handlePaste, handleOpen, handleEscape,
+    contextMenu, previewItem, infoItem, moveCopyMode, renameTarget,
+    newFolderOpen, locationManagerOpen, confirmDelete,
   ]);
 
   /* ─── Render ─────────────────────────────────────────────────────────── */
