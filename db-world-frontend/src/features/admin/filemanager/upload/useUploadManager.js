@@ -43,6 +43,7 @@ export function useUploadManager() {
       onProgress: ({ sent, speed, etaSec }) => updateUpload(id, { sent, speed, etaSec }),
       onDone: (fileItem) => {
         updateUpload(id, { status: 'done', sent: file.size });
+        registry.delete(id);
         invalidateDir(locationId);
         enqueueSnackbar(`${fileItem?.name ?? file.name} uploaded`, { variant: 'success' });
       },
@@ -85,5 +86,11 @@ export function useUploadManager() {
     beginOne(id, entry.file, entry.locationId, entry.path);
   }, [beginOne]);
 
-  return { startUploads, pause, resume, cancel, retry };
+  /** Tray "dismiss" for a finished/errored row: drops it from both the registry and the store. */
+  const remove = useCallback((id) => {
+    registry.delete(id);
+    removeUpload(id);
+  }, [removeUpload]);
+
+  return { startUploads, pause, resume, cancel, retry, remove };
 }

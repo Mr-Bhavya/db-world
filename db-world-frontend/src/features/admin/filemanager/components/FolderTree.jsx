@@ -13,12 +13,15 @@ import { useFileManagerStore } from '../store/useFileManagerStore';
  * node is expanded, filtered down to directories — this is a navigation
  * tree, not a full listing.
  */
-function FolderTreeNode({ locationId, path, name, depth, defaultExpanded = false, onDropItems }) {
+function FolderTreeNode({
+  locationId, path, name, depth, defaultExpanded = false, onDropItems, onSelect, selectedPath,
+}) {
   const T = useT();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [dragOver, setDragOver] = useState(false);
-  const activePath = useFileManagerStore((s) => s.path);
+  const storePath = useFileManagerStore((s) => s.path);
   const navigate = useFileManagerStore((s) => s.navigate);
+  const activePath = onSelect ? selectedPath : storePath;
   const active = activePath === path;
 
   const { data, isLoading } = useQuery({
@@ -35,7 +38,7 @@ function FolderTreeNode({ locationId, path, name, depth, defaultExpanded = false
   return (
     <Box>
       <Box
-        onClick={() => navigate(path)}
+        onClick={() => (onSelect ? onSelect(path) : navigate(path))}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); onDropItems?.(path); }}
@@ -82,6 +85,8 @@ function FolderTreeNode({ locationId, path, name, depth, defaultExpanded = false
               name={child.name}
               depth={depth + 1}
               onDropItems={onDropItems}
+              onSelect={onSelect}
+              selectedPath={selectedPath}
             />
           ))
         )}
@@ -96,7 +101,7 @@ function FolderTreeNode({ locationId, path, name, depth, defaultExpanded = false
  * (highlighted on dragover) but the drag *source* wiring (selected items) is
  * owned by the grid/list views built in a later group.
  */
-export default function FolderTree({ locationId, onDropItems }) {
+export default function FolderTree({ locationId, onDropItems, onSelect, selectedPath }) {
   if (!locationId) return null;
   return (
     <Box sx={{ py: 0.5 }}>
@@ -107,6 +112,8 @@ export default function FolderTree({ locationId, onDropItems }) {
         depth={0}
         defaultExpanded
         onDropItems={onDropItems}
+        onSelect={onSelect}
+        selectedPath={selectedPath}
       />
     </Box>
   );

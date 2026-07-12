@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useState } from 'react';
 import {
   Box, Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Typography, IconButton, CircularProgress,
@@ -15,27 +15,18 @@ import FolderTree from './FolderTree';
 
 /**
  * Move/copy `items` (within a single `locationId`) to a destination folder
- * picked from the location's `FolderTree`. `FolderTree` has no dedicated
- * "picker" mode — clicking a node calls the shared store's `navigate(path)`,
- * the same action the main content pane uses to browse — so this dialog
- * reuses that as the pick mechanism (the clicked/active path IS the chosen
- * destination) and restores whatever path was active before the dialog
- * opened on close, so browsing the tree here never leaves the main pane
- * navigated somewhere the user didn't ask to go.
+ * picked from the location's `FolderTree`. The picker is entirely local
+ * state (`dest`) — it uses `FolderTree`'s `onSelect`/`selectedPath` props
+ * instead of the shared store's `navigate`, so browsing (or cancelling) this
+ * dialog never touches the main pane's path, selection, or anchor.
  */
 export default function MoveCopyDialog({ open, onClose, mode, items = [], locationId }) {
   const T = useT();
   const { enqueueSnackbar } = useSnackbar();
   const { invalidateDir } = useInvalidateFm();
-  const destinationPath = useFileManagerStore((s) => s.path);
-  const navigate = useFileManagerStore((s) => s.navigate);
+  const path = useFileManagerStore((s) => s.path);
 
-  // Captured once per open (render-time, not an effect — see the doc comment
-  // above): the path the main pane was on right before this dialog opened.
-  const wasOpenRef = useRef(false);
-  const restorePathRef = useRef('/');
-  if (open && !wasOpenRef.current) restorePathRef.current = destinationPath;
-  wasOpenRef.current = open;
+  const [dest, setDest] = useState(path);
 
   const opLabel = mode === 'copy' ? 'Copy' : 'Move';
   const verbPast = mode === 'copy' ? 'Copied' : 'Moved';
@@ -43,7 +34,7 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
 
   const { mutate: confirm, isPending } = useMutation({
     mutationFn: () => Promise.allSettled(
-      items.map((item) => runOne({ locationId, sourcePath: item.path, destinationPath }))
+      items.map((item) => runOne({ locationId, sourcePath: item.path, destinationPath: dest }))
     ),
     onSuccess: (results) => {
       invalidateDir(locationId);
@@ -68,7 +59,6 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
   });
 
   function handleClose() {
-    navigate(restorePathRef.current);
     onClose?.();
   }
 
@@ -98,10 +88,10 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
           Choose a destination folder:
         </Typography>
         <Box sx={{ flex: 1, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 1.5, py: 0.5 }}>
-          <FolderTree locationId={locationId} />
+          <FolderTree locationId={locationId} onSelect={setDest} selectedPath={dest} />
         </Box>
         <Typography sx={{ fontSize: 12, color: T.teal, fontWeight: 600, wordBreak: 'break-all' }}>
-          Destination: {destinationPath}
+          Destination: {dest}
         </Typography>
       </DialogContent>
 

@@ -33,11 +33,14 @@ export default function RenameDialog({ open, onClose, item }) {
     defaultValues: { name: item?.name ?? '' },
   });
 
-  // Re-prime the field whenever a new target opens (item is the same object
-  // reference for the duration of one rename, so this only fires on open).
+  // Re-prime the field only on the closed→open transition, not on every
+  // `item` identity change — a background refetch mid-edit can hand us a new
+  // `item` object reference while the dialog is still open, and that must
+  // not clobber what the user has typed.
   useEffect(() => {
     if (open) reset({ name: item?.name ?? '' });
-  }, [open, item, reset]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const { mutate, isPending } = useMutation({
     mutationFn: (values) => renameItem({ locationId: item.locationId, path: item.path, newName: values.name.trim() }),
