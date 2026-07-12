@@ -1,5 +1,6 @@
 package com.db.dbworld.app.filemanager.controller;
 
+import com.db.dbworld.app.filemanager.download.DownloadService;
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
 import com.db.dbworld.app.filemanager.dto.request.FileOperationRequest;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @Log4j2
 @RestController
@@ -24,6 +26,7 @@ import java.util.List;
 public class FileManagerController {
 
     private final FileOperationsService service;
+    private final DownloadService downloadService;
 
     @GetMapping("/list")
     public ApiResponse<FileListDto> list(
@@ -73,5 +76,11 @@ public class FileManagerController {
         log.info("Admin delete request locationId={} path={}", locationId, path);
         service.delete(locationId, path);
         return ApiResponse.success("Deleted successfully");
+    }
+
+    @PostMapping("/download-ticket")
+    public ApiResponse<Map<String, String>> issueDownloadTicket(@RequestParam String locationId, @RequestParam String path) throws IOException {
+        String ticketId = downloadService.issueTicket(locationId, path);
+        return ApiResponse.success(Map.of("ticketId", ticketId));
     }
 }

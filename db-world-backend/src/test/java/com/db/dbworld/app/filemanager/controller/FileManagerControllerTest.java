@@ -1,5 +1,6 @@
 package com.db.dbworld.app.filemanager.controller;
 
+import com.db.dbworld.app.filemanager.download.DownloadService;
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
 import com.db.dbworld.app.filemanager.dto.FileListDto;
 import com.db.dbworld.app.filemanager.dto.request.FileOperationRequest;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -20,12 +22,14 @@ import static org.mockito.Mockito.when;
 class FileManagerControllerTest {
 
     FileOperationsService service;
+    DownloadService downloadService;
     FileManagerController controller;
 
     @BeforeEach
     void setUp() {
         service = mock(FileOperationsService.class);
-        controller = new FileManagerController(service);
+        downloadService = mock(DownloadService.class);
+        controller = new FileManagerController(service, downloadService);
     }
 
     @Test
@@ -127,5 +131,15 @@ class FileManagerControllerTest {
 
         verify(service).delete("l-1", "/a.txt");
         assertThat(response.isSuccess()).isTrue();
+    }
+
+    @Test
+    void issueDownloadTicket_delegatesAndReturnsTicketId() throws Exception {
+        when(downloadService.issueTicket("l-1", "/a.txt")).thenReturn("ticket-123");
+
+        ApiResponse<Map<String, String>> response = controller.issueDownloadTicket("l-1", "/a.txt");
+
+        verify(downloadService).issueTicket("l-1", "/a.txt");
+        assertThat(response.getData()).containsEntry("ticketId", "ticket-123");
     }
 }

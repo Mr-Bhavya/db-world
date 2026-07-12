@@ -1,10 +1,11 @@
 package com.db.dbworld.app.filemanager.controller;
 
-import com.db.dbworld.app.filemanager.service.FileManagerService;
+import com.db.dbworld.app.filemanager.download.DownloadService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,11 +23,13 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class FileDownloadStreamController {
 
-    private final FileManagerService service;
+    private final DownloadService downloadService;
 
     @GetMapping("/download/stream")
-    public void downloadStream(@RequestParam String ticket, HttpServletResponse response) throws IOException {
-        log.debug("downloadStream ticket={}", ticket);
-        service.downloadFileWithTicket(ticket, response);
+    public void downloadStream(@RequestParam String ticket,
+                                @RequestHeader(value = "Range", required = false) String range,
+                                HttpServletResponse response) throws IOException {
+        log.debug("downloadStream ticket={} range={}", ticket, range);
+        downloadService.streamByTicket(ticket, range, response);
     }
 }
