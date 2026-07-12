@@ -13,7 +13,7 @@ import { createUpload } from './resumableUploader';
  * a `retry` needs to re-create the upload from scratch — regardless of how
  * many times components re-render.
  */
-const registry = new Map(); // id -> { handle, file, locationId, path }
+const registry = new Map(); // id -> { handle, file, locationId, path, onConflict }
 
 function genId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -32,13 +32,14 @@ export function useUploadManager() {
   const { invalidateDir } = useInvalidateFm();
   const { enqueueSnackbar } = useSnackbar();
 
-  const beginOne = useCallback((id, file, locationId, path) => {
+  const beginOne = useCallback((id, file, locationId, path, onConflict = 'fail') => {
     addUpload(id, { name: file.name, total: file.size, sent: 0, status: 'uploading' });
 
     const handle = createUpload({
       file,
       locationId,
       path,
+      onConflict,
       api: fmApi,
       onProgress: ({ sent, speed, etaSec }) => updateUpload(id, { sent, speed, etaSec }),
       onDone: (fileItem) => {
@@ -54,13 +55,13 @@ export function useUploadManager() {
     // upload doesn't also surface as an unhandled promise rejection (nothing else awaits this promise).
     handle.promise.catch(() => {});
 
-    registry.set(id, { handle, file, locationId, path });
+    registry.set(id, { handle, file, locationId, path, onConflict });
   }, [addUpload, updateUpload, invalidateDir, enqueueSnackbar]);
 
   /** Starts one resumable upload per File in `fileList`, opening the tray (via `addUpload`). */
-  const startUploads = useCallback((fileList, { locationId, path = '/' } = {}) => {
+  const startUploads = useCallback((fileList, { locationId, path = '/', onConflict = 'fail' } = {}) => {
     Array.from(fileList ?? []).forEach((file) => {
-      beginOne(genId(), file, locationId, path);
+      beginOne(genId(), file, locationId, path, onConflict);
     });
   }, [beginOne]);
 
@@ -87,7 +88,7 @@ export function useUploadManager() {
   const retry = useCallback((id) => {
     const entry = registry.get(id);
     if (!entry) return;
-    beginOne(id, entry.file, entry.locationId, entry.path);
+    beginOne(id, entry.file, entry.locationId, entry.path, entry.onConflict);
   }, [beginOne]);
 
   /** Tray "dismiss" for a finished/errored row: drops it from both the registry and the store. */

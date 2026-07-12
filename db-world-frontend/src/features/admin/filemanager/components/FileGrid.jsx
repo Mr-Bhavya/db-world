@@ -1,17 +1,21 @@
+import { useState } from 'react';
 import { Box, Typography, IconButton, Checkbox, Skeleton } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 import ThumbnailImage from './ThumbnailImage';
+import { setDragItems, clearDragItems } from './dndPayload';
 
 /** Directories > this render as a truncation note instead of blowing up the DOM (no windowing lib in the project). */
 const RENDER_LIMIT = 300;
 
-function FileCard({ item, selected, onOpen, onContextMenu, visibleItems }) {
+function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItems }) {
   const T = useT();
   const toggleSelect = useFileManagerStore((s) => s.toggleSelect);
   const navigate = useFileManagerStore((s) => s.navigate);
+  const selection = useFileManagerStore((s) => s.selection);
+  const [dropHover, setDropHover] = useState(false);
 
   const handleClick = (e) => {
     const additive = e.ctrlKey || e.metaKey;
@@ -32,16 +36,37 @@ function FileCard({ item, selected, onOpen, onContextMenu, visibleItems }) {
     onContextMenu?.(e, item);
   };
 
+  const handleDragStart = (e) => {
+    const dragged = selected ? visibleItems.filter((i) => selection.has(i.path)) : [item];
+    setDragItems(dragged);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', item.name); } catch { /* noop */ }
+  };
+
+  const handleDragEnd = () => clearDragItems();
+
+  const folderDropProps = item.directory ? {
+    onDragOver: (e) => { e.preventDefault(); setDropHover(true); },
+    onDragLeave: () => setDropHover(false),
+    onDrop: (e) => { e.preventDefault(); setDropHover(false); onMoveTo?.(item.path); },
+  } : {};
+
   return (
     <Box
       onClick={handleClick}
       onContextMenu={handleContextMenu}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      {...folderDropProps}
       sx={{
         position: 'relative',
         display: 'flex', flexDirection: 'column', gap: 0.75,
         p: 1.25, borderRadius: 2,
-        border: `1px solid ${selected ? T.teal : T.border}`,
-        bgcolor: selected ? T.tealBg : T.glass,
+        border: `1px solid ${dropHover || selected ? T.teal : T.border}`,
+        bgcolor: dropHover ? T.tealBgHover : selected ? T.tealBg : T.glass,
+        outline: dropHover ? `1px dashed ${T.teal}` : 'none',
+        outlineOffset: -3,
         cursor: 'pointer',
         transition: 'border-color 0.15s, background-color 0.15s',
         '&:hover': { borderColor: T.teal, bgcolor: selected ? T.tealBgHover : T.glassHover },
@@ -98,7 +123,7 @@ function FileCard({ item, selected, onOpen, onContextMenu, visibleItems }) {
  * owns the single `ContextMenu` instance and builds `{mouseX, mouseY, item}`
  * from the event's `clientX`/`clientY`.
  */
-export default function FileGrid({ items = [], isLoading = false, onOpen, onContextMenu }) {
+export default function FileGrid({ items = [], isLoading = false, onOpen, onContextMenu, onMoveTo }) {
   const T = useT();
   const selection = useFileManagerStore((s) => s.selection);
 
@@ -146,6 +171,7 @@ export default function FileGrid({ items = [], isLoading = false, onOpen, onCont
                 selected={selection.has(item.path)}
                 onOpen={onOpen}
                 onContextMenu={onContextMenu}
+                onMoveTo={onMoveTo}
                 visibleItems={visibleItems}
               />
             </motion.div>

@@ -11,6 +11,7 @@ import { useDirectory } from './hooks/useDirectory';
 import { useInvalidateFm } from './hooks/useInvalidateFm';
 import { useUploadManager } from './upload/useUploadManager';
 import * as fmApi from './api/fileManagerApi';
+import { getDragItems, clearDragItems } from './components/dndPayload';
 
 import LocationsRail from './components/LocationsRail';
 import Breadcrumb from './components/Breadcrumb';
@@ -27,6 +28,7 @@ import LocationManagerDialog from './components/LocationManagerDialog';
 import ConfirmDialog from './components/ConfirmDialog';
 import UploadTray from './components/UploadTray';
 import PreviewPanel from './components/PreviewPanel';
+import UploadConflictDialog from './components/UploadConflictDialog';
 
 /* ─── Client-side type filter (Toolbar's Filter menu) ───────────────────── */
 
@@ -129,6 +131,7 @@ export default function FileManager() {
   const [confirmDelete, setConfirmDelete] = useState({ open: false, items: [] });
   const [searchQuery, setSearchQuery] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [uploadConflict, setUploadConflict] = useState(null); // { files: File[], conflictNames: string[] } | null
 
   // Default to the first configured location once locations have loaded.
   useEffect(() => {
@@ -259,26 +262,36 @@ export default function FileManager() {
     }
   }, [clipboard, locationId, path, invalidateDir, clearClipboard, enqueueSnackbar]);
 
-  /* ─── Drag selected items onto a FolderTree node (internal move) ───────── */
+  /* ─── Drag-to-move: drop the dragged payload onto any folder (card/row/tree) ── */
 
-  const handleDropOnFolder = useCallback(async (destPath) => {
-    const targets = rawItems.filter((i) => selection.has(i.path));
-    if (targets.length === 0 || !locationId) return;
+  const handleMoveTo = useCallback(async (destPath) => {
+    const dragged = getDragItems();
+    if (!dragged.length || !locationId) { clearDragItems(); return; }
+    // Skip no-op / illegal moves: onto itself, into its own parent (no-op), or into its own subtree.
+    const valid = dragged.filter((it) => {
+      const parent = it.path.slice(0, it.path.lastIndexOf('/')) || '/';
+      if (destPath === it.path) return false;
+      if (destPath === parent) return false;
+      if (it.directory && (destPath === it.path || destPath.startsWith(it.path.endsWith('/') ? it.path : `${it.path}/`))) return false;
+      return true;
+    });
+    clearDragItems();
+    if (!valid.length) return;
     const results = await Promise.allSettled(
-      targets.map((item) => fmApi.moveItem({ locationId, sourcePath: item.path, destinationPath: destPath }))
+      valid.map((it) => fmApi.moveItem({ locationId, sourcePath: it.path, destinationPath: destPath }))
     );
     invalidateDir(locationId);
     clearSelection();
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length === 0) {
-      enqueueSnackbar(`Moved ${targets.length} item${targets.length === 1 ? '' : 's'}`, { variant: 'success' });
+      enqueueSnackbar(`Moved ${valid.length} item${valid.length === 1 ? '' : 's'}`, { variant: 'success' });
     } else {
       enqueueSnackbar(
-        `Moved ${targets.length - failed.length}/${targets.length} — some failed`,
-        { variant: failed.length === targets.length ? 'error' : 'warning' }
+        `Moved ${valid.length - failed.length}/${valid.length} — some failed`,
+        { variant: failed.length === valid.length ? 'error' : 'warning' }
       );
     }
-  }, [rawItems, selection, locationId, invalidateDir, clearSelection, enqueueSnackbar]);
+  }, [locationId, invalidateDir, clearSelection, enqueueSnackbar]);
 
   /* ─── Delete (routed through the themed ConfirmDialog) ─────────────────── */
 
@@ -341,10 +354,39 @@ export default function FileManager() {
 
   /* ─── Upload (Toolbar button + OS drag-drop over the content area) ─────── */
 
+  /**
+   * Uploads that collide by name with a file already listed in the current
+   * folder pause for an explicit overwrite/keep-both/skip decision (via
+   * `UploadConflictDialog`) instead of letting `onConflict: 'fail'` silently
+   * fail the upload after the transfer completes.
+   */
   const handleUpload = useCallback((fileList) => {
-    if (!locationId || !fileList?.length) return;
-    uploadManager.startUploads(fileList, { locationId, path });
-  }, [uploadManager, locationId, path]);
+    const files = Array.from(fileList || []);
+    if (!locationId || files.length === 0) return;
+    const existing = new Set(rawItems.filter((i) => !i.directory).map((i) => i.name));
+    const conflictNames = files.filter((f) => existing.has(f.name)).map((f) => f.name);
+    if (conflictNames.length === 0) {
+      uploadManager.startUploads(files, { locationId, path, onConflict: 'fail' });
+      return;
+    }
+    setUploadConflict({ files, conflictNames });
+  }, [uploadManager, locationId, path, rawItems]);
+
+  const handleUploadOverwrite = useCallback(() => {
+    uploadManager.startUploads(uploadConflict.files, { locationId, path, onConflict: 'overwrite' });
+    setUploadConflict(null);
+  }, [uploadManager, uploadConflict, locationId, path]);
+
+  const handleUploadKeepBoth = useCallback(() => {
+    uploadManager.startUploads(uploadConflict.files, { locationId, path, onConflict: 'rename' });
+    setUploadConflict(null);
+  }, [uploadManager, uploadConflict, locationId, path]);
+
+  const handleUploadSkip = useCallback(() => {
+    const names = new Set(uploadConflict.conflictNames);
+    uploadManager.startUploads(uploadConflict.files.filter((f) => !names.has(f.name)), { locationId, path, onConflict: 'fail' });
+    setUploadConflict(null);
+  }, [uploadManager, uploadConflict, locationId, path]);
 
   /* ─── Esc: close whatever's open, innermost first ───────────────────────── */
 
@@ -357,11 +399,12 @@ export default function FileManager() {
     if (newFolderOpen) { setNewFolderOpen(false); return; }
     if (locationManagerOpen) { setLocationManagerOpen(false); return; }
     if (confirmDelete.open) { setConfirmDelete({ open: false, items: [] }); return; }
+    if (uploadConflict) { setUploadConflict(null); return; }
     clearSelection();
   }, [
     contextMenu, previewItem, closePreview, infoTargets, moveCopyMode, closeMoveCopy,
     renameTarget, closeRename, newFolderOpen, setNewFolderOpen, locationManagerOpen,
-    setLocationManagerOpen, confirmDelete, clearSelection,
+    setLocationManagerOpen, confirmDelete, uploadConflict, clearSelection,
   ]);
 
   /* ─── Keyboard shortcuts (desktop only) ─────────────────────────────────── */
@@ -375,7 +418,7 @@ export default function FileManager() {
 
       const anyOverlayOpen = !!(
         contextMenu || previewItem || infoTargets.length > 0 || moveCopyMode || renameTarget
-        || newFolderOpen || locationManagerOpen || confirmDelete?.open
+        || newFolderOpen || locationManagerOpen || confirmDelete?.open || uploadConflict
       );
       if (e.key !== 'Escape' && anyOverlayOpen) return;
 
@@ -428,7 +471,7 @@ export default function FileManager() {
     isMobile, resolveItems, items, selectAll, openRename, handleDeleteRequest,
     handleCopyToClipboard, handleCutToClipboard, handlePaste, handleOpen, handleEscape,
     contextMenu, previewItem, infoTargets, moveCopyMode, renameTarget,
-    newFolderOpen, locationManagerOpen, confirmDelete,
+    newFolderOpen, locationManagerOpen, confirmDelete, uploadConflict,
   ]);
 
   /* ─── Render ─────────────────────────────────────────────────────────── */
@@ -517,7 +560,7 @@ export default function FileManager() {
           onDrop={handleDrop}
         >
           {viewMode === 'grid' ? (
-            <FileGrid items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
+            <FileGrid items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} onMoveTo={handleMoveTo} />
           ) : isMobile ? (
             <FileMobileList items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
           ) : (
@@ -530,6 +573,7 @@ export default function FileManager() {
               onRename={openRename}
               onInfo={handleInfo}
               onDelete={handleDeleteRequest}
+              onMoveTo={handleMoveTo}
             />
           )}
         </Box>
@@ -542,7 +586,7 @@ export default function FileManager() {
       height: '100%', display: 'flex', flexDirection: isMobile ? 'column' : 'row',
       bgcolor: T.adminBg, color: T.textPrimary, minHeight: 0, overflow: 'hidden',
     }}>
-      <LocationsRail onManageLocations={() => setLocationManagerOpen(true)} onDropItems={handleDropOnFolder} />
+      <LocationsRail onManageLocations={() => setLocationManagerOpen(true)} onDropItems={handleMoveTo} />
 
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {mainColumn}
@@ -612,6 +656,15 @@ export default function FileManager() {
         onResume={uploadManager.resume}
         onCancel={uploadManager.cancel}
         onRetry={uploadManager.retry}
+      />
+
+      <UploadConflictDialog
+        open={Boolean(uploadConflict)}
+        names={uploadConflict?.conflictNames ?? []}
+        onCancel={() => setUploadConflict(null)}
+        onOverwrite={handleUploadOverwrite}
+        onKeepBoth={handleUploadKeepBoth}
+        onSkip={handleUploadSkip}
       />
     </Box>
   );

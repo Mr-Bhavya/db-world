@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Box, Typography, Checkbox, IconButton, Tooltip, Skeleton } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -9,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useFileManagerStore } from '../store/useFileManagerStore';
 import ThumbnailImage from './ThumbnailImage';
+import { setDragItems, clearDragItems } from './dndPayload';
 
 /** Directories > this render as a truncation note instead of blowing up the DOM (no windowing lib in the project). */
 const RENDER_LIMIT = 300;
@@ -35,10 +37,12 @@ function HeaderCell({ label, sortKey, sortBy, sortOrder, onSort, width }) {
   );
 }
 
-function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRename, onInfo, onDelete, visibleItems }) {
+function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRename, onInfo, onDelete, onMoveTo, visibleItems }) {
   const T = useT();
   const toggleSelect = useFileManagerStore((s) => s.toggleSelect);
   const navigate = useFileManagerStore((s) => s.navigate);
+  const selection = useFileManagerStore((s) => s.selection);
+  const [dropHover, setDropHover] = useState(false);
 
   const openItem = () => (item.directory ? navigate(item.path) : onOpen?.(item));
 
@@ -54,6 +58,21 @@ function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRen
     e.preventDefault();
     onContextMenu?.(e, item);
   };
+
+  const handleDragStart = (e) => {
+    const dragged = selected ? visibleItems.filter((i) => selection.has(i.path)) : [item];
+    setDragItems(dragged);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', item.name); } catch { /* noop */ }
+  };
+
+  const handleDragEnd = () => clearDragItems();
+
+  const folderDropProps = item.directory ? {
+    onDragOver: (e) => { e.preventDefault(); setDropHover(true); },
+    onDragLeave: () => setDropHover(false),
+    onDrop: (e) => { e.preventDefault(); setDropHover(false); onMoveTo?.(item.path); },
+  } : {};
 
   const actionBtn = (title, Icon, onClick, color = T.textFaint) => (
     <Tooltip title={title} key={title}>
@@ -78,11 +97,17 @@ function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRen
       <Box
         onClick={handleRowClick}
         onContextMenu={handleContextMenu}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        {...folderDropProps}
         sx={{
           display: 'flex', alignItems: 'center', gap: 1,
           px: 2, py: 0.75,
           borderBottom: `1px solid ${T.border}`,
-          bgcolor: selected ? T.tealBg : 'transparent',
+          bgcolor: dropHover ? T.tealBgHover : selected ? T.tealBg : 'transparent',
+          outline: dropHover ? `1px dashed ${T.teal}` : 'none',
+          outlineOffset: -2,
           cursor: 'pointer',
           transition: 'background-color 0.1s',
           '&:hover': { bgcolor: selected ? T.tealBgHover : T.hoverBg },
@@ -145,7 +170,7 @@ function FileRow({ item, idx, selected, onOpen, onContextMenu, onDownload, onRen
  * set (move/copy/cut/etc.), same contract as the grid and mobile views.
  */
 export default function FileList({
-  items = [], isLoading = false, onOpen, onContextMenu, onDownload, onRename, onInfo, onDelete,
+  items = [], isLoading = false, onOpen, onContextMenu, onDownload, onRename, onInfo, onDelete, onMoveTo,
 }) {
   const T = useT();
   const selection = useFileManagerStore((s) => s.selection);
@@ -215,6 +240,7 @@ export default function FileList({
             onRename={onRename}
             onInfo={onInfo}
             onDelete={onDelete}
+            onMoveTo={onMoveTo}
             visibleItems={visibleItems}
           />
         ))}

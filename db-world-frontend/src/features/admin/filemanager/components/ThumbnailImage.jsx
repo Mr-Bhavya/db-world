@@ -63,6 +63,7 @@ export default function ThumbnailImage({ item, size = 44, borderRadius = 2, fill
         <img
           src={objectUrl}
           alt={item.name}
+          draggable={false}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           onError={() => setImgFailed(true)}
         />
