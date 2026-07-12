@@ -4,8 +4,8 @@ import com.db.dbworld.app.filemanager.location.FileLocationService;
 import com.db.dbworld.app.filemanager.path.PathJail;
 import com.db.dbworld.core.exception.DbWorldException;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -17,15 +17,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Issues short-lived, one-time download tickets for files within a location, and streams the
- * referenced file back (range-aware) once a valid ticket is redeemed.
+ * Issues short-lived, reusable download tickets for files within a location, and streams the
+ * referenced file back (range-aware) whenever a valid, unexpired ticket is presented. Tickets are
+ * intentionally reusable within their TTL: a {@code <video>}/{@code <audio>} element issues many
+ * HTTP Range requests (initial load + every seek) within one viewing session, and browser download
+ * managers re-request with Range on resume.
  */
 @Log4j2
 @Service
-@RequiredArgsConstructor
 public class DownloadService {
-
-    private static final long TICKET_TTL_MS = 60_000; // 60-second one-time download tokens
 
     private record DownloadTicket(String locationId, String path, Instant expiresAt) {}
 
@@ -33,7 +33,16 @@ public class DownloadService {
 
     private final FileLocationService locationService;
 
-    /** Issues a one-time download ticket valid for {@value TICKET_TTL_MS}ms. */
+    private final long ticketTtlMs;
+
+    public DownloadService(
+            FileLocationService locationService,
+            @Value("${dbworld.filemanager.download-ticket-ttl-ms:21600000}") long ticketTtlMs) {
+        this.locationService = locationService;
+        this.ticketTtlMs = ticketTtlMs;
+    }
+
+    /** Issues a reusable download ticket valid for {@code ticketTtlMs}ms. */
     public String issueTicket(String locationId, String path) throws IOException {
         log.debug("issueTicket locationId={} path={}", locationId, path);
         Path base = locationService.resolveBase(locationId);
@@ -52,14 +61,14 @@ public class DownloadService {
         tickets.entrySet().removeIf(e -> e.getValue().expiresAt().isBefore(now));
 
         String ticketId = UUID.randomUUID().toString();
-        tickets.put(ticketId, new DownloadTicket(locationId, path, now.plusMillis(TICKET_TTL_MS)));
-        log.info("Issued download ticket locationId={} path={} (ttlMs={})", locationId, path, TICKET_TTL_MS);
+        tickets.put(ticketId, new DownloadTicket(locationId, path, now.plusMillis(ticketTtlMs)));
+        log.info("Issued download ticket locationId={} path={} (ttlMs={})", locationId, path, ticketTtlMs);
         return ticketId;
     }
 
-    /** Validates the ticket (one-time use) and streams the file directly to the response. */
+    /** Validates the ticket (reusable until expiry) and streams the file directly to the response. */
     public void streamByTicket(String ticketId, String rangeHeader, HttpServletResponse response) throws IOException {
-        DownloadTicket ticket = tickets.remove(ticketId);
+        DownloadTicket ticket = tickets.get(ticketId);
         if (ticket == null || ticket.expiresAt().isBefore(Instant.now())) {
             log.warn("Download ticket expired or invalid: {}", ticketId);
             response.sendError(HttpServletResponse.SC_GONE, "Download ticket expired or invalid");

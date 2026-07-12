@@ -16,6 +16,8 @@ import static org.mockito.Mockito.when;
 
 class DownloadServiceTest {
 
+    static final long TTL_MS = 21_600_000L; // 6 hours
+
     FileLocationService locationService;
     DownloadService svc;
     Path base;
@@ -26,7 +28,7 @@ class DownloadServiceTest {
         base = Files.createTempDirectory("download-service");
         Files.writeString(base.resolve("hello.txt"), "hello world");
         when(locationService.resolveBase("l1")).thenReturn(base);
-        svc = new DownloadService(locationService);
+        svc = new DownloadService(locationService, TTL_MS);
     }
 
     @Test
@@ -61,12 +63,29 @@ class DownloadServiceTest {
     }
 
     @Test
-    void ticketIsOneTimeUse_secondAttemptIsGone() throws Exception {
+    void ticketIsReusable_bothStreamsSucceed() throws Exception {
         String ticket = svc.issueTicket("l1", "/hello.txt");
-        svc.streamByTicket(ticket, null, new MockHttpServletResponse());
+
+        MockHttpServletResponse first = new MockHttpServletResponse();
+        svc.streamByTicket(ticket, null, first);
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(first.getContentAsString()).isEqualTo("hello world");
+
+        MockHttpServletResponse second = new MockHttpServletResponse();
+        svc.streamByTicket(ticket, null, second);
+        assertThat(second.getStatus()).isEqualTo(200);
+        assertThat(second.getContentAsString()).isEqualTo("hello world");
+    }
+
+    @Test
+    void ticketExpiry_isStillEnforced() throws Exception {
+        DownloadService shortLivedSvc = new DownloadService(locationService, 1L);
+        String ticket = shortLivedSvc.issueTicket("l1", "/hello.txt");
+
+        Thread.sleep(50);
 
         MockHttpServletResponse resp = new MockHttpServletResponse();
-        svc.streamByTicket(ticket, null, resp);
+        shortLivedSvc.streamByTicket(ticket, null, resp);
 
         assertThat(resp.getStatus()).isEqualTo(410);
     }
