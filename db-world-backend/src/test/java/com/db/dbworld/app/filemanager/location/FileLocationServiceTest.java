@@ -38,4 +38,13 @@ class FileLocationServiceTest {
     @Test void resolveBase_missing_throwsNotFound() {
         assertThatThrownBy(() -> svc.resolveBase("nope")).isInstanceOf(DbWorldException.class);
     }
+    @Test void create_rejectsDuplicateAbsolutePath() {
+        svc.create(new UpsertLocationRequest("Data", realDir.toString(), true, 0));
+        assertThatThrownBy(() -> svc.create(new UpsertLocationRequest("Data2", realDir.toString(), true, 1)))
+            .isInstanceOf(DbWorldException.class);
+    }
+    @Test void resolveBase_disabledLocation_throwsNotFound() {
+        FileLocationEntity disabled = svc.create(new UpsertLocationRequest("Disabled", realDir.toString(), false, 0));
+        assertThatThrownBy(() -> svc.resolveBase(disabled.getId())).isInstanceOf(DbWorldException.class);
+    }
 }
