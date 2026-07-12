@@ -1,6 +1,8 @@
 package com.db.dbworld.app.filemanager.mapper;
 
 import com.db.dbworld.app.filemanager.dto.FileItemDto;
+import com.db.dbworld.app.filemanager.location.FileLocationEntity;
+import com.db.dbworld.app.filemanager.location.dto.FileLocationDto;
 import com.db.dbworld.app.filemanager.path.PathJail;
 
 import java.io.IOException;
@@ -41,6 +43,20 @@ public final class FileMetadataMapper {
             .readable(Files.isReadable(p))
             .writable(Files.isWritable(p))
             .locationId(locationId)
+            .build();
+    }
+
+    public static FileLocationDto toLocationDto(FileLocationEntity e) {
+        Path p = Path.of(e.getAbsolutePath());
+        boolean available = Files.isDirectory(p) && Files.isReadable(p);
+        return FileLocationDto.builder()
+            .id(e.getId())
+            .label(e.getLabel())
+            .absolutePath(e.getAbsolutePath())
+            .enabled(e.isEnabled())
+            .sortOrder(e.getSortOrder())
+            .available(available)
+            .createdAt(e.getCreatedAt())
             .build();
     }
 
