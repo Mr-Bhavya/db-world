@@ -112,7 +112,7 @@ export default function InfoDrawer({ open, items = [], onClose, onDownload, onRe
               <Button
                 size="small"
                 startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
-                onClick={() => onDownload?.(items)}
+                onClick={() => onDownload?.(items.map((i) => i.path))}
                 sx={{ color: T.textMuted, bgcolor: T.hoverBg, borderRadius: 1.5, fontSize: 12.5, '&:hover': { color: T.teal } }}
               >
                 Download
@@ -122,7 +122,7 @@ export default function InfoDrawer({ open, items = [], onClose, onDownload, onRe
             <Button
               size="small"
               startIcon={<DeleteIcon sx={{ fontSize: 16 }} />}
-              onClick={() => onDelete?.(items)}
+              onClick={() => onDelete?.(items.map((i) => i.path))}
               sx={{ color: T.error, bgcolor: T.errorBg, borderRadius: 1.5, fontSize: 12.5, '&:hover': { bgcolor: T.errorBg, filter: 'brightness(0.9)' } }}
             >
               Delete

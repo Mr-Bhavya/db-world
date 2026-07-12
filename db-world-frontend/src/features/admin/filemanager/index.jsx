@@ -363,14 +363,14 @@ export default function FileManager() {
   const handleUpload = useCallback((fileList) => {
     const files = Array.from(fileList || []);
     if (!locationId || files.length === 0) return;
-    const existing = new Set(rawItems.filter((i) => !i.directory).map((i) => i.name));
+    const existing = new Set((dirData?.items ?? []).filter((i) => !i.directory).map((i) => i.name));
     const conflictNames = files.filter((f) => existing.has(f.name)).map((f) => f.name);
     if (conflictNames.length === 0) {
       uploadManager.startUploads(files, { locationId, path, onConflict: 'fail' });
       return;
     }
     setUploadConflict({ files, conflictNames });
-  }, [uploadManager, locationId, path, rawItems]);
+  }, [uploadManager, locationId, path, dirData]);
 
   const handleUploadOverwrite = useCallback(() => {
     uploadManager.startUploads(uploadConflict.files, { locationId, path, onConflict: 'overwrite' });
@@ -560,7 +560,7 @@ export default function FileManager() {
           onDrop={handleDrop}
         >
           {viewMode === 'grid' ? (
-            <FileGrid items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} onMoveTo={handleMoveTo} />
+            <FileGrid items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} onMoveTo={handleMoveTo} touchSelect={isMobile} />
           ) : isMobile ? (
             <FileMobileList items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
           ) : (

@@ -10,7 +10,7 @@ import { setDragItems, clearDragItems } from './dndPayload';
 /** Directories > this render as a truncation note instead of blowing up the DOM (no windowing lib in the project). */
 const RENDER_LIMIT = 300;
 
-function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItems }) {
+function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItems, touchSelect, selectionActive }) {
   const T = useT();
   const toggleSelect = useFileManagerStore((s) => s.toggleSelect);
   const navigate = useFileManagerStore((s) => s.navigate);
@@ -20,8 +20,15 @@ function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItem
   const handleClick = (e) => {
     const additive = e.ctrlKey || e.metaKey;
     const range = e.shiftKey;
-    toggleSelect(item.path, { additive, range, items: visibleItems });
-    if (additive || range) return;
+    if (additive || range) {
+      toggleSelect(item.path, { additive, range, items: visibleItems });
+      return;
+    }
+    if (touchSelect && selectionActive) {
+      toggleSelect(item.path, { additive: true, items: visibleItems });
+      return;
+    }
+    toggleSelect(item.path, { items: visibleItems });
     if (item.directory) navigate(item.path);
     else onOpen?.(item);
   };
@@ -123,7 +130,7 @@ function FileCard({ item, selected, onOpen, onContextMenu, onMoveTo, visibleItem
  * owns the single `ContextMenu` instance and builds `{mouseX, mouseY, item}`
  * from the event's `clientX`/`clientY`.
  */
-export default function FileGrid({ items = [], isLoading = false, onOpen, onContextMenu, onMoveTo }) {
+export default function FileGrid({ items = [], isLoading = false, onOpen, onContextMenu, onMoveTo, touchSelect = false }) {
   const T = useT();
   const selection = useFileManagerStore((s) => s.selection);
 
@@ -150,6 +157,7 @@ export default function FileGrid({ items = [], isLoading = false, onOpen, onCont
 
   const visibleItems = items.slice(0, RENDER_LIMIT);
   const truncated = items.length > RENDER_LIMIT;
+  const selectionActive = selection.size > 0;
 
   return (
     <Box>
@@ -173,6 +181,8 @@ export default function FileGrid({ items = [], isLoading = false, onOpen, onCont
                 onContextMenu={onContextMenu}
                 onMoveTo={onMoveTo}
                 visibleItems={visibleItems}
+                touchSelect={touchSelect}
+                selectionActive={selectionActive}
               />
             </motion.div>
           ))}

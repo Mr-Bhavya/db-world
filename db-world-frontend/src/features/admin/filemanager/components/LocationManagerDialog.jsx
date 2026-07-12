@@ -37,7 +37,7 @@ const EMPTY_VALUES = { label: '', absolutePath: '' };
 export default function LocationManagerDialog({ open, onClose }) {
   const T = useT();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { enqueueSnackbar } = useSnackbar();
   const { invalidateLocations, invalidateDir } = useInvalidateFm();
   const { data: locations = [], isLoading } = useLocations();
