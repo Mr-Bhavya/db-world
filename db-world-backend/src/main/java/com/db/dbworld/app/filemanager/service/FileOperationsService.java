@@ -125,6 +125,7 @@ public class FileOperationsService {
         if (!Files.isDirectory(parent)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Parent path is not a directory: " + parentPath);
         rejectUnsafeName(name);
         Path newDir = PathJail.resolve(base, parentPath + "/" + name);
+        if (Files.exists(newDir)) throw new DbWorldException(HttpStatus.CONFLICT, "A folder with that name already exists");
         try {
             Files.createDirectory(newDir);
         } catch (IOException e) {
@@ -156,7 +157,7 @@ public class FileOperationsService {
         log.info("moveItem locationId={} source={} dest={}", locationId, sourcePath, destinationPath);
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolve(base, sourcePath);
-        Path destDir = PathJail.resolve(base, destinationPath);
+        Path destDir = PathJail.resolveReal(base, destinationPath); // dest dir must exist for a move, so symlink-following is safe
         if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
         Path dest = PathJail.resolve(base, destinationPath + "/" + source.getFileName().toString());
         if (Files.exists(dest)) throw new IllegalStateException("A file with that name already exists in destination");
@@ -175,7 +176,7 @@ public class FileOperationsService {
         log.info("copyItem locationId={} source={} dest={}", locationId, sourcePath, destinationPath);
         Path base = locationService.resolveBase(locationId);
         Path source = PathJail.resolveReal(base, sourcePath); // symlink-sensitive: following a link must not escape the jail
-        Path destDir = PathJail.resolve(base, destinationPath);
+        Path destDir = PathJail.resolveReal(base, destinationPath); // dest dir must exist for a copy, so symlink-following is safe
         if (!Files.isDirectory(destDir)) throw new DbWorldException(HttpStatus.BAD_REQUEST, "Destination must be a directory");
         Path dest = PathJail.resolve(base, destinationPath + "/" + source.getFileName().toString());
         try {

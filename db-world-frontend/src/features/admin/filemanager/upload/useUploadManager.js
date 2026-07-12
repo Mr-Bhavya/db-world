@@ -50,6 +50,10 @@ export function useUploadManager() {
       onError: (err) => updateUpload(id, { status: 'error', error: String(err) }),
     });
 
+    // Errors are already surfaced via onError above; swallow the rejection here so a failed/cancelled
+    // upload doesn't also surface as an unhandled promise rejection (nothing else awaits this promise).
+    handle.promise.catch(() => {});
+
     registry.set(id, { handle, file, locationId, path });
   }, [addUpload, updateUpload, invalidateDir, enqueueSnackbar]);
 

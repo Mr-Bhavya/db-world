@@ -13,9 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 
 /**
- * No @AdminAccess — this endpoint is open to all (but protected by one-time ticket).
+ * No @AdminAccess — this endpoint is open to all (but protected by a ticket).
  * Listed in PUBLIC_APIS so Spring Security's HTTP filter layer permits unauthenticated requests.
- * The ticket is a 60-second UUID issued by POST /download-ticket (which IS admin-protected).
+ * The ticket is a reusable UUID issued by POST /download-ticket (which IS admin-protected), valid
+ * for a configurable TTL (default 6h, see {@code dbworld.filemanager.download-ticket-ttl-ms} /
+ * {@link com.db.dbworld.app.filemanager.download.DownloadService}) so a single ticket can serve
+ * every Range request a video/audio element or resumed download issues during that window.
  */
 @Log4j2
 @RestController

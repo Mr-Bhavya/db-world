@@ -17,6 +17,7 @@ import { useT } from '@shared/theme';
 import { useLocations } from '../hooks/useLocations';
 import { createLocation, updateLocation, deleteLocation } from '../api/fileManagerApi';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
+import { useFileManagerStore } from '../store/useFileManagerStore';
 import ConfirmDialog from './ConfirmDialog';
 
 const locationSchema = z.object({
@@ -35,8 +36,10 @@ const EMPTY_VALUES = { label: '', absolutePath: '' };
 export default function LocationManagerDialog({ open, onClose }) {
   const T = useT();
   const { enqueueSnackbar } = useSnackbar();
-  const { invalidateLocations } = useInvalidateFm();
+  const { invalidateLocations, invalidateDir } = useInvalidateFm();
   const { data: locations = [], isLoading } = useLocations();
+  const activeLocationId = useFileManagerStore((s) => s.locationId);
+  const setLocation = useFileManagerStore((s) => s.setLocation);
 
   const [editing, setEditing] = useState(null); // null | 'new' | location entity
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -57,6 +60,9 @@ export default function LocationManagerDialog({ open, onClose }) {
       : createLocation(values)),
     onSuccess: () => {
       invalidateLocations();
+      // An edited location (e.g. absolutePath change) can invalidate its already-cached directory
+      // listings/tree, so refresh those too — not needed for brand-new locations (nothing cached yet).
+      if (editing && editing !== 'new') invalidateDir(editing.id);
       enqueueSnackbar(editing !== 'new' ? 'Location updated' : 'Location added', { variant: 'success' });
       setEditing(null);
     },
@@ -65,8 +71,15 @@ export default function LocationManagerDialog({ open, onClose }) {
 
   const deleteMut = useMutation({
     mutationFn: (id) => deleteLocation(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       invalidateLocations();
+      invalidateDir(id);
+      // If the removed location was the one currently open in the content pane, navigate away from
+      // it so the pane doesn't keep querying a location that no longer exists (would 404).
+      if (activeLocationId === id) {
+        const remaining = locations.filter((loc) => loc.id !== id);
+        setLocation(remaining[0]?.id ?? null);
+      }
       enqueueSnackbar('Location removed', { variant: 'success' });
       setDeleteTarget(null);
     },

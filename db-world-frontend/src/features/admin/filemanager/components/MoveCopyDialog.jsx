@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box, Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Typography, IconButton, CircularProgress,
@@ -27,6 +27,12 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
   const path = useFileManagerStore((s) => s.path);
 
   const [dest, setDest] = useState(path);
+
+  // The dialog stays mounted across opens (only `open` toggles), so without this the destination
+  // picker would keep showing wherever it was left the last time the dialog was closed.
+  useEffect(() => {
+    if (open) setDest(path);
+  }, [open, path]);
 
   const opLabel = mode === 'copy' ? 'Copy' : 'Move';
   const verbPast = mode === 'copy' ? 'Copied' : 'Moved';

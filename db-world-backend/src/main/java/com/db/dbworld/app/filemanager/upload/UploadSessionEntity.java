@@ -24,7 +24,7 @@ public class UploadSessionEntity {
     @Column(nullable = false) private int nextIndex;
     @Column(length = 128) private String checksum;
     @Column(nullable = false, length = 20) private String onConflict;
-    @Column(nullable = false, length = 20) private String status; // PENDING | COMPLETED
+    @Column(nullable = false, length = 20) private String status; // always PENDING — the row is deleted (not updated) on completion
 
     @CreationTimestamp @Column(nullable = false, updatable = false) private Instant createdAt;
     @UpdateTimestamp   @Column(nullable = false)                    private Instant updatedAt;

@@ -126,6 +126,15 @@ class FileOperationsServiceTest {
     }
 
     @Test
+    void mkdir_duplicate_name_throwsConflict() throws Exception {
+        svc.mkdir("l", "/", "docs");
+
+        assertThatThrownBy(() -> svc.mkdir("l", "/", "docs"))
+            .isInstanceOf(DbWorldException.class)
+            .satisfies(e -> assertThat(((DbWorldException) e).getHttpStatus()).isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
     void mkdir_rejects_slash_in_name() {
         assertThatThrownBy(() -> svc.mkdir("l", "/", "a/b")).isInstanceOf(DbWorldException.class);
     }
