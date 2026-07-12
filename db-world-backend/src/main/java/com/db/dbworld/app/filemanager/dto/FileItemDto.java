@@ -19,4 +19,5 @@ public class FileItemDto {
     private int childCount;
     private boolean readable;
     private boolean writable;
+    private String locationId;
 }
