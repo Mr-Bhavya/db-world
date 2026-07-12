@@ -3,6 +3,7 @@ import { Box, Typography, IconButton, Divider, Skeleton } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@shared/theme';
@@ -13,7 +14,7 @@ import ThumbnailImage from './ThumbnailImage';
 const RENDER_LIMIT = 300;
 const LONG_PRESS_MS = 500;
 
-function MobileRow({ item, selected, onOpen, onContextMenu, visibleItems }) {
+function MobileRow({ item, selected, selectionActive, onOpen, onContextMenu, visibleItems }) {
   const T = useT();
   const toggleSelect = useFileManagerStore((s) => s.toggleSelect);
   const navigate = useFileManagerStore((s) => s.navigate);
@@ -46,6 +47,10 @@ function MobileRow({ item, selected, onOpen, onContextMenu, visibleItems }) {
       longPressed.current = false;
       return;
     }
+    if (selectionActive) {
+      toggleSelect(item.path, { additive: true, items: visibleItems });
+      return;
+    }
     if (item.directory) navigate(item.path);
     else onOpen?.(item);
   };
@@ -71,6 +76,13 @@ function MobileRow({ item, selected, onOpen, onContextMenu, visibleItems }) {
         }}>
           <CheckCircleIcon sx={{ fontSize: 22, color: T.teal }} />
         </Box>
+      ) : selectionActive ? (
+        <Box sx={{
+          width: 38, height: 38, borderRadius: 1.5, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <RadioButtonUncheckedIcon sx={{ fontSize: 22, color: T.textFaint }} />
+        </Box>
       ) : (
         <ThumbnailImage item={item} size={38} borderRadius={1.5} />
       )}
@@ -95,6 +107,9 @@ function MobileRow({ item, selected, onOpen, onContextMenu, visibleItems }) {
       <IconButton
         size="small"
         onClick={(e) => { e.stopPropagation(); onContextMenu?.(e, item); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onPointerLeave={(e) => e.stopPropagation()}
         sx={{ color: T.textFaint }}
       >
         <MoreVertIcon sx={{ fontSize: 18 }} />
@@ -134,6 +149,7 @@ export default function FileMobileList({ items = [], isLoading = false, onOpen, 
 
   const visibleItems = items.slice(0, RENDER_LIMIT);
   const truncated = items.length > RENDER_LIMIT;
+  const selectionActive = selection.size > 0;
 
   return (
     <Box>
@@ -149,6 +165,7 @@ export default function FileMobileList({ items = [], isLoading = false, onOpen, 
             <MobileRow
               item={item}
               selected={selection.has(item.path)}
+              selectionActive={selectionActive}
               onOpen={onOpen}
               onContextMenu={onContextMenu}
               visibleItems={visibleItems}

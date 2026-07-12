@@ -119,14 +119,12 @@ export default function FileManager() {
   const closeMoveCopy = useFileManagerStore((s) => s.closeMoveCopy);
   const locationManagerOpen = useFileManagerStore((s) => s.locationManagerOpen);
   const setLocationManagerOpen = useFileManagerStore((s) => s.setLocationManagerOpen);
-  const infoItem = useFileManagerStore((s) => s.infoItem);
-  const openInfo = useFileManagerStore((s) => s.openInfo);
-  const closeInfo = useFileManagerStore((s) => s.closeInfo);
   const previewItem = useFileManagerStore((s) => s.previewItem);
   const openPreview = useFileManagerStore((s) => s.openPreview);
   const closePreview = useFileManagerStore((s) => s.closePreview);
 
   const [moveCopyItems, setMoveCopyItems] = useState([]);
+  const [infoTargets, setInfoTargets] = useState([]);
   const [contextMenu, setContextMenu] = useState(null); // { mouseX, mouseY, item } | null
   const [confirmDelete, setConfirmDelete] = useState({ open: false, items: [] });
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,13 +202,9 @@ export default function FileManager() {
   /* ─── Info (Toolbar bulk falls back to the first selected item) ────────── */
 
   const handleInfo = useCallback((arg) => {
-    if (arg && typeof arg.path === 'string') {
-      openInfo(arg);
-      return;
-    }
-    const targets = resolveItems(arg);
-    if (targets.length > 0) openInfo(targets[0]);
-  }, [openInfo, resolveItems]);
+    const targets = (arg && typeof arg.path === 'string') ? [arg] : resolveItems(arg);
+    if (targets.length > 0) setInfoTargets(targets);
+  }, [resolveItems]);
 
   /* ─── Move / Copy (dialog, folder-tree destination picker) ─────────────── */
 
@@ -357,7 +351,7 @@ export default function FileManager() {
   const handleEscape = useCallback(() => {
     if (contextMenu) { setContextMenu(null); return; }
     if (previewItem) { closePreview(); return; }
-    if (infoItem) { closeInfo(); return; }
+    if (infoTargets.length > 0) { setInfoTargets([]); return; }
     if (moveCopyMode) { closeMoveCopy(); return; }
     if (renameTarget) { closeRename(); return; }
     if (newFolderOpen) { setNewFolderOpen(false); return; }
@@ -365,7 +359,7 @@ export default function FileManager() {
     if (confirmDelete.open) { setConfirmDelete({ open: false, items: [] }); return; }
     clearSelection();
   }, [
-    contextMenu, previewItem, closePreview, infoItem, closeInfo, moveCopyMode, closeMoveCopy,
+    contextMenu, previewItem, closePreview, infoTargets, moveCopyMode, closeMoveCopy,
     renameTarget, closeRename, newFolderOpen, setNewFolderOpen, locationManagerOpen,
     setLocationManagerOpen, confirmDelete, clearSelection,
   ]);
@@ -380,7 +374,7 @@ export default function FileManager() {
       if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
 
       const anyOverlayOpen = !!(
-        contextMenu || previewItem || infoItem || moveCopyMode || renameTarget
+        contextMenu || previewItem || infoTargets.length > 0 || moveCopyMode || renameTarget
         || newFolderOpen || locationManagerOpen || confirmDelete?.open
       );
       if (e.key !== 'Escape' && anyOverlayOpen) return;
@@ -433,7 +427,7 @@ export default function FileManager() {
   }, [
     isMobile, resolveItems, items, selectAll, openRename, handleDeleteRequest,
     handleCopyToClipboard, handleCutToClipboard, handlePaste, handleOpen, handleEscape,
-    contextMenu, previewItem, infoItem, moveCopyMode, renameTarget,
+    contextMenu, previewItem, infoTargets, moveCopyMode, renameTarget,
     newFolderOpen, locationManagerOpen, confirmDelete,
   ]);
 
@@ -522,10 +516,10 @@ export default function FileManager() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {isMobile ? (
-            <FileMobileList items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
-          ) : viewMode === 'grid' ? (
+          {viewMode === 'grid' ? (
             <FileGrid items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
+          ) : isMobile ? (
+            <FileMobileList items={items} isLoading={isLoadingContent} onOpen={handleOpen} onContextMenu={handleContextMenu} />
           ) : (
             <FileList
               items={items}
@@ -568,9 +562,9 @@ export default function FileManager() {
       />
 
       <InfoDrawer
-        open={Boolean(infoItem)}
-        item={infoItem}
-        onClose={closeInfo}
+        open={infoTargets.length > 0}
+        items={infoTargets}
+        onClose={() => setInfoTargets([])}
         onDownload={handleDownload}
         onRename={openRename}
         onDelete={handleDeleteRequest}

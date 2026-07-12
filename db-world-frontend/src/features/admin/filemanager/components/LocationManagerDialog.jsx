@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Typography,
   Table, TableHead, TableRow, TableCell, TableBody, Button, TextField, Chip, Tooltip, CircularProgress,
+  useMediaQuery, useTheme,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
@@ -35,6 +36,8 @@ const EMPTY_VALUES = { label: '', absolutePath: '' };
  */
 export default function LocationManagerDialog({ open, onClose }) {
   const T = useT();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { enqueueSnackbar } = useSnackbar();
   const { invalidateLocations, invalidateDir } = useInvalidateFm();
   const { data: locations = [], isLoading } = useLocations();
@@ -98,6 +101,7 @@ export default function LocationManagerDialog({ open, onClose }) {
         onClose={handleClose}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
         PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.border}` } }}
       >
         <DialogTitle sx={{
@@ -114,6 +118,52 @@ export default function LocationManagerDialog({ open, onClose }) {
           {isLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
               <CircularProgress size={22} sx={{ color: T.teal }} />
+            </Box>
+          ) : isMobile ? (
+            <Box>
+              {locations.length === 0 && (
+                <Typography sx={{ textAlign: 'center', color: T.textFaint, fontSize: 12, py: 2 }}>
+                  No locations configured
+                </Typography>
+              )}
+              {locations.map((loc) => (
+                <Box
+                  key={loc.id}
+                  sx={{ border: `1px solid ${T.border}`, borderRadius: 1.5, p: 1.5, mb: 1 }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <StorageIcon sx={{ fontSize: 14, color: T.textFaint }} />
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, flex: 1 }}>
+                      {loc.label}
+                    </Typography>
+                    <Chip
+                      label={loc.available ? 'Available' : 'Unavailable'}
+                      size="small"
+                      sx={{
+                        fontSize: 10.5, height: 20,
+                        bgcolor: loc.available ? T.successBg : T.warningBg,
+                        color: loc.available ? T.success : T.warning,
+                        border: 'none',
+                      }}
+                    />
+                  </Box>
+                  <Typography sx={{ fontSize: 11, color: T.textMuted, wordBreak: 'break-all', mt: 0.75 }}>
+                    {loc.absolutePath}
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.5 }}>
+                    <Tooltip title="Edit">
+                      <IconButton size="small" onClick={() => setEditing(loc)} sx={{ color: T.textFaint, '&:hover': { color: T.teal } }}>
+                        <EditIcon sx={{ fontSize: 15 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <IconButton size="small" onClick={() => setDeleteTarget(loc)} sx={{ color: T.textFaint, '&:hover': { color: T.error } }}>
+                        <DeleteIcon sx={{ fontSize: 15 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+              ))}
             </Box>
           ) : (
             <Table size="small">
@@ -141,7 +191,7 @@ export default function LocationManagerDialog({ open, onClose }) {
                         {loc.label}
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ ...cellSx, color: T.textMuted, wordBreak: 'break-all', maxWidth: 180 }}>
+                    <TableCell sx={{ ...cellSx, color: T.textMuted, wordBreak: 'break-all' }}>
                       {loc.absolutePath}
                     </TableCell>
                     <TableCell sx={{ borderColor: T.border }}>
