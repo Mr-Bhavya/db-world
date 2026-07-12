@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createUpload } from './resumableUploader';
 
 /** Fake file-like object supporting the subset of the File API we use. */
