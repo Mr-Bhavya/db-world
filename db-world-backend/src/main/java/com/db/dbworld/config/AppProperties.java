@@ -3,6 +3,7 @@ package com.db.dbworld.config;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,10 @@ import org.springframework.validation.annotation.Validated;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -23,6 +27,7 @@ import java.util.stream.Stream;
 @Component
 @ConfigurationProperties(prefix = "app")
 @Validated
+@Log4j2
 public class AppProperties {
 
     // ── Config-bound fields (Spring Boot setter binding) ─────────────────────
@@ -129,8 +134,7 @@ public class AppProperties {
         mediaBasePaths = Stream.of(tempPath, integrationPath)
                 .filter(Objects::nonNull).toList();
 
-        createDirs(basePathR, dataPathR, streamPathR, tempPath,
-                downloadsPath, integrationPath, logsPath, archivedLogsPath);
+        createDirs();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -256,14 +260,59 @@ public class AppProperties {
         return StringUtils.hasText(value) ? Path.of(StringUtils.cleanPath(value)) : null;
     }
 
-    private static void createDirs(Path... dirs) {
-        for (Path dir : dirs) {
+    /**
+     * Best-effort directory creation. NEVER throws: a missing/unmountable path
+     * (e.g. an external HDD that isn't plugged in) must not abort application
+     * startup, since this bean is depended on by every feature in the app.
+     * <p>
+     * Critical dirs are expected to live on internal storage (the app's own
+     * home) — failures are logged at {@code ERROR}. Optional dirs may live on
+     * removable/external storage — failures are logged at {@code WARN} since
+     * they're expected to be transient (e.g. disk unmounted).
+     */
+    private void createDirs() {
+        Map<String, Path> critical = new LinkedHashMap<>();
+        critical.put("basePath", basePathR);
+        critical.put("dataPath", dataPathR);
+        critical.put("tempPath", tempPath);
+        critical.put("logsPath", logsPath);
+        critical.put("archivedLogsPath", archivedLogsPath);
+
+        Map<String, Path> optional = new LinkedHashMap<>();
+        optional.put("streamPath", streamPathR);
+        optional.put("downloadsPath", downloadsPath);
+        optional.put("integrationPath", integrationPath);
+
+        List<String> missing = new ArrayList<>();
+        missing.addAll(createDirs(critical, true));
+        missing.addAll(createDirs(optional, false));
+
+        int total = critical.size() + optional.size();
+        if (!missing.isEmpty()) {
+            log.info("Startup: {} of {} configured directories unavailable: {}", missing.size(), total, missing);
+        } else {
+            log.info("Startup: all {} configured directories are ready", total);
+        }
+    }
+
+    /** Attempts to create each named dir; returns the names of those that failed. Never throws. */
+    private List<String> createDirs(Map<String, Path> dirs, boolean critical) {
+        List<String> failed = new ArrayList<>();
+        for (Map.Entry<String, Path> entry : dirs.entrySet()) {
+            String name = entry.getKey();
+            Path dir = entry.getValue();
             if (dir == null) continue;
             try {
                 Files.createDirectories(dir);
             } catch (Exception ex) {
-                throw new IllegalStateException("Failed to create directory: " + dir, ex);
+                failed.add(name);
+                if (critical) {
+                    log.error("Critical directory {} could not be created — dependent features will be unavailable", dir, ex);
+                } else {
+                    log.warn("Optional directory {} is unavailable (external disk not mounted?) — features using it will be unavailable until it returns", dir, ex);
+                }
             }
         }
+        return failed;
     }
 }
