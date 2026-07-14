@@ -6,7 +6,12 @@ import com.db.dbworld.payloads.ResponsePayloads;
 import com.db.dbworld.core.user.dto.CreateUserRequest;
 import com.db.dbworld.core.user.dto.UserDto;
 import com.db.dbworld.security.auth.AuthenticationService;
+import com.db.dbworld.security.auth.BiometricDeviceService;
+import com.db.dbworld.security.dto.BiometricDeviceDto;
+import com.db.dbworld.security.dto.BiometricEnrollRequest;
+import com.db.dbworld.security.dto.BiometricExchangeRequest;
 import com.db.dbworld.config.JwtProperties;
+import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.core.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -36,6 +41,7 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthenticationService authenticationService;
+    private final BiometricDeviceService biometricDeviceService;
     private final JwtProperties jwtProperties;
 
     /* ── Register ──────────────────────────────────────────────────── */
@@ -116,6 +122,60 @@ public class AuthController {
                 "username", authentication.getName(),
                 "roles",    roles
         ));
+    }
+
+    /* ── Biometric device unlock ───────────────────────────────────── */
+
+    /** Enroll the caller's device — returns a raw device token ONCE, stored on-device behind biometrics. */
+    @PostMapping("/biometric/enroll")
+    public ApiResponse<Map<String, String>> enrollBiometric(
+            Authentication authentication,
+            @Valid @RequestBody BiometricEnrollRequest request) {
+        String email = requireAuth(authentication);
+        String token = biometricDeviceService.enroll(email, request.deviceId(), request.deviceLabel());
+        return ApiResponse.success("Biometric device enrolled", Map.of("deviceToken", token));
+    }
+
+    /** Public: exchange a device token for a fresh session (same shape as /login). No bearer token. */
+    @PostMapping("/biometric/exchange")
+    public ResponseEntity<ApiResponse<ResponsePayloads.LoginResponse>> exchangeBiometric(
+            @Valid @RequestBody BiometricExchangeRequest request) {
+        var tokens = biometricDeviceService.exchange(request.deviceToken());
+
+        ResponseCookie refreshCookie = refreshCookie(
+                REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken(), tokens.refreshTokenTtl(),
+                jwtProperties.cookieSecure(), jwtProperties.cookieSameSite());
+
+        ResponsePayloads.LoginResponse response = new ResponsePayloads.LoginResponse(
+                tokens.accessToken(), tokens.user());
+
+        return ResponseEntity.ok()
+                .header(SET_COOKIE, refreshCookie.toString())
+                .body(ApiResponse.success("Login successful", response));
+    }
+
+    /** List the caller's enrolled devices (device-management UI). */
+    @GetMapping("/biometric/devices")
+    public ApiResponse<List<BiometricDeviceDto>> listBiometricDevices(Authentication authentication) {
+        return ApiResponse.success(biometricDeviceService.list(requireAuth(authentication)));
+    }
+
+    /** Revoke one enrolled device for the caller. */
+    @DeleteMapping("/biometric/devices/{deviceId}")
+    public ApiResponse<Void> revokeBiometricDevice(Authentication authentication, @PathVariable String deviceId) {
+        biometricDeviceService.revoke(requireAuth(authentication), deviceId);
+        return ApiResponse.success("Biometric device revoked");
+    }
+
+    /**
+     * These endpoints sit under permitAll /api/auth/** (so /exchange is reachable without a token),
+     * so we enforce authentication explicitly for the ones that need it, mirroring /verify.
+     */
+    private String requireAuth(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new DbWorldException(HttpStatus.UNAUTHORIZED, "Authentication required");
+        }
+        return authentication.getName();
     }
 
     /* ── Logout ────────────────────────────────────────────────────── */

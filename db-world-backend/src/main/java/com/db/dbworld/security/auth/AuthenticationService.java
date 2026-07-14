@@ -114,6 +114,14 @@ public class AuthenticationService {
     }
 
     // ==============================
+    // 🔑 ISSUE SESSION (for alternate auth paths, e.g. biometric device-token exchange)
+    // ==============================
+    /** Mints a fresh session (access token + persisted refresh token) for an already-verified user. */
+    public AuthToken issueSession(UserEntity user) {
+        return generateTokens(user);
+    }
+
+    // ==============================
     // 🔐 INTERNAL
     // ==============================
     private AuthToken generateTokens(UserEntity user) {
