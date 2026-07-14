@@ -33,8 +33,18 @@ export default function PdfViewer({ src, T }) {
       if (host) host.replaceChildren();
       try {
         let params;
-        if (typeof src === 'string') params = { url: src };
-        else if (src instanceof Blob) params = { data: new Uint8Array(await src.arrayBuffer()) };
+        if (typeof src === 'string') {
+          // On native, pdf.js fetching a URL goes through the CapacitorHttp patch, which corrupts
+          // binary — so fetch the bytes ourselves (base64-safe) and hand pdf.js the data instead.
+          const { Capacitor } = await import('@capacitor/core');
+          if (Capacitor?.isNativePlatform?.()) {
+            const { fetchBinaryBlobNative } = await import('@platform/android/nativeHttp');
+            const blob = await fetchBinaryBlobNative(src, { auth: false });
+            params = { data: new Uint8Array(await blob.arrayBuffer()) };
+          } else {
+            params = { url: src };
+          }
+        } else if (src instanceof Blob) params = { data: new Uint8Array(await src.arrayBuffer()) };
         else if (src instanceof ArrayBuffer) params = { data: new Uint8Array(src) };
         else params = { data: src };
 

@@ -1,6 +1,10 @@
+import { Capacitor } from '@capacitor/core';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { getApiBaseUrl, publicShareUrl } from '@shared/config/apiBaseUrl';
+import { fetchBinaryBlobNative } from '@platform/android/nativeHttp';
 import Constants from '@shared/constants';
+
+const isNative = () => Capacitor?.isNativePlatform?.() ?? false;
 
 const BASE = '/api/wallet';
 const unwrap = (r) => r.data?.data ?? r.data;
@@ -47,15 +51,22 @@ export const replaceDocumentFile = (id, file, onProgress) => {
 export const deleteDocument = (id) =>
   axiosInstance.delete(`${BASE}/documents/${id}`).then((r) => r.data);
 
-/** Authenticated content fetch as a Blob (used for both inline preview and download). */
-export const fetchContentBlob = (id, disposition = 'inline') =>
-  axiosInstance.get(`${BASE}/documents/${id}/content`, {
-    params: { disposition }, responseType: 'blob',
-  }).then((r) => r.data);
+/**
+ * Authenticated content fetch as a Blob (used for both inline preview and download). On native we
+ * bypass the CapacitorHttp fetch patch (which corrupts binary bodies) via a direct base64 fetch.
+ */
+export const fetchContentBlob = (id, disposition = 'inline') => {
+  const path = `${BASE}/documents/${id}/content`;
+  if (isNative()) return fetchBinaryBlobNative(`${getApiBaseUrl()}${path}`, { params: { disposition } });
+  return axiosInstance.get(path, { params: { disposition }, responseType: 'blob' }).then((r) => r.data);
+};
 
 /** Small JPEG thumbnail (owner-auth). Only present when the summary's `hasThumbnail` is true. */
-export const fetchThumbnailBlob = (id) =>
-  axiosInstance.get(`${BASE}/documents/${id}/thumbnail`, { responseType: 'blob' }).then((r) => r.data);
+export const fetchThumbnailBlob = (id) => {
+  const path = `${BASE}/documents/${id}/thumbnail`;
+  if (isNative()) return fetchBinaryBlobNative(`${getApiBaseUrl()}${path}`);
+  return axiosInstance.get(path, { responseType: 'blob' }).then((r) => r.data);
+};
 
 export const createShare = (id, body) =>
   axiosInstance.post(`${BASE}/documents/${id}/shares`, body).then(unwrap);
@@ -78,7 +89,8 @@ export const sharedContentUrl = (token, disposition = 'inline') =>
   `${getApiBaseUrl()}${BASE}/shared/${encodeURIComponent(token)}/content?disposition=${disposition}`;
 
 /** Public content fetch as a Blob (no auth — used by the public share preview page). */
-export const fetchSharedContentBlob = (token, disposition = 'inline') =>
-  axiosInstance.get(`${BASE}/shared/${encodeURIComponent(token)}/content`, {
-    params: { disposition }, responseType: 'blob',
-  }).then((r) => r.data);
+export const fetchSharedContentBlob = (token, disposition = 'inline') => {
+  const path = `${BASE}/shared/${encodeURIComponent(token)}/content`;
+  if (isNative()) return fetchBinaryBlobNative(`${getApiBaseUrl()}${path}`, { params: { disposition }, auth: false });
+  return axiosInstance.get(path, { params: { disposition }, responseType: 'blob' }).then((r) => r.data);
+};
