@@ -17,4 +17,7 @@ public interface BiometricDeviceRepository extends JpaRepository<BiometricDevice
 
     /** Device-management list for a user. */
     List<BiometricDeviceEntity> findByUser_UserIdAndRevokedFalseOrderByCreatedDesc(Long userId);
+
+    /** Revoke every enrolled device for a user (e.g. on password change) — returns the count removed. */
+    long deleteByUser_UserId(Long userId);
 }

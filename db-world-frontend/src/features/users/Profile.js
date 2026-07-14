@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '@shared/constants';
 import BiometricSetting from '@features/auth/BiometricSetting';
+import BiometricDevicesSection from '@features/auth/BiometricDevicesSection';
 import { getUserDetail, updateUserDetails, changePassword, getLoginHistory } from '@shared/services/ApiServices';
 import { toast } from '@shared/components/ui/Toast';
 import usePageMeta from '@shared/hooks/usePageMeta';
@@ -248,6 +249,7 @@ const LoginHistoryDialog = ({ open, onClose }) => {
         </IconButton>
       </DialogTitle>
       <DialogContent>
+        <BiometricDevicesSection />
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress sx={{ color: T.teal }} />

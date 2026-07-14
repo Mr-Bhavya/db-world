@@ -14,6 +14,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import BlockIcon from '@mui/icons-material/Block';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import RefreshIcon from '@mui/icons-material/Autorenew';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useUserStore } from '../stores/useUserStore';
@@ -212,6 +213,27 @@ export default function UserDetailDrawer() {
               ))
             ) : (
               <Typography sx={{ fontSize: 12, color: T.textFaint, py: 1 }}>No active sessions.</Typography>
+            )}
+
+            {/* Biometric devices */}
+            {(sessions?.biometricDevices?.length ?? 0) > 0 && (
+              <>
+                <SectionLabel>Biometric devices ({sessions.biometricDevices.length})</SectionLabel>
+                {sessions.biometricDevices.map((d, i) => (
+                  <Box key={d.deviceId ?? i} sx={{ display: 'flex', gap: 1.5, py: 1, borderBottom: `1px solid ${T.border}`, alignItems: 'center' }}>
+                    <FingerprintIcon sx={{ fontSize: 15, color: d.active ? T.teal : T.textFaint, flexShrink: 0 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 12, color: T.textPrimary }}>
+                        {d.deviceLabel || 'Device'}{d.active ? '' : ' (expired)'}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: T.textFaint, mt: 0.25 }}>
+                        Enrolled {d.created ? formatDistanceToNow(new Date(d.created), { addSuffix: true }) : '—'}
+                        {d.lastUsed ? ` · last unlock ${formatDistanceToNow(new Date(d.lastUsed), { addSuffix: true })}` : ''}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </>
             )}
 
             {/* Login history */}

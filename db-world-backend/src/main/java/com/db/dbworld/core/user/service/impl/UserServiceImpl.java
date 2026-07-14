@@ -15,7 +15,9 @@ import com.db.dbworld.core.user.mapper.UserMapper;
 import com.db.dbworld.core.user.repository.UserRepository;
 import com.db.dbworld.core.user.service.UserService;
 import com.db.dbworld.security.entity.RefreshTokenEntity;
+import com.db.dbworld.security.entity.BiometricDeviceEntity;
 import com.db.dbworld.security.repository.RefreshTokenRepository;
+import com.db.dbworld.security.repository.BiometricDeviceRepository;
 
 import com.db.dbworld.config.AppConstants;
 import jakarta.persistence.criteria.Predicate;
@@ -47,6 +49,7 @@ public class UserServiceImpl implements UserService {
     private final UserContext userContext;
     private final LoginDataRepository loginDataRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final BiometricDeviceRepository biometricDeviceRepository;
 
     // ==============================
     // âœ… CREATE USER
@@ -256,6 +259,10 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
 
         userRepository.save(user);
+        // A password change signs the account out everywhere: drop all refresh-token sessions and
+        // biometric device tokens so a stolen credential (or an old biometric enrollment) can't
+        // keep minting access after the password is rotated.
+        revokeAllCredentials(user.getUserId());
         log.info("Password changed for user [{}]", user.getEmail());
     }
 
@@ -268,8 +275,16 @@ public class UserServiceImpl implements UserService {
         UserEntity user = getUserEntityById(userId);
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        revokeAllCredentials(userId);
         log.warn("Password reset for user [{}] (id={}) by admin [{}]",
                 user.getEmail(), userId, userContext.userId());
+    }
+
+    /** Revokes every session + biometric device for a user (used on password change / admin reset). */
+    private void revokeAllCredentials(Long userId) {
+        long sessions = refreshTokenRepository.deleteByUser_UserId(userId);
+        long devices  = biometricDeviceRepository.deleteByUser_UserId(userId);
+        log.info("Revoked {} session(s) and {} biometric device(s) for user id={}", sessions, devices, userId);
     }
 
     // ==============================
@@ -310,10 +325,25 @@ public class UserServiceImpl implements UserService {
                 })
                 .toList();
 
+        List<Map<String, Object>> biometricDevices = biometricDeviceRepository
+                .findByUser_UserIdAndRevokedFalseOrderByCreatedDesc(userId).stream()
+                .map(d -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("deviceId", d.getDeviceId());
+                    m.put("deviceLabel", d.getDeviceLabel());
+                    m.put("created", d.getCreated());
+                    m.put("lastUsed", d.getLastUsed());
+                    m.put("expiry", d.getExpiry());
+                    m.put("active", d.getExpiry() != null && d.getExpiry().isAfter(now));
+                    return m;
+                })
+                .toList();
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("activeCount", activeCount);
         result.put("sessions", sessions);
         result.put("loginHistory", loginHistory);
+        result.put("biometricDevices", biometricDevices);
         return result;
     }
 
