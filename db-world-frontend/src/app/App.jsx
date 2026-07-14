@@ -29,6 +29,7 @@ import { SnackbarProvider } from 'notistack';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
+import PermissionOnboardingGate, { PERMISSIONS_ONBOARDED_KEY } from '@shared/components/PermissionOnboardingGate';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -282,7 +283,12 @@ const ThemedApp = () => {
       try {
         if (Capacitor.getPlatform() === 'android') {
           await hideNativeStatusBar();
-          try { await DbWorldDownload.ensurePermissions(); } catch { /* ignore */ }
+          // On the very first launch the rationale screen (PermissionOnboardingGate) drives the
+          // initial permission request; only auto-ensure once that has been shown, so the raw
+          // system prompt doesn't pre-empt the explanation.
+          if (localStorage.getItem(PERMISSIONS_ONBOARDED_KEY)) {
+            try { await DbWorldDownload.ensurePermissions(); } catch { /* ignore */ }
+          }
           try { resumeListener = await CapacitorApp.addListener('resume', hideNativeStatusBar); } catch { /* ignore */ }
           try {
             stateListener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
@@ -339,6 +345,7 @@ const ThemedApp = () => {
           <div style={{ background: pageScaled ? '#000' : 'transparent' }}>
             <BackButtonHandler />
             <AppUpdateGate />
+            <PermissionOnboardingGate />
             {/* in-app self-update prompt (Android only) */}
             {/* Page chrome. Scales back slightly when the mobile detail sheet
                 is open (depth cue); the sheet/backdrop render as siblings on
