@@ -96,19 +96,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        ContentCachingRequestWrapper  cachedReq = new ContentCachingRequestWrapper(request, BODY_CACHE_LIMIT);
+        // Never tee the request body for uploads (multipart / octet-stream / oversized): buffering
+        // 8 MiB chunks is wasteful and must not sit between the client and the upload handler
+        // (it also produced binary that blew past the request_body log column). Only wrap when we
+        // can usefully and safely capture a small text body.
+        HttpServletRequest reqToUse = shouldCacheRequestBody(request)
+                ? new ContentCachingRequestWrapper(request, BODY_CACHE_LIMIT)
+                : request;
         ContentCachingResponseWrapper cachedRes = new ContentCachingResponseWrapper(response);
 
         long startNs = System.nanoTime();
 
         try {
-            filterChain.doFilter(cachedReq, cachedRes);
+            filterChain.doFilter(reqToUse, cachedRes);
         } finally {
             long durationMs = (System.nanoTime() - startNs) / 1_000_000L;
 
             // Compute the MD5 fingerprint while bodies are still in the cache.
+            byte[] reqBytes = (reqToUse instanceof ContentCachingRequestWrapper w)
+                    ? w.getContentAsByteArray() : new byte[0];
             String md5 = BodyMd5.composite(
-                    BodyMd5.hex(cachedReq.getContentAsByteArray()),
+                    BodyMd5.hex(reqBytes),
                     BodyMd5.hex(cachedRes.getContentAsByteArray()));
             if (!md5.isEmpty()) {
                 ThreadContext.put(MdcKeys.MD5, md5);
@@ -123,8 +131,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         request.getRequestURI(), e.getMessage());
             }
 
-            if (shouldTrackRequest(cachedReq)) {
-                RequestLogData logData = extractRequestLogData(cachedReq, cachedRes, durationMs);
+            if (shouldTrackRequest(reqToUse)) {
+                RequestLogData logData = extractRequestLogData(reqToUse, cachedRes, durationMs);
 
                 // Capture the slow flag once on the calling thread — the async
                 // task only sees logData and shouldn't repeat the calculation.
@@ -233,8 +241,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String getRequestBody(HttpServletRequest request) {
+        // Uploads / binary bodies are never wrapped (see shouldCacheRequestBody), so there's nothing
+        // to capture — and we must not blindly cast a raw request to the caching wrapper.
+        if (!(request instanceof ContentCachingRequestWrapper wrapper)) return "";
         try {
-            byte[] body = ((ContentCachingRequestWrapper) request).getContentAsByteArray();
+            byte[] body = wrapper.getContentAsByteArray();
             if (body.length == 0) return "";
             String encoding = request.getCharacterEncoding();
             return new String(body, encoding != null ? encoding : "UTF-8");
@@ -243,6 +254,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     request.getRequestURI(), e.getMessage());
             return "";
         }
+    }
+
+    /**
+     * Only cache small, textual request bodies for logging. Uploads (multipart / octet-stream) and
+     * anything larger than the cache limit are passed through untouched so the body streams straight
+     * to the handler.
+     */
+    private boolean shouldCacheRequestBody(HttpServletRequest request) {
+        String contentType = request.getContentType();
+        if (contentType != null) {
+            String lc = contentType.toLowerCase();
+            if (lc.startsWith("multipart/") || lc.contains("application/octet-stream")) {
+                return false;
+            }
+        }
+        long length = request.getContentLengthLong();
+        return length <= BODY_CACHE_LIMIT;
     }
 
     private boolean shouldPersistToDatabase(HttpServletRequest request) {
