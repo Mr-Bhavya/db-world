@@ -14,9 +14,11 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.Settings;
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -32,6 +34,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -344,6 +347,84 @@ public class DbWorldDownloadPlugin extends Plugin {
                 call.reject("Failed to start download: " + e.getMessage());
             }
         });
+    }
+
+    // ─── direct save / open (used by the Document Wallet — NOT an aria2 download) ──
+
+    /**
+     * Writes already-in-hand bytes (base64) straight into the public Downloads/DB-World collection
+     * and returns a shareable URI. Unlike {@link #startDownload}, this bypasses aria2: the wallet has
+     * already fetched + decrypted the (authenticated, per-user) file into the WebView, so there is no
+     * URL for the native daemon to fetch. Small documents only — the payload is held in memory.
+     *
+     * <p>API 29+: temp-file → {@link MediaStorePublisher#publish} → {@code content://} URI (visible in
+     * the Files app, no storage permission). API ≤ 28: writes to the public Downloads/DB-World path
+     * and returns a {@code file://} URI.
+     */
+    @PluginMethod
+    public void saveDocument(PluginCall call) {
+        final String base64   = call.getString("data");
+        final String nameArg  = orEmpty(call.getString("fileName", "document"));
+        final String mimeArg  = orEmpty(call.getString("mimeType", ""));
+        if (base64 == null || base64.isEmpty()) { call.reject("data is required"); return; }
+        final String fileName = nameArg.isEmpty() ? "document" : nameArg;
+        final String mime     = mimeArg.isEmpty() ? guessMime(fileName) : mimeArg;
+
+        runIo(() -> {
+            File tmp = null;
+            try {
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                Uri resultUri;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    tmp = File.createTempFile("wallet_", ".tmp", getContext().getCacheDir());
+                    try (FileOutputStream out = new FileOutputStream(tmp)) { out.write(bytes); }
+                    resultUri = MediaStorePublisher.publish(getContext(), tmp, fileName, mime);
+                } else {
+                    File dest = new File(downloadDir, fileName);
+                    try (FileOutputStream out = new FileOutputStream(dest)) { out.write(bytes); }
+                    resultUri = Uri.fromFile(dest);
+                }
+                JSObject r = new JSObject();
+                r.put("uri", resultUri.toString());
+                r.put("mimeType", mime);
+                call.resolve(r);
+            } catch (Exception e) {
+                android.util.Log.e(TAG, "saveDocument failed: " + e.getMessage(), e);
+                call.reject("saveDocument failed: " + e.getMessage());
+            } finally {
+                if (tmp != null) //noinspection ResultOfMethodCallIgnored
+                    tmp.delete();
+            }
+        });
+    }
+
+    /**
+     * Opens a previously-saved file in the user's default viewer via ACTION_VIEW. Accepts a
+     * {@code content://} URI (opened directly) or a {@code file://} URI (re-wrapped through our
+     * FileProvider so it's shareable on API 24+).
+     */
+    @PluginMethod
+    public void openFile(PluginCall call) {
+        final String uriStr  = call.getString("uri");
+        final String mimeArg = orEmpty(call.getString("mimeType", ""));
+        if (uriStr == null || uriStr.isEmpty()) { call.reject("uri is required"); return; }
+        try {
+            Uri uri  = Uri.parse(uriStr);
+            String mime = mimeArg.isEmpty() ? guessMime(uriStr) : mimeArg;
+            if ("file".equals(uri.getScheme())) {
+                File f = new File(uri.getPath());
+                uri = FileProvider.getUriForFile(getContext(),
+                        getContext().getPackageName() + ".fileprovider", f);
+            }
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(uri, mime);
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(view);
+            call.resolve();
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "openFile failed: " + e.getMessage(), e);
+            call.reject("openFile failed: " + e.getMessage());
+        }
     }
 
     // ─── queue actions ──────────────────────────────────────────────────────

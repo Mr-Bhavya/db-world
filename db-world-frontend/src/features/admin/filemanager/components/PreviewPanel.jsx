@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
   Box, Drawer, Dialog, IconButton, Typography, Tooltip, CircularProgress, Button,
   useMediaQuery, useTheme,
@@ -11,6 +11,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useT } from '@shared/theme';
 import { downloadTicketUrl, fetchTextPreview } from '../api/fileManagerApi';
 import { getFileColor, getFileEmoji } from './fileIcons';
+
+const PdfViewer = lazy(() => import('@shared/components/pdf/PdfViewer'));
 
 /** Extensions treated as inline-previewable "code/text" even when the server-reported MIME isn't `text/*`. */
 const CODE_EXTENSIONS = new Set([
@@ -184,7 +186,13 @@ function renderPreviewBody({ kind, ticketLoading, ticketError, ticketUrl, item, 
     );
   }
   if (kind === 'pdf') {
-    return <Box component="iframe" src={ticketUrl} title={item.name} sx={{ flex: 1, border: 'none', width: '100%' }} />;
+    return (
+      <Box sx={{ flex: 1, width: '100%', minHeight: 0 }}>
+        <Suspense fallback={<Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><CircularProgress size={28} sx={{ color: T.teal }} /></Box>}>
+          <PdfViewer src={ticketUrl} T={T} />
+        </Suspense>
+      </Box>
+    );
   }
   return <UnsupportedViewer T={T} item={item} ticketUrl={ticketUrl} />;
 }

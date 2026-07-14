@@ -80,6 +80,15 @@ class MyDownloadManagerWeb extends WebPlugin {
     const target = playableUri || localUri;
     if (target) window.open(target, '_blank', 'noopener,noreferrer');
   }
+
+  // Wallet direct-save surface (native-only in practice; web callers use an anchor download).
+  async saveDocument({ fileName, mimeType }) {
+    return { uri: '', mimeType: mimeType || '', fileName: fileName || 'document' };
+  }
+
+  async openFile({ uri }) {
+    if (uri) window.open(uri, '_blank', 'noopener,noreferrer');
+  }
 }
 
 export default MyDownloadManagerWeb;

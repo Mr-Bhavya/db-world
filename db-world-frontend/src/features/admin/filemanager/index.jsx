@@ -319,7 +319,7 @@ export default function FileManager() {
     }
   }, [confirmDelete, invalidateDir, locationId, clearSelection, enqueueSnackbar]);
 
-  /* ─── Download (web: anchor to the ticket stream; Android: fetch+native) ── */
+  /* ─── Download (web: anchor to the ticket stream; Android: aria2c manager) ── */
 
   const handleDownload = useCallback(async (arg) => {
     const targets = resolveItems(arg);
@@ -329,14 +329,23 @@ export default function FileManager() {
       return;
     }
     const isNative = Capacitor.isNativePlatform();
+    // The stream endpoint is public + ticket-protected + Range-capable, so on Android we hand the URL
+    // to the native aria2c download manager (notification, resume, no in-memory blob) instead of
+    // fetching the whole file into the WebView.
+    const { default: DbWorldDownload } = isNative
+      ? await import('@platform/android/DbWorldDownload')
+      : {};
     for (const item of files) {
       try {
         const url = await fmApi.downloadTicketUrl({ locationId: item.locationId, path: item.path });
         if (isNative) {
-          const blob = await fetch(url).then((r) => r.blob());
-          const { saveBlobNative } = await import('@platform/android/walletDownload');
-          await saveBlobNative(blob, item.name);
-          enqueueSnackbar(`${item.name} saved to Documents`, { variant: 'success' });
+          await DbWorldDownload.startDownload({
+            url,
+            fileName: item.name,
+            title: item.name,
+            mimeType: item.mimeType || '',
+          });
+          enqueueSnackbar(`Downloading ${item.name}…`, { variant: 'info' });
         } else {
           const a = document.createElement('a');
           a.href = url;

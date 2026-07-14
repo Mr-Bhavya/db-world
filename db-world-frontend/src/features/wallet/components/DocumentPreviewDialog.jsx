@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Button, Typography, Divider,
   useMediaQuery, useTheme,
@@ -14,12 +14,15 @@ import { useT } from '@shared/theme';
 import { fetchContentBlob, fetchDocument } from '../api/walletApi';
 import { downloadBlob } from '../utils/download';
 
+const PdfViewer = lazy(() => import('@shared/components/pdf/PdfViewer'));
+
 export default function DocumentPreviewDialog({ doc, open, onClose }) {
   const T = useT();
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const { enqueueSnackbar } = useSnackbar();
   const [url, setUrl] = useState(null);
+  const [blob, setBlob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const isPdf = doc.contentType === 'application/pdf';
@@ -31,13 +34,18 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
 
   useEffect(() => {
     let objectUrl; let cancelled = false;
-    setLoading(true);
+    setLoading(true); setBlob(null); setUrl(null);
     fetchContentBlob(doc.id, 'inline')
-      .then((blob) => { if (cancelled) return; objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); })
+      .then((b) => {
+        if (cancelled) return;
+        setBlob(b);
+        // PDFs are handed to pdf.js as a Blob; only images need an object URL for <img>.
+        if (!isPdf) { objectUrl = URL.createObjectURL(b); setUrl(objectUrl); }
+      })
       .catch(() => { if (!cancelled) enqueueSnackbar('Failed to load document', { variant: 'error' }); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [doc.id, enqueueSnackbar]);
+  }, [doc.id, enqueueSnackbar, isPdf]);
 
   const onDownload = async () => {
     try {
@@ -76,7 +84,13 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
       <DialogContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, minHeight: 400 }}>
         <Box sx={{ flex: { xs: '0 0 auto', md: '1 1 60%' }, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
           {loading ? <CircularProgress sx={{ color: T.teal }} />
-            : isPdf ? <iframe title={doc.label} src={url} style={{ width: '100%', height: isPhone ? '50vh' : '70vh', border: 0 }} />
+            : isPdf ? (
+              <Box sx={{ width: '100%', height: isPhone ? '50vh' : '70vh' }}>
+                <Suspense fallback={<Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><CircularProgress sx={{ color: T.teal }} /></Box>}>
+                  <PdfViewer src={blob} T={T} />
+                </Suspense>
+              </Box>
+            )
             : <img alt={doc.label} src={url} style={{ maxWidth: '100%', maxHeight: isPhone ? '50vh' : '70vh' }} />}
         </Box>
 

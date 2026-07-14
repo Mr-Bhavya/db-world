@@ -8,7 +8,7 @@ import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme';
 import { useDocuments, useDocumentTypes, useDeleteDocument } from './hooks/useWallet';
 import { fetchContentBlob } from './api/walletApi';
-import { downloadBlob } from './utils/download';
+import { downloadBlob, openDownloaded } from './utils/download';
 import DocumentCard from './components/DocumentCard';
 import AddDocumentDialog from './components/AddDocumentDialog';
 import EditDocumentDialog from './components/EditDocumentDialog';
@@ -18,7 +18,7 @@ import ShareDialog from './components/ShareDialog';
 export default function WalletPage() {
   const T = useT();
   const confirm = useConfirm();
-  const { enqueueSnackbar } = useSnackbar();
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const [q, setQ] = useState('');
   const [typeId, setTypeId] = useState('');
   const filters = useMemo(() => ({ typeId, q }), [typeId, q]);
@@ -34,7 +34,21 @@ export default function WalletPage() {
   const onDownload = async (doc) => {
     try {
       const blob = await fetchContentBlob(doc.id, 'attachment');
-      await downloadBlob(blob, doc.label || 'document');
+      const saved = await downloadBlob(blob, doc.label || 'document');
+      if (saved?.uri) {
+        enqueueSnackbar('Saved to Downloads', {
+          variant: 'success',
+          action: (key) => (
+            <Button
+              size="small"
+              sx={{ color: '#fff', fontWeight: 700 }}
+              onClick={() => { closeSnackbar(key); openDownloaded(saved).catch(() => {}); }}
+            >
+              Open
+            </Button>
+          ),
+        });
+      }
     } catch (_e) {
       enqueueSnackbar('Failed to download document', { variant: 'error' });
     }
