@@ -149,9 +149,18 @@ export const AuthProvider = ({ children }) => {
 
 
       } catch {
-        // The interceptor already dispatched 'auth:force-logout' and cleared
-        // localStorage if this was a refresh failure. Just reset local state.
-        setAuth({ ...INITIAL_AUTH, loading: false });
+        // Distinguish a dead session from a transient failure. On a genuine auth
+        // failure the axios interceptor has already cleared localStorage and
+        // dispatched 'auth:force-logout'. If the token is STILL present, the failure
+        // was transient (offline / 5xx / timeout) — keep the stored session so a
+        // flaky network or a server blip doesn't bounce a still-valid login to the
+        // login screen. The next protected request re-runs the real refresh flow.
+        const storedRole = localStorage.getItem('role');
+        if (localStorage.getItem('token') && storedUser && storedRole) {
+          login(storedToken, storedUser, storedRole);
+        } else {
+          setAuth({ ...INITIAL_AUTH, loading: false });
+        }
       }
     };
 

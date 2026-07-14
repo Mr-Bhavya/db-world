@@ -31,6 +31,17 @@ const NO_TOKEN_PATHS = [
   '/api/wallet/shared/',
 ];
 
+/**
+ * True only for a genuine authentication failure — the server explicitly rejected
+ * the credentials (401/403). A network error (no response), timeout, or 5xx is NOT
+ * an auth failure: the session may well still be valid, we just couldn't reach or
+ * get a clean answer from the server. Those must never end the session.
+ */
+export const isAuthFailure = (err) => {
+  const s = err?.response?.status;
+  return s === 401 || s === 403;
+};
+
 /** In-flight refresh state */
 let isRefreshing = false;
 let waitQueue = []; // Array<{ resolve, reject }>
@@ -112,9 +123,14 @@ axiosInstance.interceptors.response.use(
         return axiosInstance(original);
 
       } catch (refreshError) {
-        // Refresh genuinely failed (cookie expired/revoked) — end the session.
-        localStorage.clear();
-        window.dispatchEvent(new CustomEvent('auth:force-logout'));
+        // Only end the session when the refresh endpoint itself says the refresh
+        // token is invalid/revoked (401/403). A network error or 5xx during refresh
+        // is transient — keep the session so a blip doesn't bounce the user to login;
+        // the next request retries the refresh once connectivity/server recovers.
+        if (isAuthFailure(refreshError)) {
+          localStorage.clear();
+          window.dispatchEvent(new CustomEvent('auth:force-logout'));
+        }
         return Promise.reject(refreshError);
       }
     }
