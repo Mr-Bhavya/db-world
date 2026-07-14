@@ -32,7 +32,9 @@ const PrivateRoute = ({ allowedRoles }) => {
 
   const normalizedAllowedRoles = hasRoleRestriction ? allowedRoles.map(normalizeRole).filter(Boolean) : [];
 
-  if (auth.loading) {
+  // While loading, or locked awaiting biometric unlock, hold on a loader — the BiometricGate
+  // overlay renders on top and drives the unlock. Don't redirect to login during the lock.
+  if (auth.loading || auth.locked) {
     return <AppLoader variant="bar" />;
   }
 

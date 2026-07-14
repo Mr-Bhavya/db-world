@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '@shared/constants';
+import BiometricSetting from '@features/auth/BiometricSetting';
 import { getUserDetail, updateUserDetails, changePassword, getLoginHistory } from '@shared/services/ApiServices';
 import { toast } from '@shared/components/ui/Toast';
 import usePageMeta from '@shared/hooks/usePageMeta';
@@ -693,6 +694,7 @@ const Profile = () => {
                   >
                     Change Password
                   </Button>
+                  <BiometricSetting />
                 </Box>
               )}
 

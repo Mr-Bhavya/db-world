@@ -28,6 +28,9 @@ const NO_TOKEN_PATHS = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/refresh-token',
+  // Biometric exchange runs at launch before a session exists; a stale Bearer token would be
+  // rejected 401 by the JWT decoder even on this permitAll path, so it must go token-free.
+  '/api/auth/biometric/exchange',
   '/api/wallet/shared/',
 ];
 

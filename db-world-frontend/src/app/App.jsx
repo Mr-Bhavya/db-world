@@ -30,6 +30,8 @@ import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
 import PermissionOnboardingGate, { PERMISSIONS_ONBOARDED_KEY } from '@shared/components/PermissionOnboardingGate';
+import BiometricGate from '@features/auth/BiometricGate';
+import BiometricEnrollPrompt from '@features/auth/BiometricEnrollPrompt';
 import { isChunkLoadError, reloadForStaleChunks } from '@shared/utils/chunkReload';
 import AppLoader from '@shared/components/ui/AppLoader';
 
@@ -346,6 +348,8 @@ const ThemedApp = () => {
             <BackButtonHandler />
             <AppUpdateGate />
             <PermissionOnboardingGate />
+            <BiometricEnrollPrompt />
+            <BiometricGate />
             {/* in-app self-update prompt (Android only) */}
             {/* Page chrome. Scales back slightly when the mobile detail sheet
                 is open (depth cue); the sheet/backdrop render as siblings on

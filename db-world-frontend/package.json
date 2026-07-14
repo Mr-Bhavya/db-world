@@ -18,6 +18,7 @@
     "@capacitor/push-notifications": "^7.0.0",
     "@capacitor/screen-orientation": "^7.0.1",
     "@capacitor/status-bar": "^7.0.6",
+    "@capgo/capacitor-native-biometric": "^7.6.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hookform/resolvers": "^5.2.2",

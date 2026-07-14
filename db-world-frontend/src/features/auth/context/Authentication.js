@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import axiosInstance, { refreshAccessToken } from '@shared/components/ui/utils/AxiosInstants';
+import { isBiometricEnabled } from '@platform/android/biometric';
 import constants from '@shared/constants';
 
 const AuthContext = createContext(null);
@@ -32,6 +33,7 @@ const INITIAL_AUTH = {
   token: null,
   role: null,
   loading: true,   // true until the initial verify completes
+  locked: false,   // biometric unlock enabled and awaiting fingerprint/face at launch
 };
 
 const APP_ROLES = [
@@ -55,7 +57,12 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem('role', role);
-    setAuth({ isAuthenticated: true, token, user, role, loading: false });
+    setAuth({ isAuthenticated: true, token, user, role, loading: false, locked: false });
+  }, []);
+
+  /* ── Give up on biometric unlock → fall back to password login ────── */
+  const cancelBiometricLock = useCallback(() => {
+    setAuth({ ...INITIAL_AUTH, loading: false, locked: false });
   }, []);
 
   /* ── logout ─────────────────────────────────────────────────────── */
@@ -121,6 +128,14 @@ export const AuthProvider = ({ children }) => {
     if (initialized.current) return;
     initialized.current = true;
 
+    // Biometric unlock enabled → lock at launch instead of auto-authenticating from the stored
+    // token/refresh cookie. The BiometricGate prompts for fingerprint/face and exchanges the
+    // device token for a fresh session (or the user falls back to password login).
+    if (isBiometricEnabled()) {
+      setAuth({ ...INITIAL_AUTH, loading: false, locked: true });
+      return;
+    }
+
     const verify = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
@@ -170,7 +185,7 @@ export const AuthProvider = ({ children }) => {
   /* ── Context value ───────────────────────────────────────────────── */
 
   return (
-    <AuthContext.Provider value={{ auth, login, logout }}>
+    <AuthContext.Provider value={{ auth, login, logout, cancelBiometricLock }}>
       {children}
     </AuthContext.Provider>
   );
