@@ -36,10 +36,25 @@ class DownloadServiceTest {
         String ticket = svc.issueTicket("l1", "/hello.txt");
 
         MockHttpServletResponse resp = new MockHttpServletResponse();
-        svc.streamByTicket(ticket, null, resp);
+        svc.streamByTicket(ticket, null, false, resp);
 
         assertThat(resp.getStatus()).isEqualTo(200);
         assertThat(resp.getContentAsString()).isEqualTo("hello world");
+    }
+
+    @Test
+    void download_setsAttachmentDispositionWithFilename() throws Exception {
+        String ticket = svc.issueTicket("l1", "/hello.txt");
+
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        svc.streamByTicket(ticket, null, true, resp);
+
+        assertThat(resp.getStatus()).isEqualTo(200);
+        assertThat(resp.getContentAsString()).isEqualTo("hello world");
+        assertThat(resp.getHeader("Content-Disposition"))
+                .isNotNull()
+                .contains("attachment")
+                .contains("hello.txt");
     }
 
     @Test
@@ -47,7 +62,7 @@ class DownloadServiceTest {
         String ticket = svc.issueTicket("l1", "/hello.txt");
 
         MockHttpServletResponse resp = new MockHttpServletResponse();
-        svc.streamByTicket(ticket, "bytes=0-4", resp);
+        svc.streamByTicket(ticket, "bytes=0-4", false, resp);
 
         assertThat(resp.getStatus()).isEqualTo(206);
         assertThat(resp.getContentAsString()).isEqualTo("hello");
@@ -57,7 +72,7 @@ class DownloadServiceTest {
     void invalidTicket_sendsGone() throws Exception {
         MockHttpServletResponse resp = new MockHttpServletResponse();
 
-        svc.streamByTicket("does-not-exist", null, resp);
+        svc.streamByTicket("does-not-exist", null, false, resp);
 
         assertThat(resp.getStatus()).isEqualTo(410);
     }
@@ -67,12 +82,12 @@ class DownloadServiceTest {
         String ticket = svc.issueTicket("l1", "/hello.txt");
 
         MockHttpServletResponse first = new MockHttpServletResponse();
-        svc.streamByTicket(ticket, null, first);
+        svc.streamByTicket(ticket, null, false, first);
         assertThat(first.getStatus()).isEqualTo(200);
         assertThat(first.getContentAsString()).isEqualTo("hello world");
 
         MockHttpServletResponse second = new MockHttpServletResponse();
-        svc.streamByTicket(ticket, null, second);
+        svc.streamByTicket(ticket, null, false, second);
         assertThat(second.getStatus()).isEqualTo(200);
         assertThat(second.getContentAsString()).isEqualTo("hello world");
     }
@@ -85,7 +100,7 @@ class DownloadServiceTest {
         Thread.sleep(50);
 
         MockHttpServletResponse resp = new MockHttpServletResponse();
-        shortLivedSvc.streamByTicket(ticket, null, resp);
+        shortLivedSvc.streamByTicket(ticket, null, false, resp);
 
         assertThat(resp.getStatus()).isEqualTo(410);
     }

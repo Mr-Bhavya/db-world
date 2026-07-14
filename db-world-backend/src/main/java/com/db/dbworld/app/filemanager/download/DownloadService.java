@@ -67,7 +67,7 @@ public class DownloadService {
     }
 
     /** Validates the ticket (reusable until expiry) and streams the file directly to the response. */
-    public void streamByTicket(String ticketId, String rangeHeader, HttpServletResponse response) throws IOException {
+    public void streamByTicket(String ticketId, String rangeHeader, boolean download, HttpServletResponse response) throws IOException {
         DownloadTicket ticket = tickets.get(ticketId);
         if (ticket == null || ticket.expiresAt().isBefore(Instant.now())) {
             log.warn("Download ticket expired or invalid: {}", ticketId);
@@ -83,8 +83,9 @@ public class DownloadService {
             response.sendError(HttpServletResponse.SC_NOT_FOUND, "File not found");
             return;
         }
-        // asAttachment=false: keeps Content-Type as the real MIME so <video>/<audio> tags can play
-        // inline and seek via range requests, rather than forcing a browser "Save As" download.
-        RangeStreamer.stream(file, rangeHeader, response, false);
+        // Preview (download=false) streams inline with the real MIME so <video>/<audio>/<img>/pdf.js
+        // can render + range-seek. Download (download=true) forces Content-Disposition: attachment
+        // with the real filename, so the browser saves it (not opens it) and it isn't named "stream".
+        RangeStreamer.stream(file, rangeHeader, response, download);
     }
 }

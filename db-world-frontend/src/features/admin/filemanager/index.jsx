@@ -337,7 +337,7 @@ export default function FileManager() {
       : {};
     for (const item of files) {
       try {
-        const url = await fmApi.downloadTicketUrl({ locationId: item.locationId, path: item.path });
+        const url = await fmApi.downloadTicketUrl({ locationId: item.locationId, path: item.path, download: true });
         if (isNative) {
           await DbWorldDownload.startDownload({
             url,

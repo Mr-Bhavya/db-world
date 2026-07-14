@@ -84,12 +84,15 @@ export const abortUpload = (uploadId) =>
  * URL (ticketed, range-capable). Absolute API host because a relative href
  * would resolve against the page origin instead of the API origin.
  */
-export const downloadTicketUrl = async ({ locationId, path }) => {
+export const downloadTicketUrl = async ({ locationId, path, download = false }) => {
   const { data } = await axiosInstance.post(`${BASE}/download-ticket`, null, {
     params: { locationId, path },
   });
   const ticketId = data.data.ticketId;
-  return `${getApiBaseUrl()}${BASE}/download/stream?ticket=${encodeURIComponent(ticketId)}`;
+  // download=1 makes the server send Content-Disposition: attachment + the real filename, so the
+  // browser saves it (not opens inline) and it isn't named "stream". Omit it for inline previews.
+  const dl = download ? '&download=1' : '';
+  return `${getApiBaseUrl()}${BASE}/download/stream?ticket=${encodeURIComponent(ticketId)}${dl}`;
 };
 
 /** Builds the (unauthenticated-by-cookie/JWT-header) thumbnail URL — no network call here. */

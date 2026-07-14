@@ -30,9 +30,10 @@ public class FileDownloadStreamController {
 
     @GetMapping("/download/stream")
     public void downloadStream(@RequestParam String ticket,
+                                @RequestParam(name = "download", required = false, defaultValue = "false") boolean download,
                                 @RequestHeader(value = "Range", required = false) String range,
                                 HttpServletResponse response) throws IOException {
-        log.debug("downloadStream ticket={} range={}", ticket, range);
-        downloadService.streamByTicket(ticket, range, response);
+        log.debug("downloadStream ticket={} range={} download={}", ticket, range, download);
+        downloadService.streamByTicket(ticket, range, download, response);
     }
 }
