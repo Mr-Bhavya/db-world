@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+import PdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker';
 
-// The legacy build + a bundled worker so PDF preview renders to <canvas> on desktop, mobile web and
-// the Android WebView alike — none of which we can rely on for native <iframe>/<embed> PDF viewing.
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// The legacy build + a Vite-bundled worker so PDF preview renders to <canvas> on desktop, mobile web
+// and the Android WebView alike (none can be relied on for native <iframe>/<embed> PDF viewing).
+// Using ?worker (not ?url) makes Vite emit the worker as a .js chunk and instantiate it directly —
+// avoiding the Capacitor WebView serving a bare .mjs with a non-JS MIME type, which silently kills
+// the worker and leaves getDocument hanging (blank preview).
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker();
 
 /**
  * Renders every page of a PDF to a stack of <canvas> elements.

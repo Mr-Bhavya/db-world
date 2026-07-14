@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
 
+    // Emit Web Workers as ES modules so the pdf.js worker bundles to a .js chunk (served with a
+    // correct JS MIME by the Capacitor WebView — .mjs is not, which silently breaks the worker).
+    worker: { format: 'es' },
+
     // Shim process.env for any legacy code or third-party libs that reference it
     define: {
       'process.env': {},
