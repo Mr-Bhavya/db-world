@@ -9,7 +9,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { fetchContentBlob, fetchDocument } from '../api/walletApi';
 import { downloadBlob } from '../utils/download';
@@ -20,7 +20,6 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
   const T = useT();
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
-  const { enqueueSnackbar } = useSnackbar();
   const [url, setUrl] = useState(null);
   const [blob, setBlob] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,17 +41,17 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
         // PDFs are handed to pdf.js as a Blob; only images need an object URL for <img>.
         if (!isPdf) { objectUrl = URL.createObjectURL(b); setUrl(objectUrl); }
       })
-      .catch(() => { if (!cancelled) enqueueSnackbar('Failed to load document', { variant: 'error' }); })
+      .catch(() => { if (!cancelled) notify.error('Failed to load document'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [doc.id, enqueueSnackbar, isPdf]);
+  }, [doc.id, isPdf]);
 
   const onDownload = async () => {
     try {
       const blob = await fetchContentBlob(doc.id, 'attachment');
       await downloadBlob(blob, doc.label || 'document');
     } catch (_e) {
-      enqueueSnackbar('Failed to download document', { variant: 'error' });
+      notify.error('Failed to download document');
     }
   };
 
@@ -60,9 +59,9 @@ export default function DocumentPreviewDialog({ doc, open, onClose }) {
     if (!detail?.documentNumber) return;
     try {
       await navigator.clipboard.writeText(detail.documentNumber);
-      enqueueSnackbar('Number copied', { variant: 'success' });
+      notify.success('Number copied');
     } catch (_e) {
-      enqueueSnackbar('Failed to copy number', { variant: 'error' });
+      notify.error('Failed to copy number');
     }
   };
 

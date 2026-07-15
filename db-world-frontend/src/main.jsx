@@ -6,7 +6,6 @@ import reportWebVitals from './reportWebVitals';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ConfirmProvider } from 'material-ui-confirm';
-import { ToastInitializer, ToastProvider } from '@shared/components/ui/Toast';
 import { installChunkReloadHandler } from '@shared/utils/chunkReload';
 
 // Recover automatically when a lazy chunk 404s after a new deploy.
@@ -17,10 +16,7 @@ const root = createRoot(container);
 root.render(
     <LocalizationProvider dateAdapter={AdapterDateFns}>
         <ConfirmProvider>
-            <ToastProvider>
-                <ToastInitializer />
-                <App />
-            </ToastProvider>
+            <App />
         </ConfirmProvider>
     </LocalizationProvider>
 )

@@ -14,7 +14,7 @@ import {
 } from '@mui/icons-material';
 import { Reorder, useDragControls, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import axiosInstance from '../../../shared/components/ui/utils/AxiosInstants';
 import { useT } from '@shared/theme';
 
@@ -894,7 +894,6 @@ function DraggableJobCard({ job, onTrigger, onToggle, onEdit, onShowHistory, tri
 export default function SchedulerPanel() {
   const T  = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   // ── Data ────────────────────────────────────────────────────────────────────
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({
@@ -929,7 +928,7 @@ export default function SchedulerPanel() {
     mutationFn: (job) => api.trigger(job.id),
     onMutate:   (job) => setTriggeringId(job.id),
     onSuccess:  (_, job) => {
-      enqueueSnackbar(`${JOB_META[job.id]?.label ?? job.id} triggered`, { variant: 'success' });
+      notify.success(`${JOB_META[job.id]?.label ?? job.id} triggered`);
       qc.invalidateQueries({ queryKey: ['scheduler-job-history', job.id] });
       setTimeout(() => {
         setTriggeringId(null);
@@ -939,17 +938,17 @@ export default function SchedulerPanel() {
     },
     onError: (_, job) => {
       setTriggeringId(null);
-      enqueueSnackbar(`Failed to trigger ${JOB_META[job.id]?.label ?? job.id}`, { variant: 'error' });
+      notify.error(`Failed to trigger ${JOB_META[job.id]?.label ?? job.id}`);
     },
   });
 
   const toggleMutation = useMutation({
     mutationFn: (job) => api.toggle(job.id),
     onSuccess:  (_, job) => {
-      enqueueSnackbar(`${JOB_META[job.id]?.label ?? job.id} toggled`, { variant: 'info' });
+      notify.info(`${JOB_META[job.id]?.label ?? job.id} toggled`);
       qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
     },
-    onError: () => enqueueSnackbar('Toggle failed', { variant: 'error' }),
+    onError: () => notify.error('Toggle failed'),
   });
 
   /**
@@ -981,21 +980,21 @@ export default function SchedulerPanel() {
       return Promise.all(tasks);
     },
     onSuccess: () => {
-      enqueueSnackbar('Saved — changes take effect on next tick', { variant: 'success' });
+      notify.success('Saved — changes take effect on next tick');
       setEditJob(null);
       qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
     },
-    onError: () => enqueueSnackbar('Save failed', { variant: 'error' }),
+    onError: () => notify.error('Save failed'),
   });
 
   const reorderMutation = useMutation({
     mutationFn: (orders) => api.reorder(orders),
     onSuccess:  () => {
-      enqueueSnackbar('Order saved', { variant: 'success', autoHideDuration: 1500 });
+      notify.success('Order saved', { duration: 1500 });
       setOrderDirty(false);
       qc.invalidateQueries({ queryKey: ['scheduler-jobs'] });
     },
-    onError: () => enqueueSnackbar('Failed to save order', { variant: 'error' }),
+    onError: () => notify.error('Failed to save order'),
   });
 
   const handleSaveOrder = () => {

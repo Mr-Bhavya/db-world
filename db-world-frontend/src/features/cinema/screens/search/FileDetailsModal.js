@@ -19,7 +19,7 @@ import { loadStreamFileInfoByFiledId, resolveMediaUrl } from '@shared/services/A
 import Constants from '@shared/constants';
 import CommonServices from '@shared/services/CommonServices';
 import LoadingSpinner from '@shared/components/ui/LoadingSpinner';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 import { MediaInfoContent } from '../MediaFileInfo/MediaInfoContent';
 
 const FileDetailsModal = ({ open, onClose, fileId }) => {
@@ -43,17 +43,17 @@ const FileDetailsModal = ({ open, onClose, fileId }) => {
             if (converted.length > 0) {
               setMediaInfo(converted[0]);
             } else {
-              toast.error('No media information found');
+              notify.error('No media information found');
             }
           } else if (mediaInfoRes.httpStatusCode === 401 || mediaInfoRes.httpStatusCode === 403) {
-            toast.error('Authentication required');
+            notify.error('Authentication required');
             navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
           } else {
-            toast.error(mediaInfoRes.message || 'Failed to load media info');
+            notify.error(mediaInfoRes.message || 'Failed to load media info');
           }
         } catch (error) {
           console.error('Error fetching media info:', error);
-          toast.error('Failed to load media information');
+          notify.error('Failed to load media information');
         } finally {
           setLoading(false);
         }
@@ -73,15 +73,15 @@ const FileDetailsModal = ({ open, onClose, fileId }) => {
 
   // Download handler
   const handleDownload = async () => {
-    if (!mediaInfo?.mediaFileId) { toast.error('Download URL not available'); return; }
+    if (!mediaInfo?.mediaFileId) { notify.error('Download URL not available'); return; }
     try {
       const res = await resolveMediaUrl(mediaInfo.mediaFileId, 'DOWNLOAD');
       const cdnUrl = res?.data?.cdnUrl;
       if (!cdnUrl) throw new Error('No CDN URL');
       await CommonServices.handleDownload(cdnUrl, false);
-      toast.success('Download started');
+      notify.success('Download started');
     } catch {
-      toast.error('Failed to start download');
+      notify.error('Failed to start download');
     }
   };
 

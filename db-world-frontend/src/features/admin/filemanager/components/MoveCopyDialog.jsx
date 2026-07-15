@@ -6,7 +6,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import { useMutation } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { moveItem, copyItem } from '../api/fileManagerApi';
 import { useFileManagerStore } from '../store/useFileManagerStore';
@@ -22,7 +22,6 @@ import FolderTree from './FolderTree';
  */
 export default function MoveCopyDialog({ open, onClose, mode, items = [], locationId }) {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const { invalidateDir } = useInvalidateFm();
   const path = useFileManagerStore((s) => s.path);
 
@@ -49,19 +48,16 @@ export default function MoveCopyDialog({ open, onClose, mode, items = [], locati
         .filter(({ r }) => r.status === 'rejected');
 
       if (failed.length === 0) {
-        enqueueSnackbar(`${verbPast} ${items.length} item${items.length === 1 ? '' : 's'}`, { variant: 'success' });
+        notify.success(`${verbPast} ${items.length} item${items.length === 1 ? '' : 's'}`);
       } else if (failed.length === items.length) {
         const msg = failed[0].r.reason?.response?.data?.message ?? `Failed to ${mode} ${items.length === 1 ? 'item' : 'items'}`;
-        enqueueSnackbar(msg, { variant: 'error' });
+        notify.error(msg);
       } else {
-        enqueueSnackbar(
-          `${verbPast} ${items.length - failed.length}/${items.length} — failed: ${failed.map((f) => f.item.name).join(', ')}`,
-          { variant: 'warning' }
-        );
+        notify.warning(`${verbPast} ${items.length - failed.length}/${items.length} — failed: ${failed.map((f) => f.item.name).join(', ')}`);
       }
       handleClose();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? `Failed to ${mode} items`, { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? `Failed to ${mode} items`),
   });
 
   function handleClose() {

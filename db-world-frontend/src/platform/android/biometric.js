@@ -27,6 +27,11 @@ function deviceLabel() {
   return (m?.[1] || 'Android device').split(';')[0].trim().slice(0, 60);
 }
 
+/** The stored device id for this install, or null if none has been minted yet (read-only). */
+export function getStoredDeviceId() {
+  return localStorage.getItem(DEVICE_ID_KEY);
+}
+
 /** Whether the user has turned on biometric unlock on this device. */
 export function isBiometricEnabled() {
   return isNative() && localStorage.getItem(ENABLED_KEY) === '1';

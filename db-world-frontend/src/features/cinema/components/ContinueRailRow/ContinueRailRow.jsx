@@ -4,7 +4,7 @@ import { Box, Typography, IconButton, useMediaQuery, useTheme } from '@mui/mater
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import Constants from '@shared/constants';
 import { getContinueWatching, removeContinueWatching } from '../../api/cinemaApi';
 import ContinueCard from './ContinueCard';
@@ -22,7 +22,6 @@ const ContinueRailRow = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const scrollRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
@@ -45,7 +44,7 @@ const ContinueRailRow = () => {
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(QUERY_KEY, ctx.prev);
-      enqueueSnackbar('Could not remove.', { variant: 'error' });
+      notify.error('Could not remove.');
     },
     onSettled: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });

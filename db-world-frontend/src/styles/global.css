@@ -25,3 +25,8 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+/* Toasts (notistack): keep top-anchored stacks clear of the status bar / notch on
+   native + notched phones. Scoped to top-positioned containers only. */
+.notistack-SnackbarContainer[style*="top"] {
+  padding-top: env(safe-area-inset-top, 0px);
+}

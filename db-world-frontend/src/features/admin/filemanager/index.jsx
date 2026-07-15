@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { notify } from '@shared/notify';
 import { Box, Button, CircularProgress, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
 import { Capacitor } from '@capacitor/core';
 import { useT } from '@shared/theme';
 
@@ -87,7 +87,6 @@ export default function FileManager() {
   const T = useT();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { enqueueSnackbar } = useSnackbar();
   const { invalidateDir } = useInvalidateFm();
   const uploadManager = useUploadManager();
 
@@ -227,21 +226,21 @@ export default function FileManager() {
     const targets = resolveItems(arg);
     if (targets.length === 0) return;
     setClipboard('cut', targets);
-    enqueueSnackbar(`${targets.length} item${targets.length === 1 ? '' : 's'} cut — paste with Ctrl/Cmd+V`, { variant: 'success' });
-  }, [resolveItems, setClipboard, enqueueSnackbar]);
+    notify.success(`${targets.length} item${targets.length === 1 ? '' : 's'} cut — paste with Ctrl/Cmd+V`);
+  }, [resolveItems, setClipboard]);
 
   const handleCopyToClipboard = useCallback((arg) => {
     const targets = resolveItems(arg);
     if (targets.length === 0) return;
     setClipboard('copy', targets);
-    enqueueSnackbar(`${targets.length} item${targets.length === 1 ? '' : 's'} copied — paste with Ctrl/Cmd+V`, { variant: 'success' });
-  }, [resolveItems, setClipboard, enqueueSnackbar]);
+    notify.success(`${targets.length} item${targets.length === 1 ? '' : 's'} copied — paste with Ctrl/Cmd+V`);
+  }, [resolveItems, setClipboard]);
 
   const handlePaste = useCallback(async () => {
     if (!clipboard || !locationId) return;
     const { mode, items: clipItems } = clipboard;
     if (clipItems.some((item) => item.locationId !== locationId)) {
-      enqueueSnackbar('Cannot paste across locations', { variant: 'warning' });
+      notify.warning('Cannot paste across locations');
       clearClipboard();
       return;
     }
@@ -254,13 +253,13 @@ export default function FileManager() {
     const failed = results.filter((r) => r.status === 'rejected');
     const verb = mode === 'copy' ? 'Copied' : 'Moved';
     if (failed.length === 0) {
-      enqueueSnackbar(`${verb} ${clipItems.length} item${clipItems.length === 1 ? '' : 's'}`, { variant: 'success' });
+      notify.success(`${verb} ${clipItems.length} item${clipItems.length === 1 ? '' : 's'}`);
     } else if (failed.length === clipItems.length) {
-      enqueueSnackbar(failed[0].reason?.response?.data?.message ?? `Failed to paste item${clipItems.length === 1 ? '' : 's'}`, { variant: 'error' });
+      notify.error(failed[0].reason?.response?.data?.message ?? `Failed to paste item${clipItems.length === 1 ? '' : 's'}`);
     } else {
-      enqueueSnackbar(`${verb} ${clipItems.length - failed.length}/${clipItems.length} — some failed`, { variant: 'warning' });
+      notify.warning(`${verb} ${clipItems.length - failed.length}/${clipItems.length} — some failed`);
     }
-  }, [clipboard, locationId, path, invalidateDir, clearClipboard, enqueueSnackbar]);
+  }, [clipboard, locationId, path, invalidateDir, clearClipboard]);
 
   /* ─── Drag-to-move: drop the dragged payload onto any folder (card/row/tree) ── */
 
@@ -284,14 +283,13 @@ export default function FileManager() {
     clearSelection();
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length === 0) {
-      enqueueSnackbar(`Moved ${valid.length} item${valid.length === 1 ? '' : 's'}`, { variant: 'success' });
+      notify.success(`Moved ${valid.length} item${valid.length === 1 ? '' : 's'}`);
     } else {
-      enqueueSnackbar(
-        `Moved ${valid.length - failed.length}/${valid.length} — some failed`,
-        { variant: failed.length === valid.length ? 'error' : 'warning' }
+      notify[failed.length === valid.length ? 'error' : 'warning'](
+        `Moved ${valid.length - failed.length}/${valid.length} — some failed`
       );
     }
-  }, [locationId, invalidateDir, clearSelection, enqueueSnackbar]);
+  }, [locationId, invalidateDir, clearSelection]);
 
   /* ─── Delete (routed through the themed ConfirmDialog) ─────────────────── */
 
@@ -311,13 +309,13 @@ export default function FileManager() {
     clearSelection();
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length === 0) {
-      enqueueSnackbar(`Deleted ${targets.length} item${targets.length === 1 ? '' : 's'}`, { variant: 'success' });
+      notify.success(`Deleted ${targets.length} item${targets.length === 1 ? '' : 's'}`);
     } else if (failed.length === targets.length) {
-      enqueueSnackbar(failed[0].reason?.response?.data?.message ?? 'Delete failed', { variant: 'error' });
+      notify.error(failed[0].reason?.response?.data?.message ?? 'Delete failed');
     } else {
-      enqueueSnackbar(`Deleted ${targets.length - failed.length}/${targets.length} — some failed`, { variant: 'warning' });
+      notify.warning(`Deleted ${targets.length - failed.length}/${targets.length} — some failed`);
     }
-  }, [confirmDelete, invalidateDir, locationId, clearSelection, enqueueSnackbar]);
+  }, [confirmDelete, invalidateDir, locationId, clearSelection]);
 
   /* ─── Download (web: anchor to the ticket stream; Android: aria2c manager) ── */
 
@@ -325,7 +323,7 @@ export default function FileManager() {
     const targets = resolveItems(arg);
     const files = targets.filter((i) => !i.directory);
     if (files.length === 0) {
-      if (targets.length > 0) enqueueSnackbar('Cannot download a folder', { variant: 'warning' });
+      if (targets.length > 0) notify.warning('Cannot download a folder');
       return;
     }
     const isNative = Capacitor.isNativePlatform();
@@ -345,7 +343,7 @@ export default function FileManager() {
             title: item.name,
             mimeType: item.mimeType || '',
           });
-          enqueueSnackbar(`Downloading ${item.name}…`, { variant: 'info' });
+          notify.info(`Downloading ${item.name}…`);
         } else {
           const a = document.createElement('a');
           a.href = url;
@@ -356,10 +354,10 @@ export default function FileManager() {
           a.remove();
         }
       } catch (e) {
-        enqueueSnackbar(e?.response?.data?.message ?? `Failed to download ${item.name}`, { variant: 'error' });
+        notify.error(e?.response?.data?.message ?? `Failed to download ${item.name}`);
       }
     }
-  }, [resolveItems, enqueueSnackbar]);
+  }, [resolveItems]);
 
   /* ─── Upload (Toolbar button + OS drag-drop over the content area) ─────── */
 

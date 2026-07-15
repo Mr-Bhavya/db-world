@@ -4,7 +4,7 @@ import AddIcon from '@mui/icons-material/Add';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import { motion } from 'framer-motion';
 import { useConfirm } from 'material-ui-confirm';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { useDocuments, useDocumentTypes, useDeleteDocument } from './hooks/useWallet';
 import { fetchContentBlob } from './api/walletApi';
@@ -18,7 +18,6 @@ import ShareDialog from './components/ShareDialog';
 export default function WalletPage() {
   const T = useT();
   const confirm = useConfirm();
-  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const [q, setQ] = useState('');
   const [typeId, setTypeId] = useState('');
   const filters = useMemo(() => ({ typeId, q }), [typeId, q]);
@@ -36,21 +35,12 @@ export default function WalletPage() {
       const blob = await fetchContentBlob(doc.id, 'attachment');
       const saved = await downloadBlob(blob, doc.label || 'document');
       if (saved?.uri) {
-        enqueueSnackbar('Saved to Downloads', {
-          variant: 'success',
-          action: (key) => (
-            <Button
-              size="small"
-              sx={{ color: '#fff', fontWeight: 700 }}
-              onClick={() => { closeSnackbar(key); openDownloaded(saved).catch(() => {}); }}
-            >
-              Open
-            </Button>
-          ),
+        notify.success('Saved to Downloads', {
+          action: { label: 'Open', onClick: () => { openDownloaded(saved).catch(() => {}); } },
         });
       }
     } catch (_e) {
-      enqueueSnackbar('Failed to download document', { variant: 'error' });
+      notify.error('Failed to download document');
     }
   };
   const onDelete = (doc) => {

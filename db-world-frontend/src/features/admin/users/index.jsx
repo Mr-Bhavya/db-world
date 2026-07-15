@@ -9,7 +9,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonIcon from '@mui/icons-material/Person';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT, useThemeMode } from '@shared/theme';
 import { getAllUsers, deleteUser, setUserStatus } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
@@ -24,7 +24,6 @@ export default function UserManagementV2() {
   const T  = useT();
   const { mode } = useThemeMode();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { modalState, editUserId, openModal, closeModal } = useUserStore();
   const muiTheme = useMuiTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
@@ -71,9 +70,9 @@ export default function UserManagementV2() {
     mutationFn: deleteUser,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      enqueueSnackbar('User deleted', { variant: 'success' });
+      notify.success('User deleted');
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Delete failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Delete failed'),
   });
 
   const handleDelete = useCallback((userId) => {
@@ -84,9 +83,9 @@ export default function UserManagementV2() {
     mutationFn: ({ userId, enabled }) => setUserStatus(userId, enabled),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      enqueueSnackbar(res?.message ?? 'Status updated', { variant: 'success' });
+      notify.success(res?.message ?? 'Status updated');
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to update status', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to update status'),
   });
 
   const handleToggleStatus = useCallback((userId, enabled) => {

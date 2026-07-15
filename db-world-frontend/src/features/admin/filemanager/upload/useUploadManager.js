@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import * as fmApi from '../api/fileManagerApi';
 import { useUploadStore } from '../store/useUploadStore';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
@@ -30,7 +30,6 @@ export function useUploadManager() {
   const updateUpload = useUploadStore((s) => s.updateUpload);
   const removeUpload = useUploadStore((s) => s.removeUpload);
   const { invalidateDir } = useInvalidateFm();
-  const { enqueueSnackbar } = useSnackbar();
 
   const beginOne = useCallback((id, file, locationId, path, onConflict = 'fail') => {
     addUpload(id, { name: file.name, total: file.size, sent: 0, status: 'uploading' });
@@ -46,7 +45,7 @@ export function useUploadManager() {
         updateUpload(id, { status: 'done', sent: file.size });
         registry.delete(id);
         invalidateDir(locationId);
-        enqueueSnackbar(`${fileItem?.name ?? file.name} uploaded`, { variant: 'success' });
+        notify.success(`${fileItem?.name ?? file.name} uploaded`);
       },
       onError: (err) => updateUpload(id, { status: 'error', error: String(err) }),
     });
@@ -56,7 +55,7 @@ export function useUploadManager() {
     handle.promise.catch(() => {});
 
     registry.set(id, { handle, file, locationId, path, onConflict });
-  }, [addUpload, updateUpload, invalidateDir, enqueueSnackbar]);
+  }, [addUpload, updateUpload, invalidateDir]);
 
   /** Starts one resumable upload per File in `fileList`, opening the tray (via `addUpload`). */
   const startUploads = useCallback((fileList, { locationId, path = '/', onConflict = 'fail' } = {}) => {

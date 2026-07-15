@@ -10,7 +10,7 @@ import {
   HourglassEmpty, DoneAll, Block, CheckCircle,
 } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -50,7 +50,6 @@ function formatRelative(iso) {
 export default function CatalogRequestsAdminPage() {
   const T = useT();
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [dismissTarget, setDismissTarget] = useState(null);
@@ -66,11 +65,11 @@ export default function CatalogRequestsAdminPage() {
     mutationFn: ingestCatalogRequest,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-catalog-requests'] });
-      enqueueSnackbar('Ingested — voters notified.', { variant: 'success' });
+      notify.success('Ingested — voters notified.');
     },
     onError: (e) => {
       const msg = e?.response?.data?.message || 'Could not ingest. Check the logs.';
-      enqueueSnackbar(msg, { variant: 'error' });
+      notify.error(msg);
     },
   });
 
@@ -78,29 +77,29 @@ export default function CatalogRequestsAdminPage() {
     mutationFn: markCatalogRequestFulfilledNoIngest,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-catalog-requests'] });
-      enqueueSnackbar('Marked fulfilled — voters will find the file via search.', { variant: 'success' });
+      notify.success('Marked fulfilled — voters will find the file via search.');
     },
-    onError: () => enqueueSnackbar('Could not mark fulfilled.', { variant: 'error' }),
+    onError: () => notify.error('Could not mark fulfilled.'),
   });
 
   const dismissMut = useMutation({
     mutationFn: ({ id, reason }) => dismissCatalogRequest(id, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-catalog-requests'] });
-      enqueueSnackbar('Dismissed — voters notified.', { variant: 'info' });
+      notify.info('Dismissed — voters notified.');
       setDismissTarget(null);
       setDismissReason('');
     },
-    onError: () => enqueueSnackbar('Could not dismiss request.', { variant: 'error' }),
+    onError: () => notify.error('Could not dismiss request.'),
   });
 
   const reopenMut = useMutation({
     mutationFn: reopenCatalogRequest,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-catalog-requests'] });
-      enqueueSnackbar('Request reopened — back to pending.', { variant: 'info' });
+      notify.info('Request reopened — back to pending.');
     },
-    onError: () => enqueueSnackbar('Could not reopen request.', { variant: 'error' }),
+    onError: () => notify.error('Could not reopen request.'),
   });
 
   const openNewRecord = (req) => {

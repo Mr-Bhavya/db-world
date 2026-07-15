@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { Close, Save, Tv } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 
 import { getJobParams, editJobParams } from '../services/ingestionApi';
 
@@ -27,7 +27,6 @@ import { getJobParams, editJobParams } from '../services/ingestionApi';
  * only useful before processing starts (e.g. while downloading).
  */
 export default function LiveEditDialog({ jobId, open, onClose, onSaved }) {
-  const { enqueueSnackbar } = useSnackbar();
   const [season, setSeason] = useState('');
   const [episode, setEpisode] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,14 +59,14 @@ export default function LiveEditDialog({ jobId, open, onClose, onSaved }) {
       };
       const res = await editJobParams(jobId, body);
       if (res?.httpStatusCode >= 400) {
-        enqueueSnackbar(res?.message || 'Edit failed', { variant: 'warning' });
+        notify.warning(res?.message || 'Edit failed');
       } else {
-        enqueueSnackbar('Job updated — applies when processing runs', { variant: 'success' });
+        notify.success('Job updated — applies when processing runs');
         onSaved?.();
         onClose?.();
       }
     } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Edit failed', { variant: 'error' });
+      notify.error(e?.response?.data?.message ?? 'Edit failed');
     } finally {
       setSaving(false);
     }

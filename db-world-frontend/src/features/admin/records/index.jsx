@@ -16,7 +16,7 @@ import LastPageIcon         from '@mui/icons-material/LastPage';
 import ChevronLeftIcon      from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon     from '@mui/icons-material/ChevronRight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { getRecordsTable, deleteRecord, getTmdbSyncStats, refreshRecordFromTmdb, setRecordVisibility } from '../api/adminApi';
 import { useRecordStore } from '../stores/useRecordStore';
@@ -193,7 +193,6 @@ export default function RecordManagementV2() {
   const T       = useT();
   const theme   = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
 
   const {
@@ -262,9 +261,9 @@ export default function RecordManagementV2() {
     mutationFn: deleteRecord,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records'] });
-      enqueueSnackbar('Record deleted', { variant: 'success' });
+      notify.success('Record deleted');
     },
-    onError: () => enqueueSnackbar('Delete failed', { variant: 'error' }),
+    onError: () => notify.error('Delete failed'),
   });
 
   const handleDelete = useCallback((id) => {
@@ -279,14 +278,14 @@ export default function RecordManagementV2() {
       await Promise.all(selectedRows.map(fn));
       qc.invalidateQueries({ queryKey: ['records'] });
       qc.invalidateQueries({ queryKey: ['tmdb-sync-stats'] });
-      enqueueSnackbar(`${label} ${selectedRows.length} record${selectedRows.length !== 1 ? 's' : ''}`, { variant: 'success' });
+      notify.success(`${label} ${selectedRows.length} record${selectedRows.length !== 1 ? 's' : ''}`);
       clearSelection();
     } catch {
-      enqueueSnackbar(`${label} failed for some records`, { variant: 'error' });
+      notify.error(`${label} failed for some records`);
     } finally {
       setBulkBusy(false);
     }
-  }, [selectedRows, qc, enqueueSnackbar, clearSelection]);
+  }, [selectedRows, qc, clearSelection]);
 
   const handleBulkDelete = useCallback(() => {
     if (window.confirm(`Delete ${selectedRows.length} record(s)? This cannot be undone.`)) {

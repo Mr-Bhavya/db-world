@@ -10,7 +10,7 @@ import { Download as DownloadIcon } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles } from "./IconButtonStyles";
 import Constants from '@shared/constants';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 
 function Download({ 
   record,
@@ -31,7 +31,7 @@ function Download({
     const handleDownload = () => {
         if (mode === "navigate") {
             if (!record?.recordId) {
-                toast.error("Record information is not available.");
+                notify.error("Record information is not available.");
                 return;
             }
             navigate(
@@ -40,7 +40,7 @@ function Download({
             );
         } else {
             if (!downloadUrl) {
-                toast.error("Download URL is not available.");
+                notify.error("Download URL is not available.");
                 return;
             }
             

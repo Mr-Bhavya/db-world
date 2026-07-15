@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { renameItem } from '../api/fileManagerApi';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
@@ -25,7 +25,6 @@ const nameSchema = z.object({
 /** Single validated text-field dialog, prefilled with `item.name`, for renaming a file/folder. */
 export default function RenameDialog({ open, onClose, item }) {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const { invalidateDir } = useInvalidateFm();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
@@ -46,10 +45,10 @@ export default function RenameDialog({ open, onClose, item }) {
     mutationFn: (values) => renameItem({ locationId: item.locationId, path: item.path, newName: values.name.trim() }),
     onSuccess: () => {
       invalidateDir(item.locationId);
-      enqueueSnackbar('Renamed successfully', { variant: 'success' });
+      notify.success('Renamed successfully');
       onClose?.();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to rename', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to rename'),
   });
 
   const handleClose = () => { if (!isPending) onClose?.(); };

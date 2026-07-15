@@ -15,7 +15,7 @@ import TvIcon from '@mui/icons-material/Tv';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { updateRecord, addRecordTag, removeRecordTag, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
@@ -26,7 +26,6 @@ const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 export default function RecordEditModal({ open, record, onClose }) {
   const T = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const inputSx = {
     '& .MuiOutlinedInput-root': {
@@ -102,24 +101,24 @@ export default function RecordEditModal({ open, record, onClose }) {
     mutationFn: (d) => updateRecord(record.recordId, d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records'] });
-      enqueueSnackbar('Record updated', { variant: 'success' });
+      notify.success('Record updated');
       onClose();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Update failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Update failed'),
   });
 
   const parseTags = (tags) => tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
 
   const { mutate: doAddTag, isPending: addingTag } = useMutation({
     mutationFn: ({ tagType }) => addRecordTag(record.recordId, { tagType }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); enqueueSnackbar('Tag added', { variant: 'success', autoHideDuration: 1500 }); },
-    onError: () => enqueueSnackbar('Failed to add tag', { variant: 'error' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); notify.success('Tag added', { duration: 1500 }); },
+    onError: () => notify.error('Failed to add tag'),
   });
 
   const { mutate: doRemoveTag } = useMutation({
     mutationFn: (tagType) => removeRecordTag(record.recordId, tagType),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['records'] }),
-    onError: () => enqueueSnackbar('Failed to remove tag', { variant: 'error' }),
+    onError: () => notify.error('Failed to remove tag'),
   });
 
   const { autoTagTypes, manualTagDefs, tagColor, tagLabel } = useTagDefs();
@@ -128,7 +127,7 @@ export default function RecordEditModal({ open, record, onClose }) {
 
   const onSubmit = (d) => {
     const tmdbId = selected?.id ?? record?.tmdbId;
-    if (!tmdbId) { enqueueSnackbar('Please select a TMDB result', { variant: 'warning' }); return; }
+    if (!tmdbId) { notify.warning('Please select a TMDB result'); return; }
     doUpdate({ type: d.type, tmdbId, hideFromRails });
   };
 

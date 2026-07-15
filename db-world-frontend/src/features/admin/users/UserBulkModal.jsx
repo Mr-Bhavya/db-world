@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, Button, Tabs, Tab, Box, TextField, MenuItem, Typography, Alert, CircularProgress, IconButton, Chip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { bulkCreateUsers, deleteUser, updateUserRole } from '../api/adminApi';
 import { useUserStore } from '../stores/useUserStore';
@@ -14,7 +14,6 @@ function ImportTab({ onClose }) {
   const [parsed, setParsed]       = useState(null);
   const [parseError, setParseError] = useState('');
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const tryParse = () => {
     try { const d = JSON.parse(raw); setParsed(Array.isArray(d) ? d : [d]); setParseError(''); }
@@ -25,10 +24,10 @@ function ImportTab({ onClose }) {
     mutationFn: () => bulkCreateUsers(parsed),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      enqueueSnackbar(`${res?.length ?? 0} users created`, { variant: 'success' });
+      notify.success(`${res?.length ?? 0} users created`);
       onClose();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Bulk create failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Bulk create failed'),
   });
 
   return (
@@ -59,7 +58,6 @@ function BulkDeleteTab({ onClose }) {
   const T = useT();
   const { selectedRows, clearSelection } = useUserStore();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const [confirmed, setConfirmed] = useState(false);
 
   const { mutate, isPending } = useMutation({
@@ -67,12 +65,12 @@ function BulkDeleteTab({ onClose }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       clearSelection();
-      enqueueSnackbar(`${selectedRows.length} users deleted`, { variant: 'success' });
+      notify.success(`${selectedRows.length} users deleted`);
       onClose();
     },
     onError: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      enqueueSnackbar('Some deletions failed — list refreshed', { variant: 'warning' });
+      notify.warning('Some deletions failed — list refreshed');
     },
   });
 
@@ -103,17 +101,16 @@ function BulkRoleTab({ onClose }) {
   const { selectedRows, clearSelection } = useUserStore();
   const [roleId, setRoleId] = useState('');
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const { mutate, isPending } = useMutation({
     mutationFn: () => Promise.all(selectedRows.map(id => updateUserRole(id, roleId))),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       clearSelection();
-      enqueueSnackbar(`Role updated for ${selectedRows.length} users`, { variant: 'success' });
+      notify.success(`Role updated for ${selectedRows.length} users`);
       onClose();
     },
-    onError: () => enqueueSnackbar('Some role updates failed', { variant: 'error' }),
+    onError: () => notify.error('Some role updates failed'),
   });
 
   return (

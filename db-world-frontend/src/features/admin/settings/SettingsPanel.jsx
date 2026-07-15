@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { RestartAlt, Save } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import settingsApi from './api';
 
@@ -91,7 +91,6 @@ function SettingRow({ s, onSave, onReset, saving }) {
 const SettingsPanel = () => {
   const T = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const { data: categories = [], isLoading, isError } = useQuery({
     queryKey: ['admin', 'config'],
@@ -101,21 +100,19 @@ const SettingsPanel = () => {
   const saveMut = useMutation({
     mutationFn: ({ key, value }) => settingsApi.update(key, value),
     onSuccess: (_r, { key }) => {
-      enqueueSnackbar(`Saved ${key}`, { variant: 'success' });
+      notify.success(`Saved ${key}`);
       qc.invalidateQueries({ queryKey: ['admin', 'config'] });
     },
-    onError: (e) => enqueueSnackbar(
-      e?.response?.data?.message ?? 'Save failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Save failed'),
   });
 
   const resetMut = useMutation({
     mutationFn: (key) => settingsApi.reset(key),
     onSuccess: (_r, key) => {
-      enqueueSnackbar(`Reset ${key}`, { variant: 'info' });
+      notify.info(`Reset ${key}`);
       qc.invalidateQueries({ queryKey: ['admin', 'config'] });
     },
-    onError: (e) => enqueueSnackbar(
-      e?.response?.data?.message ?? 'Reset failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Reset failed'),
   });
 
   if (isLoading) {

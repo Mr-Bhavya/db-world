@@ -8,7 +8,7 @@ import TvIcon from '@mui/icons-material/Tv';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { createRecord, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
@@ -18,7 +18,6 @@ const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 export default function RecordCreateModal({ open, onClose }) {
   const T = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const inputSx = {
     '& .MuiOutlinedInput-root': {
@@ -74,12 +73,12 @@ export default function RecordCreateModal({ open, onClose }) {
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d) => createRecord({ type: d.type, tmdbId: d.tmdbId, hideFromRails: d.hideFromRails }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); enqueueSnackbar('Record created', { variant: 'success' }); handleClose(); },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Create failed', { variant: 'error' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); notify.success('Record created'); handleClose(); },
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Create failed'),
   });
 
   const onSubmit = (d) => {
-    if (!selected) { enqueueSnackbar('Please select a TMDB result', { variant: 'warning' }); return; }
+    if (!selected) { notify.warning('Please select a TMDB result'); return; }
     mutate({ type: d.type, tmdbId: selected.id, hideFromRails });
   };
 

@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
+import { notify } from '@shared/notify';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -39,7 +40,6 @@ import {
   Storage,
   CheckCircle,
 } from '@mui/icons-material';
-import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -237,7 +237,6 @@ function FormSidebar({ title, subtitle, children, actions }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function FileModeForm() {
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
   const theme = useTheme();
@@ -274,16 +273,16 @@ function FileModeForm() {
       });
 
       if (res.httpStatusCode === 200 || res.httpStatusCode === 201) {
-        enqueueSnackbar('Processing job started', { variant: 'success' });
+        notify.success('Processing job started');
         qc.invalidateQueries({ queryKey: ['ingestion-history'] });
         qc.invalidateQueries({ queryKey: ['unassigned-files'] });
         reset();
         setActiveTab(1);
       } else {
-        enqueueSnackbar(res.message || 'Failed to start job', { variant: 'error' });
+        notify.error(res.message || 'Failed to start job');
       }
     } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Network error', { variant: 'error' });
+      notify.error(e?.response?.data?.message ?? 'Network error');
     }
   };
 
@@ -585,7 +584,6 @@ function FolderModeForm() {
   const T = useT();
   const theme = useTheme();
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
 
@@ -630,7 +628,7 @@ function FolderModeForm() {
 
   const handleSubmit = async () => {
     if (checkedFiles.length === 0) {
-      enqueueSnackbar('Select at least one file', { variant: 'warning' });
+      notify.warning('Select at least one file');
       return;
     }
 
@@ -658,9 +656,7 @@ function FolderModeForm() {
 
     setSubmitting(false);
 
-    enqueueSnackbar(`${ok} job(s) queued${bad ? `, ${bad} failed` : ''}`, {
-      variant: ok > 0 ? 'success' : 'error',
-    });
+    notify[ok > 0 ? 'success' : 'error'](`${ok} job(s) queued${bad ? `, ${bad} failed` : ''}`);
 
     if (ok > 0) {
       qc.invalidateQueries({ queryKey: ['ingestion-history'] });

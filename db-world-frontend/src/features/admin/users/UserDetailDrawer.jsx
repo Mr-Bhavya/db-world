@@ -16,7 +16,7 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import RefreshIcon from '@mui/icons-material/Autorenew';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useUserStore } from '../stores/useUserStore';
 import { getUserById, getUserSessions, revokeUserSessions, setUserStatus } from '../api/adminApi';
 import { useT } from '@shared/theme';
@@ -63,7 +63,6 @@ const SectionLabel = ({ children, action }) => {
 export default function UserDetailDrawer() {
   const T = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { drawerUserId, closeDrawer, openModal } = useUserStore();
   const open = Boolean(drawerUserId);
 
@@ -82,21 +81,21 @@ export default function UserDetailDrawer() {
   const { mutate: revoke, isPending: revoking } = useMutation({
     mutationFn: () => revokeUserSessions(drawerUserId),
     onSuccess: (res) => {
-      enqueueSnackbar(res?.message ?? 'Sessions revoked', { variant: 'success' });
+      notify.success(res?.message ?? 'Sessions revoked');
       qc.invalidateQueries({ queryKey: ['userSessions', drawerUserId] });
     },
-    onError: () => enqueueSnackbar('Failed to revoke sessions', { variant: 'error' }),
+    onError: () => notify.error('Failed to revoke sessions'),
   });
 
   const { mutate: toggleStatus, isPending: togglingStatus } = useMutation({
     mutationFn: (enabled) => setUserStatus(drawerUserId, enabled),
     onSuccess: (res) => {
-      enqueueSnackbar(res?.message ?? 'Status updated', { variant: 'success' });
+      notify.success(res?.message ?? 'Status updated');
       qc.invalidateQueries({ queryKey: ['user', drawerUserId] });
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['userSessions', drawerUserId] });
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to update status', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to update status'),
   });
 
   const role = user?.userRole?.name ?? 'VIEWER';

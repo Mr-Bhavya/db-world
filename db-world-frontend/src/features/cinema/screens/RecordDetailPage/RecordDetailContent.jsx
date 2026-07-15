@@ -5,7 +5,7 @@ import {
 import { alpha, useTheme } from '@mui/material/styles';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 
 import {
   addLike, addLove, addWatched, addWatchlist,
@@ -62,7 +62,6 @@ export default function RecordDetailContent({
   const id = title?.split('-')[0];
   const navigate = useNavigate();
   const location = useLocation();
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const T = useT();
   const muiTheme = useTheme();
@@ -135,8 +134,8 @@ export default function RecordDetailContent({
     else if (status === 404) {
       if (inModal && onClose) onClose();
       else navigate(Constants.DB_CINEMA_BROWSE_ROUTE);
-    } else enqueueSnackbar('Failed to load record.', { variant: 'error' });
-  }, [recordError, recordErrorObj, navigate, location, enqueueSnackbar, inModal, onClose]);
+    } else notify.error('Failed to load record.');
+  }, [recordError, recordErrorObj, navigate, location, inModal, onClose]);
 
   const toggleMutation = useMutation({
     mutationFn: async ({ key: _key, active, add, remove }) => active ? remove(id) : add(id),
@@ -145,7 +144,7 @@ export default function RecordDetailContent({
     onError: (err, { key, active }) => {
       setInteractionState((prev) => ({ ...prev, [key]: active }));
       if (err?.response?.status === 401) navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-      else enqueueSnackbar('Action failed. Please try again.', { variant: 'error' });
+      else notify.error('Action failed. Please try again.');
     },
   });
 

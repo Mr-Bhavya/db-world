@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import * as api from '../api/walletApi';
 
 const errMsg = (e, fallback) => e?.response?.data?.message ?? fallback;
@@ -17,40 +17,37 @@ export function useDocuments(filters) {
 
 export function useAddDocument() {
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   return useMutation({
     mutationFn: ({ values, onProgress }) => api.addDocument(values, onProgress),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['wallet', 'documents'] });
-      enqueueSnackbar('Document added', { variant: 'success' });
+      notify.success('Document added');
     },
-    onError: (e) => enqueueSnackbar(errMsg(e, 'Failed to add document'), { variant: 'error' }),
+    onError: (e) => notify.error(errMsg(e, 'Failed to add document')),
   });
 }
 
 export function useUpdateDocument() {
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   return useMutation({
     mutationFn: ({ id, body }) => api.updateDocument(id, body),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['wallet', 'documents'] });
       qc.invalidateQueries({ queryKey: ['wallet', 'document', vars?.id] });
-      enqueueSnackbar('Document updated', { variant: 'success' });
+      notify.success('Document updated');
     },
-    onError: (e) => enqueueSnackbar(errMsg(e, 'Failed to update document'), { variant: 'error' }),
+    onError: (e) => notify.error(errMsg(e, 'Failed to update document')),
   });
 }
 
 export function useDeleteDocument() {
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   return useMutation({
     mutationFn: (id) => api.deleteDocument(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['wallet', 'documents'] });
-      enqueueSnackbar('Document deleted', { variant: 'success' });
+      notify.success('Document deleted');
     },
-    onError: (e) => enqueueSnackbar(errMsg(e, 'Failed to delete document'), { variant: 'error' }),
+    onError: (e) => notify.error(errMsg(e, 'Failed to delete document')),
   });
 }

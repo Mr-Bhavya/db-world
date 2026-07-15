@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { notify } from '@shared/notify';
 import {
   Box, Typography, Paper, Stack, Chip, Tooltip, Checkbox, IconButton,
   Button, TextField, InputAdornment, Table, TableBody, TableCell,
@@ -17,7 +18,6 @@ import {
   AspectRatio, Checklist, InfoOutlined,
 } from '@mui/icons-material';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT, useThemeMode } from '@shared/theme';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
@@ -524,7 +524,6 @@ function EpisodeSection({ file }) {
   const [season, setSeason] = useState('');
   const [ep, setEp] = useState('');
   const [busy, setBusy] = useState(false);
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -543,10 +542,10 @@ function EpisodeSection({ file }) {
       if (updated && updated.id) qc.setQueryData?.(['mediaFileDetail', file.id], updated);
       qc.invalidateQueries({ queryKey: ['mediaFileDetail', file.id] });
       qc.invalidateQueries({ queryKey: ['mediaFiles'] });
-      enqueueSnackbar(clear ? 'Episode cleared' : 'Episode saved', { variant: 'success', autoHideDuration: 2000 });
+      notify.success(clear ? 'Episode cleared' : 'Episode saved', { duration: 2000 });
       if (clear) { setSeason(''); setEp(''); }
     } catch (err) {
-      enqueueSnackbar(err?.response?.data?.message ?? 'Failed to save episode', { variant: 'error' });
+      notify.error(err?.response?.data?.message ?? 'Failed to save episode');
     } finally { setBusy(false); }
   };
 
@@ -821,7 +820,6 @@ function DeleteDialog({ open, count, onClose, onConfirm }) {
 
 function LinkRecordDialog({ open, fileId, onClose }) {
   const [record, setRecord] = useState(null);
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const [loading, setLoading] = useState(false);
 
@@ -830,14 +828,14 @@ function LinkRecordDialog({ open, fileId, onClose }) {
     setLoading(true);
     try {
       await linkMediaFileToRecord(fileId, record.id);
-      enqueueSnackbar('File linked to record', { variant: 'success' });
+      notify.success('File linked to record');
       qc.invalidateQueries({ queryKey: ['mediaFiles'] });
       qc.invalidateQueries({ queryKey: ['mediaFilesStats'] });
       qc.invalidateQueries({ queryKey: ['mediaFileDetail', fileId] });
       onClose();
       setRecord(null);
     } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Failed to link', { variant: 'error' });
+      notify.error(e?.response?.data?.message ?? 'Failed to link');
     } finally {
       setLoading(false);
     }
@@ -905,7 +903,6 @@ function MaintenanceMenu({ onRepairAll, onRebuild, onCleanup, onSync, busy, comp
 export default function MediaFilesPage() {
   const T = useT();
   const { mode } = useThemeMode();
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const muiTheme = useMuiTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
@@ -999,43 +996,43 @@ export default function MediaFilesPage() {
     try {
       if (ids.length === 1) await deleteMediaFileById(ids[0], purge);
       else await bulkDeleteMediaFiles(ids, purge);
-      enqueueSnackbar(`${ids.length} file(s) ${purge ? 'permanently deleted' : 'removed from library'}`, { variant: 'success' });
+      notify.success(`${ids.length} file(s) ${purge ? 'permanently deleted' : 'removed from library'}`);
       invalidateAll();
       setSelected(prev => { const n = new Set(prev); ids.forEach(id => n.delete(id)); return n; });
     } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Delete failed', { variant: 'error' });
+      notify.error(e?.response?.data?.message ?? 'Delete failed');
     }
-  }, [enqueueSnackbar, invalidateAll]);
+  }, [invalidateAll]);
 
   const doRescan = useCallback(async (id) => {
     try {
       await rescanMediaFile(id);
-      enqueueSnackbar('Rescan started', { variant: 'info' });
+      notify.info('Rescan started');
       setTimeout(() => { invalidateAll(); qc.invalidateQueries({ queryKey: ['mediaFileDetail', id] }); }, 2000);
-    } catch { enqueueSnackbar('Rescan failed', { variant: 'error' }); }
-  }, [enqueueSnackbar, invalidateAll, qc]);
+    } catch { notify.error('Rescan failed'); }
+  }, [invalidateAll, qc]);
 
   const doStoryboard = useCallback(async (id) => {
     try {
       await generateStoryboard(id);
-      enqueueSnackbar('Storyboard generation started — this can take up to a minute', { variant: 'info' });
+      notify.info('Storyboard generation started — this can take up to a minute');
       setTimeout(() => { invalidateAll(); qc.invalidateQueries({ queryKey: ['mediaFileDetail', id] }); }, 15000);
     } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Storyboard generation failed', { variant: 'error' });
+      notify.error(e?.response?.data?.message ?? 'Storyboard generation failed');
     }
-  }, [enqueueSnackbar, invalidateAll, qc]);
+  }, [invalidateAll, qc]);
 
   const doRepair = useCallback(async (id) => {
     try {
       await repairSymlink(id);
-      enqueueSnackbar('Symlink repaired', { variant: 'success' });
-    } catch { enqueueSnackbar('Repair failed', { variant: 'error' }); }
-  }, [enqueueSnackbar]);
+      notify.success('Symlink repaired');
+    } catch { notify.error('Repair failed'); }
+  }, []);
 
   const doCopyPath = useCallback((path) => {
     navigator.clipboard?.writeText(path ?? '');
-    enqueueSnackbar('Path copied', { variant: 'info' });
-  }, [enqueueSnackbar]);
+    notify.info('Path copied');
+  }, []);
 
   // Bulk versions of the per-file actions (rescan / storyboard / repair) — run the
   // existing endpoints across the selection, then refresh and leave select mode.
@@ -1050,25 +1047,24 @@ export default function MediaFilesPage() {
     const results = await Promise.allSettled(ids.map(id => cfg.fn(id)));
     const ok = results.filter(r => r.status === 'fulfilled').length;
     const fail = results.length - ok;
-    enqueueSnackbar(`${cfg.verb} started for ${ok} file(s)${fail ? ` · ${fail} failed` : ''}`,
-      { variant: fail ? 'warning' : 'info' });
+    notify[fail ? 'warning' : 'info'](`${cfg.verb} started for ${ok} file(s)${fail ? ` · ${fail} failed` : ''}`);
     setTimeout(invalidateAll, cfg.delay);
     setSelectMode(false);
     setSelected(new Set());
-  }, [enqueueSnackbar, invalidateAll]);
+  }, [invalidateAll]);
 
   const doMaintenance = useCallback(async (action) => {
     setMainBusy(true);
     try {
-      if (action === 'sync')    { await cleanupOrphanedFiles(); await repairAllSymlinks(false); enqueueSnackbar('Sync complete', { variant: 'success' }); }
-      if (action === 'repair')  { await repairAllSymlinks(false); enqueueSnackbar('Symlinks repaired', { variant: 'success' }); }
-      if (action === 'rebuild') { await rebuildAllSymlinks(); enqueueSnackbar('Symlinks rebuilt', { variant: 'success' }); }
-      if (action === 'cleanup') { await cleanupOrphanedFiles(); enqueueSnackbar('Cleanup done', { variant: 'success' }); }
+      if (action === 'sync')    { await cleanupOrphanedFiles(); await repairAllSymlinks(false); notify.success('Sync complete'); }
+      if (action === 'repair')  { await repairAllSymlinks(false); notify.success('Symlinks repaired'); }
+      if (action === 'rebuild') { await rebuildAllSymlinks(); notify.success('Symlinks rebuilt'); }
+      if (action === 'cleanup') { await cleanupOrphanedFiles(); notify.success('Cleanup done'); }
       invalidateAll();
     } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Operation failed', { variant: 'error' });
+      notify.error(e?.response?.data?.message ?? 'Operation failed');
     } finally { setMainBusy(false); }
-  }, [enqueueSnackbar, invalidateAll]);
+  }, [invalidateAll]);
 
   const rowActions = useMemo(() => ({
     onSelect: toggleSelect,

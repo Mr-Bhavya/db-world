@@ -21,7 +21,7 @@ import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { motion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { loadStreamFileInfoByFiledId, loadStreamFileInfoByPath, resolveMediaUrl, resolveMediaUrlByPath } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
@@ -35,7 +35,6 @@ import { buildStoryboard } from '../../utils/storyboard';
 // ─── CopyButton — shows check on success ─────────────────────────────────────
 
 const CopyButton = ({ getUrl, label, size = 'small' }) => {
-  const { enqueueSnackbar } = useSnackbar();
   const [done, setDone] = useState(false);
   const [working, setWorking] = useState(false);
   const handle = async () => {
@@ -45,7 +44,7 @@ const CopyButton = ({ getUrl, label, size = 'small' }) => {
       if (url) {
         const r = await CommonServices.handleCopy(url);
         if (r.success) { setDone(true); setTimeout(() => setDone(false), 2000); }
-        else enqueueSnackbar('Copy failed', { variant: 'error' });
+        else notify.error('Copy failed');
       }
     } finally {
       setWorking(false);
@@ -66,7 +65,6 @@ const CopyButton = ({ getUrl, label, size = 'small' }) => {
 const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
   const [resolving, setResolving] = useState(false);
 
   const { general, video, audio, subtitle } = mediaInfo;
@@ -134,7 +132,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
       }
       navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
     } catch (_e) {
-      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+      notify.error('Failed to prepare stream');
     } finally {
       setResolving(false);
     }
@@ -155,9 +153,9 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
             thumbnailUrl: tmdbImg(record?.tmdb?.posterPath, 'w185') || '',
           });
           if (dlResult?.alreadyDownloaded) {
-            enqueueSnackbar(`Already downloaded: ${general?.fileName || 'file'}`, { variant: 'info', autoHideDuration: 3000 });
+            notify.info(`Already downloaded: ${general?.fileName || 'file'}`, { duration: 3000 });
           } else {
-            enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+            notify.success(`Added to downloads: ${general?.fileName || 'file'}`, { duration: 3000 });
           }
         } else {
           CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
@@ -165,7 +163,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
     } catch (e) {
       const msg = e?.message || e?.code || String(e);
       console.error('Download failed', msg, e);
-      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
+      notify.error(`Download error: ${msg || 'unknown'}`, { duration: 8000 });
     } finally {
       setResolving(false);
     }
@@ -311,7 +309,6 @@ const MediaDetailsDrawer = ({ open, onClose, fileId, filePath, mediaInfo: propMe
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
-  const { enqueueSnackbar } = useSnackbar();
 
   const [loading, setLoading] = useState(false);
   const [mediaInfo, setMediaInfo] = useState(propMediaInfo ?? null);
@@ -335,7 +332,7 @@ const MediaDetailsDrawer = ({ open, onClose, fileId, filePath, mediaInfo: propMe
           return true;
         }
         if (res.httpStatusCode === 401 || res.httpStatusCode === 403) {
-          enqueueSnackbar('Authentication required', { variant: 'error' });
+          notify.error('Authentication required');
           navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
           return true;
         }
@@ -357,14 +354,14 @@ const MediaDetailsDrawer = ({ open, onClose, fileId, filePath, mediaInfo: propMe
           if (handleResponse(res, fileId ?? filePath)) return;
         }
 
-        enqueueSnackbar('Failed to load media info', { variant: 'error' });
+        notify.error('Failed to load media info');
       } catch {
-        enqueueSnackbar('Failed to load media information', { variant: 'error' });
+        notify.error('Failed to load media information');
       }
     };
 
     load().finally(() => setLoading(false));
-  }, [open, fileId, filePath, propMediaInfo, navigate, location, enqueueSnackbar]);
+  }, [open, fileId, filePath, propMediaInfo, navigate, location]);
 
   const handleClose = () => {
     onClose();

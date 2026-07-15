@@ -146,4 +146,4 @@ export const getTealOutlinedBtn = (T) => ({
 export const TEAL_OUTLINED_BTN = getTealOutlinedBtn(darkTokens);
 
 // ─── Re-export context hooks so components import from one place ──────────────
-export { ThemeTokensProvider, AdminThemeProvider, useThemeMode, useT } from './ThemeContext';
+export { ThemeTokensProvider, AdminThemeProvider, useThemeMode, useT, getActiveThemeMode } from './ThemeContext';

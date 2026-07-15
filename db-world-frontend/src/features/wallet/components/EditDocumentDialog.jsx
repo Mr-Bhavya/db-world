@@ -8,7 +8,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { editDocumentSchema, ACCEPTED_MIME } from '../schemas/documentSchemas';
 import { fetchDocument, replaceDocumentFile } from '../api/walletApi';
@@ -18,7 +18,6 @@ const MAX_BYTES = 10 * 1024 * 1024; // client mirror of the default cap; server 
 
 export default function EditDocumentDialog({ docId, open, onClose }) {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const fullScreen = useMediaQuery(useTheme().breakpoints.down('sm'));
   const inputRef = useRef();
@@ -30,7 +29,7 @@ export default function EditDocumentDialog({ docId, open, onClose }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wallet', 'documents'] });
       queryClient.invalidateQueries({ queryKey: ['wallet', 'document', docId] });
-      enqueueSnackbar('File updated', { variant: 'success' });
+      notify.success('File updated');
     },
   });
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
@@ -51,8 +50,8 @@ export default function EditDocumentDialog({ docId, open, onClose }) {
 
   const pickFile = (f) => {
     if (!f) return;
-    if (!ACCEPTED_MIME.includes(f.type)) { enqueueSnackbar('Only PDF, PNG or JPEG allowed', { variant: 'error' }); return; }
-    if (f.size > MAX_BYTES) { enqueueSnackbar('File exceeds 10 MB', { variant: 'error' }); return; }
+    if (!ACCEPTED_MIME.includes(f.type)) { notify.error('Only PDF, PNG or JPEG allowed'); return; }
+    if (f.size > MAX_BYTES) { notify.error('File exceeds 10 MB'); return; }
     setNewFile(f);
   };
 

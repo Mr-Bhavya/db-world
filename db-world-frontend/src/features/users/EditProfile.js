@@ -17,7 +17,7 @@ import {
 import { motion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { updateUserDetails } from '@shared/services/ApiServices';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 import { handleApiSuccess } from '@shared/components/ui/utils/successHandler';
 import { handleApiError } from '@shared/components/ui/utils/errorHandler';
 import usePageMeta from '@shared/hooks/usePageMeta';
@@ -115,7 +115,7 @@ const EditProfile = ({ user, isFromAdmin }) => {
       return validateField(k, v);
     });
     if (!isValid) {
-      toast.warning('Please fill all required fields correctly.');
+      notify.warning('Please fill all required fields correctly.');
       return;
     }
     setSubmitting(true);

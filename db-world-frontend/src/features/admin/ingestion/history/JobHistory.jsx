@@ -36,7 +36,7 @@ import {
   FilterAltOff,
   Close,
 } from '@mui/icons-material';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useJobHistory } from '../hooks/useJobHistory';
@@ -254,7 +254,6 @@ export default function JobHistory() {
   const T = useT();
   const theme = useTheme();
 
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
 
   const [logJobId, setLogJobId] = useState(null);
@@ -318,20 +317,15 @@ export default function JobHistory() {
 
       try {
         const res = await fn();
-        enqueueSnackbar(res?.message || `${name} completed`, {
-          variant: 'success',
-        });
+        notify.success(res?.message || `${name} completed`);
         qc.invalidateQueries({ queryKey: ['ingestion-history'] });
       } catch (e) {
-        enqueueSnackbar(
-          e?.response?.data?.message ?? `${name} failed`,
-          { variant: 'error' }
-        );
+        notify.error(e?.response?.data?.message ?? `${name} failed`);
       } finally {
         setBusy((prev) => ({ ...prev, [key]: false }));
       }
     },
-    [enqueueSnackbar, qc]
+    [qc]
   );
 
   const clearSearch = useCallback(() => setSearch(''), []);

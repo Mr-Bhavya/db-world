@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Button, CircularProgress, Typography } from '@mui/material';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
+import { Box, Button, Typography } from '@mui/material';
+import FingerprintRoundedIcon from '@mui/icons-material/FingerprintRounded';
+import { motion } from 'framer-motion';
 import { useT } from '@shared/theme';
 import { useAuth } from '@features/auth/context/Authentication';
 import { extractAppRole } from '@features/auth/roleUtils';
 import { biometricUnlock, clearBiometricLocal } from '@platform/android/biometric';
+import { haptic } from '@shared/platform/platform';
+import FingerprintPulse from './components/FingerprintPulse';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
 
 /**
@@ -16,15 +19,19 @@ import db_world_icon from '@assets/images/db-circle-icon.webp';
 export default function BiometricGate() {
   const T = useT();
   const { auth, login, cancelBiometricLock } = useAuth();
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState('idle'); // idle | scanning | success | error
   const [error, setError] = useState(null);
+  const busy = phase === 'scanning';
 
   const attempt = useCallback(async () => {
-    setBusy(true);
+    setPhase('scanning');
     setError(null);
     try {
       const { accessToken, user } = await biometricUnlock();
-      login(accessToken, user, extractAppRole(user));
+      setPhase('success');
+      haptic.success();
+      // Let the success tick land before handing off to the app.
+      setTimeout(() => login(accessToken, user, extractAppRole(user)), 480);
     } catch (e) {
       const status = e?.response?.status;
       if (status === 401 || status === 403) {
@@ -34,9 +41,9 @@ export default function BiometricGate() {
         return;
       }
       // Biometric cancelled/failed, or network/5xx — let the user retry or use a password.
+      haptic.error();
+      setPhase('error');
       setError('Unlock failed. Try again, or sign in with your password.');
-    } finally {
-      setBusy(false);
     }
   }, [login, cancelBiometricLock]);
 
@@ -47,37 +54,61 @@ export default function BiometricGate() {
 
   if (!auth.locked) return null;
 
+  const subtitle = phase === 'error' ? error
+    : phase === 'success' ? 'Unlocked'
+    : busy ? 'Scanning…'
+    : 'Confirm your fingerprint or face to continue.';
+
   return (
     <Box
       sx={{
         position: 'fixed', inset: 0, zIndex: 2000,
         bgcolor: T.bg, color: T.text,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 2, px: 3, textAlign: 'center',
+        px: 3, textAlign: 'center', overflow: 'hidden',
+        pt: 'env(safe-area-inset-top)', pb: 'env(safe-area-inset-bottom)',
       }}
     >
-      <Box component="img" src={db_world_icon} alt="DB World" sx={{ width: 64, height: 64, borderRadius: '50%', mb: 1 }} />
-      <Typography sx={{ fontWeight: 800, fontSize: 20 }}>Unlock DB World</Typography>
-      <Typography sx={{ color: T.textMuted, fontSize: 14, maxWidth: 300 }}>
-        Confirm your fingerprint or face to continue.
-      </Typography>
+      {/* Ambient teal glow (matches the app's signature background accent). */}
+      <Box
+        component={motion.div}
+        aria-hidden
+        animate={{ opacity: [0.06, 0.14, 0.06] }}
+        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+        sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `radial-gradient(ellipse 60% 45% at 50% 34%, ${T.tealGlow} 0%, transparent 70%)` }}
+      />
 
-      {busy && <CircularProgress sx={{ color: T.teal, mt: 1 }} />}
-      {error && <Typography sx={{ color: T.error, fontSize: 13, mt: 1 }}>{error}</Typography>}
+      <Box
+        component="img"
+        src={db_world_icon}
+        alt="DB World"
+        sx={{ width: 52, height: 52, borderRadius: '50%', position: 'absolute', top: 'calc(env(safe-area-inset-top) + 28px)' }}
+      />
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2, width: '100%', maxWidth: 280 }}>
-        <Button
-          onClick={attempt}
-          disabled={busy}
-          variant="contained"
-          startIcon={<FingerprintIcon />}
-          sx={{ bgcolor: T.teal, textTransform: 'none', fontWeight: 700, py: 1.2, '&:hover': { bgcolor: T.tealHover } }}
-        >
-          {busy ? 'Unlocking…' : 'Unlock'}
-        </Button>
-        <Button onClick={cancelBiometricLock} disabled={busy} sx={{ color: T.textMuted, textTransform: 'none' }}>
-          Use password instead
-        </Button>
+      <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2.5 }}>
+        <FingerprintPulse state={phase} size={128} />
+
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: 22 }}>Unlock DB World</Typography>
+          <Typography sx={{ color: phase === 'error' ? T.error : T.textMuted, fontSize: 14, maxWidth: 300, mt: 0.5 }}>
+            {subtitle}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', maxWidth: 300, mt: 1 }}>
+          <Button
+            onClick={attempt}
+            disabled={busy || phase === 'success'}
+            variant="contained"
+            startIcon={<FingerprintRoundedIcon />}
+            sx={{ bgcolor: T.teal, textTransform: 'none', fontWeight: 700, py: 1.3, borderRadius: 2, '&:hover': { bgcolor: T.tealHover } }}
+          >
+            {busy ? 'Unlocking…' : phase === 'error' ? 'Try again' : 'Unlock'}
+          </Button>
+          <Button onClick={cancelBiometricLock} disabled={busy} sx={{ color: T.textMuted, textTransform: 'none' }}>
+            Use password instead
+          </Button>
+        </Box>
       </Box>
     </Box>
   );

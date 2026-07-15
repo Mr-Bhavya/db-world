@@ -10,7 +10,7 @@ import {
   FiberManualRecord, ArrowDownward, ArrowUpward, Thermostat
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
   getServerInfo,
@@ -530,7 +530,6 @@ const TABS = ['Overview', 'CPU', 'Memory', 'Storage', 'Network', 'Processes', 'H
 
 export default function SystemInfoPage() {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(0);
 
@@ -559,12 +558,12 @@ export default function SystemInfoPage() {
   const refreshMutation = useMutation({
     mutationFn: refreshServerInfoCache,
     onSuccess: () => {
-      enqueueSnackbar('Cache refreshed', { variant: 'success' });
+      notify.success('Cache refreshed');
       queryClient.invalidateQueries({ queryKey: ['server-info'] });
       queryClient.invalidateQueries({ queryKey: ['server-info-quick'] });
       queryClient.invalidateQueries({ queryKey: ['server-health'] });
     },
-    onError: () => enqueueSnackbar('Refresh failed', { variant: 'error' }),
+    onError: () => notify.error('Refresh failed'),
   });
 
   /* ── Derived stats ── */

@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { notify } from '@shared/notify';
 
 import {
   Alert,
@@ -54,7 +55,6 @@ import {
 } from '@mui/icons-material';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { useSnackbar } from 'notistack';
 
 import { useT } from '@shared/theme';
 import RecordSearch from './RecordSearch';
@@ -529,7 +529,6 @@ export default function IngestionForm({
   const theme = useTheme();
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
-  const { enqueueSnackbar } = useSnackbar();
   const setActiveTab = useIngestionStore((s) => s.setActiveTab);
 
   const torrentInputRef = useRef(null);
@@ -712,9 +711,7 @@ export default function IngestionForm({
       const uris = validUrls.map((u) => u.url);
 
       if (!torrentBase64 && uris.length === 0) {
-        enqueueSnackbar('Provide at least one URL or upload a .torrent file', {
-          variant: 'warning',
-        });
+        notify.warning('Provide at least one URL or upload a .torrent file');
         return;
       }
 
@@ -740,9 +737,7 @@ export default function IngestionForm({
         const toDownload = entries.filter((e) => playlistSelected.has(e.index));
 
         if (toDownload.length === 0) {
-          enqueueSnackbar('Select at least one playlist item', {
-            variant: 'warning',
-          });
+          notify.warning('Select at least one playlist item');
           return;
         }
 
@@ -772,23 +767,15 @@ export default function IngestionForm({
           const res = await startIngestion(body);
 
           if (res?.httpStatusCode === 200 || res?.httpStatusCode === 201) {
-            enqueueSnackbar(
-              `Playlist job started (${playlistItems.length} item${playlistItems.length !== 1 ? 's' : ''})`,
-              { variant: 'success' }
-            );
+            notify.success(`Playlist job started (${playlistItems.length} item${playlistItems.length !== 1 ? 's' : ''})`);
             handleReset();
             setActiveTab(1);
             onSubmitted?.();
           } else {
-            enqueueSnackbar(res?.message || 'Failed to start playlist job', {
-              variant: 'error',
-            });
+            notify.error(res?.message || 'Failed to start playlist job');
           }
         } catch (e) {
-          enqueueSnackbar(
-            e?.response?.data?.message ?? 'Network error',
-            { variant: 'error' }
-          );
+          notify.error(e?.response?.data?.message ?? 'Network error');
         }
 
         return;
@@ -808,9 +795,8 @@ export default function IngestionForm({
 
         const { ok, bad } = await queueJobsSequentially(jobs);
 
-        enqueueSnackbar(
-          `${ok} job(s) queued${bad ? `, ${bad} failed` : ''}`,
-          { variant: ok > 0 ? 'success' : 'error' }
+        notify[ok > 0 ? 'success' : 'error'](
+          `${ok} job(s) queued${bad ? `, ${bad} failed` : ''}`
         );
 
         if (ok > 0) {
@@ -835,27 +821,19 @@ export default function IngestionForm({
         const res = await startIngestion(body);
 
         if (res?.httpStatusCode === 200 || res?.httpStatusCode === 201) {
-          enqueueSnackbar(`${res?.data?.length ?? 1} job(s) started`, {
-            variant: 'success',
-          });
+          notify.success(`${res?.data?.length ?? 1} job(s) started`);
           handleReset();
           setActiveTab(1);
           onSubmitted?.();
         } else {
-          enqueueSnackbar(res?.message || 'Failed to start job', {
-            variant: 'error',
-          });
+          notify.error(res?.message || 'Failed to start job');
         }
       } catch (e) {
-        enqueueSnackbar(
-          e?.response?.data?.message ?? 'Network error',
-          { variant: 'error' }
-        );
+        notify.error(e?.response?.data?.message ?? 'Network error');
       }
     },
     [
       torrentBase64,
-      enqueueSnackbar,
       isYtMode,
       isPlaylist,
       formatsData,

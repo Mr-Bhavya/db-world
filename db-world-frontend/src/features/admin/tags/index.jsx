@@ -25,7 +25,7 @@ import TuneIcon               from '@mui/icons-material/Tune';
 import SettingsIcon           from '@mui/icons-material/Settings';
 import { Reorder, useDragControls, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT, getSelectMenuProps } from '@shared/theme';
 import {
   getTagSummary, getRecordsByTag, getRecordsTable,
@@ -193,7 +193,6 @@ function BulkAddDialog({ tagType, open, onClose, onDone }) {
   const [page, setPage]         = useState(0);
   const [selected, setSelected] = useState([]);
   const [priority, setPriority] = useState(50);
-  const { enqueueSnackbar }     = useSnackbar();
   const qc                      = useQueryClient();
 
   const { data, isFetching } = useQuery({
@@ -207,12 +206,12 @@ function BulkAddDialog({ tagType, open, onClose, onDone }) {
   const { mutate: doAdd, isPending: adding } = useMutation({
     mutationFn: () => bulkAddTag(tagType, selected, priority),
     onSuccess: (res) => {
-      enqueueSnackbar(`Added tag to ${res.added} record(s)`, { variant: 'success' });
+      notify.success(`Added tag to ${res.added} record(s)`);
       qc.invalidateQueries({ queryKey: ['tagRecords', tagType] });
       qc.invalidateQueries({ queryKey: ['tagSummary'] });
       onDone();
     },
-    onError: () => enqueueSnackbar('Bulk add failed', { variant: 'error' }),
+    onError: () => notify.error('Bulk add failed'),
   });
 
   const toggle = (id) =>
@@ -284,7 +283,6 @@ function TagRecordTable({ tagType }) {
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
-  const { enqueueSnackbar }     = useSnackbar();
   const qc                      = useQueryClient();
 
   const { data, isLoading, isFetching } = useQuery({
@@ -299,12 +297,12 @@ function TagRecordTable({ tagType }) {
   const { mutate: doRemove, isPending: removing } = useMutation({
     mutationFn: (ids) => bulkRemoveTag(tagType, ids),
     onSuccess: (res) => {
-      enqueueSnackbar(`Removed from ${res.removed} record(s)`, { variant: 'success' });
+      notify.success(`Removed from ${res.removed} record(s)`);
       setSelected([]);
       qc.invalidateQueries({ queryKey: ['tagRecords', tagType] });
       qc.invalidateQueries({ queryKey: ['tagSummary'] });
     },
-    onError: () => enqueueSnackbar('Remove failed', { variant: 'error' }),
+    onError: () => notify.error('Remove failed'),
   });
 
   const isAuto      = AUTO_TAGS.has(tagType);
@@ -457,7 +455,6 @@ const sortLabel = (f) => SORT_FIELD_LABELS[f] ?? f;
 function TagDefinitionsPanel() {
   const T = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const [editDef, setEditDef] = useState(null); // { tagType, displayName, ... }
 
   const { data: defs = [], isLoading: defsLoading } = useQuery({
@@ -476,11 +473,11 @@ function TagDefinitionsPanel() {
   const { mutate: doSaveDef, isPending: savingDef } = useMutation({
     mutationFn: ({ tagType, ...body }) => updateTagDefinition(tagType, body),
     onSuccess: () => {
-      enqueueSnackbar('Tag config saved', { variant: 'success' });
+      notify.success('Tag config saved');
       qc.invalidateQueries({ queryKey: ['tagDefinitions'] });
       setEditDef(null);
     },
-    onError: () => enqueueSnackbar('Save failed', { variant: 'error' }),
+    onError: () => notify.error('Save failed'),
   });
 
   const inputSx = {
@@ -651,7 +648,6 @@ function TagDefinitionsPanel() {
 // ── Tags tab ──────────────────────────────────────────────────────────────────
 function TagsTab() {
   const T                                   = useT();
-  const { enqueueSnackbar }                 = useSnackbar();
   const qc                                  = useQueryClient();
   const [selectedTag, setSelectedTag]       = useState(null);
   const [recalcingTag, setRecalcingTag]     = useState(null);
@@ -665,26 +661,26 @@ function TagsTab() {
   const { mutate: doRecalcAll, isPending: recalcingAll } = useMutation({
     mutationFn: recalculateAllTags,
     onSuccess: () => {
-      enqueueSnackbar('All tags recalculated', { variant: 'success' });
+      notify.success('All tags recalculated');
       qc.invalidateQueries({ queryKey: ['tagSummary'] });
       if (selectedTag) qc.invalidateQueries({ queryKey: ['tagRecords', selectedTag] });
     },
-    onError: () => enqueueSnackbar('Recalculation failed', { variant: 'error' }),
+    onError: () => notify.error('Recalculation failed'),
   });
 
   const handleRecalcOne = useCallback(async (tagType) => {
     setRecalcingTag(tagType);
     try {
       await recalculateTag(tagType);
-      enqueueSnackbar(`${TAG_LABELS[tagType]} recalculated`, { variant: 'success' });
+      notify.success(`${TAG_LABELS[tagType]} recalculated`);
       qc.invalidateQueries({ queryKey: ['tagSummary'] });
       qc.invalidateQueries({ queryKey: ['tagRecords', tagType] });
     } catch {
-      enqueueSnackbar('Recalculation failed', { variant: 'error' });
+      notify.error('Recalculation failed');
     } finally {
       setRecalcingTag(null);
     }
-  }, [enqueueSnackbar, qc]);
+  }, [qc]);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1150,7 +1146,6 @@ function DraggableRailRow({ rail, onEdit, onDelete, onToggle }) {
 // ── Rails tab ─────────────────────────────────────────────────────────────────
 function RailsTab() {
   const T                   = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const qc                  = useQueryClient();
   const [railDialog,   setRailDialog]   = useState({ open: false, data: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, rail: null });
@@ -1208,38 +1203,38 @@ function RailsTab() {
   const { mutate: doSave, isPending: saving } = useMutation({
     mutationFn: (d) => d.id ? updateRail(d.id, d) : createRail(d),
     onSuccess: (_, vars) => {
-      enqueueSnackbar(`Rail ${vars.id ? 'updated' : 'created'}`, { variant: 'success' });
+      notify.success(`Rail ${vars.id ? 'updated' : 'created'}`);
       qc.invalidateQueries({ queryKey: ['adminRails'] });
       setRailDialog({ open: false, data: null });
     },
-    onError: () => enqueueSnackbar('Save failed', { variant: 'error' }),
+    onError: () => notify.error('Save failed'),
   });
 
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: (rail) => deleteRail(rail.id),
     onSuccess: () => {
-      enqueueSnackbar('Rail deleted', { variant: 'success' });
+      notify.success('Rail deleted');
       setOrderDirty(false);
       qc.invalidateQueries({ queryKey: ['adminRails'] });
       setDeleteDialog({ open: false, rail: null });
     },
-    onError: () => enqueueSnackbar('Delete failed', { variant: 'error' }),
+    onError: () => notify.error('Delete failed'),
   });
 
   const { mutate: doToggle } = useMutation({
     mutationFn: (rail) => updateRail(rail.id, { ...rail, active: !rail.active }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['adminRails'] }),
-    onError: () => enqueueSnackbar('Toggle failed', { variant: 'error' }),
+    onError: () => notify.error('Toggle failed'),
   });
 
   const { mutate: doReorder, isPending: reordering } = useMutation({
     mutationFn: () => reorderRails(orderedRails),
     onSuccess: () => {
-      enqueueSnackbar('Order saved', { variant: 'success', autoHideDuration: 1500 });
+      notify.success('Order saved', { duration: 1500 });
       setOrderDirty(false);
       qc.invalidateQueries({ queryKey: ['adminRails'] });
     },
-    onError: () => enqueueSnackbar('Failed to save order', { variant: 'error' }),
+    onError: () => notify.error('Failed to save order'),
   });
 
   // A new rail seeds with the current sub-tab's page; add more pages in the editor's

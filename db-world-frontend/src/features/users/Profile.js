@@ -28,7 +28,7 @@ import Constants from '@shared/constants';
 import BiometricSetting from '@features/auth/BiometricSetting';
 import BiometricDevicesSection from '@features/auth/BiometricDevicesSection';
 import { getUserDetail, updateUserDetails, changePassword, getLoginHistory } from '@shared/services/ApiServices';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getFieldSx, getSelectMenuProps, getGlowProps } from '@shared/theme';
 
@@ -138,12 +138,12 @@ const ChangePasswordDialog = ({ open, onClose }) => {
     setLoading(true);
     try {
       await changePassword({ oldPassword: form.oldPassword, newPassword: form.newPassword });
-      toast.success('Password changed successfully!');
+      notify.success('Password changed successfully!');
       onClose();
       setForm({ oldPassword: '', newPassword: '', confirm: '' });
     } catch (err) {
       const msg = err?.response?.data?.message || 'Failed to change password.';
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setLoading(false);
     }
@@ -234,7 +234,7 @@ const LoginHistoryDialog = ({ open, onClose }) => {
     setLoading(true);
     getLoginHistory()
       .then(res => setSessions(res?.data || []))
-      .catch(() => toast.error('Failed to load login history.'))
+      .catch(() => notify.error('Failed to load login history.'))
       .finally(() => setLoading(false));
   }, [open]);
 
@@ -353,7 +353,7 @@ const Profile = () => {
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       }
     } catch {
-      toast.error('Failed to load profile.');
+      notify.error('Failed to load profile.');
     } finally {
       setLoading(false);
     }
@@ -415,7 +415,7 @@ const Profile = () => {
   const handleSave = async () => {
     const isValid = Object.entries(form).every(([k, v]) => validateField(k, v));
     if (!isValid) {
-      toast.warning('Please fill all required fields correctly.');
+      notify.warning('Please fill all required fields correctly.');
       return;
     }
     setSaving(true);
@@ -424,12 +424,12 @@ const Profile = () => {
       await updateUserDetails({
         userId: userData.userId, firstName, lastName, gender, dob, mobileNo: Number(mobileNo),
       });
-      toast.success('Profile updated successfully!');
+      notify.success('Profile updated successfully!');
       setEditing(false);
       await load();
     } catch (err) {
       const msg = err?.response?.data?.message || 'Failed to update profile.';
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setSaving(false);
     }

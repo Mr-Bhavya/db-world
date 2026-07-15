@@ -17,7 +17,7 @@ import {
   Replay,
   Tune,
 } from '@mui/icons-material';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   pauseJob,
@@ -170,7 +170,6 @@ function MobileActionButton({
 }
 
 function JobActionsComponent({ job, layout = 'desktop', compactMobile = false }) {
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(null);
   const [rerunEditOpen, setRerunEditOpen] = useState(false);
@@ -195,25 +194,18 @@ function JobActionsComponent({ job, layout = 'desktop', compactMobile = false })
         const res = await fn();
 
         if (res?.httpStatusCode >= 400) {
-          enqueueSnackbar(res?.message || `${name} failed`, {
-            variant: 'warning',
-          });
+          notify.warning(res?.message || `${name} failed`);
         } else {
-          enqueueSnackbar(res?.message || `${name} completed`, {
-            variant: 'success',
-          });
+          notify.success(res?.message || `${name} completed`);
           invalidateHistory();
         }
       } catch (e) {
-        enqueueSnackbar(
-          e?.response?.data?.message ?? `${name} failed`,
-          { variant: 'error' }
-        );
+        notify.error(e?.response?.data?.message ?? `${name} failed`);
       } finally {
         setBusy(null);
       }
     },
-    [enqueueSnackbar, invalidateHistory]
+    [invalidateHistory]
   );
 
   const actions = useMemo(() => {

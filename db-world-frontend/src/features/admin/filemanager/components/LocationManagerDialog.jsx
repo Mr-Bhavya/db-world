@@ -13,7 +13,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { useLocations } from '../hooks/useLocations';
 import { createLocation, updateLocation, deleteLocation } from '../api/fileManagerApi';
@@ -38,7 +38,6 @@ export default function LocationManagerDialog({ open, onClose }) {
   const T = useT();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { enqueueSnackbar } = useSnackbar();
   const { invalidateLocations, invalidateDir } = useInvalidateFm();
   const { data: locations = [], isLoading } = useLocations();
   const activeLocationId = useFileManagerStore((s) => s.locationId);
@@ -66,10 +65,10 @@ export default function LocationManagerDialog({ open, onClose }) {
       // An edited location (e.g. absolutePath change) can invalidate its already-cached directory
       // listings/tree, so refresh those too — not needed for brand-new locations (nothing cached yet).
       if (editing && editing !== 'new') invalidateDir(editing.id);
-      enqueueSnackbar(editing !== 'new' ? 'Location updated' : 'Location added', { variant: 'success' });
+      notify.success(editing !== 'new' ? 'Location updated' : 'Location added');
       setEditing(null);
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to save location', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to save location'),
   });
 
   const deleteMut = useMutation({
@@ -83,10 +82,10 @@ export default function LocationManagerDialog({ open, onClose }) {
         const remaining = locations.filter((loc) => loc.id !== id);
         setLocation(remaining[0]?.id ?? null);
       }
-      enqueueSnackbar('Location removed', { variant: 'success' });
+      notify.success('Location removed');
       setDeleteTarget(null);
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to remove location', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to remove location'),
   });
 
   const fieldSx = { '& .MuiOutlinedInput-root': { bgcolor: T.inputBg ?? 'transparent', fontSize: 13 } };

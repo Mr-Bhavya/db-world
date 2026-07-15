@@ -25,7 +25,7 @@ import SearchOffIcon from '@mui/icons-material/SearchOff';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import HistoryIcon from '@mui/icons-material/History';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 import {
   recordSearch,
   fetchRecentSearches,
@@ -372,14 +372,14 @@ function SearchOverlay({ onClose }) {
         if (res.data.last || mapped.length < PAGE_SIZE) setHasMoreRecords(false);
         setIsSearchRecordResDone(true);
       } else if (res.httpStatusCode === 401) {
-        toast.error(res.message + Constants.RE_LOGIN);
+        notify.error(res.message + Constants.RE_LOGIN);
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       } else {
-        toast.error(res.message);
+        notify.error(res.message);
       }
     } catch (err) {
       console.error(err);
-      toast.error('Failed to search records');
+      notify.error('Failed to search records');
     }
   }, [searchTerm, location, navigate]);
 
@@ -394,14 +394,14 @@ function SearchOverlay({ onClose }) {
         setStreamList(res.data);
         setIsSearchStreamResDone(true);
       } else if (res.httpStatusCode === 401) {
-        toast.error(res.message + Constants.RE_LOGIN);
+        notify.error(res.message + Constants.RE_LOGIN);
         navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       } else {
-        toast.error(res.message);
+        notify.error(res.message);
       }
     } catch (err) {
       console.error(err);
-      toast.error('Failed to search stream files');
+      notify.error('Failed to search stream files');
     }
   }, [searchTerm, location, navigate]);
 

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { Box, Typography, TextField, Button, Skeleton } from '@mui/material';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT, useThemeMode } from '@shared/theme';
 import { fetchStats, fetchConfig, updateConfig } from './adminWalletApi';
 
@@ -22,7 +22,6 @@ export default function MonitorTab() {
   const T = useT();
   const { mode } = useThemeMode();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { data: stats, isLoading } = useQuery({ queryKey: ['wallet-admin', 'stats'], queryFn: fetchStats });
   const { data: config = [] } = useQuery({ queryKey: ['app-config'], queryFn: fetchConfig });
 
@@ -34,8 +33,8 @@ export default function MonitorTab() {
 
   const saveConfig = useMutation({
     mutationFn: ({ key, value }) => updateConfig(key, value),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['app-config'] }); enqueueSnackbar('Setting saved', { variant: 'success' }); },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to save', { variant: 'error' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['app-config'] }); notify.success('Setting saved'); },
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to save'),
   });
 
   const perType = stats?.perType ?? [];

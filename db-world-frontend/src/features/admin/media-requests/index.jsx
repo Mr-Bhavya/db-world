@@ -11,7 +11,7 @@ import {
   HighQuality, MobileFriendly, AddCircleOutline,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useNavigate } from 'react-router-dom';
 import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
@@ -65,7 +65,6 @@ function formatRelative(iso) {
 export default function MediaRequestsAdminPage() {
   const T = useT();
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('PENDING');
 
@@ -85,20 +84,20 @@ export default function MediaRequestsAdminPage() {
     mutationFn: fulfillMediaRequest,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-media-requests'] });
-      enqueueSnackbar('Request fulfilled — voters notified.', { variant: 'success' });
+      notify.success('Request fulfilled — voters notified.');
     },
-    onError: () => enqueueSnackbar('Could not fulfill request.', { variant: 'error' }),
+    onError: () => notify.error('Could not fulfill request.'),
   });
 
   const dismissMut = useMutation({
     mutationFn: ({ id, reason }) => dismissMediaRequest(id, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-media-requests'] });
-      enqueueSnackbar('Request dismissed — voters notified.', { variant: 'info' });
+      notify.info('Request dismissed — voters notified.');
       setDismissTarget(null);
       setDismissReason('');
     },
-    onError: () => enqueueSnackbar('Could not dismiss request.', { variant: 'error' }),
+    onError: () => notify.error('Could not dismiss request.'),
   });
 
   const [dismissTarget, setDismissTarget] = useState(null); // the request row being dismissed
@@ -108,9 +107,9 @@ export default function MediaRequestsAdminPage() {
     mutationFn: reopenMediaRequest,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-media-requests'] });
-      enqueueSnackbar('Request reopened — back to pending.', { variant: 'info' });
+      notify.info('Request reopened — back to pending.');
     },
-    onError: () => enqueueSnackbar('Could not reopen request.', { variant: 'error' }),
+    onError: () => notify.error('Could not reopen request.'),
   });
 
   const openRecord = (req) => {

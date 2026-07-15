@@ -25,7 +25,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { CategoryProvider } from '@features/cinema/navbar/CategoryContext.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { SnackbarProvider } from 'notistack';
+import NotifyProvider from '@shared/notify/NotifyProvider';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { useDownloadEventReporter } from '@features/cinema/download-queue/useDownloadEventReporter';
 import AppUpdateGate from '@shared/components/AppUpdateGate';
@@ -339,7 +339,7 @@ const ThemedApp = () => {
   return (
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
-      <SnackbarProvider maxSnack={4} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} autoHideDuration={3000}>
+      <NotifyProvider>
         <CategoryProvider>
           {/* Transparent by default so the hybrid player's native video layer
               (behind the transparent WebView) shows through. Only paint the dark
@@ -436,7 +436,7 @@ const ThemedApp = () => {
             )}
           </div>
         </CategoryProvider>
-      </SnackbarProvider>
+      </NotifyProvider>
     </ThemeProvider>
   );
 };

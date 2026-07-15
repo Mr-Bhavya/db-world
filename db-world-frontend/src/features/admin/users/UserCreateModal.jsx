@@ -3,7 +3,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { createUserSchema } from '../schemas/userSchemas';
 import { createUser } from '../api/adminApi';
@@ -13,7 +13,6 @@ import { TextInput, SelectInput, GENDER_OPTIONS, ROLE_OPTIONS } from './formFiel
 export default function UserCreateModal({ open, onClose }) {
   const T  = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(createUserSchema),
@@ -24,10 +23,10 @@ export default function UserCreateModal({ open, onClose }) {
     mutationFn: createUser,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      enqueueSnackbar('User created successfully', { variant: 'success' });
+      notify.success('User created successfully');
       reset(); onClose();
     },
-    onError: (err) => enqueueSnackbar(err?.response?.data?.message ?? 'Failed to create user', { variant: 'error' }),
+    onError: (err) => notify.error(err?.response?.data?.message ?? 'Failed to create user'),
   });
 
   const fp = { control, errors, T };

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { refreshRecordFromTmdb } from '../api/adminApi';
 
 /**
@@ -8,15 +8,14 @@ import { refreshRecordFromTmdb } from '../api/adminApi';
  */
 export function useRecordSync() {
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   return useMutation({
     mutationFn: (id) => refreshRecordFromTmdb(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records'] });
       qc.invalidateQueries({ queryKey: ['tmdb-sync-stats'] });
-      enqueueSnackbar('Synced from TMDB.', { variant: 'success', autoHideDuration: 2500 });
+      notify.success('Synced from TMDB.', { duration: 2500 });
     },
-    onError: () => enqueueSnackbar('TMDB sync failed.', { variant: 'error' }),
+    onError: () => notify.error('TMDB sync failed.'),
   });
 }

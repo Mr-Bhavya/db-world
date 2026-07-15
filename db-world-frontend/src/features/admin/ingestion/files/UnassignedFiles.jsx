@@ -36,7 +36,7 @@ import {
   VideoFile,
 } from '@mui/icons-material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { getUnassignedFiles, linkFileToRecord, searchRecords } from '../services/ingestionApi';
@@ -172,7 +172,6 @@ function SummaryRow({ label, value, chip = false, color = 'default' }) {
 function LinkDialog({ file, open, onClose }) {
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
   const timerRef = useRef(null);
 
@@ -213,14 +212,14 @@ function LinkDialog({ file, open, onClose }) {
     try {
       const res = await linkFileToRecord(file.id, record.id);
       if (res?.httpStatusCode === 200 || res?.httpStatusCode === 201) {
-        enqueueSnackbar(`Linked to "${record.name || record.title}"`, { variant: 'success' });
+        notify.success(`Linked to "${record.name || record.title}"`);
         qc.invalidateQueries({ queryKey: ['unassigned-files'] });
         onClose();
       } else {
-        enqueueSnackbar(res?.message || 'Link failed', { variant: 'error' });
+        notify.error(res?.message || 'Link failed');
       }
     } catch (e) {
-      enqueueSnackbar(e?.response?.data?.message ?? 'Link failed', { variant: 'error' });
+      notify.error(e?.response?.data?.message ?? 'Link failed');
     } finally {
       setBusy(false);
     }

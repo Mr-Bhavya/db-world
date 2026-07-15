@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext, createContext } from 'react';
+import { notify } from '@shared/notify';
 import {
   Box, Typography, Chip, IconButton, Button, Collapse,
   CircularProgress, useTheme, useMediaQuery, alpha, Tooltip, Stack,
@@ -12,7 +13,6 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSnackbar } from 'notistack';
 import { Capacitor } from '@capacitor/core';
 import { loadStreamFileInfoByRecordId, resolveMediaUrl } from '@shared/services/ApiServices';
 import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
@@ -34,7 +34,6 @@ const RecordFilesContext = createContext([]);
 
 function useFileActions(file, allFiles, record) {
   const recordFiles = useContext(RecordFilesContext);
-  const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const [resolving, setResolving] = useState(false);
 
@@ -60,9 +59,9 @@ function useFileActions(file, allFiles, record) {
       });
       navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
     } catch {
-      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+      notify.error('Failed to prepare stream');
     } finally { setResolving(false); }
-  }, [file, allFiles, recordFiles, record, enqueueSnackbar, navigate]);
+  }, [file, allFiles, recordFiles, record, navigate]);
 
   const handleDownload = useCallback(async () => {
     setResolving(true);
@@ -84,9 +83,9 @@ function useFileActions(file, allFiles, record) {
         });
         console.log('[Download] startDownload result:', JSON.stringify(dlResult));
         if (dlResult?.alreadyDownloaded) {
-          enqueueSnackbar(`Already downloaded: ${file.general?.fileName || 'file'}`, { variant: 'info' });
+          notify.info(`Already downloaded: ${file.general?.fileName || 'file'}`);
         } else {
-          enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
+          notify.success(`Added: ${file.general?.fileName || 'file'}`);
         }
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: file.general?.fileName, openInNewTab: true });
@@ -94,9 +93,9 @@ function useFileActions(file, allFiles, record) {
     } catch (err) {
       const msg = err?.message || err?.code || String(err);
       console.error('[Download] FAILED:', msg, err);
-      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
+      notify.error(`Download error: ${msg || 'unknown'}`, { duration: 8000 });
     } finally { setResolving(false); }
-  }, [file, record, enqueueSnackbar]);
+  }, [file, record]);
 
   return { resolving, handlePlay, handleDownload };
 }
@@ -769,7 +768,6 @@ const LoadingState = () => (
 // pending for a given record. One fetch on mount; per-kind toggle thereafter.
 
 function useMediaRequestVote(recordId) {
-  const { enqueueSnackbar } = useSnackbar();
   const [requestedKinds, setRequestedKinds] = useState(() => new Set());
   const [submitting, setSubmitting] = useState(false);
 
@@ -802,16 +800,15 @@ function useMediaRequestVote(recordId) {
         else next.delete(kind);
         return next;
       });
-      enqueueSnackbar(
-        res?.hasMyVote ? successCopy : undoCopy,
-        { variant: res?.hasMyVote ? 'success' : 'info' }
+      notify[res?.hasMyVote ? 'success' : 'info'](
+        res?.hasMyVote ? successCopy : undoCopy
       );
     } catch {
-      enqueueSnackbar('Could not save request. Please try again.', { variant: 'error' });
+      notify.error('Could not save request. Please try again.');
     } finally {
       setSubmitting(false);
     }
-  }, [recordId, submitting, enqueueSnackbar]);
+  }, [recordId, submitting]);
 
   return { requestedKinds, submitting, toggle };
 }

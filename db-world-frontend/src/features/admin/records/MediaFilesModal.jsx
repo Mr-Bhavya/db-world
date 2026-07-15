@@ -7,7 +7,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { getMediaFiles, deleteMediaFileById, rescanMediaFile } from '../api/adminApi';
 
@@ -56,7 +56,6 @@ const TrackRow = ({ label, track }) => {
  */
 export function MediaFilesBody({ recordId }) {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const [deletingId, setDeletingId] = useState(null);
   const [rescanningId, setRescanningId] = useState(null);
   const [confirmFile, setConfirmFile] = useState(null); // file pending permanent delete
@@ -74,15 +73,15 @@ export function MediaFilesBody({ recordId }) {
     onMutate: (id) => setDeletingId(id),
     // The backend returns a truthful per-step message (e.g. a warning if the file
     // couldn't be removed from disk) — surface it rather than a blanket "success".
-    onSuccess: (res) => { refetch(); enqueueSnackbar(res?.message || 'File deleted', { variant: 'success' }); },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message || 'Delete failed', { variant: 'error' }),
+    onSuccess: (res) => { refetch(); notify.success(res?.message || 'File deleted'); },
+    onError: (e) => notify.error(e?.response?.data?.message || 'Delete failed'),
     onSettled: () => { setDeletingId(null); setConfirmFile(null); },
   });
   const rescanMutation = useMutation({
     mutationFn: rescanMediaFile,
     onMutate: (id) => setRescanningId(id),
-    onSuccess: () => { refetch(); enqueueSnackbar('Rescanned successfully', { variant: 'success' }); },
-    onError: () => enqueueSnackbar('Rescan failed', { variant: 'error' }),
+    onSuccess: () => { refetch(); notify.success('Rescanned successfully'); },
+    onError: () => notify.error('Rescan failed'),
     onSettled: () => setRescanningId(null),
   });
 

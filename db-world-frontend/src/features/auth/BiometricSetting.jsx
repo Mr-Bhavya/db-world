@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Button, CircularProgress } from '@mui/material';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
-import { useSnackbar } from 'notistack';
+import { Box, Switch, Typography, CircularProgress } from '@mui/material';
+import FingerprintRoundedIcon from '@mui/icons-material/FingerprintRounded';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
+import { haptic } from '@shared/platform/platform';
 import {
   isBiometricAvailable, isBiometricEnabled, enableBiometric, disableBiometric,
 } from '@platform/android/biometric';
 
 /**
- * Profile action to turn fingerprint/face unlock on or off. Renders nothing unless the device has
- * biometrics available (so users without hardware/enrollment never see a dead control).
+ * Profile setting row to turn fingerprint/face unlock on or off. Renders nothing unless the device
+ * has biometrics available (so users without hardware/enrollment never see a dead control).
  */
 export default function BiometricSetting() {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const [available, setAvailable] = useState(false);
   const [enabled, setEnabled] = useState(isBiometricEnabled());
   const [busy, setBusy] = useState(false);
@@ -32,34 +32,54 @@ export default function BiometricSetting() {
       if (enabled) {
         await disableBiometric();
         setEnabled(false);
-        enqueueSnackbar('Biometric unlock disabled', { variant: 'success' });
+        notify.success('Biometric unlock disabled');
       } else {
         await enableBiometric();
         setEnabled(true);
-        enqueueSnackbar('Fingerprint/face unlock enabled', { variant: 'success' });
+        haptic.success();
+        notify.success('Fingerprint/face unlock enabled');
       }
     } catch (_e) {
-      enqueueSnackbar(enabled ? 'Could not disable biometric unlock' : 'Could not enable biometric unlock',
-        { variant: 'error' });
+      notify.error(enabled ? 'Could not disable biometric unlock' : 'Could not enable biometric unlock');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Button
-      fullWidth
-      startIcon={busy ? <CircularProgress size={16} sx={{ color: T.teal }} /> : <FingerprintIcon />}
-      onClick={toggle}
-      disabled={busy}
+    <Box
+      onClick={() => { if (!busy) toggle(); }}
+      role="switch"
+      aria-checked={enabled}
       sx={{
-        py: 1.3,
-        border: `1px solid ${T.glassBorder}`,
-        color: T.textMuted, borderRadius: 2, textTransform: 'none', fontWeight: 500,
-        '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: T.tealBg },
+        display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.4, borderRadius: 2,
+        bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, cursor: busy ? 'default' : 'pointer',
+        transition: 'border-color 0.2s, background-color 0.2s',
+        '&:hover': { borderColor: T.glassBorderHover },
       }}
     >
-      {enabled ? 'Disable fingerprint/face unlock' : 'Enable fingerprint/face unlock'}
-    </Button>
+      <Box sx={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: T.tealBg, color: T.teal, flexShrink: 0 }}>
+        <FingerprintRoundedIcon sx={{ fontSize: 22 }} />
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 700, color: T.text }}>Fingerprint / face unlock</Typography>
+        <Typography sx={{ fontSize: 12.5, color: T.textMuted }}>
+          {enabled ? 'Enabled on this device' : 'Unlock without typing your password'}
+        </Typography>
+      </Box>
+      {busy ? (
+        <CircularProgress size={20} sx={{ color: T.teal, mr: 1.2 }} />
+      ) : (
+        <Switch
+          checked={enabled}
+          onClick={(e) => e.stopPropagation()}
+          onChange={toggle}
+          sx={{
+            '& .MuiSwitch-switchBase.Mui-checked': { color: T.teal },
+            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: T.teal, opacity: 0.55 },
+          }}
+        />
+      )}
+    </Box>
   );
 }

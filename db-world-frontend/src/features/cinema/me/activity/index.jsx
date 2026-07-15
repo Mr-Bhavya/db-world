@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Container, Tab, Tabs, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 
 import ActivitySummaryCard from './components/ActivitySummaryCard';
 import ActivityTimelineList from './components/ActivityTimelineList';
@@ -16,7 +16,6 @@ const TYPE_TABS = [
 const PAGE_SIZE = 30;
 
 const MyActivityPage = () => {
-  const { enqueueSnackbar } = useSnackbar();
   const [type, setType] = useState('');
 
   const summaryQ = useQuery({
@@ -34,18 +33,16 @@ const MyActivityPage = () => {
   useEffect(() => {
     if (summaryQ.isError) {
       const err = summaryQ.error;
-      enqueueSnackbar(`Failed to load summary: ${err?.response?.data?.message ?? err.message}`,
-        { variant: 'error' });
+      notify.error(`Failed to load summary: ${err?.response?.data?.message ?? err.message}`);
     }
-  }, [summaryQ.isError, summaryQ.error, enqueueSnackbar]);
+  }, [summaryQ.isError, summaryQ.error]);
 
   useEffect(() => {
     if (listQ.isError) {
       const err = listQ.error;
-      enqueueSnackbar(`Failed to load activity timeline: ${err?.response?.data?.message ?? err.message}`,
-        { variant: 'error' });
+      notify.error(`Failed to load activity timeline: ${err?.response?.data?.message ?? err.message}`);
     }
-  }, [listQ.isError, listQ.error, enqueueSnackbar]);
+  }, [listQ.isError, listQ.error]);
 
   const timelineItems = listQ.data?.content;
 

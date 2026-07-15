@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Typography, Button, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { fetchSharedInfo, fetchSharedContentBlob } from './api/walletApi';
 import { downloadBlob, openDownloaded } from './utils/download';
@@ -11,7 +11,6 @@ const PdfViewer = lazy(() => import('@shared/components/pdf/PdfViewer'));
 export default function SharedDocumentPage() {
   const T = useT();
   const theme = useTheme();
-  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const { token } = useParams();
   const [info, setInfo] = useState(null);
@@ -41,21 +40,12 @@ export default function SharedDocumentPage() {
     try {
       const saved = await downloadBlob(blob, info.originalFileName || info.label || 'document');
       if (saved?.uri) {
-        enqueueSnackbar('Saved to Downloads', {
-          variant: 'success',
-          action: (key) => (
-            <Button
-              size="small"
-              sx={{ color: '#fff', fontWeight: 700 }}
-              onClick={() => { closeSnackbar(key); openDownloaded(saved).catch(() => {}); }}
-            >
-              Open
-            </Button>
-          ),
+        notify.success('Saved to Downloads', {
+          action: { label: 'Open', onClick: () => { openDownloaded(saved).catch(() => {}); } },
         });
       }
     } catch (_e) {
-      enqueueSnackbar('Failed to download document', { variant: 'error' });
+      notify.error('Failed to download document');
     }
   };
 

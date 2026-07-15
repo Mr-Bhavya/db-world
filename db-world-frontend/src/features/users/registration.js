@@ -19,7 +19,7 @@ import {
 import { motion } from 'framer-motion';
 import Constants from '@shared/constants';
 import { register } from '@shared/services/ApiServices';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 import db_world_icon from '@assets/images/db-circle-icon.webp';
 import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT, getFieldSx, getSelectMenuProps, getGlowProps } from '@shared/theme';
@@ -107,7 +107,7 @@ const Registration = () => {
     e.preventDefault();
     const isValid = Object.entries(formData).every(([k, v]) => validateField(k, v));
     if (!isValid) {
-      toast.warning('Please fill all required fields correctly.');
+      notify.warning('Please fill all required fields correctly.');
       return;
     }
     setLoading(true);
@@ -115,15 +115,15 @@ const Registration = () => {
       const { firstName, lastName, gender, dob, mobileNo, email, password } = formData;
       const res = await register({ firstName, lastName, gender, dob, mobileNo, email, password });
       if (res.httpStatusCode === 200 || res.httpStatusCode === 201) {
-        toast.success('Account created! Redirecting to sign in…', {
-          autoClose: 1200,
+        notify.success('Account created! Redirecting to sign in…', {
+          duration: 1200,
           onClose: () => navigate(Constants.LOGIN_ROUTE),
         });
       } else {
-        toast.error(res?.message || res?.error || 'Registration failed.');
+        notify.error(res?.message || res?.error || 'Registration failed.');
       }
     } catch {
-      toast.error('An error occurred during registration.');
+      notify.error('An error occurred during registration.');
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { motion } from 'framer-motion';
 import {
   Box, Button, Container, Divider, IconButton,
@@ -44,7 +44,6 @@ const GeneratePassword = () => {
   const GLOW = getGlowProps(T);
   const FIELD = getFieldSx(T);
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
 
   const [generated, setGenerated] = useState('');
   const [length, setLength]       = useState(16);
@@ -65,7 +64,7 @@ const GeneratePassword = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } else {
-      enqueueSnackbar('Copy failed — try manually', { variant: 'error' });
+      notify.error('Copy failed — try manually');
     }
   };
 

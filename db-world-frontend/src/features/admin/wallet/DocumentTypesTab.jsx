@@ -4,7 +4,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { DataGrid } from '@mui/x-data-grid';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from 'material-ui-confirm';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { fetchTypes, deleteType } from './adminWalletApi';
 import TypeUpsertDialog from './TypeUpsertDialog';
@@ -13,12 +13,11 @@ export default function DocumentTypesTab() {
   const T = useT();
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const { enqueueSnackbar } = useSnackbar();
   const { data: types = [], isLoading } = useQuery({ queryKey: ['wallet-admin', 'types'], queryFn: fetchTypes });
   const [dialog, setDialog] = useState({ open: false, item: null });
   const del = useMutation({
     mutationFn: (id) => deleteType(id),
-    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['wallet-admin', 'types'] }); enqueueSnackbar(res?.message ?? 'Done', { variant: 'success' }); },
+    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['wallet-admin', 'types'] }); notify.success(res?.message ?? 'Done'); },
   });
 
   const columns = [

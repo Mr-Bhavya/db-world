@@ -8,7 +8,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { addDocumentSchema, ACCEPTED_MIME } from '../schemas/documentSchemas';
 import { useAddDocument } from '../hooks/useWallet';
@@ -18,7 +18,6 @@ const MAX_BYTES = 10 * 1024 * 1024; // client mirror of the default cap; server 
 
 export default function AddDocumentDialog({ open, onClose }) {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const fullScreen = useMediaQuery(useTheme().breakpoints.down('sm'));
   const inputRef = useRef();
   const [file, setFile] = useState(null);
@@ -34,15 +33,15 @@ export default function AddDocumentDialog({ open, onClose }) {
 
   const pickFile = (f) => {
     if (!f) return;
-    if (!ACCEPTED_MIME.includes(f.type)) { enqueueSnackbar('Only PDF, PNG or JPEG allowed', { variant: 'error' }); return; }
-    if (f.size > MAX_BYTES) { enqueueSnackbar('File exceeds 10 MB', { variant: 'error' }); return; }
+    if (!ACCEPTED_MIME.includes(f.type)) { notify.error('Only PDF, PNG or JPEG allowed'); return; }
+    if (f.size > MAX_BYTES) { notify.error('File exceeds 10 MB'); return; }
     setFile(f);
   };
 
   const close = () => { if (isPending) return; reset(); setFile(null); setProgress(0); setShowMore(false); setPickedType(null); onClose(); };
 
   const submit = (values) => {
-    if (!file) { enqueueSnackbar('Please choose a file', { variant: 'error' }); return; }
+    if (!file) { notify.error('Please choose a file'); return; }
     mutate(
       { values: { ...values, file }, onProgress: setProgress },
       { onSuccess: close },

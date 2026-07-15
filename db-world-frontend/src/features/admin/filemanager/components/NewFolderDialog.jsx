@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { mkdir } from '../api/fileManagerApi';
 import { useInvalidateFm } from '../hooks/useInvalidateFm';
@@ -25,7 +25,6 @@ const nameSchema = z.object({
 /** Single validated text-field dialog for creating a folder at `path` within `locationId`. */
 export default function NewFolderDialog({ open, onClose, locationId, path }) {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const { invalidateDir } = useInvalidateFm();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
@@ -42,10 +41,10 @@ export default function NewFolderDialog({ open, onClose, locationId, path }) {
     mutationFn: (values) => mkdir({ locationId, path, name: values.name.trim() }),
     onSuccess: () => {
       invalidateDir(locationId);
-      enqueueSnackbar('Folder created', { variant: 'success' });
+      notify.success('Folder created');
       onClose?.();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to create folder', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to create folder'),
   });
 
   const handleClose = () => { if (!isPending) onClose?.(); };

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { App } from '@capacitor/app';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import Constants from '@shared/constants';
 
 // Root routes where Back should EXIT the app (double-press) instead of navigating.
@@ -13,7 +13,6 @@ const EXIT_ROUTES = new Set([
 const BackButtonHandler = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { enqueueSnackbar } = useSnackbar();
 
   // The native listener is registered once; read live values through refs so it
   // always sees the CURRENT route (not the one captured at registration time).
@@ -35,7 +34,7 @@ const BackButtonHandler = () => {
         // Double-press to exit from the home/login screen.
         if (exitArmedRef.current) { App.exitApp(); return; }
         exitArmedRef.current = true;
-        enqueueSnackbar('Press back again to exit', { variant: 'default', autoHideDuration: 2000 });
+        notify.message('Press back again to exit', { duration: 2000 });
         setTimeout(() => { exitArmedRef.current = false; }, 2000);
       } else {
         navigate(-1);
@@ -43,7 +42,7 @@ const BackButtonHandler = () => {
     }).then((l) => { cleanup = l; });
 
     return () => { cleanup?.remove?.(); };
-  }, [navigate, enqueueSnackbar]);
+  }, [navigate]);
 
   return null;
 };

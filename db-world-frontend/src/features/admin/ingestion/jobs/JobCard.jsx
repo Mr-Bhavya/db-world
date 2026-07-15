@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
+import { notify } from '@shared/notify';
 import {
   alpha,
   Box,
@@ -18,7 +19,6 @@ import {
   Button,
 } from '@mui/material';
 import { useT } from '@shared/theme';
-import { useSnackbar } from 'notistack';
 import {
   Archive,
   CheckCircle,
@@ -712,7 +712,6 @@ function JobCardComponent({ job }) {
   const isDark = theme.palette.mode === 'dark';
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
   const isVeryNarrow = useMediaQuery('(max-width:390px)');
-  const { enqueueSnackbar } = useSnackbar();
 
   const [logOpen, setLogOpen] = useState(false);
   const [logHtml, setLogHtml] = useState(null);
@@ -882,17 +881,13 @@ function JobCardComponent({ job }) {
       showToast: false,
     });
 
-    enqueueSnackbar(
-      result?.message || (result?.success ? 'Source URL copied' : 'Failed to copy URL'),
-      { variant: result?.success ? 'success' : 'error' }
+    notify[result?.success ? 'success' : 'error'](
+      result?.message || (result?.success ? 'Source URL copied' : 'Failed to copy URL')
     );
   } catch (error) {
-    enqueueSnackbar(
-      error?.message || 'Failed to copy URL',
-      { variant: 'error' }
-    );
+    notify.error(error?.message || 'Failed to copy URL');
   }
-}, [uri, enqueueSnackbar]);
+}, [uri]);
 
   return (
     <motion.div

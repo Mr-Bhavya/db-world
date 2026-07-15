@@ -3,7 +3,7 @@ import { Box, Chip, Popover, MenuItem, MenuList, IconButton, CircularProgress } 
 import AddIcon from '@mui/icons-material/Add';
 import LockIcon from '@mui/icons-material/Lock';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { addRecordTag, removeRecordTag } from '../api/adminApi';
 import { useTagDefs } from './useTagDefs';
@@ -16,7 +16,6 @@ export default function RecordTagsInline({ record }) {
   const [anchor, setAnchor] = useState(null);
   const [pendingTag, setPendingTag] = useState(null);
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { autoTagTypes, manualTagDefs, tagColor, tagLabel } = useTagDefs();
 
   const currentTagTypes = parseTags(record.tags);
@@ -27,16 +26,16 @@ export default function RecordTagsInline({ record }) {
     onMutate: ({ tagType }) => setPendingTag(tagType),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records'] });
-      enqueueSnackbar('Tag added', { variant: 'success', autoHideDuration: 1500 });
+      notify.success('Tag added', { duration: 1500 });
     },
-    onError: () => enqueueSnackbar('Failed to add tag', { variant: 'error' }),
+    onError: () => notify.error('Failed to add tag'),
     onSettled: () => { setPendingTag(null); setAnchor(null); },
   });
 
   const removeMutation = useMutation({
     mutationFn: ({ recordId, tagType }) => removeRecordTag(recordId, tagType),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['records'] }),
-    onError: () => enqueueSnackbar('Failed to remove tag', { variant: 'error' }),
+    onError: () => notify.error('Failed to remove tag'),
   });
 
   return (

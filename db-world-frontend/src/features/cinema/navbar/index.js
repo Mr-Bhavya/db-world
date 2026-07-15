@@ -5,7 +5,6 @@ import { alpha } from '@mui/material/styles';
 import Constants from '@shared/constants';
 import SearchOverlay from '../screens/search';
 import { fetchPageCategories, fetchUnreadCount, fetchNotifications } from '../api/cinemaApi';
-import { useSnackbar } from 'notistack';
 import DB_WORLD_TEAL_SVG from '@assets/images/db-circle-icon.webp';
 
 import {
@@ -377,7 +376,6 @@ function Navbar({ coverColor, onGenreSelect }) {
   // mark a media request fulfilled on the admin side and the user sees a toast
   // the next time they load the app. sessionStorage dedupes so the same toast
   // does not fire on every navbar remount within a session.
-  const { enqueueSnackbar } = useSnackbar();
   useEffect(() => {
     fetchUnreadCount()
       .then(count => {
@@ -420,28 +418,22 @@ function Navbar({ coverColor, onGenreSelect }) {
                 // Dismissed catalog requests don't have a record yet (recordId is 0 sentinel).
                 const canRoute = !(isDismissed && (!n.recordId || n.recordId === 0));
 
-                enqueueSnackbar(message, {
-                  variant: isDismissed ? 'warning' : 'success',
-                  autoHideDuration: isDismissed ? 8000 : 6000,
+                notify[isDismissed ? 'warning' : 'success'](message, {
+                  duration: isDismissed ? 8000 : 6000,
                   action: canRoute
-                    ? () => (
-                        <Button
-                          size="small"
-                          color="inherit"
-                          onClick={() => {
-                            const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
-                            const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
-                            const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
-                            const route = (isSeries
-                              ? Constants.DB_SERIES_DETIALS_ROUTE
-                              : Constants.DB_MOVIE_DETIALS_ROUTE
-                            ).replace(':title', param);
-                            navigate(route);
-                          }}
-                        >
-                          View
-                        </Button>
-                      )
+                    ? {
+                        label: 'View',
+                        onClick: () => {
+                          const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((n.recordType ?? '').toUpperCase());
+                          const slug = (n.recordTitle ?? '').trim().replace(/\s+/g, '-').toLowerCase();
+                          const param = n.recordId ? `${n.recordId}-${slug}` : encodeURIComponent(n.recordTitle ?? '');
+                          const route = (isSeries
+                            ? Constants.DB_SERIES_DETIALS_ROUTE
+                            : Constants.DB_MOVIE_DETIALS_ROUTE
+                          ).replace(':title', param);
+                          navigate(route);
+                        },
+                      }
                     : undefined,
                 });
               });
@@ -457,7 +449,7 @@ function Navbar({ coverColor, onGenreSelect }) {
         }
       })
       .catch(() => {});
-  // enqueueSnackbar and navigate are stable refs from their providers; empty dep is intentional
+  //  and navigate are stable refs from their providers; empty dep is intentional
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

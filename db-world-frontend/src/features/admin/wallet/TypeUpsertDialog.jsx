@@ -4,7 +4,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { typeSchema } from './typeSchemas';
 import { createType, updateType } from './adminWalletApi';
@@ -12,7 +12,6 @@ import { createType, updateType } from './adminWalletApi';
 export default function TypeUpsertDialog({ open, onClose, editItem }) {
   const T = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(typeSchema),
     defaultValues: { code: '', displayName: '', description: '', numberLabel: '', requiresNumber: false, active: true, sortOrder: 0 },
@@ -21,8 +20,8 @@ export default function TypeUpsertDialog({ open, onClose, editItem }) {
 
   const mut = useMutation({
     mutationFn: (v) => (editItem ? updateType(editItem.id, v) : createType(v)),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['wallet-admin', 'types'] }); enqueueSnackbar('Saved', { variant: 'success' }); onClose(); },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to save', { variant: 'error' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['wallet-admin', 'types'] }); notify.success('Saved'); onClose(); },
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to save'),
   });
   const sx = { '& .MuiInputBase-root': { color: T.textPrimary }, '& label': { color: T.textMuted } };
 

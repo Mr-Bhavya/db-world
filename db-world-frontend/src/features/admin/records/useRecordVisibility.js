@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { setRecordVisibility } from '../api/adminApi';
 
 /**
@@ -9,7 +9,6 @@ import { setRecordVisibility } from '../api/adminApi';
  */
 export function useRecordVisibility() {
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   return useMutation({
     mutationFn: ({ id, hideFromRails }) => setRecordVisibility(id, hideFromRails),
@@ -26,13 +25,10 @@ export function useRecordVisibility() {
     },
     onError: (_err, _vars, ctx) => {
       ctx?.snapshots?.forEach(([key, data]) => qc.setQueryData(key, data));
-      enqueueSnackbar('Could not toggle visibility.', { variant: 'error' });
+      notify.error('Could not toggle visibility.');
     },
     onSuccess: (_data, vars) => {
-      enqueueSnackbar(
-        vars.hideFromRails ? 'Record hidden from rails (still in search).' : 'Record visible on rails again.',
-        { variant: 'info', autoHideDuration: 2500 }
-      );
+      notify.info(vars.hideFromRails ? 'Record hidden from rails (still in search).' : 'Record visible on rails again.', { duration: 2500 });
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['records'] }),
   });

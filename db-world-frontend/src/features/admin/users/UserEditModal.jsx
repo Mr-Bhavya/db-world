@@ -8,7 +8,7 @@ import AutoFixHighIcon  from '@mui/icons-material/AutoFixHigh';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { updateUser, getUserById, updateUserRole, adminSetPassword } from '../api/adminApi';
 import { updateUserSchema, adminPasswordSchema } from '../schemas/userSchemas';
@@ -18,7 +18,6 @@ import { TextInput, SelectInput, GENDER_OPTIONS, ROLE_OPTIONS, canonicalGender }
 function ProfileTab({ userId, onClose }) {
   const T  = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { data: user } = useQuery({ queryKey: ['user', userId], queryFn: () => getUserById(userId), enabled: !!userId });
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
@@ -38,10 +37,10 @@ function ProfileTab({ userId, onClose }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['user', userId] });
-      enqueueSnackbar('User updated', { variant: 'success' });
+      notify.success('User updated');
       onClose();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Update failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Update failed'),
   });
 
   const fp = { control, errors, T };
@@ -74,7 +73,6 @@ function generatePassword(len = 12) {
 
 function PasswordTab({ userId, onClose }) {
   const T  = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm({ resolver: zodResolver(adminPasswordSchema) });
   const [show, setShow] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -102,10 +100,10 @@ function PasswordTab({ userId, onClose }) {
   const { mutate, isPending } = useMutation({
     mutationFn: (d) => adminSetPassword(userId, d.newPassword),
     onSuccess: () => {
-      enqueueSnackbar('Password reset', { variant: 'success' });
+      notify.success('Password reset');
       onClose();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed'),
   });
 
   const eyeBtn = (
@@ -171,7 +169,6 @@ function PasswordTab({ userId, onClose }) {
 function RoleTab({ userId, onClose }) {
   const T  = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const { data: user } = useQuery({ queryKey: ['user', userId], queryFn: () => getUserById(userId), enabled: !!userId });
   const [roleId, setRoleId] = useState('');
 
@@ -184,10 +181,10 @@ function RoleTab({ userId, onClose }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['user', userId] });
-      enqueueSnackbar('Role updated', { variant: 'success' });
+      notify.success('Role updated');
       onClose();
     },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Role update failed', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Role update failed'),
   });
 
   return (

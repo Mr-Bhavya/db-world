@@ -7,7 +7,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import { createShare, fetchShares, revokeShare, buildShareUrl } from '../api/walletApi';
 
@@ -18,7 +18,6 @@ export default function ShareDialog({ doc, open, onClose }) {
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
   const [hours, setHours] = useState(24);
   const [maxViews, setMaxViews] = useState('');
   const [newUrl, setNewUrl] = useState('');
@@ -28,15 +27,15 @@ export default function ShareDialog({ doc, open, onClose }) {
   const create = useMutation({
     mutationFn: () => createShare(doc.id, { expiresInHours: hours, maxAccessCount: maxViews ? Number(maxViews) : null }),
     onSuccess: (dto) => { setNewUrl(buildShareUrl(dto.token)); qc.invalidateQueries({ queryKey: ['wallet', 'shares', doc.id] }); },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to create link', { variant: 'error' }),
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to create link'),
   });
   const revoke = useMutation({
     mutationFn: (id) => revokeShare(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['wallet', 'shares', doc.id] }); enqueueSnackbar('Link revoked', { variant: 'success' }); },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Failed to revoke link', { variant: 'error' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['wallet', 'shares', doc.id] }); notify.success('Link revoked'); },
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Failed to revoke link'),
   });
 
-  const copy = (url) => { navigator.clipboard.writeText(url); enqueueSnackbar('Link copied', { variant: 'success' }); };
+  const copy = (url) => { navigator.clipboard.writeText(url); notify.success('Link copied'); };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isPhone}

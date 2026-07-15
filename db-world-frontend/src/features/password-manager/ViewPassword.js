@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import {
@@ -413,7 +413,6 @@ const EditDialog = ({ target, onClose }) => {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
 
   const [showPw, setShowPw] = useState(false);
@@ -451,14 +450,12 @@ const EditDialog = ({ target, onClose }) => {
           .filter((f) => f.fieldKey),
       }),
     onSuccess: () => {
-      enqueueSnackbar('Credential updated', { variant: 'success' });
+      notify.success('Credential updated');
       queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
       onClose();
     },
     onError: (err) => {
-      enqueueSnackbar(err?.response?.data?.message ?? 'Failed to update', {
-        variant: 'error',
-      });
+      notify.error(err?.response?.data?.message ?? 'Failed to update');
     },
   });
 
@@ -800,7 +797,7 @@ const ConfirmDialog = ({ title, body, loading, onConfirm, onClose }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CredentialCard = memo(
-  ({ cred, pmId, host, T, enqueueSnackbar, onEdit, onDelete }) => {
+  ({ cred, pmId, host, T, onEdit, onDelete }) => {
     const [copiedKey, setCopiedKey] = useState('');
 
     const copy = useCallback(
@@ -813,10 +810,10 @@ const CredentialCard = memo(
           setCopiedKey(key);
           setTimeout(() => setCopiedKey(''), 1400);
         } else {
-          enqueueSnackbar('Copy failed', { variant: 'error' });
+          notify.error('Copy failed');
         }
       },
-      [enqueueSnackbar]
+      []
     );
 
     const visibleCustomFields = useMemo(() => {
@@ -994,7 +991,7 @@ CredentialCard.displayName = 'CredentialCard';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HostCard = memo(
-  ({ entry, T, enqueueSnackbar, onEdit, onDeleteCred, onDeleteHost }) => {
+  ({ entry, T, onEdit, onDeleteCred, onDeleteHost }) => {
     const credentialCount = entry.credentials?.length ?? 0;
 
     return (
@@ -1087,7 +1084,6 @@ const HostCard = memo(
               pmId={entry.id}
               host={entry.host}
               T={T}
-              enqueueSnackbar={enqueueSnackbar}
               onEdit={onEdit}
               onDelete={onDeleteCred}
             />
@@ -1169,7 +1165,6 @@ const ViewPassword = () => {
   const FIELD = getFieldSx(T);
 
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
@@ -1224,25 +1219,25 @@ const ViewPassword = () => {
   const { mutate: deleteCred, isPending: deletingCred } = useMutation({
     mutationFn: (credId) => deleteCredentialByCredentialId(credId),
     onSuccess: () => {
-      enqueueSnackbar('Credential deleted', { variant: 'success' });
+      notify.success('Credential deleted');
       queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
       setDelCred(null);
     },
     onError: () => {
-      enqueueSnackbar('Failed to delete credential', { variant: 'error' });
+      notify.error('Failed to delete credential');
     },
   });
 
   const { mutate: deleteHost, isPending: deletingHost } = useMutation({
     mutationFn: (pmId) => deleteHostById(pmId),
     onSuccess: () => {
-      enqueueSnackbar('Entry deleted', { variant: 'success' });
+      notify.success('Entry deleted');
       queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
       queryClient.invalidateQueries({ queryKey: ['pm-hosts'] });
       setDelHost(null);
     },
     onError: () => {
-      enqueueSnackbar('Failed to delete entry', { variant: 'error' });
+      notify.error('Failed to delete entry');
     },
   });
 
@@ -1533,7 +1528,6 @@ const ViewPassword = () => {
                   <HostCard
                     entry={entry}
                     T={T}
-                    enqueueSnackbar={enqueueSnackbar}
                     onEdit={setEditTarget}
                     onDeleteCred={setDelCred}
                     onDeleteHost={setDelHost}
