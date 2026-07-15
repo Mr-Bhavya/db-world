@@ -9,6 +9,18 @@ const isNative = () => Capacitor?.isNativePlatform?.() ?? false;
 const BASE = '/api/wallet';
 const unwrap = (r) => r.data?.data ?? r.data;
 
+/** Reads a File/Blob to base64 (no data: prefix). Used for native uploads. */
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onloadend = () => resolve(String(reader.result).split(',')[1]);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
+const uploadProgress = (onProgress) => ({
+  onUploadProgress: (e) => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),
+});
+
 export const fetchDocumentTypes = () =>
   axiosInstance.get(`${BASE}/document-types`).then(unwrap);
 
@@ -20,7 +32,24 @@ export const fetchDocuments = ({ typeId, q } = {}) =>
 export const fetchDocument = (id) =>
   axiosInstance.get(`${BASE}/documents/${id}`).then(unwrap);
 
-export const addDocument = (values, onProgress) => {
+export const addDocument = async (values, onProgress) => {
+  // Native must upload base64/JSON — CapacitorHttp corrupts binary multipart bodies, which stored a
+  // valid-looking but blank file. base64 is ASCII, so it survives intact; the server decodes it.
+  if (isNative()) {
+    const fileBase64 = await fileToBase64(values.file);
+    return axiosInstance.post(`${BASE}/documents/base64`, {
+      fileBase64,
+      fileName: values.file.name,
+      contentType: values.file.type || 'application/octet-stream',
+      typeId: values.typeId,
+      label: values.label || null,
+      number: values.number || null,
+      issueDate: values.issueDate || null,
+      expiryDate: values.expiryDate || null,
+      notes: values.notes || null,
+      holder: values.holderName || null,
+    }, uploadProgress(onProgress)).then(unwrap);
+  }
   const fd = new FormData();
   fd.append('file', values.file);
   fd.append('typeId', values.typeId);
@@ -32,19 +61,27 @@ export const addDocument = (values, onProgress) => {
   if (values.holderName) fd.append('holder', values.holderName);
   return axiosInstance.post(`${BASE}/documents`, fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    onUploadProgress: (e) => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),
+    ...uploadProgress(onProgress),
   }).then(unwrap);
 };
 
 export const updateDocument = (id, body) =>
   axiosInstance.put(`${BASE}/documents/${id}`, body).then(unwrap);
 
-export const replaceDocumentFile = (id, file, onProgress) => {
+export const replaceDocumentFile = async (id, file, onProgress) => {
+  if (isNative()) {
+    const fileBase64 = await fileToBase64(file);
+    return axiosInstance.put(`${BASE}/documents/${id}/file/base64`, {
+      fileBase64,
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+    }, uploadProgress(onProgress)).then(unwrap);
+  }
   const fd = new FormData();
   fd.append('file', file);
   return axiosInstance.put(`${BASE}/documents/${id}/file`, fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    onUploadProgress: (e) => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),
+    ...uploadProgress(onProgress),
   }).then(unwrap);
 };
 
