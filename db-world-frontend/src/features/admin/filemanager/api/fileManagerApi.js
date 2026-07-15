@@ -1,7 +1,18 @@
+import { Capacitor } from '@capacitor/core';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 import { getApiBaseUrl } from '@shared/config/apiBaseUrl';
 
 const BASE = '/api/admin/file-manager';
+
+const isNative = () => Capacitor?.isNativePlatform?.() ?? false;
+
+/** Reads a Blob/File to base64 (no data: prefix). */
+const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onloadend = () => resolve(String(reader.result).split(',')[1]);
+  reader.onerror = reject;
+  reader.readAsDataURL(blob);
+});
 
 /* ─── Directory / search / info ─────────────────────────────────────── */
 
@@ -58,15 +69,23 @@ export const deleteLocation = (id) =>
 export const initUpload = (body) =>
   axiosInstance.post(`${BASE}/uploads/init`, body).then(r => r.data.data);
 
-export const uploadChunk = (uploadId, index, blob, { onProgress, signal } = {}) =>
-  axiosInstance
-    .put(`${BASE}/uploads/${uploadId}/chunk`, blob, {
-      headers: { 'Content-Type': 'application/octet-stream' },
-      params: { index },
-      onUploadProgress: onProgress,
-      signal,
-    })
-    .then(r => r.data.data);
+export const uploadChunk = async (uploadId, index, blob, { onProgress, signal } = {}) => {
+  // Native must send base64/JSON — CapacitorHttp corrupts binary octet-stream bodies, which changed
+  // the chunk length and caused "Upload incomplete: size mismatch". base64 is ASCII and survives.
+  if (isNative()) {
+    const dataBase64 = await blobToBase64(blob);
+    const r = await axiosInstance.put(`${BASE}/uploads/${uploadId}/chunk/base64`,
+      { index, dataBase64 }, { onUploadProgress: onProgress, signal });
+    return r.data.data;
+  }
+  const r = await axiosInstance.put(`${BASE}/uploads/${uploadId}/chunk`, blob, {
+    headers: { 'Content-Type': 'application/octet-stream' },
+    params: { index },
+    onUploadProgress: onProgress,
+    signal,
+  });
+  return r.data.data;
+};
 
 export const uploadStatus = (uploadId) =>
   axiosInstance.get(`${BASE}/uploads/${uploadId}`).then(r => r.data.data);
