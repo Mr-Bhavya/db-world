@@ -96,13 +96,15 @@ const RecordCard = ({
   }
 
   // ── dimensions — driven by RAIL_TYPE_CONFIG ─────────────────────────────
-  const PRIME_HEIGHT = { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: deskH };
+  // Prime uses the SAME portrait size on mobile/tablet as desktop (deskH), so the
+  // featured rail is equally prominent everywhere; mobile just has no hover-expand
+  // (tap opens the detail via the standard-render onClick below).
+  const PRIME_HEIGHT = { xs: deskH, sm: deskH, md: deskH };
 
   const cardWidth = (type === 'prime')
     ? {
-      // Mobile/tablet prime is a portrait poster (matches the desktop idle slot).
-      xs: `calc(${cfg.tiers.mobile}px * ${9 / 16})`,
-      sm: `calc(${cfg.tiers.tablet}px * ${9 / 16})`,
+      xs: `calc(${deskH}px * ${9 / 16})`,
+      sm: `calc(${deskH}px * ${9 / 16})`,
       md: isExpanded
         ? `calc(${deskH}px * ${16 / 9})`
         : `calc(${deskH}px * ${9 / 16})`,

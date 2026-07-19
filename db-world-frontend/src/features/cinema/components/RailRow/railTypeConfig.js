@@ -39,7 +39,8 @@ export const RAIL_TYPE_CONFIG = {
     cardAspect: '9/16',
     // mobile/tablet show a portrait poster (no hover-expand), so they need a
     // proper poster height; desktop/tv keep the tall expand-on-hover slot.
-    tiers: { mobile: 210, tablet: 250, desktop: 380, tv: 500 },
+    // desktop/tv bumped for a bigger, richer landscape expansion on hover.
+    tiers: { mobile: 210, tablet: 250, desktop: 420, tv: 560 },
     hover: 'expand',
     skeleton: 'portrait',
     scroll: 'horizontal',
