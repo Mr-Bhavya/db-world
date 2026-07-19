@@ -4,6 +4,7 @@ import { Box, Typography, Skeleton } from '@mui/material';
 import { tmdbImg } from '../../api/cinemaApi';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../RailRow/railTypeConfig';
 import useCardInteraction from './parts/useCardInteraction';
+import { useViewportWidth, fluidDesktopHeight } from '../../hooks/useFluidCardSize';
 import { resolveCardImage } from './parts/cardImage';
 import RecordCardSkeleton from './parts/RecordCardSkeleton';
 import HoverPopup from './parts/HoverPopup';
@@ -26,7 +27,7 @@ export { RecordCardSkeleton };
 const RecordCard = ({
   record, rank, expandOnHover = false, type: typeProp, wide = false, interaction = {},
   index, onHoverExpand, expandDir = 'left', imageVariant = null,
-  forceExpanded = false, onWatchlist, onLike, onLove, onWatched
+  forceExpanded = false, onWatchlist, onLike, onLove, onWatched, edgeArrowRef = null,
 }) => {
 
   // Resolve type: explicit prop wins, then infer from legacy boolean props
@@ -44,8 +45,13 @@ const RecordCard = ({
     isMobile, tier, isTv,
     hovered, anchorRect, cardRef,
     imgError, imgLoaded, setImgError, setImgLoaded,
-    onMouseEnter, onMouseLeave, goDetail, goPlay,
+    onMouseEnter, onMouseLeave, closeNow, goDetail, goPlay,
   } = useCardInteraction({ expandOnHover: isPrime, useInlineWideHover, index, onHoverExpand, record });
+
+  // Fluid desktop card height — scales smoothly with the viewport so a small
+  // laptop and a large monitor get proportional cards (see useFluidCardSize).
+  const vw = useViewportWidth();
+  const deskH = fluidDesktopHeight(cfg.tiers.desktop, tier, vw);
 
   // Standard cards use poster (2:3) on mobile/tablet, backdrop (16:9) on desktop/tv
   const isMobileTier = tier === 'mobile' || tier === 'tablet';
@@ -66,11 +72,20 @@ const RecordCard = ({
   });
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
 
+  // Still shown behind the hover popup's trailer. A LANDSCAPE card already shows a
+  // backdrop, so the popup must reuse that exact same image — otherwise the artwork
+  // visibly swaps on hover (e.g. text backdrop → clean backdrop). A PORTRAIT card
+  // (poster/top10/jumbo) keeps the landscape backdrop still, which is the intended
+  // look. Either way the trailer then fades in on top.
+  const popupStillSrc = isLandscape
+    ? imgSrc
+    : tmdbImg(record.backdropPath ?? record.posterPath, 'w780');
+
   // ── Desktop prime: distinct fixed-slot / expand-on-hover layout ────────────
   if (isPrime && !isMobile) {
     return (
       <PrimeDesktopCard
-        record={record} interaction={interaction} cfg={cfg}
+        record={record} interaction={interaction} cfg={cfg} primeHeight={deskH}
         expandDir={expandDir} isExpanded={isExpanded}
         cardRef={cardRef} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
         goDetail={goDetail} goPlay={goPlay}
@@ -81,7 +96,7 @@ const RecordCard = ({
   }
 
   // ── dimensions — driven by RAIL_TYPE_CONFIG ─────────────────────────────
-  const PRIME_HEIGHT = { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop };
+  const PRIME_HEIGHT = { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: deskH };
 
   const cardWidth = (type === 'prime')
     ? {
@@ -89,17 +104,17 @@ const RecordCard = ({
       xs: `calc(${cfg.tiers.mobile}px * ${9 / 16})`,
       sm: `calc(${cfg.tiers.tablet}px * ${9 / 16})`,
       md: isExpanded
-        ? `calc(${cfg.tiers.desktop}px * ${16 / 9})`
-        : `calc(${cfg.tiers.desktop}px * ${9 / 16})`,
+        ? `calc(${deskH}px * ${16 / 9})`
+        : `calc(${deskH}px * ${9 / 16})`,
     }
     : (type === 'top10')
-      ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(cfg.tiers.desktop * 2 / 3) }
+      ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(deskH * 2 / 3) }
       : (type === 'wide' || type === 'continue')
-        ? { xs: Math.round(cfg.tiers.mobile * 16 / 9), sm: Math.round(cfg.tiers.tablet * 16 / 9), md: Math.round(cfg.tiers.desktop * 16 / 9) }
+        ? { xs: Math.round(cfg.tiers.mobile * 16 / 9), sm: Math.round(cfg.tiers.tablet * 16 / 9), md: Math.round(deskH * 16 / 9) }
         : (type === 'person')
-          ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop }
+          ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: deskH }
           : (type === 'jumbo')
-            ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(cfg.tiers.desktop * 2 / 3) }
+            ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(deskH * 2 / 3) }
             : // standard/billboard: xs/sm use mobileAspect (poster), md+ use cardAspect (backdrop)
             (() => {
               const [daw, dah] = cfg.cardAspect.split('/').map(Number);
@@ -110,7 +125,7 @@ const RecordCard = ({
               return {
                 xs: Math.round(cfg.tiers.mobile * mr),
                 sm: Math.round(cfg.tiers.tablet * mr),
-                md: Math.round(cfg.tiers.desktop * dr),
+                md: Math.round(deskH * dr),
               };
             })();
 
@@ -121,7 +136,10 @@ const RecordCard = ({
     ? { zIndex: isExpanded ? 10 : 1 }
     : useInlineWideHover
       ? (hovered ? { scale: 1.02, y: -4, zIndex: 10 } : { scale: 1, y: 0, zIndex: 1 })
-      : (hovered ? { scale: 1.03, zIndex: 10 } : { scale: 1, zIndex: 1 });
+      // Popup cards: the portal popup fully covers the card on hover, so a scale
+      // bump here would only flash a faint double-image behind it — keep it still
+      // and let the popup do the "grow" so the morph reads as one entity.
+      : (hovered ? { scale: 1, zIndex: 10 } : { scale: 1, zIndex: 1 });
 
   const motionTransition = isPrime
     ? { duration: 0 }
@@ -266,7 +284,11 @@ const RecordCard = ({
             onLove={onLove}
             onWatched={onWatched}
             anchorRect={anchorRect}
+            anchorRef={cardRef}
+            edgeArrowRef={edgeArrowRef}
+            stillSrc={popupStillSrc}
             onClose={onMouseLeave}
+            onDismiss={closeNow}
             onHoverEnter={onMouseEnter}
           />
         )}

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Chip, useMediaQuery, useTheme } from '@mui/material';
-import { motion, useScroll, useTransform } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
 import { useQuery } from '@tanstack/react-query';
 
@@ -103,14 +102,6 @@ const CinemaPage = ({ pageType = 'home' }) => {
   const category = selectedCategory?.id ?? null;
 
   const [heroColor, setHeroColor] = useState(null);
-
-  // Hero scroll behaviour (desktop), driven by scroll position via framer-motion
-  // (no React re-renders): a gentle parallax lag plus an opacity fade so the hero —
-  // including its overview text and buttons — fades out as the rails rise over it,
-  // instead of the content visibly colliding with / showing through the rail section.
-  const { scrollY } = useScroll();
-  const heroParallax = useTransform(scrollY, [0, 520], [0, 90]);
-  const heroFade     = useTransform(scrollY, [0, 300, 520], [1, 1, 0]);
 
   const { data: railsData, isLoading: railsLoading } = useQuery({
     queryKey: ['cinema-rails', apiPage, category ?? null],
@@ -296,7 +287,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
           pointerEvents: 'none',
           zIndex: 0,
           background: overlayGradient,
-          opacity: hasHeroColor ? 1 : 0,
+          opacity: hasHeroColor && isMobile ? 1 : 0,
           transition:
             'background 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 700ms ease',
           willChange: 'background, opacity',
@@ -322,7 +313,7 @@ const CinemaPage = ({ pageType = 'home' }) => {
               transparent 70%
             )
           `,
-          opacity: hasHeroColor ? 1 : 0,
+          opacity: hasHeroColor && isMobile ? 1 : 0,
           transition:
             'background 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 700ms ease',
         }}
@@ -332,13 +323,9 @@ const CinemaPage = ({ pageType = 'home' }) => {
       <Box sx={{ position: 'relative', zIndex: 1 }}>
         <Navbar coverColor={isMobile ? heroColor : null} />
 
-        {/* Desktop: hero sits behind the rails and fades/parallaxes on scroll.
-            Mobile keeps the static card hero (no fade). */}
-        <Box
-          component={motion.div}
-          style={isMobile ? undefined : { y: heroParallax, opacity: heroFade }}
-          sx={{ position: 'relative', zIndex: 0 }}
-        >
+        {/* Hero scrolls away naturally with the page (Netflix-style) — no fade or
+            parallax. The rails still ride up over its dissolving bottom edge. */}
+        <Box sx={{ position: 'relative', zIndex: 0 }}>
           <HeroBanner
             records={heroRecords}
             interactions={interactions}
@@ -350,7 +337,10 @@ const CinemaPage = ({ pageType = 'home' }) => {
 
         {/* Rails ride up over the hero (desktop) and stay transparent so the
             colour wash shows through. */}
-        <Box sx={{ position: 'relative', zIndex: 1, background: 'transparent', mt: { xs: 0, md: '-7vh' } }}>
+        {/* Fixed-px overlap (NOT vh) so the first rail rides up onto the hero by a
+            consistent amount on every screen — a vh overlap grew on big monitors
+            and rode up over the hero's title/buttons. */}
+        <Box sx={{ position: 'relative', zIndex: 1, background: 'transparent', mt: { xs: 0, md: '-130px', lg: '-146px', xl: '-166px' } }}>
           {railsLoading && rails.length === 0 ? (
             <>
               <RailSkeleton />

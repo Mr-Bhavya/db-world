@@ -18,12 +18,14 @@ const EASE = [0.4, 0, 0.2, 1];    // matches cubic-bezier(0.4, 0, 0.2, 1)
 // Desktop "prime" rail card: a fixed portrait SLOT (never reflows) with an
 // absolute landscape overlay that grows toward `expandDir` on hover.
 const PrimeDesktopCard = ({
-  record, interaction = {}, cfg, expandDir = 'right', isExpanded,
+  record, interaction = {}, cfg, primeHeight, expandDir = 'right', isExpanded,
   cardRef, onMouseEnter, onMouseLeave, goDetail, goPlay,
   imgError, imgLoaded, setImgError, setImgLoaded,
   onWatchlist, onLike, onLove,
 }) => {
-  const PRIME_H = cfg.tiers.desktop;
+  // Fluid height passed down from RecordCard so the expand-on-hover slot scales
+  // with the viewport, and stays in sync with RailRow's PRIME_SHIFT math.
+  const PRIME_H = primeHeight ?? cfg.tiers.desktop;
   const PORTRAIT = Math.round(PRIME_H * 9 / 16);
   const GAP = 6;
   const LANDSCAPE = Math.round(PRIME_H * 16 / 9) - GAP;

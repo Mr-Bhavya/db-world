@@ -16,7 +16,9 @@ export const RAIL_TYPE_CONFIG = {
   // poster mobile uses for `standard`, and not the oversized `wide`.
   landscape: {
     cardAspect: '16/9',
-    tiers: { mobile: 150, tablet: 165, desktop: 180, tv: 240 },
+    // Same heights as `standard` so a landscape rail and a standard rail line up
+    // (identical card width/height) when they sit on the same page.
+    tiers: { mobile: 160, tablet: 170, desktop: 170, tv: 220 },
     hover: 'popup',
     skeleton: 'backdrop',
     scroll: 'horizontal',
