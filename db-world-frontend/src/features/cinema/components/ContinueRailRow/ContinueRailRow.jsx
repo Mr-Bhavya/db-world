@@ -67,7 +67,7 @@ const ContinueRailRow = () => {
       navigate, location,
       {
         id: item.recordId, title: item.title, type: item.type,
-        posterPath: item.posterPath, backdropPath: item.backdropPath,
+        posterPath: item.posterPath, backdropPath: item.backdropPath, logoPath: item.logoPath,
       },
       rect ? { originRect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height } } : {},
     );

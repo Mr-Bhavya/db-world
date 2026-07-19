@@ -7,6 +7,8 @@ import com.db.dbworld.app.cinema.progress.dto.ContinueWatchingDto;
 import com.db.dbworld.app.cinema.progress.entity.WatchProgressEntity;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.ImageEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.LogoImageEntity;
 import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import lombok.Builder;
@@ -168,6 +170,7 @@ public class WatchProgressService {
                 .type(record.getType().name())
                 .posterPath(tmdb != null ? tmdb.getPosterPath() : null)
                 .backdropPath(tmdb != null ? tmdb.getBackdropPath() : null)
+                .logoPath(tmdb != null ? selectLogoPath(tmdb.getImages()) : null)
                 .resumeFileId(resumeFileId)
                 .season(season)
                 .episode(episode)
@@ -175,6 +178,32 @@ public class WatchProgressService {
                 .durationMs(resumeDur)
                 .updatedAt(latest.getUpdatedAt())
                 .build();
+    }
+
+    // Title-logo selection (locale-best: hi > en > gu > language-neutral) — mirrors
+    // the catalog/detail logo pick so Continue Watching shows the same wordmark.
+    private static final List<String> LOGO_LOCALES = List.of("hi", "en", "gu");
+
+    private static String selectLogoPath(List<ImageEntity> images) {
+        if (images == null) return null;
+        String best = null;
+        int bestScore = -1;
+        for (ImageEntity img : images) {
+            if (!(img instanceof LogoImageEntity logo) || logo.getFilePath() == null) continue;
+            int score = logoLocaleScore(logo.getIso6391());
+            if (score <= 0) continue; // keep en/hi/gu/neutral only
+            if (score > bestScore) {
+                bestScore = score;
+                best = logo.getFilePath();
+            }
+        }
+        return best;
+    }
+
+    private static int logoLocaleScore(String iso) {
+        if (iso == null) return 1;                       // language-neutral logo
+        int idx = LOGO_LOCALES.indexOf(iso);
+        return idx >= 0 ? (LOGO_LOCALES.size() - idx) * 10 : 0;  // hi > en > gu > other
     }
 
     private boolean isFinished(long pos, long dur) {

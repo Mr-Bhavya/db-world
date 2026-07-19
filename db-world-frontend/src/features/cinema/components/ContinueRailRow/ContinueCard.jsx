@@ -3,7 +3,7 @@ import { Box, Typography, IconButton, Tooltip, CircularProgress, Button } from '
 import { PlayArrow, Close, ExpandMore } from '@mui/icons-material';
 import { tmdbImg } from '../../api/cinemaApi';
 
-// "1h 45m" / "12m" — used for the watched/total time line.
+// "1h 45m" / "12m" — used for the time-remaining subline.
 const formatTime = (ms) => {
   if (!ms || ms <= 0) return '0m';
   const totalMin = Math.round(ms / 60000);
@@ -25,10 +25,14 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
   const epLabel = isSeries && item.season != null && item.episode != null
     ? `S${item.season}:E${item.episode}`
     : null;
-  const timeLabel = dur > 0 ? `${formatTime(pos)} / ${formatTime(dur)}` : null;
-  const subLine = [epLabel, timeLabel].filter(Boolean).join('  ·  ');
+  // A fresh next episode resumes at 0 with unknown duration → label it; otherwise
+  // show the time remaining (more useful than watched/total).
+  const isNext = isSeries && dur === 0;
+  const rightLabel = isNext ? 'Next episode' : (dur > 0 ? `${formatTime(dur - pos)} left` : null);
+  const subLine = [epLabel, rightLabel].filter(Boolean).join('  ·  ');
 
   const img = tmdbImg(item.backdropPath ?? item.posterPath, 'w780');
+  const logoUrl = item.logoPath ? tmdbImg(item.logoPath, 'w300') : null;
   const cardRef = useRef(null);
 
   const resume = (e) => { e?.stopPropagation?.(); if (!loading) onResume(item); };
@@ -78,10 +82,15 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
               position: 'absolute', left: 0, right: 0, bottom: 4, px: 1, pt: 2.5, pb: 0.6, zIndex: 2, pointerEvents: 'none',
               background: 'linear-gradient(to top, rgba(0,0,0,.9) 0%, rgba(0,0,0,.3) 70%, transparent 100%)',
             }}>
-              <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.2, textShadow: '0 1px 6px rgba(0,0,0,.9)',
-                display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {item.title}
-              </Typography>
+              {logoUrl ? (
+                <Box component="img" src={logoUrl} alt={item.title}
+                  sx={{ maxHeight: 26, maxWidth: '72%', objectFit: 'contain', objectPosition: 'left bottom', display: 'block', filter: 'drop-shadow(0 1px 6px rgba(0,0,0,.9))' }} />
+              ) : (
+                <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.2, textShadow: '0 1px 6px rgba(0,0,0,.9)',
+                  display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {item.title}
+                </Typography>
+              )}
             </Box>
           </>
         )}
@@ -93,10 +102,15 @@ const ContinueCard = ({ item, onResume, onRemove, onInfo, loading, isMobile }) =
             background: 'linear-gradient(to top, rgba(0,0,0,.96) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.12) 78%, transparent 100%)',
             display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', p: 1.2, pb: 1.3,
           }}>
-            <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '0.9rem', lineHeight: 1.2, mb: 0.15,
-              display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {item.title}
-            </Typography>
+            {logoUrl ? (
+              <Box component="img" src={logoUrl} alt={item.title}
+                sx={{ maxHeight: 32, maxWidth: '75%', objectFit: 'contain', objectPosition: 'left bottom', display: 'block', mb: 0.35, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,.85))' }} />
+            ) : (
+              <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '0.9rem', lineHeight: 1.2, mb: 0.15,
+                display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {item.title}
+              </Typography>
+            )}
             {subLine && <Typography sx={{ color: 'rgba(255,255,255,.72)', fontSize: '0.68rem', mb: 0.9 }}>{subLine}</Typography>}
             <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
               <Button onClick={resume} variant="contained" startIcon={<PlayArrow sx={{ fontSize: 18 }} />}
