@@ -7,12 +7,14 @@
 // Route: /db-world/db-cinema/player/:mediaFileId
 //   fast path:    navigate(playerPath(id), { state: { media } })
 //   instant path: navigate(playerPath(id), { state: { resume: { recordId, title, type } } })
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import CircularProgress from '@mui/material/CircularProgress';
 import DbWorldVideoPlayer from './DbWorldVideoPlayer';
 import { buildStoryboard } from '../../utils/storyboard';
 import { buildMediaFromFileId } from '../../media/playerLaunch';
+import { addWatched } from '../../api/cinemaApi';
 import { getWatchProgress, saveWatchProgress, resolveMediaUrl } from '@shared/services/ApiServices';
 import usePageMeta from '@shared/hooks/usePageMeta';
 
@@ -32,6 +34,8 @@ export default function HybridPlayerPage() {
   const { state } = useLocation();
   const { mediaFileId: routeId } = useParams();
   const navigate  = useNavigate();
+  const qc        = useQueryClient();
+  const watchedMarkedRef = useRef(new Set()); // record ids already auto-marked Watched this session
 
   // media: from route state (fast in-app launch) or resolved from the URL id (refresh /
   // deep-link / instant Continue-Watching). Resolving happens behind the loading screen.
@@ -113,7 +117,21 @@ export default function HybridPlayerPage() {
       durationMs,
       recordId: media?.recordId ?? undefined,
     }).catch(() => {});
-  }, [cur, media]);
+
+    // Auto-mark the record Watched once the title truly finishes: a movie (no episodes)
+    // or the LAST episode of a series. Fire once per record, then refresh Continue
+    // Watching so the finished title drops out of the row.
+    if (ended && media?.recordId && !watchedMarkedRef.current.has(media.recordId)) {
+      const eps = media.episodes || [];
+      const isLast = eps.length === 0 || eps[eps.length - 1]?.fileId === cur.fileId;
+      if (isLast) {
+        watchedMarkedRef.current.add(media.recordId);
+        addWatched(media.recordId)
+          .then(() => qc.invalidateQueries({ queryKey: ['continue-watching'] }))
+          .catch(() => {});
+      }
+    }
+  }, [cur, media, qc]);
 
   // Neither a URL id nor route media → nothing to play.
   useEffect(() => {

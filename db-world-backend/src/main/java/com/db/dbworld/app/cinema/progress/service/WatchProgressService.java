@@ -3,6 +3,8 @@ package com.db.dbworld.app.cinema.progress.service;
 import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.interaction.enums.InteractionType;
+import com.db.dbworld.app.cinema.interaction.repository.InteractionRepository;
 import com.db.dbworld.app.cinema.progress.dto.ContinueWatchingDto;
 import com.db.dbworld.app.cinema.progress.entity.WatchProgressEntity;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
@@ -21,10 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -45,6 +49,7 @@ public class WatchProgressService {
     private final WatchProgressRepository       repository;
     private final RecordRepository              recordRepository;
     private final MediaInfoService              mediaInfoService;
+    private final InteractionRepository         interactionRepository;
 
     @Value
     @Builder
@@ -114,8 +119,18 @@ public class WatchProgressService {
                 latestByRecord.putIfAbsent(wp.getRecordId(), wp); // first seen = newest (rows are DESC)
             }
         }
+
+        // Titles the user has marked (or auto-marked on finish) as Watched are hidden —
+        // a completed movie / last episode shouldn't linger. BUT an active RE-WATCH (a
+        // live, unfinished resume point) stays visible so it's one tap to resume; only a
+        // finished / reset-to-start Watched title is dropped.
+        Set<Long> watched = latestByRecord.isEmpty() ? Set.of()
+                : new HashSet<>(interactionRepository.findRecordIdsByUserIdAndTypeIn(
+                        userId, InteractionType.WATCHED, new ArrayList<>(latestByRecord.keySet())));
+
         List<ContinueWatchingDto> out = new ArrayList<>();
         for (Map.Entry<Long, WatchProgressEntity> e : latestByRecord.entrySet()) {
+            if (watched.contains(e.getKey()) && !isActiveResume(e.getValue())) continue;
             ContinueWatchingDto dto = buildContinueItem(e.getKey(), e.getValue());
             if (dto != null) out.add(dto);
         }
@@ -209,6 +224,17 @@ public class WatchProgressService {
     private boolean isFinished(long pos, long dur) {
         if (dur <= 0) return false;
         return pos >= dur - COMPLETION_TAIL_MS || ((double) pos / dur) >= COMPLETION_THRESHOLD;
+    }
+
+    /**
+     * A live, unfinished resume point: partway in and not yet finished. On finish the
+     * player resets the saved position to 0, so a finished/reset title returns false while
+     * an active re-watch (progress &gt; 0) returns true.
+     */
+    private boolean isActiveResume(WatchProgressEntity wp) {
+        long pos = nz(wp.getPositionMs());
+        long dur = nz(wp.getDurationMs());
+        return pos > 0 && !isFinished(pos, dur);
     }
 
     private MediaFileDto fileById(List<MediaFileDto> files, String id) {
