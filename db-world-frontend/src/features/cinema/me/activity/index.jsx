@@ -1,64 +1,59 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Container, Tab, Tabs, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 
 import ActivitySummaryCard from './components/ActivitySummaryCard';
-import TopRewatchesStrip from './components/TopRewatchesStrip';
 import ActivityTimelineList from './components/ActivityTimelineList';
-import { fetchMyActivitySummary, fetchTopRewatches, fetchMyActivities } from './api/myActivityApi';
+import { fetchMyActivitySummary, fetchMyActivities } from './api/myActivityApi';
 
 const TYPE_TABS = [
   { value: '',         label: 'All' },
   { value: 'STREAM',   label: 'Streams' },
   { value: 'DOWNLOAD', label: 'Downloads' },
-  { value: 'SEARCH',   label: 'Searches' },
 ];
 
 const PAGE_SIZE = 30;
 
 const MyActivityPage = () => {
-  const { enqueueSnackbar } = useSnackbar();
   const [type, setType] = useState('');
-
-  const onErr = (label) => (err) => {
-    enqueueSnackbar(`Failed to load ${label}: ${err?.response?.data?.message ?? err.message}`,
-      { variant: 'error' });
-  };
 
   const summaryQ = useQuery({
     queryKey: ['me', 'activity', 'summary'],
     queryFn: fetchMyActivitySummary,
-    onError: onErr('summary'),
-  });
-
-  const rewatchQ = useQuery({
-    queryKey: ['me', 'activity', 'top-rewatches'],
-    queryFn: () => fetchTopRewatches(6),
-    onError: onErr('top rewatches'),
   });
 
   const listQ = useQuery({
     queryKey: ['me', 'activity', 'list', type],
     queryFn: () => fetchMyActivities({ type: type || undefined, page: 0, size: PAGE_SIZE }),
-    onError: onErr('activity timeline'),
   });
 
+  // useQuery's onError was removed in TanStack Query v5 — surface fetch failures
+  // via isError/error instead, same user-visible toast as before.
+  useEffect(() => {
+    if (summaryQ.isError) {
+      const err = summaryQ.error;
+      notify.error(`Failed to load summary: ${err?.response?.data?.message ?? err.message}`);
+    }
+  }, [summaryQ.isError, summaryQ.error]);
+
+  useEffect(() => {
+    if (listQ.isError) {
+      const err = listQ.error;
+      notify.error(`Failed to load activity timeline: ${err?.response?.data?.message ?? err.message}`);
+    }
+  }, [listQ.isError, listQ.error]);
+
+  const timelineItems = listQ.data?.content;
+
   return (
-    <Container maxWidth="md" sx={{ py: 3 }}>
+    <Container maxWidth="md" sx={{ pt: { xs: 'calc(56px + 24px)', md: 'calc(64px + 24px)' }, pb: 3 }}>
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
         My Activity
       </Typography>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <ActivitySummaryCard summary={summaryQ.data} loading={summaryQ.isLoading} />
-
-        <Box>
-          <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Top rewatches
-          </Typography>
-          <TopRewatchesStrip items={rewatchQ.data} loading={rewatchQ.isLoading} />
-        </Box>
 
         <Box>
           <Tabs
@@ -68,7 +63,7 @@ const MyActivityPage = () => {
           >
             {TYPE_TABS.map(t => <Tab key={t.value || 'all'} value={t.value} label={t.label} />)}
           </Tabs>
-          <ActivityTimelineList items={listQ.data} loading={listQ.isLoading} />
+          <ActivityTimelineList items={timelineItems} loading={listQ.isLoading} />
         </Box>
       </Box>
     </Container>

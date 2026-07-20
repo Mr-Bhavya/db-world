@@ -11,7 +11,7 @@ import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
 import com.db.dbworld.audit.activity.recommend.GenreAffinityService;
 import com.db.dbworld.audit.activity.recommend.RewatchTrendService;
-import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
+import com.db.dbworld.audit.tracking.repository.ActivitySessionRepository;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import com.db.dbworld.app.cinema.rail.entity.RailItemEntity;
 import com.db.dbworld.app.cinema.rail.repository.RailItemRepository;
@@ -36,7 +36,7 @@ public class RailResolverImpl implements RailResolver {
     private final RecordRepository recordRepository;
     private final TagDefinitionService tagDefinitionService;
     private final WatchProgressRepository watchProgressRepository;
-    private final UserCinemaActivityRepository activityRepository;
+    private final ActivitySessionRepository activitySessionRepository;
     private final UserContext userContext;
     private final GenreAffinityService genreAffinityService;
     private final RewatchTrendService rewatchTrendService;
@@ -74,6 +74,10 @@ public class RailResolverImpl implements RailResolver {
                     .map(RailItemEntity::getRecord);
 
             case "tag" -> {
+                List<RecordTagType> tags = parseTags(rule);
+                if (!tags.isEmpty()) {
+                    yield recordRepository.findByTags(tags, sortedPageable);
+                }
                 RecordTagType tag;
                 try {
                     tag = RecordTagType.valueOf(rule.getTag().toUpperCase());
@@ -204,8 +208,9 @@ public class RailResolverImpl implements RailResolver {
      * rail's natural ordering (typically popularity DESC).
      */
     private Slice<Long> resolveBecauseYouWatchedIds(RecordType effectiveType, Pageable pageable) {
-        // Source pick now spans BOTH watch_progress and user_cinema_activity (downloads
-        // + completed streams), so users who mostly download still get a useful recommendation.
+        // Source pick now spans BOTH watch_progress and activity_session (STREAM
+        // sessions), so users who mostly stream (rather than track progress) still get
+        // a useful recommendation.
         Long sourceRecordId = pickBecauseYouWatchedSource();
         if (sourceRecordId == null) return new SliceImpl<>(List.of(), pageable, false);
 
@@ -223,8 +228,8 @@ public class RailResolverImpl implements RailResolver {
      * Resolves the source record for a "Because you watched" rail. Looks at:
      * <ol>
      *   <li>{@link WatchProgressRepository#findMostRecentRecordIdsByUser} — actual playback,</li>
-     *   <li>{@link UserCinemaActivityRepository#findMostRecentRecordIdsByUser} — completed
-     *       downloads/streams (covers the "user mostly downloads" use case),</li>
+     *   <li>{@link ActivitySessionRepository#findMostRecentRecordIdsByUser} — recent STREAM
+     *       sessions (covers users whose watch_progress hasn't ticked yet),</li>
      * </ol>
      * and picks the most recent of the two. Returns null if neither source has data.
      */
@@ -237,7 +242,7 @@ public class RailResolverImpl implements RailResolver {
         }
         Pageable top1 = PageRequest.of(0, 1);
         List<Long> fromProgress = watchProgressRepository.findMostRecentRecordIdsByUser(userId, top1);
-        List<Long> fromActivity = activityRepository.findMostRecentRecordIdsByUser(userId, top1);
+        List<Long> fromActivity = activitySessionRepository.findMostRecentRecordIdsByUser(userId, top1);
         if (!fromProgress.isEmpty()) return fromProgress.get(0);
         if (!fromActivity.isEmpty()) return fromActivity.get(0);
         return null;
@@ -277,6 +282,17 @@ public class RailResolverImpl implements RailResolver {
 
     private Slice<Long> resolveTagIds(RailRule rule, RecordType effectiveType,
                                       Long category, Pageable pageable) {
+
+        // Multi-tag union (combined rails). No genre/type sub-filtering — these rails
+        // are simple "any of these tags, newest first" home rails.
+        List<RecordTagType> tags = parseTags(rule);
+        if (!tags.isEmpty()) {
+            if (RailSortBuilder.isTagPrioritySort(pageable.getSort())) {
+                Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+                return recordRepository.findIdsByTagsOrderByPriorityDesc(tags, unsorted);
+            }
+            return recordRepository.findIdsByTags(tags, pageable);
+        }
 
         RecordTagType tag;
         try {
@@ -400,7 +416,16 @@ public class RailResolverImpl implements RailResolver {
 
         // Explicit override on the rail takes precedence
         if (rule.getSort() != null && !rule.getSort().isBlank()) {
-            return RailSortBuilder.build(rule.getSort(), rule.getDirection());
+            Sort explicit = RailSortBuilder.build(rule.getSort(), rule.getDirection());
+            // tagPriority is the computed record_tags.priority score — only the tag
+            // resolution path can ORDER BY it. On genre/language/filter/manual rails the
+            // sentinel would leak into the SQL as `ORDER BY __TAG_PRIORITY__` and throw,
+            // so ignore it (fall back to the query's natural order) on non-tag rails.
+            if (RailSortBuilder.isTagPrioritySort(explicit) && !"tag".equals(rule.getType())) {
+                log.debug("Ignoring tagPriority sort on non-tag rail (type={})", rule.getType());
+                return Sort.unsorted();
+            }
+            return explicit;
         }
 
         // For tag-type rails, inherit the default sort from TagDefinition
@@ -411,7 +436,27 @@ public class RailResolverImpl implements RailResolver {
             }
         }
 
+        // Multi-tag (union) rails sort by the computed per-record score, newest-first.
+        if ("tag".equals(rule.getType()) && rule.getTags() != null && !rule.getTags().isEmpty()) {
+            return RailSortBuilder.build("tagPriority", "DESC");
+        }
+
         return Sort.unsorted();
+    }
+
+    /** Parses {@code rule.tags} into valid {@link RecordTagType}s; empty when none/unset. */
+    private List<RecordTagType> parseTags(RailRule rule) {
+        if (rule.getTags() == null || rule.getTags().isEmpty()) {
+            return List.of();
+        }
+        List<RecordTagType> result = new java.util.ArrayList<>();
+        for (String t : rule.getTags()) {
+            if (t == null || t.isBlank()) continue;
+            try {
+                result.add(RecordTagType.valueOf(t.toUpperCase()));
+            } catch (IllegalArgumentException ignored) { /* skip unknown */ }
+        }
+        return result;
     }
 
     /**

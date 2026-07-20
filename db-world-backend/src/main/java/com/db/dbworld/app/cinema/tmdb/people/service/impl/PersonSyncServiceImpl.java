@@ -103,6 +103,11 @@ public class PersonSyncServiceImpl implements PersonSyncService {
 
     private LocalDate parseDate(String s) {
         if (s == null || s.isBlank()) return null;
-        try { return LocalDate.parse(s); } catch (Exception e) { return null; }
+        try {
+            return LocalDate.parse(s);
+        } catch (Exception e) {
+            log.debug("PersonSync date parse failed for value='{}'; reason={}", s, e.getMessage());
+            return null;
+        }
     }
 }

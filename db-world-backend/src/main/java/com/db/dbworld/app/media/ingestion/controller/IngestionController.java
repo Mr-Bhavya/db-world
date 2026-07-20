@@ -1,5 +1,6 @@
 package com.db.dbworld.app.media.ingestion.controller;
 
+import com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
 import com.db.dbworld.app.media.ingestion.entity.IngestionJobEntity;
@@ -29,6 +30,8 @@ import java.util.*;
  *   PUT    /api/ingestion/{jobId}/pause    — pause (Aria2 / HTTP-TORRENT only)
  *   PUT    /api/ingestion/{jobId}/resume   — resume a paused Aria2 job
  *   POST   /api/ingestion/{jobId}/rerun    — rerun with same request (new job ID)
+ *   GET    /api/ingestion/{jobId}/params   — re-editable request snapshot (rerun-with-edit)
+ *   PATCH  /api/ingestion/{jobId}/params   — live-edit safe fields (season/episode) on a running job
  *   DELETE /api/ingestion/{jobId}          — purge: cancel + remove from DB
  *
  * Status endpoints:
@@ -89,9 +92,31 @@ public class IngestionController {
 
     @PostMapping
     public ApiResponse<List<String>> ingest(@RequestBody IngestionRequest request) {
+        // Playlist single-card: one job downloads + processes every selected item.
+        List<PlaylistItem> playlistItems = request.getPlaylistItems();
+        if (playlistItems != null && !playlistItems.isEmpty()) {
+            if (request.getUri() == null || request.getUri().isBlank()) {
+                // Seed the URI from the first item so the source handler resolves (YOUTUBE).
+                request.setUri(playlistItems.get(0).getUri());
+            }
+            try {
+                String jobId = pipeline.start(request);
+                log.info("Playlist job started jobId={} items={}", jobId, playlistItems.size());
+                return ApiResponse.success(
+                        "Playlist job started (" + playlistItems.size() + " items)",
+                        Collections.singletonList(jobId));
+            } catch (Exception e) {
+                log.error("Failed to start playlist job", e);
+                return ApiResponse.error(500,
+                        "Failed to start playlist job: " + e.getMessage(), (List<String>) null);
+            }
+        }
+
         List<String> uris = Optional.ofNullable(request.getUris())
                 .filter(l -> !l.isEmpty())
                 .orElseGet(() -> Collections.singletonList(request.getUri()));
+
+        log.debug("ingest invoked — {} uri(s), recordId={}", uris.size(), request.getRecordId());
 
         List<String> jobIds = new ArrayList<>();
         List<String> errors = new ArrayList<>();
@@ -105,6 +130,8 @@ public class IngestionController {
                 errors.add(uri + " → " + e.getMessage());
             }
         }
+
+        log.info("ingest result — started={}, failed={}", jobIds.size(), errors.size());
 
         String msg = errors.isEmpty()
                 ? "All jobs started (" + jobIds.size() + ")"
@@ -209,6 +236,49 @@ public class IngestionController {
                 })
                 .orElse(ApiResponse.error(404,
                         "Job " + jobId + " not found in store or DB", (String) null));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PARAMS  (re-editable snapshot for "rerun with edit")
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Return the original request params for a job so the ingestion form can be
+     * pre-filled for a "rerun with edit" flow. Prefers the in-memory request
+     * (still-tracked jobs), falling back to the persisted DB row.
+     */
+    @GetMapping("/{jobId}/params")
+    public ApiResponse<JobParamsDto> getJobParams(@PathVariable String jobId) {
+        Optional<IngestionRequest> stored = jobStore.getRequest(jobId);
+        if (stored.isPresent()) {
+            return ApiResponse.success(toParamsDto(stored.get()));
+        }
+        return jobRepository.findById(jobId)
+                .map(e -> ApiResponse.success(toParamsDto(reconstructRequest(e))))
+                .orElse(ApiResponse.error(404,
+                        "Job " + jobId + " not found in store or DB", (JobParamsDto) null));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LIVE EDIT  (patch safe fields on a running job)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Edit safe fields (season/episode) on a still-running job. The edit is applied to the
+     * in-memory request and takes effect when the pipeline reaches the processing stage, so
+     * it's only allowed while the job is active. Returns 400 once the job is terminal.
+     */
+    @PatchMapping("/{jobId}/params")
+    public ApiResponse<Void> editJobParams(@PathVariable String jobId,
+                                           @RequestBody JobEditRequest edit) {
+        boolean applied = jobStore.applyEdit(jobId, edit.getSeason(), edit.getEpisode());
+        if (!applied) {
+            return ApiResponse.error(400,
+                    "Job " + jobId + " is not active — only running jobs can be edited.");
+        }
+        log.info("[{}] Live edit applied — season={}, episode={}",
+                jobId, edit.getSeason(), edit.getEpisode());
+        return ApiResponse.success("Job " + jobId + " updated");
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -424,21 +494,23 @@ public class IngestionController {
         r.setFolderName(base.getFolderName());
         r.setUsername(base.getUsername());
         r.setPassword(base.getPassword());
-        r.setUrlProtected(base.isUrlProtected());
+        r.setUrlProtected(Boolean.TRUE.equals(base.getUrlProtected()));
         r.setFileName(base.getFileName());
         r.setExpectedSize(base.getExpectedSize());
-        r.setExtract(base.isExtract());
+        r.setExtract(Boolean.TRUE.equals(base.getExtract()));
         r.setExtractPassword(base.getExtractPassword());
-        r.setRename(base.isRename());
+        r.setRename(Boolean.TRUE.equals(base.getRename()));
         r.setVideoITag(base.getVideoITag());
         r.setAudioITag(base.getAudioITag());
-        r.setOnlyAudio(base.isOnlyAudio());
+        r.setOnlyAudio(Boolean.TRUE.equals(base.getOnlyAudio()));
+        r.setVideoQuality(base.getVideoQuality());
         r.setTorrentBase64(base.getTorrentBase64());
         r.setRecordId(base.getRecordId());
         r.setSeason(base.getSeason());
         r.setEpisode(base.getEpisode());
         r.setTrackFilter(base.getTrackFilter());
         r.setLocalFilePath(base.getLocalFilePath());
+        r.setPlaylistItems(base.getPlaylistItems());
         return r;
     }
 
@@ -446,9 +518,46 @@ public class IngestionController {
         IngestionRequest r = new IngestionRequest();
         r.setUri(entity.getUri());
         r.setFolderName(entity.getFolderName());
+        r.setFileName(entity.getFileName());
         r.setRecordId(entity.getRecordId());
         r.setSeason(entity.getSeasonNumber());
         r.setEpisode(entity.getEpisodeNumber());
+        // Restore the yt-dlp format selection so a DB-sourced rerun keeps the chosen quality
+        // instead of falling back to best.
+        r.setVideoITag(entity.getVideoITag());
+        r.setAudioITag(entity.getAudioITag());
+        r.setOnlyAudio(Boolean.TRUE.equals(entity.getOnlyAudio()));
+        r.setVideoQuality(entity.getVideoQuality());
+        r.setExtract(Boolean.TRUE.equals(entity.getExtract()));
+        r.setRename(Boolean.TRUE.equals(entity.getRename()));
         return r;
+    }
+
+    /**
+     * Map an {@link IngestionRequest} to a re-editable {@link JobParamsDto}, resolving
+     * the linked record (best-effort) so the form's autocomplete can be pre-populated.
+     * Secrets (URL / archive passwords) are never echoed back.
+     */
+    private JobParamsDto toParamsDto(IngestionRequest r) {
+        RecordAutocompleteDto record = r.getRecordId() != null
+                ? recordRepository.findAutocompleteById(r.getRecordId()).orElse(null)
+                : null;
+        boolean rename = Boolean.TRUE.equals(r.getRename());
+        return JobParamsDto.builder()
+                .uri(r.getUri())
+                .recordId(r.getRecordId())
+                .record(record)
+                .season(r.getSeason())
+                .episode(r.getEpisode())
+                .videoITag(r.getVideoITag())
+                .audioITag(r.getAudioITag())
+                .onlyAudio(Boolean.TRUE.equals(r.getOnlyAudio()))
+                .videoQuality(r.getVideoQuality())
+                .extract(Boolean.TRUE.equals(r.getExtract()))
+                .rename(rename)
+                .fileName(rename ? r.getFileName() : null)
+                .urlProtected(Boolean.TRUE.equals(r.getUrlProtected()))
+                .username(r.getUsername())
+                .build();
     }
 }

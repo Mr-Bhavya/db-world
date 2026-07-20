@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { motion } from 'framer-motion';
 import {
   Box, Button, CircularProgress, Container, Divider,
@@ -17,6 +17,7 @@ import {
 } from '@mui/icons-material';
 import { useT, getGlowProps, getFieldSx } from '@shared/theme';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { addCredential, findAllHost } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 
@@ -29,11 +30,12 @@ const schema = z.object({
 });
 
 const AddPassword = () => {
+  usePageMeta('Save Credential');
+
   const T = useT();
   const GLOW = getGlowProps(T);
   const FIELD = getFieldSx(T);
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -58,7 +60,7 @@ const AddPassword = () => {
   const { mutate: save, isPending } = useMutation({
     mutationFn: (data) => addCredential(data),
     onSuccess: () => {
-      enqueueSnackbar('Credential saved successfully', { variant: 'success' });
+      notify.success('Credential saved successfully');
       queryClient.invalidateQueries({ queryKey: ['pm-vault'] });
       queryClient.invalidateQueries({ queryKey: ['pm-hosts'] });
       reset();
@@ -66,7 +68,7 @@ const AddPassword = () => {
     },
     onError: (err) => {
       const msg = err?.response?.data?.message ?? 'Failed to save credential';
-      enqueueSnackbar(msg, { variant: 'error' });
+      notify.error(msg);
     },
   });
 
@@ -92,7 +94,7 @@ const AddPassword = () => {
     if (!pw) return;
     const res = await CommonServices.handleCopy(pw);
     if (res.success) { setGenCopied(true); setTimeout(() => setGenCopied(false), 1500); }
-    else enqueueSnackbar('Copy failed', { variant: 'error' });
+    else notify.error('Copy failed');
   };
 
   const addCustomField = () => {

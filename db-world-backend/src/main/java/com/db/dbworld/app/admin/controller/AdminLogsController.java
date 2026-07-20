@@ -5,6 +5,8 @@ import com.db.dbworld.infrastructure.logging.dto.LogFormat;
 import com.db.dbworld.infrastructure.logging.dto.LogSource;
 import com.db.dbworld.api.response.ApiResponse;
 import com.db.dbworld.config.AppConstants;
+import jakarta.annotation.PreDestroy;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,10 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -30,6 +36,22 @@ public class AdminLogsController {
 
     private final Map<String, SseEmitter> sseEmitters = new ConcurrentHashMap<>();
     private final Map<String, Thread> sseThreads = new ConcurrentHashMap<>();
+    private final Map<String, ScheduledFuture<?>> sseHeartbeats = new ConcurrentHashMap<>();
+
+    /**
+     * Single-thread scheduler shared across all live SSE sessions for emitting
+     * the periodic keep-alive comment. One thread is plenty — heartbeats are
+     * cheap and at most a few admins watch logs at once.
+     */
+    private final ScheduledExecutorService heartbeatExec = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "logs-sse-heartbeat");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** Interval between SSE heartbeat comments. Must be shorter than nginx's
+     *  default {@code proxy_read_timeout} (60s) and our SseEmitter timeout. */
+    private static final long HEARTBEAT_INTERVAL_SECONDS = 15;
 
     // =====================================================================
     // SOURCES CONFIG
@@ -153,8 +175,15 @@ public class AdminLogsController {
     public SseEmitter followLogs(
             @PathVariable String source,
             @PathVariable String type,
-            @RequestParam(required = false, defaultValue = "JSON") LogFormat format
+            @RequestParam(required = false, defaultValue = "JSON") LogFormat format,
+            HttpServletResponse response
     ) {
+        // Disable proxy buffering — nginx defaults to proxy_buffering on, which
+        // holds the chunked SSE response until its buffer fills and effectively
+        // breaks the live stream. no-cache keeps any CDN/cache layer honest.
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+
         String sessionId = source + "-" + type + "-" + System.currentTimeMillis();
         SseEmitter emitter = new SseEmitter(300_000L); // 5 minute timeout
 
@@ -166,6 +195,18 @@ public class AdminLogsController {
                     .name("connect")
                     .data(Map.of("sessionId", sessionId, "source", source,
                             "type", type, "format", format)));
+
+            // SSE keep-alive: comment lines starting with ':' are ignored by
+            // the EventSource spec but reset proxy idle timers. Without this a
+            // 60s idle nginx will close the upstream and the UI silently drops.
+            ScheduledFuture<?> heartbeat = heartbeatExec.scheduleAtFixedRate(() -> {
+                try {
+                    emitter.send(SseEmitter.event().comment("ping"));
+                } catch (Exception e) {
+                    cleanupSse(sessionId);
+                }
+            }, HEARTBEAT_INTERVAL_SECONDS, HEARTBEAT_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            sseHeartbeats.put(sessionId, heartbeat);
 
             LogsService.FollowSession session = logsService.followLogsForSource(
                     source, type, format, sessionId,
@@ -213,6 +254,8 @@ public class AdminLogsController {
     // =====================================================================
 
     private void cleanupSse(String sessionId) {
+        ScheduledFuture<?> hb = sseHeartbeats.remove(sessionId);
+        if (hb != null) hb.cancel(false);
         SseEmitter emitter = sseEmitters.remove(sessionId);
         if (emitter != null) {
             try { emitter.complete(); } catch (Exception ignored) {}
@@ -220,6 +263,11 @@ public class AdminLogsController {
         Thread t = sseThreads.remove(sessionId);
         if (t != null && t.isAlive()) t.interrupt();
         logsService.stopFollowing(sessionId);
+    }
+
+    @PreDestroy
+    void shutdownHeartbeats() {
+        heartbeatExec.shutdownNow();
     }
 
     private String formatSourceLabel(LogSource src) {

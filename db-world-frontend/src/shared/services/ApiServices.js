@@ -359,19 +359,42 @@ export const loadStreamFileInfoByPath = async (path) => {
 };
 
 export const resolveMediaUrl = async (mediaFileId, type = 'ONLINE') => {
-  const token = localStorage.getItem('token');
+  // Auth rides the standard Authorization: Bearer header (added by the axios interceptor);
+  // the returned cdnUrl is protected by nginx secure_link signing, not this call's token.
   const response = await axiosInstance.get(`/api/stream/resolve/${mediaFileId}`, {
-    params: { t: token, type },
+    params: { type },
   });
   return response.data;
 };
 
 export const resolveMediaUrlByPath = async (path, type = 'ONLINE') => {
-  const token = localStorage.getItem('token');
   const response = await axiosInstance.get('/api/stream/resolve', {
-    params: { path, t: token, type },
+    params: { path, type },
   });
   return response.data;
+};
+
+// Resolve several record-linked media files (e.g. all quality variants of a title) in ONE
+// round-trip instead of N. Returns the CdnResolveDto array directly (already unwrapped from
+// ApiResponse). Files that fail to resolve server-side are simply absent from the result.
+export const resolveMediaBatch = async (mediaFileIds, type = 'ONLINE') => {
+  const response = await axiosInstance.post('/api/stream/resolve-batch', { mediaFileIds, type });
+  return response.data?.data ?? [];
+};
+
+// Watch-progress (resume) APIs
+export const getWatchProgress = async (fileId) => {
+  const response = await axiosInstance.get(`/api/cinema/progress/${encodeURIComponent(fileId)}`);
+  return response.data?.data ?? null; // { fileId, positionMs, durationMs, ... } | null
+};
+
+export const saveWatchProgress = async (fileId, { positionMs, durationMs = 0, recordId, audioLang, subLang } = {}) => {
+  const params = { positionMs: Math.round(positionMs || 0), durationMs: Math.round(durationMs || 0) };
+  if (recordId != null)  params.recordId = recordId;
+  if (audioLang)         params.audioLang = audioLang;
+  if (subLang)           params.subLang = subLang;
+  // keepalive-style: best effort, never block UI on it
+  return axiosInstance.put(`/api/cinema/progress/${encodeURIComponent(fileId)}`, null, { params });
 };
 
 // Interaction APIs
@@ -661,18 +684,6 @@ export const deleteTempFile = async () => {
     console.error('Error deleting temp files:', error);
     throw error;
   }
-};
-
-// Event Tracking
-export const saveUserEventInfo = async (_event, _value) => {
-return;
-//  try {
-//    const response = await axiosInstance.post('/api/event-info/', { event, value });
-//    return response.data;
-//  } catch (error) {
-//    console.error('Error saving user event:', error);
-//    throw error;
-//  }
 };
 
 // Media File Management
@@ -1098,3 +1109,27 @@ export const getLogs = async (url, params, signal) => {
     throw error;
   }
 };
+
+/**
+ * Client event-ingest (telemetry). Fire-and-forget: errors are swallowed so a
+ * tracking failure never disrupts the UX (download/stream/search flows).
+ */
+export const postTrackEvents = (events) =>
+  axiosInstance
+    .post('/api/track/events', { events }, { headers: { 'X-DbWorld-Client': 'app' } })
+    .then(r => r.data)
+    .catch(() => {});
+
+/**
+ * Stream playback telemetry (STREAM_START/TICK/PAUSE/SEEK/STOP), used by the
+ * hybrid video player to compute "watched %". Fire-and-forget: errors are
+ * swallowed so a tracking failure never disrupts playback.
+ *
+ * No 'X-DbWorld-Client' header for web (backend maps channel=WEB); pass
+ * { app: true } from the native webview so the backend maps channel=APP.
+ */
+export const postStreamTrackEvents = (events, { app = false } = {}) =>
+  axiosInstance
+    .post('/api/track/events', { events }, app ? { headers: { 'X-DbWorld-Client': 'app' } } : undefined)
+    .then(r => r.data)
+    .catch(() => {});

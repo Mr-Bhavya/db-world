@@ -155,7 +155,7 @@ public class WindowsServerInfoCollector extends ServerInfoCollector {
                 Map<String, Object> coreData = coreDataList.get(i);
                 CpuCore core = CpuCore.builder()
                         .coreId(i)
-                        .load(getIntegerValue(coreData.get("CookedValue")))
+                        .loadPercent(getIntegerValue(coreData.get("CookedValue")) == null ? null : getIntegerValue(coreData.get("CookedValue")).doubleValue())
                         .build();
                 cores.add(core);
             }

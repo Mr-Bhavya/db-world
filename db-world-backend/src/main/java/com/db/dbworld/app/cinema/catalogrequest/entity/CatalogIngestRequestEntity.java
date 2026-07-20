@@ -22,11 +22,13 @@ import java.util.Set;
 @AllArgsConstructor
 @Table(
         name = "catalog_ingest_requests",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_catalog_ingest_request_tmdb",
                 columnNames = {"tmdb_id", "media_type"}
-        )
+        ),
+        // Admin queue: countByStatus + findAllByStatus ORDER BY created_at.
+        indexes = @Index(name = "idx_catalog_req_status_created", columnList = "status, created_at")
 )
 public class CatalogIngestRequestEntity implements Serializable {
 
@@ -83,7 +85,7 @@ public class CatalogIngestRequestEntity implements Serializable {
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "catalog_ingest_request_voters",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "request_id"),
             uniqueConstraints = @UniqueConstraint(
                     name = "uk_catalog_ingest_request_voter",

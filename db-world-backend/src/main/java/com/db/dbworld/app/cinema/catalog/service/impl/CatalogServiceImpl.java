@@ -15,18 +15,23 @@ import com.db.dbworld.app.cinema.catalog.tags.services.RecordTaggingService;
 import com.db.dbworld.app.cinema.common.events.RecordChangedEvent;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.ImageEntity;
+import com.db.dbworld.app.cinema.tmdb.media.entity.LogoImageEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.app.cinema.tmdb.season.repository.SeasonRepository;
+import com.db.dbworld.app.cinema.tmdb.sync.service.TmdbRecordSyncService;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 import org.hibernate.Session;
 import org.springframework.context.ApplicationEventPublisher;
@@ -45,6 +50,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -55,6 +61,7 @@ public class CatalogServiceImpl implements CatalogService {
     private final SeasonRepository seasonRepository;
     private final RecordTaggingService recordTaggingService;
     private final TmdbIngestionService tmdbIngestionService;
+    private final TmdbRecordSyncService tmdbRecordSyncService;
     private final ApplicationEventPublisher publisher;
     private final RecordMapper recordMapper;
 
@@ -71,6 +78,8 @@ public class CatalogServiceImpl implements CatalogService {
 
     @Override
     public RecordDto createRecord(CreateRecordRequest request) {
+
+        log.debug("createRecord entry; tmdbId={}, type={}", request.getTmdbId(), request.getType());
 
         validateTmdbUniqueness(request.getTmdbId(), null);
 
@@ -90,6 +99,9 @@ public class CatalogServiceImpl implements CatalogService {
 
         publishEvent(record.getId());
 
+        log.info("Record created; recordId={}, tmdbId={}, type={}",
+                record.getId(), request.getTmdbId(), request.getType());
+
         return dto;
     }
 
@@ -106,6 +118,9 @@ public class CatalogServiceImpl implements CatalogService {
 
     @Override
     public RecordDto updateRecord(Long id, UpdateRecordRequest request) {
+
+        log.debug("updateRecord entry; recordId={}, tmdbId={}, type={}",
+                id, request.getTmdbId(), request.getType());
 
         RecordEntity record = getRecordOrThrow(id);
 
@@ -130,6 +145,8 @@ public class CatalogServiceImpl implements CatalogService {
         RecordDto dto = saveAndMap(record);
 
         publishEvent(record.getId());
+
+        log.info("Record updated; recordId={}, tmdbId={}", record.getId(), request.getTmdbId());
 
         return dto;
     }
@@ -163,7 +180,41 @@ public class CatalogServiceImpl implements CatalogService {
             }
         }
 
-        return recordMapper.toDto(record);
+        RecordDto dto = recordMapper.toDto(record);
+
+        // Title logo for the detail hero — selected from the loaded images
+        // (locale-best: hi > en > gu > language-neutral). null → UI uses text title.
+        if (record.getTmdb() != null && dto.getTmdb() != null) {
+            dto.getTmdb().setLogoPath(selectLogoPath(record.getTmdb().getImages()));
+        }
+
+        return dto;
+    }
+
+    // Logo priority — Hindi first, then English, then regional (gu). null is also
+    // allowed (language-neutral logo), just lowest priority.
+    private static final List<String> LOGO_LOCALES = List.of("hi", "en", "gu");
+
+    private static String selectLogoPath(List<ImageEntity> images) {
+        if (images == null) return null;
+        String best = null;
+        int bestScore = -1;
+        for (ImageEntity img : images) {
+            if (!(img instanceof LogoImageEntity logo) || logo.getFilePath() == null) continue;
+            int score = logoLocaleScore(logo.getIso6391());
+            if (score <= 0) continue; // skip foreign-language logos — keep en/hi/gu/neutral only
+            if (score > bestScore) {
+                bestScore = score;
+                best = logo.getFilePath();
+            }
+        }
+        return best;
+    }
+
+    private static int logoLocaleScore(String iso) {
+        if (iso == null) return 1;                       // language-neutral logo
+        int idx = LOGO_LOCALES.indexOf(iso);
+        return idx >= 0 ? (LOGO_LOCALES.size() - idx) * 10 : 0;  // hi > en > gu > other
     }
 
     /**
@@ -250,35 +301,15 @@ public class CatalogServiceImpl implements CatalogService {
             RecordType type,
             Long tmdbId,
             Integer year,
+            SyncStatus status,
             Pageable pageable
     ) {
+        // Sort is applied inside the repository's hand-built native query from a
+        // safe allowlist — no alias-remap needed (and it can sort joined columns).
         return recordRepository.findAdminTable(
-                recordId, name, type != null ? type.name() : null, tmdbId, year, remapAdminTableSort(pageable)
+                recordId, name, type != null ? type.name() : null, tmdbId, year,
+                status != null ? status.name() : null, pageable
         );
-    }
-
-    /**
-     * Spring Data appends the table alias (r.) to sort properties in native queries.
-     * Remap frontend camelCase field names to the actual snake_case column names
-     * that exist in the `records r` table, so ORDER BY r.column_name is valid SQL.
-     * The computed alias `year` has no real column — fall back to `id`.
-     */
-    private Pageable remapAdminTableSort(Pageable pageable) {
-        if (!pageable.getSort().isSorted()) return pageable;
-        List<Sort.Order> orders = pageable.getSort().stream()
-                .map(o -> {
-                    String col = switch (o.getProperty()) {
-                        case "recordId"  -> "id";
-                        case "tmdbId"    -> "tmdb_id";
-                        case "createdAt" -> "created_at";
-                        case "updatedAt" -> "updated_at";
-                        case "year"      -> "id";   // computed alias; id is a reasonable proxy
-                        default          -> o.getProperty();
-                    };
-                    return o.isAscending() ? Sort.Order.asc(col) : Sort.Order.desc(col);
-                })
-                .collect(Collectors.toList());
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orders));
     }
 
     /* ===============================
@@ -288,11 +319,15 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     public void deleteRecord(Long recordId) {
 
+        log.debug("deleteRecord entry; recordId={}", recordId);
+
         RecordEntity record = getRecordOrThrow(recordId);
 
         recordRepository.delete(record);
 
         publishEvent(recordId);
+
+        log.info("Record deleted; recordId={}", recordId);
     }
 
     /* ===============================
@@ -302,25 +337,40 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     public RecordDto refreshRecord(Long recordId) {
 
+        log.debug("refreshRecord entry; recordId={}", recordId);
+
         RecordEntity record = getRecordOrThrow(recordId);
 
-//        record.setTmdb(null);
-//        recordRepository.save(record);
+        try {
+            TmdbEntity refreshed = ingestTmdbByType(
+                    record.getType(),
+                    record.getTmdbId(),
+                    tmdbIngestionService::refreshMovie,
+                    tmdbIngestionService::refreshTvSeries
+            );
 
-        TmdbEntity refreshed = ingestTmdbByType(
-                record.getType(),
-                record.getTmdbId(),
-                tmdbIngestionService::refreshMovie,
-                tmdbIngestionService::refreshTvSeries
-        );
+            record.setTmdb(refreshed);
 
-        record.setTmdb(refreshed);
+            RecordDto dto = saveAndMap(record);
 
-        RecordDto dto = saveAndMap(record);
+            publishEvent(record.getId());
 
-        publishEvent(record.getId());
+            // Stamp the sync row (status/lastSyncedAt) so the Records table reflects
+            // THIS manual refresh, not the last batch run. REQUIRES_NEW on markSynced
+            // commits it independently of this transaction.
+            tmdbRecordSyncService.markSynced(record.getTmdbId(), record.getType());
 
-        return dto;
+            log.info("Record refreshed; recordId={}, tmdbId={}", record.getId(), record.getTmdbId());
+
+            return dto;
+
+        } catch (Exception e) {
+            // markFailed is REQUIRES_NEW, so the FAILED status survives the rollback
+            // this rethrow triggers on the surrounding @Transactional method.
+            tmdbRecordSyncService.markFailed(record.getTmdbId(), record.getType(), e);
+            log.warn("Record refresh failed; recordId={}, tmdbId={}", record.getId(), record.getTmdbId(), e);
+            throw e;
+        }
     }
 
     /* ===============================

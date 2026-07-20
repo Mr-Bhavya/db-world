@@ -2,16 +2,18 @@ package com.db.dbworld.app.media.ingestion.download;
 
 import com.db.dbworld.app.media.ingestion.model.DownloadResult;
 import com.db.dbworld.app.media.ingestion.model.IngestionContext;
+import com.db.dbworld.app.media.ingestion.model.PlaylistItem;
 import com.db.dbworld.app.media.ingestion.model.SourceMetadata;
 import com.db.dbworld.app.media.ingestion.pipeline.PipelineStepType;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
+import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.core.processor.StreamProcessor;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
@@ -25,6 +27,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -38,6 +41,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
     private final FileStorageService fileStorageService;
     private final TrackingService  trackingService;
     private final ObjectMapper     objectMapper;
+    private final IngestionJobStore jobStore;
 
     private final ConcurrentMap<String, AtomicBoolean> cancellationFlags = new ConcurrentHashMap<>();
 
@@ -49,15 +53,41 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
     @Override
     public DownloadResult download(IngestionContext ctx) {
         String jobId = ctx.getJobId();
+        log.debug("[{}] download uri={} videoITag={} audioITag={} onlyAudio={}",
+                jobId, ctx.getRequest().getUri(),
+                ctx.getRequest().getVideoITag(), ctx.getRequest().getAudioITag(),
+                Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio()));
         AtomicBoolean cancellation = new AtomicBoolean(false);
         cancellationFlags.put(jobId, cancellation);
+        // Register the cancel action so the controller's executeCancelAction actually flips this
+        // flag — ProcessExecutor polls it (every 300ms) and force-terminates yt-dlp. Without this
+        // a cancelled yt-dlp job kept running in the background and updating progress.
+        jobStore.setCancelAction(jobId, () -> cancellation.set(true));
 
         try {
             fileStorageService.prepareDirectories(ctx);
             Path tempDir = fileStorageService.resolveTempDir(ctx);
-            String outputTemplate = tempDir.resolve(ctx.getJobId() + ".%(ext)s").toString();
 
-            List<String> cmd = buildCommand(ctx, outputTemplate);
+            // Playlist "single-card" job: download every selected item under this one job into a
+            // per-job subdir, then hand the DIRECTORY back so processing fans out per file.
+            List<PlaylistItem> playlistItems = ctx.getRequest().getPlaylistItems();
+            if (playlistItems != null && !playlistItems.isEmpty()) {
+                return downloadPlaylist(ctx, tempDir, playlistItems, cancellation);
+            }
+
+            // Name by the video title (+ id for uniqueness) so an UNASSIGNED download keeps a real
+            // name instead of the job UUID. Assigned jobs are renamed again from TMDB in processing.
+            // Byte-limited (.120B) so the name stays under the 255-byte filesystem limit with the id/ext.
+            String outputTemplate = tempDir.resolve("%(title).120B [%(id)s].%(ext)s").toString();
+
+            List<String> cmd = buildCommand(ctx, ctx.getRequest().getUri(), outputTemplate);
+            String formatSelector = buildFormatSelector(
+                    ctx.getRequest().getVideoITag(),
+                    ctx.getRequest().getAudioITag(),
+                    Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio()),
+                    ctx.getRequest().getVideoQuality());
+            log.info("[{}] yt-dlp starting — uri={}, format={}, tempDir={}",
+                    jobId, ctx.getRequest().getUri(), formatSelector, tempDir);
             ctx.log("YTDLP", "Running yt-dlp for: " + ctx.getRequest().getUri());
 
             AtomicReference<String> capturedFilename = new AtomicReference<>();
@@ -75,19 +105,108 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             Path downloadedFile = resolveDownloadedFile(tempDir, ctx.getJobId(), fileName);
 
             if (downloadedFile == null || !Files.exists(downloadedFile)) {
+                log.error("[{}] yt-dlp completed but file missing in {} (expected name={})",
+                        jobId, tempDir, fileName);
                 return DownloadResult.failure(jobId, "Downloaded file not found in temp dir: " + tempDir);
             }
 
             long size = Files.size(downloadedFile);
+            log.info("[{}] yt-dlp completed — file={}, size={} bytes",
+                    jobId, downloadedFile.getFileName(), size);
             ctx.log("YTDLP", "Download complete: " + downloadedFile.getFileName() + " (" + size + " bytes)");
             return DownloadResult.success(jobId, downloadedFile, downloadedFile.getFileName().toString(), size);
 
         } catch (Exception e) {
-            log.error("[{}] yt-dlp download failed", jobId, e);
+            log.error("[{}] yt-dlp download failed (exit/error): {}", jobId, e.getMessage(), e);
             ctx.logError("YTDLP", "Download failed: " + e.getMessage());
             return DownloadResult.failure(jobId, e.getMessage());
         } finally {
             cancellationFlags.remove(jobId);
+        }
+    }
+
+    // ── Playlist (single-card, multi-item) download ────────────────────────────
+
+    /**
+     * Download every selected playlist item under ONE job into a per-job subdirectory,
+     * naming each file with an {@code SxxExx} tag when the episode is known. Returns the
+     * subdirectory as the download result so {@code FfmpegProcessingStrategy.processDirectory}
+     * processes each downloaded episode with the per-file progress breakdown.
+     *
+     * Per-item failures are logged and skipped; the job succeeds if at least one item lands.
+     */
+    private DownloadResult downloadPlaylist(IngestionContext ctx, Path tempDir,
+            List<PlaylistItem> items, AtomicBoolean cancellation) throws Exception {
+        String jobId = ctx.getJobId();
+        // Isolate this job's files from other jobs sharing the record's temp dir, so processing
+        // only sees THIS playlist's downloads.
+        Path playlistDir = tempDir.resolve(jobId);
+        Files.createDirectories(playlistDir);
+
+        ctx.setCurrentStep(PipelineStepType.DOWNLOAD);
+        ctx.log("YTDLP", "Playlist job — downloading " + items.size() + " item(s)");
+        log.info("[{}] yt-dlp playlist download — {} item(s), dir={}", jobId, items.size(), playlistDir);
+
+        int position = 0;
+        int ok = 0;
+        for (PlaylistItem item : items) {
+            position++;
+            if (cancellation.get() || trackingService.isCancelled(jobId)) {
+                ctx.log("YTDLP", "Cancelled before item " + position + "/" + items.size());
+                return DownloadResult.failure(jobId, "Cancelled");
+            }
+            String uri = item.getUri();
+            if (uri == null || uri.isBlank()) continue;
+
+            // Embed SxxExx when the episode is known so processing can identify each episode by
+            // name; a zero-padded position prefix keeps processing order aligned with selection.
+            String tag = "";
+            if (item.getEpisode() != null) {
+                int season = item.getSeason() != null ? item.getSeason() : 1;
+                tag = String.format(" S%02dE%02d", season, item.getEpisode());
+            }
+            String outputTemplate = playlistDir
+                    .resolve(String.format("%03d ", position) + "%(title).100B" + tag + " [%(id)s].%(ext)s")
+                    .toString();
+
+            List<String> cmd = buildCommand(ctx, uri, outputTemplate);
+            ctx.log("YTDLP", "Downloading " + position + "/" + items.size()
+                    + (item.getTitle() != null ? ": " + item.getTitle() : ""));
+
+            // Fresh progress accounting per item (committed-bytes / stream-count reset each time).
+            IngestionProgressProcessor processor = new IngestionProgressProcessor(
+                    ctx, new AtomicReference<>(), new AtomicLong(0), new AtomicLong(0),
+                    trackingService, objectMapper);
+            try {
+                processExecutor.runYtDlpCommand(cmd, processor, cancellation);
+                ok++;
+            } catch (Exception e) {
+                if (cancellation.get() || trackingService.isCancelled(jobId)) {
+                    return DownloadResult.failure(jobId, "Cancelled");
+                }
+                log.warn("[{}] Playlist item {} failed: {}", jobId, position, e.getMessage());
+                ctx.logError("YTDLP", "Item " + position + " failed: " + e.getMessage());
+                // best-effort: continue with remaining items
+            }
+        }
+
+        long dirSize = totalSize(playlistDir);
+        if (ok == 0 || dirSize == 0) {
+            return DownloadResult.failure(jobId, "No playlist items downloaded successfully");
+        }
+        ctx.log("YTDLP", "Playlist download complete — " + ok + "/" + items.size() + " item(s)");
+        log.info("[{}] yt-dlp playlist complete — {}/{} item(s), {} bytes",
+                jobId, ok, items.size(), dirSize);
+        return DownloadResult.success(jobId, playlistDir, playlistDir.getFileName().toString(), dirSize);
+    }
+
+    private long totalSize(Path dir) {
+        try (var stream = Files.walk(dir)) {
+            return stream.filter(Files::isRegularFile).mapToLong(p -> {
+                try { return Files.size(p); } catch (Exception e) { return 0L; }
+            }).sum();
+        } catch (Exception e) {
+            return 0L;
         }
     }
 
@@ -102,11 +221,10 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
 
     // ── Command builder ───────────────────────────────────────────────────────
 
-    private List<String> buildCommand(IngestionContext ctx, String outputTemplate) {
-        String uri      = ctx.getRequest().getUri();
+    private List<String> buildCommand(IngestionContext ctx, String uri, String outputTemplate) {
         String videoTag = ctx.getRequest().getVideoITag();
         String audioTag = ctx.getRequest().getAudioITag();
-        boolean onlyAudio = ctx.getRequest().isOnlyAudio();
+        boolean onlyAudio = Boolean.TRUE.equals(ctx.getRequest().getOnlyAudio());
 
         List<String> cmd = new ArrayList<>();
 
@@ -123,7 +241,8 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             ctx.log("YTDLP", "Using cookies: " + cookie.getFileName());
         }
 
-        cmd.addAll(List.of("-f", buildFormatSelector(videoTag, audioTag, onlyAudio)));
+        cmd.addAll(List.of("-f", buildFormatSelector(videoTag, audioTag, onlyAudio,
+                ctx.getRequest().getVideoQuality())));
 
         // Merge separate video+audio into mkv — best HDR/codec support
         if (!onlyAudio) {
@@ -135,6 +254,10 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         cmd.addAll(List.of("--fragment-retries", "10"));
         cmd.addAll(List.of("--no-part"));
 
+        // Each ingestion job is a single item (playlists are expanded to per-item jobs upstream),
+        // so never let a watch?v=…&list=… URL expand into its whole playlist.
+        cmd.add("--no-playlist");
+
         cmd.addAll(List.of("-o", outputTemplate));
         cmd.addAll(List.of("--print", "after_move:filename"));
         cmd.add(uri);
@@ -142,25 +265,37 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         return cmd;
     }
 
-    private String buildFormatSelector(String videoITag, String audioITag, boolean onlyAudio) {
+    private String buildFormatSelector(String videoITag, String audioITag, boolean onlyAudio, String videoQuality) {
         if (onlyAudio) return resolveAudio(audioITag);
 
-        // No specific format requested — pick best available, prefer HDR when present
-        if (videoITag == null || videoITag.isBlank()) {
-            return "bestvideo[ext=mp4]+bestaudio[ext=m4a]"
-                 + "/bestvideo+bestaudio"
-                 + "/best";
-        }
-
-        // "best" sentinel → use yt-dlp's automatic best selection
-        if ("best".equals(videoITag)) {
-            return "bestvideo+" + resolveAudio(audioITag) + "/best";
+        // A specific itag (from the single-video format picker) takes precedence. Otherwise fall
+        // back to a height-based quality preset — the only thing that works across a playlist,
+        // where itags differ per video.
+        if (videoITag == null || videoITag.isBlank() || "best".equals(videoITag)) {
+            return qualitySelector(videoQuality, audioITag);
         }
 
         // Specific format ID selected by user (e.g. from format picker)
-        String video = videoITag;
-        if ("0".equals(audioITag)) return video;           // video-only
-        return video + "+" + resolveAudio(audioITag) + "/best";
+        if ("0".equals(audioITag)) return videoITag;       // video-only
+        return videoITag + "+" + resolveAudio(audioITag) + "/best";
+    }
+
+    /**
+     * Height-based selector applied uniformly — resolves to the best matching format per video,
+     * so it works for every item of a playlist regardless of that item's specific itags.
+     * {@code videoQuality} is "best"/blank or a numeric height cap ("2160", "1080", "720", "480").
+     */
+    private String qualitySelector(String videoQuality, String audioITag) {
+        String audio = resolveAudio(audioITag);
+        if (videoQuality == null || videoQuality.isBlank() || "best".equalsIgnoreCase(videoQuality)) {
+            return "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+" + audio + "/best";
+        }
+        try {
+            int h = Integer.parseInt(videoQuality.trim());
+            return "bestvideo[height<=" + h + "]+" + audio + "/best[height<=" + h + "]/best";
+        } catch (NumberFormatException e) {
+            return "bestvideo+" + audio + "/best";
+        }
     }
 
     private String resolveAudio(String audioITag) {
@@ -186,14 +321,18 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
 
     private Path resolveDownloadedFile(Path tempDir, String jobId, String fileName) {
         try {
-            Path direct = tempDir.resolve(fileName);
-            if (Files.exists(direct)) return direct;
-
+            // Primary: the exact final path yt-dlp printed via --print after_move:filename.
+            if (fileName != null && !fileName.isBlank()) {
+                Path direct = tempDir.resolve(fileName);
+                if (Files.exists(direct)) return direct;
+            }
+            // Fallback (title template means we can't match on jobId): the most recently modified
+            // regular file in the temp dir — the one this job just finished downloading.
             if (Files.isDirectory(tempDir)) {
                 try (var stream = Files.list(tempDir)) {
                     return stream
-                            .filter(p -> p.getFileName().toString().startsWith(jobId))
-                            .findFirst()
+                            .filter(Files::isRegularFile)
+                            .max(java.util.Comparator.comparingLong(p -> p.toFile().lastModified()))
                             .orElse(null);
                 }
             }
@@ -213,6 +352,10 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
         private final AtomicLong              totalBytes;
         private final TrackingService         trackingService;
         private final ObjectMapper            objectMapper;
+
+        // Cumulative bytes from completed streams (video done, audio starting)
+        private final AtomicLong    committedBytes = new AtomicLong(0);
+        private final AtomicInteger streamCount    = new AtomicInteger(1);
 
         IngestionProgressProcessor(
                 IngestionContext ctx,
@@ -236,8 +379,19 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             if (line == null || line.isBlank()) return;
 
             // Progress JSON from --progress-template %(progress)j --newline
-            if (line.startsWith("{") && line.contains("download")) {
+            if (line.startsWith("{") && line.contains("\"status\"")) {
                 parseProgress(line);
+                return;
+            }
+
+            // Post-download merge / fixup stage. yt-dlp prints these to stdout OR stderr and they
+            // contain slashes + dots, so they MUST be matched before the filename heuristic below —
+            // otherwise "[Merger] Merging formats into …" was swallowed as a filename and the bar
+            // stayed pinned at the last 100% download snapshot instead of switching to "Merging…".
+            if (line.contains("[Merger]") || line.contains("[ffmpeg]")
+                    || line.contains("[Fixup") || line.contains("Merging formats")) {
+                trackingService.updateProgress(ctx.getJobId(), ProgressSnapshot.merging());
+                ctx.log("YTDLP", line.trim());
                 return;
             }
 
@@ -249,13 +403,7 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             }
 
             if (isErrorStream) {
-                // Detect ffmpeg merge stage from stderr
-                if (line.contains("[ffmpeg]") || line.contains("[Merger]")) {
-                    trackingService.updateProgress(ctx.getJobId(), ProgressSnapshot.merging());
-                    ctx.log("YTDLP", line.trim());
-                } else {
-                    ctx.logError("YTDLP_STDERR", line);
-                }
+                ctx.logError("YTDLP_STDERR", line);
             }
         }
 
@@ -263,26 +411,52 @@ public class YtDlpDownloadStrategy implements DownloadStrategy {
             try {
                 JsonNode node = objectMapper.readTree(json);
 
+                String status = node.has("status") ? node.get("status").asText("") : "";
+
                 Long   dl    = longOrNull(node, "downloaded_bytes");
                 Long   tot   = longOrNull(node, "total_bytes");
                 if (tot == null) tot = longOrNull(node, "total_bytes_estimate");
                 Double speed = doubleOrNull(node, "speed");
                 Long   eta   = longOrNull(node, "eta");
 
+                // Detect when a new stream starts: dl resets to near-zero while we had
+                // already downloaded substantial data (video done, audio starting).
+                if ("downloading".equals(status)
+                        && dl != null && downloadedBytes.get() > 1_000_000L
+                        && dl < downloadedBytes.get() / 2) {
+                    long prevBytes = totalBytes.get() > 0 ? totalBytes.get() : downloadedBytes.get();
+                    committedBytes.addAndGet(prevBytes);
+                    int nextStream = streamCount.incrementAndGet();
+                    ctx.log("YTDLP", "Stream " + (nextStream - 1) + " complete ("
+                            + formatBytes(prevBytes) + "), downloading stream " + nextStream + "…");
+                }
+
                 if (dl  != null) downloadedBytes.set(dl);
                 if (tot != null) totalBytes.set(tot);
 
-                long dlv  = downloadedBytes.get();
-                long totv = totalBytes.get();
-                if (totv > 0) {
+                long dlv  = committedBytes.get() + downloadedBytes.get();
+                long totv = committedBytes.get() + totalBytes.get();
+
+                // Update progress bar even when total is unknown (totv=0 means unknown total)
+                if (dlv > 0 && "downloading".equals(status)) {
                     trackingService.updateProgress(ctx.getJobId(),
                             ProgressSnapshot.downloading(dlv, totv,
                                     speed != null ? speed : 0.0,
                                     eta   != null ? eta   : 0L));
                 }
+
+                if ("finished".equals(status) && dl != null) {
+                    ctx.log("YTDLP", "Downloaded " + formatBytes(committedBytes.get() + dl));
+                }
             } catch (Exception ignored) {
                 // best-effort — malformed progress line is non-fatal
             }
+        }
+
+        private static String formatBytes(long bytes) {
+            if (bytes >= 1_000_000_000L) return String.format("%.1f GB", bytes / 1.0e9);
+            if (bytes >= 1_000_000L)     return String.format("%.1f MB", bytes / 1.0e6);
+            return String.format("%.0f KB", bytes / 1.0e3);
         }
 
         private Long   longOrNull(JsonNode n, String f)   { JsonNode v = n.get(f); return (v == null || v.isNull()) ? null : v.asLong(); }

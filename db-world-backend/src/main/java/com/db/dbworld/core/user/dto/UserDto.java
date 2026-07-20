@@ -29,6 +29,9 @@ public class UserDto {
 
     private RoleDto userRole;
 
+    private boolean enabled;
+    private boolean accountNonLocked;
+
     private Date creationDate;
     private Date lastModifiedDate;
 

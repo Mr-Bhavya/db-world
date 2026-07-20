@@ -9,7 +9,15 @@ import lombok.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "tmdb_record_sync")
+@Table(name = "tmdb_record_sync",
+    // The tmdb association is read-only (insertable/updatable=false), so it creates NO FK index;
+    // every lookup/scheduler query below hits unindexed columns without these.
+    indexes = {
+        @Index(name = "idx_sync_tmdb_type", columnList = "tmdb_id, record_type"),      // findByTmdbIdAndRecordType
+        @Index(name = "idx_sync_type_checked", columnList = "record_type, last_checked_at"), // pick-next-to-sync
+        @Index(name = "idx_sync_status_type", columnList = "status, record_type")       // countByStatus / findByStatus[AndType]
+    }
+)
 @Getter
 @Setter
 @Builder

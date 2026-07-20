@@ -1,29 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, TextField, ToggleButton, ToggleButtonGroup, InputAdornment, IconButton, Tooltip, MenuItem, Select, Popover, useMediaQuery, useTheme } from '@mui/material';
+import { Box, TextField, InputAdornment, IconButton, Tooltip, MenuItem, Select, Popover, useMediaQuery, useTheme } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import TableRowsIcon from '@mui/icons-material/TableRows';
-import GridViewIcon from '@mui/icons-material/GridView';
 import FilterListOffIcon from '@mui/icons-material/FilterListOff';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
-import AddIcon from '@mui/icons-material/Add';
 import SortIcon from '@mui/icons-material/Sort';
 import { useT, getSelectMenuProps } from '@shared/theme';
 import { useRecordStore } from '../stores/useRecordStore';
 
 const SORT_OPTIONS = [
-  { value: 'recordId,desc', label: 'Latest' },
-  { value: 'recordId,asc',  label: 'Oldest' },
-  { value: 'name,asc',      label: 'Name A–Z' },
-  { value: 'name,desc',     label: 'Name Z–A' },
-  { value: 'year,desc',     label: 'Year (New)' },
-  { value: 'year,asc',      label: 'Year (Old)' },
+  { value: 'recordId,desc',     label: 'Latest' },
+  { value: 'recordId,asc',      label: 'Oldest' },
+  { value: 'name,asc',          label: 'Name A–Z' },
+  { value: 'name,desc',         label: 'Name Z–A' },
+  { value: 'year,desc',         label: 'Year (New)' },
+  { value: 'year,asc',          label: 'Year (Old)' },
+  { value: 'tmdbId,desc',       label: 'TMDB ID (high)' },
+  { value: 'tmdbId,asc',        label: 'TMDB ID (low)' },
+  { value: 'lastSyncedAt,desc', label: 'Recently synced' },
 ];
 
-export default function RecordFilters({ onAdd }) {
+export default function RecordFilters() {
   const T = useT();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
-  const { filters, setFilter, clearFilters, viewMode, setViewMode, sortModel, setSortModel } = useRecordStore();
+  const { filters, setFilter, clearFilters, sortModel, setSortModel } = useRecordStore();
   const sortKey = sortModel.length > 0 ? `${sortModel[0].field},${sortModel[0].sort}` : 'recordId,desc';
   const handleSortChange = (e) => {
     const [field, sort] = e.target.value.split(',');
@@ -56,13 +56,6 @@ export default function RecordFilters({ onAdd }) {
     '& .MuiInputLabel-root.Mui-focused': { color: T.teal },
     '& .MuiSelect-icon':                 { color: T.textMuted },
     '& .MuiInputBase-input':             { color: T.textPrimary },
-  };
-
-  const toggleSx = {
-    bgcolor: T.glass, border: `1px solid ${T.glassBorder} !important`,
-    borderRadius: '8px !important', color: T.textMuted,
-    '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}40 !important` },
-    '&:hover': { bgcolor: T.tealBg },
   };
 
   return (
@@ -145,8 +138,8 @@ export default function RecordFilters({ onAdd }) {
         onChange={handleSortChange}
         startAdornment={<SortIcon sx={{ fontSize: 14, color: T.textFaint, mr: 0.5, display: { xs: 'none', sm: 'inline-flex' } }} />}
         sx={{
-          color: T.textPrimary, fontSize: 12, height: 32,
-          minWidth: { xs: 90, sm: 110 },
+          color: T.textPrimary, fontSize: 12, height: 40,
+          minWidth: { xs: 90, sm: 120 },
           bgcolor: T.inputBg,
           '& .MuiOutlinedInput-notchedOutline': { borderColor: T.glassBorder },
           '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.teal },
@@ -159,24 +152,6 @@ export default function RecordFilters({ onAdd }) {
       </Select>
 
       <Box sx={{ flex: 1 }} />
-
-      <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, v) => v && setViewMode(v)}>
-        <ToggleButton value="table" sx={toggleSx}><Tooltip title="Table"><TableRowsIcon fontSize="small" /></Tooltip></ToggleButton>
-        <ToggleButton value="grid"  sx={toggleSx}><Tooltip title="Grid"><GridViewIcon fontSize="small" /></Tooltip></ToggleButton>
-      </ToggleButtonGroup>
-
-      {/* Add icon is redundant on mobile (a FAB handles it from the parent) but
-          stays on sm+ where the header button is also hidden in the same range. */}
-      <Tooltip title="Add Record">
-        <IconButton onClick={onAdd}
-          sx={{
-            bgcolor: T.teal, color: '#fff', borderRadius: 2,
-            '&:hover': { bgcolor: T.tealHover },
-            display: { xs: 'none', sm: 'inline-flex' },
-          }}>
-          <AddIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
     </Box>
   );
 }

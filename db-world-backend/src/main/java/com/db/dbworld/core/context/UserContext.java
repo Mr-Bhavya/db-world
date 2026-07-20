@@ -29,6 +29,7 @@ public class UserContext {
         Object claim = getJwt().getClaim("userId");
 
         if (claim == null) {
+            log.warn("userId claim missing from JWT");
             throw new DbWorldException("userId not found in token");
         }
 
@@ -55,6 +56,7 @@ public class UserContext {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         if (auth == null || !(auth.getPrincipal() instanceof Jwt jwt)) {
+            log.debug("UserContext.getJwt called without authenticated principal");
             throw new DbWorldException("Unauthenticated request");
         }
 
@@ -66,6 +68,7 @@ public class UserContext {
         if (value instanceof Integer i) return i.longValue();
         if (value instanceof String s) return Long.parseLong(s);
 
+        log.warn("Invalid userId claim type: {}", value.getClass().getName());
         throw new DbWorldException("Invalid userId type in token");
     }
 }

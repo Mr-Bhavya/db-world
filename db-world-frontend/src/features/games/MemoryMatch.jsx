@@ -4,6 +4,7 @@ import { Box, Button, Container, Grid, Typography } from '@mui/material';
 import { ArrowBack, Refresh } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import { useT } from '@shared/theme';
 
 const EMOJIS = ['🐉', '🦄', '🚀', '🌊', '🔥', '⚡', '🎯', '🍀', '🦋', '🌙', '💎', '🎸', '🦊', '🐬', '🌸', '🏔️'];
@@ -25,6 +26,8 @@ function makeCards(count = 8) {
 }
 
 const MemoryMatch = () => {
+  usePageMeta('Memory Match — DB Games', { exact: true });
+
   const T          = useT();
   const navigate   = useNavigate();
   const [cards, setCards]     = useState(() => makeCards(8));

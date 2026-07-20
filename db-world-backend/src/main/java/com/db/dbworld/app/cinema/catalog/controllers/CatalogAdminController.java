@@ -9,6 +9,7 @@ import com.db.dbworld.app.cinema.catalog.dto.request.UpdateRecordRequest;
 import com.db.dbworld.app.cinema.catalog.service.CatalogService;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
+import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.core.role.annotations.AdminAccess;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +63,19 @@ public class CatalogAdminController {
     }
 
     /* =========================
+       REFRESH FROM TMDB (re-sync a single record)
+       ========================= */
+
+    @AdminAccess
+    @PostMapping("/{id}/refresh")
+    public ApiResponse<RecordDto> refresh(@PathVariable Long id) {
+        return ApiResponse.success(
+                "Record synced from TMDB",
+                catalogService.refreshRecord(id)
+        );
+    }
+
+    /* =========================
        UPDATE RECORD
        ========================= */
 
@@ -103,6 +117,7 @@ public class CatalogAdminController {
             @RequestParam(required = false) RecordType type,
             @RequestParam(required = false) Long tmdbId,
             @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) SyncStatus status,
             Pageable pageable
     ) {
 
@@ -113,6 +128,7 @@ public class CatalogAdminController {
                         type,
                         tmdbId,
                         year,
+                        status,
                         pageable
                 )
         );

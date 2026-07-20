@@ -1,6 +1,7 @@
 package com.db.dbworld.app.cinema.tmdb.sync.service;
 
 import com.db.dbworld.app.cinema.common.constants.CinemaConstants.TmdbSync;
+import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.tmdb.enums.SyncStatus;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +29,7 @@ import java.util.List;
 public class TmdbSyncAdminService {
 
     private final TmdbRecordSyncRepository repository;
+    private final RecordRepository recordRepository;
     private final TmdbSyncOrchestratorService orchestrator;
     private final TmdbIngestionService ingestionService;
     private final TmdbRecordSyncService syncService;
@@ -35,10 +38,15 @@ public class TmdbSyncAdminService {
 
     @Transactional(readOnly = true)
     public SyncStatsDto getStats() {
-        long success = repository.countByStatus(SyncStatus.SUCCESS);
-        long failed  = repository.countByStatus(SyncStatus.FAILED);
-        long skipped = repository.countByStatus(SyncStatus.SKIPPED);
-        long running = repository.countByStatus(SyncStatus.RUNNING);
+        // Count catalog RECORDS by their latest sync status (same join the admin
+        // table uses) so each chip's number equals the rows you get when filtering
+        // by that status. Counting raw tmdb_record_sync rows (countByStatus) over-
+        // counted because of orphaned, duplicate, and stale non-latest sync rows.
+        Map<String, Long> byStatus = recordRepository.countByLatestSyncStatus();
+        long success = byStatus.getOrDefault(SyncStatus.SUCCESS.name(), 0L);
+        long failed  = byStatus.getOrDefault(SyncStatus.FAILED.name(), 0L);
+        long skipped = byStatus.getOrDefault(SyncStatus.SKIPPED.name(), 0L);
+        long running = byStatus.getOrDefault(SyncStatus.RUNNING.name(), 0L);
         Instant lastSyncedAt = repository.findTopByOrderByLastSyncedAtDesc()
                 .map(TmdbRecordSyncEntity::getLastSyncedAt)
                 .orElse(null);

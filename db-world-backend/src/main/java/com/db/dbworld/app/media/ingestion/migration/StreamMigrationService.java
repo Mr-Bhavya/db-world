@@ -4,6 +4,7 @@ import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.config.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.apache.logging.log4j.ThreadContext;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -30,14 +31,20 @@ public class StreamMigrationService {
     private final AppProperties runtimeProperties;
 
     public MigrationReport scanAndLink() throws IOException {
+        ThreadContext.put("traceId", "migration-" + UUID.randomUUID());
+        try {
+        log.debug("scanAndLink invoked");
         Path streamRoot = runtimeProperties.getStreamPath();
         if (streamRoot == null) {
+            log.error("scanAndLink aborted — db-world.stream-path missing");
             throw new IllegalStateException("Stream path is not configured (db-world.stream-path is missing)");
         }
         if (!Files.isDirectory(streamRoot)) {
+            log.error("scanAndLink aborted — stream path is not a directory: {}", streamRoot);
             throw new IllegalStateException("Stream path is not a directory: " + streamRoot);
         }
 
+        log.info("Starting stream migration scan in {}", streamRoot);
         int scanned = 0, alreadyPresent = 0, created = 0, failed = 0;
         List<String> failedFiles = new ArrayList<>();
 
@@ -68,14 +75,17 @@ public class StreamMigrationService {
                 } catch (Exception e) {
                     failed++;
                     failedFiles.add(file.getFileName().toString() + ": " + e.getMessage());
-                    log.warn("Migration failed for {}: {}", file.getFileName(), e.getMessage());
+                    log.warn("Migration failed for {}: {}", file.getFileName(), e.getMessage(), e);
                 }
             }
         }
 
-        log.info("Migration complete â€” scanned={}, alreadyPresent={}, created={}, failed={}",
+        log.info("Migration complete — scanned={}, alreadyPresent={}, created={}, failed={}",
                 scanned, alreadyPresent, created, failed);
         return new MigrationReport(scanned, alreadyPresent, created, failed, failedFiles);
+        } finally {
+            ThreadContext.clearAll();
+        }
     }
 
     public record MigrationReport(

@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import { useT } from '@shared/theme/ThemeContext';
 import { tmdbImg } from '../../../api/cinemaApi';
 import SectionHeading from '../shared/SectionHeading';
-import PersonDetailModal from '../PersonDetailModal';
 
 const CREW_VISIBLE_DEFAULT = 8;
 
@@ -83,9 +82,8 @@ function CrewDept({ dept, members, onPersonClick }) {
 }
 
 // ─── CastCrewSection ─────────────────────────────────────────────────────────
-export default function CastCrewSection({ record }) {
+export default function CastCrewSection({ record, onPersonClick }) {
   const T = useT();
-  const [openPersonId, setOpenPersonId] = useState(null);
   const tmdb = record?.tmdb ?? {};
   const credits = tmdb.credits ?? [];
 
@@ -132,7 +130,7 @@ export default function CastCrewSection({ record }) {
                   component={motion.div}
                   whileHover={clickable ? { y: -3 } : undefined}
                   transition={{ duration: 0.15 }}
-                  onClick={clickable ? () => setOpenPersonId(personId) : undefined}
+                  onClick={clickable ? () => onPersonClick?.(personId) : undefined}
                   sx={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     flexShrink: 0, width: 92, gap: 0.75,
@@ -177,7 +175,7 @@ export default function CastCrewSection({ record }) {
             alignItems: 'start',
           }}>
             {sortedDepts.map(([dept, members]) => (
-              <CrewDept key={dept} dept={dept} members={members} onPersonClick={setOpenPersonId} />
+              <CrewDept key={dept} dept={dept} members={members} onPersonClick={onPersonClick} />
             ))}
           </Box>
         </>
@@ -186,8 +184,6 @@ export default function CastCrewSection({ record }) {
       {cast.length === 0 && sortedDepts.length === 0 && (
         <Typography variant="body2" sx={{ color: T.textFaint }}>No cast or crew information available.</Typography>
       )}
-
-      <PersonDetailModal personId={openPersonId} onClose={() => setOpenPersonId(null)} />
     </Box>
   );
 }

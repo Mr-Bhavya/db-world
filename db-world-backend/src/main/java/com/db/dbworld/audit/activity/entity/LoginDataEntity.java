@@ -13,7 +13,7 @@ import java.util.Date;
 @Setter
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "LOGIN_DATA", schema = "new_db_world")
+@Table(name = "LOGIN_DATA", schema = "db_world")
 public class LoginDataEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

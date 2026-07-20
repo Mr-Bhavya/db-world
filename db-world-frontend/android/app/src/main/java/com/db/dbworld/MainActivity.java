@@ -1,13 +1,19 @@
 package com.db.dbworld;
 
+import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
+import com.db.dbworld.appupdate.AppUpdatePlugin;
 import com.db.dbworld.download.DbWorldDownloadPlugin;
-import com.db.dbworld.player.DbWorldPlayerPlugin;
+import com.db.dbworld.player.HybridPlayerPlugin;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
 
@@ -15,16 +21,53 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(DbWorldPlayerPlugin.class);
         registerPlugin(DbWorldDownloadPlugin.class);
+        registerPlugin(HybridPlayerPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
         super.onCreate(savedInstanceState);
         setImmersiveMode();
+        handleOpenDownloads(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleOpenDownloads(intent);
+    }
+
+    /**
+     * When launched from a download notification (extra "openDownloads"), persist a
+     * one-shot route flag. The web app pulls it via DbWorldDownload.consumePendingRoute()
+     * on mount and on resume and navigates itself — robust for both a cold launch (SPA
+     * still booting) and a warm app, with no fragile WebView eval timing.
+     */
+    private void handleOpenDownloads(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra("openDownloads", false)) return;
+        try {
+            getSharedPreferences(DbWorldDownloadPlugin.PREFS, MODE_PRIVATE)
+                    .edit()
+                    .putString(DbWorldDownloadPlugin.PREF_PENDING_ROUTE, "downloads")
+                    .apply();
+        } catch (Exception ignored) {}
     }
 
     @Override
     public void onResume() {
         super.onResume();
         setImmersiveMode();
+    }
+
+    /** Forward PiP enter/exit to the hybrid player so it can hide/show the React overlay. */
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        try {
+            PluginHandle h = getBridge().getPlugin("HybridPlayer");
+            if (h != null && h.getInstance() instanceof HybridPlayerPlugin) {
+                ((HybridPlayerPlugin) h.getInstance()).handlePipModeChanged(isInPictureInPictureMode);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override

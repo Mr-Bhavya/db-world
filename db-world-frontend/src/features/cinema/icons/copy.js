@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { iconButtonStyles } from "./IconButtonStyles";
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 
 const Copy = ({
   text,
@@ -28,16 +28,16 @@ const Copy = ({
     const result = await CommonServices.handleCopy(text);
 
     if (result.success) {
-      toast.success(result.message, {
+      notify.success(result.message, {
         position: 'top-center',
-        autoClose: 2000,
+        duration: 2000,
         hideProgressBar: true,
         closeOnClick: true,
         transition: Zoom,
       });
       setTimeout(() => setCopied(false), 2000);
     } else {
-      toast.error(result.message);
+      notify.error(result.message);
     }
   };
 

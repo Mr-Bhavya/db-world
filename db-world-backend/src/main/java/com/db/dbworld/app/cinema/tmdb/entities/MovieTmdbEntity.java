@@ -17,6 +17,13 @@ public class MovieTmdbEntity extends TmdbEntity {
 
     private String releaseDate;
 
+    /** Feeds the base {@code primaryDate} sort column with this movie's release date. */
+    @PrePersist
+    @PreUpdate
+    void syncPrimaryDate() {
+        setPrimaryDate(blankToNull(releaseDate));
+    }
+
     private long revenue;
 
     private Integer runtime;

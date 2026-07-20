@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+// Release signing — credentials live in android/keystore.properties (gitignored),
+// never committed. Falls back to debug signing if the file is absent.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+// Version is overridable by CI so Jenkins can bump per build without editing
+// this file: -PappVersionCode / -PappVersionName (or APP_VERSION_CODE /
+// APP_VERSION_NAME env). Falls back to the local defaults below.
+def resolvedVersionCode = (project.findProperty('appVersionCode')
+        ?: System.getenv('APP_VERSION_CODE') ?: '1') as Integer
+def resolvedVersionName = (project.findProperty('appVersionName')
+        ?: System.getenv('APP_VERSION_NAME') ?: '1.0').toString()
+
 android {
     namespace "com.db.dbworld"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,17 +23,34 @@ android {
         applicationId "com.db.dbworld"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // App ships only an arm64-v8a native lib (embedded aria2c), so restrict the
+        // packaged ABIs. This drops unused armeabi-v7a/x86 .so files pulled in by
+        // media3/okhttp — smaller APK with no loss of actually-supported devices.
+        ndk {
+            abiFilters "arm64-v8a"
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -25,6 +58,16 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The embedded aria2c binary ships as jniLibs/<abi>/libaria2c.so. It MUST be extracted to
+    // disk so we can exec() it (only the extracted native-lib dir is executable on modern
+    // Android), and it must never be stripped/altered by the packager.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += "**/libaria2c.so"
+        }
     }
 }
 
@@ -46,14 +89,22 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
-    // Media3 ExoPlayer
-    def media3_version = "1.3.1"
+    // Media3 ExoPlayer.
+    // Bumped 1.3.1 -> 1.7.1 to match the NextLib FFmpeg decoder below (its
+    // versions are <media3>-<lib>, Maven Central builds start at media3 1.7.x;
+    // all media3 modules MUST share one version).
+    def media3_version = "1.7.1"
     implementation "androidx.media3:media3-exoplayer:$media3_version"
     implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
     implementation "androidx.media3:media3-exoplayer-dash:$media3_version"
     implementation "androidx.media3:media3-ui:$media3_version"
     implementation "androidx.media3:media3-session:$media3_version"
+    // FFmpeg software audio decoders (E-AC3/AC3/DTS/TrueHD) for devices without
+    // a hardware decoder. Drop-in via NextRenderersFactory. Version = <media3>-<lib>.
+    implementation "io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0"
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // Downloads are handled by an embedded aria2c process (see com.db.dbworld.download).
+    // OkHttp above is reused only for aria2's localhost JSON-RPC transport.
 }
 
 apply from: 'capacitor.build.gradle'

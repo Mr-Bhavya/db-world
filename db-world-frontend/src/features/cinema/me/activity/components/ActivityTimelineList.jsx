@@ -1,8 +1,6 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Skeleton, Chip, LinearProgress, useTheme } from '@mui/material';
+import { Box, Card, CardContent, Typography, Skeleton, LinearProgress } from '@mui/material';
 import { PlayArrow, Download as DownloadIcon, Search as SearchIcon, CheckCircle, Cancel, HourglassEmpty } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import Constants from '@shared/constants';
 
 const formatRelative = (iso) => {
   if (!iso) return '';
@@ -15,25 +13,26 @@ const formatRelative = (iso) => {
   return `${Math.floor(h / 24)}d ago`;
 };
 
-const formatMs = (ms) => {
-  if (!ms || ms < 1000) return null;
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+const formatBytes = (bytes) => {
+  if (!bytes || bytes <= 0) return null;
+  const gb = bytes / 1e9;
+  return gb >= 0.1 ? `${gb.toFixed(2)} GB` : `${(bytes / 1e6).toFixed(0)} MB`;
 };
 
-const statusIcon = (status) => {
-  switch (status) {
-    case 'COMPLETED':   return <CheckCircle fontSize="small" color="success" />;
-    case 'ABORTED':     return <Cancel fontSize="small" color="error" />;
-    case 'IN_PROGRESS': return <HourglassEmpty fontSize="small" color="warning" />;
-    default:            return <HourglassEmpty fontSize="small" />;
+const statusIcon = (state) => {
+  switch (state) {
+    case 'COMPLETED':          return <CheckCircle fontSize="small" color="success" />;
+    case 'FAILED':
+    case 'ABORTED':            return <Cancel fontSize="small" color="error" />;
+    case 'ACTIVE':
+    case 'PAUSED':
+    case 'RESOLVING':          return <HourglassEmpty fontSize="small" color="warning" />;
+    default:                   return <HourglassEmpty fontSize="small" />;
   }
 };
 
-const typeIcon = (type) => {
-  switch (type) {
+const typeIcon = (activity) => {
+  switch (activity) {
     case 'STREAM':   return <PlayArrow fontSize="small" />;
     case 'DOWNLOAD': return <DownloadIcon fontSize="small" />;
     case 'SEARCH':   return <SearchIcon fontSize="small" />;
@@ -41,57 +40,43 @@ const typeIcon = (type) => {
   }
 };
 
-const recordRoute = (recordType, title) => {
-  if (!title) return null;
-  const encoded = encodeURIComponent(title);
-  const isSeries = ['TV_SERIES', 'SERIES', 'TV'].includes((recordType ?? '').toUpperCase());
-  return isSeries
-    ? Constants.DB_SERIES_DETIALS_ROUTE.replace(':title', encoded)
-    : Constants.DB_MOVIE_DETIALS_ROUTE.replace(':title', encoded);
+const stateLabel = (state) => {
+  switch (state) {
+    case 'ACTIVE':    return 'In progress';
+    case 'PAUSED':     return 'Paused';
+    case 'RESOLVING':  return 'Resolving';
+    case 'FAILED':     return 'Failed';
+    case 'ABORTED':    return 'Aborted';
+    case 'COMPLETED':  return 'Completed';
+    default:           return '';
+  }
 };
 
 const ActivityRow = ({ item }) => {
-  const theme = useTheme();
-  const navigate = useNavigate();
-  const target = recordRoute(item.recordType, item.recordTitle);
   const pct = Number(item.completionPercent ?? 0);
+  const size = formatBytes(item.uniqueBytes ?? item.fileSize);
 
-  let secondary = '';
-  if (item.activityType === 'STREAM' && item.positionMs && item.durationMs) {
-    secondary = `Resume from ${formatMs(item.positionMs)} of ${formatMs(item.durationMs)}`;
-  } else if (item.activityType === 'STREAM' && (item.streamCount ?? 0) > 0) {
-    secondary = `Completed ${item.streamCount}×`;
-  } else if (item.activityType === 'DOWNLOAD' && (item.downloadCount ?? 0) > 0) {
-    secondary = `Downloaded ${item.downloadCount}×`;
-  } else if (item.completionStatus === 'IN_PROGRESS') {
-    secondary = 'In progress';
-  } else if (item.completionStatus === 'ABORTED') {
-    secondary = 'Aborted';
-  }
+  let secondary = stateLabel(item.state) || (item.activity ?? '').toLowerCase();
+  if (size) secondary = `${secondary} · ${size}`;
 
   return (
     <Card
       variant="outlined"
-      onClick={target ? () => navigate(target) : undefined}
-      sx={{
-        cursor: target ? 'pointer' : 'default',
-        transition: 'border-color 120ms ease',
-        '&:hover': target ? { borderColor: 'primary.main' } : undefined,
-      }}
+      sx={{ transition: 'border-color 120ms ease' }}
     >
       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-            {typeIcon(item.activityType)}
-            {statusIcon(item.completionStatus)}
+            {typeIcon(item.activity)}
+            {statusIcon(item.state)}
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography noWrap sx={{ fontSize: '0.9rem', fontWeight: 600 }}>
-              {item.recordTitle ?? item.filePath ?? '—'}
+              {item.title ?? item.fileName ?? '—'}
             </Typography>
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-              {secondary || (item.activityType ?? '').toLowerCase()}{' · '}
-              {formatRelative(item.lastUpdated)}
+              {secondary}{' · '}
+              {formatRelative(item.lastEventAt ?? item.startedAt)}
             </Typography>
             {pct > 0 && pct < 100 && (
               <LinearProgress
@@ -101,9 +86,6 @@ const ActivityRow = ({ item }) => {
               />
             )}
           </Box>
-          {item.clientType && item.clientType !== 'UNKNOWN' && (
-            <Chip size="small" label={item.clientType} sx={{ flexShrink: 0 }} />
-          )}
         </Box>
       </CardContent>
     </Card>
@@ -131,7 +113,7 @@ const ActivityTimelineList = ({ items, loading }) => {
   }
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {items.map((it) => <ActivityRow key={it.id} item={it} />)}
+      {items.map((it) => <ActivityRow key={it.sessionId} item={it} />)}
     </Box>
   );
 };

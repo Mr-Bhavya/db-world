@@ -6,11 +6,13 @@ import com.db.dbworld.app.cinema.rail.repository.RailRepository;
 import com.db.dbworld.app.cinema.rail.rule.RailRule;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -18,10 +20,26 @@ public class RailBootstrapService {
 
     private final RailRepository railRepository;
 
+    private int created;
+    private int updated;
+
     public void generateRails() {
-        createHomeRails();
-        createMovieRails();
-        createSeriesRails();
+        long start = System.currentTimeMillis();
+        created = 0;
+        updated = 0;
+        log.info("Rail bootstrap started");
+
+        try {
+            createHomeRails();
+            createMovieRails();
+            createSeriesRails();
+            log.info("Rail bootstrap completed; created={}, updated={}, took={}ms",
+                    created, updated, System.currentTimeMillis() - start);
+        } catch (Exception e) {
+            log.error("Rail bootstrap failed; created={}, updated={}, took={}ms",
+                    created, updated, System.currentTimeMillis() - start, e);
+            throw e;
+        }
     }
 
     /* ================================================================
@@ -41,21 +59,27 @@ public class RailBootstrapService {
                 ruleTagAuto("TOP_10"),
                 PageType.HOME, 2, false, 10);
 
+        // Surfaces shows that gained a new season/episode in the last 30 days, even if
+        // the show itself is old / low-trending. Union of NEW_SEASON + NEW_EPISODE.
+        upsertRail("New Episodes & Seasons",
+                ruleTagsAuto(List.of("NEW_SEASON", "NEW_EPISODE")),
+                PageType.HOME, 3, true, 20);
+
         upsertRail("Recently Added",
                 ruleTagAuto("RECENTLY_ADDED"),
-                PageType.HOME, 3, true, 20);
+                PageType.HOME, 4, true, 20);
 
         upsertRail("Featured",
                 ruleTagAuto("FEATURED"),
-                PageType.HOME, 4, false, 20);
+                PageType.HOME, 5, false, 20);
 
         upsertRail("Editor's Picks",
                 ruleTagAuto("EDITOR_PICK"),
-                PageType.HOME, 5, false, 20);
+                PageType.HOME, 6, false, 20);
 
         upsertRail("Available for Download",
                 ruleTagAuto("AVAILABLE_FOR_DOWNLOAD"),
-                PageType.HOME, 6, true, 20);
+                PageType.HOME, 7, true, 20);
 
         // ── Genre rails ──────────────────────────────────────────────
         upsertRail("Action & Adventure",
@@ -335,6 +359,16 @@ public class RailBootstrapService {
         return rule;
     }
 
+    /** Tag rail spanning multiple tag types (union) — e.g. NEW_SEASON + NEW_EPISODE. */
+    private RailRule ruleTagsAuto(List<String> tags) {
+        RailRule rule = new RailRule();
+        rule.setType("tag");
+        rule.setTags(tags);
+        rule.setSort(null);
+        rule.setDirection(null);
+        return rule;
+    }
+
     private RailRule ruleGenre(Long genreId, String sort, String direction) {
         return ruleGenre(genreId, sort, direction, null);
     }
@@ -400,8 +434,12 @@ public class RailBootstrapService {
                 if (rule.getTag() != null) {
                     existingRule.setTag(rule.getTag());
                 }
+                if (rule.getTags() != null) {
+                    existingRule.setTags(rule.getTags());
+                }
             }
             railRepository.save(existing);
+            updated++;
             return;
         }
 
@@ -416,5 +454,6 @@ public class RailBootstrapService {
                         .infiniteScroll(infiniteScroll)
                         .build()
         );
+        created++;
     }
 }

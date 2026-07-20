@@ -4,7 +4,9 @@ import com.db.dbworld.infrastructure.logging.dto.*;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import lombok.extern.log4j.Log4j2;
 
+@Log4j2
 public class AppLogParser {
 
     private final Gson gson = new Gson();
@@ -41,6 +43,8 @@ public class AppLogParser {
             return wrap(LogType.INFO, null, null, null, dto);
 
         } catch (Exception e) {
+            String sample = line == null ? "(null)" : (line.length() > 200 ? line.substring(0, 200) : line);
+            log.warn("AppLogParser failed on line (sample='{}')", sample, e);
             return AppLogEnvelopeDto.raw(line);
         }
     }

@@ -8,7 +8,7 @@ import {
   Box,
   Typography
 } from '@mui/material';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { searchRecords } from '../services/ingestionApi';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w92';
@@ -17,7 +17,6 @@ export default function RecordSearch({ value, onChange, error, helperText }) {
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const { enqueueSnackbar } = useSnackbar();
   const timerRef = React.useRef(null);
 
   const fetchOptions = useCallback(async (q) => {
@@ -30,11 +29,11 @@ export default function RecordSearch({ value, onChange, error, helperText }) {
       const res = await searchRecords(q);
       setOptions(res.data ?? []);
     } catch {
-      enqueueSnackbar('Record search failed', { variant: 'warning' });
+      notify.warning('Record search failed');
     } finally {
       setLoading(false);
     }
-  }, [enqueueSnackbar]);
+  }, []);
 
   const handleInputChange = useCallback((_, newInput) => {
     setInputValue(newInput);

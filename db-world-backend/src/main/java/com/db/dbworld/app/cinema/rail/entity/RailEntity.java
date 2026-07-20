@@ -10,7 +10,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "rails", schema = "new_db_world")
+@Table(name = "rails", schema = "db_world")
 @Getter
 @Setter
 @Builder
@@ -26,12 +26,33 @@ public class RailEntity {
 
     private Integer priority;
 
+    @Builder.Default
     private Integer limitSize = 20;
 
+    @Builder.Default
     private boolean active = true;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean infiniteScroll = true;
+
+    /**
+     * How this rail's cards are rendered on the client (e.g. "standard", "wide",
+     * "poster", "posterPlain", "prime", "jumbo", "top10", "billboard").
+     * Null/blank = AUTO: the client derives it from the rule type (continueWatching →
+     * continue, person → person) else falls back to the responsive default
+     * (mobile poster / desktop 16:9). Admin-editable via the Tags &amp; Rails page.
+     */
+    @Column(name = "display_type", length = 30)
+    private String displayType;
+
+    /**
+     * Which image variant the cards use: "WITH_TEXT" (poster with title /
+     * backdrop with title-logo) or "WITHOUT_TEXT" (clean poster / clean backdrop).
+     * Null/blank = AUTO (per display-type default). Admin-editable.
+     */
+    @Column(name = "image_variant", length = 20)
+    private String imageVariant;
 
     /**
      * Pages this rail appears on. A rail can target any subset of pages; the admin UI's
@@ -41,7 +62,7 @@ public class RailEntity {
     @ElementCollection(targetClass = PageType.class, fetch = FetchType.EAGER)
     @CollectionTable(
             name = "rails_page_types",
-            schema = "new_db_world",
+            schema = "db_world",
             joinColumns = @JoinColumn(name = "rail_id")
     )
     @Enumerated(EnumType.STRING)

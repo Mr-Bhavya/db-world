@@ -2,8 +2,21 @@ spring:
   application:
     name: db-world
 
+  # =========================================================
+  # Startup-time tunings (prod-safe)
+  # =========================================================
+  main:
+    # Banner adds nothing in production logs and costs a few ms. Quoted so
+    # YAML doesn't coerce `off` to the boolean false (Spring Boot 4 strict).
+    banner-mode: "off"
+  # Most JMX exporters are unused; disabling skips MBean registration.
+  jmx:
+    enabled: false
+
   config:
-    import: optional:file:../runtime/backend.env
+    # [.properties] hint tells Spring Boot to parse this shell-style env file as
+    # java.util.Properties — without it, SB ignores unknown extensions silently.
+    import: optional:file:../runtime/backend.env[.properties]
 
   # =========================================================
   # Database
@@ -34,6 +47,15 @@ spring:
       hibernate.jdbc.batch_size: 25
       hibernate.order_inserts: true
       hibernate.order_updates: true
+      # Pad IN-clause parameters to a power of 2 → fewer distinct
+      # PreparedStatements → better query plan cache hit rate.
+      hibernate.query.in_clause_parameter_padding: true
+      # NOTE: removed `hibernate.dialect` and `hibernate.boot.allow_jdbc_metadata_access`
+      # — Hibernate 7 auto-detects MySQL from the URL and the explicit dialect
+      # produced HHH90000025 (deprecation). Also removed
+      # `hibernate.connection.provider_disables_autocommit=true` — HikariCP
+      # defaults to auto-commit=true, so claiming the provider disables it
+      # broke transactional commits with "Can't call commit when autocommit=true".
     naming:
       physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
 
@@ -96,14 +118,25 @@ jwt:
   private-key: ${JWT_PRIVATE_KEY}
   public-key-path: runtime/rsa-public.key
   private-key-path: runtime/rsa-private.key
-  access-token-ttl: 5m
+  access-token-ttl: 15m
   refresh-token-ttl: 30d
+  # Refresh-cookie attributes. None+Secure lets the cookie flow from any WebView/SPA
+  # origin over HTTPS (the Android app). The local profile relaxes this for http dev.
+  refresh-cookie-secure: true
+  refresh-cookie-same-site: None
 
 jasypt:
   encryptor:
     bean: jasyptStringEncryptor
     algorithm: PBEWithMD5AndDES
     password: ${JASYPT_PASSWORD}
+
+# Wallet document encryption. Set a dedicated 256-bit key (base64) in ../runtime/backend.env:
+#   WALLET_ENCRYPTION_KEY=<base64 of 32 random bytes>
+# If unset, the key is derived from JASYPT_PASSWORD (dev only — a WARN is logged).
+# WARNING: losing this key makes all stored wallet documents unrecoverable — back it up.
+wallet:
+  encryption-key: ${WALLET_ENCRYPTION_KEY:}
 
 # =========================================================
 # External Services
@@ -122,7 +155,6 @@ weather:
   openweather:
     api-key: ${OPENWEATHER_API_KEY:}
     base-url: https://api.openweathermap.org/data/2.5
-    cache-ttl-seconds: 300
 
 # =========================================================
 # Swagger
@@ -133,33 +165,38 @@ springdoc:
     path: /docs
 
 # =========================================================
+# App — CDN URL signing (nginx secure_link)
+# =========================================================
+# Signs the /id/ and /path/ CDN URLs so they cannot be forged and expire on their own
+# (the CDN has no other auth). The secret MUST byte-for-byte match the `secure_link_md5`
+# directive in server_config/dbworld.conf.
+#
+# ROLLOUT (avoids an outage): deploy the backend with a secret set FIRST — URLs become
+# signed but nginx still ignores the extra params — verify playback + downloads, THEN
+# enable the secure_link directives in nginx and reload. Leaving the secret blank keeps
+# signing inert (URLs served unsigned) so dev/boot never breaks.
+app:
+  cdn:
+    signing:
+      secret: ${CDN_SIGNING_SECRET:}
+
+# =========================================================
 # db-world feature configs
 # =========================================================
 dbworld:
-  log-shipper:
-    enabled: true
-    log-file-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}
+  # ── Filesystem ↔ DB reconciliation ────────────────────────────────────────
+  # Periodic scan that keeps `media_files` in sync with the on-disk state of
+  # `app.stream-path`. The dynamic knobs (enabled, interval) live in the
+  # scheduler_job_config table — the admin Scheduler page edits them and
+  # changes take effect on the next tick without a restart. Only the
+  # stability window stays here because it depends on storage characteristics
+  # (USB vs SSD vs NFS) and rarely changes at runtime.
+  media-sync:
+    stability-window: 5s   # ignore files modified within the last N seconds
+
+  tracking:
+    cdn-log-path: ${CDN_ACCESS_LOG:${app.paths.logs}/nginx/cdn_access.log}
     rotated-suffix: ".1"
-    batch-tick-ms: 5000
-    max-accumulator-entries: 10000
-    max-bytes-per-tick: 5242880
-  aborted-sweeper:
-    enabled: true
-    stream-timeout-min: 15
-    download-timeout-min: 30
-  recommend:
-    genre:
-      enabled: true
-      top-n: 3
-      min-engaged-records: 3
-      completion-threshold: 70
-      cache-ttl-min: 60
-    rewatch:
-      enabled: true
-      refresh-cron: "0 0 * * * *"
-      window-days: 7
-      min-score: 3
-      top-n: 30
 
 # =========================================================
 # Logging
@@ -169,6 +206,12 @@ logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
     org.hibernate: ${HIBERNATE_LOG_LEVEL:WARN}
+    # ddl-auto=update re-issues all CREATE INDEX / ADD CONSTRAINT statements on
+    # every boot; once the schema is established MySQL rejects them as
+    # "Duplicate key name" / "Duplicate foreign key constraint". Hibernate logs
+    # each at WARN with a full stack — pure boot noise. Bumping just this logger
+    # to ERROR keeps real schema-tool failures visible while silencing the spam.
+    org.hibernate.tool.schema.internal.ExceptionHandlerLoggedImpl: ERROR
     org.springframework: ${SPRING_LOG_LEVEL:INFO}
     com.db.dbworld: ${APP_LOG_LEVEL:DEBUG}
 

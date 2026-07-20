@@ -12,12 +12,17 @@ import lombok.*;
 @AllArgsConstructor
 @Table(
         name = "rail_items",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uk_rail_record",
                         columnNames = {"rail_id", "record_id"}
                 )
+        },
+        // rail_id is FK-indexed, but every rail render is WHERE rail_id ORDER BY priority —
+        // the composite avoids a filesort per rail.
+        indexes = {
+                @Index(name = "idx_rail_items_rail_priority", columnList = "rail_id, priority")
         }
 )
 public class RailItemEntity {

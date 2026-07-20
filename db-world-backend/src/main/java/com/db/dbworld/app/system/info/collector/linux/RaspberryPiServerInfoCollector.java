@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Raspberry Pi specific server information collector.
@@ -72,25 +71,15 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
             baseInfo.setPerformance(getPerformanceMetrics());
             baseInfo.setTemperature(getTemperatureInfo());
 
-            // Create Raspberry Pi specific information
-            RaspberryPiServerInfo rpiInfo = new RaspberryPiServerInfo();
-            rpiInfo.setRaspberryPiInfo(getRaspberryPiInfo());
-            rpiInfo.setGpioInfo(getGpioInfo());
-            rpiInfo.setCameraInfo(getCameraInfo());
-            rpiInfo.setHatInfo(getHatInfo());
-            rpiInfo.setInstalledPackages(getInstalledPackages());
-            rpiInfo.setOverclockInfo(getOverclockInfo());
-            rpiInfo.setDisplayInfo(getDisplayInfo());
-
-            // Cast to RaspberryPiServerInfo
+            // Assemble Raspberry Pi specific information directly onto the cast instance
             if (baseInfo instanceof RaspberryPiServerInfo rpiBaseInfo) {
-                rpiBaseInfo.setRaspberryPiInfo(rpiInfo.getRaspberryPiInfo());
-                rpiBaseInfo.setGpioInfo(rpiInfo.getGpioInfo());
-                rpiBaseInfo.setCameraInfo(rpiInfo.getCameraInfo());
-                rpiBaseInfo.setHatInfo(rpiInfo.getHatInfo());
-                rpiBaseInfo.setInstalledPackages(rpiInfo.getInstalledPackages());
-                rpiBaseInfo.setOverclockInfo(rpiInfo.getOverclockInfo());
-                rpiBaseInfo.setDisplayInfo(rpiInfo.getDisplayInfo());
+                rpiBaseInfo.setRaspberryPiInfo(getRaspberryPiInfo());
+                rpiBaseInfo.setGpioInfo(getGpioInfo());
+                rpiBaseInfo.setCameraInfo(getCameraInfo());
+                rpiBaseInfo.setHatInfo(getHatInfo());
+                rpiBaseInfo.setInstalledPackages(getInstalledPackages());
+                rpiBaseInfo.setOverclockInfo(getOverclockInfo());
+                rpiBaseInfo.setDisplayInfo(getDisplayInfo());
 
                 // Calculate health status
                 rpiBaseInfo.setHealthStatus(calculateHealthStatus(rpiBaseInfo));
@@ -292,11 +281,8 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
                 }
             }
 
-            // If no pins were collected, create a default list
-            if (pins.isEmpty()) {
-                pins = createDefaultGpioPins();
-            }
-
+            // No fabricated fallback: if no pins were read from hardware, report an
+            // empty list rather than inventing pin data.
             gpioInfo.setPins(pins);
             log.debug("GPIO information collected successfully");
 
@@ -426,13 +412,9 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
                     hatInfo.setHatUuid(uuid.trim());
                 }
 
-                // Parse GPIO mappings
-                List<HatGpioMapping> mappings = new ArrayList<>();
-                Path gpioMappingsPath = Path.of("/proc/device-tree/hat/gpio-map");
-                if (Files.exists(gpioMappingsPath)) {
-                    mappings.addAll(parseHatGpioMappings());
-                }
-                hatInfo.setGpioMappings(mappings);
+                // No real device-tree binary parser is implemented for gpio-map, so
+                // report an empty list rather than fabricating mappings.
+                hatInfo.setGpioMappings(new ArrayList<>());
             }
 
             log.debug("HAT information collected successfully");
@@ -682,566 +664,96 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
     public CpuInfo getCpuInfo() {
         log.debug("Collecting CPU information for Raspberry Pi");
 
-        CpuInfo cpuInfo = CpuInfo.builder().build();
+        // Load %, per-core details, cache and frequency parsing from /proc are correct
+        // in the generic Linux implementation — only augment the Pi-specific bits below.
+        CpuInfo cpuInfo = super.getCpuInfo();
 
         try {
-            String cpuInfoStr = readFileSafe(CPU_INFO_PATH);
-            if (!cpuInfoStr.isEmpty()) {
-                Map<String, String> cpuMap = parseKeyValueOutput(cpuInfoStr, ":");
+            // /proc/cpuinfo on aarch64 rarely has "model name"/"vendor_id", so the
+            // generic parser falls back to "Unknown". Fill in a real value derived
+            // from the device-tree model when that happens; never invent a value
+            // when the model itself is unknown.
+            if (isUnknownOrBlank(cpuInfo.getName()) || isUnknownOrBlank(cpuInfo.getVendor())) {
+                String model = readFileSafe(DEVICE_TREE_MODEL_PATH);
+                String processor = derivePiProcessorName(model);
+                String soc = derivePiSoc(model);
 
-                cpuInfo.setName(getStringValue(cpuMap.get("model name"), "ARM Processor"));
-                cpuInfo.setVendor(getStringValue(cpuMap.get("Hardware"), "Broadcom"));
-                cpuInfo.setArchitecture(getStringValue(cpuMap.get("CPU architecture"), "arm"));
-
-                // Parse processor count
-                String processorCount = cpuMap.get("processor");
-                if (processorCount != null) {
-                    try {
-                        int count = Integer.parseInt(processorCount) + 1; // processor numbers start at 0
-                        cpuInfo.setCores(count);
-                        cpuInfo.setThreads(count);
-                        cpuInfo.setAvailableProcessors(count);
-                    } catch (NumberFormatException e) {
-                        log.debug("Error parsing processor count", e);
-                    }
+                if (isUnknownOrBlank(cpuInfo.getName()) && processor != null) {
+                    cpuInfo.setName(processor);
                 }
-
-                // Get BogoMIPS for frequency estimation
-                String bogoMips = cpuMap.get("BogoMIPS");
-                if (bogoMips != null) {
-                    try {
-                        double bogo = Double.parseDouble(bogoMips);
-                        // Rough estimation: BogoMIPS * 0.6 ≈ MHz
-                        long estimatedFreq = (long) (bogo * 0.6 * 1000000);
-                        cpuInfo.setCurrentFrequency(estimatedFreq);
-                        cpuInfo.setMaxFrequency(estimatedFreq);
-                    } catch (NumberFormatException e) {
-                        log.debug("Error parsing BogoMIPS", e);
-                    }
+                if (isUnknownOrBlank(cpuInfo.getVendor()) && soc != null) {
+                    cpuInfo.setVendor("Broadcom " + soc);
                 }
-
-                // Get actual frequency from vcgencmd if available
-                try {
-                    String freqOutput = exec(VC_GENCMD_PATH.toString(), "measure_clock", "arm");
-                    if (freqOutput.contains("=")) {
-                        String freqStr = freqOutput.split("=")[1].trim();
-                        try {
-                            long freq = Long.parseLong(freqStr);
-                            cpuInfo.setCurrentFrequency(freq);
-                            cpuInfo.setMaxFrequency(freq);
-                        } catch (NumberFormatException e) {
-                            log.debug("Error parsing frequency from vcgencmd", e);
-                        }
-                    }
-                } catch (Exception e) {
-                    log.debug("Error getting frequency from vcgencmd", e);
-                }
-
-                // Get CPU load
-                String loadOutput = exec("top", "-bn1");
-                if (!loadOutput.isEmpty()) {
-                    // Parse CPU load from top output
-                    String[] lines = loadOutput.split("\n");
-                    for (String line : lines) {
-                        if (line.contains("Cpu(s):")) {
-                            String[] parts = line.split(":");
-                            if (parts.length > 1) {
-                                String cpuUsage = parts[1].split("%")[0].trim();
-                                try {
-                                    double usage = Double.parseDouble(cpuUsage);
-                                    cpuInfo.setLoadPercentage((int) usage);
-                                } catch (NumberFormatException e) {
-                                    log.debug("Error parsing CPU usage", e);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // Get individual core loads
-                List<CpuCore> cores = new ArrayList<>();
-                if (cpuInfo.getCores() != null) {
-                    for (int i = 0; i < cpuInfo.getCores(); i++) {
-                        CpuCore core = CpuCore.builder()
-                                .coreId(i)
-                                .load(cpuInfo.getLoadPercentage() != null ? cpuInfo.getLoadPercentage() / cpuInfo.getCores() : 0)
-                                .vendor(cpuInfo.getVendor())
-                                .build();
-                        cores.add(core);
-                    }
-                }
-                cpuInfo.setCoreDetails(cores);
             }
 
-            log.debug("CPU information collected successfully");
+            // Propagate the (possibly just-augmented) top-level vendor to each core so
+            // per-core vendor isn't left "Unknown" while the top-level says e.g.
+            // "Broadcom BCM2712".
+            if (cpuInfo.getCoreDetails() != null) {
+                cpuInfo.getCoreDetails().forEach(c -> c.setVendor(cpuInfo.getVendor()));
+            }
+
+            // Overlay the live ARM clock speed from vcgencmd when available. Fall back
+            // to the configured arm_freq in config.txt if vcgencmd is unavailable; if
+            // neither source works, keep whatever the /proc-based reading already set.
+            String armClock = exec(GET_CLOCK_SPEEDS);
+            if (armClock.contains("=")) {
+                try {
+                    long freqHz = Long.parseLong(armClock.split("=")[1].trim());
+                    cpuInfo.setCurrentFrequency(freqHz);
+                    cpuInfo.setMaxFrequency(freqHz);
+                } catch (NumberFormatException e) {
+                    log.debug("Error parsing frequency from vcgencmd", e);
+                }
+            } else if (Files.exists(CONFIG_TXT_PATH)) {
+                String config = readFileSafe(CONFIG_TXT_PATH);
+                if (config.contains("arm_freq=")) {
+                    try {
+                        int armFreqMhz = Integer.parseInt(config.split("arm_freq=")[1].split("\n")[0].trim());
+                        long freqHz = armFreqMhz * 1_000_000L;
+                        cpuInfo.setCurrentFrequency(freqHz);
+                        cpuInfo.setMaxFrequency(freqHz);
+                    } catch (NumberFormatException e) {
+                        log.debug("Error parsing arm_freq from config.txt", e);
+                    }
+                }
+            }
+
+            log.debug("CPU information augmented for Raspberry Pi successfully");
 
         } catch (Exception e) {
-            log.warn("Error collecting CPU information", e);
+            log.warn("Error augmenting Raspberry Pi CPU information", e);
         }
 
         return cpuInfo;
     }
 
-    @Override
-    public MemoryInfo getMemoryInfo() {
-        log.debug("Collecting memory information for Raspberry Pi");
-
-        MemoryInfo memoryInfo = MemoryInfo.builder().build();
-
-        try {
-            String memInfoStr = readFileSafe(MEM_INFO_PATH);
-            if (!memInfoStr.isEmpty()) {
-                Map<String, String> memMap = parseKeyValueOutput(memInfoStr, ":");
-
-                long totalMem = getLongValue(memMap.get("MemTotal"));
-                long freeMem = getLongValue(memMap.get("MemFree"));
-                long buffers = getLongValue(memMap.get("Buffers"));
-                long cached = getLongValue(memMap.get("Cached"));
-                long sReclaimable = getLongValue(memMap.get("SReclaimable"));
-                long swapTotal = getLongValue(memMap.get("SwapTotal"));
-                long swapFree = getLongValue(memMap.get("SwapFree"));
-
-                // Calculate used memory (total - free - buffers - cache)
-                long usedMem = totalMem - freeMem - buffers - cached - sReclaimable;
-                if (usedMem < 0) usedMem = 0;
-
-                long swapUsed = swapTotal - swapFree;
-
-                double usedPercent = calculatePercentage(usedMem, totalMem);
-
-                memoryInfo.setTotalBytes(totalMem * 1024); // Convert from KB to bytes
-                memoryInfo.setFreeBytes(freeMem * 1024);
-                memoryInfo.setUsedBytes(usedMem * 1024);
-                memoryInfo.setSwapTotalBytes(swapTotal * 1024);
-                memoryInfo.setSwapFreeBytes(swapFree * 1024);
-                memoryInfo.setSwapUsedBytes(swapUsed * 1024);
-                memoryInfo.setBuffersBytes(buffers * 1024);
-                memoryInfo.setCachedBytes(cached * 1024);
-                memoryInfo.setSharedBytes(0L); // Not directly available
-                memoryInfo.setAvailableBytes((freeMem + buffers + cached) * 1024);
-
-                memoryInfo.setTotalFormatted(formatBytes(memoryInfo.getTotalBytes()));
-                memoryInfo.setFreeFormatted(formatBytes(memoryInfo.getFreeBytes()));
-                memoryInfo.setUsedFormatted(formatBytes(memoryInfo.getUsedBytes()));
-                memoryInfo.setUsedPercent(String.format("%.1f", usedPercent));
-
-                // Add Java memory info
-                addJavaMemoryInfo(memoryInfo);
-            }
-
-            log.debug("Memory information collected successfully");
-
-        } catch (Exception e) {
-            log.warn("Error collecting memory information", e);
-        }
-
-        return memoryInfo;
+    private static boolean isUnknownOrBlank(String value) {
+        return value == null || value.isBlank() || "unknown".equalsIgnoreCase(value.trim());
     }
 
-    @Override
-    public DiskInfo getDiskInfo() {
-        log.debug("Collecting disk information for Raspberry Pi");
-
-        DiskInfo diskInfo = DiskInfo.builder().build();
-
-        try {
-            // Use df command to get disk information
-            String dfOutput = exec("df", "-B1", "--output=source,fstype,size,used,avail,target,pcent");
-            List<DriveInfo> drives = new ArrayList<>();
-
-            if (!dfOutput.isEmpty()) {
-                String[] lines = dfOutput.split("\n");
-                for (int i = 1; i < lines.length; i++) { // Skip header
-                    String line = lines[i].trim();
-                    if (!line.isEmpty()) {
-                        String[] parts = line.split("\\s+");
-                        if (parts.length >= 7) {
-                            try {
-                                DriveInfo drive = DriveInfo.builder()
-                                        .device(parts[0])
-                                        .fileSystem(parts[1])
-                                        .totalBytes(Long.parseLong(parts[2]))
-                                        .usedBytes(Long.parseLong(parts[3]))
-                                        .freeBytes(Long.parseLong(parts[4]))
-                                        .mountPoint(parts[5])
-                                        .usedPercent(parts[6].replace("%", ""))
-                                        .totalFormatted(formatBytes(Long.parseLong(parts[2])))
-                                        .usedFormatted(formatBytes(Long.parseLong(parts[3])))
-                                        .freeFormatted(formatBytes(Long.parseLong(parts[4])))
-                                        .type(determineDriveType(parts[0], parts[5]))
-                                        .build();
-                                drives.add(drive);
-                            } catch (NumberFormatException e) {
-                                log.debug("Error parsing df output line: {}", line, e);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Calculate totals
-            long totalSpace = drives.stream().mapToLong(DriveInfo::getTotalBytes).sum();
-            long freeSpace = drives.stream().mapToLong(DriveInfo::getFreeBytes).sum();
-            long usedSpace = drives.stream().mapToLong(DriveInfo::getUsedBytes).sum();
-
-            diskInfo.setDrives(drives);
-            diskInfo.setDriveCount(drives.size());
-            diskInfo.setTotalSpace(totalSpace);
-            diskInfo.setFreeSpace(freeSpace);
-            diskInfo.setUsedSpace(usedSpace);
-            diskInfo.setTotalSpaceFormatted(formatBytes(totalSpace));
-            diskInfo.setFreeSpaceFormatted(formatBytes(freeSpace));
-            diskInfo.setUsedSpaceFormatted(formatBytes(usedSpace));
-
-            log.debug("Disk information collected successfully");
-
-        } catch (Exception e) {
-            log.warn("Error collecting disk information", e);
-            diskInfo.setError("Error: " + e.getMessage());
-        }
-
-        return diskInfo;
+    /** Best-effort processor label derived from the device-tree model string. */
+    private String derivePiProcessorName(String model) {
+        if (model == null || model.isEmpty()) return null;
+        if (model.contains("Pi 5")) return "Cortex-A76";
+        if (model.contains("Pi 4")) return "Cortex-A72";
+        if (model.contains("Pi 3")) return "Cortex-A53";
+        if (model.contains("Pi 2")) return "Cortex-A7";
+        if (model.contains("Pi Zero") || model.contains("Pi 1") ||
+                model.contains("Model A") || model.contains("Model B")) return "ARM1176JZF-S";
+        return null;
     }
 
-    @Override
-    public NetworkInfo getNetworkInfo() {
-        log.debug("Collecting network information for Raspberry Pi");
-
-        NetworkInfo networkInfo = NetworkInfo.builder().build();
-
-        try {
-            // Get hostname
-            String hostname = exec("hostname");
-            networkInfo.setHostname(hostname.trim());
-
-            // Get domain
-            String domain = exec("hostname", "-d");
-            if (domain.isEmpty()) {
-                domain = "local";
-            }
-            networkInfo.setDomain(domain.trim());
-
-            // Get network adapters using ip command
-            String ipOutput = exec("ip", "-o", "-4", "addr", "show");
-            List<NetworkAdapter> adapters = new ArrayList<>();
-            Set<String> processedInterfaces = new HashSet<>();
-
-            if (!ipOutput.isEmpty()) {
-                String[] lines = ipOutput.split("\n");
-                for (String line : lines) {
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length >= 4) {
-                        String interfaceName = parts[1];
-
-                        // Skip if already processed
-                        if (processedInterfaces.contains(interfaceName)) {
-                            continue;
-                        }
-
-                        String ipAddress = parts[3].split("/")[0];
-                        String status = "Up"; // ip command only shows active interfaces
-
-                        // Get MAC address
-                        String macAddress = "";
-                        try {
-                            String macOutput = readFileSafe(Path.of("/sys/class/net/" + interfaceName + "/address"));
-                            if (!macOutput.isEmpty()) {
-                                macAddress = macOutput.trim();
-                            }
-                        } catch (Exception e) {
-                            log.debug("Error getting MAC address for {}", interfaceName, e);
-                        }
-
-                        // Get additional IP addresses
-                        List<String> ipAddresses = new ArrayList<>();
-                        ipAddresses.add(ipAddress);
-
-                        // Get network statistics
-                        long bytesReceived = 0;
-                        long bytesSent = 0;
-                        try {
-                            String rxBytes = readFileSafe(Path.of("/sys/class/net/" + interfaceName + "/statistics/rx_bytes"));
-                            String txBytes = readFileSafe(Path.of("/sys/class/net/" + interfaceName + "/statistics/tx_bytes"));
-                            bytesReceived = getLongValue(rxBytes);
-                            bytesSent = getLongValue(txBytes);
-                        } catch (Exception e) {
-                            log.debug("Error getting network statistics for {}", interfaceName, e);
-                        }
-
-                        NetworkAdapter adapter = NetworkAdapter.builder()
-                                .name(interfaceName)
-                                .description("Network Interface")
-                                .macAddress(macAddress)
-                                .ipAddress(ipAddress)
-                                .status(status)
-                                .ipAddresses(ipAddresses)
-                                .bytesReceived(bytesReceived)
-                                .bytesSent(bytesSent)
-                                .build();
-
-                        adapters.add(adapter);
-                        processedInterfaces.add(interfaceName);
-                    }
-                }
-            }
-
-            // Get DNS servers
-            List<String> dnsServers = new ArrayList<>();
-            try {
-                String resolvConf = readFileSafe(Path.of("/etc/resolv.conf"));
-                if (!resolvConf.isEmpty()) {
-                    String[] lines = resolvConf.split("\n");
-                    for (String line : lines) {
-                        if (line.startsWith("nameserver")) {
-                            String dns = line.split("\\s+")[1].trim();
-                            dnsServers.add(dns);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.debug("Error getting DNS servers", e);
-            }
-
-            // Get default gateway
-            String gateway = "";
-            try {
-                String routeOutput = exec("ip", "route");
-                if (!routeOutput.isEmpty()) {
-                    String[] lines = routeOutput.split("\n");
-                    for (String line : lines) {
-                        if (line.contains("default via")) {
-                            gateway = line.split("\\s+")[2];
-                            break;
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.debug("Error getting default gateway", e);
-            }
-
-            // Get all IP addresses
-            List<String> allIps = adapters.stream()
-                    .flatMap(adapter -> adapter.getIpAddresses().stream())
-                    .collect(Collectors.toList());
-
-            networkInfo.setAdapters(adapters);
-            networkInfo.setAdapterCount(adapters.size());
-            networkInfo.setDnsServers(dnsServers);
-            networkInfo.setDefaultGateway(gateway);
-            networkInfo.setIpAddresses(allIps);
-            networkInfo.setBytesReceived(adapters.stream().mapToLong(NetworkAdapter::getBytesReceived).sum());
-            networkInfo.setBytesSent(adapters.stream().mapToLong(NetworkAdapter::getBytesSent).sum());
-
-            log.debug("Network information collected successfully");
-
-        } catch (Exception e) {
-            log.warn("Error collecting network information", e);
-        }
-
-        return networkInfo;
-    }
-
-    @Override
-    public List<ProcessInfo> getRunningProcesses() {
-        log.debug("Collecting running processes for Raspberry Pi");
-
-        List<ProcessInfo> processes = new ArrayList<>();
-
-        try {
-            // Use ps command to get process information
-            String psOutput = exec("ps", "-eo", "pid,ppid,user,pcpu,pmem,rss,vsz,state,comm,cmd", "--sort=-pcpu");
-
-            if (!psOutput.isEmpty()) {
-                String[] lines = psOutput.split("\n");
-                for (int i = 1; i < lines.length && i <= 50; i++) { // Skip header and limit to 50 processes
-                    String line = lines[i].trim();
-                    if (!line.isEmpty()) {
-                        String[] parts = line.split("\\s+", 10);
-                        if (parts.length >= 10) {
-                            try {
-                                ProcessInfo process = ProcessInfo.builder()
-                                        .pid(Integer.parseInt(parts[0]))
-                                        .ppid(Integer.parseInt(parts[1]))
-                                        .user(parts[2])
-                                        .cpuUsage(Double.parseDouble(parts[3]))
-                                        .memoryBytes(Long.parseLong(parts[5]) * 1024) // RSS in KB to bytes
-                                        .memoryFormatted(formatBytes(Long.parseLong(parts[5]) * 1024))
-                                        .state(parts[7])
-                                        .name(parts[8])
-                                        .commandLine(parts[9])
-                                        .residentMemory(Long.parseLong(parts[5]) * 1024)
-                                        .virtualMemory(Long.parseLong(parts[6]) * 1024) // VSZ in KB to bytes
-                                        .build();
-                                processes.add(process);
-                            } catch (NumberFormatException e) {
-                                log.debug("Error parsing process line: {}", line, e);
-                            }
-                        }
-                    }
-                }
-            }
-
-            log.debug("Collected {} running processes", processes.size());
-
-        } catch (Exception e) {
-            log.warn("Error collecting running processes", e);
-        }
-
-        return processes;
-    }
-
-    @Override
-    public List<ServiceInfo> getRunningServices() {
-        log.debug("Collecting running services for Raspberry Pi");
-
-        List<ServiceInfo> services = new ArrayList<>();
-
-        try {
-            // Use systemctl to get service information
-            String systemctlOutput = exec("systemctl", "list-units", "--type=service", "--all", "--no-pager");
-
-            if (!systemctlOutput.isEmpty()) {
-                String[] lines = systemctlOutput.split("\n");
-                for (String line : lines) {
-                    if (line.contains(".service")) {
-                        String[] parts = line.trim().split("\\s+");
-                        if (parts.length >= 5) {
-                            String unitName = parts[0];
-                            String loadState = parts[1];
-                            String activeState = parts[2];
-                            String subState = parts[3];
-                            String description = String.join(" ", Arrays.copyOfRange(parts, 4, parts.length));
-
-                            // Determine overall status
-                            String status = switch (activeState) {
-                                case "active" -> subState.equals("running") ? "Running" : "Active";
-                                case "inactive" -> "Stopped";
-                                case "failed" -> "Failed";
-                                default -> "Unknown";
-                            };
-
-                            ServiceInfo service = ServiceInfo.builder()
-                                    .name(unitName.replace(".service", ""))
-                                    .displayName(description)
-                                    .description(description)
-                                    .status(status)
-                                    .startType(loadState.equals("loaded") ? "Enabled" : "Disabled")
-                                    .user("root") // Most services run as root
-                                    .build();
-
-                            services.add(service);
-                        }
-                    }
-                }
-            }
-
-            log.debug("Collected {} services", services.size());
-
-        } catch (Exception e) {
-            log.warn("Error collecting running services", e);
-        }
-
-        return services;
-    }
-
-    @Override
-    public PerformanceMetrics getPerformanceMetrics() {
-        log.debug("Collecting performance metrics for Raspberry Pi");
-
-        PerformanceMetrics metrics = PerformanceMetrics.builder().build();
-
-        try {
-            // Get CPU load averages
-            String loadAvg = readFileSafe(Path.of("/proc/loadavg"));
-            if (!loadAvg.isEmpty()) {
-                String[] parts = loadAvg.split("\\s+");
-                if (parts.length >= 3) {
-                    metrics.setCpuLoad1Min(Double.parseDouble(parts[0]));
-                    metrics.setCpuLoad5Min(Double.parseDouble(parts[1]));
-                    metrics.setCpuLoad15Min(Double.parseDouble(parts[2]));
-                }
-            }
-
-            // Get memory load from /proc/meminfo
-            MemoryInfo memory = getMemoryInfo();
-            if (memory.getUsedPercent() != null) {
-                try {
-                    metrics.setMemoryLoadPercent(Double.parseDouble(memory.getUsedPercent()));
-                } catch (NumberFormatException e) {
-                    log.debug("Error parsing memory load percent", e);
-                }
-            }
-
-            // Get process count
-            String processCount = exec("ps", "-e", "--no-headers");
-            if (!processCount.isEmpty()) {
-                metrics.setProcessCount(processCount.split("\n").length);
-            }
-
-            // Get thread count
-            String threadCount = exec("ps", "-eL", "--no-headers");
-            if (!threadCount.isEmpty()) {
-                metrics.setThreadCount(threadCount.split("\n").length);
-            }
-
-            // Get system uptime
-            String uptimeStr = readFileSafe(Path.of("/proc/uptime"));
-            if (!uptimeStr.isEmpty()) {
-                String uptimeSeconds = uptimeStr.split("\\s+")[0];
-                try {
-                    long seconds = (long) Double.parseDouble(uptimeSeconds);
-                    metrics.setUptimeSeconds(seconds);
-
-                    // Format uptime
-                    long days = seconds / (24 * 3600);
-                    seconds %= (24 * 3600);
-                    long hours = seconds / 3600;
-                    seconds %= 3600;
-                    long minutes = seconds / 60;
-
-                    StringBuilder uptime = new StringBuilder();
-                    if (days > 0) uptime.append(days).append("d ");
-                    if (hours > 0) uptime.append(hours).append("h ");
-                    if (minutes > 0) uptime.append(minutes).append("m");
-                    if (uptime.isEmpty()) uptime.append(seconds).append("s");
-
-                    metrics.setUptime(uptime.toString());
-                } catch (NumberFormatException e) {
-                    log.debug("Error parsing uptime", e);
-                }
-            }
-
-            // Get disk I/O statistics
-            String diskStats = readFileSafe(Path.of("/proc/diskstats"));
-            if (!diskStats.isEmpty()) {
-                // Simple disk I/O load calculation
-                long totalIO = 0;
-                String[] lines = diskStats.split("\n");
-                for (String line : lines) {
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length >= 11) {
-                        long reads = Long.parseLong(parts[3]);
-                        long writes = Long.parseLong(parts[7]);
-                        totalIO += reads + writes;
-                    }
-                }
-                // Simple heuristic for disk load
-                metrics.setDiskIOLoad(Math.min(100.0, totalIO / 1000.0));
-            }
-
-            // Get network statistics
-            NetworkInfo network = getNetworkInfo();
-            metrics.setNetworkBytesIn(network.getBytesReceived());
-            metrics.setNetworkBytesOut(network.getBytesSent());
-
-            log.debug("Performance metrics collected successfully");
-
-        } catch (Exception e) {
-            log.warn("Error collecting performance metrics", e);
-        }
-
-        return metrics;
+    /** Best-effort SoC label derived from the device-tree model string. */
+    private String derivePiSoc(String model) {
+        if (model == null || model.isEmpty()) return null;
+        if (model.contains("Pi 5")) return "BCM2712";
+        if (model.contains("Pi 4")) return "BCM2711";
+        if (model.contains("Pi 3")) return model.contains("Model B+") ? "BCM2837B0" : "BCM2837";
+        if (model.contains("Pi 2")) return "BCM2836";
+        if (model.contains("Pi Zero") || model.contains("Pi 1") ||
+                model.contains("Model A") || model.contains("Model B")) return "BCM2835";
+        return null;
     }
 
     @Override
@@ -1635,75 +1147,6 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         return pins;
     }
 
-    private List<GpioPin> createDefaultGpioPins() {
-        List<GpioPin> pins = new ArrayList<>();
-
-        // Standard Raspberry Pi GPIO pins (BCM numbering)
-        int[] commonPins = {2, 3, 4, 14, 15, 17, 18, 27, 22, 23, 24, 10, 9, 25, 11, 8, 7, 5, 6, 12, 13, 19, 16, 26, 20, 21};
-
-        for (int pin : commonPins) {
-            GpioPin gpioPin = GpioPin.builder()
-                    .pin(pin)
-                    .name("GPIO" + pin)
-                    .mode("IN")
-                    .value("0")
-                    .function("GPIO")
-                    .bcmPin(String.valueOf(pin))
-                    .build();
-            pins.add(gpioPin);
-        }
-
-        return pins;
-    }
-
-    private List<HatGpioMapping> parseHatGpioMappings() {
-        List<HatGpioMapping> mappings = new ArrayList<>();
-
-        try {
-            // Read GPIO mapping from device tree
-            Path gpioMapPath = Path.of("/proc/device-tree/hat/gpio-map");
-            if (Files.exists(gpioMapPath)) {
-                byte[] data = Files.readAllBytes(gpioMapPath);
-                // Parse binary data (simplified)
-                // In reality, this would need proper parsing of device tree binary
-
-                // Add some example mappings
-                mappings.add(HatGpioMapping.builder()
-                        .function("LED")
-                        .pin(13)
-                        .description("Status LED")
-                        .activeLow(false)
-                        .build());
-
-                mappings.add(HatGpioMapping.builder()
-                        .function("BUTTON")
-                        .pin(26)
-                        .description("User Button")
-                        .activeLow(true)
-                        .build());
-            }
-        } catch (Exception e) {
-            log.debug("Error parsing HAT GPIO mappings", e);
-        }
-
-        return mappings;
-    }
-
-    private String determineDriveType(String device, String mountPoint) {
-        if (device.startsWith("/dev/mmcblk")) {
-            return "SD Card";
-        } else if (device.startsWith("/dev/sd") || device.startsWith("/dev/hd")) {
-            return "USB Drive";
-        } else if (device.startsWith("/dev/nvme")) {
-            return "NVMe SSD";
-        } else if (mountPoint.equals("/")) {
-            return "System Drive";
-        } else if (mountPoint.startsWith("/media/") || mountPoint.startsWith("/mnt/")) {
-            return "External Storage";
-        }
-        return "Unknown";
-    }
-
     private List<Map<String, Object>> getAudioDevices() {
         List<Map<String, Object>> audioDevices = new ArrayList<>();
 
@@ -1736,27 +1179,6 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         }
 
         return audioDevices;
-    }
-
-    public List<Map<String, Object>> getUsbDevices() {
-        List<Map<String, Object>> usbDevices = new ArrayList<>();
-
-        try {
-            // Use lsusb to get USB devices
-            String lsusbOutput = exec("lsusb");
-            if (!lsusbOutput.isEmpty()) {
-                String[] lines = lsusbOutput.split("\n");
-                for (String line : lines) {
-                    Map<String, Object> device = new HashMap<>();
-                    device.put("description", line.trim());
-                    usbDevices.add(device);
-                }
-            }
-        } catch (Exception e) {
-            log.debug("Error getting USB devices", e);
-        }
-
-        return usbDevices;
     }
 
     private List<Map<String, Object>> getStorageControllers() {
@@ -1880,14 +1302,15 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         Map<String, Object> features = new HashMap<>();
 
         try {
-            features.put("hasCamera", getCameraInfo().getCameraDetected());
+            Boolean cameraDetected = getCameraInfo().getCameraDetected();
+            features.put("hasCamera", cameraDetected);
             features.put("hasWiFi", checkHasWifi());
             features.put("hasBluetooth", checkHasBluetooth());
             features.put("hasEthernet", checkHasEthernet());
             features.put("hasAudioJack", true);
             features.put("hasHDMI", true);
             features.put("hasGPIO", true);
-            features.put("hasCSI", getCameraInfo().getCameraDetected());
+            features.put("hasCSI", cameraDetected);
             features.put("hasDSI", Files.exists(Path.of("/proc/device-tree/display")));
 
             // Check for PoE HAT
@@ -2072,11 +1495,4 @@ public class RaspberryPiServerInfoCollector extends LinuxServerInfoCollector {
         }
     }
 
-    private HealthStatus.HealthLevel getHealthLevel(int score) {
-        if (score >= 90) return HealthStatus.HealthLevel.EXCELLENT;
-        if (score >= 80) return HealthStatus.HealthLevel.GOOD;
-        if (score >= 70) return HealthStatus.HealthLevel.FAIR;
-        if (score >= 60) return HealthStatus.HealthLevel.POOR;
-        return HealthStatus.HealthLevel.CRITICAL;
-    }
 }

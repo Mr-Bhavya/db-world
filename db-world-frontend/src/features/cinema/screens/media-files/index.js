@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useContext, createContext } from 'react';
+import { notify } from '@shared/notify';
 import {
   Box, Typography, Chip, IconButton, Button, Collapse,
   CircularProgress, useTheme, useMediaQuery, alpha, Tooltip, Stack,
@@ -12,61 +13,55 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSnackbar } from 'notistack';
 import { Capacitor } from '@capacitor/core';
 import { loadStreamFileInfoByRecordId, resolveMediaUrl } from '@shared/services/ApiServices';
-import CinemaPlayer from '../../player/CinemaPlayer';
 import MediaDetailsDrawer from '../MediaFileInfo/MediaDetailsDrawer';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
-import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { QUALITY_ORDER, QUALITY_META } from '../../media/constants';
 import { tmdbImg, toggleMediaRequestVote, fetchMyMediaRequests } from '../../api/cinemaApi';
 import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { getQuality, getCodec, getHdrTags, getSeason, getEpisodeNumber, qualityRank } from '../../media/helpers';
+import { buildHybridEpisodes } from '../../utils/episodeUtils';
+import { resolveAndBuildMedia, variantFilesFor } from '../../media/playerLaunch';
+
+// All media files for the current record — so play can build the full episode/quality
+// list regardless of which grouped subset rendered the Play button.
+const RecordFilesContext = createContext([]);
 
 // ─── Shared hook: play + download for one file ────────────────────────────────
 
 function useFileActions(file, allFiles, record) {
-  const { enqueueSnackbar } = useSnackbar();
+  const recordFiles = useContext(RecordFilesContext);
+  const navigate = useNavigate();
   const [resolving, setResolving] = useState(false);
-  const [playerOpen, setPlayerOpen] = useState(false);
-  const [enrichedFiles, setEnrichedFiles] = useState(null);
-
-  const resolveAll = useCallback(async (type) => {
-    const targets = allFiles?.length ? allFiles : [file];
-    return Promise.all(targets.map(async (f) => {
-      if (!f?.mediaFileId) return f;
-      try {
-        const res = await resolveMediaUrl(f.mediaFileId, type);
-        return res?.data?.cdnUrl ? { ...f, streamUrl: res.data.cdnUrl } : f;
-      } catch { return f; }
-    }));
-  }, [file, allFiles]);
 
   const handlePlay = useCallback(async () => {
     setResolving(true);
     try {
-      const enriched = await resolveAll('ONLINE');
-      setEnrichedFiles(enriched);
-      const current = enriched.find(f => f.mediaFileId === file.mediaFileId) ?? enriched[0];
-      if (Capacitor.getPlatform() === 'android') {
-        AndroidPlugins.launchNativePlayer({
-          url: current?.streamUrl,
-          title: file.general?.fileName || record?.tmdb?.title || '',
-          fileName: file.general?.fileName || '',
-          fileId: String(file.id || ''),
-          preferredAudio: 'Hindi',
-          preferredSub: null,
-        });
-      } else {
-        setPlayerOpen(true);
-      }
+      // Use the FULL record file list so episodes/qualities are complete, regardless
+      // of which grouped subset rendered this Play button.
+      const all = recordFiles?.length ? recordFiles : (allFiles?.length ? allFiles : [file]);
+      const current = all.find(f => f.mediaFileId === file.mediaFileId) ?? file;
+
+      // Episode list across all seasons (urls resolved lazily on selection).
+      const episodes = buildHybridEpisodes(all, current, record?.tmdb?.seasons);
+      const isSeries = episodes.length > 0;
+
+      const media = await resolveAndBuildMedia({
+        current,
+        variantFiles: variantFilesFor(all, current, isSeries),
+        episodes,
+        record,
+        title: record?.tmdb?.title || record?.tmdb?.name || record?.name || current.general?.fileName || '',
+        fileId: current.id || current.mediaFileId,
+      });
+      navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
     } catch {
-      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+      notify.error('Failed to prepare stream');
     } finally { setResolving(false); }
-  }, [file, allFiles, record, resolveAll, enqueueSnackbar]);
+  }, [file, allFiles, recordFiles, record, navigate]);
 
   const handleDownload = useCallback(async () => {
     setResolving(true);
@@ -88,9 +83,9 @@ function useFileActions(file, allFiles, record) {
         });
         console.log('[Download] startDownload result:', JSON.stringify(dlResult));
         if (dlResult?.alreadyDownloaded) {
-          enqueueSnackbar(`Already downloaded: ${file.general?.fileName || 'file'}`, { variant: 'info' });
+          notify.info(`Already downloaded: ${file.general?.fileName || 'file'}`);
         } else {
-          enqueueSnackbar(`Added: ${file.general?.fileName || 'file'}`, { variant: 'success' });
+          notify.success(`Added: ${file.general?.fileName || 'file'}`);
         }
       } else {
         CommonServices.handleDownload(cdnUrl, { fileName: file.general?.fileName, openInNewTab: true });
@@ -98,11 +93,11 @@ function useFileActions(file, allFiles, record) {
     } catch (err) {
       const msg = err?.message || err?.code || String(err);
       console.error('[Download] FAILED:', msg, err);
-      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
+      notify.error(`Download error: ${msg || 'unknown'}`, { duration: 8000 });
     } finally { setResolving(false); }
-  }, [file, record, enqueueSnackbar]);
+  }, [file, record]);
 
-  return { resolving, playerOpen, setPlayerOpen, enrichedFiles, setEnrichedFiles, handlePlay, handleDownload };
+  return { resolving, handlePlay, handleDownload };
 }
 
 // ─── Async copy button ────────────────────────────────────────────────────────
@@ -230,8 +225,7 @@ const AudioSummary = ({ audio, subtitle, compact = false }) => {
 const FileActions = ({ file, allFiles, record, compact = false }) => {
   const theme = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { resolving, playerOpen, setPlayerOpen, enrichedFiles, setEnrichedFiles, handlePlay, handleDownload } =
-    useFileActions(file, allFiles, record);
+  const { resolving, handlePlay, handleDownload } = useFileActions(file, allFiles, record);
 
   const isDark = theme.palette.mode === 'dark';
   const playBg = isDark ? '#fff' : '#0f172a';
@@ -288,13 +282,6 @@ const FileActions = ({ file, allFiles, record, compact = false }) => {
         </Tooltip>
       </Box>
 
-      <CinemaPlayer
-        open={playerOpen}
-        onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
-        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => f.mediaFileId === file.mediaFileId) ?? file) : file}
-        allFiles={enrichedFiles ?? allFiles ?? [file]}
-        record={record}
-      />
       <MediaDetailsDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -781,7 +768,6 @@ const LoadingState = () => (
 // pending for a given record. One fetch on mount; per-kind toggle thereafter.
 
 function useMediaRequestVote(recordId) {
-  const { enqueueSnackbar } = useSnackbar();
   const [requestedKinds, setRequestedKinds] = useState(() => new Set());
   const [submitting, setSubmitting] = useState(false);
 
@@ -814,16 +800,15 @@ function useMediaRequestVote(recordId) {
         else next.delete(kind);
         return next;
       });
-      enqueueSnackbar(
-        res?.hasMyVote ? successCopy : undoCopy,
-        { variant: res?.hasMyVote ? 'success' : 'info' }
+      notify[res?.hasMyVote ? 'success' : 'info'](
+        res?.hasMyVote ? successCopy : undoCopy
       );
     } catch {
-      enqueueSnackbar('Could not save request. Please try again.', { variant: 'error' });
+      notify.error('Could not save request. Please try again.');
     } finally {
       setSubmitting(false);
     }
-  }, [recordId, submitting, enqueueSnackbar]);
+  }, [recordId, submitting]);
 
   return { requestedKinds, submitting, toggle };
 }
@@ -1010,6 +995,7 @@ const MediaFilesPage = (props) => {
   const isSeries = recType === 'TV_SERIES' || recType === 'SERIES' || recType === 'TV';
 
   return (
+    <RecordFilesContext.Provider value={mediaFileList}>
     <Box sx={{ color: theme.palette.text.primary }}>
       {/* Section header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
@@ -1047,6 +1033,7 @@ const MediaFilesPage = (props) => {
         <MovieView files={mediaFileList} record={record} />
       )}
     </Box>
+    </RecordFilesContext.Provider>
   );
 };
 

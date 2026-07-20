@@ -4,8 +4,9 @@ import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.utils.PathSanitizer;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import lombok.*;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.util.StringUtils;
@@ -365,11 +366,13 @@ public class MirrorStatus {
 
     @JsonIgnore
     public String toJsonString() {
+        // Jackson 3 made ObjectMapper immutable — config goes through the builder.
         try {
-            return new ObjectMapper()
-                    .setSerializationInclusion(JsonInclude.Include.NON_NULL)
-                    .writeValueAsString(this);
-        } catch (JsonProcessingException e) {
+            ObjectMapper mapper = JsonMapper.builder()
+                    .changeDefaultPropertyInclusion(v -> v.withValueInclusion(JsonInclude.Include.NON_NULL))
+                    .build();
+            return mapper.writeValueAsString(this);
+        } catch (JacksonException e) {
             log.warn("Failed to convert MirrorStatus to JSON: {}", e.getMessage());
             return this.toString();
         }

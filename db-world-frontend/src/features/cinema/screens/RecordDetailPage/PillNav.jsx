@@ -45,25 +45,41 @@ export default function PillNav({ sections, scrollRoot = null, stickyOffset = 0 
     return () => observer.disconnect();
   }, [sections, scrollRoot, stickyOffset]);
 
-  // Center the active pill within the horizontally-scrolling bar (mobile).
+  // Center the active pill within the horizontally-scrolling bar.
+  // NOTE: must scroll the bar HORIZONTALLY ourselves — never scrollIntoView.
+  // The bar is position:sticky, so scrollIntoView uses the pill's in-flow
+  // (top-of-content) position and yanks the whole page back to the top, which
+  // is what made clicking a tab "scroll then snap back to the start".
   useEffect(() => {
-    if (!barRef.current) return;
-    const activeEl = barRef.current.querySelector(`[data-id="${active}"]`);
-    if (activeEl && typeof activeEl.scrollIntoView === 'function') {
-      activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-    }
+    const bar = barRef.current;
+    if (!bar) return;
+    const activeEl = bar.querySelector(`[data-id="${active}"]`);
+    if (!activeEl) return;
+    const left = activeEl.offsetLeft - (bar.clientWidth - activeEl.clientWidth) / 2;
+    bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
   }, [active]);
 
   const handleClick = (id) => {
     setActive(id);
     const el = document.getElementById(id);
     if (!el) return;
-    // Use native scrollIntoView so the browser picks the nearest scrolling
-    // ancestor automatically — works for both the window (full-page mode)
-    // and the Dialog's scroll container (modal mode) without us guessing
-    // which DOM node actually scrolls. Each section already has
-    // scroll-margin-top set, which scrollIntoView respects.
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Scroll the KNOWN container explicitly rather than relying on
+    // scrollIntoView's nearest-scrollable-ancestor guess, which is unreliable
+    // inside a Dialog/sheet. scrollRoot is the dialog/sheet scroller (or null
+    // for the full-page/window case). Defer a frame so a just-expanded mobile
+    // sheet has switched from locked (overflow:hidden) to scrollable first.
+    requestAnimationFrame(() => {
+      const root = scrollRoot;
+      if (root && typeof root.scrollTo === 'function') {
+        const rootRect = root.getBoundingClientRect();
+        const elRect   = el.getBoundingClientRect();
+        const top = root.scrollTop + (elRect.top - rootRect.top) - stickyOffset - 56;
+        root.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      } else {
+        const y = window.scrollY + el.getBoundingClientRect().top - stickyOffset - 64;
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      }
+    });
   };
 
   return (

@@ -12,11 +12,17 @@ import java.time.Instant;
 @AllArgsConstructor
 @Table(
     name = "WATCH_PROGRESS",
-    schema = "new_db_world",
+    schema = "db_world",
     uniqueConstraints = @UniqueConstraint(
         name = "uk_user_file_progress",
         columnNames = {"user_id", "file_id"}
-    )
+    ),
+    indexes = {
+        // Continue-watching: WHERE user_id [AND updated_at > ?] ORDER BY updated_at DESC.
+        @Index(name = "idx_wp_user_updated", columnList = "user_id, updated_at"),
+        // delete/exists/group-by on (user_id, record_id) — record_id is a plain column, not a FK.
+        @Index(name = "idx_wp_user_record", columnList = "user_id, record_id")
+    }
 )
 public class WatchProgressEntity {
 

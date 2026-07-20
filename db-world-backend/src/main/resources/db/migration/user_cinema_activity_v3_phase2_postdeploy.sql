@@ -11,7 +11,7 @@
 --      or writes. Hibernate's ddl-auto: update does NOT drop columns; this is
 --      the manual step.
 --
--- Schema: new_db_world.
+-- Schema: db_world.
 -- =============================================================================
 
 -- ---- 1. SANITY CHECK: confirm watch_progress_id column exists ----
@@ -19,14 +19,14 @@
 --  the build has not yet been deployed — stop and deploy first.)
 SELECT COUNT(*) AS column_exists
 FROM information_schema.columns
-WHERE table_schema = 'new_db_world'
+WHERE table_schema = 'db_world'
   AND table_name   = 'user_cinema_activity'
   AND column_name  = 'watch_progress_id';
 
 -- ---- 2. ADD FK CONSTRAINT ----
-ALTER TABLE new_db_world.user_cinema_activity
+ALTER TABLE db_world.user_cinema_activity
     ADD CONSTRAINT fk_uca_watch_progress
-        FOREIGN KEY (watch_progress_id) REFERENCES new_db_world.watch_progress(id)
+        FOREIGN KEY (watch_progress_id) REFERENCES db_world.watch_progress(id)
         ON DELETE SET NULL;
 
 -- ---- 3. DROP 5 UNUSED COLUMNS ----
@@ -35,7 +35,7 @@ ALTER TABLE new_db_world.user_cinema_activity
 -- populate http_protocol/referer/country_code; error_code overlapped
 -- with completion_status=ABORTED; update_count was a derived counter
 -- never read.
-ALTER TABLE new_db_world.user_cinema_activity
+ALTER TABLE db_world.user_cinema_activity
     DROP COLUMN http_protocol,
     DROP COLUMN referer,
     DROP COLUMN country_code,
@@ -46,6 +46,6 @@ ALTER TABLE new_db_world.user_cinema_activity
 -- (Spot-check that the 5 columns are gone and watch_progress_id is present.)
 SELECT column_name
 FROM information_schema.columns
-WHERE table_schema = 'new_db_world'
+WHERE table_schema = 'db_world'
   AND table_name   = 'user_cinema_activity'
 ORDER BY ordinal_position;

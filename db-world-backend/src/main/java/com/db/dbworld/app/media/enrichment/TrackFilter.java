@@ -46,6 +46,21 @@ public class TrackFilter {
     ) {}
 
     /**
+     * Primary video stream properties collected from the source file by
+     * SmartTrackFilterService, used to build the video track's title tag
+     * (codec / resolution / bit depth / HDR / bitrate) during enrichment.
+     */
+    public record VideoInfo(
+            String  codec,          // ffprobe codec_name, e.g. "hevc"
+            int     width,
+            int     height,
+            long    bitRate,        // bps; 0 when the container doesn't expose it
+            int     bitDepth,       // 8 / 10 / 12; 0 when unknown
+            String  colorTransfer,  // e.g. "smpte2084" (HDR10/PQ), "arib-std-b67" (HLG)
+            boolean dolbyVision     // true when a DOVI configuration record is present
+    ) {}
+
+    /**
      * ISO 639-2/B language codes for audio tracks to retain (e.g. "hin", "eng", "guj").
      * Audio tracks whose {@code language} tag is NOT in this list are dropped.
      * {@code null} = keep all audio tracks.
@@ -111,6 +126,9 @@ public class TrackFilter {
 
     /** Subtitle tracks grouped by language code; populated for filtered cases. */
     private Map<String, List<TrackInfo>> subTracksByLang;
+
+    /** Primary video stream info; populated by SmartTrackFilterService for the video title tag. */
+    private VideoInfo videoTrack;
 
     /** Returns {@code true} if any filtering or metadata directive is requested. */
     public boolean hasAnyFilter() {

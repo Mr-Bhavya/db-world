@@ -8,4 +8,7 @@ import java.util.List;
 
 public interface SchedulerJobHistoryRepository extends JpaRepository<SchedulerJobHistoryEntity, Long> {
     List<SchedulerJobHistoryEntity> findAllByOrderByStartedAtDesc(Pageable pageable);
+
+    /** Per-job history feed for the per-card drawer in the admin UI. */
+    List<SchedulerJobHistoryEntity> findByJobNameOrderByStartedAtDesc(String jobName, Pageable pageable);
 }

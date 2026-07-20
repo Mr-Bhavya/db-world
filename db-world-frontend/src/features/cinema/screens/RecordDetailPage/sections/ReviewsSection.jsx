@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme/ThemeContext';
 import {
   fetchUserReviews, fetchMyReview, upsertReview, deleteReview,
@@ -83,7 +83,6 @@ function TmdbReviewCard({ review, T }) {
 
 export default function ReviewsSection({ record, recordId }) {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
 
   const [reviewRating, setReviewRating] = useState(0);
@@ -105,26 +104,26 @@ export default function ReviewsSection({ record, recordId }) {
   const upsertMutation = useMutation({
     mutationFn: ({ rating, content }) => upsertReview(recordId, rating, content),
     onSuccess: () => {
-      enqueueSnackbar('Review submitted.', { variant: 'success' });
+      notify.success('Review submitted.');
       qc.invalidateQueries(['userReviews', recordId]);
       qc.invalidateQueries(['myReview', recordId]);
       setReviewContent(''); setReviewRating(0); setEditMode(false);
     },
-    onError: () => enqueueSnackbar('Failed to submit review.', { variant: 'error' }),
+    onError: () => notify.error('Failed to submit review.'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteReview(recordId),
     onSuccess: () => {
-      enqueueSnackbar('Review deleted.', { variant: 'success' });
+      notify.success('Review deleted.');
       qc.invalidateQueries(['userReviews', recordId]);
       qc.invalidateQueries(['myReview', recordId]);
     },
-    onError: () => enqueueSnackbar('Failed to delete review.', { variant: 'error' }),
+    onError: () => notify.error('Failed to delete review.'),
   });
 
   const handleSubmit = () => {
-    if (!reviewRating) { enqueueSnackbar('Please select a rating.', { variant: 'warning' }); return; }
+    if (!reviewRating) { notify.warning('Please select a rating.'); return; }
     upsertMutation.mutate({ rating: reviewRating, content: reviewContent });
   };
 

@@ -1,11 +1,11 @@
 import Constants from '@shared/constants';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 
 export const handleApiError = (error, navigate, location) => {
   // Default error message
   let message = 'An unexpected error occurred';
   let redirectAction = null;
-  let autoClose = 3000;
+  let duration = 3000;
 
   // Handle different error types
   if (error.response) {
@@ -49,13 +49,13 @@ export const handleApiError = (error, navigate, location) => {
   }
 
   // Show toast notification
-  const toastConfig = { autoClose };
+  const toastConfig = { duration };
   if (redirectAction) {
     toastConfig.onClose = redirectAction;
   }
 
   console.error('API Error:', message);
-  toast.error(message, toastConfig);
+  notify.error(message, toastConfig);
 
   // Return the error for further handling if needed
   return error;

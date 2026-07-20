@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, Box, Typography, CircularProgress, IconButton, Chip, Alert, FormControlLabel, Checkbox } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, ToggleButton, ToggleButtonGroup, Box, Typography, CircularProgress, IconButton, Chip, Alert, FormControlLabel, Checkbox } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import MovieIcon from '@mui/icons-material/Movie';
+import TvIcon from '@mui/icons-material/Tv';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
-import { useT, getSelectMenuProps } from '@shared/theme';
+import { notify } from '@shared/notify';
+import { useT } from '@shared/theme';
 import { createRecord, searchTmdb } from '../api/adminApi';
 import { createRecordSchema } from '../schemas/recordSchemas';
 
@@ -16,7 +18,6 @@ const TMDB_IMG = 'https://image.tmdb.org/t/p/original';
 export default function RecordCreateModal({ open, onClose }) {
   const T = useT();
   const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
 
   const inputSx = {
     '& .MuiOutlinedInput-root': {
@@ -42,7 +43,7 @@ export default function RecordCreateModal({ open, onClose }) {
 
   useEffect(() => () => clearTimeout(searchTimer.current), []);
 
-  const { control, handleSubmit, watch, reset, formState: { errors } } = useForm({
+  const { control, handleSubmit, watch, reset } = useForm({
     resolver: zodResolver(createRecordSchema),
     defaultValues: { type: 'MOVIE' },
   });
@@ -72,12 +73,12 @@ export default function RecordCreateModal({ open, onClose }) {
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d) => createRecord({ type: d.type, tmdbId: d.tmdbId, hideFromRails: d.hideFromRails }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); enqueueSnackbar('Record created', { variant: 'success' }); handleClose(); },
-    onError: (e) => enqueueSnackbar(e?.response?.data?.message ?? 'Create failed', { variant: 'error' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['records'] }); notify.success('Record created'); handleClose(); },
+    onError: (e) => notify.error(e?.response?.data?.message ?? 'Create failed'),
   });
 
   const onSubmit = (d) => {
-    if (!selected) { enqueueSnackbar('Please select a TMDB result', { variant: 'warning' }); return; }
+    if (!selected) { notify.warning('Please select a TMDB result'); return; }
     mutate({ type: d.type, tmdbId: selected.id, hideFromRails });
   };
 
@@ -92,19 +93,22 @@ export default function RecordCreateModal({ open, onClose }) {
     <Dialog open={open} onClose={handleClose}
       PaperProps={{ sx: { bgcolor: T.sidebar, border: `1px solid ${T.glassBorder}`, color: T.textPrimary, width: '100%', maxWidth: 580, borderRadius: 2 } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, color: T.textPrimary }}>
-        Add Record
+        Add record
         <IconButton onClick={handleClose} sx={{ color: T.textMuted }}><CloseIcon /></IconButton>
       </DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Controller name="type" control={control} render={({ field }) => (
-            <TextField {...field} select label="Type" size="small" sx={inputSx}
-              SelectProps={{ MenuProps: getSelectMenuProps(T) }}
-              error={!!errors.type} helperText={errors.type?.message}
-              onChange={e => { field.onChange(e); setResults([]); setSelected(null); }}>
-              <MenuItem value="MOVIE">Movie</MenuItem>
-              <MenuItem value="TV_SERIES">Series</MenuItem>
-            </TextField>
+            <ToggleButtonGroup exclusive size="small" value={field.value}
+              onChange={(_, v) => { if (v) { field.onChange(v); setResults([]); setSelected(null); } }}
+              sx={{ '& .MuiToggleButton-root': {
+                flex: 1, textTransform: 'none', gap: 0.75, fontSize: 13,
+                color: T.textMuted, borderColor: T.glassBorder,
+                '&.Mui-selected': { bgcolor: T.tealBg, color: T.teal, borderColor: `${T.teal}55`,
+                  '&:hover': { bgcolor: T.tealBg } } } }}>
+              <ToggleButton value="MOVIE"><MovieIcon sx={{ fontSize: 17 }} />Movie</ToggleButton>
+              <ToggleButton value="TV_SERIES"><TvIcon sx={{ fontSize: 17 }} />Series</ToggleButton>
+            </ToggleButtonGroup>
           )} />
 
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -118,6 +122,17 @@ export default function RecordCreateModal({ open, onClose }) {
           </Box>
 
           {searchError && <Alert severity="error" sx={{ bgcolor: T.errorBg, color: T.error, border: `1px solid ${T.error}44`, '& .MuiAlert-icon': { color: T.error } }}>{searchError}</Alert>}
+
+          {!searching && !searchError && results.length === 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, py: 4, color: T.textFaint }}>
+              <SearchIcon sx={{ fontSize: 32 }} />
+              <Typography sx={{ fontSize: 13, color: T.textMuted, textAlign: 'center', maxWidth: 320 }}>
+                {query.trim()
+                  ? 'No matches — try a different title or year.'
+                  : 'Search TMDB by title to add a movie or series.'}
+              </Typography>
+            </Box>
+          )}
 
           {results.length > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 300, overflowY: 'auto',
@@ -184,7 +199,7 @@ export default function RecordCreateModal({ open, onClose }) {
           <Button onClick={handleClose} sx={{ color: T.textMuted }}>Cancel</Button>
           <Button type="submit" disabled={!selected || isPending} variant="contained"
             sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600 }}>
-            {isPending ? <CircularProgress size={18} color="inherit" /> : 'Add Record'}
+            {isPending ? <CircularProgress size={18} color="inherit" /> : 'Add record'}
           </Button>
         </DialogActions>
       </form>

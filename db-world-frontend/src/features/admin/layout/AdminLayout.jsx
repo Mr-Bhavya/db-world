@@ -8,18 +8,20 @@ import {
 import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import {
   Dashboard, Movie, VideoLibrary,
-  LocalOffer, Sync, Computer, Analytics,
+  LocalOffer, Computer, Analytics,
   Storage, Folder, Schedule, Menu as MenuIcon, ChevronLeft,
   AdminPanelSettings, ExpandLess, ExpandMore, Logout,
   Circle, ManageAccounts, Home,
-  Insights, Inbox,
+  Insights, Inbox, Tune, AccountBalanceWallet,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@features/auth/context/Authentication';
 import { AdminThemeProvider, useThemeMode, useT } from '@shared/theme';
 import Constants from '@shared/constants';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -45,7 +47,6 @@ const NAV = [
       { id: 'media-files', label: 'Media Files',   icon: <VideoLibrary />, path: 'media-files' },
       { id: 'requests', label: 'Requests', icon: <Inbox />, path: 'requests' },
       { id: 'tag-management', label: 'Tags & Rails', icon: <LocalOffer />, path: 'tag-management' },
-      { id: 'tmdb-sync',   label: 'TMDB Sync',     icon: <Sync />,         path: 'tmdb-sync' },
     ],
   },
   {
@@ -65,6 +66,8 @@ const NAV = [
       { id: 'redis',       label: 'Redis Cache',   icon: <Storage />,   path: 'redis' },
       { id: 'files',       label: 'File Manager',  icon: <Folder />,    path: 'files' },
       { id: 'scheduler',   label: 'Scheduler',     icon: <Schedule />,  path: 'scheduler' },
+      { id: 'settings',    label: 'Settings',      icon: <Tune />,      path: 'settings' },
+      { id: 'document-wallet', label: 'Document Wallet', icon: <AccountBalanceWallet />, path: 'document-wallet' },
     ],
   },
 ];
@@ -98,6 +101,8 @@ const ContentLoader = () => {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const AdminLayoutInner = () => {
+  usePageMeta('Admin');
+
   const { T, mode, toggleMode } = useThemeMode();
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -115,6 +120,10 @@ const AdminLayoutInner = () => {
   const showFull = open || isMobile;
 
   const currentPath = location.pathname.split('/').pop();
+
+  // Live pending-request counter (media + catalog). Drives the numeric badge on
+  // the 'Requests' sidebar item so admins notice new requests without opening the page.
+  const { total: pendingRequests } = usePendingRequestCounts();
 
   const handleNav = useCallback((path) => {
     navigate(`${Constants.DB_ADMIN_BASE_ROUTE}/${path}`);
@@ -189,6 +198,11 @@ const AdminLayoutInner = () => {
               <List dense disablePadding sx={{ px: showFull ? 1 : 0.5 }}>
                 {section.items.map((item) => {
                   const active = currentPath === item.path || location.pathname.endsWith('/' + item.path);
+                  // Live numeric badge for 'requests' overrides any static label.
+                  const dynamicBadge = item.id === 'requests' && pendingRequests > 0
+                    ? pendingRequests
+                    : item.badge;
+                  const isCountBadge = typeof dynamicBadge === 'number';
                   return showFull ? (
                     <ListItemButton
                       key={item.id}
@@ -211,20 +225,43 @@ const AdminLayoutInner = () => {
                         primary={item.label}
                         primaryTypographyProps={{ fontSize: '0.82rem', fontWeight: active ? 600 : 400, color: active ? T.teal : T.textMuted }}
                       />
-                      {item.badge && (
-                        <Chip label={item.badge} size="small" sx={{
-                          height: 16, fontSize: '0.55rem', fontWeight: 700,
-                          bgcolor: item.badge === 'Live' ? '#10b981' : item.badge === 'New' ? T.teal : '#f59e0b',
-                          color: '#fff', '& .MuiChip-label': { px: 0.8 },
-                        }} />
+                      {dynamicBadge != null && dynamicBadge !== false && dynamicBadge !== '' && (
+                        <Chip
+                          label={isCountBadge && dynamicBadge > 99 ? '99+' : dynamicBadge}
+                          size="small"
+                          sx={{
+                            height: isCountBadge ? 18 : 16,
+                            minWidth: isCountBadge ? 22 : undefined,
+                            fontSize: isCountBadge ? '0.65rem' : '0.55rem',
+                            fontWeight: 800,
+                            bgcolor: isCountBadge
+                              ? '#ef4444'
+                              : dynamicBadge === 'Live' ? '#10b981'
+                              : dynamicBadge === 'New'  ? T.teal
+                              : '#f59e0b',
+                            color: '#fff',
+                            '& .MuiChip-label': { px: 0.8 },
+                            animation: isCountBadge ? 'pulseBadge 1.8s ease-in-out infinite' : 'none',
+                            '@keyframes pulseBadge': {
+                              '0%, 100%': { boxShadow: '0 0 0 0 rgba(239,68,68,0.55)' },
+                              '50%':      { boxShadow: '0 0 0 4px rgba(239,68,68,0)' },
+                            },
+                          }}
+                        />
                       )}
                     </ListItemButton>
                   ) : (
-                    <Tooltip key={item.id} title={item.label} placement="right" arrow>
+                    <Tooltip
+                      key={item.id}
+                      title={isCountBadge ? `${item.label} (${dynamicBadge} pending)` : item.label}
+                      placement="right"
+                      arrow
+                    >
                       <ListItemButton
                         selected={active}
                         onClick={() => handleNav(item.path)}
                         sx={{
+                          position: 'relative',
                           borderRadius: 1.5, mb: 0.3, py: 0.9, px: 0, justifyContent: 'center',
                           color: active ? T.teal : T.textMuted,
                           bgcolor: active ? T.tealBg : 'transparent',
@@ -233,6 +270,14 @@ const AdminLayoutInner = () => {
                         }}
                       >
                         {React.cloneElement(item.icon, { sx: { fontSize: 20 } })}
+                        {isCountBadge && (
+                          <Box sx={{
+                            position: 'absolute', top: 6, right: 8,
+                            width: 8, height: 8, borderRadius: '50%',
+                            bgcolor: '#ef4444',
+                            boxShadow: '0 0 0 2px rgba(239,68,68,0.35)',
+                          }} />
+                        )}
                       </ListItemButton>
                     </Tooltip>
                   );

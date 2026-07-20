@@ -1,10 +1,10 @@
 package com.db.dbworld.security.filters;
 
-import com.db.dbworld.core.context.RequestContext;
-import com.db.dbworld.core.context.UserContext;
-import com.db.dbworld.payloads.RequestLogData;
 import com.db.dbworld.audit.activity.service.UserActivityLogService;
-import com.db.dbworld.core.user.service.UserService;
+import com.db.dbworld.core.context.UserContext;
+import com.db.dbworld.infrastructure.logging.mdc.BodyMd5;
+import com.db.dbworld.infrastructure.logging.mdc.MdcKeys;
+import com.db.dbworld.payloads.RequestLogData;
 import com.db.dbworld.security.auth.JwtService;
 import com.db.dbworld.security.dto.CurrentUser;
 import com.db.dbworld.utils.DbWorldUtils;
@@ -13,21 +13,36 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.logging.log4j.ThreadContext;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
+import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
+/**
+ * Authenticates the request and emits the request-lifecycle log line.
+ *
+ * <p>Runs after {@code MdcContextFilter} (which has already seeded
+ * {@code traceId}/{@code requestId}). Responsibilities here:
+ * <ul>
+ *   <li>Parse JWT and populate the {@link UserContext}.</li>
+ *   <li>Cache request + response bodies so they can be MD5'd post-chain.</li>
+ *   <li>Emit a structured request log line at INFO (WARN if slow).</li>
+ *   <li>Fire-and-forget the activity log write to the async pool.</li>
+ * </ul>
+ *
+ * <p>{@link ContentCachingResponseWrapper#copyBodyToResponse()} is critical —
+ * without it the response body never flushes to the client.
+ */
 @Component
 @Log4j2
-@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> EXCLUDED_URI_PATTERNS = List.of(
@@ -37,13 +52,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> TRACKED_METHODS = List.of("POST", "PUT", "DELETE", "PATCH");
 
+    /** Requests slower than this get logged at WARN. 2s is a generous default. */
+    private static final long SLOW_REQUEST_THRESHOLD_MS = 2_000L;
+
+    /** Per-body cache limit. Matches the previous Spring default. */
+    private static final int BODY_CACHE_LIMIT = 64 * 1024;
+
     private final DbWorldUtils dbWorldUtils;
-
     private final JwtService jwtService;
-
     private final UserContext userContext;
-
     private final UserActivityLogService activityLogService;
+
+    /**
+     * Use the configured Spring async pool so {@code MdcTaskDecorator} copies
+     * the parent thread's MDC (traceId, requestId, md5) into the log thread.
+     * Without this, {@code CompletableFuture.runAsync(...)} would default to
+     * {@code ForkJoinPool.commonPool()} and the MDC would be lost — which was
+     * showing up in logs as {@code [traceId=] [md5=]} on every request line.
+     */
+    private final Executor asyncExecutor;
+
+    public JwtAuthenticationFilter(DbWorldUtils dbWorldUtils,
+                                   JwtService jwtService,
+                                   UserContext userContext,
+                                   UserActivityLogService activityLogService,
+                                   @Qualifier("taskExecutor") Executor asyncExecutor) {
+        this.dbWorldUtils       = dbWorldUtils;
+        this.jwtService         = jwtService;
+        this.userContext        = userContext;
+        this.activityLogService = activityLogService;
+        this.asyncExecutor      = asyncExecutor;
+    }
 
     @Override
     protected boolean shouldNotFilter(@Nonnull HttpServletRequest request) {
@@ -52,44 +91,72 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(@Nonnull HttpServletRequest request, @Nonnull HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(@Nonnull HttpServletRequest request,
+                                    @Nonnull HttpServletResponse response,
+                                    FilterChain filterChain)
             throws ServletException, IOException {
 
-        ContentCachingRequestWrapper cachingRequest = new ContentCachingRequestWrapper(request);
-        long startTime = System.currentTimeMillis();
+        // Never tee the request body for uploads (multipart / octet-stream / oversized): buffering
+        // 8 MiB chunks is wasteful and must not sit between the client and the upload handler
+        // (it also produced binary that blew past the request_body log column). Only wrap when we
+        // can usefully and safely capture a small text body.
+        HttpServletRequest reqToUse = shouldCacheRequestBody(request)
+                ? new ContentCachingRequestWrapper(request, BODY_CACHE_LIMIT)
+                : request;
+        ContentCachingResponseWrapper cachedRes = new ContentCachingResponseWrapper(response);
+
+        long startNs = System.nanoTime();
 
         try {
-            ThreadContext.put("requestId", RequestContext.getRequestId());
-            ThreadContext.put("traceId", RequestContext.getTraceId());
-            filterChain.doFilter(cachingRequest, response);
+            filterChain.doFilter(reqToUse, cachedRes);
         } finally {
-            if (shouldTrackRequest(cachingRequest)) {
-                // Extract all data BEFORE async operation
-                RequestLogData logData = extractRequestLogData(cachingRequest, response, startTime);
+            long durationMs = (System.nanoTime() - startNs) / 1_000_000L;
 
-                // Fire and forget - pass only the extracted data, not the request/response objects
-                CompletableFuture.runAsync(() -> {
-                    logRequestDetails(logData);
-                }).exceptionally(throwable -> {
-                    log.error("Async logging failed for URI: {}", logData.getUri(), throwable);
-                    return null;
-                });
+            // Compute the MD5 fingerprint while bodies are still in the cache.
+            byte[] reqBytes = (reqToUse instanceof ContentCachingRequestWrapper w)
+                    ? w.getContentAsByteArray() : new byte[0];
+            String md5 = BodyMd5.composite(
+                    BodyMd5.hex(reqBytes),
+                    BodyMd5.hex(cachedRes.getContentAsByteArray()));
+            if (!md5.isEmpty()) {
+                ThreadContext.put(MdcKeys.MD5, md5);
             }
-            ThreadContext.clearAll();
+
+            // Write the cached response body out to the real response, otherwise
+            // the client gets nothing back.
+            try {
+                cachedRes.copyBodyToResponse();
+            } catch (IOException e) {
+                log.warn("Failed to flush cached response body for {}: {}",
+                        request.getRequestURI(), e.getMessage());
+            }
+
+            if (shouldTrackRequest(reqToUse)) {
+                RequestLogData logData = extractRequestLogData(reqToUse, cachedRes, durationMs);
+
+                // Capture the slow flag once on the calling thread — the async
+                // task only sees logData and shouldn't repeat the calculation.
+                boolean slow = durationMs >= SLOW_REQUEST_THRESHOLD_MS;
+
+                CompletableFuture.runAsync(() -> logRequestDetails(logData, slow), asyncExecutor)
+                        .exceptionally(t -> {
+                            log.error("Async request-log write failed for {} {} (status={}, duration={}ms)",
+                                    logData.getMethod(), logData.getUri(),
+                                    logData.getStatus(), logData.getDuration(), t);
+                            return null;
+                        });
+            }
         }
     }
 
     private boolean shouldTrackRequest(HttpServletRequest request) {
-        return TRACKED_METHODS.contains(request.getMethod()) ||
-                !request.getRequestURI().startsWith("/actuator");
+        return TRACKED_METHODS.contains(request.getMethod())
+                || !request.getRequestURI().startsWith("/actuator");
     }
 
-    /**
-     * Extract all required data from request/response before they become invalid
-     */
-    private RequestLogData extractRequestLogData(HttpServletRequest request, HttpServletResponse response, long startTime) {
-
-        long duration = System.currentTimeMillis() - startTime;
+    private RequestLogData extractRequestLogData(HttpServletRequest request,
+                                                 HttpServletResponse response,
+                                                 long durationMs) {
 
         RequestLogData.RequestLogDataBuilder builder = RequestLogData.builder()
                 .method(request.getMethod())
@@ -98,8 +165,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 .ip(dbWorldUtils.getClientIpAddress(request))
                 .userAgent(request.getHeader("User-Agent"))
                 .status(response.getStatus())
-                .duration(duration)
-                .requestId(RequestContext.getRequestId())
+                .duration(durationMs)
+                .requestId(ThreadContext.get(MdcKeys.REQUEST_ID))
                 .requestBody(getRequestBody(request))
                 .isRequest(true)
                 .shouldPersist(shouldPersistToDatabase(request));
@@ -109,45 +176,62 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return builder.build();
     }
 
-    private void logRequestDetails(RequestLogData logData) {
-        // Set log context using ThreadContext
-        ThreadContext.put("isRequest", String.valueOf(logData.isRequest()));
-        ThreadContext.put("user", logData.getUserEmail());
-        ThreadContext.put("method", logData.getMethod());
-        ThreadContext.put("uri", logData.getUri());
-        ThreadContext.put("query", logData.getQuery());
-        ThreadContext.put("status", String.valueOf(logData.getStatus()));
-        ThreadContext.put("duration", String.valueOf(logData.getDuration()));
+    private void logRequestDetails(RequestLogData logData, boolean slow) {
+        // The async pool's MdcTaskDecorator copied the parent MDC over, but the
+        // user/method/uri/status/duration slots are request-specific and only
+        // make sense for THIS log line — set them just-in-time, then clear.
+        ThreadContext.put(MdcKeys.IS_REQUEST, "true");
+        ThreadContext.put(MdcKeys.USER,       safe(logData.getUserEmail()));
+        ThreadContext.put(MdcKeys.METHOD,     safe(logData.getMethod()));
+        ThreadContext.put(MdcKeys.URI,        safe(logData.getUri()));
+        ThreadContext.put(MdcKeys.QUERY,      safe(logData.getQuery()));
+        ThreadContext.put(MdcKeys.STATUS,     String.valueOf(logData.getStatus()));
+        ThreadContext.put(MdcKeys.DURATION,   String.valueOf(logData.getDuration()));
+        ThreadContext.put(MdcKeys.CLIENT_IP,  safe(logData.getIp()));
 
-        log.info("User '{}' completed {} {} in {}ms",
-                logData.getUserEmail(), logData.getMethod(), logData.getUri(), logData.getDuration());
+        // The MDC slots in the pattern already carry method/uri/status/duration/
+        // user — repeating them in the message text was producing the same
+        // values twice on every request line. Keep the message minimal; let
+        // the pattern do the structured rendering.
+        if (slow) {
+            log.warn("slow");
+        } else {
+            log.info("ok");
+        }
 
         if (logData.isShouldPersist()) {
-            activityLogService.logActivity(logData);
+            try {
+                activityLogService.logActivity(logData);
+            } catch (Exception e) {
+                log.error("Failed to persist activity log for {} {}: {}",
+                        logData.getMethod(), logData.getUri(), e.getMessage(), e);
+            }
         }
     }
 
     private void enrichUser(RequestLogData.RequestLogDataBuilder builder, HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String token = request.getParameter("t");
 
-        try {
-            String uri = request.getRequestURI();
-            String token = request.getParameter("t");
-
-            if (isStreamUri(uri) && token != null) {
-                // ✅ decode JWT directly (NO DB)
+        if (isStreamUri(uri) && token != null) {
+            try {
                 CurrentUser tokenUser = jwtService.parse(token);
-
                 builder.userId(tokenUser.userId());
                 builder.userEmail(tokenUser.email());
-
-            } else {
-                // ✅ normal flow (from SecurityContext)
-                builder.userId(userContext.userId());
-                builder.userEmail(userContext.email());
+                return;
+            } catch (Exception e) {
+                // Token parse failure on a stream URI — fall through to anonymous.
+                // DEBUG, not WARN: expired/bad tokens on streams are routine.
+                log.debug("Stream-URI token parse failed for {}: {}", uri, e.getMessage());
             }
+        }
 
+        try {
+            builder.userId(userContext.userId());
+            builder.userEmail(userContext.email());
         } catch (Exception e) {
-            builder.userEmail("Anonymous");
+            log.debug("UserContext unavailable for {}: {}", uri, e.getMessage());
+            builder.userEmail("anonymous");
         }
     }
 
@@ -157,16 +241,44 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String getRequestBody(HttpServletRequest request) {
+        // Uploads / binary bodies are never wrapped (see shouldCacheRequestBody), so there's nothing
+        // to capture — and we must not blindly cast a raw request to the caching wrapper.
+        if (!(request instanceof ContentCachingRequestWrapper wrapper)) return "";
         try {
-            return new String(((ContentCachingRequestWrapper) request).getContentAsByteArray(), request.getCharacterEncoding());
+            byte[] body = wrapper.getContentAsByteArray();
+            if (body.length == 0) return "";
+            String encoding = request.getCharacterEncoding();
+            return new String(body, encoding != null ? encoding : "UTF-8");
         } catch (Exception e) {
+            log.debug("Failed to decode request body for {}: {}",
+                    request.getRequestURI(), e.getMessage());
             return "";
         }
     }
 
-    private boolean shouldPersistToDatabase(HttpServletRequest request) {
-        return TRACKED_METHODS.contains(request.getMethod()) ||
-                request.getRequestURI().startsWith("/api");
+    /**
+     * Only cache small, textual request bodies for logging. Uploads (multipart / octet-stream) and
+     * anything larger than the cache limit are passed through untouched so the body streams straight
+     * to the handler.
+     */
+    private boolean shouldCacheRequestBody(HttpServletRequest request) {
+        String contentType = request.getContentType();
+        if (contentType != null) {
+            String lc = contentType.toLowerCase();
+            if (lc.startsWith("multipart/") || lc.contains("application/octet-stream")) {
+                return false;
+            }
+        }
+        long length = request.getContentLengthLong();
+        return length <= BODY_CACHE_LIMIT;
     }
 
+    private boolean shouldPersistToDatabase(HttpServletRequest request) {
+        return TRACKED_METHODS.contains(request.getMethod())
+                || request.getRequestURI().startsWith("/api");
+    }
+
+    private static String safe(String v) {
+        return v == null ? "" : v;
+    }
 }

@@ -11,7 +11,7 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "CREDENTIALS", schema = "new_db_world")
+@Table(name = "CREDENTIALS", schema = "db_world")
 public class CredentialEntity {
 
     @Id

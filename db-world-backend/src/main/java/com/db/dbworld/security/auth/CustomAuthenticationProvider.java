@@ -4,12 +4,14 @@ import com.db.dbworld.core.user.entity.UserEntity;
 import com.db.dbworld.core.user.repository.UserRepository;
 import com.db.dbworld.security.auth.userdetails.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+@Log4j2
 @Component
 @RequiredArgsConstructor
 public class CustomAuthenticationProvider implements AuthenticationProvider {
@@ -24,9 +26,10 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String rawPassword = authentication.getCredentials().toString();
 
         UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new BadCredentialsException("Invalid email or password")
-                );
+                .orElseThrow(() -> {
+                    log.warn("Login attempt rejected: no user found for email={}", email);
+                    return new BadCredentialsException("Invalid email or password");
+                });
 
         String storedPassword = user.getPassword();
 
@@ -34,6 +37,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
             // 🔥 OLD plaintext password
 
             if (!storedPassword.equals(rawPassword)) {
+                log.warn("Login attempt rejected: plaintext password mismatch for email={}", email);
                 throw new BadCredentialsException("Invalid email or password");
             }
 
@@ -41,13 +45,26 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
             String encoded = passwordEncoder.encode(rawPassword);
             user.setPassword(encoded);
             userRepository.save(user);
+            log.info("Migrated legacy plaintext password to bcrypt for user [{}]", email);
 
         } else {
             // ✅ NORMAL FLOW
 
             if (!passwordEncoder.matches(rawPassword, storedPassword)) {
+                log.warn("Login attempt rejected: bcrypt mismatch for email={}", email);
                 throw new BadCredentialsException("Invalid email or password");
             }
+        }
+
+        // Gate on account state — the custom provider bypasses Spring's default
+        // DaoAuthenticationProvider checks, so enforce them explicitly here.
+        if (!user.isEnabled()) {
+            log.warn("Login rejected: account disabled for email={}", email);
+            throw new DisabledException("Your account has been disabled");
+        }
+        if (!user.isAccountNonLocked()) {
+            log.warn("Login rejected: account locked for email={}", email);
+            throw new LockedException("Your account is locked");
         }
 
         // Build authenticated user

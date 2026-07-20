@@ -15,6 +15,15 @@ export const getWatchProgress = (fileId) =>
 export const getRecentProgress = (days = 30) =>
   axiosInstance.get(`${BASE}/progress`, { params: { days } }).then(r => r.data?.data ?? []);
 
+// Continue Watching: enriched tiles (resume target + progress), completed items
+// already filtered out server-side.
+export const getContinueWatching = () =>
+  axiosInstance.get(`${BASE}/progress/continue`).then(r => r.data?.data ?? []);
+
+// Remove a whole title from Continue Watching.
+export const removeContinueWatching = (recordId) =>
+  axiosInstance.delete(`${BASE}/progress/record/${recordId}`).then(r => r.data);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build a full TMDB image URL from a path. */
@@ -40,9 +49,9 @@ export const fetchPageCategories = (page) =>
  * GET /api/cinema/rails/{railId}/records
  * → RailPageDto { railId, page, size, hasNext, records: RailRecordDto[] }
  */
-export const fetchRailPage = (railId, page = 0, size = 20, category) =>
+export const fetchRailPage = (railId, page = 0, size = 20, category, pageType) =>
   axiosInstance
-    .get(`${BASE}/rails/${railId}/records`, { params: { page, size, category } })
+    .get(`${BASE}/rails/${railId}/records`, { params: { page, size, category, pageType } })
     .then(unwrap);
 
 // ─── Catalog ──────────────────────────────────────────────────────────────────
@@ -211,6 +220,10 @@ export const dismissCatalogRequest = (id, reason) =>
 export const reopenCatalogRequest = (id) =>
   axiosInstance.post(`${BASE}/admin/catalog-requests/${id}/reopen`).then(unwrap);
 
+/** Cheap counter for sidebar/dashboard badge: { count: number }. */
+export const fetchAdminCatalogRequestsPendingCount = () =>
+  axiosInstance.get(`${BASE}/admin/catalog-requests/pending-count`).then(unwrap);
+
 // ─── Admin: Media Requests ────────────────────────────────────────────────────
 
 /** GET /api/cinema/admin/media-requests?status=PENDING → MediaRequestDto[] */
@@ -232,3 +245,32 @@ export const dismissMediaRequest = (id, reason) =>
 /** POST /api/cinema/admin/media-requests/{id}/reopen — undo fulfill/dismiss. */
 export const reopenMediaRequest = (id) =>
   axiosInstance.post(`${BASE}/admin/media-requests/${id}/reopen`).then(unwrap);
+
+/** Cheap counter for sidebar/dashboard badge: { count: number }. */
+export const fetchAdminMediaRequestsPendingCount = () =>
+  axiosInstance.get(`${BASE}/admin/media-requests/pending-count`).then(unwrap);
+
+// ─── Search History ("Recent searches") ──────────────────────────────────────
+// Note: these live under /api/me, not /api/cinema.
+
+/**
+ * POST /api/me/search-history  body: { query, resultCount, openedRecordId? }
+ * Fire-and-forget — callers should not await UI state on this; errors are swallowed.
+ */
+export const recordSearch = ({ query, resultCount, openedRecordId }) =>
+  axiosInstance
+    .post('/api/me/search-history', { query, resultCount, openedRecordId })
+    .then(r => r.data)
+    .catch(() => {});
+
+/** GET /api/me/search-history?limit=8 → string[] (recent distinct raw queries) */
+export const fetchRecentSearches = (limit = 8) =>
+  axiosInstance.get('/api/me/search-history', { params: { limit } }).then(r => r.data.data);
+
+/** DELETE /api/me/search-history?query=  (request param, not a path segment — queries may contain '/') */
+export const deleteRecentSearch = (query) =>
+  axiosInstance.delete('/api/me/search-history', { params: { query } }).then(unwrap);
+
+/** DELETE /api/me/search-history — clear all */
+export const clearRecentSearches = () =>
+  axiosInstance.delete('/api/me/search-history').then(unwrap);

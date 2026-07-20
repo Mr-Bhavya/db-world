@@ -1,12 +1,16 @@
 package com.db.dbworld.security.crypto;
 
 import com.db.dbworld.config.JasyptProperties;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jasypt.encryption.pbe.PooledPBEStringEncryptor;
 import org.jasypt.encryption.pbe.config.SimpleStringPBEConfig;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CryptoProvider {
+
+    private static final Logger log = LogManager.getLogger();
 
     private static final String AES_PREFIX = "AES:";
 
@@ -18,6 +22,7 @@ public class CryptoProvider {
         String password = props.password();
 
         if (password == null || password.isBlank()) {
+            log.error("CryptoProvider init failed: Jasypt password is missing or empty");
             throw new IllegalStateException("Jasypt password is missing or empty");
         }
 
@@ -43,6 +48,8 @@ public class CryptoProvider {
         aesConfig.setIvGeneratorClassName("org.jasypt.iv.RandomIvGenerator");
         aesConfig.setStringOutputType("base64");
         aesEncryptor.setConfig(aesConfig);
+
+        log.info("CryptoProvider initialized (AES + DES-legacy fallback)");
     }
 
     // ─────────────────────────────────────────────
@@ -104,6 +111,7 @@ public class CryptoProvider {
         try {
             return aesEncryptor.decrypt(value);
         } catch (Exception ex) {
+            log.error("AES decryption failed: {}", ex.getMessage(), ex);
             throw new RuntimeException("AES decryption failed. Possibly wrong key/config.", ex);
         }
     }
@@ -112,7 +120,9 @@ public class CryptoProvider {
         try {
             return desEncryptor.decrypt(value);
         } catch (Exception ignored) {
-            return null; // important for fallback
+            // Expected during migration when value is neither DES nor AES.
+            // No log — would spam at WARN for every plain-text fallback.
+            return null;
         }
     }
 }

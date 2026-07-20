@@ -50,8 +50,22 @@ public class YtDlpSourceHandler implements SourceHandler {
         meta.setType("YOUTUBE");
         meta.setAttributes(Map.of(
                 "originalUri", uri,
-                "handler", "yt-dlp"
+                "handler", "yt-dlp",
+                "platform", detectPlatform(uri.toLowerCase())
         ));
         return meta;
+    }
+
+    private static String detectPlatform(String lower) {
+        if (lower.contains("hotstar.com") || lower.contains("jiohotstar.com")) return "HOTSTAR";
+        if (lower.contains("primevideo.com")) return "AMAZON";
+        if (lower.contains("netflix.com"))    return "NETFLIX";
+        if (lower.contains("disneyplus.com")) return "DISNEY";
+        if (lower.contains("zee5.com"))       return "ZEE5";
+        if (lower.contains("sonyliv.com"))    return "SONYLIV";
+        if (lower.contains("voot.com"))       return "VOOT";
+        if (lower.contains("mxplayer.in"))    return "MXPLAYER";
+        if (lower.contains("jiocinema.com"))  return "JIOCINEMA";
+        return "YOUTUBE";
     }
 }

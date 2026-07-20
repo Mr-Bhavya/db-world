@@ -9,23 +9,29 @@ import com.db.dbworld.app.media.info.entity.MediaFileEntity;
 import com.db.dbworld.app.media.info.entity.track.*;
 import com.db.dbworld.app.media.info.repository.MediaFileRepository;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
+import com.db.dbworld.app.media.info.util.ResolutionUtil;
+import com.db.dbworld.app.media.link.SymlinkService;
+import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.config.AppProperties;
 import com.db.dbworld.core.processor.ProcessExecutor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,6 +45,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     private final RecordRepository recordRepository;
     private final ObjectMapper objectMapper;
     private final AppProperties properties;
+    private final StoryboardService storyboardService;
+    private final SymlinkService symlinkService;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Public API
@@ -47,17 +55,76 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Override
     @Transactional
     public MediaFileDto collectAndPersist(Path filePath, Long recordId, String ingestionJobId) {
+        log.debug("collectAndPersist filePath={} recordId={} ingestionJobId={}",
+                filePath, recordId, ingestionJobId);
         String json = getRawJson(filePath);
 
-        // Delete existing entry for this path to avoid duplicates
-        mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString())
-                .ifPresent(mediaFileRepository::delete);
+        // Replace any existing entry for this path (avoids duplicates). Carry the scrub-preview
+        // storyboard forward so a re-collect/rescan doesn't drop the thumbnail: stash the sprite
+        // before the delete (whose @PostRemove would erase it), copy the geometry onto the new
+        // row, then restore the sprite under the new id. A full re-ingest still regenerates it.
+        Path stashedSprite = null;
+        Integer sbIntervalMs = null, sbCols = null, sbRows = null, sbTileW = null, sbTileH = null, sbCount = null;
+        Integer prevSeason = null, prevEpisode = null;
+        String replacedId = null;
+        var existingOpt = mediaFileRepository.findByFilePath(filePath.toAbsolutePath().toString());
+        if (existingOpt.isPresent()) {
+            MediaFileEntity existing = existingOpt.get();
+            replacedId = existing.getId();
+            log.info("Replacing existing MediaInfo entry for {} (id={})",
+                    filePath.getFileName(), existing.getId());
+            // Carry episode numbers forward so a re-collect/rescan doesn't wipe a value
+            // set on ingest or an admin override.
+            prevSeason  = existing.getTmdbSeasonNumber();
+            prevEpisode = existing.getTmdbEpisodeNumber();
+            if (existing.getStoryboardCount() != null) {
+                sbIntervalMs = existing.getStoryboardIntervalMs();
+                sbCols       = existing.getStoryboardCols();
+                sbRows       = existing.getStoryboardRows();
+                sbTileW      = existing.getStoryboardTileW();
+                sbTileH      = existing.getStoryboardTileH();
+                sbCount      = existing.getStoryboardCount();
+                stashedSprite = storyboardService.stashSprite(existing.getId());
+            }
+            mediaFileRepository.delete(existing);
+        }
 
         MediaFileEntity entity = buildEntity(filePath, json, recordId, ingestionJobId);
+        // A prior/manual episode value overrides the filename auto-parse from buildEntity.
+        if (prevSeason != null || prevEpisode != null) {
+            entity.setTmdbSeasonNumber(prevSeason);
+            entity.setTmdbEpisodeNumber(prevEpisode);
+        }
+        if (sbCount != null) {
+            entity.setStoryboardIntervalMs(sbIntervalMs);
+            entity.setStoryboardCols(sbCols);
+            entity.setStoryboardRows(sbRows);
+            entity.setStoryboardTileW(sbTileW);
+            entity.setStoryboardTileH(sbTileH);
+            entity.setStoryboardCount(sbCount);
+        }
         MediaFileEntity saved = mediaFileRepository.save(entity);
+        if (stashedSprite != null) storyboardService.restoreSprite(stashedSprite, saved.getId());
 
-        log.info("MediaInfo persisted: id={}, file={}, tracks={}",
-                saved.getId(), filePath.getFileName(), saved.getTracks().size());
+        // Symlinks are keyed by media-file id, and a re-collect (rescan / re-ingest) assigns a
+        // NEW id — leaving the old link orphaned and the new id with none, which breaks
+        // streaming and download. Re-point the symlink to the new id and drop the stale one.
+        // (First ingest creates its link via the processing pipeline; only re-collects hit this.)
+        // Best-effort — never fail persistence over a link.
+        if (replacedId != null) {
+            try {
+                symlinkService.create(saved.getId(), saved.getFilePath());
+                if (!replacedId.equals(saved.getId())) {
+                    symlinkService.deleteById(replacedId);
+                }
+            } catch (Exception e) {
+                log.warn("collectAndPersist: symlink refresh failed for id={} ({}): {}",
+                        saved.getId(), filePath.getFileName(), e.getMessage());
+            }
+        }
+
+        log.info("MediaInfo persisted: id={}, file={}, tracks={}, recordId={}",
+                saved.getId(), filePath.getFileName(), saved.getTracks().size(), recordId);
 
         return toDto(saved);
     }
@@ -65,6 +132,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Override
     @Transactional
     public MediaFileDto rescan(String mediaFileId) {
+        log.debug("rescan mediaFileId={}", mediaFileId);
         MediaFileEntity existing = mediaFileRepository.findById(mediaFileId)
                 .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + mediaFileId));
 
@@ -72,8 +140,9 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         Long recordId = existing.getRecord() != null ? existing.getRecord().getId() : null;
         String jobId = existing.getIngestionJobId();
 
-        mediaFileRepository.delete(existing);
-
+        // Don't delete here — collectAndPersist replaces the existing row for this path and carries
+        // the storyboard forward. Deleting first would drop the scrub preview.
+        log.info("Rescan re-collecting path={} (id={})", filePath, mediaFileId);
         return collectAndPersist(filePath, recordId, jobId);
     }
 
@@ -94,18 +163,61 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     @Override
     @Transactional(readOnly = true)
     public Optional<MediaFileDto> getByFilePath(String filePath) {
-        return mediaFileRepository.findByFilePath(filePath).map(this::toDto);
+        // Tolerant lookup — `findByFilePath` returns Optional<> and Spring Data
+        // throws IncorrectResultSizeDataAccessException when the DB happens to
+        // hold duplicate rows for the same path (a buggy ingestion run can
+        // produce them). Fall back to the list variant and take the newest.
+        try {
+            return mediaFileRepository.findByFilePath(filePath).map(this::toDto);
+        } catch (IncorrectResultSizeDataAccessException e) {
+            List<MediaFileEntity> dupes = mediaFileRepository.findAllByFilePath(filePath);
+            log.warn("getByFilePath: {} duplicate rows for path {} — returning newest",
+                    dupes.size(), filePath);
+            return dupes.stream()
+                    .max(Comparator.comparing(MediaFileEntity::getCreatedAt))
+                    .map(this::toDto);
+        }
     }
 
     @Override
     @Transactional
     public void deleteByFilePath(String filePath) {
-        mediaFileRepository.deleteByFilePath(filePath);
+        log.info("deleteByFilePath path={}", filePath);
+        // Two race scenarios this method has to survive:
+        //  1. Admin HTTP delete and FileWatcherService's OS-event handler
+        //     fire on the same path concurrently. Hibernate cascades through
+        //     `tracks` (cascade=ALL + orphanRemoval), so whichever transaction
+        //     commits second tries to DELETE FROM media_tracks WHERE id=? for
+        //     rows the first tx already removed, gets row-count 0, and throws
+        //     StaleObjectStateException.
+        //  2. Multiple MediaFile rows exist for the same filePath (legacy data
+        //     from the torrent-metadata-confused-as-payload bug). Spring
+        //     Data's `deleteByFilePath` loads all matches and cascades each;
+        //     pre-loading with our list variant gives us per-entity
+        //     control + a clear log line.
+        List<MediaFileEntity> matches = mediaFileRepository.findAllByFilePath(filePath);
+        if (matches.isEmpty()) {
+            log.debug("deleteByFilePath: nothing to delete (already gone) — {}", filePath);
+            return;
+        }
+        if (matches.size() > 1) {
+            log.warn("deleteByFilePath: {} duplicate rows for path {} — deleting all",
+                    matches.size(), filePath);
+        }
+        for (MediaFileEntity entity : matches) {
+            try {
+                mediaFileRepository.delete(entity);
+            } catch (ObjectOptimisticLockingFailureException e) {
+                log.debug("deleteByFilePath: row id={} concurrently deleted (race) — {}",
+                        entity.getId(), filePath);
+            }
+        }
     }
 
     @Override
     @Transactional
     public void deleteByRecordId(Long recordId) {
+        log.info("deleteByRecordId recordId={}", recordId);
         mediaFileRepository.deleteAllByRecord_Id(recordId);
     }
 
@@ -171,6 +283,27 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .build();
     }
 
+    private static boolean hasFps(VideoTrackEntity v) {
+        return v.getFrameRate() != null && !v.getFrameRate().isBlank();
+    }
+
+    /**
+     * Whether {@code cand} is a better "primary video" than {@code cur}. Attached cover
+     * art (image-codec video tracks) always loses to a real stream; otherwise a track
+     * with a frame rate beats one without, and finally the taller wins. This keeps the
+     * summary resolution reading the film's dimensions, not an embedded poster's.
+     */
+    private static boolean isBetterVideo(VideoTrackEntity cand, VideoTrackEntity cur) {
+        boolean candArt = ResolutionUtil.isCoverArt(cand.getFormat());
+        boolean curArt  = ResolutionUtil.isCoverArt(cur.getFormat());
+        if (candArt != curArt) return !candArt;
+        boolean candFps = hasFps(cand), curFps = hasFps(cur);
+        if (candFps != curFps) return candFps;
+        int candH = cand.getHeight() != null ? cand.getHeight() : -1;
+        int curH  = cur.getHeight()  != null ? cur.getHeight()  : -1;
+        return candH > curH;
+    }
+
     private MediaFileSummaryDto toSummaryDto(MediaFileEntity entity) {
         MediaFileSummaryDto.MediaFileSummaryDtoBuilder b = MediaFileSummaryDto.builder()
                 .id(entity.getId())
@@ -183,7 +316,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .tmdbSeasonNumber(entity.getTmdbSeasonNumber())
                 .tmdbEpisodeNumber(entity.getTmdbEpisodeNumber())
                 .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt());
+                .updatedAt(entity.getUpdatedAt())
+                .hasStoryboard(entity.getStoryboardCount() != null && entity.getStoryboardCount() > 0);
 
         VideoTrackEntity primaryVideo = null;
         AudioTrackEntity primaryAudio = null;
@@ -195,16 +329,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 general = g;
             } else if (t instanceof VideoTrackEntity v) {
                 videoCount++;
-                boolean vHasFps = v.getFrameRate() != null && !v.getFrameRate().isBlank();
-                if (primaryVideo == null) {
+                if (primaryVideo == null || isBetterVideo(v, primaryVideo)) {
                     primaryVideo = v;
-                } else {
-                    boolean pHasFps = primaryVideo.getFrameRate() != null && !primaryVideo.getFrameRate().isBlank();
-                    int vH = v.getHeight() != null ? v.getHeight() : -1;
-                    int pH = primaryVideo.getHeight() != null ? primaryVideo.getHeight() : -1;
-                    if ((vHasFps && !pHasFps) || (vHasFps == pHasFps && vH > pH)) {
-                        primaryVideo = v;
-                    }
                 }
             } else if (t instanceof AudioTrackEntity a) {
                 audioCount++;
@@ -227,12 +353,19 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         }
 
         if (primaryVideo != null) {
+            ResolutionUtil.ResolutionInfo res = ResolutionUtil.compute(
+                    primaryVideo.getWidth(), primaryVideo.getHeight(), primaryVideo.getDisplayAspectRatio());
             b.videoHeight(primaryVideo.getHeight())
              .videoWidth(primaryVideo.getWidth())
              .videoCodec(primaryVideo.getFormat())
              .hdrFormat(primaryVideo.getHdrFormat())
              .frameRate(primaryVideo.getFrameRate())
-             .videoBitRate(primaryVideo.getBitRate());
+             .videoBitRate(primaryVideo.getBitRate())
+             .displayWidth(res.displayWidth())
+             .displayHeight(res.displayHeight())
+             .resolutionLabel(res.label())
+             .displayAspectRatio(primaryVideo.getDisplayAspectRatio())
+             .anamorphic(res.anamorphic());
         }
 
         if (primaryAudio != null) {
@@ -255,11 +388,45 @@ public class MediaInfoServiceImpl implements MediaInfoService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public void generateStoryboard(String mediaFileId) {
+        MediaFileEntity entity = mediaFileRepository.findById(mediaFileId)
+                .orElseThrow(() -> new IllegalArgumentException("MediaFile not found: " + mediaFileId));
+
+        Path filePath = Path.of(entity.getFilePath());
+        if (!Files.exists(filePath)) {
+            throw new IllegalStateException("Source file not found on disk: " + entity.getFilePath());
+        }
+        long durationMs = resolveDurationMs(entity);
+        if (durationMs <= 0) {
+            throw new IllegalStateException("Unknown duration — rescan metadata before generating a storyboard");
+        }
+
+        // Generation runs up to ~100 ffmpeg seeks; keep it off the request thread.
+        // StoryboardService.generate is fully best-effort and persists its own geometry.
+        log.info("Storyboard generation requested for {} (durationMs={})", mediaFileId, durationMs);
+        CompletableFuture.runAsync(() -> storyboardService.generate(mediaFileId, filePath, durationMs));
+    }
+
+    /** Longest track duration (ms) — general track first, else the max across tracks; 0 when unknown. */
+    private long resolveDurationMs(MediaFileEntity entity) {
+        long best = 0L;
+        for (TrackEntity t : entity.getTracks()) {
+            Long d = null;
+            if      (t instanceof GeneralTrackEntity g) d = g.getDuration();
+            else if (t instanceof VideoTrackEntity v)   d = v.getDuration();
+            else if (t instanceof AudioTrackEntity a)   d = a.getDuration();
+            if (d != null && d > best) best = d;
+        }
+        return best;
+    }
+
+    @Override
     public String getRawJson(Path filePath) {
         try {
             return processExecutor.runMediaInfoCommand(filePath);
         } catch (Exception e) {
-            log.error("MediaInfo command failed for path={}: {}", filePath, e.getMessage());
+            log.warn("MediaInfo probe failed for path={}: {}", filePath, e.getMessage(), e);
             throw new RuntimeException("MediaInfo failed: " + e.getMessage(), e);
         }
     }
@@ -338,8 +505,32 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         }
 
         parseTracksInto(entity, json);
+        applyEpisodeFromFileName(entity);
 
         return entity;
+    }
+
+    /** SxxEyy in a filename (also tolerates "S01 E02", "S1.E2", "s01_e02"). */
+    private static final java.util.regex.Pattern SEASON_EPISODE =
+            java.util.regex.Pattern.compile("(?i)s(\\d{1,2})\\s*[._-]?\\s*e(\\d{1,3})");
+
+    /**
+     * Auto-detect season/episode from the filename on ingest so episodes link without
+     * manual entry. Skipped when a value is already present (e.g. carried forward from a
+     * prior row) so it never clobbers an admin override.
+     */
+    private void applyEpisodeFromFileName(MediaFileEntity entity) {
+        if (entity.getTmdbSeasonNumber() != null || entity.getTmdbEpisodeNumber() != null) return;
+        String name = entity.getFileName();
+        if (name == null) return;
+        var m = SEASON_EPISODE.matcher(name);
+        if (m.find()) {
+            try {
+                entity.setTmdbSeasonNumber(Integer.parseInt(m.group(1)));
+                entity.setTmdbEpisodeNumber(Integer.parseInt(m.group(2)));
+                log.debug("Auto-detected S{}E{} from filename {}", m.group(1), m.group(2), name);
+            } catch (NumberFormatException ignored) { /* leave unset */ }
+        }
     }
 
     private void parseTracksInto(MediaFileEntity entity, String json) {
@@ -347,7 +538,10 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             JsonNode root = objectMapper.readTree(json);
             JsonNode tracks = root.path("media").path("track");
 
-            if (!tracks.isArray()) return;
+            if (!tracks.isArray()) {
+                log.warn("MediaInfo JSON has no track array for {}", entity.getFileName());
+                return;
+            }
 
             int streamOrder = 0;
             for (JsonNode trackNode : tracks) {
@@ -356,7 +550,7 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 if (track != null) entity.addTrack(track);
             }
         } catch (Exception e) {
-            log.warn("Failed to parse MediaInfo JSON for {}: {}", entity.getFileName(), e.getMessage());
+            log.warn("Failed to parse MediaInfo JSON for {}: {}", entity.getFileName(), e.getMessage(), e);
         }
     }
 
@@ -477,6 +671,9 @@ public class MediaInfoServiceImpl implements MediaInfoService {
         return MediaFileDto.builder()
                 .id(entity.getId())
                 .recordId(entity.getRecord() != null ? entity.getRecord().getId() : null)
+                .recordType(entity.getRecord() != null && entity.getRecord().getType() != null
+                        ? entity.getRecord().getType().name() : null)
+                .recordName(entity.getRecord() != null ? entity.getRecord().getName() : null)
                 .fileName(entity.getFileName())
                 .filePath(entity.getFilePath())
                 .fileSize(entity.getFileSize())
@@ -486,6 +683,12 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                 .tmdbEpisodeNumber(entity.getTmdbEpisodeNumber())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .storyboardIntervalMs(entity.getStoryboardIntervalMs())
+                .storyboardCols(entity.getStoryboardCols())
+                .storyboardRows(entity.getStoryboardRows())
+                .storyboardTileW(entity.getStoryboardTileW())
+                .storyboardTileH(entity.getStoryboardTileH())
+                .storyboardCount(entity.getStoryboardCount())
                 .tracks(trackDtos)
                 .build();
     }
@@ -527,6 +730,8 @@ public class MediaInfoServiceImpl implements MediaInfoService {
              .audioCount(g.getAudioCount())
              .textCount(g.getTextCount());
         } else if (track instanceof VideoTrackEntity v) {
+            ResolutionUtil.ResolutionInfo res = ResolutionUtil.compute(
+                    v.getWidth(), v.getHeight(), v.getDisplayAspectRatio());
             b.format(v.getFormat())
              .width(v.getWidth())
              .height(v.getHeight())
@@ -538,7 +743,11 @@ public class MediaInfoServiceImpl implements MediaInfoService {
              .hdrFormatCompatibility(v.getHdrFormatCompatibility())
              .duration(v.getDuration())
              .defaultTrack(v.getDefaultTrack())
-             .forced(v.getForced());
+             .forced(v.getForced())
+             .displayAspectRatio(v.getDisplayAspectRatio())
+             .displayWidth(res.displayWidth())
+             .displayHeight(res.displayHeight())
+             .resolutionLabel(res.label());
         } else if (track instanceof AudioTrackEntity a) {
             b.format(a.getFormat())
              .language(a.getLanguage())
@@ -589,9 +798,13 @@ public class MediaInfoServiceImpl implements MediaInfoService {
             }
 
             case "Video" -> {
+                Integer w = intVal(node, "Width");
+                Integer h = intVal(node, "Height");
+                String dar = text(node, "DisplayAspectRatio_String");
+                ResolutionUtil.ResolutionInfo res = ResolutionUtil.compute(w, h, dar);
                 b.format(text(node, "Format"))
-                        .width(intVal(node, "Width"))
-                        .height(intVal(node, "Height"))
+                        .width(w)
+                        .height(h)
                         .frameRate(text(node, "FrameRate"))
                         .bitRate(longVal(node, "BitRate"))
                         .bitDepth(intVal(node, "BitDepth"))
@@ -600,7 +813,11 @@ public class MediaInfoServiceImpl implements MediaInfoService {
                         .hdrFormatCompatibility(text(node, "HDR_Format_Compatibility"))
                         .duration(parseDurationMs(node, "Duration"))
                         .defaultTrack(text(node, "Default"))
-                        .forced(text(node, "Forced"));
+                        .forced(text(node, "Forced"))
+                        .displayAspectRatio(dar)
+                        .displayWidth(res.displayWidth())
+                        .displayHeight(res.displayHeight())
+                        .resolutionLabel(res.label());
             }
 
             case "Audio" -> {

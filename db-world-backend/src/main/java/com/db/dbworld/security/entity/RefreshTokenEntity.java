@@ -28,6 +28,12 @@ public class RefreshTokenEntity {
 
     private Instant expiry;
 
+    /** Last time this session minted a new access token (updated on each refresh). */
+    private Instant lastUsed;
+
+    /** How many times this session has refreshed the access token. Nullable for legacy rows. */
+    private Integer refreshCount;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "user")
     private UserEntity user;

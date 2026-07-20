@@ -7,6 +7,7 @@ import com.db.dbworld.app.cinema.catalog.tags.rules.RecordTagRule;
 import com.db.dbworld.app.cinema.catalog.tags.strategy.TagStrategyExecutor;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class RecordTaggingService {
@@ -36,6 +38,8 @@ public class RecordTaggingService {
     @Transactional
     public void recalculateRuleTags() {
 
+        log.debug("recalculateRuleTags entry");
+
         List<RecordEntity> records = recordRepository.findAllWithTmdbAndTags();
 
         for (RecordEntity record : records) {
@@ -50,6 +54,8 @@ public class RecordTaggingService {
         }
 
         recordRepository.saveAll(records);
+
+        log.info("recalculateRuleTags completed; recordsScanned={}", records.size());
     }
 
     /**

@@ -10,7 +10,11 @@ import com.db.dbworld.app.media.ingestion.model.IngestionContext;
 import com.db.dbworld.app.media.ingestion.model.ProcessingResult;
 import com.db.dbworld.app.media.ingestion.processing.fs.FileStorageService;
 import com.db.dbworld.app.media.ingestion.spi.ProcessingStrategy;
+import com.db.dbworld.app.media.ingestion.tracking.FileSubStep;
+import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
+import com.db.dbworld.app.cinema.catalog.tags.services.NewContentTaggingService;
 import com.db.dbworld.app.media.link.SymlinkService;
+import com.db.dbworld.app.media.storyboard.StoryboardService;
 import com.db.dbworld.app.stream.tag.MediaSource;
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.utils.PathSanitizer;
@@ -24,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -57,6 +62,9 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
     private final TmdbMediaEnrichmentService enrichmentService;
     private final SymlinkService             symlinkService;
     private final SmartTrackFilterService    smartTrackFilterService;
+    private final StoryboardService          storyboardService;
+    private final NewContentTaggingService   newContentTaggingService;
+    private final TrackingService            trackingService;
 
     @Override
     public boolean supports(IngestionContext ctx) {
@@ -66,6 +74,9 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
 
     @Override
     public ProcessingResult process(IngestionContext ctx) {
+        log.debug("[{}] FfmpegProcessingStrategy.process — sourceFile={}",
+                ctx.getJobId(),
+                ctx.getDownload() != null ? ctx.getDownload().getFilePath() : null);
         ProcessingResult result = new ProcessingResult();
         try {
             Path sourceFile = ctx.getDownload().getFilePath();
@@ -83,7 +94,10 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 result.setErrorMessage("Downloaded temp file not found: " + sourceFile);
                 return result;
             }
-            return processSingleFile(ctx, sourceFile);
+            trackingService.initFiles(ctx.getJobId(), List.of(sourceFile.getFileName().toString()));
+            ProcessingResult single = processSingleFile(ctx, sourceFile, 1);
+            trackingService.finishFile(ctx.getJobId(), 1, single.isSuccess());
+            return single;
         } catch (IOException e) {
             log.error("[{}] FfmpegProcessingStrategy failed: {}", ctx.getJobId(), e.getMessage());
             ctx.logError("FFMPEG", "Failed: " + e.getMessage());
@@ -112,28 +126,80 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return result;
         }
 
-        ctx.log("FFMPEG", "Processing " + mediaFiles.size() + " extracted file(s)");
-
         Integer originalSeason  = ctx.getRequest().getSeason();
         Integer originalEpisode = ctx.getRequest().getEpisode();
+
+        // Partition: episode files carry a detectable SxxExx pattern; everything else
+        // is an extra/sample/featurette.
+        List<Path> episodeFiles = mediaFiles.stream()
+                .filter(f -> detectFromFilename(f) != null)
+                .collect(Collectors.toList());
+
+        boolean playlistJob = ctx.getRequest().getPlaylistItems() != null
+                && !ctx.getRequest().getPlaylistItems().isEmpty();
+
+        List<Path> toProcess;
+        boolean perFileEpisode;
+        if (playlistJob) {
+            // A playlist is an explicit N-file job — process EVERY downloaded file (not just the
+            // largest), deriving each file's season/episode from its SxxExx name when present.
+            toProcess = mediaFiles;
+            perFileEpisode = true;
+        } else if (!episodeFiles.isEmpty()) {
+            // Season pack (one or more episodes): process each detected episode with its
+            // OWN season/episode, ignoring any single value on the request; skip files
+            // without an SxxExx pattern so samples/extras don't collide or mis-tag.
+            toProcess = episodeFiles;
+            perFileEpisode = true;
+            int skipped = mediaFiles.size() - episodeFiles.size();
+            if (skipped > 0) {
+                ctx.log("FFMPEG", "Skipping " + skipped + " non-episode file(s) without an SxxExx pattern");
+            }
+        } else {
+            // No episodes detected → single title (movie / single file). Pick the largest
+            // media file so a bundled "sample" clip is ignored, keeping the user's
+            // season/episode (if any) for that one file.
+            Path main = mediaFiles.stream()
+                    .max(Comparator.comparingLong(this::sizeQuietly))
+                    .orElse(mediaFiles.getFirst());
+            toProcess = List.of(main);
+            perFileEpisode = false;
+            if (mediaFiles.size() > 1) {
+                ctx.log("FFMPEG", "No SxxExx episodes detected — processing largest file: " + main.getFileName());
+            }
+        }
+
+        ctx.log("FFMPEG", "Processing " + toProcess.size() + " of " + mediaFiles.size() + " media file(s)");
+
+        // Register the files up front so the UI can render the full per-file breakdown
+        // (N of M) immediately, before any single file starts processing.
+        trackingService.initFiles(ctx.getJobId(),
+                toProcess.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList()));
 
         Path lastFinalFile = null;
         Map<String, Object> lastMediaInfo = null;
         int successCount = 0;
+        int fileIndex = 0;
 
-        for (Path file : mediaFiles) {
-            // If season/episode were not provided by the user, infer them per-file
-            if (originalSeason == null) {
+        for (Path file : toProcess) {
+            fileIndex++;
+            if (perFileEpisode) {
                 EpisodeRef ref = detectFromFilename(file);
                 if (ref != null) {
                     ctx.getRequest().setSeason(ref.season());
                     ctx.getRequest().setEpisode(ref.episode());
+                } else {
+                    // No SxxExx in the name (e.g. a playlist item with no episode metadata) —
+                    // keep the request's own season/episode (may be null → processed untagged).
+                    ctx.getRequest().setSeason(originalSeason);
+                    ctx.getRequest().setEpisode(originalEpisode);
                 }
             }
 
-            ctx.log("FFMPEG", "Processing extracted: " + file.getFileName());
+            ctx.log("FFMPEG", "Processing (" + fileIndex + "/" + toProcess.size() + "): " + file.getFileName());
             try {
-                ProcessingResult fileResult = processSingleFile(ctx, file);
+                ProcessingResult fileResult = processSingleFile(ctx, file, fileIndex);
+                trackingService.finishFile(ctx.getJobId(), fileIndex, fileResult.isSuccess());
                 if (fileResult.isSuccess()) {
                     lastFinalFile = fileResult.getFinalFile();
                     lastMediaInfo = fileResult.getMediaInfo();
@@ -142,6 +208,7 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                     ctx.logError("FFMPEG", "Failed on " + file.getFileName() + ": " + fileResult.getErrorMessage());
                 }
             } catch (Exception e) {
+                trackingService.finishFile(ctx.getJobId(), fileIndex, false);
                 ctx.logError("FFMPEG", "Error on " + file.getFileName() + ": " + e.getMessage());
             }
 
@@ -153,31 +220,37 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
         ProcessingResult result = new ProcessingResult();
         if (successCount == 0) {
             result.setSuccess(false);
-            result.setErrorMessage("All " + mediaFiles.size() + " extracted files failed FFmpeg processing");
+            result.setErrorMessage("No media files were processed successfully in " + dir);
         } else {
             result.setFinalFile(lastFinalFile);
             result.setMediaInfo(lastMediaInfo);
             result.setSuccess(true);
-            ctx.log("FFMPEG", "Completed: " + successCount + "/" + mediaFiles.size() + " files processed");
+            ctx.log("FFMPEG", "Completed: " + successCount + "/" + toProcess.size() + " file(s) processed");
         }
         return result;
     }
 
+    private long sizeQuietly(Path p) {
+        try { return Files.size(p); } catch (IOException e) { return 0L; }
+    }
+
     // ── Single-file processing ────────────────────────────────────────────────
 
-    private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile) throws IOException {
+    private ProcessingResult processSingleFile(IngestionContext ctx, Path sourceFile, int fileIndex) throws IOException {
         ProcessingResult result = new ProcessingResult();
 
         // ── 1. Stage file in temp working directory ────────────────────
         Path workingFile = stageForProcessing(ctx, sourceFile);
 
         // ── 2. TMDB enrichment: cover art + series naming + metadata ───
+        trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.FFMPEG);
         Path stagedFile = enrichWithTmdb(ctx, workingFile);
 
         // ── 3. Collect metadata, rename in temp, then move to final ────
         // Clean up orphan records left by any previous failed run for this record
         purgeOrphanTempRecords(ctx, stagedFile.getParent());
 
+        trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.MEDIA_INFO);
         MediaFileDto mediaInfo = mediaInfoService.collectAndPersist(
                 stagedFile,
                 ctx.getRecordId(),
@@ -200,8 +273,35 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                     ? canonicalDto
                     : repersistAtFinalLocation(ctx, canonicalTempFile, finalFile);
             latestDto = finalDto;
+            trackingService.updateFilePercent(ctx.getJobId(), fileIndex, FileSubStep.MEDIA_INFO, 100);
 
             symlinkService.create(finalDto.getId(), finalDto.getFilePath());
+
+            // Scrub-preview storyboard (best-effort; never fails ingestion).
+            try {
+                ctx.log("STORYBOARD", "Generating scrub-preview storyboard…");
+                trackingService.startFileSubStep(ctx.getJobId(), fileIndex, FileSubStep.STORYBOARD);
+                storyboardService.generate(finalDto.getId(), finalFile, resolveDurationMs(finalDto),
+                        (done, total) -> {
+                            ctx.log("STORYBOARD", done + "/" + total + " tiles");
+                            trackingService.updateFilePercent(ctx.getJobId(), fileIndex,
+                                    FileSubStep.STORYBOARD, total > 0 ? done * 100.0 / total : 0);
+                        });
+            } catch (Exception e) {
+                ctx.logError("STORYBOARD", "Generation failed (non-fatal): " + e.getMessage());
+            }
+
+            // Flag new season/episode so the record resurfaces on the home rail (TV only; best-effort).
+            try {
+                EpisodeRef ref = resolveEpisodeRef(ctx, finalFile);
+                newContentTaggingService.evaluate(ctx.getRecordId(), finalDto.getId(),
+                        ref != null ? ref.season() : null, ref != null ? ref.episode() : null);
+            } catch (Exception e) {
+                ctx.logError("NEW_CONTENT", "New-content flagging failed (non-fatal): " + e.getMessage());
+            }
+
+            log.info("[{}] FFmpeg processing complete — finalFile={}, mediaFileId={}",
+                    ctx.getJobId(), finalFile.getFileName(), finalDto.getId());
 
             result.setFinalFile(finalFile);
             result.setSuccess(true);
@@ -212,8 +312,17 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             // Roll back the persisted media-file record so it doesn't appear as an orphan in the UI
             String orphanPath = latestDto.getFilePath();
             if (orphanPath != null) {
+                log.error("[{}] FFmpeg processing failed — rolling back orphan media-file record: {}",
+                        ctx.getJobId(), orphanPath, e);
                 ctx.logError("FFMPEG", "Rolling back orphan media-file record: " + orphanPath);
-                try { mediaInfoService.deleteByFilePath(orphanPath); } catch (Exception ignored) {}
+                try {
+                    mediaInfoService.deleteByFilePath(orphanPath);
+                } catch (Exception rollbackEx) {
+                    log.warn("[{}] Rollback of orphan record failed for {}: {}",
+                            ctx.getJobId(), orphanPath, rollbackEx.getMessage(), rollbackEx);
+                }
+            } else {
+                log.error("[{}] FFmpeg processing failed (no orphan to roll back)", ctx.getJobId(), e);
             }
             if (e instanceof IOException) throw (IOException) e;
             throw new IOException(e);
@@ -297,6 +406,16 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
                 "mediaFileId", dto.getId(),
                 "fileName", dto.getFileName() != null ? dto.getFileName() : ""
         );
+    }
+
+    /** Total runtime in ms from the general track, falling back to the primary video track. */
+    private long resolveDurationMs(MediaFileDto dto) {
+        if (dto == null) return 0L;
+        TrackDto general = dto.getGeneralTrack();
+        if (general != null && general.getDuration() != null) return general.getDuration();
+        TrackDto video = dto.getPrimaryVideoTrack();
+        if (video != null && video.getDuration() != null) return video.getDuration();
+        return 0L;
     }
 
     // Deletes any media-file DB records pointing to the given temp directory that were
@@ -463,6 +582,12 @@ public class FfmpegProcessingStrategy implements ProcessingStrategy {
             return sanitizeToken(detected.getLabel());
         }
         if (ctx.getSource() != null && "YOUTUBE".equalsIgnoreCase(ctx.getSource().getType())) {
+            // Use the actual streaming platform detected from the URL (Hotstar, Netflix, etc.)
+            Map<String, Object> attrs = ctx.getSource().getAttributes();
+            if (attrs != null) {
+                Object platform = attrs.get("platform");
+                if (platform instanceof String s && !s.isBlank()) return sanitizeToken(s);
+            }
             return "YOUTUBE";
         }
         return null;

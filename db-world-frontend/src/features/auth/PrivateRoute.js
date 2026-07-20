@@ -1,33 +1,43 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Box, LinearProgress } from '@mui/material';
+
 import { useAuth } from '@features/auth/context/Authentication';
 import ErrorPage from '@shared/components/layout/ErrorPage';
 import Constants from '@shared/constants';
+import AppLoader from '@shared/components/ui/AppLoader';
 
-/** Thin top-of-page loading bar shown while auth state is resolving. */
-const RouteLoader = () => (
-  <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1400 }}>
-    <LinearProgress />
-  </Box>
-);
+const normalizeRole = (role) => {
+  if (!role) return null;
 
-/**
- * Protects routes behind authentication + optional role check.
- *
- * Usage:
- *   <Route element={<PrivateRoute allowedRoles={['ADMIN', 'OWNER']} />}>
- *     <Route path="dashboard" element={<Dashboard />} />
- *   </Route>
- */
+  if (typeof role === 'object') {
+    return String(role.name ?? role.role ?? role.authority ?? '')
+      .replace(/^ROLE_/i, '')
+      .trim()
+      .toUpperCase();
+  }
+
+  return String(role)
+    .replace(/^ROLE_/i, '')
+    .trim()
+    .toUpperCase();
+};
+
 const PrivateRoute = ({ allowedRoles }) => {
-  const { auth }   = useAuth();
-  const location   = useLocation();
+  const { auth } = useAuth();
+  const location = useLocation();
 
-  // Auth is still being verified on app load — show a non-blocking loader.
-  if (auth.loading) return <RouteLoader />;
+  const hasRoleRestriction = Array.isArray(allowedRoles) && allowedRoles.length > 0;
 
-  // Not authenticated → redirect to login, preserving the intended destination.
+  const normalizedUserRole = normalizeRole(auth.role);
+
+  const normalizedAllowedRoles = hasRoleRestriction ? allowedRoles.map(normalizeRole).filter(Boolean) : [];
+
+  // While loading, or locked awaiting biometric unlock, hold on a loader — the BiometricGate
+  // overlay renders on top and drives the unlock. Don't redirect to login during the lock.
+  if (auth.loading || auth.locked) {
+    return <AppLoader variant="bar" />;
+  }
+
   if (!auth.isAuthenticated) {
     return (
       <Navigate
@@ -38,8 +48,16 @@ const PrivateRoute = ({ allowedRoles }) => {
     );
   }
 
-  // Authenticated but missing the required role → show access-denied page.
-  if (allowedRoles && !allowedRoles.includes(auth.role)) {
+  /*
+   * Important:
+   * User is authenticated but role is not ready yet.
+   * Do NOT show ErrorPage during this temporary state.
+   */
+  if (hasRoleRestriction && !normalizedUserRole) {
+    return <AppLoader variant="bar" />;
+  }
+
+  if (hasRoleRestriction && !normalizedAllowedRoles.includes(normalizedUserRole)) {
     return <ErrorPage />;
   }
 

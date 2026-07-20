@@ -24,8 +24,9 @@ export const darkTokens = {
   hoverBg:          'rgba(255,255,255,0.05)', // AdminLayout alias
   text:             '#ffffff',
   textPrimary:      '#ffffff',   // Home / Games alias
-  textMuted:        'rgba(255,255,255,0.55)',
-  textFaint:        'rgba(255,255,255,0.32)',
+  // Bumped for legibility — 0.55/0.32 read as washed-out grey on AMOLED black.
+  textMuted:        'rgba(255,255,255,0.68)',
+  textFaint:        'rgba(255,255,255,0.46)',
   border:           'rgba(255,255,255,0.08)',
   borderHover:      'rgba(255,255,255,0.16)',
   scrollThumb:      'rgba(255,255,255,0.12)',
@@ -145,4 +146,4 @@ export const getTealOutlinedBtn = (T) => ({
 export const TEAL_OUTLINED_BTN = getTealOutlinedBtn(darkTokens);
 
 // ─── Re-export context hooks so components import from one place ──────────────
-export { ThemeTokensProvider, AdminThemeProvider, useThemeMode, useT } from './ThemeContext';
+export { ThemeTokensProvider, AdminThemeProvider, useThemeMode, useT, getActiveThemeMode } from './ThemeContext';

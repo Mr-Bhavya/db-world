@@ -7,9 +7,10 @@ import {
 import {
   People, Movie, Sync, VideoLibrary, Computer,
   Refresh, Label, Storage, Analytics, ArrowForward,
-  Movie as MovieIcon, Tv, CheckCircle, Error, HourglassEmpty,
+  Movie as MovieIcon, Tv,
   Folder, Schedule, LocalOffer, ManageAccounts,
   Dashboard as DashboardIcon, Insights, WbSunny, NightsStay,
+  Inbox,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +18,7 @@ import { useT } from '@shared/theme';
 import Constants from '@shared/constants';
 import { useAuth } from '@features/auth/context/Authentication';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
+import usePendingRequestCounts from '@features/admin/requests/hooks/usePendingRequestCounts';
 
 
 // ─── Accent palette ────────────────────────────────────────────────────────────
@@ -41,7 +43,6 @@ const NAV_SECTIONS = [
   { id: 'records',        label: 'Records',          icon: Movie,          path: 'records',        color: A.cyan,    group: 'Content'  },
   { id: 'media-files',    label: 'Media Files',      icon: VideoLibrary,   path: 'media-files',    color: A.violet,  group: 'Content'  },
   { id: 'tag-management', label: 'Tags & Rails',     icon: LocalOffer,     path: 'tag-management', color: A.amber,   group: 'Content'  },
-  { id: 'tmdb-sync',      label: 'TMDB Sync',        icon: Sync,           path: 'tmdb-sync',      color: A.emerald, group: 'Content'  },
   { id: 'ingestion',      label: 'Media Ingestion',  icon: Folder,         path: 'ingestion',      color: A.orange,  group: 'Activity' },
   { id: 'activity-center',label: 'Activity & Insights', icon: Insights,    path: 'activity-center',color: A.red,     group: 'Activity', badge: 'Live' },
   { id: 'system-info',    label: 'System Info',      icon: Computer,       path: 'system-info',    color: A.indigo,  group: 'System'   },
@@ -71,7 +72,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
-const StatCard = ({ icon, label, value, sub, color, onClick, loading, badge }) => {
+const StatCard = ({ icon, label, value, sub, color, onClick, loading, badge, pulse }) => {
   const T = useT();
   const IconEl = icon;
   return (
@@ -83,12 +84,17 @@ const StatCard = ({ icon, label, value, sub, color, onClick, loading, badge }) =
       onClick={onClick}
       sx={{
         bgcolor: T.glass,
-        border: `1px solid ${T.border}`,
+        border: `1px solid ${pulse ? alpha(color, 0.45) : T.border}`,
         borderRadius: 3,
         cursor: onClick ? 'pointer' : 'default',
         backdropFilter: 'blur(12px)',
         overflow: 'hidden',
         position: 'relative',
+        animation: pulse ? 'statPulse 2.4s ease-in-out infinite' : 'none',
+        '@keyframes statPulse': {
+          '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(color, 0.35)}` },
+          '50%':      { boxShadow: `0 0 0 8px ${alpha(color, 0)}` },
+        },
         '&::before': {
           content: '""',
           position: 'absolute',
@@ -237,6 +243,9 @@ const AdminDashboard = () => {
   const [error,   setError]   = useState(null);
   const [now,     setNow]     = useState(new Date());
 
+  // Live pending counts (media + catalog) — drives the Pending Requests KPI card.
+  const pending = usePendingRequestCounts();
+
   const nav = useCallback((path) => navigate(`${Constants.DB_ADMIN_BASE_ROUTE}/${path}`), [navigate]);
 
   const load = useCallback(() => {
@@ -343,7 +352,16 @@ const AdminDashboard = () => {
         variants={stagger}
         initial="hidden"
         animate="show"
-        sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: 'repeat(2, 1fr)',
+            sm: 'repeat(3, 1fr)',
+            md: 'repeat(5, 1fr)',
+          },
+          gap: 2,
+          mb: 3,
+        }}
       >
         <StatCard
           icon={People} color={A.indigo}
@@ -375,7 +393,19 @@ const AdminDashboard = () => {
           sub={s?.sync ? `${s.sync.pending} pending · ${s.sync.failed} failed` : null}
           badge={s?.sync?.failed > 0 ? `${s.sync.failed} failed` : null}
           loading={loading}
-          onClick={() => nav('tmdb-sync')}
+          onClick={() => nav('records')}
+        />
+        <StatCard
+          icon={Inbox} color={A.red}
+          label="Pending Requests"
+          value={pending.total}
+          sub={pending.total > 0
+            ? `${pending.media} media · ${pending.catalog} new titles`
+            : 'All caught up'}
+          badge={pending.total > 0 ? `${pending.total} new` : null}
+          loading={pending.isLoading}
+          onClick={() => nav('requests')}
+          pulse={pending.total > 0}
         />
       </Box>
 
@@ -559,42 +589,6 @@ const AdminDashboard = () => {
                     </Box>
                   ))}
                 </Box>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* TMDB Sync */}
-          <Card sx={{ bgcolor: T.glass, border: `1px solid ${T.border}`, borderRadius: 3, mb: 2.5, backdropFilter: 'blur(12px)' }}>
-            <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-              <SectionHeader icon={Sync} label="TMDB Sync" color={A.cyan} onAction={() => nav('tmdb-sync')} actionLabel="Manage" />
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {[
-                  { icon: CheckCircle, color: A.emerald, label: 'Synced',  val: s?.sync?.synced },
-                  { icon: HourglassEmpty, color: A.amber, label: 'Pending', val: s?.sync?.pending },
-                  { icon: Error,        color: A.red,    label: 'Failed',  val: s?.sync?.failed },
-                ].map((row, idx, arr) => {
-                  const RowIcon = row.icon;
-                  return (
-                    <Box key={row.label} sx={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      py: 1,
-                      borderBottom: idx < arr.length - 1 ? `1px solid ${T.border}` : 'none',
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <RowIcon sx={{ fontSize: 15, color: row.color }} />
-                        <Typography sx={{ fontSize: '0.78rem', color: T.textMuted }}>{row.label}</Typography>
-                      </Box>
-                      {loading
-                        ? <Skeleton variant="text" width={32} sx={{ bgcolor: alpha(T.text, 0.06) }} />
-                        : <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: row.color }}>{row.val ?? '—'}</Typography>}
-                    </Box>
-                  );
-                })}
-              </Box>
-              {s?.sync?.lastSyncedAt && (
-                <Typography sx={{ fontSize: '0.63rem', color: T.textMuted, mt: 1.5, pt: 1, borderTop: `1px solid ${T.border}` }}>
-                  Last sync: {new Date(s.sync.lastSyncedAt * 1000).toLocaleString()}
-                </Typography>
               )}
             </CardContent>
           </Card>

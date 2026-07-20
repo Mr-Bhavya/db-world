@@ -9,6 +9,7 @@ import com.db.dbworld.app.media.ingestion.store.IngestionJobStore;
 import com.db.dbworld.app.media.ingestion.tracking.ProgressSnapshot;
 import com.db.dbworld.app.media.ingestion.tracking.TrackingService;
 import com.db.dbworld.app.media.aria2.Aria2RpcService;
+import com.db.dbworld.app.media.aria2.Aria2StatusKeys;
 import com.db.dbworld.app.media.aria2.model.Aria2AddDownloadResponse;
 import com.db.dbworld.app.media.aria2.model.Aria2StatusParam;
 import lombok.RequiredArgsConstructor;
@@ -147,7 +148,7 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
         Map<String, Object> options = new HashMap<>();
         options.put("dir", tempDir.toAbsolutePath().toString());
 
-        if (ctx.getRequest().isUrlProtected()) {
+        if (Boolean.TRUE.equals(ctx.getRequest().getUrlProtected())) {
             options.put("http-user", ctx.getRequest().getUsername());
             options.put("http-passwd", ctx.getRequest().getPassword());
         }
@@ -201,11 +202,27 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                 String aria2Status = status.getStatus();
 
                 if ("complete".equals(aria2Status)) {
-                    if (status.isMetadataDownload()) {
+                    // The default tellStatus payload uses BASIC_KEYS — no
+                    // `bittorrent` and no `followedBy`. isMetadataDownload()
+                    // checks both, so without them every torrent's metadata-
+                    // download GID looked like a real completion and FFmpeg
+                    // got fired on the 239-byte .torrent / control file
+                    // before the actual payload had even started. Re-fetch
+                    // with FINAL_STATUS_KEYS here so the metadata check has
+                    // the fields it needs. One extra RPC per torrent — rare
+                    // event, dwarfed by the actual download time.
+                    Aria2StatusParam complete = aria2RpcService.tellStatus(
+                            activeGid, Aria2StatusKeys.FINAL_STATUS_KEYS);
+                    Aria2StatusParam effective = complete != null ? complete : status;
+
+                    if (effective.isMetadataDownload()) {
                         ctx.log("ARIA2", "Metadata complete, waiting for actual payload download...");
+                        // The WS handler observes the same onDownloadComplete
+                        // event and remaps jobStore's GID to followedBy[0],
+                        // so the next poll iteration picks up the real GID.
                         continue;
                     }
-                    return handleComplete(ctx, activeGid, status, tempDir);
+                    return handleComplete(ctx, activeGid, effective, tempDir);
                 }
 
                 if ("error".equals(aria2Status)) {
@@ -241,17 +258,20 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
     private DownloadResult handleComplete(IngestionContext ctx, String gid,
                                           Aria2StatusParam status, Path tempDir) {
         String jobId = ctx.getJobId();
+        log.info("[{}] Aria2 download complete — GID: {}", jobId, gid);
         ctx.log("ARIA2", "Complete (GID: " + gid + ")");
 
         Path downloadedFile = resolveDownloadedFile(status, tempDir);
 
         if (downloadedFile == null || !Files.exists(downloadedFile)) {
+            log.error("[{}] Aria2 reported complete but file missing in {}", jobId, tempDir);
             ctx.logError("ARIA2", "Downloaded file missing in: " + tempDir);
             return DownloadResult.failure(jobId, "File missing after download");
         }
 
         try {
-            long size = Files.size(downloadedFile);
+            long size = sizeOf(downloadedFile);
+            log.info("[{}] Aria2 file ready — {} ({} bytes)", jobId, downloadedFile.getFileName(), size);
             ctx.log("ARIA2", "File ready: " + downloadedFile.getFileName() + " (" + size + " bytes)");
 
             DownloadResult result = DownloadResult.success(
@@ -260,11 +280,18 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
             return result;
 
         } catch (Exception e) {
+            log.error("[{}] Error reading downloaded file size for {}", jobId, downloadedFile, e);
             return DownloadResult.failure(jobId, "Error reading file: " + e.getMessage());
         }
     }
 
     private Path resolveDownloadedFile(Aria2StatusParam status, Path tempDir) {
+        // Multi-file torrent (e.g. a season pack): return the whole temp directory so
+        // FfmpegProcessingStrategy.processDirectory() walks and processes every episode,
+        // instead of just the first file.
+        if (status.getFiles() != null && status.getFiles().size() > 1) {
+            return tempDir;
+        }
         if (status.getFiles() != null && !status.getFiles().isEmpty()) {
             String fp = status.getFiles().getFirst().getPath();
             if (fp != null && !fp.isBlank()) {
@@ -293,6 +320,20 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
         return null;
     }
 
+    /** Total size of a file, or the summed size of all regular files when given a directory. */
+    private long sizeOf(Path p) {
+        try {
+            if (!Files.isDirectory(p)) return Files.size(p);
+            try (var s = Files.walk(p)) {
+                return s.filter(Files::isRegularFile)
+                        .mapToLong(f -> { try { return Files.size(f); } catch (Exception e) { return 0L; } })
+                        .sum();
+            }
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
     private void updateProgress(IngestionContext ctx, Aria2StatusParam status) {
         try {
             Long total     = status.getTotalLength();
@@ -306,7 +347,9 @@ public class Aria2DownloadStrategy implements DownloadStrategy {
                         ProgressSnapshot.downloading(completed, total,
                                 speed != null ? speed.doubleValue() : 0.0, eta));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.debug("[{}] updateProgress skipped: {}", ctx.getJobId(), e.getMessage());
+        }
     }
 
     private boolean isMagnet(IngestionContext ctx) {

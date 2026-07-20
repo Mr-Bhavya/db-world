@@ -12,8 +12,11 @@ import lombok.*;
 @NoArgsConstructor
 @Table(
         name = "RECORD_TAGS",
-        schema = "new_db_world",
-        uniqueConstraints = { @UniqueConstraint(columnNames = {"record_id", "tag_type"}) }
+        schema = "db_world",
+        uniqueConstraints = { @UniqueConstraint(columnNames = {"record_id", "tag_type"}) },
+        // record_id already indexed by its FK; tag_type-alone filtering + ORDER BY priority
+        // (rail builder) is not covered by the record_id-leading unique key.
+        indexes = { @Index(name = "idx_record_tags_type_priority", columnList = "tag_type, priority") }
 )
 public class RecordTagEntity {
 

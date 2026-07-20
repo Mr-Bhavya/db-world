@@ -6,12 +6,14 @@ import com.db.dbworld.app.cinema.review.entity.UserReviewEntity;
 import com.db.dbworld.app.cinema.review.repository.UserReviewRepository;
 import com.db.dbworld.app.cinema.review.service.UserReviewService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class UserReviewServiceImpl implements UserReviewService {
@@ -21,8 +23,10 @@ public class UserReviewServiceImpl implements UserReviewService {
     @Override
     @Transactional
     public UserReviewDto upsert(Long userId, String username, Long recordId, UserReviewRequest req) {
+        log.debug("upsert review: userId={}, recordId={}, rating={}", userId, recordId, req.getRating());
         UserReviewEntity entity = repo.findByUserIdAndRecordId(userId, recordId)
                 .orElseGet(UserReviewEntity::new);
+        boolean isNew = entity.getId() == null;
 
         entity.setUserId(userId);
         entity.setRecordId(recordId);
@@ -30,13 +34,20 @@ public class UserReviewServiceImpl implements UserReviewService {
         entity.setRating(req.getRating());
         entity.setContent(req.getContent());
 
-        return toDto(repo.save(entity), userId);
+        UserReviewEntity saved = repo.save(entity);
+        log.info("Review {}: id={}, userId={}, recordId={}, rating={}",
+                isNew ? "submitted" : "updated", saved.getId(), userId, recordId, req.getRating());
+        return toDto(saved, userId);
     }
 
     @Override
     @Transactional
     public void delete(Long userId, Long recordId) {
-        repo.findByUserIdAndRecordId(userId, recordId).ifPresent(repo::delete);
+        log.debug("delete review: userId={}, recordId={}", userId, recordId);
+        repo.findByUserIdAndRecordId(userId, recordId).ifPresent(e -> {
+            repo.delete(e);
+            log.info("Review deleted: id={}, userId={}, recordId={}", e.getId(), userId, recordId);
+        });
     }
 
     @Override

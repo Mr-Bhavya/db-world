@@ -1,7 +1,9 @@
 package com.db.dbworld.app.cinema.rail.cache;
 
+import com.db.dbworld.app.cinema.enums.PageType;
 import com.db.dbworld.app.cinema.rail.dto.RailPageDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +11,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class RailCacheService {
@@ -22,8 +25,12 @@ public class RailCacheService {
        KEY BUILDERS
     ========================================================= */
 
-    private String railKey(Long railId, int page, int size) {
-        return "rail:" + railId + ":" + page + ":" + size;
+    // The page scope is part of the key: a multi-page rail resolves DIFFERENT records
+    // per page (Home = both, Movies = movies, Series = series via resolveEffectiveType),
+    // so caching by railId+page+size alone would serve Home's content on Movies/Series.
+    private String railKey(Long railId, PageType requestedPage, int page, int size) {
+        String scope = requestedPage != null ? requestedPage.name() : "_";
+        return "rail:" + railId + ":" + scope + ":" + page + ":" + size;
     }
 
     private String recordIndexKey(Long recordId) {
@@ -34,8 +41,8 @@ public class RailCacheService {
        READ
     ========================================================= */
 
-    public RailPageDto get(Long railId, int page, int size) {
-        Object value = redisTemplate.opsForValue().get(railKey(railId, page, size));
+    public RailPageDto get(Long railId, PageType requestedPage, int page, int size) {
+        Object value = redisTemplate.opsForValue().get(railKey(railId, requestedPage, page, size));
         return value instanceof RailPageDto dto ? dto : null;
     }
 
@@ -44,12 +51,13 @@ public class RailCacheService {
     ========================================================= */
 
     public void put(Long railId,
+                    PageType requestedPage,
                     int page,
                     int size,
                     RailPageDto dto,
                     List<Long> recordIds) {
 
-        String railKey = railKey(railId, page, size);
+        String railKey = railKey(railId, requestedPage, page, size);
 
         // 1. Store main cache
         redisTemplate.opsForValue().set(railKey, dto, TTL);
@@ -86,21 +94,39 @@ public class RailCacheService {
 
         String indexKey = recordIndexKey(recordId);
 
-        Set<Object> members = redisTemplate.opsForSet().members(indexKey);
+        try {
+            // Read the index set with the SAME string serializer used to write it in put().
+            // opsForSet().members() would deserialize members with the template's JSON value
+            // serializer and fail (members are raw "rail:…" key strings, not JSON).
+            final var stringSerializer = redisTemplate.getStringSerializer();
+            Set<String> keys = redisTemplate.execute(
+                    (org.springframework.data.redis.core.RedisCallback<Set<String>>) connection -> {
+                        byte[] indexKeyBytes = stringSerializer.serialize(indexKey);
+                        Set<byte[]> raw = connection.setCommands().sMembers(indexKeyBytes);
+                        if (raw == null) return Collections.emptySet();
+                        return raw.stream()
+                                .filter(Objects::nonNull)
+                                .map(stringSerializer::deserialize)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet());
+                    });
 
-        if (members == null || members.isEmpty()) return;
+            if (keys == null || keys.isEmpty()) {
+                redisTemplate.delete(indexKey);
+                return;
+            }
 
-        // Convert safely
-        Set<String> keys = members.stream()
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .collect(Collectors.toSet());
+            redisTemplate.delete(keys);   // delete uses the (string) key serializer — correct for rail keys
+            redisTemplate.delete(indexKey);
 
-        // Batch delete (better than loop)
-        redisTemplate.delete(keys);
-
-        // cleanup index
-        redisTemplate.delete(indexKey);
+            log.info("Rail cache invalidated; reason=recordChanged; recordId={}; railKeysEvicted={}",
+                    recordId, keys.size());
+        } catch (Exception e) {
+            // A cache-eviction hiccup must never fail the mutation that triggered it.
+            log.warn("Rail cache evictByRecord failed for recordId={}; falling back to evictAll: {}",
+                    recordId, e.getMessage());
+            try { evictAll(); } catch (Exception ignored) { /* best-effort */ }
+        }
     }
 
     /* =========================================================
@@ -111,8 +137,12 @@ public class RailCacheService {
 
         Set<String> keys = redisTemplate.keys("rail:*");
 
-        if (keys == null || keys.isEmpty()) return;
+        if (keys == null || keys.isEmpty()) {
+            log.info("Rail cache invalidated; reason=evictAll; railKeysEvicted=0");
+            return;
+        }
 
         redisTemplate.delete(keys);
+        log.info("Rail cache invalidated; reason=evictAll; railKeysEvicted={}", keys.size());
     }
 }

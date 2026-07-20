@@ -1,135 +1,324 @@
-import React, { useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
+import { notify } from '@shared/notify';
 import {
-  Box, Card, CardContent, Chip, Collapse, CircularProgress, IconButton,
-  LinearProgress, Stack, Typography, Tooltip, alpha, useTheme,
+  alpha,
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Collapse,
+  IconButton,
+  LinearProgress,
+  Paper,
+  Stack,
+  Tooltip,
+  Typography,
+  useMediaQuery,
+  useTheme,
+  Button,
 } from '@mui/material';
 import { useT } from '@shared/theme';
 import {
-  Download, Archive, Merge, VideoSettings, CheckCircle,
-  Error as ErrorIcon, Pause, HourglassEmpty, Queue,
-  YouTube, Http, Link as Magnet, Folder,
-  ExpandMore, ExpandLess, Refresh,
+  Archive,
+  CheckCircle,
+  ContentCopy,
+  Download,
+  Error as ErrorIcon,
+  ExpandLess,
+  ExpandMore,
+  Folder,
+  HourglassEmpty,
+  Http,
+  Link as Magnet,
+  Merge,
+  Pause,
+  Queue,
+  Refresh,
+  VideoSettings,
+  YouTube,
+  PlayCircleOutline,
+  Timer,
+  Speed,
+  Notes,
+  FiberManualRecord as DotIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import JobActions from './JobActions';
+import CommonServices from '@shared/services/CommonServices';
 
-// ── Formatters ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Formatters
+// ─────────────────────────────────────────────────────────────────────────────
 
-function fmtBytes(b) {
-  if (!b && b !== 0) return '—';
-  if (b < 1024)        return `${b} B`;
-  if (b < 1024 ** 2)   return `${(b / 1024).toFixed(1)} KB`;
-  if (b < 1024 ** 3)   return `${(b / 1024 ** 2).toFixed(1)} MB`;
+function fmtBytes(value) {
+  if (value === null || value === undefined) return '—';
+  const b = Number(value);
+  if (!Number.isFinite(b)) return '—';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
   return `${(b / 1024 ** 3).toFixed(2)} GB`;
 }
 
 function fmtDurationMs(ms) {
-  if (!ms && ms !== 0) return '—';
-  const s  = Math.floor(ms / 1000);
+  if (ms === null || ms === undefined) return '—';
+  const total = Number(ms);
+  if (!Number.isFinite(total)) return '—';
+
+  const s = Math.floor(total / 1000);
   const hh = Math.floor(s / 3600);
   const mm = Math.floor((s % 3600) / 60);
   const ss = s % 60;
+
   if (hh > 0) return `${hh}h ${mm}m ${ss}s`;
   if (mm > 0) return `${mm}m ${ss}s`;
   return `${ss}s`;
 }
 
-function fmtSpeed(bps) {
-  if (!bps) return null;
-  if (bps < 1024)      return `${bps.toFixed(0)} B/s`;
-  if (bps < 1024 ** 2) return `${(bps / 1024).toFixed(1)} KB/s`;
-  return `${(bps / 1024 ** 2).toFixed(1)} MB/s`;
+function fmtClock(ms) {
+  const total = Number(ms);
+  if (!Number.isFinite(total) || total < 0) return null;
+  const s = Math.floor(total / 1000);
+  const hh = Math.floor(s / 3600);
+  const pad = (n) => String(n).padStart(2, '0');
+  const body = `${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+  return hh > 0 ? `${hh}:${body}` : body;
 }
 
-function fmtEta(s) {
-  if (!s || s <= 0) return null;
-  if (s < 60)   return `${s}s`;
+// Guarded "12:03 / 25:40" encode readout: only shown when the position is within the clip's
+// own duration and the duration itself is sane — so a stale/wrong-unit value can never render
+// as hundreds of hours. Returns null (→ hidden) otherwise.
+function encodeTime(positionMs, durationMs) {
+  const pos = Number(positionMs);
+  const dur = Number(durationMs);
+  if (!Number.isFinite(dur) || dur <= 0 || dur > 24 * 3600 * 1000) return null;
+  if (!Number.isFinite(pos) || pos < 0 || pos > dur * 1.05) return null;
+  return `${fmtClock(pos)} / ${fmtClock(dur)}`;
+}
+
+function fmtSpeed(bps) {
+  if (!bps) return null;
+  const n = Number(bps);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n < 1024) return `${n.toFixed(0)} B/s`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB/s`;
+  return `${(n / 1024 ** 2).toFixed(1)} MB/s`;
+}
+
+function fmtEta(seconds) {
+  if (!seconds || seconds <= 0) return null;
+  const s = Math.floor(Number(seconds));
+  if (s < 60) return `${s}s`;
   if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
 function timeAgo(ts) {
   if (!ts) return null;
-  const diff = Date.now() - ts;
+  const diff = Date.now() - Number(ts);
+  if (!Number.isFinite(diff)) return null;
+
   const s = Math.floor(diff / 1000);
-  if (s < 10)   return 'Just now';
-  if (s < 60)   return `${s}s ago`;
+  if (s < 10) return 'Just now';
+  if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
-  if (m < 60)   return `${m}m ago`;
+  if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24)   return `${h}h ago`;
+  if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// ── Configs ────────────────────────────────────────────────────────────────
+function safeDisplayName(fileName, uri, jobId) {
+  if (fileName) return fileName;
+  if (uri) {
+    try {
+      const raw = uri.split('/').pop()?.split('?')[0];
+      return raw || jobId;
+    } catch {
+      return jobId;
+    }
+  }
+  return jobId;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Config
+// ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_CFG = {
-  QUEUED:      { label: 'Queued',      color: 'default', Icon: Queue },
-  STARTED:     { label: 'Starting',    color: 'info',    Icon: HourglassEmpty },
+  QUEUED: { label: 'Queued', color: 'default', Icon: Queue },
+  STARTED: { label: 'Starting', color: 'info', Icon: HourglassEmpty },
   DOWNLOADING: { label: 'Downloading', color: 'primary', Icon: Download },
-  PROCESSING:  { label: 'Processing',  color: 'warning', Icon: VideoSettings },
-  PAUSED:      { label: 'Paused',      color: 'warning', Icon: Pause },
-  SUCCESS:     { label: 'Completed',   color: 'success', Icon: CheckCircle },
-  FAILED:      { label: 'Failed',      color: 'error',   Icon: ErrorIcon },
-  CANCELLED:   { label: 'Cancelled',   color: 'default', Icon: ErrorIcon },
+  PROCESSING: { label: 'Processing', color: 'warning', Icon: VideoSettings },
+  PAUSED: { label: 'Paused', color: 'warning', Icon: Pause },
+  SUCCESS: { label: 'Completed', color: 'success', Icon: CheckCircle },
+  FAILED: { label: 'Failed', color: 'error', Icon: ErrorIcon },
+  CANCELLED: { label: 'Cancelled', color: 'default', Icon: ErrorIcon },
 };
 
 const STEP_CFG = {
-  DOWNLOAD:   { label: 'Download',   Icon: Download },
-  EXTRACT:    { label: 'Extract',    Icon: Archive },
-  MERGE:      { label: 'Merge',      Icon: Merge },
-  FFMPEG:     { label: 'FFmpeg',     Icon: VideoSettings },
+  DOWNLOAD: { label: 'Download', Icon: Download },
+  EXTRACT: { label: 'Extract', Icon: Archive },
+  MERGE: { label: 'Merge', Icon: Merge },
+  FFMPEG: { label: 'FFmpeg', Icon: VideoSettings },
   MEDIA_INFO: { label: 'Media Info', Icon: VideoSettings },
 };
 
 const SOURCE_ICONS = {
   YOUTUBE: YouTube,
-  HTTP:    Http,
+  HTTP: Http,
   TORRENT: Magnet,
-  LOCAL:   Folder,
+  LOCAL: Folder,
 };
 
 const PIPELINE = ['DOWNLOAD', 'EXTRACT', 'MERGE', 'FFMPEG', 'MEDIA_INFO'];
 
-// ── Stage bar ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Theme-aware HTML log injection
+// ─────────────────────────────────────────────────────────────────────────────
+
+function injectTheme(html, isDark) {
+  const bg = isDark ? '#111827' : '#ffffff';
+  const fg = isDark ? '#d1d5db' : '#111827';
+
+  const css = `
+    html, body {
+      background: ${bg} !important;
+      color: ${fg} !important;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px;
+      margin: 0;
+      padding: 8px;
+      word-break: break-word;
+    }
+    pre, code { white-space: pre-wrap; }
+    a { color: ${isDark ? '#60a5fa' : '#2563eb'} !important; }
+    *[style*="color:red"], *[style*="color:#"], .error, .fail, .FAIL, .FAILED {
+      color: #f87171 !important;
+    }
+    .success, .ok, .SUCCESS { color: #4ade80 !important; }
+    .warn, .warning, .WARN { color: #fbbf24 !important; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    td, th {
+      padding: 2px 6px;
+      border: 1px solid ${isDark ? '#374151' : '#d1d5db'};
+    }
+  `;
+
+  const styleTag = `<style>${css}</style>`;
+
+  if (html.includes('</head>')) return html.replace('</head>', `${styleTag}</head>`);
+  if (html.includes('<head>')) return html.replace('<head>', `<head>${styleTag}`);
+  return `<html><head>${styleTag}</head><body>${html}</body></html>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Small UI helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MetaChip({ icon, label, color = 'default', outlined = true }) {
+  return (
+    <Chip
+      size="small"
+      icon={icon}
+      label={label}
+      color={color}
+      variant={outlined ? 'outlined' : 'filled'}
+      sx={{
+        borderRadius: 999,
+        fontSize: '0.68rem',
+        fontWeight: 700,
+        height: 23,
+        '& .MuiChip-label': {
+          px: 0.8,
+        },
+      }}
+    />
+  );
+}
+
+function ProgressInfo({ left, right }) {
+  return (
+    <Stack
+      direction="row"
+      justifyContent="space-between"
+      alignItems="baseline"
+      spacing={1}
+      mb={0.35}
+    >
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontSize: '0.7rem', minWidth: 0 }}
+      >
+        {left}
+      </Typography>
+
+      {right ? (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ fontSize: '0.7rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          {right}
+        </Typography>
+      ) : null}
+    </Stack>
+  );
+}
 
 function StageBar({ step, status }) {
-  const T   = useT();
+  const T = useT();
   const idx = PIPELINE.indexOf(step);
-  const done   = status === 'SUCCESS';
+  const done = status === 'SUCCESS';
   const failed = ['FAILED', 'CANCELLED'].includes(status);
 
   return (
-    <Stack direction="row" spacing={0.5} sx={{ my: 0.75 }}>
-      {PIPELINE.map((s, i) => {
-        const active = s === step && !done && !failed;
-        const past   = i < idx || done;
-        const isFail = failed && s === step;
+    <Stack direction="row" spacing={0.45} sx={{ my: 0.75 }}>
+      {PIPELINE.map((stage, i) => {
+        const active = stage === step && !done && !failed;
+        const past = i < idx || done;
+        const isFail = failed && stage === step;
 
         return (
-          <Tooltip key={s} title={STEP_CFG[s]?.label ?? s} placement="top">
+          <Tooltip key={stage} title={STEP_CFG[stage]?.label ?? stage} placement="top">
             <Box
               sx={{
                 height: 4,
                 flex: 1,
-                borderRadius: 2,
-                bgcolor: isFail ? T.error
-                       : past   ? T.success
-                       : active ? T.teal
-                       :          alpha(T.text ?? '#888', 0.12),
-                transition: 'background-color 0.35s',
+                borderRadius: 999,
+                bgcolor: isFail
+                  ? T.error
+                  : past
+                    ? T.success
+                    : active
+                      ? T.teal
+                      : alpha(T.text ?? '#888', 0.12),
                 position: 'relative',
                 overflow: 'hidden',
               }}
             >
-              {active && (
-                <Box sx={{
-                  position: 'absolute', inset: 0,
-                  background: `linear-gradient(90deg, transparent 0%, ${alpha(T.teal ?? '#00bcd4', 0.8)} 50%, transparent 100%)`,
-                  animation: 'shimmer 1.4s infinite linear',
-                  '@keyframes shimmer': { '0%': { transform: 'translateX(-100%)' }, '100%': { transform: 'translateX(200%)' } },
-                }} />
-              )}
+              {active ? (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: `linear-gradient(90deg, transparent 0%, ${alpha(
+                      T.teal ?? '#00bcd4',
+                      0.9
+                    )} 50%, transparent 100%)`,
+                    animation: 'jobcard_shimmer 1.35s infinite linear',
+                    '@keyframes jobcard_shimmer': {
+                      '0%': { transform: 'translateX(-100%)' },
+                      '100%': { transform: 'translateX(200%)' },
+                    },
+                  }}
+                />
+              ) : null}
             </Box>
           </Tooltip>
         );
@@ -138,342 +327,820 @@ function StageBar({ step, status }) {
   );
 }
 
-// ── Log HTML builder (injects theme CSS) ──────────────────────────────────
-
-function injectTheme(html, isDark) {
-  const bg  = isDark ? '#111827' : '#ffffff';
-  const fg  = isDark ? '#d1d5db' : '#111827';
-  const css = `
-    html,body{background:${bg}!important;color:${fg}!important;
-      font-family:'Consolas','Courier New',monospace;font-size:12px;
-      margin:0;padding:8px;word-break:break-word}
-    pre,code{white-space:pre-wrap}
-    a{color:${isDark ? '#60a5fa' : '#2563eb'}!important}
-    *[style*="color:red"],*[style*="color:#"],
-    .error,.fail,.FAIL,.FAILED{color:#f87171!important}
-    .success,.ok,.SUCCESS{color:#4ade80!important}
-    .warn,.warning,.WARN{color:#fbbf24!important}
-    table{border-collapse:collapse;width:100%}
-    td,th{padding:2px 6px;border:1px solid ${isDark ? '#374151' : '#d1d5db'}}
-  `;
-  const tag = `<style>${css}</style>`;
-  if (html.includes('</head>')) return html.replace('</head>', tag + '</head>');
-  if (html.includes('<head>'))  return html.replace('<head>', '<head>' + tag);
-  return `<html><head>${tag}</head><body>${html}</body></html>`;
+// One thin sub-step bar (FFmpeg / Info / Storyboard) inside a file row.
+function SubStepBar({ label, pct, active, T }) {
+  const value = Math.min(100, Math.max(0, Number(pct) || 0));
+  return (
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.15 }}>
+        <Typography sx={{ fontSize: 9.5, fontWeight: active ? 700 : 500, opacity: active ? 1 : 0.6 }}>
+          {label}
+        </Typography>
+        <Typography sx={{ fontSize: 9.5, opacity: 0.65 }}>{Math.round(value)}%</Typography>
+      </Stack>
+      <LinearProgress
+        variant="determinate"
+        value={value}
+        sx={{
+          height: 3,
+          borderRadius: 999,
+          bgcolor: alpha(T.text ?? '#888', 0.1),
+          '& .MuiLinearProgress-bar': { bgcolor: active ? (T.teal ?? '#00bcd4') : (T.success ?? '#4caf50') },
+        }}
+      />
+    </Box>
+  );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+const FILE_STATUS_LABEL = { active: 'Processing', done: 'Done', failed: 'Failed' };
 
-export default function JobCard({ job }) {
-  const T      = useT();
-  const theme  = useTheme();
+function fileStatusColor(T, status) {
+  switch (status) {
+    case 'active': return T.teal ?? '#00bcd4';
+    case 'done':   return T.success ?? '#4caf50';
+    case 'failed': return T.error ?? '#f44336';
+    default:       return alpha(T.text ?? '#888', 0.55); // pending
+  }
+}
+
+// The three sub-step bars (FFmpeg / Info / Board) for one file. Wrap to a second line on the
+// narrowest screens so labels + percents never get crushed.
+function SubStepRow({ f, T }) {
+  const active = f.status === 'active';
+  return (
+    <Stack direction="row" spacing={0.75} sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 0.5, sm: 0 } }}>
+      <SubStepBar label="FFmpeg" pct={f.ffmpegPercent} active={active && f.subStep === 'ffmpeg'} T={T} />
+      <SubStepBar label="Info" pct={f.mediaInfoPercent} active={active && f.subStep === 'media_info'} T={T} />
+      <SubStepBar label="Board" pct={f.storyboardPercent} active={active && f.subStep === 'storyboard'} T={T} />
+    </Stack>
+  );
+}
+
+// One file's row: index + name + status chip, and (when active/done) its sub-step bars.
+// The active file also shows a guarded "12:03 / 25:40" encode readout (hidden on mobile).
+function FileRow({ f, fileTotal, T, showIndex = true }) {
+  const color = fileStatusColor(T, f.status);
+  const active = f.status === 'active';
+  const showBars = active || f.status === 'done';
+  const clock = active ? encodeTime(f.ffmpegPositionMs, f.ffmpegDurationMs) : null;
+  return (
+    <Box
+      sx={{
+        px: 0.75,
+        py: 0.5,
+        borderRadius: 1.5,
+        bgcolor: alpha(color, active ? 0.09 : 0.04),
+        border: `1px solid ${alpha(color, 0.18)}`,
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: showBars ? 0.4 : 0 }}>
+        {showIndex ? (
+          <Typography sx={{ fontSize: 10, fontWeight: 700, opacity: 0.55, minWidth: 30 }}>
+            {f.index}/{fileTotal}
+          </Typography>
+        ) : null}
+        <Tooltip title={f.name}>
+          <Typography noWrap sx={{ fontSize: 11, flex: 1, minWidth: 0 }}>
+            {f.name}
+          </Typography>
+        </Tooltip>
+        {clock ? (
+          <Typography
+            sx={{
+              fontSize: 9.5,
+              color: alpha(T.text ?? '#888', 0.7),
+              whiteSpace: 'nowrap',
+              display: { xs: 'none', sm: 'block' },
+            }}
+          >
+            {clock}
+          </Typography>
+        ) : null}
+        <Chip
+          size="small"
+          label={FILE_STATUS_LABEL[f.status] ?? 'Queued'}
+          sx={{
+            height: 16,
+            fontSize: 9,
+            fontWeight: 700,
+            color,
+            bgcolor: alpha(color, 0.14),
+            '& .MuiChip-label': { px: 0.6 },
+          }}
+        />
+      </Stack>
+      {showBars ? <SubStepRow f={f} T={T} /> : null}
+    </Box>
+  );
+}
+
+// Single-file jobs: no "N of M" list — the overall bar already IS this file, so just show its
+// three sub-step bars (+ guarded encode time) inline.
+function SingleFileSteps({ file }) {
+  const T = useT();
+  if (!file) return null;
+  const clock = file.status === 'active' ? encodeTime(file.ffmpegPositionMs, file.ffmpegDurationMs) : null;
+  return (
+    <Box sx={{ mt: 0.75 }}>
+      {clock ? (
+        <Typography sx={{ fontSize: 10, color: alpha(T.text ?? '#888', 0.7), mb: 0.4 }}>{clock}</Typography>
+      ) : null}
+      <SubStepRow f={file} T={T} />
+    </Box>
+  );
+}
+
+// Multi-file (season-pack) breakdown: collapsible "Files · N of M" header + a height-capped,
+// scrollable list of file rows. Collapsed by default for large packs (> 8 files).
+function FileBreakdown({ files, fileIndex, fileTotal }) {
+  const T = useT();
+  const [open, setOpen] = useState(fileTotal <= 8);
+  if (!files || files.length === 0) return null;
+
+  return (
+    <Box sx={{ mt: 0.5 }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={0.5}
+        onClick={() => setOpen((o) => !o)}
+        sx={{ cursor: 'pointer', userSelect: 'none' }}
+      >
+        <Typography sx={{ fontSize: 11, fontWeight: 700, opacity: 0.75 }}>
+          {fileIndex ? `Files · ${fileIndex} of ${fileTotal}` : `Files · ${fileTotal}`}
+        </Typography>
+        <Box sx={{ flex: 1 }} />
+        <IconButton size="small" sx={{ p: 0.1 }}>
+          {open ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+        </IconButton>
+      </Stack>
+
+      <Collapse in={open}>
+        <Stack spacing={0.5} sx={{ mt: 0.35, maxHeight: 260, overflowY: 'auto', pr: 0.25 }}>
+          {files.map((f) => (
+            <FileRow key={f.index} f={f} fileTotal={fileTotal} T={T} />
+          ))}
+        </Stack>
+      </Collapse>
+    </Box>
+  );
+}
+
+function MobileBottomActions({
+  logOpen,
+  onToggleLogs,
+  onCopyUrl,
+  hasUri,
+  job,
+  compact,
+}) {
+  return (
+    <Box
+      sx={{
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        pb: 0.1,
+        mx: -0.15,
+      }}
+    >
+      <Stack
+        direction="row"
+        spacing={0.45}
+        alignItems="center"
+        sx={{
+          width: 'max-content',
+          minWidth: '100%',
+          flexWrap: 'nowrap',
+        }}
+      >
+        {compact ? (
+          <>
+            <Tooltip title={logOpen ? 'Hide logs' : 'Logs'}>
+              <IconButton
+                size="small"
+                onClick={onToggleLogs}
+                sx={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 2,
+                }}
+              >
+                {logOpen ? <ExpandLess sx={{ fontSize: 17 }} /> : <ExpandMore sx={{ fontSize: 17 }} />}
+              </IconButton>
+            </Tooltip>
+
+            {hasUri ? (
+              <Tooltip title="Copy source URL">
+                <IconButton
+                  size="small"
+                  onClick={onCopyUrl}
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 2,
+                  }}
+                >
+                  <ContentCopy sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Tooltip>
+            ) : null}
+
+            <JobActions job={job} layout="mobile" compactMobile />
+          </>
+        ) : (
+          <>
+            <Button
+              size="small"
+              variant="text"
+              startIcon={logOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+              onClick={onToggleLogs}
+              sx={{
+                minWidth: 0,
+                px: 0.9,
+                py: 0.35,
+                borderRadius: 999,
+                textTransform: 'none',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {logOpen ? 'Hide Logs' : 'Logs'}
+            </Button>
+
+            {hasUri ? (
+              <Button
+                size="small"
+                variant="text"
+                startIcon={<ContentCopy fontSize="small" />}
+                onClick={onCopyUrl}
+                sx={{
+                  minWidth: 0,
+                  px: 0.9,
+                  py: 0.35,
+                  borderRadius: 999,
+                  textTransform: 'none',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Copy URL
+              </Button>
+            ) : null}
+
+            <JobActions job={job} layout="mobile" compactMobile={false} />
+          </>
+        )}
+      </Stack>
+    </Box>
+  );
+}
+
+function LogPanel({
+  logOpen,
+  logLoading,
+  logError,
+  logHtml,
+  onRefresh,
+  isDark,
+  T,
+  isSmDown,
+}) {
+  return (
+    <Collapse in={logOpen} unmountOnExit>
+      <Paper
+        elevation={0}
+        variant="outlined"
+        sx={{
+          mt: 0.8,
+          borderRadius: 2.5,
+          overflow: 'hidden',
+          bgcolor: isDark ? 'rgba(0,0,0,0.18)' : 'rgba(15,23,42,0.02)',
+        }}
+      >
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{
+            px: 1,
+            py: 0.5,
+            borderBottom: `1px solid ${alpha(T.text ?? '#888', 0.08)}`,
+          }}
+        >
+          <Stack direction="row" spacing={0.65} alignItems="center">
+            <Notes sx={{ fontSize: 15, color: 'text.secondary' }} />
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontSize: '0.72rem', fontWeight: 700 }}
+            >
+              Job Logs
+            </Typography>
+          </Stack>
+
+          <Tooltip title="Refresh logs">
+            <span>
+              <IconButton
+                size="small"
+                sx={{ p: 0.45 }}
+                disabled={logLoading}
+                onClick={onRefresh}
+              >
+                {logLoading ? (
+                  <CircularProgress size={13} />
+                ) : (
+                  <Refresh sx={{ fontSize: 15 }} />
+                )}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+
+        {logLoading ? (
+          <Box sx={{ display: 'grid', placeItems: 'center', py: 2.1 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <CircularProgress size={16} />
+              <Typography variant="caption" color="text.secondary">
+                Loading logs…
+              </Typography>
+            </Stack>
+          </Box>
+        ) : logError ? (
+          <Box sx={{ py: 2.1, textAlign: 'center', px: 2 }}>
+            <Typography variant="caption" color="error" sx={{ display: 'block', mb: 0.65 }}>
+              Failed to load logs.
+            </Typography>
+            <Button size="small" onClick={onRefresh}>
+              Retry
+            </Button>
+          </Box>
+        ) : logHtml ? (
+          <iframe
+            key={isDark ? 'dark' : 'light'}
+            srcDoc={logHtml}
+            title="Job logs"
+            style={{
+              width: '100%',
+              height: isSmDown ? 260 : 320,
+              border: 'none',
+              display: 'block',
+            }}
+            sandbox="allow-same-origin"
+          />
+        ) : (
+          <Box sx={{ py: 2.1, textAlign: 'center' }}>
+            <Typography variant="caption" color="text.secondary">
+              No logs available yet.
+            </Typography>
+          </Box>
+        )}
+      </Paper>
+    </Collapse>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main component
+// ─────────────────────────────────────────────────────────────────────────────
+
+function JobCardComponent({ job }) {
+  const T = useT();
+  const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
+  const isVeryNarrow = useMediaQuery('(max-width:390px)');
 
-  const [logOpen,    setLogOpen]    = useState(false);
-  const [logHtml,    setLogHtml]    = useState(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const [logHtml, setLogHtml] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
-  const [logError,   setLogError]   = useState(false);
+  const [logError, setLogError] = useState(false);
 
   const {
-    jobId, status = 'QUEUED', step, sourceType,
-    fileName, uri, progress, failReason,
-    startTime, elapsedMs, recordId, recordName,
+    jobId,
+    status = 'QUEUED',
+    step,
+    sourceType,
+    fileName,
+    uri,
+    progress,
+    failReason,
+    startTime,
+    elapsedMs,
+    recordId,
+    recordName,
+    files,
+    fileIndex,
+    fileTotal,
+    overallPercent,
   } = job;
 
-  // ── Fetch logs (force=true bypasses the cache-guard) ──────────────────
-  const fetchLogs = async (force = false) => {
-    if (!force && logHtml) return;
-    setLogError(false);
-    setLogLoading(true);
-    try {
-      const { getJobReport } = await import('../services/ingestionApi');
-      const res = await getJobReport(jobId);
-      // API may return a wrapper { data: "<html>…" } or a raw string
-      const rawHtml = typeof res?.data === 'string' ? res.data
-                    : typeof res      === 'string'  ? res
-                    : '';
-      setLogHtml(injectTheme(rawHtml, isDark));
-    } catch {
-      setLogError(true);
-    } finally {
-      setLogLoading(false);
-    }
-  };
-
-  const toggleLogs = () => {
-    if (!logOpen) fetchLogs();
-    setLogOpen(p => !p);
-  };
-
-  // ── Derived display values ─────────────────────────────────────────────
-  const cfg        = STATUS_CFG[status] ?? STATUS_CFG.STARTED;
+  const cfg = STATUS_CFG[status] ?? STATUS_CFG.STARTED;
   const SourceIcon = SOURCE_ICONS[sourceType] ?? Http;
   const isTerminal = ['SUCCESS', 'FAILED', 'CANCELLED'].includes(status);
-  const isActive   = !isTerminal && status !== 'PAUSED';
+  const isActive = !isTerminal && status !== 'PAUSED';
 
-  const statusLabel = isTerminal || status === 'PAUSED'
-    ? cfg.label
-    : (step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label);
+  const statusLabel = useMemo(() => {
+    if (isTerminal || status === 'PAUSED') return cfg.label;
+    return step ? (STEP_CFG[step]?.label ?? cfg.label) : cfg.label;
+  }, [cfg.label, isTerminal, status, step]);
 
-  const pct       = progress?.percent ?? 0;
-  const speed     = fmtSpeed(progress?.speed);
-  const eta       = fmtEta(progress?.eta);
-  const isFfmpeg  = step === 'FFMPEG';
-  const isExtr    = step === 'EXTRACT';
+  const pct = Math.min(100, Math.max(0, Number(progress?.percent ?? 0)));
+  const speed = useMemo(() => fmtSpeed(progress?.speed), [progress?.speed]);
+  const eta = useMemo(() => fmtEta(progress?.eta), [progress?.eta]);
+  const isFfmpeg = step === 'FFMPEG';
+  const isExtract = step === 'EXTRACT';
   const isMerging = progress?.phase === 'merging';
+  // Speed + ETA are only meaningful while downloading. The backend now clears these on the
+  // step transition, but gate here too so a stale download ETA can never render as "574h"
+  // beside a 100% processing bar.
+  const isDownload = !isFfmpeg && !isExtract && !isMerging &&
+    (step === 'DOWNLOAD' || progress?.phase === 'downloading');
 
-  const progressLeft =
-      isMerging ? 'Merging audio + video…'
-    : isFfmpeg  ? `${fmtDurationMs(progress?.downloaded)} / ${fmtDurationMs(progress?.total)}`
-    : isExtr    ? (pct > 0 ? `${pct.toFixed(1)}%` : 'Extracting…')
-    :             `${fmtBytes(progress?.downloaded)} / ${fmtBytes(progress?.total)}`;
+  const hasFiles = Array.isArray(files) && files.length > 0;
+  const isMultiFile = Number(fileTotal) > 1;
+  // Main bar shows WHOLE-JOB progress once files are registered — a clean 0-100% that can never
+  // render as a time. Falls back to the download/extract byte-percent before files exist.
+  const mainPct = hasFiles
+    ? Math.min(100, Math.max(0, Number(overallPercent ?? pct)))
+    : pct;
 
-  const progressRight = [
-    !isMerging && speed              && speed,
-    !isMerging && eta                && `ETA ${eta}`,
-    pct > 0 && !isExtr && !isMerging && `${pct.toFixed(1)}%`,
-  ].filter(Boolean).join('  ');
+  const progressLeft = useMemo(() => {
+    if (isMerging) return 'Merging audio + video…';
+    if (hasFiles) return isMultiFile ? `File ${fileIndex ?? '—'} of ${fileTotal}` : 'Processing';
+    if (isExtract) return 'Extracting…';
+    return `${fmtBytes(progress?.downloaded)} / ${fmtBytes(progress?.total)}`;
+  }, [isMerging, hasFiles, isMultiFile, fileIndex, fileTotal, isExtract, progress?.downloaded, progress?.total]);
 
-  const showProgress = isActive && progress &&
-    (progress.downloaded > 0 || status === 'DOWNLOADING' || isFfmpeg || isExtr || isMerging);
+  const progressRight = useMemo(() => {
+    return [
+      isDownload && speed ? speed : null,
+      isDownload && eta ? `ETA ${eta}` : null,
+      mainPct > 0 && !isMerging ? `${mainPct.toFixed(1)}%` : null,
+    ]
+      .filter(Boolean)
+      .join('  ·  ');
+  }, [isDownload, speed, eta, mainPct, isMerging]);
 
-  const displayName = fileName ?? (uri ? uri.split('/').pop().split('?')[0] : jobId);
+  const showProgress = useMemo(() => {
+    return (
+      isActive &&
+      !!progress &&
+      (
+        Number(progress?.downloaded) > 0 ||
+        status === 'DOWNLOADING' ||
+        isFfmpeg ||
+        isExtract ||
+        isMerging
+      )
+    );
+  }, [isActive, progress, status, isFfmpeg, isExtract, isMerging]);
 
-  const borderColor =
-      status === 'FAILED'    ? alpha(T.error   ?? '#f44336', 0.5)
-    : status === 'CANCELLED' ? alpha(T.error   ?? '#f44336', 0.3)
-    : status === 'SUCCESS'   ? alpha(T.success ?? '#4caf50', 0.4)
-    : status === 'PAUSED'    ? alpha(T.warning ?? '#ff9800', 0.5)
-    : isActive               ? alpha(T.teal    ?? '#00bcd4', 0.4)
-    :                          (T.border ?? 'rgba(0,0,0,0.12)');
+  const displayName = useMemo(
+    () => safeDisplayName(fileName, uri, jobId),
+    [fileName, uri, jobId]
+  );
+
+  const footerTime = useMemo(() => {
+    return [
+      timeAgo(startTime),
+      elapsedMs > 0 ? `${fmtDurationMs(elapsedMs)}${isTerminal ? ' total' : ''}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }, [startTime, elapsedMs, isTerminal]);
+
+  const borderColor = useMemo(() => {
+    if (status === 'FAILED') return alpha(T.error ?? '#f44336', 0.5);
+    if (status === 'CANCELLED') return alpha(T.error ?? '#f44336', 0.3);
+    if (status === 'SUCCESS') return alpha(T.success ?? '#4caf50', 0.4);
+    if (status === 'PAUSED') return alpha(T.warning ?? '#ff9800', 0.5);
+    if (isActive) return alpha(T.teal ?? '#00bcd4', 0.4);
+    return T.border ?? 'rgba(0,0,0,0.12)';
+  }, [status, isActive, T]);
+
+  const sourceColor = useMemo(() => {
+    if (sourceType === 'YOUTUBE') return 'error.main';
+    if (sourceType === 'TORRENT') return 'secondary.main';
+    return 'text.secondary';
+  }, [sourceType]);
+
+  const themedLogHtml = useMemo(() => {
+    if (!logHtml) return null;
+    return injectTheme(logHtml, isDark);
+  }, [logHtml, isDark]);
+
+  const fetchLogs = useCallback(
+    async (force = false) => {
+      if (!force && logHtml) return;
+
+      setLogError(false);
+      setLogLoading(true);
+
+      try {
+        const { getJobReport } = await import('../services/ingestionApi');
+        const res = await getJobReport(jobId);
+
+        const rawHtml =
+          typeof res?.data === 'string'
+            ? res.data
+            : typeof res === 'string'
+              ? res
+              : '';
+
+        setLogHtml(rawHtml || null);
+      } catch {
+        setLogError(true);
+      } finally {
+        setLogLoading(false);
+      }
+    },
+    [jobId, logHtml]
+  );
+
+  const toggleLogs = useCallback(() => {
+    if (!logOpen) {
+      fetchLogs();
+    }
+    setLogOpen((prev) => !prev);
+  }, [logOpen, fetchLogs]);
+
+  const refreshLogs = useCallback(() => {
+    fetchLogs(true);
+  }, [fetchLogs]);
+
+  const handleCopyUrl = useCallback(async () => {
+  if (!uri) return;
+
+  try {
+    const result = await CommonServices.handleCopy(uri, {
+      enableFallback: true,
+      enableShare: true,
+      showToast: false,
+    });
+
+    notify[result?.success ? 'success' : 'error'](
+      result?.message || (result?.success ? 'Source URL copied' : 'Failed to copy URL')
+    );
+  } catch (error) {
+    notify.error(error?.message || 'Failed to copy URL');
+  }
+}, [uri]);
 
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.18 }}
+      exit={{ opacity: 0, scale: 0.99 }}
+      transition={{ duration: 0.14 }}
     >
       <Card
         variant="outlined"
         sx={{
-          borderRadius: 2,
+          borderRadius: isSmDown ? 3 : 4,
           borderColor,
-          transition: 'border-color 0.3s, box-shadow 0.2s',
+          transition: 'border-color 0.25s ease, box-shadow 0.2s ease',
+          overflow: 'hidden',
+          background:
+            theme.palette.mode === 'dark'
+              ? 'linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.012) 100%)'
+              : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)',
           '&:hover': {
             boxShadow: isDark
-              ? '0 2px 14px rgba(0,0,0,0.45)'
-              : '0 2px 10px rgba(0,0,0,0.09)',
+              ? '0 8px 20px rgba(0,0,0,0.24)'
+              : '0 8px 18px rgba(15,23,42,0.06)',
           },
         }}
       >
-        <CardContent sx={{ p: '10px 12px !important' }}>
-
-          {/* ── Header: source icon | name + record | status + expand + actions */}
-          <Stack direction="row" alignItems="flex-start" spacing={1}>
-
-            <SourceIcon
-              sx={{
-                fontSize: 17,
-                mt: '3px',
-                flexShrink: 0,
-                color: sourceType === 'YOUTUBE' ? 'error.main' : 'text.secondary',
-              }}
-            />
-
-            <Stack flex={1} minWidth={0}>
-              <Tooltip title={uri ?? displayName} placement="top-start">
-                <Typography variant="body2" fontWeight={600} noWrap>
-                  {displayName}
-                </Typography>
-              </Tooltip>
-              {recordName && (
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  noWrap
-                  sx={{ fontSize: '0.67rem', lineHeight: 1.4 }}
+        <CardContent
+          sx={{
+            p: isSmDown ? '10px 10px !important' : '14px 14px !important',
+          }}
+        >
+          <Stack spacing={0.85}>
+            {/* Header */}
+            <Stack
+              direction="row"
+              spacing={0.8}
+              alignItems="flex-start"
+              justifyContent="space-between"
+            >
+              <Stack direction="row" spacing={0.8} minWidth={0} flex={1}>
+                <Box
+                  sx={{
+                    width: isSmDown ? 30 : 34,
+                    height: isSmDown ? 30 : 34,
+                    borderRadius: isSmDown ? 2 : 2.25,
+                    display: 'grid',
+                    placeItems: 'center',
+                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                    color: sourceColor,
+                    flexShrink: 0,
+                    mt: 0.1,
+                  }}
                 >
-                  #{recordId} · {recordName}
-                </Typography>
-              )}
-            </Stack>
+                  <SourceIcon sx={{ fontSize: isSmDown ? 17 : 18 }} />
+                </Box>
 
-            <Stack direction="row" alignItems="center" spacing={0.25} flexShrink={0}>
-              <Chip
-                icon={<cfg.Icon sx={{ fontSize: '11px !important' }} />}
-                label={statusLabel}
-                color={cfg.color}
-                size="small"
-                sx={{ fontSize: '0.67rem', height: 20, '& .MuiChip-label': { px: 0.75 } }}
-              />
-              <Tooltip title={logOpen ? 'Collapse logs' : 'View logs'}>
-                <IconButton size="small" onClick={toggleLogs} sx={{ p: 0.4 }}>
-                  {logOpen
-                    ? <ExpandLess sx={{ fontSize: 15 }} />
-                    : <ExpandMore sx={{ fontSize: 15 }} />}
-                </IconButton>
-              </Tooltip>
-              <JobActions job={job} />
-            </Stack>
-          </Stack>
+                <Stack minWidth={0} flex={1} spacing={0.18}>
+                  <Tooltip title={displayName} placement="top-start">
+                    <Typography
+                      variant="body2"
+                      fontWeight={800}
+                      noWrap
+                      sx={{ lineHeight: 1.22 }}
+                    >
+                      {displayName}
+                    </Typography>
+                  </Tooltip>
 
-          {/* ── Stage bar ───────────────────────────────────────────────── */}
-          <StageBar step={step} status={status} />
-
-          {/* ── Download / FFmpeg / Extract progress ────────────────────── */}
-          {showProgress && (
-            <Box sx={{ mt: 0.5 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="baseline" mb={0.35}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-                  {progressLeft}
-                </Typography>
-                {progressRight && (
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-                    {progressRight}
-                  </Typography>
-                )}
+                  {recordName ? (
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      noWrap
+                      sx={{
+                        fontSize: isSmDown ? '0.68rem' : '0.72rem',
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      #{recordId} · {recordName}
+                    </Typography>
+                  ) : null}
+                </Stack>
               </Stack>
-              <LinearProgress
-                variant={isMerging || pct === 0 ? 'indeterminate' : 'determinate'}
-                value={pct}
-                sx={{ height: 4, borderRadius: 3 }}
+
+              <Stack direction="row" spacing={0.35} alignItems="center" flexShrink={0}>
+                <MetaChip
+                  icon={<cfg.Icon sx={{ fontSize: '13px !important' }} />}
+                  label={statusLabel}
+                  color={cfg.color}
+                  outlined={false}
+                />
+
+                {!isSmDown ? (
+                  <>
+                    {uri ? (
+                      <Tooltip title="Copy source URL">
+                        <IconButton size="small" onClick={handleCopyUrl} sx={{ p: 0.4 }}>
+                          <ContentCopy sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
+
+                    <Tooltip title={logOpen ? 'Collapse logs' : 'View logs'}>
+                      <IconButton size="small" onClick={toggleLogs} sx={{ p: 0.4 }}>
+                        {logOpen ? (
+                          <ExpandLess sx={{ fontSize: 17 }} />
+                        ) : (
+                          <ExpandMore sx={{ fontSize: 17 }} />
+                        )}
+                      </IconButton>
+                    </Tooltip>
+
+                    <JobActions job={job} layout="desktop" />
+                  </>
+                ) : null}
+              </Stack>
+            </Stack>
+
+            {/* Stage bar */}
+            <StageBar step={step} status={status} />
+
+            {/* Meta row */}
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+              <MetaChip
+                icon={<PlayCircleOutline sx={{ fontSize: 13 }} />}
+                label={sourceType || 'Source'}
               />
-            </Box>
-          )}
 
-          {/* Indeterminate bar for active steps that don't report byte progress */}
-          {isActive && !showProgress && status !== 'QUEUED' && (
-            <LinearProgress
-              variant="indeterminate"
-              sx={{ height: 3, borderRadius: 3, mt: 0.5 }}
-            />
-          )}
+              {footerTime ? (
+                <MetaChip
+                  icon={<Timer sx={{ fontSize: 13 }} />}
+                  label={footerTime}
+                />
+              ) : null}
 
-          {/* ── Fail reason ─────────────────────────────────────────────── */}
-          {failReason && (
-            <Box
-              sx={{
-                mt: 0.75,
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-                bgcolor: alpha(T.error ?? '#f44336', isDark ? 0.15 : 0.08),
-                border: `1px solid ${alpha(T.error ?? '#f44336', 0.25)}`,
-              }}
-            >
-              <Typography
-                variant="caption"
-                color="error"
-                sx={{ fontSize: '0.69rem', wordBreak: 'break-word', display: 'block' }}
-              >
-                {failReason}
-              </Typography>
-            </Box>
-          )}
+              {speed && !isMerging ? (
+                <MetaChip
+                  icon={<Speed sx={{ fontSize: 13 }} />}
+                  label={speed}
+                />
+              ) : null}
 
-          {/* ── Footer: job ID left, start time + elapsed right ─────────── */}
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-            sx={{ mt: 0.75 }}
-          >
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.64rem' }}>
-              {jobId.slice(0, 8)}…
-            </Typography>
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.64rem' }}>
-              {[
-                timeAgo(startTime),
-                elapsedMs > 0 && fmtDurationMs(elapsedMs) + (isTerminal ? ' total' : ''),
-              ].filter(Boolean).join(' · ')}
-            </Typography>
-          </Stack>
+              {!isSmDown ? (
+                <MetaChip
+                  icon={<DotIcon sx={{ fontSize: 10 }} />}
+                  label={`${jobId.slice(0, 8)}…`}
+                />
+              ) : null}
+            </Stack>
 
-          {/* ── Inline log panel ────────────────────────────────────────── */}
-          <Collapse in={logOpen} unmountOnExit>
-            <Box
-              sx={{
-                mt: 1,
-                border: `1px solid ${alpha(T.text ?? '#888', 0.12)}`,
-                borderRadius: 1,
-                overflow: 'hidden',
-                bgcolor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)',
-              }}
-            >
-              {/* Log toolbar */}
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
+            {/* Progress */}
+            {showProgress ? (
+              <Box sx={{ pt: 0.02 }}>
+                <ProgressInfo left={progressLeft} right={progressRight} />
+
+                <LinearProgress
+                  variant={isMerging || mainPct === 0 ? 'indeterminate' : 'determinate'}
+                  value={mainPct}
+                  sx={{
+                    height: isSmDown ? 5 : 6,
+                    borderRadius: 999,
+                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                  }}
+                />
+              </Box>
+            ) : isActive && status !== 'QUEUED' ? (
+              <LinearProgress
+                variant="indeterminate"
                 sx={{
-                  px: 1,
-                  py: 0.5,
-                  borderBottom: `1px solid ${alpha(T.text ?? '#888', 0.08)}`,
+                  height: 3.5,
+                  borderRadius: 999,
+                  mt: 0.1,
+                }}
+              />
+            ) : null}
+
+            {/* Per-file breakdown: full list for season packs, inline sub-steps for a single file */}
+            {hasFiles && isMultiFile ? (
+              <FileBreakdown files={files} fileIndex={fileIndex} fileTotal={fileTotal} />
+            ) : hasFiles ? (
+              <SingleFileSteps file={files[0]} />
+            ) : null}
+
+            {/* Failure block */}
+            {failReason ? (
+              <Paper
+                elevation={0}
+                variant="outlined"
+                sx={{
+                  mt: 0.05,
+                  px: 0.9,
+                  py: 0.6,
+                  borderRadius: 2,
+                  bgcolor: alpha(T.error ?? '#f44336', isDark ? 0.14 : 0.06),
+                  borderColor: alpha(T.error ?? '#f44336', 0.2),
                 }}
               >
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-                  Job Logs
+                <Typography
+                  variant="caption"
+                  color="error"
+                  sx={{
+                    fontSize: isSmDown ? '0.7rem' : '0.74rem',
+                    wordBreak: 'break-word',
+                    display: 'block',
+                    lineHeight: 1.38,
+                  }}
+                >
+                  {failReason}
                 </Typography>
-                <Tooltip title="Refresh logs">
-                  <IconButton
-                    size="small"
-                    sx={{ p: 0.4 }}
-                    disabled={logLoading}
-                    onClick={() => fetchLogs(true)}
-                  >
-                    {logLoading
-                      ? <CircularProgress size={12} />
-                      : <Refresh sx={{ fontSize: 13 }} />}
-                  </IconButton>
-                </Tooltip>
-              </Stack>
+              </Paper>
+            ) : null}
 
-              {/* Content */}
-              {logLoading && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2.5 }}>
-                  <CircularProgress size={20} />
-                </Box>
-              )}
+            {/* Mobile ID */}
+            {isSmDown ? (
+              <Typography
+                variant="caption"
+                color="text.disabled"
+                sx={{ fontSize: '0.66rem', lineHeight: 1.1 }}
+              >
+                {jobId.slice(0, 8)}…
+              </Typography>
+            ) : null}
 
-              {logError && !logLoading && (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2, gap: 1 }}>
-                  <Typography variant="caption" color="error">Failed to load logs.</Typography>
-                  <Typography
-                    component="span"
-                    variant="caption"
-                    color="primary"
-                    sx={{ cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => fetchLogs(true)}
-                  >
-                    Retry
-                  </Typography>
-                </Box>
-              )}
+            {/* Mobile bottom action row */}
+            {isSmDown ? (
+              <MobileBottomActions
+                logOpen={logOpen}
+                onToggleLogs={toggleLogs}
+                onCopyUrl={handleCopyUrl}
+                hasUri={!!uri}
+                job={job}
+                compact={isVeryNarrow}
+              />
+            ) : null}
 
-              {!logLoading && !logError && logHtml && (
-                <iframe
-                  key={isDark ? 'dark' : 'light'}
-                  srcDoc={logHtml}
-                  title="Job logs"
-                  style={{ width: '100%', height: 320, border: 'none', display: 'block' }}
-                  sandbox="allow-same-origin"
-                />
-              )}
-
-              {!logLoading && !logError && !logHtml && (
-                <Box sx={{ py: 2.5, textAlign: 'center' }}>
-                  <Typography variant="caption" color="text.secondary">
-                    No logs available yet.
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          </Collapse>
-
+            {/* Logs */}
+            <LogPanel
+              logOpen={logOpen}
+              logLoading={logLoading}
+              logError={logError}
+              logHtml={themedLogHtml}
+              onRefresh={refreshLogs}
+              isDark={isDark}
+              T={T}
+              isSmDown={isSmDown}
+            />
+          </Stack>
         </CardContent>
       </Card>
     </motion.div>
   );
 }
+
+const JobCard = memo(JobCardComponent);
+export default JobCard;

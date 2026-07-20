@@ -60,6 +60,11 @@ class MyDownloadManagerWeb extends WebPlugin {
 
   async pauseDownload()  {}
   async resumeDownload() {}
+  async retryDownload({ downloadId }) { return { downloadId }; }
+  async setNetworkPolicy() {}
+  async getSettings() { return { wifiOnly: false, concurrentLimit: 1, maxConcurrentLimit: 3 }; }
+  async setConcurrentLimit({ limit }) { return { concurrentLimit: limit }; }
+  async consumePendingRoute() { return { route: '' }; }
 
   async cancelDownload({ downloadId }) {
     this.downloads = this.downloads.filter(d => d.downloadId !== downloadId);
@@ -74,6 +79,15 @@ class MyDownloadManagerWeb extends WebPlugin {
   async openDownloadedFile({ localUri, playableUri }) {
     const target = playableUri || localUri;
     if (target) window.open(target, '_blank', 'noopener,noreferrer');
+  }
+
+  // Wallet direct-save surface (native-only in practice; web callers use an anchor download).
+  async saveDocument({ fileName, mimeType }) {
+    return { uri: '', mimeType: mimeType || '', fileName: fileName || 'document' };
+  }
+
+  async openFile({ uri }) {
+    if (uri) window.open(uri, '_blank', 'noopener,noreferrer');
   }
 }
 

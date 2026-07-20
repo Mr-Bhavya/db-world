@@ -1,71 +1,166 @@
 import { useEffect, useRef, useCallback } from 'react';
 import useIngestionStore from '../store/ingestionStore';
-
-const WS_URL = import.meta.env.VITE_WEBSOCKET_BASEURL
-  ? `${import.meta.env.VITE_WEBSOCKET_BASEURL}/ws/status`
-  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/status`;
+import { resolveWsUrl } from '@shared/config/apiBaseUrl';
 
 const RECONNECT_DELAY = 5000;
 
 /**
  * Manages the WebSocket connection to /ws/status.
- * Parses the server broadcast (jobId → JobSnapshot map) and
- * writes it into the Zustand store.
+ * Parses the server broadcast (jobId -> JobSnapshot map)
+ * and writes it into the Zustand store.
  */
 export function useIngestionWS() {
-  const setJobs      = useIngestionStore((s) => s.setJobs);
-  const setWsStatus  = useIngestionStore((s) => s.setWsStatus);
-  const ws           = useRef(null);
+  const setJobs = useIngestionStore((s) => s.setJobs);
+  const setWsStatus = useIngestionStore((s) => s.setWsStatus);
+
+  const wsRef = useRef(null);
   const reconnectRef = useRef(null);
-  const unmounted    = useRef(false);
+  const unmountedRef = useRef(false);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectRef.current) {
+      clearTimeout(reconnectRef.current);
+      reconnectRef.current = null;
+    }
+  }, []);
+
+  const cleanupSocket = useCallback(() => {
+    if (!wsRef.current) return;
+
+    wsRef.current.onopen = null;
+    wsRef.current.onmessage = null;
+    wsRef.current.onerror = null;
+    wsRef.current.onclose = null;
+
+    try {
+      if (
+        wsRef.current.readyState === WebSocket.OPEN ||
+        wsRef.current.readyState === WebSocket.CONNECTING
+      ) {
+        wsRef.current.close(1000, 'cleanup');
+      }
+    } catch {
+      // ignore cleanup close errors
+    }
+
+    wsRef.current = null;
+  }, []);
+
+  const scheduleReconnect = useCallback((connectFn) => {
+    if (unmountedRef.current || reconnectRef.current) return;
+
+    reconnectRef.current = setTimeout(() => {
+      reconnectRef.current = null;
+      connectFn();
+    }, RECONNECT_DELAY);
+  }, []);
 
   const connect = useCallback(() => {
-    if (unmounted.current) return;
+    if (unmountedRef.current) return;
+
+    // Prevent duplicate active connections
+    if (
+      wsRef.current &&
+      (wsRef.current.readyState === WebSocket.OPEN ||
+        wsRef.current.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+
+    clearReconnectTimer();
+    cleanupSocket();
+
+    const wsUrl = resolveWsUrl('/ws/status');
+
     setWsStatus('connecting');
 
     try {
-      ws.current = new WebSocket(WS_URL);
+      const socket = new WebSocket(wsUrl);
+      wsRef.current = socket;
 
-      ws.current.onopen = () => {
-        if (unmounted.current) return;
+      socket.onopen = () => {
+        if (unmountedRef.current) return;
+        clearReconnectTimer();
         setWsStatus('connected');
-        clearTimeout(reconnectRef.current);
       };
 
-      ws.current.onmessage = (event) => {
-        if (unmounted.current) return;
+      socket.onmessage = (event) => {
+        if (unmountedRef.current) return;
+
         try {
-          // Backend sends: { jobId: { jobId, status, step, sourceType, fileName, uri, progress, ... } }
+          // Backend sends:
+          // { jobId: { jobId, status, step, sourceType, fileName, uri, progress, ... } }
           const data = JSON.parse(event.data);
           setJobs(data);
         } catch {
-          // ignore parse errors
+          // ignore malformed payloads
         }
       };
 
-      ws.current.onerror = () => {
-        if (!unmounted.current) setWsStatus('error');
+      socket.onerror = () => {
+        if (unmountedRef.current) return;
+        setWsStatus('error');
       };
 
-      ws.current.onclose = (e) => {
-        if (unmounted.current) return;
+      socket.onclose = (event) => {
+        if (unmountedRef.current) return;
+
+        wsRef.current = null;
         setWsStatus('disconnected');
-        if (e.code !== 1000) {
-          reconnectRef.current = setTimeout(connect, RECONNECT_DELAY);
+
+        // 1000 = normal close -> do not reconnect
+        if (event.code !== 1000) {
+          scheduleReconnect(connect);
         }
       };
     } catch {
-      setWsStatus('error');
+      if (!unmountedRef.current) {
+        setWsStatus('error');
+        scheduleReconnect(connect);
+      }
     }
-  }, [setJobs, setWsStatus]);
+  }, [setJobs, setWsStatus, clearReconnectTimer, cleanupSocket, scheduleReconnect]);
 
+  // 1) Initial mount + unmount cleanup
   useEffect(() => {
-    unmounted.current = false;
+    unmountedRef.current = false;
     connect();
+
     return () => {
-      unmounted.current = true;
-      clearTimeout(reconnectRef.current);
-      if (ws.current) ws.current.close(1000, 'unmount');
+      unmountedRef.current = true;
+      clearReconnectTimer();
+      cleanupSocket();
     };
+  }, [connect, clearReconnectTimer, cleanupSocket]);
+
+  // 2) Reconnect when device/network comes back online
+  useEffect(() => {
+    const handleOnline = () => {
+      if (!unmountedRef.current) {
+        connect();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [connect]);
+
+  // 3) Reconnect when app/tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !unmountedRef.current) {
+        connect();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+
   }, [connect]);
 }

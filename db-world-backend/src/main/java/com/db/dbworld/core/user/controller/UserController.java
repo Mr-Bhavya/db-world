@@ -102,6 +102,8 @@ public class UserController {
         profile.setLastName(userDto.getLastName());
         profile.setEmail(userDto.getEmail());
         profile.setMobileNo(userDto.getMobileNo());
+        profile.setGender(userDto.getGender());
+        profile.setDob(userDto.getDob());
         profile.setUserRole(userDto.getUserRole());
 
         profile.setNoOfLogin(
@@ -154,6 +156,48 @@ public class UserController {
     ) {
         userService.changePassword(request);
         return ApiResponse.success("Password updated successfully");
+    }
+
+    // ==============================
+    // 🔐 ADMIN RESET PASSWORD
+    // ==============================
+    @AdminAccess
+    @PatchMapping("/{userId}/password")
+    public ApiResponse<Void> adminSetPassword(
+            @PathVariable Long userId,
+            @Valid @RequestBody AdminPasswordRequest request
+    ) {
+        userService.adminSetPassword(userId, request.getPassword());
+        return ApiResponse.success("Password reset successfully");
+    }
+
+    // ==============================
+    // 🔐 SESSIONS (active refresh tokens + login history)
+    // ==============================
+    @AdminAccess
+    @GetMapping("/{userId}/sessions")
+    public ApiResponse<Map<String, Object>> getUserSessions(@PathVariable Long userId) {
+        return ApiResponse.success(userService.getUserSessions(userId));
+    }
+
+    @AdminAccess
+    @DeleteMapping("/{userId}/sessions")
+    public ApiResponse<Void> revokeUserSessions(@PathVariable Long userId) {
+        int removed = userService.revokeUserSessions(userId);
+        return ApiResponse.success("Revoked " + removed + " session(s)");
+    }
+
+    // ==============================
+    // ENABLE / DISABLE (lock) USER
+    // ==============================
+    @AdminAccess
+    @PatchMapping("/{userId}/status")
+    public ApiResponse<UserDto> setUserEnabled(
+            @PathVariable Long userId,
+            @RequestParam boolean enabled
+    ) {
+        return ApiResponse.success(enabled ? "User enabled" : "User disabled",
+                userService.setUserEnabled(userId, enabled));
     }
 
     // ==============================

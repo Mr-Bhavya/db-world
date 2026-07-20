@@ -41,15 +41,21 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public AdminDashboardDto getStats() {
-        return AdminDashboardDto.builder()
-                .users(buildUserStats())
-                .records(buildRecordStats())
-                .sync(buildSyncStats())
-                .media(buildMediaStats())
-                .system(buildSystemStats())
-                .tags(buildTagStats())
-                .recentRecords(buildRecentRecords())
-                .build();
+        log.debug("Building admin dashboard stats aggregate");
+        try {
+            return AdminDashboardDto.builder()
+                    .users(buildUserStats())
+                    .records(buildRecordStats())
+                    .sync(buildSyncStats())
+                    .media(buildMediaStats())
+                    .system(buildSystemStats())
+                    .tags(buildTagStats())
+                    .recentRecords(buildRecentRecords())
+                    .build();
+        } catch (Exception e) {
+            log.error("Failed to build admin dashboard stats", e);
+            throw e;
+        }
     }
 
     /* â”€â”€ Sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

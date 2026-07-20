@@ -31,6 +31,18 @@ export const rerunJob = async (jobId) => {
   return res.data;
 };
 
+/** Re-editable snapshot of a job's original request (for rerun-with-edit). */
+export const getJobParams = async (jobId) => {
+  const res = await axiosInstance.get(`/api/ingestion/${jobId}/params`);
+  return res.data;
+};
+
+/** Live-edit safe fields (season/episode) on a still-running job. */
+export const editJobParams = async (jobId, body) => {
+  const res = await axiosInstance.patch(`/api/ingestion/${jobId}/params`, body);
+  return res.data;
+};
+
 export const deleteJob = async (jobId) => {
   const res = await axiosInstance.delete(`/api/ingestion/${jobId}`);
   return res.data;

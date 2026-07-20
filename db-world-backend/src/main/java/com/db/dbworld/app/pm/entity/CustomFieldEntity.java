@@ -10,7 +10,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "CREDENTIAL_CUSTOM_FIELDS", schema = "new_db_world")
+@Table(name = "CREDENTIAL_CUSTOM_FIELDS", schema = "db_world")
 public class CustomFieldEntity {
 
     @Id

@@ -62,12 +62,6 @@ public class DbWorldUtils {
         }
     }
 
-    public void checkRecordType(String type) {
-        if (!type.equalsIgnoreCase(AppConstants.RECORD_TYE.MOVIE.name()) && !type.equalsIgnoreCase((AppConstants.RECORD_TYE.SERIES.name()))) {
-            throw new DbWorldException(HttpStatus.BAD_REQUEST, "Record Type is not correct. Please Try again with valid record type.");
-        }
-    }
-
     public List<String> readFileInList(String filePath) {
         try {
             return Files.readAllLines(Paths.get(filePath), StandardCharsets.UTF_8);

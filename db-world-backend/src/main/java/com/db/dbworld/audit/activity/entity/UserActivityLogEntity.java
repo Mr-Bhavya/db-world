@@ -8,7 +8,15 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_activity_logs")
+@Table(name = "user_activity_logs",
+    // High-volume audit log with no indexes: the admin viewer filters by user_id and
+    // sorts/ranges on timestamp. (email/uri/ip use leading-wildcard LIKE, so they can't
+    // use an index and are intentionally not indexed.)
+    indexes = {
+        @Index(name = "idx_ual_timestamp", columnList = "timestamp"),
+        @Index(name = "idx_ual_user", columnList = "user_id")
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

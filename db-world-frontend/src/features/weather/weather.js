@@ -10,8 +10,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import CommonServices from '@shared/services/CommonServices';
 import Map from './Map';
-import { toast } from '@shared/components/ui/Toast';
+import { notify } from '@shared/notify';
 import { useT, getFieldSx, getGlowProps } from '@shared/theme';
+import usePageMeta from '@shared/hooks/usePageMeta';
 import axiosInstance from '@shared/components/ui/utils/AxiosInstants';
 
 const WEATHER_ICONS = {
@@ -47,6 +48,8 @@ const StatCard = ({ emoji, label, value, unit }) => {
 };
 
 function Weather() {
+  usePageMeta('Weather', { description: 'Live local weather, current conditions and forecast on DB World.' });
+
   const T     = useT();
   const FIELD = getFieldSx(T);
   const GLOW  = getGlowProps(T);
@@ -72,9 +75,9 @@ function Weather() {
       setWeatherData(await fetchWeather({ city }));
     } catch (err) {
       if (err?.response?.status === 404) {
-        toast.error('City not found. Please try another location.');
+        notify.error('City not found. Please try another location.');
       } else {
-        toast.error('Failed to fetch weather data. Please check your connection.');
+        notify.error('Failed to fetch weather data. Please check your connection.');
       }
     }
     setRefreshing(false);
@@ -87,7 +90,7 @@ function Weather() {
       setWeatherData(await fetchWeather({ lat: coords.latitude, lon: coords.longitude }));
       setPermissionDenied(false);
     } catch {
-      toast.error('Failed to fetch location data.');
+      notify.error('Failed to fetch location data.');
       fetchByCity();
     }
     setLoading(false);
@@ -104,7 +107,7 @@ function Weather() {
   };
 
   const getLocation = async (forcePrompt = false) => {
-    if (!navigator.geolocation) { toast.error('Geolocation not supported.'); fetchByCity(); return; }
+    if (!navigator.geolocation) { notify.error('Geolocation not supported.'); fetchByCity(); return; }
     const state = await checkPermission();
     if (state === 'denied' && !forcePrompt) {
       setPermissionDenied(true);
@@ -116,7 +119,7 @@ function Weather() {
       (pos) => fetchByCoords(pos.coords),
       (err) => {
         if (err.code === err.PERMISSION_DENIED) { setPermissionDenied(true); setShowDialog(true); }
-        else toast.error('Failed to get location. Using default city.');
+        else notify.error('Failed to get location. Using default city.');
         fetchByCity();
       },
       { timeout: 10000 }

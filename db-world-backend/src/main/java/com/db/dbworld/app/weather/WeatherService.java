@@ -1,6 +1,8 @@
 package com.db.dbworld.app.weather;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.db.dbworld.app.admin.config.registry.ConfigKeys;
+import com.db.dbworld.app.admin.config.service.SettingsService;
+import tools.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WeatherService {
 
     private final WeatherProperties props;
+    private final SettingsService settings;
     private final RestClient restClient = RestClient.create();
 
     /** Cache key → (fetchedAt, payload). Bounded implicitly by the small key space. */
@@ -33,6 +36,7 @@ public class WeatherService {
     private record CacheEntry(Instant at, JsonNode payload) {}
 
     public JsonNode byCity(String city) {
+        log.debug("byCity city={}", city);
         if (city == null || city.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "city is required");
         }
@@ -41,6 +45,7 @@ public class WeatherService {
     }
 
     public JsonNode byCoords(double lat, double lon) {
+        log.debug("byCoords lat={} lon={}", lat, lon);
         // Round to 3 decimals (~110m) so adjacent requests share a cache slot.
         String key = String.format("coord:%.3f,%.3f", lat, lon);
         return cachedOrFetch(key, String.format("/weather?lat=%s&lon=%s", lat, lon));
@@ -48,15 +53,19 @@ public class WeatherService {
 
     private JsonNode cachedOrFetch(String key, String pathWithQuery) {
         CacheEntry hit = cache.get(key);
-        if (hit != null && Duration.between(hit.at(), Instant.now()).getSeconds() < props.getCacheTtlSeconds()) {
+        if (hit != null && Duration.between(hit.at(), Instant.now()).getSeconds()
+                < settings.getInt(ConfigKeys.WEATHER_CACHE_TTL_SECONDS)) {
+            log.debug("Weather cache hit key={}", key);
             return hit.payload();
         }
 
         if (props.getApiKey() == null || props.getApiKey().isBlank()) {
+            log.warn("Weather API key is not configured on the server");
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Weather API key is not configured on the server");
         }
 
+        log.info("Weather cache miss, fetching key={}", key);
         String url = props.getBaseUrl() + pathWithQuery
                 + (pathWithQuery.contains("?") ? "&" : "?")
                 + "appid=" + props.getApiKey();
@@ -65,14 +74,17 @@ public class WeatherService {
             ResponseEntity<JsonNode> resp = restClient.get().uri(url).retrieve().toEntity(JsonNode.class);
             JsonNode body = resp.getBody();
             if (body == null) {
+                log.warn("OpenWeather returned empty body for key={}", key);
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Empty weather response");
             }
             cache.put(key, new CacheEntry(Instant.now(), body));
+            log.info("Weather cache refreshed key={}", key);
             return body;
         } catch (HttpClientErrorException.NotFound e) {
+            log.warn("OpenWeather not found for key={}: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "City not found");
         } catch (HttpClientErrorException e) {
-            log.warn("OpenWeather upstream error {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.warn("OpenWeather upstream error {}: {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Weather upstream error");
         }
     }

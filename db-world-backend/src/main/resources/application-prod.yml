@@ -3,6 +3,14 @@ spring:
     activate:
       on-profile: prod
 
+  # Lazy-init every bean — they're created on first use rather than at boot.
+  # @Scheduled / @EventListener processors still register eagerly via bean
+  # post-processors so background work isn't broken. Local-only because the
+  # first request after boot pays the bean-creation cost; in prod we keep
+  # everything eager so health checks see a fully-warm context.
+  main:
+    lazy-initialization: false
+
 # ===========================
 # Common Application Properties
 # ===========================
@@ -35,8 +43,8 @@ app:
     ffmpeg: ffmpeg
     seven-zip: 7z
     mediainfo: mediainfo
-    hs-cookies: ${app.paths.config}/HS_COOKIES.txt
-    cookies-dir: /etc/dbworld/cookies
+    hs-cookies: ${app.base-path}/cookies/hotstar.txt
+    cookies-dir: ${app.base-path}/cookies
 
 server:
   port: ${SERVER_PORT:9090}
@@ -51,4 +59,7 @@ springdoc:
 logging:
   level:
     root: INFO
-    com.db.dbworld: INFO
+    # DEBUG so com.db.dbworld DEBUG events reach log4j2's LevelRangeFilter and
+    # land in db-world-debug.log. INFO+ still routes to db-world-info.log
+    # (different appender filter), so this does not inflate info-log volume.
+    com.db.dbworld: DEBUG

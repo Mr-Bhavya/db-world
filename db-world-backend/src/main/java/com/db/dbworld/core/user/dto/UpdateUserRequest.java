@@ -33,6 +33,9 @@ public class UpdateUserRequest {
     @Max(value = 9999999999L, message = "must be 10 digit")
     private Long mobileNo;
 
+    /** Optional — when provided, changes the login email (uniqueness enforced in the service). */
+    @Email
+    private String email;
 
     @Size(min = 6, max = 100)
     private String password;

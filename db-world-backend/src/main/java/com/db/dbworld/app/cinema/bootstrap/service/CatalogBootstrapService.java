@@ -9,12 +9,14 @@ import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -25,6 +27,9 @@ public class CatalogBootstrapService {
     private final RailBootstrapService railBootstrapService;
 
     public void bootstrap() {
+
+        long start = System.currentTimeMillis();
+        log.info("Catalog bootstrap started");
 
         List<RecordEntity> records = new ArrayList<>();
 
@@ -45,6 +50,9 @@ public class CatalogBootstrapService {
 //        assignTags(records);
 
         railBootstrapService.generateRails();
+
+        log.info("Catalog bootstrap completed; recordsIngested={}, took={}ms",
+                records.size(), System.currentTimeMillis() - start);
     }
 
     /* ======================================================

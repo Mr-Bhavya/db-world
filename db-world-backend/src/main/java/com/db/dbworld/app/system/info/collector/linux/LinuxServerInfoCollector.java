@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,6 +54,14 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     protected static final Path SYS_HWMON      = Path.of("/sys/class/hwmon");
     protected static final Path SYS_DMI        = Path.of("/sys/class/dmi/id");
     protected static final Path SYS_BLOCK       = Path.of("/sys/class/block");
+    protected static final Path SYS_NET         = Path.of("/sys/class/net");
+
+    // /etc paths
+    protected static final Path ETC_RESOLV_CONF = Path.of("/etc/resolv.conf");
+
+    // Cached net stats for zero-sleep delta speed in getPerformanceMetrics()
+    private final AtomicReference<Map<String, long[]>> prevNetStats = new AtomicReference<>(Map.of());
+    private volatile long prevNetTimestamp = 0L;
 
     public LinuxServerInfoCollector(ProcessExecutor processExecutor) {
         super(processExecutor);
@@ -170,21 +179,33 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
         List<Double> coreLoads = measurePerCoreCpuUsage();
         double avgLoad = coreLoads.stream().mapToDouble(d -> d).average().orElse(0.0);
 
+        List<CpuCore> coreDetails = new ArrayList<>();
+        for (int i = 0; i < coreLoads.size(); i++) {
+            coreDetails.add(CpuCore.builder()
+                    .coreId(i)
+                    .loadPercent(coreLoads.get(i))
+                    .vendor(vendor.trim())
+                    .build());
+        }
+
         return CpuInfo.builder()
                 .name(model.trim())
                 .vendor(vendor.trim())
                 .cores(cores)
-                .cores(cores)
+                // Most ARM boards (Pi included) have no SMT, so thread count == core count
+                // unless a subclass overrides with a real value.
+                .threads(cores)
                 .availableProcessors(cores)
                 .architecture(System.getProperty("os.arch"))
                 .clockSpeedMhz(mhz)
                 .cacheSize(cache)
                 .loadPercentage((int) avgLoad)
                 .loadPercentageStr(String.format("%.1f", avgLoad))
+                .coreDetails(coreDetails)
                 .build();
     }
 
-    private List<Double> measurePerCoreCpuUsage() {
+    protected List<Double> measurePerCoreCpuUsage() {
         try {
             long[][] before = readCpuStats();
             Thread.sleep(500);
@@ -259,9 +280,41 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .swapUsedFormatted(formatBytes(swapUsed))
                 .swapUsedPercent(String.format("%.1f", swapPct))
                 .javaTotalMemory(runtime.totalMemory()).javaFreeMemory(runtime.freeMemory()).javaMaxMemory(runtime.maxMemory())
+                .javaUsedMemory(runtime.totalMemory() - runtime.freeMemory())
                 .javaTotalFormatted(formatBytes(runtime.totalMemory()))
                 .javaFreeFormatted(formatBytes(runtime.freeMemory()))
                 .javaMaxFormatted(formatBytes(runtime.maxMemory()))
+                .javaUsedFormatted(formatBytes(runtime.totalMemory() - runtime.freeMemory()))
+                .build();
+    }
+
+    @Override
+    public MemoryInfo getBasicMemoryInfo() {
+        Map<String, Long> mem = parseMeminfo();
+        long totalKb = mem.getOrDefault("MemTotal", 0L);
+        long availKb = mem.getOrDefault("MemAvailable", 0L);
+        long usedKb  = totalKb - availKb;
+        long total = totalKb * 1024L, avail = availKb * 1024L, used = usedKb * 1024L;
+        double pct = calculatePercentage(usedKb, totalKb);
+
+        long javaTotal = runtime.totalMemory(), javaFree = runtime.freeMemory(), javaMax = runtime.maxMemory();
+        long javaUsed  = javaTotal - javaFree;
+
+        return MemoryInfo.builder()
+                .totalBytes(total).usedBytes(used).freeBytes(avail)
+                .totalFormatted(formatBytes(total))
+                .usedFormatted(formatBytes(used))
+                .freeFormatted(formatBytes(avail))
+                .availableFormatted(formatBytes(avail))
+                .usedPercent(String.format("%.1f", pct))
+                .javaTotalMemory(javaTotal)
+                .javaFreeMemory(javaFree)
+                .javaMaxMemory(javaMax)
+                .javaUsedMemory(javaUsed)
+                .javaTotalFormatted(formatBytes(javaTotal))
+                .javaFreeFormatted(formatBytes(javaFree))
+                .javaMaxFormatted(formatBytes(javaMax))
+                .javaUsedFormatted(formatBytes(javaUsed))
                 .build();
     }
 
@@ -424,12 +477,19 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             String ipAddr = extractIpFromAddrShow(ipInfo);
             String macAddr = extractMacFromAddrShow(ipInfo);
 
+            // Link state from /sys/class/net/<iface>/operstate (best-effort; null on failure)
+            String status = deriveAdapterStatus(iface);
+
             adapters.add(NetworkAdapter.builder()
                     .name(iface)
                     .ipAddress(ipAddr)
                     .macAddress(macAddr)
+                    .status(status)
                     .rxBytesTotal(rxBytes)
                     .txBytesTotal(txBytes)
+                    // Populate the generic DTO names too so both naming conventions agree
+                    .bytesReceived(rxBytes)
+                    .bytesSent(txBytes)
                     .rxBytesPerSec(rxSpeed)
                     .txBytesPerSec(txSpeed)
                     .rxBytesPerSecFormatted(formatBytes(rxSpeed) + "/s")
@@ -445,14 +505,121 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
 
         return NetworkInfo.builder()
                 .hostname(getHostname())
+                .domain(getNetworkDomain())
                 .ipAddresses(getIpAddresses())
                 .adapters(adapters)
+                .adapterCount(adapters.size())
+                .defaultGateway(getDefaultGateway())
+                .dnsServers(getDnsServers())
                 .activeConnections(connCount)
                 .build();
     }
 
+    /**
+     * Best-effort link state from /sys/class/net/&lt;iface&gt;/operstate.
+     * Returns "Up" for operstate "up", the capitalized raw value for anything else
+     * (e.g. "Down", "Dormant", "Unknown"), or null if the file is unreadable/missing.
+     */
+    private String deriveAdapterStatus(String iface) {
+        try {
+            String operstate = readFileSafe(SYS_NET.resolve(iface).resolve("operstate"));
+            if (operstate.isEmpty()) return null;
+            return operstate.equalsIgnoreCase("up") ? "Up" : capitalize(operstate);
+        } catch (Exception e) {
+            log.debug("operstate read failed for {}: {}", iface, e.getMessage());
+            return null;
+        }
+    }
+
+    private static String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase();
+    }
+
+    /**
+     * Best-effort default gateway via `ip route show default` (parses "default via X ...").
+     * Never throws; returns null if the command is unavailable or output doesn't match.
+     */
+    private String getDefaultGateway() {
+        try {
+            String route = exec("ip", "route", "show", "default");
+            for (String line : route.split("\n")) {
+                line = line.trim();
+                if (line.startsWith("default via")) {
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 3) return parts[2];
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Default gateway lookup failed: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Best-effort DNS server list: try `resolvectl status` (real upstream servers) first,
+     * fall back to parsing "nameserver" lines from /etc/resolv.conf. Never throws; returns
+     * null (not an empty list) when nothing could be determined.
+     */
+    private List<String> getDnsServers() {
+        List<String> dns = new ArrayList<>();
+        try {
+            String resolvectl = exec(5, "resolvectl", "status");
+            for (String line : resolvectl.split("\n")) {
+                line = line.trim();
+                if (line.startsWith("DNS Servers:")) {
+                    String rest = line.substring("DNS Servers:".length()).trim();
+                    if (!rest.isEmpty()) dns.addAll(Arrays.asList(rest.split("\\s+")));
+                }
+            }
+        } catch (Exception e) {
+            log.debug("resolvectl DNS lookup failed: {}", e.getMessage());
+        }
+        if (dns.isEmpty()) {
+            try {
+                for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+                    line = line.trim();
+                    if (line.startsWith("nameserver")) {
+                        String[] parts = line.split("\\s+");
+                        if (parts.length >= 2) dns.add(parts[1]);
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("resolv.conf DNS parse failed: {}", e.getMessage());
+            }
+        }
+        return dns.isEmpty() ? null : dns;
+    }
+
+    /**
+     * Best-effort domain name from /etc/resolv.conf's "search"/"domain" directive, falling
+     * back to the portion of the hostname after the first dot (if any). Never throws.
+     */
+    private String getNetworkDomain() {
+        try {
+            for (String line : readFileSafe(ETC_RESOLV_CONF).split("\n")) {
+                line = line.trim();
+                if (line.startsWith("search ") || line.startsWith("domain ")) {
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) return parts[1];
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Domain lookup from resolv.conf failed: {}", e.getMessage());
+        }
+        try {
+            String hostname = getHostname();
+            if (hostname != null && hostname.contains(".")) {
+                return hostname.substring(hostname.indexOf('.') + 1);
+            }
+        } catch (Exception e) {
+            log.debug("Domain lookup from hostname failed: {}", e.getMessage());
+        }
+        return null;
+    }
+
     /** Returns map: interface → [rxBytes, rxPackets, rxErrors, rxDrop, ..., txBytes, txPackets, txErrors, ...] */
-    private Map<String, long[]> readNetDevStats() {
+    protected Map<String, long[]> readNetDevStats() {
         Map<String, long[]> result = new LinkedHashMap<>();
         try {
             for (String line : Files.readAllLines(PROC_NET_DEV)) {
@@ -550,6 +717,9 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
     // Services (systemd)
     // ──────────────────────────────────────────────────────────────────────────
 
+    /** systemctl status glyphs (●/○/×/↻) shown before failed/degraded/reloading units even with --plain on some systemd builds. */
+    private static final String SYSTEMCTL_STATUS_GLYPHS = "●○×↻";
+
     @Override
     public List<ServiceInfo> getRunningServices() {
         List<ServiceInfo> services = new ArrayList<>();
@@ -557,7 +727,11 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 "--no-pager", "--no-legend", "--plain");
         for (String line : output.split("\n")) {
             try {
-                String[] p = line.trim().split("\\s+", 5);
+                String unit = line.trim();
+                if (!unit.isEmpty() && SYSTEMCTL_STATUS_GLYPHS.indexOf(unit.charAt(0)) >= 0) {
+                    unit = unit.substring(1).trim(); // drop leading status glyph so columns don't shift
+                }
+                String[] p = unit.split("\\s+", 5);
                 if (p.length < 4) continue;
                 services.add(ServiceInfo.builder()
                         .name(p[0].replace(".service", ""))
@@ -610,6 +784,31 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             }
         }
 
+        // Live network speed: zero-sleep delta from cached previous /proc/net/dev sample
+        Map<String, long[]> currentNet = readNetDevStats();
+        long nowMs = System.currentTimeMillis();
+        long rxBytesPerSec = 0L, txBytesPerSec = 0L;
+        Map<String, long[]> prevNet = prevNetStats.getAndSet(currentNet);
+        long prevTime = prevNetTimestamp;
+        prevNetTimestamp = nowMs;
+        if (prevTime > 0 && nowMs - prevTime < 60_000L && !prevNet.isEmpty()) {
+            double deltaMs = nowMs - prevTime;
+            for (Map.Entry<String, long[]> e : currentNet.entrySet()) {
+                long[] curr = e.getValue();
+                long[] prev = prevNet.getOrDefault(e.getKey(), new long[16]);
+                if (curr.length > 8 && prev.length > 8) {
+                    rxBytesPerSec += Math.max(0L, (long) ((curr[0] - prev[0]) * 1000.0 / deltaMs));
+                    txBytesPerSec += Math.max(0L, (long) ((curr[8] - prev[8]) * 1000.0 / deltaMs));
+                }
+            }
+        }
+
+        // Physical memory load from /proc/meminfo
+        Map<String, Long> memInfo = parseMeminfo();
+        long memTotalKb = memInfo.getOrDefault("MemTotal", 0L);
+        long memAvailKb = memInfo.getOrDefault("MemAvailable", 0L);
+        double memLoadPct = calculatePercentage(memTotalKb - memAvailKb, memTotalKb);
+
         return PerformanceMetrics.builder()
                 .cpuLoad1Min(load1)
                 .cpuLoad5Min(load5)
@@ -619,8 +818,11 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
                 .uptimeSeconds(uptimeSeconds)
                 .processCount(totalProcs)
                 .runningProcessCount(runningProcs)
-                .memoryLoadPercent(calculatePercentage(
-                        runtime.totalMemory() - runtime.freeMemory(), runtime.totalMemory()))
+                .memoryLoadPercent(memLoadPct)
+                .networkRxBytesPerSec(rxBytesPerSec)
+                .networkTxBytesPerSec(txBytesPerSec)
+                .networkRxFormatted(formatSpeed(rxBytesPerSec))
+                .networkTxFormatted(formatSpeed(txBytesPerSec))
                 .build();
     }
 
@@ -647,6 +849,12 @@ public class LinuxServerInfoCollector extends ServerInfoCollector {
             }
         }
         return new long[8];
+    }
+
+    private static String formatSpeed(long bytesPerSec) {
+        if (bytesPerSec >= 1_000_000L) return String.format("%.1f MB/s", bytesPerSec / 1_000_000.0);
+        if (bytesPerSec >= 1_000L)     return String.format("%.1f KB/s", bytesPerSec / 1_000.0);
+        return bytesPerSec + " B/s";
     }
 
     // ──────────────────────────────────────────────────────────────────────────

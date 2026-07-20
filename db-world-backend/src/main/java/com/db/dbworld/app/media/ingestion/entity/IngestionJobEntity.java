@@ -15,7 +15,7 @@ import java.time.Instant;
 /**
  * Persistent record for every ingestion job.
  *
- * Table: ingestion_jobs (new_db_world schema)
+ * Table: ingestion_jobs (db_world schema)
  * Primary key: job UUID — same UUID used in-memory during execution.
  *
  * ── Enum columns ─────────────────────────────────────────────────────────
@@ -32,7 +32,13 @@ import java.time.Instant;
  *  from in-memory store after a restart).
  */
 @Entity
-@Table(name = "ingestion_jobs", schema = "new_db_world")
+@Table(name = "ingestion_jobs", schema = "db_world",
+    // No JPA associations here, so status/record_id are unindexed; both are polled frequently.
+    indexes = {
+        @Index(name = "idx_ingestion_status", columnList = "status"),   // findByStatus / findByStatusNotIn (active jobs)
+        @Index(name = "idx_ingestion_record", columnList = "record_id") // findByRecordId
+    }
+)
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
@@ -115,6 +121,29 @@ public class IngestionJobEntity {
     /** Episode number — set for TV series ingestion. */
     @Column(name = "episode_number")
     private Integer episodeNumber;
+
+    // ── yt-dlp format selection — persisted so RERUN reproduces the chosen format/quality
+    //     instead of silently falling back to best (the in-memory request is gone once the job ends).
+    @Column(name = "video_itag", length = 50)
+    private String videoITag;
+
+    @Column(name = "audio_itag", length = 50)
+    private String audioITag;
+
+    @Column(name = "only_audio")
+    private Boolean onlyAudio;
+
+    /** Quality preset (e.g. "best", "2160", "1080", "720", "480", "audio") applied when no itag. */
+    @Column(name = "video_quality", length = 20)
+    private String videoQuality;
+
+    // Reproducible processing flags (also persisted so rerun keeps them; column names avoid the
+    // reserved words EXTRACT/RENAME). extractPassword is intentionally NOT stored (secret).
+    @Column(name = "extract_archive")
+    private Boolean extract;
+
+    @Column(name = "rename_file")
+    private Boolean rename;
 
     @Column(name = "started_at", updatable = false)
     private Instant startedAt;

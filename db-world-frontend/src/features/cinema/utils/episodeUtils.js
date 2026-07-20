@@ -41,33 +41,55 @@ export function buildEpisodeMap(files) {
 }
 
 /**
- * Build the episode list for Android VideoPlayerActivity.
- * Filters allFiles to same quality as currentFile, sorts by season/episode.
- * Returns [] for movies (no S##E## pattern) so the Android panel stays hidden.
- *
- * @param {object[]} allFiles   — all media file objects for the record
- * @param {object}   currentFile — the file the user tapped Play on
- * @returns {{ fileId: number, url: string, title: string, quality: string }[]}
+ * Look up the full TMDB episode object for a season/episode number.
+ * `tmdbSeasons` is record.tmdb.seasons: [{ seasonNumber, episodes:[{ episodeNumber,
+ * name, overview, stillPath, runtime, airDate, voteAverage }] }].
+ * Returns null when not found.
  */
-export function buildAndroidEpisodeList(allFiles, currentFile) {
+export function tmdbEpisode(tmdbSeasons, season, episode) {
+  if (!Array.isArray(tmdbSeasons)) return null;
+  const s = tmdbSeasons.find(x => Number(x?.seasonNumber) === Number(season));
+  return s?.episodes?.find(x => Number(x?.episodeNumber) === Number(episode)) ?? null;
+}
+
+/**
+ * Look up a TMDB episode name for a given season/episode number.
+ * Returns '' when not found (so callers can fall back to the S##E## label).
+ */
+export function tmdbEpisodeName(tmdbSeasons, season, episode) {
+  return tmdbEpisode(tmdbSeasons, season, episode)?.name ?? '';
+}
+
+/**
+ * Rich episode list for the hybrid player: same quality as currentFile, sorted,
+ * each with a resolved url + stable id. Returns [] for movies.
+ *
+ * @param {Array} [tmdbSeasons] record.tmdb.seasons — used to attach episode names.
+ */
+export function buildHybridEpisodes(allFiles, currentFile, tmdbSeasons = []) {
   if (!Array.isArray(allFiles) || !currentFile) return [];
-  const currentQuality = getQualityLabel(currentFile);
-
-  const sameQuality = allFiles.filter(f => getQualityLabel(f) === currentQuality);
-
-  const withEp = sameQuality
+  const quality = getQualityLabel(currentFile);
+  const pad = (n) => String(n).padStart(2, '0');
+  return allFiles
+    .filter(f => getQualityLabel(f) === quality)
     .map(f => ({ f, ep: parseEpisode(f?.general?.fileName) }))
     .filter(({ ep }) => ep !== null)
-    .sort((a, b) =>
-      a.ep.season !== b.ep.season
-        ? a.ep.season - b.ep.season
-        : a.ep.episode - b.ep.episode
-    );
-
-  return withEp.map(({ f, ep }) => ({
-    fileId:  f.id ?? f.mediaFileId ?? 0,
-    url:     f.streamUrl ?? '',
-    title:   `S${String(ep.season).padStart(2, '0')} · E${String(ep.episode).padStart(2, '0')}`,
-    quality: currentQuality,
-  }));
+    .sort((a, b) => (a.ep.season !== b.ep.season ? a.ep.season - b.ep.season : a.ep.episode - b.ep.episode))
+    .map(({ f, ep }) => {
+      const meta = tmdbEpisode(tmdbSeasons, ep.season, ep.episode);
+      return {
+        id:          String(f.id ?? f.mediaFileId ?? ''),
+        fileId:      String(f.id ?? f.mediaFileId ?? ''),
+        mediaFileId: f.mediaFileId ?? f.id ?? '',
+        season:      ep.season,
+        episode:     ep.episode,
+        name:        meta?.name ?? '',           // TMDB episode title ('' if unknown)
+        overview:    meta?.overview ?? '',       // TMDB episode synopsis
+        stillPath:   meta?.stillPath ?? null,    // TMDB still image path (→ tmdbImg)
+        runtime:     meta?.runtime ?? null,      // minutes
+        airDate:     meta?.airDate ?? null,
+        label:       `S${pad(ep.season)}E${pad(ep.episode)}`,
+        url:         f.streamUrl ?? '',          // may be empty → resolved lazily on selection
+      };
+    });
 }

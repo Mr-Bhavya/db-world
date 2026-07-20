@@ -5,7 +5,9 @@ import com.db.dbworld.app.cinema.rail.dto.RailRequest;
 import com.db.dbworld.app.cinema.rail.entity.RailEntity;
 import org.mapstruct.*;
 
-@Mapper(componentModel = "spring")
+// unmappedTargetPolicy=IGNORE — `id` is DB-generated and never set from
+// requests; the noisy "Unmapped target property: id" warning added no value.
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface RailMapper {
 
     /* =========================================
@@ -20,6 +22,7 @@ public interface RailMapper {
        ========================================= */
 
     @Mapping(target = "records", ignore = true)
+    @Mapping(target = "type", source = "displayType")
     RailDto toDto(RailEntity entity);
 
     /* =========================================

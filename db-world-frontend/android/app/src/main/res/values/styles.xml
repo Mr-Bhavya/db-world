@@ -16,8 +16,15 @@
     </style>
 
 
+    <!-- Plain black launch screen (no logo). The OS-drawn splash can't be the
+         animated web loader, but a black launch blends seamlessly into the black
+         WebView loader in index.html — so the animated "DB WORLD" loader becomes
+         the startup experience instead of a static logo. (Android 12+ may still
+         briefly show the small launcher icon on this black background — that's OS
+         behavior and can't be removed via config.) -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="android:background">@android:color/black</item>
+        <item name="windowSplashScreenBackground">@android:color/black</item>
     </style>
 
     <style name="Theme.DbWorld.Player" parent="Theme.AppCompat.NoActionBar">

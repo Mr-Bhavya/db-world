@@ -16,10 +16,21 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableJpaAuditing
 @EnableJpaRepositories
 @SpringBootApplication
+@OpenAPIDefinition(info = @Info(title = "db-world API", version = "v1"))
 public class DbWorldApplication {
 
     public static void main(String[] args) {
+        // Switch Log4j2 to a fully-async context — every Logger.info() etc.
+        // goes through the LMAX Disruptor without an <Async> wrapper. Must be
+        // set before Log4j2 initializes (i.e., before the first SLF4J call).
+        // Pairs with com.lmax:disruptor on the classpath (pinned in pom).
+        System.setProperty("log4j2.contextSelector",
+                "org.apache.logging.log4j.core.async.AsyncLoggerContextSelector");
+        // Avoid stalling caller threads when the async ring buffer is full:
+        // discard the lowest-priority records (TRACE/DEBUG) rather than block.
+        System.setProperty("log4j2.asyncQueueFullPolicy", "Discard");
+        System.setProperty("log4j2.discardThreshold", "DEBUG");
+
         SpringApplication.run(DbWorldApplication.class, args);
     }
-
 }

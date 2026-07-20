@@ -4,7 +4,7 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.catalog.mapper.RecordMapper;
 import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.progress.repository.WatchProgressRepository;
-import com.db.dbworld.audit.activity.repository.UserCinemaActivityRepository;
+import com.db.dbworld.audit.tracking.repository.ActivitySessionRepository;
 import com.db.dbworld.app.cinema.rail.builder.RailRecordBuilder;
 import com.db.dbworld.app.cinema.rail.cache.RailCacheService;
 import com.db.dbworld.app.cinema.rail.dto.*;
@@ -56,7 +56,7 @@ public class RailServiceImpl implements RailService {
 
     private final InteractionRepository interactionRepository;
     private final WatchProgressRepository watchProgressRepository;
-    private final UserCinemaActivityRepository activityRepository;
+    private final ActivitySessionRepository activitySessionRepository;
     private final UserContext userContext;
 
     private final RailMapper railMapper;
@@ -157,10 +157,11 @@ public class RailServiceImpl implements RailService {
             Long userId = userContext.userId();
             Pageable top1 = PageRequest.of(0, 1);
             // Mirror the resolver's source-pick: watch_progress first, fall back to
-            // user_cinema_activity so download-only users still see a useful title.
+            // activity_session (recent STREAM sessions) so users whose progress hasn't
+            // ticked yet still see a useful title.
             Long sourceId = watchProgressRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
                     .findFirst()
-                    .orElseGet(() -> activityRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
+                    .orElseGet(() -> activitySessionRepository.findMostRecentRecordIdsByUser(userId, top1).stream()
                             .findFirst().orElse(null));
             if (sourceId == null) return dto;
             recordRepository.findById(sourceId).ifPresent(source -> {
@@ -169,8 +170,10 @@ public class RailServiceImpl implements RailService {
                         : dto.getTitle();
                 dto.setTitle(prefix + " " + source.getName());
             });
-        } catch (Exception ignored) {
+        } catch (Exception e) {
             // Unauthenticated or lookup failure — keep the static title.
+            log.debug("applyDynamicTitle: keeping static title for railId={}; reason={}",
+                    dto.getId(), e.getMessage());
         }
         return dto;
     }
@@ -183,6 +186,8 @@ public class RailServiceImpl implements RailService {
                 Long userId = userContext.userId();
                 return interactionRepository.existsByUserIdAndInteractionType(userId, InteractionType.WATCHLIST);
             } catch (Exception e) {
+                log.debug("hasContent watchlist check failed for railId={}; reason={}",
+                        rail.getId(), e.getMessage());
                 return false;
             }
         }
@@ -193,18 +198,22 @@ public class RailServiceImpl implements RailService {
                 // entries that can actually populate the rail.
                 return watchProgressRepository.existsByUserIdAndRecordIdNotNull(userContext.userId());
             } catch (Exception e) {
+                log.debug("hasContent continueWatching check failed for railId={}; reason={}",
+                        rail.getId(), e.getMessage());
                 return false;
             }
         }
         if ("becauseYouWatched".equals(ruleType)) {
             try {
                 // Mirror RailResolverImpl.pickBecauseYouWatchedSource: source can come
-                // from watch_progress OR user_cinema_activity (downloads/completed streams),
-                // so download-only users still get the rail.
+                // from watch_progress OR activity_session (recent STREAM sessions), so
+                // users whose progress hasn't ticked yet still get the rail.
                 Long userId = userContext.userId();
                 if (watchProgressRepository.existsByUserIdAndRecordIdNotNull(userId)) return true;
-                return !activityRepository.findMostRecentRecordIdsByUser(userId, PageRequest.of(0, 1)).isEmpty();
+                return !activitySessionRepository.findMostRecentRecordIdsByUser(userId, PageRequest.of(0, 1)).isEmpty();
             } catch (Exception e) {
+                log.debug("hasContent becauseYouWatched check failed for railId={}; reason={}",
+                        rail.getId(), e.getMessage());
                 return false;
             }
         }
@@ -253,6 +262,9 @@ public class RailServiceImpl implements RailService {
     @Transactional(readOnly = true)
     public RailPageDto getRailRecords(Long railId, int page, Integer size, Long category, PageType requestedPage) {
 
+        log.debug("getRailRecords entry; railId={}, page={}, size={}, category={}, requestedPage={}",
+                railId, page, size, category, requestedPage);
+
         hideRailHiddenRecords();
 
         RailEntity rail = railRepository.findById(railId)
@@ -273,10 +285,14 @@ public class RailServiceImpl implements RailService {
         boolean userScoped = "continueWatching".equals(ruleType)
                 || "becauseYouWatched".equals(ruleType);
 
-        // 1. Cache check (only for non-category, non-user-scoped requests)
+        // 1. Cache check (only for non-category, non-user-scoped requests). Keyed by
+        // requestedPage too, since a multi-page rail resolves different records per page.
         if (category == null && !userScoped) {
-            RailPageDto cached = cacheService.get(railId, page, pageSize);
+            RailPageDto cached = cacheService.get(railId, requestedPage, page, pageSize);
             if (cached != null) return cached;
+            // Cache miss on a shared (non-user-scoped) rail — useful signal for hot rails.
+            log.debug("Rail cache miss; railId={}, page={}, size={}, ruleType={}",
+                    railId, page, pageSize, ruleType);
         }
 
         Pageable pageable = PageRequest.of(page, pageSize);
@@ -320,7 +336,7 @@ public class RailServiceImpl implements RailService {
         List<RailRecordDto> result = orderedRecords.stream()
                 .map(r -> railRecordBuilder.build(
                         r, aggregate.genres(), aggregate.posters(), aggregate.backdrops(),
-                        aggregate.videos(), aggregate.providers())
+                        aggregate.videos(), aggregate.providers(), aggregate.logos())
                 ).toList();
 
         RailPageDto railPageDto = RailPageDto.builder()
@@ -331,9 +347,9 @@ public class RailServiceImpl implements RailService {
                 .records(result)
                 .build();
 
-        // Only cache non-category, non-user-scoped results
+        // Only cache non-category, non-user-scoped results (keyed by requestedPage)
         if (category == null && !userScoped) {
-            cacheService.put(railId, page, pageSize, railPageDto, recordIds);
+            cacheService.put(railId, requestedPage, page, pageSize, railPageDto, recordIds);
         }
 
         return railPageDto;
@@ -384,7 +400,7 @@ public class RailServiceImpl implements RailService {
         List<RailRecordDto> records = ordered.stream()
                 .map(r -> railRecordBuilder.build(
                         r, aggregate.genres(), aggregate.posters(),
-                        aggregate.backdrops(), aggregate.videos(), aggregate.providers()))
+                        aggregate.backdrops(), aggregate.videos(), aggregate.providers(), aggregate.logos()))
                 .toList();
 
         return RailPageDto.builder()
@@ -447,17 +463,22 @@ public class RailServiceImpl implements RailService {
 
     @Override
     public RailDto createRail(RailRequest request) {
+        log.debug("createRail entry; title={}", request != null ? request.getTitle() : null);
         RailEntity rail = railMapper.toEntity(request);
         normalizePageTypes(rail);
-        return railMapper.toDto(railRepository.save(rail));
+        RailEntity saved = railRepository.save(rail);
+        log.info("Rail created; railId={}, title={}", saved.getId(), saved.getTitle());
+        return railMapper.toDto(saved);
     }
 
     @Override
     public RailDto updateRail(Long railId, RailRequest request) {
+        log.debug("updateRail entry; railId={}", railId);
         RailEntity rail = railRepository.findById(railId)
                 .orElseThrow(() -> new EntityNotFoundException("Rail not found"));
         railMapper.updateEntity(request, rail);
         normalizePageTypes(rail);
+        log.info("Rail updated; railId={}", railId);
         return railMapper.toDto(rail);
     }
 
@@ -470,9 +491,11 @@ public class RailServiceImpl implements RailService {
 
     @Override
     public void deleteRail(Long railId) {
+        log.debug("deleteRail entry; railId={}", railId);
         if (!railRepository.existsById(railId))
             throw new EntityNotFoundException("Rail not found");
         railRepository.deleteById(railId);
+        log.info("Rail deleted; railId={}", railId);
     }
 
     @Override

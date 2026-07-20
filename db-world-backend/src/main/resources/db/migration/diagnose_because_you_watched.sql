@@ -6,12 +6,12 @@
 -- the prod DB to confirm what's actually there.
 --
 -- Replace <USER_EMAIL> with the email of the user testing the feature.
--- Schema: new_db_world — adjust if yours differs.
+-- Schema: db_world — adjust if yours differs.
 -- =============================================================================
 
 -- ---- 0. Find your user id --------------------------------------------------
 SELECT id, email
-FROM   new_db_world.users
+FROM   db_world.users
 WHERE  email = '<USER_EMAIL>';
 -- → use the returned id as :uid in the queries below.
 
@@ -20,7 +20,7 @@ SELECT
     COUNT(*)                                        AS wp_rows,
     SUM(record_id IS NOT NULL)                      AS wp_with_record,
     MAX(updated_at)                                 AS wp_last_activity
-FROM   new_db_world.watch_progress
+FROM   db_world.watch_progress
 WHERE  user_id = :uid;
 
 -- ---- 2. Activity signal (downloads / streams) ------------------------------
@@ -30,7 +30,7 @@ SELECT
     SUM(record_id IS NOT NULL)                      AS with_record,
     SUM(record_id IS NULL)                          AS unenriched,
     MAX(last_updated)                               AS last_activity
-FROM   new_db_world.user_cinema_activity
+FROM   db_world.user_cinema_activity
 WHERE  user_id = :uid
 GROUP  BY activity_type;
 
@@ -38,25 +38,25 @@ GROUP  BY activity_type;
 -- A non-zero unenriched count from step 2 means the file_path of those rows
 -- doesn't match any media_files.file_path. Compare a sample to see the drift.
 SELECT id, activity_type, file_path
-FROM   new_db_world.user_cinema_activity
+FROM   db_world.user_cinema_activity
 WHERE  user_id = :uid AND record_id IS NULL
 LIMIT  5;
 
 SELECT id, file_path
-FROM   new_db_world.media_files
+FROM   db_world.media_files
 LIMIT  5;
 
 -- ---- 4. Same record viewable via the rail's source query? ------------------
 -- This is what pickBecauseYouWatchedSource() actually runs. If it returns
 -- nothing, the rail is correctly hidden (hasContent = false).
 SELECT 'watch_progress' AS source, wp.record_id, wp.updated_at AS activity_at
-FROM   new_db_world.watch_progress wp
+FROM   db_world.watch_progress wp
 WHERE  wp.user_id = :uid AND wp.record_id IS NOT NULL
 ORDER  BY wp.updated_at DESC
 LIMIT  1
 UNION ALL
 SELECT 'user_cinema_activity' AS source, uca.record_id, uca.last_updated
-FROM   new_db_world.user_cinema_activity uca
+FROM   db_world.user_cinema_activity uca
 WHERE  uca.user_id = :uid AND uca.record_id IS NOT NULL
 ORDER  BY uca.last_updated DESC
 LIMIT  1;

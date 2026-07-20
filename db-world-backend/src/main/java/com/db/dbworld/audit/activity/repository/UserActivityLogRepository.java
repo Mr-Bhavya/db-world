@@ -21,7 +21,9 @@ public interface UserActivityLogRepository
             LocalDateTime startDate, LocalDateTime endDate,
             Pageable pageable) {
 
-        Specification<UserActivityLogEntity> spec = Specification.where(null);
+        // Spring Data 4 added Specification.where(PredicateSpecification) — the bare
+        // .where(null) call is now ambiguous. Start with an always-true conjunction.
+        Specification<UserActivityLogEntity> spec = (root, q, cb) -> cb.conjunction();
 
         if (username != null && !username.isBlank()) {
             spec = spec.and((root, q, cb) ->

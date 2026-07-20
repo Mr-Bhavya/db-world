@@ -15,12 +15,17 @@ import java.time.Instant;
 @AllArgsConstructor
 @Table(
         name = "USER_INTERACTIONS",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uk_user_record_interaction",
                         columnNames = {"user_id", "record_id", "interaction_type"}
                 )
+        },
+        // The unique key has record_id between user_id and interaction_type, so it can't serve
+        // the frequent (user_id, interaction_type) lookups — index that pair directly.
+        indexes = {
+                @Index(name = "idx_interactions_user_type", columnList = "user_id, interaction_type")
         }
 )
 public class UserInteractionEntity {

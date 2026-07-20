@@ -6,11 +6,11 @@ import {
 } from '@mui/material';
 import {
   Monitor, Refresh, Memory, Storage, Speed,
-  DeveloperBoard, CheckCircle, Warning, Error as ErrorIcon,
-  FiberManualRecord
+  CheckCircle, Warning, Error as ErrorIcon,
+  FiberManualRecord, ArrowDownward, ArrowUpward, Thermostat
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
   getServerInfo,
@@ -38,7 +38,6 @@ const loadColor = (pct) => {
   return '#ef4444';
 };
 
-const _pct = (val) => (val != null ? `${Number(val).toFixed(1)}%` : '—');
 const bytes = (n) => {
   if (!n) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -60,7 +59,7 @@ function MiniStatCard({ label, value, pctValue, color, icon }) {
             {label}
           </Typography>
         </Box>
-        <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: T.text, lineHeight: 1, mb: 0.75 }}>
+        <Typography sx={{ fontSize: String(value ?? '').length > 10 ? '0.95rem' : '1.4rem', fontWeight: 800, color: T.text, lineHeight: 1, mb: 0.75 }}>
           {value}
         </Typography>
         {pctValue != null && (
@@ -123,7 +122,6 @@ function UsageBar({ label, used, total, usedPct, formattedUsed, formattedTotal }
 /* ── Tab panels ──────────────────────────────────────────────── */
 
 function OverviewTab({ info }) {
-  const _T = useT();
   const si = info?.serverInfo;
   const perf = info?.performance;
   return (
@@ -143,15 +141,15 @@ function OverviewTab({ info }) {
       </Grid>
       <Grid item xs={12} md={6}>
         <SectionTitle>Performance</SectionTitle>
+        <InfoRow label="CPU Usage"      value={perf?.cpuUsagePercent != null ? `${perf.cpuUsagePercent.toFixed(1)}%` : null} />
         <InfoRow label="CPU Load (1m)"  value={perf?.cpuLoad1Min   != null ? `${perf.cpuLoad1Min.toFixed(2)}` : null} />
         <InfoRow label="CPU Load (5m)"  value={perf?.cpuLoad5Min   != null ? `${perf.cpuLoad5Min.toFixed(2)}` : null} />
         <InfoRow label="CPU Load (15m)" value={perf?.cpuLoad15Min  != null ? `${perf.cpuLoad15Min.toFixed(2)}` : null} />
+        <InfoRow label="Net Download"   value={perf?.networkRxFormatted} />
+        <InfoRow label="Net Upload"     value={perf?.networkTxFormatted} />
         <InfoRow label="Processes"      value={perf?.processCount} />
         <InfoRow label="Running"        value={perf?.runningProcessCount} />
-        <InfoRow label="Threads"        value={perf?.threadCount} />
-        <InfoRow label="Context Switches" value={perf?.contextSwitches?.toLocaleString()} />
-        <InfoRow label="Interrupts"     value={perf?.interrupts?.toLocaleString()} />
-        <InfoRow label="Page Faults"    value={perf?.pageFaults?.toLocaleString()} />
+        <InfoRow label="Memory Load"    value={perf?.memoryLoadPercent != null ? `${perf.memoryLoadPercent.toFixed(1)}%` : null} />
         <InfoRow label="Uptime"         value={perf?.uptime} />
         {si?.ipAddresses?.length > 0 && (
           <Box sx={{ mt: 2 }}>
@@ -170,8 +168,8 @@ function OverviewTab({ info }) {
 
 function CpuTab({ info, quick }) {
   const T = useT();
-  const cpu = quick?.cpu ?? info?.cpu;
-  const load = cpu?.loadPercentage ?? 0;
+  const cpu = info?.cpu;
+  const load = quick?.performance?.cpuUsagePercent ?? info?.performance?.cpuUsagePercent ?? cpu?.loadPercentage ?? 0;
   const color = loadColor(load);
 
   return (
@@ -195,7 +193,7 @@ function CpuTab({ info, quick }) {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
             <Typography sx={{ fontSize: '0.78rem', color: T.text }}>Overall CPU Usage</Typography>
             <Typography sx={{ fontSize: '1.2rem', fontWeight: 800, color, fontFamily: 'monospace' }}>
-              {cpu?.loadPercentageStr ?? `${load}%`}
+              {`${Number(load).toFixed(1)}%`}
             </Typography>
           </Box>
           <LinearProgress
@@ -213,12 +211,17 @@ function CpuTab({ info, quick }) {
               {cpu.coreDetails.map((core, i) => {
                 const c = loadColor(core.loadPercent ?? 0);
                 return (
-                  <Grid item xs={6} sm={4} key={i}>
+                  <Grid item xs={6} sm={4} key={core.coreId ?? i}>
                     <Box sx={{ p: 1, border: `1px solid ${T.border}`, borderRadius: 1 }}>
-                      <Typography sx={{ fontSize: '0.65rem', color: T.textMuted, mb: 0.25 }}>Core {i}</Typography>
+                      <Typography sx={{ fontSize: '0.65rem', color: T.textMuted, mb: 0.25 }}>Core {core.coreId ?? i}</Typography>
                       <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: c, fontFamily: 'monospace' }}>
                         {(core.loadPercent ?? 0).toFixed(1)}%
                       </Typography>
+                      {core.frequency ? (
+                        <Typography sx={{ fontSize: '0.65rem', color: T.textFaint, fontFamily: 'monospace' }}>
+                          {(core.frequency / 1e6).toFixed(0)} MHz
+                        </Typography>
+                      ) : null}
                     </Box>
                   </Grid>
                 );
@@ -237,7 +240,19 @@ function MemoryTab({ info, quick }) {
   if (!mem) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No memory data</Typography>;
 
   const usedPct = mem.usedPercent ? parseFloat(mem.usedPercent) : (mem.usedBytes && mem.totalBytes ? (mem.usedBytes / mem.totalBytes) * 100 : 0);
-  const swapPct = mem.swapUsedPercent ? parseFloat(mem.swapUsedPercent) : 0;
+
+  // Buffers/cached/swap are structural fields the quick payload omits — prefer the full
+  // payload here (mirrors the JVM heap block below), same as `heap`. The live used-%
+  // above stays quick-first so the top number keeps updating every 5s.
+  const memDetail = info?.memory ?? quick?.memory;
+  const swapPct = memDetail?.swapUsedPercent ? parseFloat(memDetail.swapUsedPercent) : 0;
+
+  // JVM heap is structural/rarely-changing — prefer the full payload, quick as fallback
+  const heap = info?.memory ?? quick?.memory;
+  const heapUsedFormatted = heap?.javaUsedFormatted ?? bytes(heap?.javaUsedMemory);
+  const heapUsedPct = heap?.javaMaxMemory
+    ? (heap.javaUsedMemory / heap.javaMaxMemory) * 100
+    : 0;
 
   return (
     <Grid container spacing={2}>
@@ -248,28 +263,29 @@ function MemoryTab({ info, quick }) {
         <InfoRow label="Used"      value={mem.usedFormatted} />
         <InfoRow label="Free"      value={mem.freeFormatted} />
         <InfoRow label="Available" value={mem.availableFormatted} />
-        <InfoRow label="Buffers"   value={mem.buffersFormatted} />
-        <InfoRow label="Cached"    value={mem.cachedFormatted} />
+        <InfoRow label="Buffers"   value={memDetail?.buffersFormatted} />
+        <InfoRow label="Cached"    value={memDetail?.cachedFormatted} />
 
-        {mem.swapTotalBytes > 0 && (
+        {memDetail?.swapTotalBytes > 0 && (
           <>
             <Divider sx={{ borderColor: T.border, my: 2 }} />
             <SectionTitle>Swap</SectionTitle>
-            <UsageBar label="Swap Used" usedPct={swapPct} formattedUsed={mem.swapUsedFormatted} formattedTotal={mem.swapTotalFormatted} />
-            <InfoRow label="Total" value={mem.swapTotalFormatted} />
-            <InfoRow label="Used"  value={mem.swapUsedFormatted} />
-            <InfoRow label="Free"  value={mem.swapFreeFormatted} />
+            <UsageBar label="Swap Used" usedPct={swapPct} formattedUsed={memDetail.swapUsedFormatted} formattedTotal={memDetail.swapTotalFormatted} />
+            <InfoRow label="Total" value={memDetail.swapTotalFormatted} />
+            <InfoRow label="Used"  value={memDetail.swapUsedFormatted} />
+            <InfoRow label="Free"  value={memDetail.swapFreeFormatted} />
           </>
         )}
       </Grid>
       <Grid item xs={12} md={6}>
-        {mem.javaTotalMemory > 0 && (
+        {heap?.javaMaxMemory > 0 && (
           <>
             <SectionTitle>JVM Heap</SectionTitle>
-            <InfoRow label="Max"   value={mem.javaMaxFormatted} />
-            <InfoRow label="Total" value={mem.javaTotalFormatted} />
-            <InfoRow label="Free"  value={mem.javaFreeFormatted} />
-            <InfoRow label="Used"  value={bytes(mem.javaTotalMemory - mem.javaFreeMemory)} />
+            <UsageBar label="Used" usedPct={heapUsedPct} formattedUsed={heapUsedFormatted} formattedTotal={heap.javaMaxFormatted} />
+            <InfoRow label="Used"      value={heapUsedFormatted} />
+            <InfoRow label="Committed" value={heap.javaTotalFormatted} />
+            <InfoRow label="Max"       value={heap.javaMaxFormatted} />
+            <InfoRow label="Free"      value={heap.javaFreeFormatted} />
           </>
         )}
       </Grid>
@@ -334,54 +350,65 @@ function NetworkTab({ info }) {
   const net = info?.network;
   if (!net) return <Typography sx={{ color: T.textMuted, py: 4, textAlign: 'center' }}>No network data</Typography>;
 
+  const adapterCount = net.adapterCount ?? net.adapters?.length;
+
   return (
     <>
       <Grid container spacing={2} sx={{ mb: 2.5 }}>
         <Grid item xs={12} md={4}>
           <InfoRow label="Hostname"    value={net.hostname} />
-          <InfoRow label="Domain"      value={net.domain} />
-          <InfoRow label="Gateway"     value={net.defaultGateway} />
+          {net.domain && <InfoRow label="Domain" value={net.domain} />}
+          {net.defaultGateway && <InfoRow label="Gateway" value={net.defaultGateway} />}
           <InfoRow label="Connections" value={net.activeConnections} />
         </Grid>
-        <Grid item xs={12} md={4}>
-          <SectionTitle>DNS Servers</SectionTitle>
-          {net.dnsServers?.map((d) => (
-            <Typography key={d} sx={{ fontSize: '0.75rem', fontFamily: 'monospace', color: T.text, mb: 0.25 }}>{d}</Typography>
-          ))}
-        </Grid>
+        {net.dnsServers?.length > 0 && (
+          <Grid item xs={12} md={4}>
+            <SectionTitle>DNS Servers</SectionTitle>
+            {net.dnsServers.map((d) => (
+              <Typography key={d} sx={{ fontSize: '0.75rem', fontFamily: 'monospace', color: T.text, mb: 0.25 }}>{d}</Typography>
+            ))}
+          </Grid>
+        )}
       </Grid>
 
-      <SectionTitle>Adapters ({net.adapterCount})</SectionTitle>
-      {net.adapters?.map((a, i) => (
-        <Card key={i} sx={{ mb: 1.5, border: `1px solid ${T.border}`, bgcolor: T.glass, borderRadius: 2 }}>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <FiberManualRecord sx={{ fontSize: 10, color: a.status === 'Up' ? '#10b981' : '#6b7280' }} />
-              <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: T.text }}>{a.name}</Typography>
-              <Chip label={a.status ?? 'Unknown'} size="small"
-                sx={{ height: 16, fontSize: '0.6rem', bgcolor: a.status === 'Up' ? 'rgba(16,185,129,0.12)' : 'rgba(107,114,128,0.12)',
-                  color: a.status === 'Up' ? '#10b981' : '#6b7280' }} />
-              {a.description && <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>{a.description}</Typography>}
-            </Box>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <InfoRow label="IP"      value={a.ipAddress} />
-                <InfoRow label="MAC"     value={a.macAddress} />
-                <InfoRow label="Subnet"  value={a.subnetMask} />
-                <InfoRow label="Speed"   value={a.speed ? `${(a.speed / 1e6).toFixed(0)} Mbps` : null} />
+      <SectionTitle>Adapters {adapterCount != null ? `(${adapterCount})` : ''}</SectionTitle>
+      {net.adapters?.map((a, i) => {
+        // Backend may fill either `a.status` or leave it null; derive from IP presence
+        // when the collector couldn't read operstate. Case-insensitive so "up"/"Up" both count.
+        const hasIp = Boolean(a.ipAddress || a.ipAddresses?.length);
+        const isOnline = a.status != null ? a.status.toLowerCase() === 'up' : hasIp;
+        const statusLabel = a.status ?? (hasIp ? 'Up' : 'Unknown');
+        const rxTotal = a.bytesReceived ?? a.rxBytesTotal;
+        const txTotal = a.bytesSent ?? a.txBytesTotal;
+        return (
+          <Card key={i} sx={{ mb: 1.5, border: `1px solid ${T.border}`, bgcolor: T.glass, borderRadius: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <FiberManualRecord sx={{ fontSize: 10, color: isOnline ? '#10b981' : '#6b7280' }} />
+                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: T.text }}>{a.name}</Typography>
+                <Chip label={statusLabel} size="small"
+                  sx={{ height: 16, fontSize: '0.6rem', bgcolor: isOnline ? 'rgba(16,185,129,0.12)' : 'rgba(107,114,128,0.12)',
+                    color: isOnline ? '#10b981' : '#6b7280' }} />
+                {a.description && <Typography sx={{ fontSize: '0.7rem', color: T.textFaint }}>{a.description}</Typography>}
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <InfoRow label="IP"      value={a.ipAddress} />
+                  <InfoRow label="MAC"     value={a.macAddress} />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <InfoRow label="Rx Total" value={bytes(rxTotal)} />
+                  <InfoRow label="Tx Total" value={bytes(txTotal)} />
+                  {a.rxBytesPerSecFormatted && <InfoRow label="Rx/s" value={a.rxBytesPerSecFormatted} />}
+                  {a.txBytesPerSecFormatted && <InfoRow label="Tx/s" value={a.txBytesPerSecFormatted} />}
+                  <InfoRow label="Rx Errors" value={a.rxErrors} />
+                  <InfoRow label="Tx Errors" value={a.txErrors} />
+                </Grid>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <InfoRow label="Rx Total" value={bytes(a.bytesReceived)} />
-                <InfoRow label="Tx Total" value={bytes(a.bytesSent)} />
-                {a.rxBytesPerSecFormatted && <InfoRow label="Rx/s" value={a.rxBytesPerSecFormatted} />}
-                {a.txBytesPerSecFormatted && <InfoRow label="Tx/s" value={a.txBytesPerSecFormatted} />}
-                <InfoRow label="Rx Errors" value={a.rxErrors} />
-                <InfoRow label="Tx Errors" value={a.txErrors} />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </>
   );
 }
@@ -406,7 +433,6 @@ function ProcessesTab({ info }) {
             <TableCell>Memory</TableCell>
             <TableCell>Mem %</TableCell>
             <TableCell>State</TableCell>
-            <TableCell>Threads</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -433,7 +459,6 @@ function ProcessesTab({ info }) {
                     bgcolor: p.state === 'Running' ? 'rgba(16,185,129,0.12)' : 'rgba(107,114,128,0.12)',
                     color: p.state === 'Running' ? '#10b981' : '#6b7280' }} />
                 </TableCell>
-                <TableCell sx={{ fontSize: '0.72rem', color: T.textFaint }}>{p.threads ?? '—'}</TableCell>
               </TableRow>
             );
           })}
@@ -505,7 +530,6 @@ const TABS = ['Overview', 'CPU', 'Memory', 'Storage', 'Network', 'Processes', 'H
 
 export default function SystemInfoPage() {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(0);
 
@@ -534,26 +558,37 @@ export default function SystemInfoPage() {
   const refreshMutation = useMutation({
     mutationFn: refreshServerInfoCache,
     onSuccess: () => {
-      enqueueSnackbar('Cache refreshed', { variant: 'success' });
+      notify.success('Cache refreshed');
       queryClient.invalidateQueries({ queryKey: ['server-info'] });
       queryClient.invalidateQueries({ queryKey: ['server-info-quick'] });
       queryClient.invalidateQueries({ queryKey: ['server-health'] });
     },
-    onError: () => enqueueSnackbar('Refresh failed', { variant: 'error' }),
+    onError: () => notify.error('Refresh failed'),
   });
 
   /* ── Derived stats ── */
 
-  const liveInfo = quick ?? info;
-  const cpuPct   = liveInfo?.cpu?.loadPercentage ?? 0;
-  const memPct   = liveInfo?.memory?.usedPercent
-    ? parseFloat(liveInfo.memory.usedPercent)
-    : (liveInfo?.memory?.usedBytes && liveInfo?.memory?.totalBytes
-      ? (liveInfo.memory.usedBytes / liveInfo.memory.totalBytes) * 100
+  // Live numeric metrics overlay from `quick`, falling back to the full `info` payload.
+  // Structural/hardware data must NOT be read through this overlay — it lives only in `info`.
+  const cpuPct = quick?.performance?.cpuUsagePercent ?? info?.performance?.cpuUsagePercent ?? info?.cpu?.loadPercentage ?? 0;
+
+  const liveMem  = quick?.memory ?? info?.memory;
+  const memPct   = liveMem?.usedPercent
+    ? parseFloat(liveMem.usedPercent)
+    : (liveMem?.usedBytes && liveMem?.totalBytes
+      ? (liveMem.usedBytes / liveMem.totalBytes) * 100
       : 0);
   const diskPct  = info?.disk?.drives?.length
     ? info.disk.drives.reduce((s, d) => s + parseFloat(d.usedPercent || 0), 0) / info.disk.drives.length
     : 0;
+
+  const netRx   = quick?.performance?.networkRxFormatted ?? info?.performance?.networkRxFormatted ?? null;
+  const netTx   = quick?.performance?.networkTxFormatted ?? info?.performance?.networkTxFormatted ?? null;
+  const tempC   = info?.temperature?.maxTemperatureCelsius ?? info?.temperature?.highestTemperatureCelsius;
+  const tempColor = tempC == null ? '#6b7280' : tempC < 60 ? '#10b981' : tempC < 75 ? '#f59e0b' : '#ef4444';
+  const memValue = liveMem?.usedFormatted && liveMem?.totalFormatted
+    ? `${liveMem.usedFormatted} / ${liveMem.totalFormatted}`
+    : `${memPct.toFixed(0)}%`;
 
   const si = info?.serverInfo;
   const osLabel = info?.windows ? 'Windows' : info?.raspberryPi ? 'Raspberry Pi' : info?.linux ? 'Linux' : info?.mac ? 'macOS' : 'Unknown';
@@ -607,13 +642,15 @@ export default function SystemInfoPage() {
       {/* Live stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {[
-          { label: 'CPU',    value: `${cpuPct}%`,              pctValue: cpuPct,  color: loadColor(cpuPct),  icon: <Speed /> },
-          { label: 'Memory', value: liveInfo?.memory?.usedFormatted ?? `${memPct.toFixed(0)}%`, pctValue: memPct, color: loadColor(memPct), icon: <Memory /> },
-          { label: 'Disk',   value: info?.disk?.usedSpaceFormatted ?? `${diskPct.toFixed(0)}%`, pctValue: diskPct, color: loadColor(diskPct), icon: <Storage /> },
-          { label: 'Uptime', value: si?.uptime ?? liveInfo?.performance?.uptime ?? '—', pctValue: null, color: '#3b82f6', icon: <Monitor /> },
-          { label: 'Processes', value: liveInfo?.performance?.processCount ?? '—', pctValue: null, color: '#8b5cf6', icon: <DeveloperBoard /> },
+          { label: 'CPU',        value: `${Number(cpuPct).toFixed(1)}%`,                       pctValue: cpuPct,  color: loadColor(cpuPct),  icon: <Speed /> },
+          { label: 'Memory',     value: memValue,                                              pctValue: memPct, color: loadColor(memPct), icon: <Memory /> },
+          { label: 'Disk',       value: info?.disk?.usedSpaceFormatted ?? `${diskPct.toFixed(0)}%`, pctValue: diskPct, color: loadColor(diskPct), icon: <Storage /> },
+          { label: 'Net ↓',      value: netRx ?? '—',                                          pctValue: null, color: '#3b82f6', icon: <ArrowDownward /> },
+          { label: 'Net ↑',      value: netTx ?? '—',                                          pctValue: null, color: '#6366f1', icon: <ArrowUpward /> },
+          { label: 'Temperature', value: tempC != null ? `${tempC.toFixed(1)}°C` : '—',        pctValue: tempC != null ? Math.min(tempC, 100) : null, color: tempColor, icon: <Thermostat /> },
+          { label: 'Uptime',     value: quick?.performance?.uptime ?? info?.performance?.uptime ?? si?.uptime ?? '—', pctValue: null, color: '#8b5cf6', icon: <Monitor /> },
         ].map((s) => (
-          <Grid item xs={6} sm={4} md={2.4} key={s.label}>
+          <Grid item xs={6} sm={4} md={3} lg={12/7} key={s.label}>
             <MiniStatCard {...s} />
           </Grid>
         ))}

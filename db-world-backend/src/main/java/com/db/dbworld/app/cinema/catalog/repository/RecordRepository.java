@@ -6,16 +6,15 @@ import com.db.dbworld.app.cinema.catalog.entities.RecordEntity;
 import com.db.dbworld.app.cinema.enums.RecordTagType;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
-import com.db.dbworld.app.cinema.tmdb.entities.MovieTmdbEntity;
-import com.db.dbworld.app.cinema.tmdb.entities.TvSeriesTmdbEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,12 +26,9 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
 
     List<RecordEntity> findByType(RecordType type);
 
-    /** Dashboard: count records by type (MOVIE / SERIES). */
     long countByType(RecordType type);
 
     boolean existsByTmdb_Id(Long tmdbId);
-
-    Optional<RecordEntity> findById(Long id);
 
     @Query("""
             SELECT r
@@ -40,175 +36,261 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             LEFT JOIN FETCH r.tmdb
             WHERE r.id = :id
             """)
-    Optional<RecordEntity> findByIdWithTmdb(Long id);
+    Optional<RecordEntity> findByIdWithTmdb(@Param("id") Long id);
 
     /* ================================================================
        TAG RAILS
-       All tag queries JOIN tmdb so sort on tmdb.* fields works.
+       These keep tmdb join because dynamic Pageable sort may use tmdb fields.
     ================================================================= */
 
     @Query("""
             SELECT r
             FROM RecordEntity r
-            JOIN r.tags t
+            JOIN r.tags tag
             JOIN r.tmdb tmdb
-            WHERE t.tagType = :tag
+            WHERE tag.tagType = :tag
             """)
-    Slice<RecordEntity> findByTag(RecordTagType tag, Pageable pageable);
+    Slice<RecordEntity> findByTag(
+            @Param("tag") RecordTagType tag,
+            Pageable pageable
+    );
+
+    // ── Multi-tag union (combined rails, e.g. NEW_SEASON + NEW_EPISODE) ──────────
+    // A record carries at most one of these tags, so no DISTINCT/GROUP BY is needed.
+
+    @Query("""
+            SELECT r
+            FROM RecordEntity r
+            JOIN r.tags tag
+            JOIN r.tmdb tmdb
+            WHERE tag.tagType IN :tags
+            """)
+    Slice<RecordEntity> findByTags(
+            @Param("tags") java.util.Collection<RecordTagType> tags,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
-            JOIN r.tmdb tmdb
-            WHERE t.tagType = :tag
+            JOIN r.tags tag
+            WHERE tag.tagType IN :tags
             """)
-    Slice<Long> findIdsByTag(RecordTagType tag, Pageable pageable);
+    Slice<Long> findIdsByTags(
+            @Param("tags") java.util.Collection<RecordTagType> tags,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
-            JOIN r.tmdb tmdb
-            WHERE t.tagType = :tag
-            AND r.type = :recordType
+            JOIN r.tags tag
+            WHERE tag.tagType IN :tags
+            ORDER BY tag.priority DESC
             """)
-    Slice<Long> findIdsByTagAndType(RecordTagType tag, RecordType recordType, Pageable pageable);
+    Slice<Long> findIdsByTagsOrderByPriorityDesc(
+            @Param("tags") java.util.Collection<RecordTagType> tags,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags tag
+            JOIN r.tmdb tmdb
+            WHERE tag.tagType = :tag
+            """)
+    Slice<Long> findIdsByTag(
+            @Param("tag") RecordTagType tag,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT r.id
+            FROM RecordEntity r
+            JOIN r.tags tag
+            JOIN r.tmdb tmdb
+            WHERE tag.tagType = :tag
+              AND r.type = :recordType
+            """)
+    Slice<Long> findIdsByTagAndType(
+            @Param("tag") RecordTagType tag,
+            @Param("recordType") RecordType recordType,
+            Pageable pageable
+    );
 
     /* ================================================================
-       TAG RAILS — sorted by record_tags.priority (tagPriority sort)
-       Used when TagDefinition.defaultSort = "tagPriority".
-       ORDER BY is hard-coded in the query; pass unsorted Pageable.
+       TAG RAILS - PRIORITY SORT
+       These do not need tmdb join because sorting is only by tag.priority.
+       Pass unsorted Pageable from service for these methods.
     ================================================================= */
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
-            JOIN r.tmdb tmdb
-            WHERE t.tagType = :tag
-            ORDER BY t.priority DESC
+            JOIN r.tags tag
+            WHERE tag.tagType = :tag
+            ORDER BY tag.priority DESC
             """)
-    Slice<Long> findIdsByTagOrderByPriorityDesc(RecordTagType tag, Pageable pageable);
+    Slice<Long> findIdsByTagOrderByPriorityDesc(
+            @Param("tag") RecordTagType tag,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
-            JOIN r.tmdb tmdb
-            WHERE t.tagType = :tag
-            AND r.type = :recordType
-            ORDER BY t.priority DESC
+            JOIN r.tags tag
+            WHERE tag.tagType = :tag
+              AND r.type = :recordType
+            ORDER BY tag.priority DESC
             """)
-    Slice<Long> findIdsByTagAndTypeOrderByPriorityDesc(RecordTagType tag, RecordType recordType, Pageable pageable);
+    Slice<Long> findIdsByTagAndTypeOrderByPriorityDesc(
+            @Param("tag") RecordTagType tag,
+            @Param("recordType") RecordType recordType,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
+            JOIN r.tags tag
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
-            WHERE t.tagType = :tag
-            AND g2.id = :category
-            ORDER BY t.priority DESC
+            JOIN tmdb.genres genre
+            WHERE tag.tagType = :tag
+              AND genre.id = :category
+            ORDER BY tag.priority DESC
             """)
-    Slice<Long> findIdsByTagAndCategoryOrderByPriorityDesc(RecordTagType tag, Long category, Pageable pageable);
+    Slice<Long> findIdsByTagAndCategoryOrderByPriorityDesc(
+            @Param("tag") RecordTagType tag,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
+            JOIN r.tags tag
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
-            WHERE t.tagType = :tag
-            AND r.type = :recordType
-            AND g2.id = :category
-            ORDER BY t.priority DESC
+            JOIN tmdb.genres genre
+            WHERE tag.tagType = :tag
+              AND r.type = :recordType
+              AND genre.id = :category
+            ORDER BY tag.priority DESC
             """)
-    Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityDesc(RecordTagType tag, RecordType recordType, Long category, Pageable pageable);
+    Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityDesc(
+            @Param("tag") RecordTagType tag,
+            @Param("recordType") RecordType recordType,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
-            JOIN r.tmdb tmdb
-            WHERE t.tagType = :tag
-            ORDER BY t.priority ASC
+            JOIN r.tags tag
+            WHERE tag.tagType = :tag
+            ORDER BY tag.priority ASC
             """)
-    Slice<Long> findIdsByTagOrderByPriorityAsc(RecordTagType tag, Pageable pageable);
+    Slice<Long> findIdsByTagOrderByPriorityAsc(
+            @Param("tag") RecordTagType tag,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
-            JOIN r.tmdb tmdb
-            WHERE t.tagType = :tag
-            AND r.type = :recordType
-            ORDER BY t.priority ASC
+            JOIN r.tags tag
+            WHERE tag.tagType = :tag
+              AND r.type = :recordType
+            ORDER BY tag.priority ASC
             """)
-    Slice<Long> findIdsByTagAndTypeOrderByPriorityAsc(RecordTagType tag, RecordType recordType, Pageable pageable);
+    Slice<Long> findIdsByTagAndTypeOrderByPriorityAsc(
+            @Param("tag") RecordTagType tag,
+            @Param("recordType") RecordType recordType,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
+            JOIN r.tags tag
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
-            WHERE t.tagType = :tag
-            AND g2.id = :category
-            ORDER BY t.priority ASC
+            JOIN tmdb.genres genre
+            WHERE tag.tagType = :tag
+              AND genre.id = :category
+            ORDER BY tag.priority ASC
             """)
-    Slice<Long> findIdsByTagAndCategoryOrderByPriorityAsc(RecordTagType tag, Long category, Pageable pageable);
+    Slice<Long> findIdsByTagAndCategoryOrderByPriorityAsc(
+            @Param("tag") RecordTagType tag,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
+            JOIN r.tags tag
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
-            WHERE t.tagType = :tag
-            AND r.type = :recordType
-            AND g2.id = :category
-            ORDER BY t.priority ASC
+            JOIN tmdb.genres genre
+            WHERE tag.tagType = :tag
+              AND r.type = :recordType
+              AND genre.id = :category
+            ORDER BY tag.priority ASC
             """)
-    Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityAsc(RecordTagType tag, RecordType recordType, Long category, Pageable pageable);
+    Slice<Long> findIdsByTagAndTypeAndCategoryOrderByPriorityAsc(
+            @Param("tag") RecordTagType tag,
+            @Param("recordType") RecordType recordType,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
     /* ================================================================
        GENRE RAILS
-       Already JOINs tmdb via tm.genres — alias as tmdb for sort.
+       tmdb alias is kept for dynamic sorting on tmdb fields.
     ================================================================= */
 
     @Query("""
             SELECT r
             FROM RecordEntity r
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g
-            WHERE g.id = :genreId
+            JOIN tmdb.genres genre
+            WHERE genre.id = :genreId
             """)
-    Slice<RecordEntity> findByGenre(Long genreId, Pageable pageable);
+    Slice<RecordEntity> findByGenre(
+            @Param("genreId") Long genreId,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g
-            WHERE g.id = :genreId
+            JOIN tmdb.genres genre
+            WHERE genre.id = :genreId
             """)
-    Slice<Long> findIdsByGenre(Long genreId, Pageable pageable);
+    Slice<Long> findIdsByGenre(
+            @Param("genreId") Long genreId,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g
-            WHERE g.id = :genreId
-            AND r.type = :recordType
+            JOIN tmdb.genres genre
+            WHERE genre.id = :genreId
+              AND r.type = :recordType
             """)
-    Slice<Long> findIdsByGenreAndType(Long genreId, RecordType recordType, Pageable pageable);
+    Slice<Long> findIdsByGenreAndType(
+            @Param("genreId") Long genreId,
+            @Param("recordType") RecordType recordType,
+            Pageable pageable
+    );
 
     /* ================================================================
        LANGUAGE RAILS
-       Alias tmdb join as "tmdb" for sort compatibility.
+       tmdb alias is kept for dynamic sorting on tmdb fields.
     ================================================================= */
 
     @Query("""
@@ -217,7 +299,10 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             JOIN r.tmdb tmdb
             WHERE tmdb.originalLanguage IN :languages
             """)
-    Slice<RecordEntity> findByLanguages(List<String> languages, Pageable pageable);
+    Slice<RecordEntity> findByLanguages(
+            @Param("languages") Collection<String> languages,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
@@ -225,75 +310,93 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
             JOIN r.tmdb tmdb
             WHERE tmdb.originalLanguage IN :languages
             """)
-    Slice<Long> findIdsByLanguages(List<String> languages, Pageable pageable);
+    Slice<Long> findIdsByLanguages(
+            @Param("languages") Collection<String> languages,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
             JOIN r.tmdb tmdb
             WHERE tmdb.originalLanguage IN :languages
-            AND r.type = :recordType
+              AND r.type = :recordType
             """)
-    Slice<Long> findIdsByLanguagesAndType(List<String> languages, RecordType recordType, Pageable pageable);
+    Slice<Long> findIdsByLanguagesAndType(
+            @Param("languages") Collection<String> languages,
+            @Param("recordType") RecordType recordType,
+            Pageable pageable
+    );
 
     /* ================================================================
-       CATEGORY (GENRE) FILTERED VARIANTS
-       Used when user selects a genre/category on the page.
-       Adds AND g2.id = :category to every rail query.
+       CATEGORY FILTERED VARIANTS
     ================================================================= */
 
-    // Tag + Category
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
+            JOIN r.tags tag
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
-            WHERE t.tagType = :tag
-            AND g2.id = :category
+            JOIN tmdb.genres genre
+            WHERE tag.tagType = :tag
+              AND genre.id = :category
             """)
-    Slice<Long> findIdsByTagAndCategory(RecordTagType tag, Long category, Pageable pageable);
+    Slice<Long> findIdsByTagAndCategory(
+            @Param("tag") RecordTagType tag,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
-            JOIN r.tags t
+            JOIN r.tags tag
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
-            WHERE t.tagType = :tag
-            AND r.type = :recordType
-            AND g2.id = :category
+            JOIN tmdb.genres genre
+            WHERE tag.tagType = :tag
+              AND r.type = :recordType
+              AND genre.id = :category
             """)
-    Slice<Long> findIdsByTagAndTypeAndCategory(RecordTagType tag, RecordType recordType, Long category, Pageable pageable);
+    Slice<Long> findIdsByTagAndTypeAndCategory(
+            @Param("tag") RecordTagType tag,
+            @Param("recordType") RecordType recordType,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
-    // Genre + Category (category IS the genre, so same as existing genre query)
-    // No extra method needed — findIdsByGenre / findIdsByGenreAndType already filter by genre.
-
-    // Language + Category
     @Query("""
             SELECT r.id
             FROM RecordEntity r
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
+            JOIN tmdb.genres genre
             WHERE tmdb.originalLanguage IN :languages
-            AND g2.id = :category
+              AND genre.id = :category
             """)
-    Slice<Long> findIdsByLanguagesAndCategory(List<String> languages, Long category, Pageable pageable);
+    Slice<Long> findIdsByLanguagesAndCategory(
+            @Param("languages") Collection<String> languages,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r.id
             FROM RecordEntity r
             JOIN r.tmdb tmdb
-            JOIN tmdb.genres g2
+            JOIN tmdb.genres genre
             WHERE tmdb.originalLanguage IN :languages
-            AND r.type = :recordType
-            AND g2.id = :category
+              AND r.type = :recordType
+              AND genre.id = :category
             """)
-    Slice<Long> findIdsByLanguagesAndTypeAndCategory(List<String> languages, RecordType recordType, Long category, Pageable pageable);
+    Slice<Long> findIdsByLanguagesAndTypeAndCategory(
+            @Param("languages") Collection<String> languages,
+            @Param("recordType") RecordType recordType,
+            @Param("category") Long category,
+            Pageable pageable
+    );
 
     /*
-     * findIdsBySpecification is implemented in RecordRepositoryImpl (custom repo).
-     * Do NOT add a @Query version here — @Query ignores Specification.
+     * findIdsBySpecification is implemented in RecordRepositoryImpl.
+     * Do not add @Query here because @Query ignores Specification.
      */
 
     /* ================================================================
@@ -303,101 +406,93 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     @Query("""
             SELECT r
             FROM RecordEntity r
-            JOIN r.tmdb tm
-            WHERE LOWER(tm.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
-            OR LOWER(tm.title) LIKE LOWER(CONCAT('%', :query, '%'))
+            JOIN r.tmdb tmdb
+            WHERE LOWER(tmdb.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
+               OR LOWER(tmdb.title) LIKE LOWER(CONCAT('%', :query, '%'))
             """)
-    Page<RecordEntity> search(String query, Pageable pageable);
+    Page<RecordEntity> search(
+            @Param("query") String query,
+            Pageable pageable
+    );
 
     @Query("""
-            SELECT r.id           as id,
-                   tm.title       as title,
-                   r.type         as type,
-                   tm.posterPath  as posterPath,
-                   tm.backdropPath as backdropPath,
-                   tm.voteAverage as voteAverage,
-                   tm.popularity  as popularity,
-                   COALESCE(tm.releaseDate, tm.firstAirDate) as releaseDate,
-                   tm.overview    as overview,
-                   tm.id          as tmdbId
+            SELECT
+                r.id as id,
+                tmdb.title as title,
+                r.type as type,
+                tmdb.posterPath as posterPath,
+                tmdb.backdropPath as backdropPath,
+                tmdb.voteAverage as voteAverage,
+                tmdb.popularity as popularity,
+                COALESCE(
+                    NULLIF(TRIM(tmdb.releaseDate), ''),
+                    NULLIF(TRIM(tmdb.firstAirDate), '')
+                ) as releaseDate,
+                tmdb.overview as overview,
+                tmdb.id as tmdbId,
+                TREAT(tmdb as MovieTmdbEntity).runtime as runtime,
+                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
             FROM RecordEntity r
-            JOIN r.tmdb tm
-            WHERE LOWER(tm.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
-               OR LOWER(tm.title)         LIKE LOWER(CONCAT('%', :query, '%'))
+            JOIN r.tmdb tmdb
+            WHERE LOWER(tmdb.originalTitle) LIKE LOWER(CONCAT('%', :query, '%'))
+               OR LOWER(tmdb.title) LIKE LOWER(CONCAT('%', :query, '%'))
             """)
-    Page<RailRecordProjection> searchProjection(String query, Pageable pageable);
+    Page<RailRecordProjection> searchProjection(
+            @Param("query") String query,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT new com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto(
                 r.id,
                 r.name,
                 r.type,
-                tm.id,
-                tm.posterPath
+                tmdb.id,
+                tmdb.posterPath
             )
             FROM RecordEntity r
-            JOIN r.tmdb tm
-            WHERE LOWER(tm.originalTitle) LIKE LOWER(CONCAT(:query, '%'))
-               OR LOWER(tm.title) LIKE LOWER(CONCAT(:query, '%'))
-            ORDER BY r.createdAt desc
+            JOIN r.tmdb tmdb
+            WHERE LOWER(tmdb.originalTitle) LIKE LOWER(CONCAT(:query, '%'))
+               OR LOWER(tmdb.title) LIKE LOWER(CONCAT(:query, '%'))
+            ORDER BY r.createdAt DESC
             """)
-    Page<RecordAutocompleteDto> autocomplete(String query, Pageable pageable);
+    Page<RecordAutocompleteDto> autocomplete(
+            @Param("query") String query,
+            Pageable pageable
+    );
+
+    /**
+     * Autocomplete-shaped projection for a single record id — used to re-hydrate the
+     * ingestion form's RecordSearch field when re-editing a job. LEFT JOIN so records
+     * without a linked TMDB row still resolve (posterPath just comes back null).
+     */
+    @Query("""
+            SELECT new com.db.dbworld.app.cinema.catalog.dto.RecordAutocompleteDto(
+                r.id,
+                r.name,
+                r.type,
+                tmdb.id,
+                tmdb.posterPath
+            )
+            FROM RecordEntity r
+            LEFT JOIN r.tmdb tmdb
+            WHERE r.id = :id
+            """)
+    Optional<RecordAutocompleteDto> findAutocompleteById(@Param("id") Long id);
 
     /* ================================================================
        ADMIN TABLE
     ================================================================= */
 
-    @Query(value = """
-            SELECT
-                r.id AS recordId,
-                r.name AS name,
-                r.type AS type,
-                tm.id AS tmdbId,
-
-                YEAR(COALESCE(tm.release_date, tm.first_air_date)) AS year,
-
-                r.created_at AS createdAt,
-                r.updated_at AS updatedAt,
-                GROUP_CONCAT(t.tag_type ORDER BY t.priority SEPARATOR ',') AS tags
-
-            FROM records r
-            LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
-            LEFT JOIN record_tags t ON r.id = t.record_id
-
-            WHERE
-                (:recordId IS NULL OR r.id = :recordId)
-            AND (:name IS NULL OR LOWER(r.name) LIKE LOWER(CONCAT('%', :name, '%')))
-            AND (:type IS NULL OR r.type = :type)
-            AND (:tmdbId IS NULL OR tm.id = :tmdbId)
-            AND (:year IS NULL OR YEAR(COALESCE(tm.release_date, tm.first_air_date)) = :year)
-
-            GROUP BY r.id
-            """,
-            countQuery = """
-                    SELECT COUNT(DISTINCT r.id)
-
-                    FROM records r
-                    LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
-
-                    WHERE
-                        (:recordId IS NULL OR r.id = :recordId)
-                    AND (:name IS NULL OR LOWER(r.name) LIKE LOWER(CONCAT('%', :name, '%')))
-                    AND (:type IS NULL OR r.type = :type)
-                    AND (:tmdbId IS NULL OR tm.id = :tmdbId)
-                    AND (:year IS NULL OR YEAR(COALESCE(tm.release_date, tm.first_air_date)) = :year)
-                    """,
-            nativeQuery = true)
-    Page<RecordAdminRowDto> findAdminTable(
-            Long recordId,
-            String name,
-            String type,
-            Long tmdbId,
-            Integer year,
-            Pageable pageable
-    );
+    /*
+     * findAdminTable(recordId, name, type, tmdbId, year, status, pageable) is
+     * implemented in RecordRepositoryImpl (hand-built native query) so ORDER BY
+     * can target joined columns (sync state, tmdb year). A @Query here can't —
+     * Spring Data prefixes the primary alias `r.` onto native sort columns.
+     */
 
     /* ================================================================
-       TAG ADMIN — paginated admin table rows filtered by a single tag
+       TAG ADMIN
     ================================================================= */
 
     @Query(value = """
@@ -406,27 +501,47 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
                 r.name AS name,
                 r.type AS type,
                 tm.id AS tmdbId,
-                YEAR(COALESCE(tm.release_date, tm.first_air_date)) AS year,
+                YEAR(
+                    COALESCE(
+                        NULLIF(TRIM(tm.release_date), ''),
+                        NULLIF(TRIM(tm.first_air_date), '')
+                    )
+                ) AS year,
                 r.created_at AS createdAt,
                 r.updated_at AS updatedAt,
-                GROUP_CONCAT(t.tag_type ORDER BY t.priority SEPARATOR ',') AS tags
+                GROUP_CONCAT(tag.tag_type ORDER BY tag.priority SEPARATOR ',') AS tags
             FROM records r
             LEFT JOIN tmdb_data tm ON r.tmdb_id = tm.id
-            LEFT JOIN record_tags t ON r.id = t.record_id
+            LEFT JOIN record_tags tag ON r.id = tag.record_id
             WHERE EXISTS (
-                SELECT 1 FROM record_tags tt
-                WHERE tt.record_id = r.id AND tt.tag_type = :tagType
+                SELECT 1
+                FROM record_tags tag_filter
+                WHERE tag_filter.record_id = r.id
+                  AND tag_filter.tag_type = :tagType
             )
-            GROUP BY r.id
+            GROUP BY
+                r.id,
+                r.name,
+                r.type,
+                tm.id,
+                tm.release_date,
+                tm.first_air_date,
+                r.created_at,
+                r.updated_at
             """,
             countQuery = """
-                    SELECT COUNT(DISTINCT r.id)
+                    SELECT COUNT(*)
                     FROM records r
-                    INNER JOIN record_tags tt ON tt.record_id = r.id AND tt.tag_type = :tagType
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM record_tags tag_filter
+                        WHERE tag_filter.record_id = r.id
+                          AND tag_filter.tag_type = :tagType
+                    )
                     """,
             nativeQuery = true)
     Page<RecordAdminRowDto> findAdminTableByTag(
-            @org.springframework.data.repository.query.Param("tagType") String tagType,
+            @Param("tagType") String tagType,
             Pageable pageable
     );
 
@@ -437,8 +552,8 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     @Query("""
             SELECT r
             FROM RecordEntity r
-            JOIN r.tmdb t
-            ORDER BY t.popularity DESC
+            JOIN r.tmdb tmdb
+            ORDER BY tmdb.popularity DESC
             """)
     List<RecordEntity> findTopByPopularity(Pageable pageable);
 
@@ -453,31 +568,37 @@ public interface RecordRepository extends JpaRepository<RecordEntity, Long>,
     @Query("""
             SELECT
                 r.id as id,
-                t.title as title,
+                tmdb.title as title,
                 r.type as type,
-                t.posterPath as posterPath,
-                t.backdropPath as backdropPath,
-                t.voteAverage as voteAverage,
-                t.popularity as popularity,
-                COALESCE(t.releaseDate, t.firstAirDate) as releaseDate,
-                t.overview as overview,
-                t.id as tmdbId,
-                TREAT(t as MovieTmdbEntity).runtime as runtime,
-                TREAT(t as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
+                tmdb.posterPath as posterPath,
+                tmdb.backdropPath as backdropPath,
+                tmdb.voteAverage as voteAverage,
+                tmdb.popularity as popularity,
+                COALESCE(
+                    NULLIF(TRIM(tmdb.releaseDate), ''),
+                    NULLIF(TRIM(tmdb.firstAirDate), '')
+                ) as releaseDate,
+                tmdb.overview as overview,
+                tmdb.id as tmdbId,
+                TREAT(tmdb as MovieTmdbEntity).runtime as runtime,
+                TREAT(tmdb as TvSeriesTmdbEntity).numberOfSeasons as numberOfSeasons
             FROM RecordEntity r
-            JOIN r.tmdb t
+            JOIN r.tmdb tmdb
             WHERE r.id IN :ids
             """)
-    List<RailRecordProjection> findRailRecordProjection(List<Long> ids);
+    List<RailRecordProjection> findRailRecordProjection(
+            @Param("ids") Collection<Long> ids
+    );
 
-    List<RecordEntity> findByTmdbIdIn(List<Long> tmdbIds);
+    List<RecordEntity> findByTmdbIdIn(Collection<Long> tmdbIds);
 
     /**
-     * Used by the TMDB sync orchestrator. Filtering by {@link RecordType} is essential
-     * because movies and TV in TMDB use independent numeric ID spaces — a movie #1930
-     * and TV series #1930 are unrelated. Without this filter, refreshing a movie can
-     * load a TV record (or vice versa), causing the SINGLE_TABLE discriminator mismatch
-     * that surfaces as "Duplicate entry 'X' for key 'tmdb_data.PRIMARY'".
+     * Used by the TMDB sync orchestrator.
+     *
+     * Filtering by RecordType is important because movies and TV series in TMDB
+     * use independent numeric ID spaces. A movie #1930 and TV series #1930 are
+     * unrelated. Without this filter, refreshing a movie can accidentally load
+     * a TV record or vice versa.
      */
-    List<RecordEntity> findByTmdbIdInAndType(List<Long> tmdbIds, RecordType type);
+    List<RecordEntity> findByTmdbIdInAndType(Collection<Long> tmdbIds, RecordType type);
 }

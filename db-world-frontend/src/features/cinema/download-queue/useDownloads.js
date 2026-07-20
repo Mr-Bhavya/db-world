@@ -33,11 +33,27 @@ function upsert(items, incoming) {
 export function useDownloads() {
   const [downloads, setDownloads] = useState([]);
   const [loading,   setLoading]   = useState(true);
+  const [wifiOnly,  setWifiOnly]  = useState(false);
+  const [concurrency,    setConcurrencyState] = useState(1);
+  const [maxConcurrency, setMaxConcurrency]   = useState(3);
 
   const refresh = useCallback(async () => {
     try {
       const res = await DbWorldDownload.listDownloads();
-      setDownloads((res.downloads ?? []).map(normalizeDownload));
+      setDownloads(prev => {
+        const prevById = new Map(prev.map(d => [d.downloadId, d]));
+        return (res.downloads ?? []).map(item => {
+          const next = normalizeDownload(item);
+          // A full re-list drops transient client flags; carry "resuming" forward
+          // until real progress arrives or the download settles.
+          const old = prevById.get(next.downloadId);
+          if (old?._resuming && (next.status === 'pending' || next.status === 'running')
+              && !(next.speedBytesPerSec > 0)) {
+            next._resuming = true;
+          }
+          return next;
+        });
+      });
     } catch (e) {
       console.error('[useDownloads] fetch failed', e);
     } finally {
@@ -45,22 +61,45 @@ export function useDownloads() {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch + load settings
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await DbWorldDownload.getSettings();
+        setWifiOnly(Boolean(s?.wifiOnly));
+        if (Number.isFinite(s?.concurrentLimit))    setConcurrencyState(s.concurrentLimit);
+        if (Number.isFinite(s?.maxConcurrentLimit)) setMaxConcurrency(s.maxConcurrentLimit);
+      } catch { /* web stub / older native — ignore */ }
+    })();
+  }, []);
 
   // Real-time events
   useEffect(() => {
     const listeners = [];
     (async () => {
       listeners.push(
+        // First byte after a resume → drop the transient "resuming" flag.
         await DbWorldDownload.addListener('downloadProgress', d =>
-          setDownloads(prev => upsert(prev, { ...d, status: d.status || 'running' }))),
-        await DbWorldDownload.addListener('downloadStateChanged', d =>
-          setDownloads(prev => upsert(prev, d))),
+          setDownloads(prev => upsert(prev, {
+            ...d,
+            status: d.status || 'running',
+            ...(d.speedBytesPerSec > 0 ? { _resuming: false } : {}),
+          }))),
+        await DbWorldDownload.addListener('downloadStateChanged', d => {
+          // Keep "resuming" through the pending→running churn; only a settled state
+          // (paused/cancelled/failed/success) ends it. Progress (below) clears it too.
+          const settled = ['paused', 'cancelled', 'failed', 'success'].includes(d.status);
+          setDownloads(prev => upsert(prev, settled ? { ...d, _resuming: false } : d));
+        }),
         await DbWorldDownload.addListener('downloadComplete', d =>
           setDownloads(prev => upsert(prev, { ...d, status: 'success', progress: 100 }))),
         await DbWorldDownload.addListener('downloadError', d =>
           setDownloads(prev => upsert(prev, { ...d, status: 'failed' }))),
+        await DbWorldDownload.addListener('downloadAdded', d =>
+          setDownloads(prev => upsert(prev, { ...d, status: d.status || 'pending' }))),
+        await DbWorldDownload.addListener('downloadRemoved', d =>
+          setDownloads(prev => prev.filter(x => x.downloadId !== d.downloadId))),
       );
     })();
     return () => listeners.forEach(l => l?.remove());
@@ -84,18 +123,24 @@ export function useDownloads() {
 
   // Actions
   const pause = useCallback(async (id) => {
+    // Optimistically zero speed/ETA so the UI reflects the pause instantly (no lingering decay).
+    setDownloads(prev => prev.map(d => d.downloadId === id ? { ...d, status: 'paused', speedBytesPerSec: 0, etaSeconds: -1 } : d));
     await DbWorldDownload.pauseDownload({ downloadId: id });
-    setDownloads(prev => prev.map(d => d.downloadId === id ? { ...d, status: 'paused' } : d));
   }, []);
 
+  // Resume: optimistically show a "resuming" state so the UI reacts instantly
+  // instead of dwelling on "pending" while Fetch re-queues and negotiates the range.
   const resume = useCallback(async (id) => {
+    setDownloads(prev => prev.map(d =>
+      d.downloadId === id ? { ...d, status: 'running', _resuming: true, speedBytesPerSec: 0 } : d));
     await DbWorldDownload.resumeDownload({ downloadId: id });
-    setDownloads(prev => prev.map(d => d.downloadId === id ? { ...d, status: 'running' } : d));
   }, []);
 
+  // Cancel STOPS the transfer but keeps a 'cancelled' record (redownload-able).
   const cancel = useCallback(async (id) => {
     await DbWorldDownload.cancelDownload({ downloadId: id });
-    setDownloads(prev => prev.filter(d => d.downloadId !== id));
+    setDownloads(prev => prev.map(d =>
+      d.downloadId === id ? { ...d, status: 'cancelled', speedBytesPerSec: 0 } : d));
   }, []);
 
   const remove = useCallback(async (id) => {
@@ -103,5 +148,58 @@ export function useDownloads() {
     setDownloads(prev => prev.filter(d => d.downloadId !== id));
   }, []);
 
-  return { downloads, loading, refresh, actions: { pause, resume, cancel, remove } };
+  const retry = useCallback(async (id) => {
+    await DbWorldDownload.retryDownload({ downloadId: id });
+    setDownloads(prev => prev.map(d => d.downloadId === id ? { ...d, status: 'pending' } : d));
+  }, []);
+
+  const pauseAll = useCallback(async () => {
+    const ids = downloadsRef.current
+      .filter(d => d.status === 'running' || d.status === 'pending')
+      .map(d => d.downloadId);
+    setDownloads(prev => prev.map(d =>
+      (d.status === 'running' || d.status === 'pending')
+        ? { ...d, status: 'paused', _resuming: false, speedBytesPerSec: 0 } : d));
+    for (const id of ids) {
+      try { await DbWorldDownload.pauseDownload({ downloadId: id }); } catch { /* keep going */ }
+    }
+  }, []);
+
+  const resumeAll = useCallback(async () => {
+    const ids = downloadsRef.current.filter(d => d.status === 'paused').map(d => d.downloadId);
+    setDownloads(prev => prev.map(d =>
+      d.status === 'paused' ? { ...d, status: 'running', _resuming: true, speedBytesPerSec: 0 } : d));
+    for (const id of ids) {
+      try { await DbWorldDownload.resumeDownload({ downloadId: id }); } catch { /* keep going */ }
+    }
+  }, []);
+
+  const toggleWifiOnly = useCallback(async (next) => {
+    setWifiOnly(next);
+    try {
+      await DbWorldDownload.setNetworkPolicy({ wifiOnly: next });
+    } catch (e) {
+      console.error('[useDownloads] setNetworkPolicy failed', e);
+      setWifiOnly(prev => !prev); // revert on failure
+    }
+  }, []);
+
+  const setConcurrency = useCallback(async (next) => {
+    const prev = concurrency;
+    setConcurrencyState(next); // optimistic
+    try {
+      const res = await DbWorldDownload.setConcurrentLimit({ limit: next });
+      if (Number.isFinite(res?.concurrentLimit)) setConcurrencyState(res.concurrentLimit);
+    } catch (e) {
+      console.error('[useDownloads] setConcurrentLimit failed', e);
+      setConcurrencyState(prev); // revert on failure
+    }
+  }, [concurrency]);
+
+  return {
+    downloads, loading, refresh,
+    wifiOnly, toggleWifiOnly,
+    concurrency, maxConcurrency, setConcurrency,
+    actions: { pause, resume, cancel, remove, retry, pauseAll, resumeAll },
+  };
 }

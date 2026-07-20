@@ -54,6 +54,11 @@ export const DB_SERIES_DETIALS_ROUTE = `${DB_CINEMA_ROUTE}/series/:title`;
 export const DB_RECORD_MEDIA_FILES_ROUTE =
   `${DB_CINEMA_ROUTE}/record/:recordId/media-files`;
 export const DB_DOWNLOAD_QUEUE_ROUTE = `${DB_CINEMA_ROUTE}/downloads`;
+export const DB_PLAYER_ROUTE = `${DB_CINEMA_ROUTE}/player`;
+// The player route carries the file id so URLs are unique + shareable + refreshable.
+export const DB_PLAYER_ROUTE_PATTERN = `${DB_PLAYER_ROUTE}/:mediaFileId`;
+export const playerPath = (mediaFileId) => `${DB_PLAYER_ROUTE}/${encodeURIComponent(mediaFileId ?? '')}`;
+export const DB_PLAYER_DEMO_ROUTE = `${DB_PLAYER_ROUTE}/demo`;
 
 export const DB_WEATHER_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-weather`;
 export const DB_GAMES_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-games`;
@@ -94,6 +99,9 @@ export const ADD_RECORD_ROUTE =
 
 export const EDIT_RECORD_ROUTE =
   `${DB_CINEMA_ROUTE}/edit-record/:title`;
+
+export const DB_WALLET_ROUTE = `${DB_WORLD_HOME_ROUTE}/db-wallet`;
+export const DB_WALLET_SHARE_ROUTE = `${DB_WORLD_HOME_ROUTE}/shared-doc/:token`;
 
 /* =========================
  * USER ROLES
@@ -191,6 +199,10 @@ export default {
   DB_SERIES_DETIALS_ROUTE,
   DB_RECORD_MEDIA_FILES_ROUTE,
   DB_DOWNLOAD_QUEUE_ROUTE,
+  DB_PLAYER_ROUTE,
+  DB_PLAYER_ROUTE_PATTERN,
+  playerPath,
+  DB_PLAYER_DEMO_ROUTE,
 
   DB_WEATHER_ROUTE,
   DB_GAMES_ROUTE,
@@ -216,6 +228,8 @@ export default {
   DB_ADMIN_BASE_ROUTE,
   ADD_RECORD_ROUTE,
   EDIT_RECORD_ROUTE,
+  DB_WALLET_ROUTE,
+  DB_WALLET_SHARE_ROUTE,
 
   OWNER_USER_ROLE,
   ADMIN_USER_ROLE,

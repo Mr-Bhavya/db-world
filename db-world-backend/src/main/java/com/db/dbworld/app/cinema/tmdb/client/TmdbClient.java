@@ -1,43 +1,87 @@
 package com.db.dbworld.app.cinema.tmdb.client;
 
 import com.db.dbworld.app.cinema.tmdb.client.dto.*;
-import com.db.dbworld.app.cinema.tmdb.search.dto.SearchResponseDto;
+import com.db.dbworld.app.cinema.tmdb.config.TmdbWebClientConfig;
 import com.db.dbworld.app.cinema.tmdb.discover.dto.DiscoverResponseDto;
+import com.db.dbworld.app.cinema.tmdb.search.dto.SearchResponseDto;
 import com.db.dbworld.app.cinema.tmdb.trending.dto.TrendingResponseDto;
 
-import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.util.UriBuilder;
 import reactor.core.publisher.Mono;
 
+import java.util.function.Consumer;
+
+@Log4j2
 @Component
-@RequiredArgsConstructor
 public class TmdbClient {
 
+    private static final String APPEND_FULL_DETAILS = "images,videos,credits";
+
     private final WebClient webClient;
+
+    public TmdbClient(@Qualifier("tmdbWebClient") WebClient webClient) {
+        this.webClient = webClient;
+    }
+
+    /**
+     * Logs TMDB HTTP errors with status and path.
+     * The bearer token is safe because it is configured as a default header
+     * in WebClient config and is never part of the URI.
+     */
+    private <T> Mono<T> logHttpFailure(String path, Mono<T> mono) {
+        return mono.doOnError(WebClientResponseException.class, e ->
+                log.warn(
+                        "TMDB HTTP failure; status={} path={} message={}",
+                        statusCode(e),
+                        path,
+                        e.getMessage()
+                )
+        );
+    }
+
+    private static String statusCode(WebClientResponseException e) {
+        var status = e.getStatusCode();
+        return String.valueOf(status.value());
+    }
 
     /* =====================================
        GENERIC GET HELPERS
      ===================================== */
 
-    private <T> Mono<T> get(String uri, Class<T> responseType) {
-
-        return webClient.get()
-                .uri(uri)
-                .retrieve()
-                .bodyToMono(responseType);
+    private <T> Mono<T> get(String path, Class<T> responseType) {
+        return get(path, responseType, null);
     }
 
-    private <T> Mono<T> get(String uri, String paramName, Object paramValue, Class<T> responseType) {
+    private <T> Mono<T> get(String path, Class<T> responseType, Consumer<UriBuilder> queryParams) {
+        Mono<T> request = webClient.get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder.path(path);
 
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path(uri)
-                        .queryParam(paramName, paramValue)
-                        .build())
+                    if (queryParams != null) {
+                        queryParams.accept(builder);
+                    }
+
+                    return builder.build();
+                })
                 .retrieve()
-                .bodyToMono(responseType);
+                .bodyToMono(responseType)
+                // Retry transient network failures (Connection reset, premature close,
+                // stale pooled sockets) around the FULL request — including the body
+                // read, which a WebClient filter cannot cover. See transientNetworkRetry.
+                .retryWhen(TmdbWebClientConfig.transientNetworkRetry(path));
+
+        return logHttpFailure(path, request);
+    }
+
+    private static void addIfPresent(UriBuilder builder, String name, Object value) {
+        if (value != null) {
+            builder.queryParam(name, value);
+        }
     }
 
     /* =====================================
@@ -49,14 +93,8 @@ public class TmdbClient {
     }
 
     public Mono<MovieTmdbResponse> getMovieFull(Long id) {
-
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/movie/" + id)
-                        .queryParam("append_to_response", "images,videos,credits")
-                        .build())
-                .retrieve()
-                .bodyToMono(MovieTmdbResponse.class);
+        return get("/movie/" + id, MovieTmdbResponse.class,
+                builder -> builder.queryParam("append_to_response", APPEND_FULL_DETAILS));
     }
 
     public Mono<ImagesTmdbResponse> getMovieImages(Long id) {
@@ -72,7 +110,8 @@ public class TmdbClient {
     }
 
     public Mono<ReviewPageTmdbResponse> getMovieReviews(Long id, int page) {
-        return get("/movie/" + id + "/reviews", "page", page, ReviewPageTmdbResponse.class);
+        return get("/movie/" + id + "/reviews", ReviewPageTmdbResponse.class,
+                builder -> builder.queryParam("page", page));
     }
 
     public Mono<ProvidersTmdbResponse> getMovieProviders(Long id) {
@@ -80,16 +119,11 @@ public class TmdbClient {
     }
 
     public Mono<TmdbChangeResponse> getMovieChanges(String startDate, String endDate, int page) {
-
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/movie/changes")
-                        .queryParam("start_date", startDate)
-                        .queryParam("end_date", endDate)
-                        .queryParam("page", page)
-                        .build())
-                .retrieve()
-                .bodyToMono(TmdbChangeResponse.class);
+        return get("/movie/changes", TmdbChangeResponse.class, builder -> {
+            addIfPresent(builder, "start_date", startDate);
+            addIfPresent(builder, "end_date", endDate);
+            builder.queryParam("page", page);
+        });
     }
 
     /* =====================================
@@ -101,14 +135,8 @@ public class TmdbClient {
     }
 
     public Mono<TvSeriesTmdbResponse> getTvSeriesFull(Long id) {
-
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/tv/" + id)
-                        .queryParam("append_to_response", "images,videos,credits")
-                        .build())
-                .retrieve()
-                .bodyToMono(TvSeriesTmdbResponse.class);
+        return get("/tv/" + id, TvSeriesTmdbResponse.class,
+                builder -> builder.queryParam("append_to_response", APPEND_FULL_DETAILS));
     }
 
     public Mono<ImagesTmdbResponse> getTvImages(Long id) {
@@ -124,7 +152,8 @@ public class TmdbClient {
     }
 
     public Mono<ReviewPageTmdbResponse> getTvReviews(Long id, int page) {
-        return get("/tv/" + id + "/reviews", "page", page, ReviewPageTmdbResponse.class);
+        return get("/tv/" + id + "/reviews", ReviewPageTmdbResponse.class,
+                builder -> builder.queryParam("page", page));
     }
 
     public Mono<ProvidersTmdbResponse> getTvProviders(Long id) {
@@ -132,16 +161,11 @@ public class TmdbClient {
     }
 
     public Mono<TmdbChangeResponse> getTvChanges(String startDate, String endDate, int page) {
-
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/tv/changes")
-                        .queryParam("start_date", startDate)
-                        .queryParam("end_date", endDate)
-                        .queryParam("page", page)
-                        .build())
-                .retrieve()
-                .bodyToMono(TmdbChangeResponse.class);
+        return get("/tv/changes", TmdbChangeResponse.class, builder -> {
+            addIfPresent(builder, "start_date", startDate);
+            addIfPresent(builder, "end_date", endDate);
+            builder.queryParam("page", page);
+        });
     }
 
     /* =====================================
@@ -153,7 +177,10 @@ public class TmdbClient {
     }
 
     public Mono<EpisodeTmdbResponse> getEpisode(Long tvId, int seasonNumber, int episodeNumber) {
-        return get("/tv/" + tvId + "/season/" + seasonNumber + "/episode/" + episodeNumber, EpisodeTmdbResponse.class);
+        return get(
+                "/tv/" + tvId + "/season/" + seasonNumber + "/episode/" + episodeNumber,
+                EpisodeTmdbResponse.class
+        );
     }
 
     /* =====================================
@@ -169,19 +196,19 @@ public class TmdbClient {
      ===================================== */
 
     public Mono<SearchResponseDto> searchMovie(String query, String language, Integer year) {
-        UriComponentsBuilder ub = UriComponentsBuilder.fromPath("/search/movie")
-                .queryParam("query", query)
-                .queryParam("language", language);
-        if (year != null) ub.queryParam("year", year);
-        return webClient.get().uri(ub.toUriString()).retrieve().bodyToMono(SearchResponseDto.class);
+        return get("/search/movie", SearchResponseDto.class, builder -> {
+            builder.queryParam("query", query);
+            addIfPresent(builder, "language", language);
+            addIfPresent(builder, "year", year);
+        });
     }
 
     public Mono<SearchResponseDto> searchTv(String query, String language, Integer year) {
-        UriComponentsBuilder ub = UriComponentsBuilder.fromPath("/search/tv")
-                .queryParam("query", query)
-                .queryParam("language", language);
-        if (year != null) ub.queryParam("first_air_date_year", year);
-        return webClient.get().uri(ub.toUriString()).retrieve().bodyToMono(SearchResponseDto.class);
+        return get("/search/tv", SearchResponseDto.class, builder -> {
+            builder.queryParam("query", query);
+            addIfPresent(builder, "language", language);
+            addIfPresent(builder, "first_air_date_year", year);
+        });
     }
 
     /* =====================================
@@ -213,11 +240,12 @@ public class TmdbClient {
      ===================================== */
 
     public Mono<DiscoverResponseDto> discoverMovies(int page) {
-        return get("/discover/movie", "page", page, DiscoverResponseDto.class);
+        return get("/discover/movie", DiscoverResponseDto.class,
+                builder -> builder.queryParam("page", page));
     }
 
     public Mono<DiscoverResponseDto> discoverTv(int page) {
-        return get("/discover/tv", "page", page, DiscoverResponseDto.class);
+        return get("/discover/tv", DiscoverResponseDto.class,
+                builder -> builder.queryParam("page", page));
     }
-
 }

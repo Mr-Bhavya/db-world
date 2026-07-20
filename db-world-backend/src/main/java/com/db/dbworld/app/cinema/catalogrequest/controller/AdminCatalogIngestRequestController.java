@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/cinema/admin/catalog-requests")
@@ -23,6 +24,15 @@ public class AdminCatalogIngestRequestController {
             @RequestParam(required = false) CatalogIngestRequestStatus status
     ) {
         return ApiResponse.success(service.listAll(status, userContext.userId()));
+    }
+
+    /**
+     * GET /api/cinema/admin/catalog-requests/pending-count — cheap counter for the
+     * sidebar/dashboard badge. Returns {@code { "count": N }}.
+     */
+    @GetMapping("/pending-count")
+    public ApiResponse<Map<String, Long>> pendingCount() {
+        return ApiResponse.success(Map.of("count", service.countByStatus(CatalogIngestRequestStatus.PENDING)));
     }
 
     /** Ingest the TMDB title and notify voters with a deep link to the new record. */

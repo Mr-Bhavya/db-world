@@ -1,32 +1,71 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
-  Box, Typography, Fab, useMediaQuery, useTheme, Button,
+  Box, Typography, useMediaQuery, useTheme, Button,
   CircularProgress, Skeleton, LinearProgress, IconButton, Tooltip,
   Select, MenuItem,
 } from '@mui/material';
 import AddIcon              from '@mui/icons-material/Add';
-import MovieIcon            from '@mui/icons-material/Movie';
-import TvIcon               from '@mui/icons-material/Tv';
 import ListIcon             from '@mui/icons-material/List';
+import SyncIcon             from '@mui/icons-material/Sync';
+import VisibilityIcon       from '@mui/icons-material/Visibility';
+import VisibilityOffIcon    from '@mui/icons-material/VisibilityOff';
+import DeleteIcon           from '@mui/icons-material/Delete';
+import CloseIcon            from '@mui/icons-material/Close';
 import FirstPageIcon        from '@mui/icons-material/FirstPage';
 import LastPageIcon         from '@mui/icons-material/LastPage';
 import ChevronLeftIcon      from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon     from '@mui/icons-material/ChevronRight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
-import { getRecordsTable, deleteRecord } from '../api/adminApi';
+import { getRecordsTable, deleteRecord, getTmdbSyncStats, refreshRecordFromTmdb, setRecordVisibility } from '../api/adminApi';
 import { useRecordStore } from '../stores/useRecordStore';
 import RecordFilters      from './RecordFilters';
 import RecordTable        from './RecordTable';
-import RecordGrid         from './RecordGrid';
 import RecordMobileList   from './RecordMobileList';
 import RecordDetailDrawer from './RecordDetailDrawer';
 import RecordCreateModal  from './RecordCreateModal';
 import RecordEditModal    from './RecordEditModal';
-import TmdbDetailModal    from './TmdbDetailModal';
-import RecordFullDetailModal from './RecordFullDetailModal';
-import MediaFilesModal    from './MediaFilesModal';
+
+// Sync-health chips — double as the status filter (click to toggle). Colors match
+// the former standalone TMDB Sync page so the visual language carries over.
+const SYNC_CHIPS = [
+  { value: 'SUCCESS', key: 'success', label: 'Success', color: '#10b981' },
+  { value: 'FAILED',  key: 'failed',  label: 'Failed',  color: '#ef4444' },
+  { value: 'SKIPPED', key: 'skipped', label: 'Skipped', color: '#6b7280' },
+  { value: 'RUNNING', key: 'running', label: 'Running', color: '#f59e0b' },
+];
+
+// ── Bulk action bar — shown when rows are selected ──────────────────────────────
+function BulkBar({ count, busy, onResync, onShow, onHide, onDelete, onClear, T }) {
+  const action = (icon, label, onClick, danger) => (
+    <Box onClick={busy ? undefined : onClick}
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: busy ? 'default' : 'pointer',
+        px: 1, py: 0.5, borderRadius: 1, fontSize: 13,
+        color: danger ? T.error : T.teal, opacity: busy ? 0.5 : 1,
+        '&:hover': { bgcolor: danger ? T.errorBg : T.tealBg } }}>
+      {icon}{label}
+    </Box>
+  );
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap',
+      px: { xs: 1.5, md: 3 }, py: 0.75, flexShrink: 0,
+      bgcolor: T.tealBg, borderBottom: `1px solid ${T.border}` }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.teal, mr: 1 }}>{count} selected</Typography>
+      {busy && <CircularProgress size={14} sx={{ color: T.teal, mr: 1 }} />}
+      {action(<SyncIcon sx={{ fontSize: 16 }} />, 'Re-sync', onResync)}
+      {action(<VisibilityIcon sx={{ fontSize: 16 }} />, 'Show on rails', onShow)}
+      {action(<VisibilityOffIcon sx={{ fontSize: 16 }} />, 'Hide from rails', onHide)}
+      {action(<DeleteIcon sx={{ fontSize: 16 }} />, 'Delete', onDelete, true)}
+      <Box sx={{ flex: 1 }} />
+      <Tooltip title="Clear selection">
+        <IconButton size="small" onClick={onClear} sx={{ color: T.textMuted }}>
+          <CloseIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
+}
 
 // ── Pagination bar ────────────────────────────────────────────────────────────
 function PaginationBar({ page, totalPages, totalElements, pageSize, onPage, onPageSize, isFetching, T }) {
@@ -154,14 +193,16 @@ export default function RecordManagementV2() {
   const T       = useT();
   const theme   = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
 
   const {
-    viewMode, filters, pageSize, setPageSize, sortModel,
-    modalState, editRecordId, tmdbModalRecord,
-    openModal, closeModal, closeTmdbModal,
+    filters, setFilter, pageSize, setPageSize, sortModel,
+    modalState, editRecordId,
+    openModal, closeModal,
+    selectedRows, clearSelection,
   } = useRecordStore();
+
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [page, setPage] = useState(0);
 
@@ -177,6 +218,7 @@ export default function RecordManagementV2() {
       ...(filters.year     && { year:     Number(filters.year) }),
       ...(filters.tmdbId   && { tmdbId:   Number(filters.tmdbId) }),
       ...(filters.recordId && { recordId: Number(filters.recordId) }),
+      ...(filters.status   && { status:   filters.status }),
     };
     if (sortModel.length > 0) {
       base.sort = sortModel.map(s => `${s.field},${s.sort}`).join('&sort=');
@@ -191,74 +233,146 @@ export default function RecordManagementV2() {
     staleTime: 30_000,
   });
 
-  const rows         = data?.content ?? [];
+  // Defensive de-dupe by recordId. The DataGrid keys rows by id; any duplicate id
+  // makes it render the first matching row for all of them (looks like rows
+  // "overwrite" with the first on scroll). The backend now returns one row per
+  // record, but this guarantees a stray duplicate can never corrupt rendering.
+  const rows = useMemo(() => {
+    const seen = new Set();
+    return (data?.content ?? []).filter(r => {
+      if (seen.has(r.recordId)) return false;
+      seen.add(r.recordId);
+      return true;
+    });
+  }, [data]);
   const totalElements = data?.totalElements ?? 0;
   const totalPages    = data?.totalPages ?? 1;
+
+  // Sync-health counts for the strip. Polls only while something is RUNNING so we
+  // aren't hitting the endpoint every 30s when the catalog is idle.
+  const { data: syncStats } = useQuery({
+    queryKey: ['tmdb-sync-stats'],
+    queryFn:  getTmdbSyncStats,
+    staleTime: 30_000,
+    refetchInterval: q => (q.state.data?.running > 0 ? 15_000 : false),
+  });
 
   const { mutate: doDelete } = useMutation({
     mutationFn: deleteRecord,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records'] });
-      enqueueSnackbar('Record deleted', { variant: 'success' });
+      notify.success('Record deleted');
     },
-    onError: () => enqueueSnackbar('Delete failed', { variant: 'error' }),
+    onError: () => notify.error('Delete failed'),
   });
 
   const handleDelete = useCallback((id) => {
     if (window.confirm('Delete this record?')) doDelete(id);
   }, [doDelete]);
 
+  // Bulk actions fan out over the current single-record endpoints (no dedicated
+  // bulk API yet). Selection is driven by the DataGrid checkboxes.
+  const runBulk = useCallback(async (label, fn) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all(selectedRows.map(fn));
+      qc.invalidateQueries({ queryKey: ['records'] });
+      qc.invalidateQueries({ queryKey: ['tmdb-sync-stats'] });
+      notify.success(`${label} ${selectedRows.length} record${selectedRows.length !== 1 ? 's' : ''}`);
+      clearSelection();
+    } catch {
+      notify.error(`${label} failed for some records`);
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedRows, qc, clearSelection]);
+
+  const handleBulkDelete = useCallback(() => {
+    if (window.confirm(`Delete ${selectedRows.length} record(s)? This cannot be undone.`)) {
+      runBulk('Deleted', id => deleteRecord(id));
+    }
+  }, [selectedRows, runBulk]);
+
   const editRecord = useMemo(() =>
     rows.find(r => r.recordId === editRecordId) ?? null,
   [rows, editRecordId]);
-
-  const stats = useMemo(() => ({
-    movies: rows.filter(r => r.type === 'MOVIE').length,
-    series: rows.filter(r => r.type === 'TV_SERIES').length,
-  }), [rows]);
 
   return (
     <Box sx={{ height: 'calc(100vh - 52px)', display: 'flex', flexDirection: 'column',
       bgcolor: T.adminBg, color: T.textPrimary, overflow: 'hidden' }}>
 
       {/* Header */}
-      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 1.5, md: 2 }, pb: 0.75,
+      <Box sx={{ px: { xs: 1.5, md: 3 }, pt: { xs: 1.5, md: 2 }, pb: 0.75,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <Box>
           <Typography sx={{ fontWeight: 700, fontSize: { xs: 18, md: 22 }, color: T.textPrimary }}>
             Records
           </Typography>
-          <Typography sx={{ fontSize: 12, color: T.textMuted, mt: 0.25 }}>
-            Manage movies and series catalog
+          <Typography sx={{ fontSize: 12, color: T.textMuted, mt: 0.25, display: { xs: 'none', sm: 'block' } }}>
+            Manage the catalog and its TMDB sync state
           </Typography>
         </Box>
-        {!isMobile && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
-            sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600 }}>
-            Add Record
-          </Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => openModal('create')}
+          sx={{ bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, fontWeight: 600,
+            px: { xs: 1.5, sm: 2 }, whiteSpace: 'nowrap' }}>
+          {isMobile ? 'Add' : 'Add record'}
+        </Button>
+      </Box>
+
+      {/* Sync-health strip — Total (true count) + clickable status filters + last sync */}
+      <Box sx={{ display: 'flex', gap: 1, px: { xs: 1.5, md: 3 }, py: 0.5,
+        flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
+        borderBottom: `1px solid ${T.border}` }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mr: 0.5 }}>
+          <ListIcon sx={{ fontSize: 14, color: T.teal }} />
+          <Typography sx={{ fontSize: 12, color: T.textMuted }}>Total:</Typography>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, color: T.teal }}>{totalElements}</Typography>
+        </Box>
+
+        {SYNC_CHIPS.map(c => {
+          const active = filters.status === c.value;
+          return (
+            <Box key={c.value}
+              onClick={() => setFilter('status', active ? '' : c.value)}
+              title={`Filter by ${c.label.toLowerCase()} sync status`}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer',
+                px: 1, py: 0.25, borderRadius: 1,
+                border: `1px solid ${active ? c.color : 'transparent'}`,
+                bgcolor: active ? `${c.color}22` : 'transparent',
+                '&:hover': { bgcolor: `${c.color}18` } }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: c.color, flexShrink: 0 }} />
+              <Typography sx={{ fontSize: 12, color: active ? c.color : T.textMuted }}>{c.label}</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: c.color }}>{syncStats?.[c.key] ?? 0}</Typography>
+            </Box>
+          );
+        })}
+
+        <Box sx={{ flex: 1 }} />
+
+        {syncStats?.lastSyncedAt && (
+          <Typography sx={{ fontSize: 11, color: T.textFaint }}>
+            Last synced {new Date(syncStats.lastSyncedAt).toLocaleString('en-IN',
+              { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          </Typography>
         )}
       </Box>
 
-      {/* Stats bar */}
-      <Box sx={{ display: 'flex', gap: 2, px: { xs: 2, md: 3 }, py: 0.5,
-        flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
-        borderBottom: `1px solid ${T.border}` }}>
-        {[
-          { label: 'Total',  value: totalElements, icon: <ListIcon  sx={{ fontSize: 14, color: T.teal }} />,    color: T.teal    },
-          { label: 'Movies', value: stats.movies,  icon: <MovieIcon sx={{ fontSize: 14, color: T.teal }} />,    color: T.teal    },
-          { label: 'Series', value: stats.series,  icon: <TvIcon    sx={{ fontSize: 14, color: T.success }} />, color: T.success },
-        ].map(s => (
-          <Box key={s.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-            {s.icon}
-            <Typography sx={{ fontSize: 12, color: T.textMuted }}>{s.label}:</Typography>
-            <Typography sx={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.value}</Typography>
-          </Box>
-        ))}
-      </Box>
-
       {/* Filters */}
-      <RecordFilters onAdd={() => openModal('create')} />
+      <RecordFilters />
+
+      {/* Bulk action bar — appears when rows are checked */}
+      {selectedRows.length > 0 && (
+        <BulkBar
+          count={selectedRows.length}
+          busy={bulkBusy}
+          onResync={() => runBulk('Re-synced', id => refreshRecordFromTmdb(id))}
+          onShow={() => runBulk('Updated', id => setRecordVisibility(id, false))}
+          onHide={() => runBulk('Updated', id => setRecordVisibility(id, true))}
+          onDelete={handleBulkDelete}
+          onClear={clearSelection}
+          T={T}
+        />
+      )}
 
       {/* Loading bar — shown when fetching (not initial skeleton) */}
       {isFetching && !isLoading && (
@@ -281,15 +395,11 @@ export default function RecordManagementV2() {
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0,
         '&::-webkit-scrollbar': { width: 6 },
         '&::-webkit-scrollbar-thumb': { bgcolor: T.scrollThumb, borderRadius: 3 } }}>
-        {isLoading ? (
-          <SkeletonRows T={T} />
-        ) : viewMode === 'table' ? (
-          <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />
-        ) : isMobile ? (
-          <RecordMobileList rows={rows} loading={false} onDelete={handleDelete} />
-        ) : (
-          <RecordGrid rows={rows} loading={false} onDelete={handleDelete} />
-        )}
+        {isLoading
+          ? <SkeletonRows T={T} />
+          : isMobile
+            ? <RecordMobileList rows={rows} onDelete={handleDelete} />
+            : <RecordTable rows={rows} totalElements={totalElements} loading={false} onDelete={handleDelete} />}
       </Box>
 
       {/* Pagination */}
@@ -306,21 +416,9 @@ export default function RecordManagementV2() {
         />
       )}
 
-      {/* Mobile FAB */}
-      {isMobile && (
-        <Fab onClick={() => openModal('create')}
-          sx={{ position: 'fixed', bottom: 24, right: 24,
-            bgcolor: T.teal, '&:hover': { bgcolor: T.tealHover }, color: '#fff' }}>
-          <AddIcon />
-        </Fab>
-      )}
-
       <RecordDetailDrawer rows={rows} />
       <RecordCreateModal    open={modalState === 'create'} onClose={closeModal} />
       <RecordEditModal      open={modalState === 'edit'}   record={editRecord} onClose={closeModal} />
-      <TmdbDetailModal      record={tmdbModalRecord} onClose={closeTmdbModal} />
-      <RecordFullDetailModal />
-      <MediaFilesModal />
     </Box>
   );
 }

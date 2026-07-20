@@ -57,35 +57,44 @@ public class TagStrategyExecutor {
 
         log.debug("Executing tag strategy: {}", tagType);
 
-        // 1. Delete existing tags of this type
-        int deleted = entityManager.createNativeQuery(
-                "DELETE FROM record_tags WHERE tag_type = :tagType"
-        ).setParameter("tagType", tagType.name()).executeUpdate();
+        try {
+            // 1. Delete existing tags of this type
+            int deleted = entityManager.createNativeQuery(
+                    "DELETE FROM record_tags WHERE tag_type = :tagType"
+            ).setParameter("tagType", tagType.name()).executeUpdate();
 
-        // 2. Bulk-insert using the strategy's SQL with per-record scores.
-        //    selectSqlWithScore() returns (id, score) — score is stored as priority.
-        //    The default implementation uses the static priority() value for all rows.
-        String insertSql = String.format("""
-                INSERT INTO record_tags (record_id, tag_type, priority)
-                SELECT sw.id, '%s', sw.score
-                FROM (%s) sw
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM record_tags rt
-                    WHERE rt.record_id = sw.id
-                      AND rt.tag_type  = '%s'
-                )
-                """,
-                tagType.name(),
-                strategy.selectSqlWithScore(),
-                tagType.name()
-        );
+            // 2. Bulk-insert using the strategy's SQL with per-record scores.
+            //    selectSqlWithScore() returns (id, score) — score is stored as priority.
+            //    The default implementation uses the static priority() value for all rows.
+            String insertSql = String.format("""
+                    INSERT INTO record_tags (record_id, tag_type, priority)
+                    SELECT sw.id, '%s', sw.score
+                    FROM (%s) sw
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM record_tags rt
+                        WHERE rt.record_id = sw.id
+                          AND rt.tag_type  = '%s'
+                    )
+                    """,
+                    tagType.name(),
+                    strategy.selectSqlWithScore(),
+                    tagType.name()
+            );
 
-        int inserted = entityManager.createNativeQuery(insertSql).executeUpdate();
+            int inserted = entityManager.createNativeQuery(insertSql).executeUpdate();
 
-        log.debug("Tag [{}]: deleted={}, inserted={}", tagType, deleted, inserted);
+            if (inserted == 0) {
+                log.warn("Tag strategy produced zero matches; tagType={}, deleted={}", tagType, deleted);
+            } else {
+                log.info("Tag recomputed; tagType={}, deleted={}, inserted={}", tagType, deleted, inserted);
+            }
 
-        // 3. Record the last-refresh timestamp in tag_definitions
-        tagDefinitionService.markRefreshed(tagType.name());
+            // 3. Record the last-refresh timestamp in tag_definitions
+            tagDefinitionService.markRefreshed(tagType.name());
+        } catch (Exception e) {
+            log.error("Tag strategy execution failed; tagType={}", tagType, e);
+            throw e;
+        }
     }
 
     /**

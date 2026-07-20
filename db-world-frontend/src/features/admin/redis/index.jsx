@@ -11,7 +11,7 @@ import {
   AccessTime, Memory, People, Speed, ContentCopy, Close, Save,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { useT } from '@shared/theme';
 import {
   getRedisInfo,
@@ -95,7 +95,6 @@ function TypeChip({ type }) {
 
 export default function RedisCachePage() {
   const T = useT();
-  const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
 
   /* ── Key browser state ── */
@@ -157,62 +156,62 @@ export default function RedisCachePage() {
   const setMutation = useMutation({
     mutationFn: setRedisKey,
     onSuccess: () => {
-      enqueueSnackbar('Key set successfully', { variant: 'success' });
+      notify.success('Key set successfully');
       invalidateKeys();
       setIsNew(false);
       setActiveKey(editKey);
     },
-    onError: () => enqueueSnackbar('Failed to set key', { variant: 'error' }),
+    onError: () => notify.error('Failed to set key'),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ key, value }) => updateRedisKey(key, value),
     onSuccess: () => {
-      enqueueSnackbar('Value updated', { variant: 'success' });
+      notify.success('Value updated');
       queryClient.invalidateQueries({ queryKey: ['redis-key-detail', activeKey] });
     },
-    onError: () => enqueueSnackbar('Update failed', { variant: 'error' }),
+    onError: () => notify.error('Update failed'),
   });
 
   const ttlMutation = useMutation({
     mutationFn: ({ key, ttlSeconds }) => updateRedisTtl(key, ttlSeconds),
     onSuccess: () => {
-      enqueueSnackbar('TTL updated', { variant: 'success' });
+      notify.success('TTL updated');
       queryClient.invalidateQueries({ queryKey: ['redis-key-detail', activeKey] });
       queryClient.invalidateQueries({ queryKey: ['redis-keys'] });
     },
-    onError: () => enqueueSnackbar('TTL update failed', { variant: 'error' }),
+    onError: () => notify.error('TTL update failed'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteRedisKey,
     onSuccess: () => {
-      enqueueSnackbar('Key deleted', { variant: 'success' });
+      notify.success('Key deleted');
       setActiveKey(null);
       setEditKey(''); setEditValue(''); setEditTtl('');
       invalidateKeys();
     },
-    onError: () => enqueueSnackbar('Delete failed', { variant: 'error' }),
+    onError: () => notify.error('Delete failed'),
   });
 
   const bulkDeleteMutation = useMutation({
     mutationFn: deleteRedisKeys,
     onSuccess: (data) => {
-      enqueueSnackbar(`Deleted ${data?.data?.deleted ?? selected.size} keys`, { variant: 'success' });
+      notify.success(`Deleted ${data?.data?.deleted ?? selected.size} keys`);
       setSelected(new Set());
       invalidateKeys();
     },
-    onError: () => enqueueSnackbar('Bulk delete failed', { variant: 'error' }),
+    onError: () => notify.error('Bulk delete failed'),
   });
 
   const flushMutation = useMutation({
     mutationFn: flushRedisKeys,
     onSuccess: (data) => {
-      enqueueSnackbar(`Flushed ${data?.data?.deleted ?? 0} keys`, { variant: 'success' });
+      notify.success(`Flushed ${data?.data?.deleted ?? 0} keys`);
       setFlushOpen(false);
       invalidateKeys();
     },
-    onError: () => enqueueSnackbar('Flush failed', { variant: 'error' }),
+    onError: () => notify.error('Flush failed'),
   });
 
   /* ── Helpers ── */
@@ -252,7 +251,7 @@ export default function RedisCachePage() {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text)
-      .then(() => enqueueSnackbar('Copied', { variant: 'info' }));
+      .then(() => notify.info('Copied'));
   };
 
   const isBusy = setMutation.isPending || updateMutation.isPending ||

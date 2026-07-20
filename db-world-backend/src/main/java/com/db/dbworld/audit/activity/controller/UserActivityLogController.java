@@ -5,6 +5,7 @@ import com.db.dbworld.audit.activity.dto.UserActivityLogDto;
 import com.db.dbworld.audit.activity.service.UserActivityLogService;
 import com.db.dbworld.config.AppConstants;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+@Log4j2
 @RestController
 @RequestMapping("/api/admin/activity-logs")
 @RequiredArgsConstructor
@@ -37,6 +39,9 @@ public class UserActivityLogController {
             @RequestParam(required = false)      String endDate,
             @RequestParam(defaultValue = "timestamp") String sortBy,
             @RequestParam(defaultValue = "desc")      String sortDir) {
+
+        log.debug("getLogs called: username={}, method={}, status={}, page={}, size={}",
+                username, method, status, page, size);
 
         Sort.Direction dir = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
         String safeSort = sortBy.matches("timestamp|method|status|duration|userEmail|uri|ip") ? sortBy : "timestamp";

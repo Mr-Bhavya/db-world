@@ -46,6 +46,13 @@ public class JpaIngestionRepository implements IngestionRepository {
                 entity.setFolderName(context.getRequest().getFolderName());
                 entity.setSeasonNumber(context.getRequest().getSeason());
                 entity.setEpisodeNumber(context.getRequest().getEpisode());
+                // Persist the yt-dlp format selection so rerun reproduces it (see reconstructRequest).
+                entity.setVideoITag(context.getRequest().getVideoITag());
+                entity.setAudioITag(context.getRequest().getAudioITag());
+                entity.setOnlyAudio(context.getRequest().getOnlyAudio());
+                entity.setVideoQuality(context.getRequest().getVideoQuality());
+                entity.setExtract(context.getRequest().getExtract());
+                entity.setRename(context.getRequest().getRename());
             }
 
             if (context.getProcessing() != null && context.getProcessing().getFinalFile() != null) {

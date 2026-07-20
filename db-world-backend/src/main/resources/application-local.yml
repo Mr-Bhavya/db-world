@@ -3,8 +3,16 @@ spring:
     activate:
       on-profile: local
 
+  # Lazy-init every bean — they're created on first use rather than at boot.
+  # @Scheduled / @EventListener processors still register eagerly via bean
+  # post-processors so background work isn't broken. Local-only because the
+  # first request after boot pays the bean-creation cost; in prod we keep
+  # everything eager so health checks see a fully-warm context.
+  main:
+    lazy-initialization: false
+
   jpa:
-    show-sql: true
+    show-sql: false
     hibernate:
       ddl-auto: update
 
@@ -45,13 +53,18 @@ app:
 server:
   port: ${SERVER_PORT:9000}
 
+# Plain-http local dev: SameSite=None requires Secure, which a browser drops over
+# http. Relax to Lax/insecure so the refresh cookie still flows on localhost.
+jwt:
+  refresh-cookie-secure: false
+  refresh-cookie-same-site: Lax
+
 cors:
-  allowed-origins: https://dn-world.in
+  allowed-origins: https://cdn.db-world.in
 
 springdoc:
   swagger-ui:
     enabled: true
-
 
 
 #https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=videos

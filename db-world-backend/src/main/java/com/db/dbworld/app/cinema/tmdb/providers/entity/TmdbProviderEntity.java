@@ -14,7 +14,7 @@ import java.util.Objects;
 @NoArgsConstructor
 @Table(
         name = "tmdb_providers",
-        schema = "new_db_world",
+        schema = "db_world",
         uniqueConstraints = {
                 @UniqueConstraint(
                         columnNames = {

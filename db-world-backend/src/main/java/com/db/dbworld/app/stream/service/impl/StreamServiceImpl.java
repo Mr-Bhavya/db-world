@@ -1,11 +1,12 @@
 package com.db.dbworld.app.stream.service.impl;
 
+import com.db.dbworld.app.media.info.dto.MediaFileDto;
 import com.db.dbworld.app.media.info.service.MediaInfoService;
 import com.db.dbworld.app.stream.dto.CdnResolveDto;
 import com.db.dbworld.app.stream.enums.StreamType;
 import com.db.dbworld.app.stream.service.CdnUrlBuilder;
 import com.db.dbworld.app.stream.service.StreamService;
-import com.db.dbworld.audit.activity.service.UserCinemaActivityService;
+import com.db.dbworld.audit.tracking.ingest.TrackingIngestService;
 import com.db.dbworld.core.exception.DbWorldException;
 import com.db.dbworld.helpers.DbWorldRecords;
 import com.db.dbworld.config.AppProperties;
@@ -35,11 +36,14 @@ public class StreamServiceImpl implements StreamService {
 
     private final AppProperties  runtime;
     private final DbWorldUtils              dbWorldUtils;
-    private final UserCinemaActivityService activityService;
     private final MediaInfoService          mediaInfoService;
     private final CdnUrlBuilder             cdnUrlBuilder;
+    private final TrackingIngestService     trackingIngestService;
 
     private final Map<String, String> normalizedCache = new ConcurrentHashMap<>();
+
+    /** Defensive cap on a single batch-resolve call (a title has only a handful of variants). */
+    private static final int MAX_BATCH_RESOLVE = 50;
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Resolve â€” returns CDN URL as JSON for direct player / download use
@@ -59,18 +63,18 @@ public class StreamServiceImpl implements StreamService {
         }
 
         StreamType type       = inline ? StreamType.ONLINE : StreamType.DOWNLOAD;
-        String     downloadId = cdnUrlBuilder.generateDownloadId(user, mediaFileId);
         String     requestId  = cdnUrlBuilder.generateRequestId();
         String     fileName   = mediaFile.getFileName();
         long       fileSize   = resolveFileSize(mediaFile.getFileSize(), realFile);
 
-        String cdnUrl = cdnUrlBuilder.buildByMediaFileId(mediaFileId, user, type, fileName, downloadId, requestId);
+        String cdnUrl = cdnUrlBuilder.buildByMediaFileId(mediaFileId, user, type, fileName, requestId);
 
-        trackResolveActivity(user, realFile, fileSize, inline, remoteAddr, userAgent, downloadId, cdnUrl);
+        recordResolveEvent(user, inline, requestId, mediaFile.getId(), mediaFile.getRecordId(),
+                mediaFile.getTmdbSeasonNumber(), mediaFile.getTmdbEpisodeNumber(),
+                realFile.toString(), mediaFile.getFileName(), fileSize, remoteAddr, userAgent);
 
         return CdnResolveDto.builder()
                 .cdnUrl(cdnUrl)
-                .downloadId(downloadId)
                 .requestId(requestId)
                 .fileName(fileName)
                 .fileSize(fileSize)
@@ -80,6 +84,30 @@ public class StreamServiceImpl implements StreamService {
                 .recordId(mediaFile.getRecordId())
                 .mediaFile(mediaFile)
                 .build();
+    }
+
+    @Override
+    public List<CdnResolveDto> resolveBatch(String user, List<String> mediaFileIds, boolean inline,
+                                            String userAgent, String remoteAddr) {
+        if (mediaFileIds == null || mediaFileIds.isEmpty()) return List.of();
+
+        List<CdnResolveDto> out = new ArrayList<>(Math.min(mediaFileIds.size(), MAX_BATCH_RESOLVE));
+        int resolved = 0;
+        for (String id : mediaFileIds) {
+            if (id == null || id.isBlank()) continue;
+            if (resolved >= MAX_BATCH_RESOLVE) {
+                log.warn("resolveBatch: capped at {} ids (requested {})", MAX_BATCH_RESOLVE, mediaFileIds.size());
+                break;
+            }
+            try {
+                out.add(resolveById(user, id, inline, userAgent, remoteAddr));
+                resolved++;
+            } catch (Exception e) {
+                // One bad/missing file must not fail the whole batch.
+                log.warn("resolveBatch: skipping mediaFileId={}: {}", id, e.getMessage());
+            }
+        }
+        return out;
     }
 
     @Override
@@ -93,19 +121,15 @@ public class StreamServiceImpl implements StreamService {
         }
 
         StreamType type       = inline ? StreamType.ONLINE : StreamType.DOWNLOAD;
-        String     downloadId = cdnUrlBuilder.generateDownloadId(user, relativePath);
         String     requestId  = cdnUrlBuilder.generateRequestId();
         String     fileName   = realFile.getFileName().toString();
         long       fileSize   = resolveFileSize(null, realFile);
 
         String cdnUrl = cdnUrlBuilder.buildByRelativePath(
-                relativePath, user, type, fileName, downloadId, requestId);
-
-        trackResolveActivity(user, realFile, fileSize, inline, remoteAddr, userAgent, downloadId, cdnUrl);
+                relativePath, user, type, fileName, requestId);
 
         CdnResolveDto.CdnResolveDtoBuilder builder = CdnResolveDto.builder()
                 .cdnUrl(cdnUrl)
-                .downloadId(downloadId)
                 .requestId(requestId)
                 .fileName(fileName)
                 .fileSize(fileSize)
@@ -113,10 +137,18 @@ public class StreamServiceImpl implements StreamService {
                 .type(type.name());
 
         // Enrich from DB if a MediaFileEntity exists for this path
-        mediaInfoService.getByFilePath(realFile.toAbsolutePath().toString()).ifPresent(mf ->
+        var enrichedMediaFile = mediaInfoService.getByFilePath(realFile.toAbsolutePath().toString());
+        enrichedMediaFile.ifPresent(mf ->
                 builder.mediaFileId(mf.getId())
                        .recordId(mf.getRecordId())
                        .mediaFile(mf));
+
+        recordResolveEvent(user, inline, requestId,
+                enrichedMediaFile.map(MediaFileDto::getId).orElse(null),
+                enrichedMediaFile.map(MediaFileDto::getRecordId).orElse(null),
+                enrichedMediaFile.map(MediaFileDto::getTmdbSeasonNumber).orElse(null),
+                enrichedMediaFile.map(MediaFileDto::getTmdbEpisodeNumber).orElse(null),
+                realFile.toString(), fileName, fileSize, remoteAddr, userAgent);
 
         return builder.build();
     }
@@ -125,14 +157,20 @@ public class StreamServiceImpl implements StreamService {
     // Activity tracking
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private void trackResolveActivity(String user, Path file, long size, boolean inline,
-                                       String ip, String ua, String downloadId, String cdnUrl) {
+    /**
+     * Emits the new-pipeline RESOLVE tracking event (Plan 1B). Best-effort only — any
+     * failure here (bad args, downstream exception) must never affect the resolve response
+     * or the live streaming path, so every exception is swallowed and merely logged.
+     */
+    private void recordResolveEvent(String user, boolean inline, String requestId, String mediaFileId,
+                                     Long recordId, Integer seasonNumber, Integer episodeNumber,
+                                     String filePath, String fileName, long fileSize,
+                                     String remoteAddr, String userAgent) {
         try {
-            activityService.trackResolveActivity(
-                    user, file.toString(), file.getFileName().toString(),
-                    size, ip, ua, inline, downloadId, cdnUrl);
+            trackingIngestService.recordResolve(user, inline, requestId, mediaFileId, recordId,
+                    seasonNumber, episodeNumber, filePath, fileName, fileSize, remoteAddr, userAgent);
         } catch (Exception e) {
-            log.warn("Resolve activity tracking failed for user={}", user, e);
+            log.warn("recordResolveEvent failed for user={}, requestId={}", user, requestId, e);
         }
     }
 

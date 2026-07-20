@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Avatar, Box, Button, Chip, CircularProgress, Container,
   Dialog, DialogContent, DialogTitle, Divider,
-  IconButton, InputAdornment, TextField, Typography,
+  IconButton, InputAdornment, MenuItem, TextField, Typography,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -20,12 +20,17 @@ import {
   Visibility, VisibilityOff,
   Devices as DevicesIcon,
   AccessTime as TimeIcon,
+  Save as SaveIcon,
+  Badge as BadgeIcon,
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Constants from '@shared/constants';
-import { getUserDetail, changePassword, getLoginHistory } from '@shared/services/ApiServices';
-import { toast } from '@shared/components/ui/Toast';
-import { useT, getFieldSx, getGlowProps } from '@shared/theme';
+import BiometricSetting from '@features/auth/BiometricSetting';
+import BiometricDevicesSection from '@features/auth/BiometricDevicesSection';
+import { getUserDetail, updateUserDetails, changePassword, getLoginHistory } from '@shared/services/ApiServices';
+import { notify } from '@shared/notify';
+import usePageMeta from '@shared/hooks/usePageMeta';
+import { useT, getFieldSx, getSelectMenuProps, getGlowProps } from '@shared/theme';
 
 // ── UA parser (no deps) ───────────────────────────────────────────────────────
 function parseAgent(ua) {
@@ -51,7 +56,7 @@ function formatLoginDate(raw) {
   });
 }
 
-// ── Info row ──────────────────────────────────────────────────────────────────
+// ── Info row (view mode) ──────────────────────────────────────────────────────
 const InfoRow = ({ icon: Icon, label, value, onClick }) => {
   const T = useT();
   const isClickable = !!onClick;
@@ -133,12 +138,12 @@ const ChangePasswordDialog = ({ open, onClose }) => {
     setLoading(true);
     try {
       await changePassword({ oldPassword: form.oldPassword, newPassword: form.newPassword });
-      toast.success('Password changed successfully!');
+      notify.success('Password changed successfully!');
       onClose();
       setForm({ oldPassword: '', newPassword: '', confirm: '' });
     } catch (err) {
       const msg = err?.response?.data?.message || 'Failed to change password.';
-      toast.error(msg);
+      notify.error(msg);
     } finally {
       setLoading(false);
     }
@@ -229,7 +234,7 @@ const LoginHistoryDialog = ({ open, onClose }) => {
     setLoading(true);
     getLoginHistory()
       .then(res => setSessions(res?.data || []))
-      .catch(() => toast.error('Failed to load login history.'))
+      .catch(() => notify.error('Failed to load login history.'))
       .finally(() => setLoading(false));
   }, [open]);
 
@@ -244,6 +249,7 @@ const LoginHistoryDialog = ({ open, onClose }) => {
         </IconButton>
       </DialogTitle>
       <DialogContent>
+        <BiometricDevicesSection />
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress sx={{ color: T.teal }} />
@@ -310,7 +316,11 @@ const LoginHistoryDialog = ({ open, onClose }) => {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 const Profile = () => {
+  usePageMeta('Profile');
+
   const T        = useT();
+  const FIELD     = getFieldSx(T);
+  const SELECT_MENU = getSelectMenuProps(T);
   const GLOW     = getGlowProps(T);
   const navigate = useNavigate();
   const location = useLocation();
@@ -320,33 +330,110 @@ const Profile = () => {
   const [showChangePw, setShowChangePw] = useState(false);
   const [showHistory,  setShowHistory]  = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await getUserDetail();
-        if (res.httpStatusCode === 200) {
-          const user = res.data;
-          if (user.dob) {
-            user.dob = new Intl.DateTimeFormat('fr-ca', {
-              year: 'numeric', month: '2-digit', day: '2-digit',
-            }).format(new Date(user.dob)).split(' ')[0];
-          }
-          setUserData(user);
-        } else if ([401, 403].includes(res.httpStatusCode)) {
-          navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
-        }
-      } catch {
-        toast.error('Failed to load profile.');
-      } finally {
-        setLoading(false);
+  const [editing,   setEditing]   = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [form,      setForm]      = useState({ firstName: '', lastName: '', gender: '', dob: '', mobileNo: '' });
+  const [errors,    setErrors]    = useState({});
+
+  const applyUser = (user) => {
+    if (user?.dob) {
+      user.dob = new Intl.DateTimeFormat('fr-ca', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(user.dob)).split(' ')[0];
+    }
+    setUserData(user || {});
+  };
+
+  const load = async () => {
+    try {
+      const res = await getUserDetail();
+      if (res.httpStatusCode === 200) {
+        applyUser(res.data);
+      } else if ([401, 403].includes(res.httpStatusCode)) {
+        navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
       }
-    };
+    } catch {
+      notify.error('Failed to load profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     load();
-  }, [navigate, location]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const initials = [userData.firstName, userData.lastName]
     .filter(Boolean).map(s => s[0].toUpperCase()).join('');
   const fullName = [userData.firstName, userData.lastName].filter(Boolean).join(' ');
+
+  const validateField = (name, value) => {
+    let ok = true;
+    switch (name) {
+      case 'firstName':
+      case 'lastName':
+        ok = !!value && !/[ ]{2,}/.test(value); break;
+      case 'dob': {
+        const pattern = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+        const year = value?.split('-')[0];
+        const now  = new Date().getFullYear();
+        ok = !!value && pattern.test(value) && year >= 1900 && year <= now;
+        break;
+      }
+      case 'gender':   ok = !!value; break;
+      case 'mobileNo': ok = /^[0-9]{10}$/.test(value); break;
+      default: break;
+    }
+    setErrors(p => ({ ...p, [name]: !ok }));
+    return ok;
+  };
+
+  const handleFieldChange = (e) => {
+    const { name, value } = e.target;
+    setForm(p => ({ ...p, [name]: value }));
+    validateField(name, value);
+  };
+
+  const startEdit = () => {
+    setForm({
+      firstName: userData.firstName || '',
+      lastName:  userData.lastName  || '',
+      gender:    userData.gender    || '',
+      dob:       userData.dob       || '',
+      mobileNo:  userData.mobileNo  || '',
+    });
+    setErrors({});
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setErrors({});
+  };
+
+  const handleSave = async () => {
+    const isValid = Object.entries(form).every(([k, v]) => validateField(k, v));
+    if (!isValid) {
+      notify.warning('Please fill all required fields correctly.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { firstName, lastName, gender, dob, mobileNo } = form;
+      await updateUserDetails({
+        userId: userData.userId, firstName, lastName, gender, dob, mobileNo: Number(mobileNo),
+      });
+      notify.success('Profile updated successfully!');
+      setEditing(false);
+      await load();
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Failed to update profile.';
+      notify.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: T.bg, color: T.text, position: 'relative' }}>
@@ -370,46 +457,217 @@ const Profile = () => {
           </Box>
         ) : (
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
-            <Box sx={{ bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3, backdropFilter: 'blur(20px)', overflow: 'hidden' }}>
+            <Box sx={{
+              bgcolor: T.glass, border: `1px solid ${T.glassBorder}`, borderRadius: 3,
+              backdropFilter: 'blur(20px)', overflow: 'hidden',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+            }}>
 
-              {/* Avatar banner */}
+              {/* Cover + avatar banner */}
               <Box sx={{
-                background: `linear-gradient(135deg, ${T.tealBg} 0%, ${T.tealBgHover} 100%)`,
+                position: 'relative',
+                background: `linear-gradient(135deg, ${T.tealBg} 0%, ${T.tealBgHover} 55%, ${T.tealBg} 100%)`,
                 borderBottom: `1px solid ${T.glassBorder}`,
-                pt: 4, pb: 3,
+                pt: 4.5, pb: 3.5,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5,
+                overflow: 'hidden',
               }}>
-                <Avatar sx={{
-                  width: 88, height: 88, bgcolor: T.teal,
-                  fontSize: '2rem', fontWeight: 700, color: '#fff',
-                  border: `3px solid ${T.glassBorder}`,
-                  boxShadow: `0 0 30px ${T.tealGlow}`,
-                }}>
-                  {initials || <PersonIcon sx={{ fontSize: 40 }} />}
-                </Avatar>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontWeight: 800, fontSize: '1.3rem', color: T.text, letterSpacing: '-0.01em' }}>
+                <Box sx={{
+                  position: 'absolute', inset: 0, opacity: 0.5,
+                  background: `radial-gradient(circle at 30% 0%, ${T.tealGlow} 0%, transparent 60%)`,
+                }} />
+                <motion.div
+                  initial={{ scale: 0.85, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
+                  style={{ position: 'relative', zIndex: 1 }}
+                >
+                  <Avatar sx={{
+                    width: 92, height: 92, bgcolor: T.teal,
+                    fontSize: '2.1rem', fontWeight: 700, color: '#fff',
+                    border: `3px solid ${T.glass}`,
+                    boxShadow: `0 0 0 4px ${T.tealBg}, 0 8px 32px ${T.tealGlow}`,
+                  }}>
+                    {initials || <PersonIcon sx={{ fontSize: 42 }} />}
+                  </Avatar>
+                </motion.div>
+                <Box sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: '1.35rem', color: T.text, letterSpacing: '-0.01em' }}>
                     {fullName || 'Unknown User'}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.8rem', color: T.textMuted, mt: 0.25 }}>
+                    {userData.email}
                   </Typography>
                   {userData?.userRole?.name && (
                     <Chip
                       icon={<RoleIcon sx={{ fontSize: '14px !important', color: `${T.teal} !important` }} />}
                       label={userData.userRole.name}
                       size="small"
-                      sx={{ mt: 0.75, bgcolor: T.tealBg, color: T.teal, fontWeight: 600, fontSize: '0.75rem' }}
+                      sx={{ mt: 1, bgcolor: T.tealBg, color: T.teal, fontWeight: 600, fontSize: '0.75rem', border: `1px solid ${T.glassBorder}` }}
                     />
                   )}
                 </Box>
               </Box>
 
-              {/* Info rows */}
+              {/* Body */}
               <Box sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
-                <SectionLabel>Personal details</SectionLabel>
-                <InfoRow icon={EmailIcon}  label="Email"         value={userData.email} />
-                <InfoRow icon={PhoneIcon}  label="Mobile"        value={userData.mobileNo} />
-                <InfoRow icon={GenderIcon} label="Gender"        value={userData.gender} />
-                <InfoRow icon={CakeIcon}   label="Date of birth" value={userData.dob} />
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                  <SectionLabel>Personal details</SectionLabel>
+                  {!editing && (
+                    <Button
+                      size="small" startIcon={<EditIcon sx={{ fontSize: 16 }} />}
+                      onClick={startEdit}
+                      sx={{
+                        minWidth: 0, px: 1.25, py: 0.4, fontSize: '0.75rem', fontWeight: 600,
+                        color: T.teal, textTransform: 'none', borderRadius: 1.5,
+                        '&:hover': { bgcolor: T.tealBg },
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                </Box>
+
+                <AnimatePresence mode="wait" initial={false}>
+                  {editing ? (
+                    <motion.div
+                      key="edit"
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                          <TextField
+                            fullWidth label="First name" name="firstName"
+                            value={form.firstName} onChange={handleFieldChange}
+                            error={!!errors.firstName}
+                            helperText={errors.firstName ? 'First name is required' : ''}
+                            InputProps={{ startAdornment: (
+                              <InputAdornment position="start">
+                                <PersonIcon sx={{ fontSize: 18, color: errors.firstName ? T.error : T.textMuted }} />
+                              </InputAdornment>
+                            )}}
+                            sx={FIELD}
+                          />
+                          <TextField
+                            fullWidth label="Last name" name="lastName"
+                            value={form.lastName} onChange={handleFieldChange}
+                            error={!!errors.lastName}
+                            helperText={errors.lastName ? 'Last name is required' : ''}
+                            InputProps={{ startAdornment: (
+                              <InputAdornment position="start">
+                                <BadgeIcon sx={{ fontSize: 18, color: errors.lastName ? T.error : T.textMuted }} />
+                              </InputAdornment>
+                            )}}
+                            sx={FIELD}
+                          />
+                        </Box>
+
+                        <TextField
+                          fullWidth label="Email address" value={userData.email || ''} disabled
+                          InputProps={{ startAdornment: (
+                            <InputAdornment position="start">
+                              <EmailIcon sx={{ fontSize: 18, color: T.textFaint }} />
+                            </InputAdornment>
+                          )}}
+                          sx={FIELD}
+                        />
+
+                        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                          <TextField
+                            fullWidth label="Mobile number" name="mobileNo"
+                            value={form.mobileNo} onChange={handleFieldChange}
+                            error={!!errors.mobileNo}
+                            helperText={errors.mobileNo ? '10-digit number required' : ''}
+                            InputProps={{ startAdornment: (
+                              <InputAdornment position="start">
+                                <PhoneIcon sx={{ fontSize: 18, color: errors.mobileNo ? T.error : T.textMuted }} />
+                              </InputAdornment>
+                            )}}
+                            sx={FIELD}
+                          />
+                          <TextField
+                            select fullWidth label="Gender" name="gender"
+                            value={form.gender} onChange={handleFieldChange}
+                            error={!!errors.gender}
+                            helperText={errors.gender ? 'Please select a gender' : ''}
+                            SelectProps={{ MenuProps: SELECT_MENU }}
+                            InputProps={{ startAdornment: (
+                              <InputAdornment position="start">
+                                <GenderIcon sx={{ fontSize: 18, color: errors.gender ? T.error : T.textMuted }} />
+                              </InputAdornment>
+                            )}}
+                            sx={FIELD}
+                          >
+                            <MenuItem value=""><em style={{ color: T.textFaint }}>Select gender</em></MenuItem>
+                            <MenuItem value="male">Male</MenuItem>
+                            <MenuItem value="female">Female</MenuItem>
+                            <MenuItem value="other">Prefer not to say</MenuItem>
+                          </TextField>
+                        </Box>
+
+                        <TextField
+                          fullWidth label="Date of birth" name="dob" type="date"
+                          value={form.dob} onChange={handleFieldChange}
+                          InputLabelProps={{ shrink: true }}
+                          error={!!errors.dob}
+                          helperText={errors.dob ? 'Enter a valid date' : ''}
+                          InputProps={{ startAdornment: (
+                            <InputAdornment position="start">
+                              <CakeIcon sx={{ fontSize: 18, color: errors.dob ? T.error : T.textMuted }} />
+                            </InputAdornment>
+                          )}}
+                          sx={FIELD}
+                        />
+
+                        <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
+                          <Button
+                            fullWidth onClick={handleSave} disabled={saving}
+                            startIcon={!saving && <SaveIcon sx={{ fontSize: 18 }} />}
+                            sx={{
+                              py: 1.2, bgcolor: T.teal, color: '#fff', fontWeight: 700,
+                              borderRadius: 1.5, textTransform: 'none', fontSize: '0.9rem',
+                              '&:hover': { bgcolor: T.tealHover },
+                              '&.Mui-disabled': { bgcolor: T.tealBg, color: T.textFaint },
+                            }}
+                          >
+                            {saving ? <CircularProgress size={18} color="inherit" /> : 'Save changes'}
+                          </Button>
+                          <Button
+                            onClick={cancelEdit} disabled={saving}
+                            sx={{
+                              py: 1.2, px: 3,
+                              border: `1px solid ${T.glassBorder}`,
+                              color: T.textMuted, borderRadius: 1.5, textTransform: 'none',
+                              fontWeight: 500, flexShrink: 0,
+                              '&:hover': { borderColor: T.error, color: T.error, bgcolor: T.errorBg },
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </Box>
+                      </Box>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="view"
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <InfoRow icon={EmailIcon}  label="Email"         value={userData.email} />
+                        <InfoRow icon={PhoneIcon}  label="Mobile"        value={userData.mobileNo} />
+                        <InfoRow icon={GenderIcon} label="Gender"        value={userData.gender} />
+                        <InfoRow icon={CakeIcon}   label="Date of birth" value={userData.dob} />
+                      </Box>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <Divider sx={{ borderColor: T.border, my: 0.5 }} />
 
@@ -424,31 +682,23 @@ const Profile = () => {
               </Box>
 
               {/* Actions */}
-              <Box sx={{ px: { xs: 2, sm: 3 }, pb: { xs: 2.5, sm: 3 }, pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Button
-                  fullWidth startIcon={<EditIcon />}
-                  onClick={() => navigate(Constants.EDIT_USER_PROFILE_ROUTE, { state: { userData } })}
-                  sx={{
-                    py: 1.3, bgcolor: T.teal, color: '#fff', fontWeight: 700,
-                    borderRadius: 2, textTransform: 'none', fontSize: '0.95rem',
-                    '&:hover': { bgcolor: T.tealHover },
-                  }}
-                >
-                  Edit Profile
-                </Button>
-                <Button
-                  fullWidth startIcon={<LockIcon />}
-                  onClick={() => setShowChangePw(true)}
-                  sx={{
-                    py: 1.3,
-                    border: `1px solid ${T.glassBorder}`,
-                    color: T.textMuted, borderRadius: 2, textTransform: 'none', fontWeight: 500,
-                    '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: T.tealBg },
-                  }}
-                >
-                  Change Password
-                </Button>
-              </Box>
+              {!editing && (
+                <Box sx={{ px: { xs: 2, sm: 3 }, pb: { xs: 2.5, sm: 3 }, pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Button
+                    fullWidth startIcon={<LockIcon />}
+                    onClick={() => setShowChangePw(true)}
+                    sx={{
+                      py: 1.3,
+                      border: `1px solid ${T.glassBorder}`,
+                      color: T.textMuted, borderRadius: 2, textTransform: 'none', fontWeight: 500,
+                      '&:hover': { borderColor: T.teal, color: T.teal, bgcolor: T.tealBg },
+                    }}
+                  >
+                    Change Password
+                  </Button>
+                  <BiometricSetting />
+                </Box>
+              )}
 
             </Box>
           </motion.div>

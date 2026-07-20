@@ -33,7 +33,7 @@ public class DataRepairService {
 
     private void repairUsers() {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT id, email, password, first_name, last_name, gender FROM new_db_world.users"
+                "SELECT id, email, password, first_name, last_name, gender FROM db_world.users"
         );
 
         int fixed = 0;
@@ -55,7 +55,7 @@ public class DataRepairService {
                     || !same(firstName, cf) || !same(lastName, cl) || !same(gender, cg)) {
 
                 jdbc.update("""
-                        UPDATE new_db_world.users
+                        UPDATE db_world.users
                            SET email=?, password=?, first_name=?, last_name=?, gender=?
                          WHERE id=?
                         """, ce, cp, cf, cl, cg, id);

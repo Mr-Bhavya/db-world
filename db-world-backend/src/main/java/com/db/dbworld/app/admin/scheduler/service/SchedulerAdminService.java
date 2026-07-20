@@ -1,16 +1,19 @@
 package com.db.dbworld.app.admin.scheduler.service;
 
 import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobConfigEntity;
+import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobConfigEntity.JobType;
 import com.db.dbworld.app.admin.scheduler.entity.SchedulerJobHistoryEntity;
 import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobConfigRepository;
 import com.db.dbworld.app.admin.scheduler.repository.SchedulerJobHistoryRepository;
 import com.db.dbworld.app.cinema.catalog.tags.scheduler.TagScheduler;
 import com.db.dbworld.app.cinema.tmdb.people.scheduler.PersonSyncScheduler;
 import com.db.dbworld.app.cinema.tmdb.sync.scheduler.TmdbSyncScheduler;
+import com.db.dbworld.app.media.sync.MediaSyncService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
@@ -32,16 +35,32 @@ public class SchedulerAdminService {
     private final TagScheduler                  tagScheduler;
     private final TmdbSyncScheduler             tmdbSyncScheduler;
     private final PersonSyncScheduler           personSyncScheduler;
+    private final MediaSyncService              mediaSyncService;
+    private final JdbcTemplate                  jdbcTemplate;
 
     private static final List<SchedulerJobConfigEntity> DEFAULTS = List.of(
             SchedulerJobConfigEntity.builder().jobId("TagScheduler")
-                    .cronExpression("0 0 */6 * * *").enabled(true).displayOrder(0).build(),
+                    .jobType(JobType.CRON).cronExpression("0 0 */6 * * *")
+                    .enabled(true).displayOrder(0).build(),
             SchedulerJobConfigEntity.builder().jobId("TmdbMovieSync")
-                    .cronExpression("0 0 2 * * *").timezone("Asia/Kolkata").enabled(true).displayOrder(1).build(),
+                    .jobType(JobType.CRON).cronExpression("0 0 2 * * *")
+                    .timezone("Asia/Kolkata").recheckIntervalHours(20)
+                    .enabled(true).displayOrder(1).build(),
             SchedulerJobConfigEntity.builder().jobId("TmdbTvSync")
-                    .cronExpression("0 10 2 * * *").timezone("Asia/Kolkata").enabled(true).displayOrder(2).build(),
+                    .jobType(JobType.CRON).cronExpression("0 10 2 * * *")
+                    .timezone("Asia/Kolkata").recheckIntervalHours(20)
+                    .enabled(true).displayOrder(2).build(),
             SchedulerJobConfigEntity.builder().jobId("PersonSyncScheduler")
-                    .cronExpression("0 0 3 * * *").timezone("Asia/Kolkata").enabled(true).displayOrder(3).build()
+                    .jobType(JobType.CRON).cronExpression("0 0 3 * * *")
+                    .timezone("Asia/Kolkata").enabled(true).displayOrder(3).build(),
+            // MediaSync runs every 60s and self-schedules via @Scheduled in
+            // MediaSyncService — registered here only for admin visibility,
+            // manual "Run Now", enable/disable, and per-job history. The
+            // TaskScheduler path is skipped for FIXED_DELAY jobs.
+            SchedulerJobConfigEntity.builder().jobId("MediaSync")
+                    .jobType(JobType.FIXED_DELAY).intervalSeconds(60)
+                    .stabilityWindowSeconds(5)
+                    .enabled(true).displayOrder(4).build()
     );
 
     private final Map<String, String>            jobStatus = new ConcurrentHashMap<>();
@@ -49,8 +68,32 @@ public class SchedulerAdminService {
 
     @PostConstruct
     public void init() {
+        relaxLegacyConstraints();
         seedDefaults();
         scheduleAll();
+    }
+
+    /**
+     * One-shot schema fix: the original {@code scheduler_job_config} table was
+     * created with {@code cron_expression VARCHAR(100) NOT NULL} when every job
+     * was cron-based. FIXED_DELAY jobs (MediaSync) leave that column null, and
+     * Hibernate's {@code ddl-auto=update} doesn't relax existing NOT NULL
+     * constraints — only Flyway/Liquibase would.
+     *
+     * <p>The {@code ALTER TABLE ... MODIFY} is idempotent on MySQL: if the
+     * column is already nullable, this is a no-op (it just rewrites the column
+     * metadata to match). Wrapped in try/catch so an unexpected DB layout
+     * doesn't block boot.
+     */
+    private void relaxLegacyConstraints() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE scheduler_job_config " +
+                    "MODIFY COLUMN cron_expression VARCHAR(100) NULL");
+        } catch (Exception e) {
+            log.debug("scheduler_job_config.cron_expression NOT NULL relax skipped: {}",
+                    e.getMessage());
+        }
     }
 
     @Transactional
@@ -69,6 +112,14 @@ public class SchedulerAdminService {
 
     private void scheduleJob(SchedulerJobConfigEntity config) {
         cancelIfRunning(config.getJobId());
+        // Fixed-delay jobs schedule themselves via @Scheduled in their own
+        // service (e.g. MediaSyncService). We only persist config + write
+        // history; the TaskScheduler path is for cron jobs only.
+        if (config.getJobType() == JobType.FIXED_DELAY) {
+            log.info("Registered {} (FIXED_DELAY, every {}s, enabled={}) — self-scheduled",
+                    config.getJobId(), config.getIntervalSeconds(), config.isEnabled());
+            return;
+        }
         Runnable task = () -> runJob(config.getJobId());
         CronTrigger trigger = config.getTimezone() != null
                 ? new CronTrigger(config.getCronExpression(), TimeZone.getTimeZone(config.getTimezone()))
@@ -113,6 +164,7 @@ public class SchedulerAdminService {
                 case "TmdbMovieSync"       -> tmdbSyncScheduler.runMovieSync();
                 case "TmdbTvSync"          -> tmdbSyncScheduler.runTvSync();
                 case "PersonSyncScheduler" -> personSyncScheduler.runPersonSync();
+                case "MediaSync"           -> mediaSyncService.scan();
                 default -> throw new IllegalArgumentException("Unknown job: " + jobId);
             }
         } catch (Exception e) {
@@ -144,29 +196,48 @@ public class SchedulerAdminService {
                 .sorted(Comparator.comparingInt(SchedulerJobConfigEntity::getDisplayOrder))
                 .map(c -> {
                     Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("id",             c.getJobId());
-                    m.put("name",           displayName(c.getJobId()));
-                    m.put("cronExpression", c.getCronExpression());
-                    if (c.getTimezone() != null) m.put("timezone", c.getTimezone());
-                    m.put("enabled",        c.isEnabled());
-                    m.put("status",         jobStatus.getOrDefault(c.getJobId(), "IDLE"));
-                    m.put("description",    description(c.getJobId(), unsyncedPersons));
-                    m.put("displayOrder",   c.getDisplayOrder());
+                    m.put("id",              c.getJobId());
+                    // Admin-overridden displayName wins; fall back to the
+                    // hardcoded default for the job id so legacy rows /
+                    // newly-seeded jobs still render a sensible label.
+                    m.put("name", (c.getDisplayName() != null && !c.getDisplayName().isBlank())
+                            ? c.getDisplayName()
+                            : displayName(c.getJobId()));
+                    m.put("defaultName",     displayName(c.getJobId()));
+                    m.put("jobType",         c.getJobType().name());
+                    if (c.getCronExpression() != null)        m.put("cronExpression",        c.getCronExpression());
+                    if (c.getIntervalSeconds() != null)       m.put("intervalSeconds",       c.getIntervalSeconds());
+                    if (c.getStabilityWindowSeconds() != null) m.put("stabilityWindowSeconds", c.getStabilityWindowSeconds());
+                    if (c.getRecheckIntervalHours() != null)   m.put("recheckIntervalHours",   c.getRecheckIntervalHours());
+                    if (c.getTimezone() != null)              m.put("timezone",              c.getTimezone());
+                    if (c.getNotes() != null && !c.getNotes().isBlank()) m.put("notes", c.getNotes());
+                    m.put("enabled",         c.isEnabled());
+                    m.put("status",          jobStatus.getOrDefault(c.getJobId(), "IDLE"));
+                    m.put("description",     description(c.getJobId(), unsyncedPersons));
+                    m.put("displayOrder",    c.getDisplayOrder());
                     return m;
                 }).toList();
     }
 
     public List<Map<String, Object>> getHistory(int limit) {
         return historyRepo.findAllByOrderByStartedAtDesc(PageRequest.of(0, limit)).stream()
-                .map(h -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("jobName",    h.getJobName());
-                    m.put("startedAt",  h.getStartedAt());
-                    m.put("durationMs", h.getDurationMs());
-                    m.put("status",     h.getStatus());
-                    m.put("message",    h.getMessage());
-                    return m;
-                }).toList();
+                .map(this::toHistoryRow).toList();
+    }
+
+    /** Per-job history feed for the admin UI's per-card history drawer. */
+    public List<Map<String, Object>> getHistoryForJob(String jobName, int limit) {
+        return historyRepo.findByJobNameOrderByStartedAtDesc(jobName, PageRequest.of(0, limit)).stream()
+                .map(this::toHistoryRow).toList();
+    }
+
+    private Map<String, Object> toHistoryRow(SchedulerJobHistoryEntity h) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("jobName",    h.getJobName());
+        m.put("startedAt",  h.getStartedAt());
+        m.put("durationMs", h.getDurationMs());
+        m.put("status",     h.getStatus());
+        m.put("message",    h.getMessage());
+        return m;
     }
 
     // ── Mutation API ─────────────────────────────────────────────────────────────
@@ -185,11 +256,89 @@ public class SchedulerAdminService {
     public void updateCron(String jobId, String cronExpression, String timezone) {
         SchedulerJobConfigEntity config = configRepo.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown job: " + jobId));
+        if (config.getJobType() == JobType.FIXED_DELAY) {
+            throw new IllegalArgumentException(
+                    "Job " + jobId + " is FIXED_DELAY — use /interval/{jobName} to change its cadence");
+        }
         config.setCronExpression(cronExpression);
         if (timezone != null && !timezone.isBlank()) config.setTimezone(timezone);
         configRepo.save(config);
         scheduleJob(config);
         log.info("Job {} rescheduled with cron '{}'", jobId, cronExpression);
+    }
+
+    /**
+     * Update the run interval of a FIXED_DELAY job. The change is picked up
+     * by the job's SchedulingConfigurer on its next scheduling decision —
+     * no restart, no re-register. CRON jobs reject this path.
+     */
+    @Transactional
+    public void updateInterval(String jobId, int intervalSeconds) {
+        if (intervalSeconds <= 0) {
+            throw new IllegalArgumentException("intervalSeconds must be > 0");
+        }
+        SchedulerJobConfigEntity config = configRepo.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown job: " + jobId));
+        if (config.getJobType() != JobType.FIXED_DELAY) {
+            throw new IllegalArgumentException(
+                    "Job " + jobId + " is CRON — use /cron/{jobName} to change its schedule");
+        }
+        config.setIntervalSeconds(intervalSeconds);
+        configRepo.save(config);
+        log.info("Job {} interval updated to {}s (effective next tick)", jobId, intervalSeconds);
+    }
+
+    /**
+     * Partial update — any subset of {@code displayName}, {@code notes}, or
+     * {@code stabilityWindowSeconds} may be set. Null/missing values leave the
+     * existing column untouched; empty strings clear the override and fall
+     * back to defaults. Used by the consolidated PATCH endpoint so the admin
+     * UI doesn't need a separate request per field.
+     */
+    @Transactional
+    public void updateSettings(String jobId,
+                               String displayName,
+                               String notes,
+                               Integer stabilityWindowSeconds,
+                               Integer recheckIntervalHours) {
+        SchedulerJobConfigEntity config = configRepo.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown job: " + jobId));
+
+        if (displayName != null) {
+            // Empty string → clear override (fall back to code-side default).
+            config.setDisplayName(displayName.isBlank() ? null : displayName);
+        }
+        if (notes != null) {
+            config.setNotes(notes.isBlank() ? null : notes);
+        }
+        if (stabilityWindowSeconds != null) {
+            if (stabilityWindowSeconds < 0) {
+                throw new IllegalArgumentException("stabilityWindowSeconds must be >= 0");
+            }
+            config.setStabilityWindowSeconds(stabilityWindowSeconds);
+        }
+        if (recheckIntervalHours != null) {
+            if (recheckIntervalHours <= 0) {
+                throw new IllegalArgumentException("recheckIntervalHours must be > 0");
+            }
+            config.setRecheckIntervalHours(recheckIntervalHours);
+        }
+        configRepo.save(config);
+        log.info("Job {} settings updated (displayName={}, notes={}chars, stabilityWindow={}s, recheckIntervalHours={})",
+                jobId,
+                config.getDisplayName(),
+                config.getNotes() != null ? config.getNotes().length() : 0,
+                config.getStabilityWindowSeconds(),
+                config.getRecheckIntervalHours());
+    }
+
+    /** Reads the stability window for a job, falling back to {@code defaultSec} if unset. */
+    public int stabilityWindowSeconds(String jobId, int defaultSec) {
+        return configRepo.findById(jobId)
+                .map(SchedulerJobConfigEntity::getStabilityWindowSeconds)
+                .filter(java.util.Objects::nonNull)
+                .filter(i -> i >= 0)
+                .orElse(defaultSec);
     }
 
     @Transactional
@@ -212,6 +361,7 @@ public class SchedulerAdminService {
             case "TmdbMovieSync"       -> "TMDB Movie Sync";
             case "TmdbTvSync"          -> "TMDB TV Sync";
             case "PersonSyncScheduler" -> "Person Detail Sync";
+            case "MediaSync"           -> "Media File Sync";
             default -> jobId;
         };
     }
@@ -222,6 +372,7 @@ public class SchedulerAdminService {
             case "TmdbMovieSync"       -> "Syncs updated movie metadata and images from TMDB (2:00 AM IST)";
             case "TmdbTvSync"          -> "Syncs updated TV series metadata and images from TMDB (2:10 AM IST)";
             case "PersonSyncScheduler" -> "Fetches full biography and images for unsynced cast/crew (" + unsyncedPersons + " pending)";
+            case "MediaSync"           -> "Reconciles media_files against the stream directory — picks up SSH/SMB/file-manager adds, deletes, renames";
             default -> "";
         };
     }

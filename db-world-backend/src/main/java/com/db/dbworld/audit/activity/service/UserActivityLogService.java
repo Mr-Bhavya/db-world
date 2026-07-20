@@ -42,7 +42,7 @@ public class UserActivityLogService {
                 .method(logData.getMethod())
                 .uri(logData.getUri())
                 .query(logData.getQuery())
-                .requestBody(logData.getRequestBody())
+                .requestBody(truncate(logData.getRequestBody()))
                 .ip(logData.getIp())
                 .userAgent(logData.getUserAgent())
                 .status(logData.getStatus())

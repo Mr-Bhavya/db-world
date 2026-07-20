@@ -7,6 +7,8 @@ public enum RecordTagType {
     FEATURED,           // auto — vote_avg >= 7.5 AND popularity >= 50
     EDITOR_PICK,        // manual — admin curated
     RECENTLY_ADDED,     // auto — added to catalog within last 30 days
-    AVAILABLE_FOR_DOWNLOAD; // auto — record has at least one media file
+    AVAILABLE_FOR_DOWNLOAD, // auto — record has at least one media file
+    NEW_SEASON,         // auto — TV record that gained a brand-new season within last 30 days
+    NEW_EPISODE;        // auto — TV record that gained a new episode within last 30 days
 
 }

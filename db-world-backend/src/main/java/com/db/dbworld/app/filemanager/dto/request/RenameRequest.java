@@ -5,6 +5,7 @@ import lombok.Data;
 
 @Data
 public class RenameRequest {
+    @NotBlank private String locationId;
     @NotBlank private String path;
     @NotBlank private String newName;
 }

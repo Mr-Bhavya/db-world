@@ -1,61 +1,102 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Production Log4j2 config for db-world.
+
+  Conventions:
+   * Property names: UPPER_SNAKE_CASE, grouped by purpose.
+   * Two output families:
+       - "app"      → general application logs from com.db.dbworld.* (excluding the request filter)
+       - "request"  → per-HTTP-request log lines from com.db.dbworld.security.filters.*
+     Each family writes to console + human-readable file + JSON file.
+   * Five log files per family: info, debug, error (+ request file for the request family).
+     This makes "what just broke" greppable without trawling info/debug noise.
+   * MDC slots are wrapped by %notEmpty INCLUDING the leading space, so a missing
+     slot collapses cleanly with no whitespace gap.
+   * Async logger context selector is enabled in main() (DbWorldApplication.java)
+     so every Logger.x() call goes through the LMAX Disruptor — no extra
+     <Async> appender wrapping needed.
+-->
 <Configuration status="WARN" monitorInterval="30" shutdownHook="disable">
+
     <Properties>
+        <!-- ╭───────────────── identity ─────────────────╮ -->
         <Property name="APP_NAME">${spring:app.name:-db-world}</Property>
         <Property name="PROFILE">${spring:spring.profiles.active:-prod}</Property>
-        <Property name="LOG_PATH">${spring:app.paths.logs:-logs}</Property>
-        <Property name="LOG_MAX_FILE_SIZE">100MB</Property>
-        <Property name="LOG_MAX_FILES">30</Property>
-        <Property name="LOG_TOTAL_SIZE_CAP">3GB</Property>
-        <Property name="LOG_ARCHIVE_PATH">${LOG_PATH}/rotated/app</Property>
 
-        <!-- ========== FILE PATTERNS ========== -->
+        <!-- ╭───────────────── filesystem ───────────────╮ -->
+        <Property name="LOG_DIR">${spring:app.paths.logs:-logs}</Property>
+        <Property name="ARCHIVE_DIR">${LOG_DIR}/rotated</Property>
 
-        <!-- Normal application logs (single-line, IST) -->
-        <Property name="NORMAL_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS}{IST} [%t] [${APP_NAME}] [${PROFILE}] %-5level %logger{36} %notEmpty{[traceId=%X{traceId}]} %notEmpty{[requestId=%X{requestId}]} - %msg%n%ex</Property>
+        <!-- ╭───────────────── rotation policy ──────────╮ -->
+        <Property name="MAX_FILE_SIZE">100MB</Property>
+        <Property name="MAX_FILES_PER_DAY">30</Property>
+        <Property name="RETENTION_DAYS">14</Property>
+        <Property name="TOTAL_SIZE_CAP">3GB</Property>
 
-        <!-- Filter / request logs with full MDC + MD5 (single-line, IST) -->
-        <Property name="FILTER_MDC_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS}{IST} [%t] [${APP_NAME}] [${PROFILE}] %-5level %logger{36} %notEmpty{[user=%X{user}]} %notEmpty{[requestId=%X{requestId}]} %notEmpty{[traceId=%X{traceId}]} %notEmpty{[method=%X{method}]} %notEmpty{[uri=%X{uri}]} %notEmpty{[status=%X{status}]} %notEmpty{[duration=%X{duration}]} %notEmpty{[md5=%X{md5}]} - %msg%n%ex</Property>
+        <!-- ╭───────────────── pattern building blocks ──────────────────────╮
+             Every MDC slot is wrapped as `%notEmpty{ [key=%X{key}]}` — the
+             leading space lives INSIDE the brace so when the slot is blank,
+             nothing emits (no double-space, no `[traceId=]` ghost). -->
+        <Property name="TS_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS}{Asia/Kolkata}</Property>
+        <Property name="LOC_PATTERN">[%t] [${APP_NAME} (${PROFILE})]</Property>
 
-        <!-- ========== CONSOLE PATTERNS ========== -->
+        <!-- MDC slot fragments (each with its own leading space, all under %notEmpty) -->
+        <Property name="MDC_TRACE">%notEmpty{ [traceId=%X{traceId}]}</Property>
+        <Property name="MDC_REQUEST_ID">%notEmpty{ [requestId=%X{requestId}]}</Property>
+        <Property name="MDC_USER">%notEmpty{ [user=%X{user}]}</Property>
+        <Property name="MDC_METHOD">%notEmpty{ [method=%X{method}]}</Property>
+        <Property name="MDC_URI">%notEmpty{ [uri=%X{uri}]}</Property>
+        <Property name="MDC_STATUS">%notEmpty{ [status=%X{status}]}</Property>
+        <Property name="MDC_DURATION">%notEmpty{ [duration=%X{duration}]}</Property>
+        <Property name="MDC_MD5">%notEmpty{ [md5=%X{md5}]}</Property>
 
-        <!-- Console pattern for FILTER logs with colors and MD5 -->
-        <Property name="CONSOLE_FILTER_PATTERN">%style{%d{yyyy-MM-dd HH:mm:ss.SSS}{IST}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta} %notEmpty{%style{[user=%X{user}]}{green}} %notEmpty{%style{[traceId=%X{traceId}]}{yellow}} %notEmpty{%style{[uri=%X{uri}]}{cyan}} %notEmpty{%style{[md5=%X{md5}]}{blue}} - %msg%n%style{%ex}{red}</Property>
+        <!-- ╭───────────────── final patterns ───────────────────────────────╮ -->
 
-        <!-- Console pattern for NORMAL logs (without MD5) -->
-        <Property name="CONSOLE_NORMAL_PATTERN">%style{%d{yyyy-MM-dd HH:mm:ss.SSS}{IST}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta} %notEmpty{%style{[traceId=%X{traceId}]}{yellow}} - %msg%n%style{%ex}{red}</Property>
+        <!-- Application logs — only correlation IDs in the line. -->
+        <Property name="APP_TEXT_PATTERN">${TS_PATTERN} ${LOC_PATTERN} %-5level %logger{36}${MDC_TRACE}${MDC_REQUEST_ID} - %msg%n%ex</Property>
 
-        <!-- JSON layout (reused across JSON appenders) -->
-        <Property name="JSON_PATTERN">{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n</Property>
-        <Property name="JSON_REQUEST_PATTERN">{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;user&quot;:&quot;%X{user}&quot;,&quot;requestId&quot;:&quot;%X{requestId}&quot;,&quot;traceId&quot;:&quot;%X{traceId}&quot;,&quot;method&quot;:&quot;%X{method}&quot;,&quot;uri&quot;:&quot;%X{uri}&quot;,&quot;status&quot;:&quot;%X{status}&quot;,&quot;duration&quot;:&quot;%X{duration}&quot;,&quot;md5&quot;:&quot;%X{md5}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;}%n</Property>
-        <Property name="JSON_ERROR_PATTERN">{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%level&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;message&quot;:&quot;%enc{%m}{JSON}&quot;,&quot;exception&quot;:&quot;%enc{%ex}{JSON}&quot;,&quot;stacktrace&quot;:&quot;%enc{%ex{full}}{JSON}&quot;}%n</Property>
+        <!-- Request log line — full per-request MDC dump. -->
+        <Property name="REQUEST_TEXT_PATTERN">${TS_PATTERN} ${LOC_PATTERN} %-5level %logger{36}${MDC_USER}${MDC_REQUEST_ID}${MDC_TRACE}${MDC_METHOD}${MDC_URI}${MDC_STATUS}${MDC_DURATION}${MDC_MD5} - %msg%n%ex</Property>
+
+        <!-- ANSI-coloured console variants (same shape, with styling). -->
+        <Property name="APP_CONSOLE_PATTERN">%style{${TS_PATTERN}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta}%style{${MDC_TRACE}}{yellow}%style{${MDC_REQUEST_ID}}{yellow} - %msg%n%style{%ex}{red}</Property>
+        <Property name="REQUEST_CONSOLE_PATTERN">%style{${TS_PATTERN}}{dim} %style{[%t]}{cyan} %style{[${APP_NAME} (${PROFILE})]}{blue} %highlight{%-5level} %style{%logger{36}}{magenta}%style{${MDC_USER}}{green}%style{${MDC_TRACE}}{yellow}%style{${MDC_URI}}{cyan}%style{${MDC_MD5}}{blue}%style{${MDC_STATUS}}{magenta}%style{${MDC_DURATION}}{magenta} - %msg%n%style{%ex}{red}</Property>
+
+        <!-- ╭───────────────── JSON patterns ────────────────────────────────╮
+             For JSON we wrap every optional field in %notEmpty INCLUDING the
+             leading comma so missing values disappear and the JSON stays
+             valid. The 5 unconditional fields (timestamp, level, thread,
+             logger, message) anchor the object. -->
+        <Property name="JSON_APP_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"requestId":"%X{requestId}"}%notEmpty{,"exception":"%enc{%ex}{JSON}"}}%n</Property>
+        <Property name="JSON_REQUEST_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"user":"%X{user}"}%notEmpty{,"requestId":"%X{requestId}"}%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"method":"%X{method}"}%notEmpty{,"uri":"%X{uri}"}%notEmpty{,"status":"%X{status}"}%notEmpty{,"duration":"%X{duration}"}%notEmpty{,"md5":"%X{md5}"}%notEmpty{,"exception":"%enc{%ex}{JSON}"}}%n</Property>
+        <Property name="JSON_ERROR_PATTERN">{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","thread":"%t","logger":"%c","message":"%enc{%m}{JSON}"%notEmpty{,"traceId":"%X{traceId}"}%notEmpty{,"requestId":"%X{requestId}"},"stacktrace":"%enc{%ex{full}}{JSON}"}%n</Property>
     </Properties>
 
-
     <Appenders>
-        <!-- ========== CONSOLE APPENDERS ========== -->
+        <!-- ╭═════════════════ Consoles ═════════════════╮ -->
 
-        <Console name="CONSOLE_FILTER" target="SYSTEM_OUT">
-            <PatternLayout pattern="${CONSOLE_FILTER_PATTERN}" disableAnsi="false"/>
+        <Console name="ConsoleApp" target="SYSTEM_OUT">
+            <PatternLayout pattern="${APP_CONSOLE_PATTERN}" disableAnsi="false"/>
         </Console>
 
-        <Console name="CONSOLE_NORMAL" target="SYSTEM_OUT">
-            <PatternLayout pattern="${CONSOLE_NORMAL_PATTERN}" disableAnsi="false"/>
+        <Console name="ConsoleRequest" target="SYSTEM_OUT">
+            <PatternLayout pattern="${REQUEST_CONSOLE_PATTERN}" disableAnsi="false"/>
         </Console>
 
-        <!-- ========== HUMAN READABLE FILES ========== -->
+        <!-- ╭═════════════════ App family (human-readable) ═════════════════╮ -->
 
-        <RollingFile name="HUMAN_INFO" fileName="${LOG_PATH}/${APP_NAME}-info.log"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-info-%d{yyyy-MM-dd}-%i.log.gz">
-            <PatternLayout pattern="${NORMAL_PATTERN}"/>
+        <RollingFile name="AppInfoFile"
+                     fileName="${LOG_DIR}/${APP_NAME}-info.log"
+                     filePattern="${ARCHIVE_DIR}/app/${APP_NAME}-info-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${APP_TEXT_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}">
-                <Delete basePath="${LOG_ARCHIVE_PATH}" maxDepth="2">
-                    <IfLastModified age="30d"/>
-                    <IfAccumulatedFileSize exceeds="${LOG_TOTAL_SIZE_CAP}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/app" maxDepth="2">
+                    <IfLastModified age="${RETENTION_DAYS}d"/>
+                    <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
                 </Delete>
             </DefaultRolloverStrategy>
             <Filters>
@@ -63,178 +104,171 @@
             </Filters>
         </RollingFile>
 
-        <!-- DEBUG-only (excludes INFO and above) -->
-        <RollingFile name="HUMAN_DEBUG" fileName="${LOG_PATH}/${APP_NAME}-debug.log"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-debug-%d{yyyy-MM-dd}-%i.log.gz">
-            <PatternLayout pattern="${NORMAL_PATTERN}"/>
+        <RollingFile name="AppDebugFile"
+                     fileName="${LOG_DIR}/${APP_NAME}-debug.log"
+                     filePattern="${ARCHIVE_DIR}/app/${APP_NAME}-debug-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${APP_TEXT_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
             <Filters>
                 <LevelRangeFilter minLevel="DEBUG" maxLevel="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
         </RollingFile>
 
-        <RollingFile name="HUMAN_REQUEST" fileName="${LOG_PATH}/${APP_NAME}-request.log"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-request-%d{yyyy-MM-dd}-%i.log.gz">
-            <PatternLayout pattern="${FILTER_MDC_PATTERN}"/>
+        <RollingFile name="AppErrorFile"
+                     fileName="${LOG_DIR}/${APP_NAME}-error.log"
+                     filePattern="${ARCHIVE_DIR}/app/${APP_NAME}-error-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${APP_TEXT_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
-        </RollingFile>
-
-        <RollingFile name="HUMAN_ERROR" fileName="${LOG_PATH}/${APP_NAME}-error.log"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-error-%d{yyyy-MM-dd}-%i.log.gz">
-            <PatternLayout pattern="${NORMAL_PATTERN}"/>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
-            </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
         </RollingFile>
 
-        <!-- ========== JSON FILES ========== -->
+        <!-- ╭═════════════════ App family (JSON) ═════════════════╮ -->
 
-        <RollingFile name="JSON_INFO" fileName="${LOG_PATH}/${APP_NAME}-info.json"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-info-%d{yyyy-MM-dd}-%i.json.gz">
-            <PatternLayout pattern="${JSON_PATTERN}"/>
+        <RollingFile name="AppInfoJson"
+                     fileName="${LOG_DIR}/${APP_NAME}-info.json"
+                     filePattern="${ARCHIVE_DIR}/app/${APP_NAME}-info-%d{yyyy-MM-dd}-%i.json.gz">
+            <PatternLayout pattern="${JSON_APP_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
             <Filters>
                 <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
         </RollingFile>
 
-        <!-- DEBUG-only (excludes INFO and above) -->
-        <RollingFile name="JSON_DEBUG" fileName="${LOG_PATH}/${APP_NAME}-debug.json"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-debug-%d{yyyy-MM-dd}-%i.json.gz">
-            <PatternLayout pattern="${JSON_PATTERN}"/>
+        <RollingFile name="AppDebugJson"
+                     fileName="${LOG_DIR}/${APP_NAME}-debug.json"
+                     filePattern="${ARCHIVE_DIR}/app/${APP_NAME}-debug-%d{yyyy-MM-dd}-%i.json.gz">
+            <PatternLayout pattern="${JSON_APP_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
             <Filters>
                 <LevelRangeFilter minLevel="DEBUG" maxLevel="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
         </RollingFile>
 
-        <RollingFile name="JSON_REQUEST" fileName="${LOG_PATH}/${APP_NAME}-request.json"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-request-%d{yyyy-MM-dd}-%i.json.gz">
-            <PatternLayout pattern="${JSON_REQUEST_PATTERN}"/>
-            <Policies>
-                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
-            </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
-        </RollingFile>
-
-        <RollingFile name="JSON_ERROR" fileName="${LOG_PATH}/${APP_NAME}-error.json"
-                     filePattern="${LOG_ARCHIVE_PATH}/${APP_NAME}-error-%d{yyyy-MM-dd}-%i.json.gz">
+        <RollingFile name="AppErrorJson"
+                     fileName="${LOG_DIR}/${APP_NAME}-error.json"
+                     filePattern="${ARCHIVE_DIR}/app/${APP_NAME}-error-%d{yyyy-MM-dd}-%i.json.gz">
             <PatternLayout pattern="${JSON_ERROR_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="${LOG_MAX_FILE_SIZE}"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
             </Policies>
-            <DefaultRolloverStrategy max="${LOG_MAX_FILES}"/>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
             <Filters>
                 <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
             </Filters>
         </RollingFile>
 
-        <!-- ========== ASYNC APPENDERS ========== -->
+        <!-- ╭═════════════════ Request family ═════════════════╮ -->
 
-        <Async name="ASYNC_CONSOLE_FILTER" bufferSize="10240">
-            <AppenderRef ref="CONSOLE_FILTER"/>
-        </Async>
+        <RollingFile name="RequestFile"
+                     fileName="${LOG_DIR}/${APP_NAME}-request.log"
+                     filePattern="${ARCHIVE_DIR}/request/${APP_NAME}-request-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${REQUEST_TEXT_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}">
+                <Delete basePath="${ARCHIVE_DIR}/request" maxDepth="2">
+                    <IfLastModified age="${RETENTION_DAYS}d"/>
+                    <IfAccumulatedFileSize exceeds="${TOTAL_SIZE_CAP}"/>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
 
-        <Async name="ASYNC_CONSOLE_NORMAL" bufferSize="10240">
-            <AppenderRef ref="CONSOLE_NORMAL"/>
-        </Async>
-
-        <Async name="ASYNC_HUMAN_INFO" bufferSize="51200">
-            <AppenderRef ref="HUMAN_INFO"/>
-        </Async>
-
-        <Async name="ASYNC_HUMAN_DEBUG" bufferSize="51200">
-            <AppenderRef ref="HUMAN_DEBUG"/>
-        </Async>
-
-        <Async name="ASYNC_HUMAN_REQUEST" bufferSize="51200">
-            <AppenderRef ref="HUMAN_REQUEST"/>
-        </Async>
-
-        <Async name="ASYNC_HUMAN_ERROR" bufferSize="25600">
-            <AppenderRef ref="HUMAN_ERROR"/>
-        </Async>
-
-        <Async name="ASYNC_JSON_INFO" bufferSize="51200">
-            <AppenderRef ref="JSON_INFO"/>
-        </Async>
-
-        <Async name="ASYNC_JSON_DEBUG" bufferSize="51200">
-            <AppenderRef ref="JSON_DEBUG"/>
-        </Async>
-
-        <Async name="ASYNC_JSON_REQUEST" bufferSize="51200">
-            <AppenderRef ref="JSON_REQUEST"/>
-        </Async>
-
-        <Async name="ASYNC_JSON_ERROR" bufferSize="25600">
-            <AppenderRef ref="JSON_ERROR"/>
-        </Async>
-
+        <RollingFile name="RequestJson"
+                     fileName="${LOG_DIR}/${APP_NAME}-request.json"
+                     filePattern="${ARCHIVE_DIR}/request/${APP_NAME}-request-%d{yyyy-MM-dd}-%i.json.gz">
+            <PatternLayout pattern="${JSON_REQUEST_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="${MAX_FILE_SIZE}"/>
+            </Policies>
+            <DefaultRolloverStrategy max="${MAX_FILES_PER_DAY}"/>
+        </RollingFile>
     </Appenders>
 
     <Loggers>
-        <!-- Filter/request logs — additivity=false prevents propagation to com.db.dbworld and Root -->
+        <!--
+          ╭────────── Request-line logger ──────────╮
+          The JwtAuthenticationFilter emits exactly one structured line per
+          request via the package-named logger. Routed to the dedicated
+          request appenders so it doesn't drown the app logs.
+        -->
         <Logger name="com.db.dbworld.security.filters" level="INFO" additivity="false">
-            <AppenderRef ref="ASYNC_CONSOLE_FILTER"/>
-            <AppenderRef ref="ASYNC_HUMAN_REQUEST"/>
-            <AppenderRef ref="ASYNC_JSON_REQUEST"/>
+            <AppenderRef ref="ConsoleRequest"/>
+            <AppenderRef ref="RequestFile"/>
+            <AppenderRef ref="RequestJson"/>
         </Logger>
 
-        <!-- Application logs — additivity=false prevents propagation to Root -->
+        <!--
+          ╭────────── Application logger ──────────╮
+          Catches everything under com.db.dbworld.* (excluding the filter
+          above which has its own handler). DEBUG in local, INFO in prod —
+          tune via Spring profile if needed.
+        -->
         <Logger name="com.db.dbworld" level="DEBUG" additivity="false">
-            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
-            <AppenderRef ref="ASYNC_HUMAN_INFO"/>
-            <AppenderRef ref="ASYNC_HUMAN_DEBUG"/>
-            <AppenderRef ref="ASYNC_HUMAN_ERROR"/>
-            <AppenderRef ref="ASYNC_JSON_INFO"/>
-            <AppenderRef ref="ASYNC_JSON_DEBUG"/>
-            <AppenderRef ref="ASYNC_JSON_ERROR"/>
+            <AppenderRef ref="ConsoleApp"/>
+            <AppenderRef ref="AppInfoFile"/>
+            <AppenderRef ref="AppDebugFile"/>
+            <AppenderRef ref="AppErrorFile"/>
+            <AppenderRef ref="AppInfoJson"/>
+            <AppenderRef ref="AppDebugJson"/>
+            <AppenderRef ref="AppErrorJson"/>
         </Logger>
 
-        <!-- Third-party loggers — console only, additivity=false -->
-        <Logger name="org.springframework" level="INFO" additivity="false">
-            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
-        </Logger>
+        <!-- ╭────────── Third-party noise tuning ──────────╮ -->
 
-        <Logger name="org.hibernate" level="WARN" additivity="false">
-            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
-        </Logger>
+        <!-- Spring family: INFO. Quiet down the per-class chattiness we don't need. -->
+        <Logger name="org.springframework"             level="INFO" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.springframework.web.servlet.DispatcherServlet"  level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.springframework.boot.web.context.servlet"      level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.springframework.data.repository.config"        level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.springframework.orm.jpa"                       level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
 
-        <Logger name="org.apache" level="WARN" additivity="false">
-            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
-        </Logger>
+        <!-- Jasypt: prints one INFO line per property source on every startup. -->
+        <Logger name="com.ulisesbocchio.jasyptspringboot" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
 
-        <Logger name="com.zaxxer.hikari" level="INFO" additivity="false">
-            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
-        </Logger>
+        <!-- Hibernate: WARN by default; flip to DEBUG for SQL when needed. -->
+        <Logger name="org.hibernate"     level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+        <Logger name="org.hibernate.SQL" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
 
-        <!-- Root: catches anything not matched above (unknown third-party) -->
+        <!-- Jetty: INFO drowns startup; WARN is enough for prod. -->
+        <Logger name="org.eclipse.jetty" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+
+        <!-- Hikari: keep INFO so we see pool start/stop. -->
+        <Logger name="com.zaxxer.hikari" level="INFO" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+
+        <!-- Apache httpclient / commons: WARN. -->
+        <Logger name="org.apache" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+
+        <!-- Springdoc startup banner is fine, runtime should be quiet. -->
+        <Logger name="org.springdoc" level="WARN" additivity="false"><AppenderRef ref="ConsoleApp"/></Logger>
+
+        <!--
+          ╭────────── Root ──────────╮
+          Catches anything not matched above. INFO is the prod default.
+        -->
         <Root level="INFO">
-            <AppenderRef ref="ASYNC_CONSOLE_NORMAL"/>
+            <AppenderRef ref="ConsoleApp"/>
         </Root>
     </Loggers>
 </Configuration>

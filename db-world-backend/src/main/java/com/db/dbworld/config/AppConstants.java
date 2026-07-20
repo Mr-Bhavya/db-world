@@ -18,10 +18,6 @@ public final class AppConstants {
 
     public enum RecordType { MOVIE, SERIES }
 
-    /** @deprecated Use {@link RecordType} */
-    @Deprecated(forRemoval = true)
-    public enum RECORD_TYE { MOVIE, SERIES }
-
     // ── File access ───────────────────────────────────────────────────────────
 
     public enum FileAccessType { STREAM, DOWNLOAD }
@@ -81,6 +77,8 @@ public final class AppConstants {
 
     public static final String[] PUBLIC_APIS = {
             "/api/server/**",
+            "/api/app/version",
+            "/api/app/download",
             "/api/cinema/admin/bootstrap",
             "/assets/**",
             "/icons/**",
@@ -93,11 +91,11 @@ public final class AppConstants {
             "/swagger-ui/**",
             "/ws/status",
             "/ws/application-logs",
-            "/ws/user-cinema-activity",
-            "/api/stream/resolve/**",
             "/*", "/db-world/**", "/static/**",
             "/api/metrics/**", "/actuator/**", "/api/migration/**",
-            "/api/admin/file-manager/download/stream"
+            "/api/admin/file-manager/download/stream",
+            "/api/wallet/shared/**",
+            "/storyboard/**"
     };
 
     // ── TMDB API URLs ─────────────────────────────────────────────────────────

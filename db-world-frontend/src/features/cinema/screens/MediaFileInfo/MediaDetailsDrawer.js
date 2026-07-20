@@ -21,21 +21,20 @@ import { QBadge, HdrBadge, CodecBadge } from '../../media/Badges';
 import { motion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useSnackbar } from 'notistack';
+import { notify } from '@shared/notify';
 import { loadStreamFileInfoByFiledId, loadStreamFileInfoByPath, resolveMediaUrl, resolveMediaUrlByPath } from '@shared/services/ApiServices';
 import CommonServices from '@shared/services/CommonServices';
 import Constants from '@shared/constants';
 import { MediaInfoContent } from './MediaInfoContent';
-import CinemaPlayer from '../../player/CinemaPlayer';
-import AndroidPlugins from '@platform/android/AndroidPlugins';
 import DbWorldDownload from '@platform/android/DbWorldDownload';
 import { tmdbImg } from '../../api/cinemaApi';
+import { resolveAndBuildMedia } from '../../media/playerLaunch';
+import { buildStoryboard } from '../../utils/storyboard';
 
 
 // ─── CopyButton — shows check on success ─────────────────────────────────────
 
 const CopyButton = ({ getUrl, label, size = 'small' }) => {
-  const { enqueueSnackbar } = useSnackbar();
   const [done, setDone] = useState(false);
   const [working, setWorking] = useState(false);
   const handle = async () => {
@@ -45,7 +44,7 @@ const CopyButton = ({ getUrl, label, size = 'small' }) => {
       if (url) {
         const r = await CommonServices.handleCopy(url);
         if (r.success) { setDone(true); setTimeout(() => setDone(false), 2000); }
-        else enqueueSnackbar('Copy failed', { variant: 'error' });
+        else notify.error('Copy failed');
       }
     } finally {
       setWorking(false);
@@ -65,10 +64,8 @@ const CopyButton = ({ getUrl, label, size = 'small' }) => {
 
 const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
   const theme = useTheme();
-  const { enqueueSnackbar } = useSnackbar();
-  const [playerOpen, setPlayerOpen] = useState(false);
+  const navigate = useNavigate();
   const [resolving, setResolving] = useState(false);
-  const [enrichedFiles, setEnrichedFiles] = useState(null);
 
   const { general, video, audio, subtitle } = mediaInfo;
   const quality  = getQuality(video, general?.fileName);
@@ -96,38 +93,46 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
     throw new Error('No media identifier or file path available');
   };
 
-  const resolveAll = async (type) => {
-    const files = (allFiles?.length > 0 ? allFiles : [mediaInfo]);
-    return Promise.all(files.map(async (f) => {
-      try {
-        const res = await resolveOne(f, type);
-        const cdnUrl = res?.data?.cdnUrl;
-        return cdnUrl ? { ...f, streamUrl: cdnUrl } : f;
-      } catch { return f; }
-    }));
-  };
-
   const handlePlay = async () => {
     setResolving(true);
     onClose();
     try {
-      const enriched = await resolveAll('ONLINE');
-      setEnrichedFiles(enriched);
-      const current = enriched.find(f => matchesCurrentFile(f, mediaInfo)) ?? enriched[0];
-      if (Capacitor.getPlatform() === 'android') {
-        AndroidPlugins.launchNativePlayer({
-          url:            current?.streamUrl,
-          title:          record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName,
-          fileName:       general?.fileName || '',
-          fileId:         String(mediaInfo.id || ''),
-          preferredAudio: 'Hindi',
-          preferredSub:   null,
+      const files = allFiles?.length ? allFiles : [mediaInfo];
+      const current = files.find(f => matchesCurrentFile(f, mediaInfo)) ?? mediaInfo;
+      const title = record?.tmdb?.title || record?.tmdb?.name || record?.name || general?.fileName || '';
+
+      let media;
+      if (current?.mediaFileId) {
+        // Record-linked file: shared batch resolve + uniform payload (storyboard, requestId, ids).
+        media = await resolveAndBuildMedia({
+          current,
+          variantFiles: files,
+          record,
+          title,
+          fileId: mediaInfo.id || mediaInfo.mediaFileId,
         });
       } else {
-        setPlayerOpen(true);
+        // Unassigned file (path-based, no mediaFileId): single resolve, no batch.
+        const res = await resolveOne(current, 'ONLINE');
+        const url = res?.data?.cdnUrl;
+        if (!url) throw new Error('No stream URL');
+        media = {
+          url,
+          fileId:      String(mediaInfo.id || mediaInfo.mediaFileId || ''),
+          mediaFileId: res?.data?.mediaFileId || null,
+          title,
+          fileName:    general?.fileName || '',
+          recordId:    record?.id || record?.recordId || res?.data?.recordId || null,
+          audio:       res?.data?.mediaFile?.audio || [],
+          variants:    [{ url, label: getQuality(current.video, current.general?.fileName), mediaFileId: current.mediaFileId }],
+          episodes:    [],
+          storyboard:  buildStoryboard(url, res?.data?.mediaFileId, res?.data?.mediaFile) || null,
+          requestId:   res?.data?.requestId || null,
+        };
       }
+      navigate(Constants.playerPath(media.mediaFileId || media.fileId), { state: { media } });
     } catch (_e) {
-      enqueueSnackbar('Failed to prepare stream', { variant: 'error' });
+      notify.error('Failed to prepare stream');
     } finally {
       setResolving(false);
     }
@@ -148,9 +153,9 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
             thumbnailUrl: tmdbImg(record?.tmdb?.posterPath, 'w185') || '',
           });
           if (dlResult?.alreadyDownloaded) {
-            enqueueSnackbar(`Already downloaded: ${general?.fileName || 'file'}`, { variant: 'info', autoHideDuration: 3000 });
+            notify.info(`Already downloaded: ${general?.fileName || 'file'}`, { duration: 3000 });
           } else {
-            enqueueSnackbar(`Added to downloads: ${general?.fileName || 'file'}`, { variant: 'success', autoHideDuration: 3000 });
+            notify.success(`Added to downloads: ${general?.fileName || 'file'}`, { duration: 3000 });
           }
         } else {
           CommonServices.handleDownload(cdnUrl, { fileName: general?.fileName, openInNewTab: true });
@@ -158,7 +163,7 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
     } catch (e) {
       const msg = e?.message || e?.code || String(e);
       console.error('Download failed', msg, e);
-      enqueueSnackbar(`Download error: ${msg || 'unknown'}`, { variant: 'error', autoHideDuration: 8000 });
+      notify.error(`Download error: ${msg || 'unknown'}`, { duration: 8000 });
     } finally {
       setResolving(false);
     }
@@ -278,14 +283,6 @@ const DrawerBody = ({ mediaInfo, onClose, allFiles, record }) => {
           label="Copy download URL"
         />
       </Box>
-
-      <CinemaPlayer
-        open={playerOpen}
-        onClose={() => { setPlayerOpen(false); setEnrichedFiles(null); }}
-        mediaInfo={enrichedFiles ? (enrichedFiles.find(f => matchesCurrentFile(f, mediaInfo)) ?? mediaInfo) : mediaInfo}
-        allFiles={enrichedFiles ?? (allFiles ?? [mediaInfo])}
-        record={record}
-      />
     </Box>
   );
 };
@@ -312,7 +309,6 @@ const MediaDetailsDrawer = ({ open, onClose, fileId, filePath, mediaInfo: propMe
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
-  const { enqueueSnackbar } = useSnackbar();
 
   const [loading, setLoading] = useState(false);
   const [mediaInfo, setMediaInfo] = useState(propMediaInfo ?? null);
@@ -336,7 +332,7 @@ const MediaDetailsDrawer = ({ open, onClose, fileId, filePath, mediaInfo: propMe
           return true;
         }
         if (res.httpStatusCode === 401 || res.httpStatusCode === 403) {
-          enqueueSnackbar('Authentication required', { variant: 'error' });
+          notify.error('Authentication required');
           navigate(Constants.LOGIN_ROUTE, { state: { from: location } });
           return true;
         }
@@ -358,14 +354,14 @@ const MediaDetailsDrawer = ({ open, onClose, fileId, filePath, mediaInfo: propMe
           if (handleResponse(res, fileId ?? filePath)) return;
         }
 
-        enqueueSnackbar('Failed to load media info', { variant: 'error' });
+        notify.error('Failed to load media info');
       } catch {
-        enqueueSnackbar('Failed to load media information', { variant: 'error' });
+        notify.error('Failed to load media information');
       }
     };
 
     load().finally(() => setLoading(false));
-  }, [open, fileId, filePath, propMediaInfo, navigate, location, enqueueSnackbar]);
+  }, [open, fileId, filePath, propMediaInfo, navigate, location]);
 
   const handleClose = () => {
     onClose();

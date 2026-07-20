@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { notify } from '@shared/notify';
 import {
   Box, Dialog, DialogContent, DialogTitle, IconButton, TextField,
   Tab, Tabs, Typography, CircularProgress, Button,
@@ -11,7 +12,6 @@ import MovieIcon from '@mui/icons-material/Movie';
 import TvIcon from '@mui/icons-material/Tv';
 import CheckIcon from '@mui/icons-material/Check';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
-import { useSnackbar } from 'notistack';
 import { useT } from '@shared/theme/ThemeContext';
 import {
   searchTmdbForRequest, toggleCatalogIngestVote,
@@ -102,7 +102,6 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
   const T = useT();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
-  const { enqueueSnackbar } = useSnackbar();
 
   const [mediaType, setMediaType] = useState('MOVIE');
   const [query, setQuery] = useState(initialQuery);
@@ -164,21 +163,20 @@ export default function CatalogRequestModal({ open, onClose, initialQuery = '' }
         else next.delete(key);
         return next;
       });
-      enqueueSnackbar(
+      notify[res?.hasMyVote ? 'success' : 'info'](
         res?.hasMyVote
           ? `Request sent — we'll notify you when "${titleFrom(item, mediaType)}" is added.`
-          : 'Request withdrawn.',
-        { variant: res?.hasMyVote ? 'success' : 'info' }
+          : 'Request withdrawn.'
       );
     } catch (e) {
       const msg = e?.response?.data?.message
         || e?.response?.data?.error
         || 'Could not save request. Please try again.';
-      enqueueSnackbar(msg, { variant: 'error' });
+      notify.error(msg);
     } finally {
       setSubmittingId(null);
     }
-  }, [mediaType, enqueueSnackbar]);
+  }, [mediaType]);
 
   const minLenHint = useMemo(() => `Type at least ${MIN_QUERY_LEN} characters to search`, []);
 

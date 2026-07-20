@@ -8,7 +8,7 @@ import lombok.*;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "spoken_languages", schema = "new_db_world")
+@Table(name = "spoken_languages", schema = "db_world")
 public class SpokenLanguageEntity {
 
     @Id

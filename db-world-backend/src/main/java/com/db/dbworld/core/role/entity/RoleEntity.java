@@ -10,7 +10,7 @@ import java.io.Serializable;
 @Getter
 @Setter
 @Entity
-@Table(name = "role", schema = "new_db_world")
+@Table(name = "role", schema = "db_world")
 public class RoleEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)

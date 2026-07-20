@@ -2,8 +2,8 @@ package com.db.dbworld.app.media.enrichment;
 
 import com.db.dbworld.app.stream.tag.MediaTagResolver;
 import com.db.dbworld.core.processor.ProcessExecutor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -46,15 +46,23 @@ public class SmartTrackFilterService {
      * @return effective TrackFilter to use, or {@code null} if no filtering is needed
      */
     public TrackFilter resolve(Path mediaFile, TrackFilter userFilter) {
+        log.debug("resolve mediaFile={} userFilter={}",
+                mediaFile != null ? mediaFile.getFileName() : null,
+                userFilter != null && userFilter.hasAnyFilter());
         TrackLanguages langs = probeLanguages(mediaFile);
 
         if (userFilter != null && userFilter.hasAnyFilter()) {
             // Preserve the user's filter settings; only augment with track infos for title generation
+            log.info("Using user-supplied track filter for {} (keepAudio={}, keepSubs={})",
+                    mediaFile.getFileName(),
+                    userFilter.getKeepAudioLanguages(),
+                    userFilter.getKeepSubtitleLanguages());
             return userFilter.toBuilder()
                     .allAudioTracks(langs.allAudioTracks())
                     .allSubTracks(langs.allSubTracks())
                     .audioTracksByLang(langs.audioByLang())
                     .subTracksByLang(langs.subByLang())
+                    .videoTrack(langs.videoTrack())
                     .build();
         }
 
@@ -63,17 +71,23 @@ public class SmartTrackFilterService {
         List<String> keepAudio = buildCodeList(langs.audio());
         List<String> keepSubs  = buildCodeList(langs.subtitles());
 
+        int totalAudio = langs.allAudioTracks() != null ? langs.allAudioTracks().size() : 0;
+        int totalSubs  = langs.allSubTracks() != null ? langs.allSubTracks().size() : 0;
+
         if (keepAudio.isEmpty() && keepSubs.isEmpty()) {
-            log.debug("No priority languages found in {} — no lang filter, track titles only", mediaFile.getFileName());
+            log.info("Smart filter: no priority languages in {} — keeping all {} audio + {} subtitle tracks",
+                    mediaFile.getFileName(), totalAudio, totalSubs);
             return TrackFilter.builder()
                     .allAudioTracks(langs.allAudioTracks())
                     .allSubTracks(langs.allSubTracks())
                     .audioTracksByLang(langs.audioByLang())
                     .subTracksByLang(langs.subByLang())
+                    .videoTrack(langs.videoTrack())
                     .build();
         }
 
-        log.debug("Smart filter for {}: audio={}, subs={}", mediaFile.getFileName(), keepAudio, keepSubs);
+        log.info("Smart filter for {}: kept audio={} (of {} total), kept subs={} (of {} total)",
+                mediaFile.getFileName(), keepAudio, totalAudio, keepSubs, totalSubs);
 
         return TrackFilter.builder()
                 .keepAudioLanguages(keepAudio.isEmpty() ? null : keepAudio)
@@ -86,6 +100,7 @@ public class SmartTrackFilterService {
                 .allSubTracks(langs.allSubTracks())
                 .audioTracksByLang(langs.audioByLang())
                 .subTracksByLang(langs.subByLang())
+                .videoTrack(langs.videoTrack())
                 .build();
     }
 
@@ -137,6 +152,7 @@ public class SmartTrackFilterService {
         List<TrackFilter.TrackInfo> allSubs   = new ArrayList<>();
         Map<String, List<TrackFilter.TrackInfo>> audioByLang = new LinkedHashMap<>();
         Map<String, List<TrackFilter.TrackInfo>> subByLang   = new LinkedHashMap<>();
+        TrackFilter.VideoInfo videoTrack = null;
         try {
             String json = processExecutor.runFfprobeStreamsJson(file);
             JsonNode root    = objectMapper.readTree(json);
@@ -151,7 +167,13 @@ public class SmartTrackFilterService {
                 boolean forced      = stream.path("disposition").path("forced").asInt(0) == 1;
                 boolean defTrack    = stream.path("disposition").path("default").asInt(0) == 1;
 
-                if ("audio".equalsIgnoreCase(codecType)) {
+                if ("video".equalsIgnoreCase(codecType)) {
+                    // Skip cover-art / attached-picture "video" streams; keep only the first real video.
+                    boolean attachedPic = stream.path("disposition").path("attached_pic").asInt(0) == 1;
+                    if (!attachedPic && videoTrack == null) {
+                        videoTrack = parseVideoInfo(stream, codecName, bitRate);
+                    }
+                } else if ("audio".equalsIgnoreCase(codecType)) {
                     if (!lang.isBlank()) {
                         String resolved = MediaTagResolver.resolveLanguage(lang.toLowerCase());
                         if (!"Unknown".equalsIgnoreCase(resolved)) {
@@ -176,9 +198,46 @@ public class SmartTrackFilterService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to probe track languages for {}: {}", file.getFileName(), e.getMessage());
+            log.warn("Failed to probe track languages for {}: {}", file.getFileName(), e.getMessage(), e);
         }
-        return new TrackLanguages(audioLangs, subLangs, audioCounts, subCounts, allAudio, allSubs, audioByLang, subByLang);
+        return new TrackLanguages(audioLangs, subLangs, audioCounts, subCounts, allAudio, allSubs, audioByLang, subByLang, videoTrack);
+    }
+
+    /** Extracts the title-relevant properties of a real video stream. */
+    private TrackFilter.VideoInfo parseVideoInfo(JsonNode stream, String codecName, long bitRate) {
+        int    width         = stream.path("width").asInt(0);
+        int    height        = stream.path("height").asInt(0);
+        String colorTransfer = stream.path("color_transfer").asText("").trim();
+        int    bitDepth      = parseBitDepth(stream);
+        boolean dolbyVision  = hasDolbyVision(stream);
+        return new TrackFilter.VideoInfo(codecName, width, height, bitRate, bitDepth, colorTransfer, dolbyVision);
+    }
+
+    /** Bit depth from bits_per_raw_sample, falling back to the pixel format (e.g. yuv420p10le → 10). */
+    private int parseBitDepth(JsonNode stream) {
+        int bprs = parseIntSafe(stream.path("bits_per_raw_sample").asText(""));
+        if (bprs > 0) return bprs;
+        String pixFmt = stream.path("pix_fmt").asText("");
+        if (pixFmt.contains("p10")) return 10;
+        if (pixFmt.contains("p12")) return 12;
+        if (!pixFmt.isBlank())      return 8;
+        return 0;
+    }
+
+    /** True when the video stream carries a Dolby Vision (DOVI) configuration record in its side data. */
+    private boolean hasDolbyVision(JsonNode stream) {
+        for (JsonNode sd : stream.path("side_data_list")) {
+            String type = sd.path("side_data_type").asText("");
+            if (type.toLowerCase().contains("dovi") || type.toLowerCase().contains("dolby vision")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int parseIntSafe(String s) {
+        if (s == null || s.isBlank()) return 0;
+        try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return 0; }
     }
 
     private static long parseBitRate(String s) {
@@ -194,6 +253,7 @@ public class SmartTrackFilterService {
             List<TrackFilter.TrackInfo> allAudioTracks,
             List<TrackFilter.TrackInfo> allSubTracks,
             Map<String, List<TrackFilter.TrackInfo>> audioByLang,
-            Map<String, List<TrackFilter.TrackInfo>> subByLang
+            Map<String, List<TrackFilter.TrackInfo>> subByLang,
+            TrackFilter.VideoInfo videoTrack
     ) {}
 }

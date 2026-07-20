@@ -1,21 +1,25 @@
-import React, { useMemo, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
+import React, { useMemo, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Chip, CircularProgress, IconButton, Tooltip, Tabs, Tab, Divider, Button,
-  useMediaQuery, useTheme
+  Box, Typography, Chip, CircularProgress, IconButton, Tabs, Tab, Divider, Button,
+  Switch, useMediaQuery, useTheme,
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+  Menu, MenuItem, ListItemIcon, ListItemText
 } from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon         from '@mui/icons-material/Refresh';
 import PlayArrowIcon       from '@mui/icons-material/PlayArrow';
 import DeleteIcon          from '@mui/icons-material/Delete';
 import CancelIcon          from '@mui/icons-material/Close';
+import ReplayIcon          from '@mui/icons-material/Replay';
+import WifiIcon            from '@mui/icons-material/Wifi';
 import PauseIcon           from '@mui/icons-material/Pause';
 import DownloadDoneIcon    from '@mui/icons-material/DownloadDone';
 import DownloadingIcon     from '@mui/icons-material/Downloading';
 import ErrorOutlineIcon    from '@mui/icons-material/ErrorOutline';
 import FolderOpenIcon      from '@mui/icons-material/FolderOpen';
 import { useT }            from '@shared/theme/ThemeContext';
-import AndroidPlugins      from '@platform/android/AndroidPlugins';
-import CinemaPlayer        from '@features/cinema/player/CinemaPlayer';
+import Constants            from '@shared/constants';
 import DownloadItem, { STATUS_COLOR, fmtBytes, fmtSpeed, fmtEta } from './DownloadItem';
 import { useDownloads }    from './useDownloads';
 
@@ -44,6 +48,7 @@ function DetailPanel({ item, actions, onPlay }) {
 
   const canPlay  = item.status === 'success' && item.canPlay && item.playableUri;
   const isActive = item.status === 'running' || item.status === 'pending';
+  const canRetry = item.status === 'failed' || item.status === 'cancelled';
 
   return (
     <Box sx={{
@@ -127,6 +132,16 @@ function DetailPanel({ item, actions, onPlay }) {
             Cancel
           </Button>
         )}
+        {canRetry && (
+          <Button
+            variant="outlined"
+            startIcon={<ReplayIcon />}
+            onClick={() => actions.retry(item.downloadId)}
+            sx={{ borderColor: '#2196f355', color: '#2196f3' }}
+          >
+            Redownload
+          </Button>
+        )}
         <Button
           variant="outlined"
           startIcon={<DeleteIcon />}
@@ -140,25 +155,117 @@ function DetailPanel({ item, actions, onPlay }) {
   );
 }
 
+// ─── Confirmation dialog (cancel vs delete) ─────────────────────────────────────
+// Two distinct destructive actions, each with copy that makes the difference clear:
+//   • cancel — stop the transfer but KEEP the entry so it can be redownloaded.
+//   • delete — remove the entry entirely; for a finished file also erase it from the phone.
+function ConfirmDialog({ state, onClose, onConfirm }) {
+  const T    = useT();
+  const open = Boolean(state);
+  const kind = state?.kind;
+  const item = state?.item;
+  const isCompleted = item?.status === 'success';
+
+  const copy = kind === 'cancel'
+    ? {
+        title: 'Cancel download?',
+        body: 'This stops the transfer and discards the progress so far. The download stays in your list under “Failed” so you can redownload it anytime.',
+        confirm: 'Cancel download',
+        keep: 'Keep downloading',
+        color: '#ff9800',
+      }
+    : {
+        title: isCompleted ? 'Delete file?' : 'Remove download?',
+        body: isCompleted
+          ? 'This permanently deletes the downloaded file from your phone and removes it from this list. This cannot be undone.'
+          : 'This removes the download from your list. Any partial data is discarded.',
+        confirm: isCompleted ? 'Delete file' : 'Remove',
+        keep: 'Keep',
+        color: '#f44336',
+      };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      PaperProps={{ sx: { bgcolor: T.surface || T.bg, color: T.text, borderRadius: 2, border: `1px solid ${T.glassBorder}`, maxWidth: 380 } }}
+    >
+      <DialogTitle sx={{ fontWeight: 700, color: T.text, pb: 1 }}>{copy.title}</DialogTitle>
+      <DialogContent>
+        {item && (
+          <Typography variant="body2" sx={{ color: T.text, fontWeight: 600, mb: 1, wordBreak: 'break-word' }}>
+            {item.title}
+          </Typography>
+        )}
+        <DialogContentText sx={{ color: T.textFaint, fontSize: '0.85rem' }}>
+          {copy.body}
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} sx={{ color: T.textMuted, textTransform: 'none' }}>
+          {copy.keep}
+        </Button>
+        <Button
+          onClick={onConfirm}
+          variant="contained"
+          sx={{ bgcolor: copy.color, '&:hover': { bgcolor: copy.color, filter: 'brightness(0.9)' }, fontWeight: 700, textTransform: 'none' }}
+        >
+          {copy.confirm}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function DownloadsPage() {
   const T       = useT();
   const theme   = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
-  const { downloads, loading, refresh, actions } = useDownloads();
+  const navigate = useNavigate();
+  const {
+    downloads, loading, refresh, actions, wifiOnly, toggleWifiOnly,
+    concurrency, maxConcurrency, setConcurrency,
+  } = useDownloads();
   const [tab,      setTab]      = useState('all');
   const [selected, setSelected] = useState(null);
+  const [confirm,  setConfirm]  = useState(null); // { kind: 'cancel' | 'delete', item }
 
-  // Web player state
-  const [playerOpen,  setPlayerOpen]  = useState(false);
-  const [playerMedia, setPlayerMedia] = useState(null);
+  // Route the two destructive actions through a confirmation dialog; everything
+  // else (play/pause/resume/retry) acts immediately.
+  const askConfirm = useCallback((kind, id) => {
+    const item = downloads.find(d => d.downloadId === id);
+    if (item) setConfirm({ kind, item });
+  }, [downloads]);
+
+  const guardedActions = useMemo(() => ({
+    ...actions,
+    cancel: (id) => askConfirm('cancel', id),
+    remove: (id) => askConfirm('delete', id),
+  }), [actions, askConfirm]);
+
+  const handleConfirm = useCallback(() => {
+    if (!confirm) return;
+    const { kind, item } = confirm;
+    if (kind === 'cancel') actions.cancel(item.downloadId);
+    else                   actions.remove(item.downloadId);
+    setConfirm(null);
+  }, [confirm, actions]);
 
   const { active, completed, failed } = useMemo(() => ({
     active:    downloads.filter(d => ['running', 'pending', 'paused'].includes(d.status)),
     completed: downloads.filter(d => d.status === 'success'),
     failed:    downloads.filter(d => ['failed', 'cancelled'].includes(d.status)),
   }), [downloads]);
+
+  const pausableCount  = useMemo(() => downloads.filter(d => d.status === 'running' || d.status === 'pending').length, [downloads]);
+  const resumableCount = useMemo(() => downloads.filter(d => d.status === 'paused').length, [downloads]);
+  const activeSpeed    = useMemo(() => downloads.reduce((s, d) => d.status === 'running' ? s + (d.speedBytesPerSec || 0) : s, 0), [downloads]);
+
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const closeMenu = () => setMenuAnchor(null);
+  const runAndClose = (fn) => () => { closeMenu(); fn(); };
 
   const visible = useMemo(() => {
     if (tab === 'active')    return active;
@@ -179,25 +286,19 @@ export default function DownloadsPage() {
     }
   }, [downloads]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handlePlay = async (item) => {
+  const handlePlay = (item) => {
     const url = item.playableUri || item.localUri;
     if (!url) return;
-    if (Capacitor.getPlatform() === 'android' && item.canPlay) {
-      await AndroidPlugins.launchNativePlayer({
-        url,
-        title:    item.title || item.fileName || 'Download',
-        fileName: item.fileName || item.title  || 'download',
-        fileId:   item.downloadId,
-        preferredAudio: 'Hindi',
-        preferredSub:   null,
-      });
-    } else {
-      setPlayerMedia({
-        streamUrl: url,
-        general:   { fileName: item.title || item.fileName || 'Download' },
-      });
-      setPlayerOpen(true);
-    }
+    navigate(Constants.playerPath(String(item.downloadId || item.fileName || 'download')), {
+      state: {
+        media: {
+          url,
+          fileId:   String(item.downloadId || ''),
+          title:    item.title || item.fileName || 'Download',
+          fileName: item.fileName || item.title || 'download',
+        },
+      },
+    });
   };
 
   const handleSelect = (item) => {
@@ -216,24 +317,113 @@ export default function DownloadsPage() {
     <Box sx={{ bgcolor: T.bg, minHeight: '100vh', color: T.text }}>
       <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: 3, maxWidth: 1280, mx: 'auto' }}>
 
-        {/* ── Header ── */}
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700, flex: 1 }}>
-            Downloads
-          </Typography>
-          {active.length > 0 && (
-            <Chip
-              icon={<DownloadingIcon sx={{ fontSize: 14 }} />}
-              label={`${active.length} active`}
-              size="small"
-              sx={{ bgcolor: '#2196f322', color: '#2196f3', fontWeight: 700, mr: 1 }}
-            />
-          )}
-          <Tooltip title="Refresh">
-            <IconButton size="small" onClick={refresh} sx={{ color: T.textFaint }}>
-              <RefreshIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+        {/* ── Header: title + live summary on the left, one overflow menu on the right ── */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
+              Downloads
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, minHeight: 20 }}>
+              {active.length > 0 ? (
+                <>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: '#2196f3' }}>
+                    <DownloadingIcon sx={{ fontSize: 15 }} />
+                    <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                      {active.length} active
+                    </Typography>
+                  </Box>
+                  {activeSpeed > 0 && (
+                    <Typography variant="caption" sx={{ color: T.textFaint }}>
+                      · {fmtSpeed(activeSpeed)}
+                    </Typography>
+                  )}
+                  {wifiOnly && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: T.textFaint }}>
+                      <WifiIcon sx={{ fontSize: 13 }} />
+                      <Typography variant="caption">Wi-Fi only</Typography>
+                    </Box>
+                  )}
+                </>
+              ) : (
+                <Typography variant="caption" sx={{ color: T.textFaint }}>
+                  {downloads.length} {downloads.length === 1 ? 'item' : 'items'}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          <IconButton size="small" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ color: T.textMuted }}>
+            <MoreVertIcon />
+          </IconButton>
+          <Menu
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={closeMenu}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            PaperProps={{ sx: { bgcolor: T.surface || T.bg, color: T.text, border: `1px solid ${T.glassBorder}`, minWidth: 200 } }}
+          >
+            {pausableCount > 0 && (
+              <MenuItem onClick={runAndClose(actions.pauseAll)}>
+                <ListItemIcon sx={{ color: T.textMuted }}><PauseIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Pause all ({pausableCount})</ListItemText>
+              </MenuItem>
+            )}
+            {resumableCount > 0 && (
+              <MenuItem onClick={runAndClose(actions.resumeAll)}>
+                <ListItemIcon sx={{ color: '#4caf50' }}><PlayArrowIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Resume all ({resumableCount})</ListItemText>
+              </MenuItem>
+            )}
+            {(pausableCount > 0 || resumableCount > 0) && <Divider sx={{ borderColor: T.border }} />}
+            <MenuItem onClick={() => toggleWifiOnly(!wifiOnly)}>
+              <ListItemIcon sx={{ color: wifiOnly ? '#2196f3' : T.textMuted }}><WifiIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Wi-Fi only</ListItemText>
+              <Switch
+                edge="end"
+                size="small"
+                checked={wifiOnly}
+                onChange={(_, v) => toggleWifiOnly(v)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </MenuItem>
+            <MenuItem onClick={runAndClose(refresh)}>
+              <ListItemIcon sx={{ color: T.textMuted }}><RefreshIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Refresh</ListItemText>
+            </MenuItem>
+            <Divider sx={{ borderColor: T.border }} />
+            {/* Parallel downloads — default 1, up to maxConcurrency. Extras queue. */}
+            <Box sx={{ px: 2, py: 1 }}>
+              <Typography variant="caption" sx={{ color: T.textFaint, fontWeight: 700, display: 'block', mb: 0.75 }}>
+                Parallel downloads
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 0.75 }}>
+                {Array.from({ length: maxConcurrency }, (_, i) => i + 1).map(n => {
+                  const selected = n === concurrency;
+                  return (
+                    <Box
+                      key={n}
+                      onClick={() => setConcurrency(n)}
+                      sx={{
+                        flex: 1, textAlign: 'center', cursor: 'pointer', userSelect: 'none',
+                        py: 0.5, borderRadius: 1.5, fontWeight: 700, fontSize: '0.85rem',
+                        color: selected ? '#fff' : T.textMuted,
+                        bgcolor: selected ? '#2196f3' : `${T.glassBorder}55`,
+                        border: `1px solid ${selected ? '#2196f3' : T.glassBorder}`,
+                        transition: 'all .15s',
+                        '&:hover': { borderColor: '#2196f3' },
+                      }}
+                    >
+                      {n}
+                    </Box>
+                  );
+                })}
+              </Box>
+              <Typography variant="caption" sx={{ color: T.textFaint, fontSize: '0.6rem', display: 'block', mt: 0.5 }}>
+                {concurrency === 1 ? 'One at a time · rest queue' : `Up to ${concurrency} at once · rest queue`}
+              </Typography>
+            </Box>
+          </Menu>
         </Box>
 
         {/* ── Tabs ── */}
@@ -296,7 +486,7 @@ export default function DownloadsPage() {
                     key={item.downloadId}
                     item={item}
                     onPlay={handlePlay}
-                    actions={actions}
+                    actions={guardedActions}
                     onSelect={isDesktop ? handleSelect : undefined}
                     selected={selected?.downloadId === item.downloadId}
                   />
@@ -308,7 +498,7 @@ export default function DownloadsPage() {
             {isDesktop && selected && (
               <DetailPanel
                 item={selected}
-                actions={actions}
+                actions={guardedActions}
                 onPlay={handlePlay}
               />
             )}
@@ -316,11 +506,11 @@ export default function DownloadsPage() {
         )}
       </Box>
 
-      {/* Web / browser player */}
-      <CinemaPlayer
-        open={playerOpen}
-        onClose={() => setPlayerOpen(false)}
-        mediaInfo={playerMedia}
+      {/* Cancel / Delete confirmation */}
+      <ConfirmDialog
+        state={confirm}
+        onClose={() => setConfirm(null)}
+        onConfirm={handleConfirm}
       />
     </Box>
   );

@@ -10,4 +10,8 @@ public interface PosterImageProjection {
 
     Integer getHeight();
 
+    Double getVoteAverage();
+
+    Integer getVoteCount();
+
 }

@@ -6,12 +6,14 @@ import com.db.dbworld.app.cinema.catalog.repository.RecordRepository;
 import com.db.dbworld.app.cinema.catalog.service.SearchService;
 import com.db.dbworld.app.cinema.rail.projection.RailRecordProjection;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 public class SearchServiceImpl implements SearchService {
@@ -21,6 +23,9 @@ public class SearchServiceImpl implements SearchService {
     @Override
     @Transactional(readOnly = true)
     public Page<SearchRecordDto> search(String query, Pageable pageable) {
+
+        log.debug("search entry; query='{}', page={}, size={}",
+                query, pageable.getPageNumber(), pageable.getPageSize());
 
         if (query == null || query.isBlank()) {
             return Page.empty(pageable);

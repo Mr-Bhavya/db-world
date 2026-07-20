@@ -11,7 +11,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.13</version>
+        <version>4.0.6</version>
         <relativePath/>
     </parent>
 
@@ -29,7 +29,8 @@
     <!-- Properties                                                        -->
     <!-- ================================================================ -->
     <properties>
-        <java.version>21</java.version>
+        <!-- Java 25 LTS. Runs on aarch64 (Raspberry Pi 5) via OpenJDK 25 aarch64 build. -->
+        <java.version>25</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -38,14 +39,16 @@
         <!-- Default — overridden per profile -->
         <skipTests>false</skipTests>
 
-        <!-- Versions not in Spring Boot BOM -->
+        <!-- Versions not in Spring Boot 4 BOM. -->
         <disruptor.version>4.0.0</disruptor.version>
-        <jjwt.version>0.11.5</jjwt.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <jasypt.version>3.0.5</jasypt.version>
-        <springdoc.version>2.6.0</springdoc.version>
+        <springdoc.version>3.0.3</springdoc.version>
         <metrics-dropwizard.version>4.2.33</metrics-dropwizard.version>
-        <commons-io.version>2.18.0</commons-io.version>
+        <commons-io.version>2.20.0</commons-io.version>
+
+        <!-- Explicit so MapStruct's annotation processor picks up a Java 25 compatible build. -->
+        <lombok.version>1.18.42</lombok.version>
     </properties>
 
     <!-- ================================================================ -->
@@ -70,22 +73,51 @@
             </exclusions>
         </dependency>
 
+        <!-- ── RestClient / RestTemplate support (separated from spring-boot-starter-web in SB4) ─ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-restclient</artifactId>
+        </dependency>
+
+        <!-- NOTE: every spring-boot-starter-* below excludes spring-boot-starter-logging
+             so Logback isn't pulled in alongside Log4j2. Without this exclusion,
+             both providers end up on the classpath and SLF4J picks Logback first,
+             which silently swallows the Log4j2 configuration. -->
+
         <!-- ── Jetty ─────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jetty</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ── WebFlux / Reactor (WebClient, streaming downloads) ────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ── WebSocket ─────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -96,16 +128,34 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ── Data ──────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>
@@ -114,24 +164,64 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- ── Cache ─────────────────────────────────────────────────────
+             Spring Boot 4 split cache auto-configuration (CacheAutoConfiguration,
+             RedisCacheAutoConfiguration, etc.) out of spring-boot-autoconfigure
+             into its own module. Without this, @EnableCaching has no CacheManager
+             to wire up, even when spring.cache.type=redis is set. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ── Validation ────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ── Actuator ──────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ── JSON ──────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-json</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
@@ -151,7 +241,7 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-layout-template-json</artifactId>
         </dependency>
-        <!-- Async logging via LMAX Disruptor -->
+        <!-- Async logging via LMAX Disruptor. SB4 BOM does not manage this artifact. -->
         <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
@@ -165,30 +255,25 @@
             <version>${springdoc.version}</version>
         </dependency>
 
-        <!-- ── JWT ───────────────────────────────────────────────────── -->
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>${jjwt.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>${jjwt.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-gson</artifactId>
-            <version>${jjwt.version}</version>
-            <scope>runtime</scope>
-        </dependency>
+        <!-- JWT handling is done via Spring Security OAuth2 + Nimbus (see JwtConfig).
+             JJwt was declared here but unused — removed during the SB4 migration. -->
 
         <!-- ── Encryption ────────────────────────────────────────────── -->
         <dependency>
             <groupId>com.github.ulisesbocchio</groupId>
             <artifactId>jasypt-spring-boot-starter</artifactId>
             <version>${jasypt.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+                <!-- Jasypt's own logback transitive -->
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-classic</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ── Mapping ───────────────────────────────────────────────── -->
@@ -212,6 +297,13 @@
             <version>${commons-io.version}</version>
         </dependency>
 
+        <!-- ── PDFBox (wallet document thumbnails: PDF first-page render) ── -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
         <!-- ── Dropwizard Metrics ─────────────────────────────────────── -->
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
@@ -224,6 +316,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
     </dependencies>

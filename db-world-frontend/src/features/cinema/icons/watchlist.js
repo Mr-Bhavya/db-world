@@ -3,6 +3,8 @@ import { addWatchlist, removeWatchlist } from '../api/cinemaApi';
 import { iconButtonStyles, spinnerIcon } from "./IconButtonStyles";
 import { Tooltip, Zoom, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
+import Bookmark from '@mui/icons-material/Bookmark';
+import BookmarkBorder from '@mui/icons-material/BookmarkBorder';
 import useRecordStore from '@app/store/recordStore';
 
 function Watchlist({ recordId, isAddedToWatchList = false, size = "medium" }) {
@@ -61,17 +63,15 @@ function Watchlist({ recordId, isAddedToWatchList = false, size = "medium" }) {
           {loading ? (
             spinnerIcon
           ) : isWatchListed ? (
-            <i
-              className="fas fa-bookmark"
-              style={{
+            <Bookmark
+              sx={{
                 fontSize: iconButtonStyles.iconSize,
                 color: iconButtonStyles.activeColor
               }}
             />
           ) : (
-            <i
-              className="far fa-bookmark"
-              style={{
+            <BookmarkBorder
+              sx={{
                 fontSize: iconButtonStyles.iconSize,
                 color: iconButtonStyles.inactiveColor
               }}

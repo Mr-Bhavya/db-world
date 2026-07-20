@@ -12,6 +12,8 @@ import com.db.dbworld.app.cinema.catalogrequest.entity.CatalogIngestRequestEntit
 import com.db.dbworld.app.cinema.catalogrequest.entity.CatalogIngestRequestStatus;
 import com.db.dbworld.app.cinema.catalogrequest.repository.CatalogIngestRequestRepository;
 import com.db.dbworld.app.cinema.catalogrequest.service.CatalogIngestRequestService;
+import com.db.dbworld.app.cinema.common.dto.VoterSummary;
+import com.db.dbworld.app.cinema.common.support.VoterListSupport;
 import com.db.dbworld.app.cinema.enums.RecordType;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestEntity;
 import com.db.dbworld.app.cinema.mediarequest.entity.MediaRequestKind;
@@ -22,15 +24,19 @@ import com.db.dbworld.app.cinema.tmdb.entities.TmdbEntity;
 import com.db.dbworld.app.cinema.tmdb.ingestion.TmdbIngestionService;
 import com.db.dbworld.app.cinema.tmdb.repository.TmdbRepository;
 import com.db.dbworld.core.exception.ResourceNotFoundException;
+import com.db.dbworld.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,18 +50,23 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
     private final MediaRequestRepository mediaRequestRepo;
     private final TmdbIngestionService ingestionService;
     private final UserNotificationService notifService;
+    private final UserRepository userRepo;
 
     @Override
     @Transactional
     public CatalogIngestRequestVoteResponse toggleVote(CatalogIngestRequestSubmission body, Long userId) {
         if (body == null || body.getTmdbId() == null || body.getMediaType() == null) {
+            log.warn("Catalog ingest vote rejected — missing tmdbId/mediaType for userId={}", userId);
             throw new IllegalArgumentException("tmdbId and mediaType are required");
         }
+        log.debug("toggleVote: tmdbId={}, mediaType={}, userId={}", body.getTmdbId(), body.getMediaType(), userId);
 
         // If a record with this TMDB id already exists in the catalog, the user should
         // request files via the regular media-request flow on that record, not via the
         // catalog ingest queue — reject early to keep the queues clean.
         if (recordRepo.findByTmdb_Id(body.getTmdbId()).isPresent()) {
+            log.warn("Catalog ingest vote rejected — title already in catalog: tmdbId={}, userId={}",
+                    body.getTmdbId(), userId);
             throw new IllegalStateException("This title already exists in the catalog");
         }
 
@@ -78,6 +89,8 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                     .voterUserIds(voters)
                     .build();
             request = requestRepo.save(request);
+            log.info("Catalog ingest request created: id={}, tmdbId={}, mediaType={}, firstVoter={}",
+                    request.getId(), body.getTmdbId(), body.getMediaType(), userId);
 
             return CatalogIngestRequestVoteResponse.builder()
                     .tmdbId(body.getTmdbId())
@@ -90,6 +103,8 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         // A new vote on a non-pending request re-opens it (admin's decision is overridden
         // by fresh demand). Voters reset so the next admin sees a clean count.
         if (request.getStatus() != CatalogIngestRequestStatus.PENDING) {
+            log.info("Catalog ingest request reopened by fresh vote: id={}, tmdbId={}, prevStatus={}, userId={}",
+                    request.getId(), body.getTmdbId(), request.getStatus(), userId);
             request.setStatus(CatalogIngestRequestStatus.PENDING);
             request.setIngestedAt(null);
             request.setIngestedByUserId(null);
@@ -117,6 +132,12 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
 
         if (voteCount == 0) {
             requestRepo.delete(request);
+            log.info("Catalog ingest request pruned (no voters): id={}, tmdbId={}",
+                    request.getId(), request.getTmdbId());
+        } else {
+            log.info("Catalog ingest vote {}: requestId={}, tmdbId={}, mediaType={}, userId={}, voteCount={}",
+                    removed ? "removed" : "cast", request.getId(), request.getTmdbId(),
+                    request.getMediaType(), userId, voteCount);
         }
 
         return CatalogIngestRequestVoteResponse.builder()
@@ -139,17 +160,33 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         List<CatalogIngestRequestEntity> rows = (status == null)
                 ? requestRepo.findAllWithVoters()
                 : requestRepo.findAllByStatusWithVoters(status);
-        return rows.stream().map(r -> toDto(r, callerUserId)).toList();
+
+        Set<Long> allVoterIds = rows.stream()
+                .map(CatalogIngestRequestEntity::getVoterUserIds)
+                .filter(s -> s != null && !s.isEmpty())
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+        Map<Long, VoterSummary> voterCache = loadVoterCache(allVoterIds);
+
+        return rows.stream().map(r -> toDto(r, callerUserId, voterCache)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByStatus(CatalogIngestRequestStatus status) {
+        return requestRepo.countByStatus(status);
     }
 
     @Override
     @Transactional
     public CatalogIngestRequestDto ingest(Long requestId, Long adminUserId, String adminUsername) {
+        log.debug("ingest: requestId={}, adminUserId={}", requestId, adminUserId);
         CatalogIngestRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("CatalogIngestRequest", "id", requestId));
 
         if (request.getStatus() == CatalogIngestRequestStatus.INGESTED) {
-            return toDto(request, adminUserId);
+            log.warn("Catalog ingest request already ingested, skipping: id={}", requestId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         // Drive the existing catalog pipeline so both the TMDB metadata row AND the
@@ -170,6 +207,10 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         request.setIngestedByUsername(adminUsername);
         request.setCreatedRecordId(createdRecordId);
         requestRepo.save(request);
+        log.info("Catalog ingest request ingested: id={}, tmdbId={}, createdRecordId={}, voters={}, adminUserId={}",
+                requestId, request.getTmdbId(), createdRecordId,
+                request.getVoterUserIds() == null ? 0 : request.getVoterUserIds().size(),
+                adminUserId);
 
         notifService.createCatalogIngestedNotifications(
                 adminUserId,
@@ -180,7 +221,7 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     /**
@@ -268,11 +309,13 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
     @Override
     @Transactional
     public CatalogIngestRequestDto markFulfilledNoIngest(Long requestId, Long adminUserId, String adminUsername) {
+        log.debug("markFulfilledNoIngest: requestId={}, adminUserId={}", requestId, adminUserId);
         CatalogIngestRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("CatalogIngestRequest", "id", requestId));
 
         if (request.getStatus() == CatalogIngestRequestStatus.INGESTED) {
-            return toDto(request, adminUserId);
+            log.warn("Catalog ingest request already ingested, skipping markFulfilledNoIngest: id={}", requestId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         // Reuse the INGESTED status so the row leaves the pending queue, but leave
@@ -284,6 +327,10 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         request.setIngestedByUsername(adminUsername);
         request.setCreatedRecordId(null);
         requestRepo.save(request);
+        log.info("Catalog ingest request fulfilled by search (no-ingest): id={}, tmdbId={}, voters={}, adminUserId={}",
+                requestId, request.getTmdbId(),
+                request.getVoterUserIds() == null ? 0 : request.getVoterUserIds().size(),
+                adminUserId);
 
         notifService.createCatalogFulfilledBySearchNotifications(
                 adminUserId,
@@ -293,23 +340,29 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     @Override
     @Transactional
     public CatalogIngestRequestDto dismiss(Long requestId, String reason, Long adminUserId, String adminUsername) {
+        log.debug("dismiss: requestId={}, adminUserId={}", requestId, adminUserId);
         CatalogIngestRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("CatalogIngestRequest", "id", requestId));
 
         if (request.getStatus() == CatalogIngestRequestStatus.DISMISSED) {
-            return toDto(request, adminUserId);
+            log.warn("Catalog ingest request already dismissed, skipping: id={}", requestId);
+            return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
         }
 
         String trimmed = trimmedOrNull(reason);
         request.setStatus(CatalogIngestRequestStatus.DISMISSED);
         request.setDismissReason(trimmed);
         requestRepo.save(request);
+        log.info("Catalog ingest request dismissed: id={}, tmdbId={}, voters={}, hasReason={}, adminUserId={}",
+                requestId, request.getTmdbId(),
+                request.getVoterUserIds() == null ? 0 : request.getVoterUserIds().size(),
+                trimmed != null, adminUserId);
 
         // Reuse the existing REQUEST_DISMISSED type — voters see the same UI in the
         // notification panel and a warning-coloured toast on next login.
@@ -326,14 +379,16 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 request.getVoterUserIds()
         );
 
-        return toDto(request, adminUserId);
+        return toDto(request, adminUserId, loadVoterCache(request.getVoterUserIds()));
     }
 
     @Override
     @Transactional
     public CatalogIngestRequestDto reopen(Long requestId) {
+        log.debug("reopen: requestId={}", requestId);
         CatalogIngestRequestEntity request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("CatalogIngestRequest", "id", requestId));
+        CatalogIngestRequestStatus prev = request.getStatus();
         request.setStatus(CatalogIngestRequestStatus.PENDING);
         request.setIngestedAt(null);
         request.setIngestedByUserId(null);
@@ -341,10 +396,11 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
         request.setCreatedRecordId(null);
         request.setDismissReason(null);
         requestRepo.save(request);
-        return toDto(request, null);
+        log.info("Catalog ingest request reopened by admin: id={}, prevStatus={}", requestId, prev);
+        return toDto(request, null, loadVoterCache(request.getVoterUserIds()));
     }
 
-    private CatalogIngestRequestDto toDto(CatalogIngestRequestEntity e, Long callerUserId) {
+    private CatalogIngestRequestDto toDto(CatalogIngestRequestEntity e, Long callerUserId, Map<Long, VoterSummary> voterCache) {
         Set<Long> voters = e.getVoterUserIds();
         return CatalogIngestRequestDto.builder()
                 .id(e.getId())
@@ -357,12 +413,17 @@ public class CatalogIngestRequestServiceImpl implements CatalogIngestRequestServ
                 .status(e.getStatus())
                 .voteCount(voters == null ? 0 : voters.size())
                 .hasMyVote(callerUserId != null && voters != null && voters.contains(callerUserId))
+                .voters(VoterListSupport.buildVoterList(voters, voterCache))
                 .createdAt(e.getCreatedAt())
                 .ingestedAt(e.getIngestedAt())
                 .ingestedByUsername(e.getIngestedByUsername())
                 .createdRecordId(e.getCreatedRecordId())
                 .dismissReason(e.getDismissReason())
                 .build();
+    }
+
+    private Map<Long, VoterSummary> loadVoterCache(Collection<Long> userIds) {
+        return VoterListSupport.loadVoterCache(userIds, userRepo);
     }
 
     private static String safeTitle(String raw) {
