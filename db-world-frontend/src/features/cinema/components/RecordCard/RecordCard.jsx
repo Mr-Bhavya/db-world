@@ -171,10 +171,13 @@ const RecordCard = ({
              vertical overflow becomes scrollable). ── */}
       {rank != null && (
         <Box sx={{
+          // Full card height, but the numeral is sized to ~half of it and bottom-aligned,
+          // so it reads as a rank badge in the poster's bottom-left (overflow:hidden still
+          // guarantees the row can't grow taller than the card → no vertical scroll).
           height: { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: deskH },
           display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
           flexShrink: 0, zIndex: 0, pointerEvents: 'none',
-          mr: { xs: -1.5, sm: -2.5, md: -3.5 },   // poster tucks over the numeral's right edge
+          mr: { xs: -1, sm: -1.5, md: -2 },   // poster tucks over the numeral's right edge
           animation: 'topTenIn 0.45s cubic-bezier(0.22,1,0.36,1) both',
           '@keyframes topTenIn': {
             from: { opacity: 0, transform: 'scale(0.94)' },
@@ -182,20 +185,25 @@ const RecordCard = ({
           },
         }}>
           <Typography sx={{
-            fontSize: { xs: '11rem', sm: '13rem', md: '16rem' },
+            // ~0.7 × card height → glyph (cap height) lands at roughly half the card.
+            fontSize: {
+              xs: Math.round(cfg.tiers.mobile * 0.7),
+              sm: Math.round(cfg.tiers.tablet * 0.7),
+              md: Math.round(deskH * 0.7),
+            },
             fontWeight: 900,
             fontFamily: '"Bebas Neue", "Helvetica Neue", Arial, sans-serif',
-            lineHeight: 0.78,
-            letterSpacing: { xs: '-0.04em', md: '-0.06em' },
-            // Brushed-metal gradient fill with a dark edge so it reads on any poster.
-            background: 'linear-gradient(180deg, #ffffff 0%, #d6dce2 44%, #8b95a1 72%, #5b646f 100%)',
+            lineHeight: 0.72,
+            letterSpacing: { xs: '-0.08em', md: '-0.1em' },   // pull "10" together
+            // Teal (app theme) gradient with a light gloss top + dark edge for legibility.
+            background: 'linear-gradient(180deg, #5eead4 0%, #2dd4bf 42%, #14b8a6 72%, #0f766e 100%)',
             WebkitBackgroundClip: 'text',
             backgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             color: 'transparent',
-            WebkitTextStroke: { xs: '1.5px rgba(0,0,0,0.45)', md: '2.5px rgba(0,0,0,0.5)' },
+            WebkitTextStroke: { xs: '1px rgba(0,0,0,0.4)', md: '1.5px rgba(0,0,0,0.45)' },
             userSelect: 'none',
-            filter: 'drop-shadow(2px 5px 12px rgba(0,0,0,0.85))',
+            filter: 'drop-shadow(1px 3px 9px rgba(0,0,0,0.8))',
           }}>
             {rank}
           </Typography>
