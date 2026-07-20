@@ -156,7 +156,6 @@ const RecordCard = ({
 
   return (
     <motion.div
-      ref={cardRef}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={isMobile ? goDetail : undefined}
@@ -165,36 +164,47 @@ const RecordCard = ({
       tabIndex={isTv ? 0 : undefined}
       style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'flex-end' }}
     >
-      {/* ── Top 10 rank numeral — metallic gradient fill + crisp edge ── */}
+      {/* ── Top 10 rank numeral (Netflix) — metallic gradient fill + crisp edge, held
+             in a fixed-height, clipped wrapper so the oversized glyph can NEVER make
+             the row taller than the poster (which was creating a vertical scroll: with
+             overflowX:auto the container's overflowY:visible computes to auto, so any
+             vertical overflow becomes scrollable). ── */}
       {rank != null && (
-        <Typography sx={{
-          fontSize: { xs: '8.5rem', sm: '11.5rem', md: '15rem' },
-          fontWeight: 900,
-          fontFamily: '"Bebas Neue", "Helvetica Neue", Arial, sans-serif',
-          lineHeight: 0.72,
-          letterSpacing: { xs: '-0.05em', md: '-0.07em' },
-          // Brushed-metal gradient fill with a dark edge so it reads on any poster.
-          background: 'linear-gradient(180deg, #ffffff 0%, #d6dce2 44%, #8b95a1 72%, #5b646f 100%)',
-          WebkitBackgroundClip: 'text',
-          backgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          color: 'transparent',
-          WebkitTextStroke: { xs: '1.5px rgba(0,0,0,0.42)', md: '2px rgba(0,0,0,0.5)' },
-          mr: { xs: -2, sm: -3, md: -4.5 },
-          mb: 0, zIndex: 0, userSelect: 'none', flexShrink: 0,
-          filter: 'drop-shadow(2px 7px 16px rgba(0,0,0,0.85))',
-          animation: 'topTenIn 0.5s cubic-bezier(0.22,1,0.36,1) both',
+        <Box sx={{
+          height: { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: deskH },
+          display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
+          flexShrink: 0, zIndex: 0, pointerEvents: 'none',
+          mr: { xs: -1.5, sm: -2.5, md: -3.5 },   // poster tucks over the numeral's right edge
+          animation: 'topTenIn 0.45s cubic-bezier(0.22,1,0.36,1) both',
           '@keyframes topTenIn': {
-            from: { opacity: 0, transform: 'translateY(14px) scale(0.92)' },
-            to: { opacity: 1, transform: 'translateY(0) scale(1)' },
+            from: { opacity: 0, transform: 'scale(0.94)' },
+            to: { opacity: 1, transform: 'scale(1)' },
           },
         }}>
-          {rank}
-        </Typography>
+          <Typography sx={{
+            fontSize: { xs: '11rem', sm: '13rem', md: '16rem' },
+            fontWeight: 900,
+            fontFamily: '"Bebas Neue", "Helvetica Neue", Arial, sans-serif',
+            lineHeight: 0.78,
+            letterSpacing: { xs: '-0.04em', md: '-0.06em' },
+            // Brushed-metal gradient fill with a dark edge so it reads on any poster.
+            background: 'linear-gradient(180deg, #ffffff 0%, #d6dce2 44%, #8b95a1 72%, #5b646f 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            WebkitTextStroke: { xs: '1.5px rgba(0,0,0,0.45)', md: '2.5px rgba(0,0,0,0.5)' },
+            userSelect: 'none',
+            filter: 'drop-shadow(2px 5px 12px rgba(0,0,0,0.85))',
+          }}>
+            {rank}
+          </Typography>
+        </Box>
       )}
 
       {/* ── Card box ── */}
       <Box
+        ref={cardRef}
         sx={{
           width: cardWidth,
           height: isPrime ? PRIME_HEIGHT : undefined,

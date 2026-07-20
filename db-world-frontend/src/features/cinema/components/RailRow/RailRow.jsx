@@ -23,12 +23,21 @@ const ROW_LEAVE_COLLAPSE_MS = 130;
 const PRIME_ANIM_MS = 300;
 const PRIME_ANIM_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
-// Netflix-style pagination indicator: one thin segment per scrollable "page",
-// the current one lit. Computes the real page count (not a fixed 5) and hides
-// itself entirely when the row doesn't overflow.
+// App accent (teal) — matches the Continue Watching progress bar + spinners.
+const RAIL_ACCENT = '#14b8a6';
+
+// Scroll indicator, teal-themed. Hides itself when the row doesn't overflow.
+//  - Desktop/tablet: Netflix-style segmented dots — one thin segment per scrollable
+//    "page" (real count, not a fixed 5), the current one lit teal, aligned 1:1 with
+//    each arrow click.
+//  - Mobile: a single compact progress bar (the full-width dashes read as clutter on a
+//    narrow screen) whose teal fill tracks how far through the row you've scrolled.
 const ScrollDots = ({ scrollRef }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [pages, setPages] = useState(1);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [filled, setFilled] = useState(0); // 0..1 scroll progress (mobile bar)
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -55,6 +64,11 @@ const ScrollDots = ({ scrollRef }) => {
         ? total - 1
         : Math.min(total - 1, Math.round(el.scrollLeft / pageW));
       setActiveIdx(active);
+      // Mobile bar: fraction of the row that has scrolled into/through view — starts
+      // partially filled (first page visible) and reaches 100% at the end.
+      setFilled(el.scrollWidth <= el.clientWidth
+        ? 1
+        : Math.min(1, (el.scrollLeft + el.clientWidth) / el.scrollWidth));
     };
 
     el.addEventListener('scroll', update, { passive: true });
@@ -67,6 +81,14 @@ const ScrollDots = ({ scrollRef }) => {
 
   if (pages <= 1) return null;
 
+  if (isMobile) {
+    return (
+      <Box sx={{ ml: 'auto', flexShrink: 0, width: 40, height: 3, borderRadius: 2, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.22)' }}>
+        <Box sx={{ width: `${Math.round(filled * 100)}%`, height: '100%', bgcolor: RAIL_ACCENT, borderRadius: 2, transition: 'width 0.15s ease' }} />
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', gap: 0.4, alignItems: 'center', ml: 'auto', flexShrink: 0, pr: 0.5 }}>
       {Array.from({ length: pages }).map((_, i) => (
@@ -76,7 +98,7 @@ const ScrollDots = ({ scrollRef }) => {
             width: 14,
             height: 2,
             borderRadius: 1,
-            bgcolor: i === activeIdx ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.28)',
+            bgcolor: i === activeIdx ? RAIL_ACCENT : 'rgba(255,255,255,0.28)',
             transition: 'background-color 0.2s ease',
             flexShrink: 0,
           }}
