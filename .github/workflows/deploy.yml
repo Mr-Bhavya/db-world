@@ -7,9 +7,10 @@ name: Deploy to Pi (self-hosted)
 # released.
 #
 # Prerequisites (one-time):
-#   1. Register the Pi as a self-hosted runner: repo → Settings → Actions →
-#      Runners → New self-hosted runner → label it `dbworldpi`. Install it as a
-#      service:  ./svc.sh install && ./svc.sh start
+#   1. Register the Pi as a self-hosted runner (repo → Settings → Actions →
+#      Runners → New self-hosted runner). Default labels (self-hosted) are fine.
+#      Run it as a SERVICE so it survives reboots / SSH logout:
+#        sudo ./svc.sh install && sudo ./svc.sh start
 #   2. Create a `production` Environment (Settings → Environments), optionally
 #      with a required reviewer so each deploy waits for your approval.
 #   3. The runner user can `sudo /usr/local/bin/dbworldctl` (NOPASSWD sudoers)
@@ -38,7 +39,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, dbworldpi]
+    runs-on: self-hosted   # your Pi runner (default labels: self-hosted, Linux, ARM64)
     environment: production
     env:
       TAG:  ${{ inputs.tag  || github.event.release.tag_name }}
