@@ -42,7 +42,7 @@ Each release ships a **`version.json`** (`versionCode`, `versionName`, `apkUrl`,
 
 ## `deploy.yml` prerequisites
 Deploys the artifacts from an existing release, so **build a release first** (`v*` tag).
-1. **Self-hosted runner** on the Pi (Settings → Actions → Runners → New self-hosted runner) with the label `dbworldpi`, installed as a service (`./svc.sh install && ./svc.sh start`).
+1. **Self-hosted runner** on the Pi (Settings → Actions → Runners → New self-hosted runner) — default labels are fine (`runs-on: self-hosted`). Install as a **service** so it survives reboot/logout: `sudo ./svc.sh install && sudo ./svc.sh start`. **The workflow must also be on the repo's default branch** for the manual "Run workflow" button to appear.
 2. A **`production` Environment** (Settings → Environments), optionally with a required reviewer for approval gating.
 3. Runner user can `sudo /usr/local/bin/dbworldctl` (NOPASSWD) and write to `/var/www/dbworld`; `curl` + `unzip` installed.
 4. Run it: **Actions → Deploy to Pi → Run workflow**, enter the tag (e.g. `v3.0.0`) + part.
