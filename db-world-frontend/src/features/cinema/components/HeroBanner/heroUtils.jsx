@@ -1,4 +1,4 @@
-export const CYCLE_MS = 8000000;
+export const CYCLE_MS = 8000; // hero auto-advance interval (desktop) + Ken Burns zoom duration
 export const FADE_SECS = 0.6;
 
 export const year = (d) => (d ? String(d).slice(0, 4) : null);

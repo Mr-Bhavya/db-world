@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Box, Typography, IconButton, Tooltip, Skeleton } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, Skeleton, Button } from '@mui/material';
 import {
   PlayArrow, Check,
   BookmarkAdd, BookmarkAdded, ExpandMore, Star,
@@ -18,18 +18,21 @@ const EASE = [0.4, 0, 0.2, 1];    // matches cubic-bezier(0.4, 0, 0.2, 1)
 // Desktop "prime" rail card: a fixed portrait SLOT (never reflows) with an
 // absolute landscape overlay that grows toward `expandDir` on hover.
 const PrimeDesktopCard = ({
-  record, interaction = {}, cfg, expandDir = 'right', isExpanded,
+  record, interaction = {}, cfg, primeHeight, expandDir = 'right', isExpanded,
   cardRef, onMouseEnter, onMouseLeave, goDetail, goPlay,
   imgError, imgLoaded, setImgError, setImgLoaded,
   onWatchlist, onLike, onLove,
 }) => {
-  const PRIME_H = cfg.tiers.desktop;
+  // Fluid height passed down from RecordCard so the expand-on-hover slot scales
+  // with the viewport, and stays in sync with RailRow's PRIME_SHIFT math.
+  const PRIME_H = primeHeight ?? cfg.tiers.desktop;
   const PORTRAIT = Math.round(PRIME_H * 9 / 16);
   const GAP = 6;
   const LANDSCAPE = Math.round(PRIME_H * 16 / 9) - GAP;
 
   const portraitSrc = imgError ? null : tmdbImg(record.posterPath ?? record.backdropPath, 'w342');
   const landscapeSrc = tmdbImg(record.backdropPath ?? record.posterPath, 'w780');
+  const logoSrc = record.logoPath ? tmdbImg(record.logoPath, 'w300') : null;
 
   // Keep the slot z-index elevated until the collapse animation completes, so
   // the shrinking overlay never slides under a neighbouring card mid-transition.
@@ -102,33 +105,63 @@ const PrimeDesktopCard = ({
             )}
             <Box sx={{
               position: 'absolute', bottom: 0, left: 0, right: 0,
-              background: 'linear-gradient(to top, rgba(0,0,0,.97) 0%, rgba(0,0,0,.4) 75%, transparent 100%)',
-              p: 1.6, pt: 4,
+              background: 'linear-gradient(to top, rgba(0,0,0,.98) 0%, rgba(0,0,0,.75) 42%, rgba(0,0,0,.2) 78%, transparent 100%)',
+              p: 2, pt: 5,
             }}>
-              <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', mb: 0.6, lineHeight: 1.2 }}>
-                {record.title}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 0.9, mb: 0.7, alignItems: 'center' }}>
+              {/* Logo (falls back to the title) */}
+              {logoSrc ? (
+                <Box component="img" src={logoSrc} alt={record.title}
+                  sx={{ maxHeight: 56, maxWidth: '72%', objectFit: 'contain', objectPosition: 'left bottom', display: 'block', mb: 0.9, filter: 'drop-shadow(0 2px 10px rgba(0,0,0,.85))' }} />
+              ) : (
+                <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.2rem', mb: 0.7, lineHeight: 1.15, textShadow: '0 2px 10px rgba(0,0,0,.85)' }}>
+                  {record.title}
+                </Typography>
+              )}
+
+              {/* Meta — one dotted line */}
+              <Box sx={{ display: 'flex', gap: 0.9, mb: 0.7, flexWrap: 'wrap', alignItems: 'center' }}>
                 {record.voteAverage > 0 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
                     <Star sx={{ fontSize: 15, color: '#46d369' }} />
-                    <Typography sx={{ color: '#46d369', fontSize: '0.85rem', fontWeight: 700 }}>{Number(record.voteAverage).toFixed(1)}</Typography>
+                    <Typography sx={{ color: '#46d369', fontSize: '0.85rem', fontWeight: 800 }}>{Number(record.voteAverage).toFixed(1)}</Typography>
                   </Box>
                 )}
-                {year(record.releaseDate) && <Typography sx={{ color: 'rgba(255,255,255,.6)', fontSize: '0.85rem' }}>{year(record.releaseDate)}</Typography>}
+                {year(record.releaseDate) && (
+                  <Typography sx={{ color: 'rgba(255,255,255,.72)', fontSize: '0.85rem', fontWeight: 600 }}>{year(record.releaseDate)}</Typography>
+                )}
+                {record.genres?.slice(0, 3).map((g) => (
+                  <React.Fragment key={g}>
+                    <Box component="span" sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.35)' }} />
+                    <Typography sx={{ color: 'rgba(255,255,255,.62)', fontSize: '0.78rem' }}>{g}</Typography>
+                  </React.Fragment>
+                ))}
               </Box>
-              {record.genres?.length > 0 && (
-                <Typography sx={{ color: 'rgba(255,255,255,.45)', fontSize: '0.74rem', mb: 1 }}>
-                  {record.genres.slice(0, 3).join(' · ')}
+
+              {/* Overview snippet */}
+              {record.overview && (
+                <Typography sx={{
+                  color: 'rgba(255,255,255,.7)', fontSize: '0.82rem', lineHeight: 1.45, mb: 1.1,
+                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: '92%',
+                }}>
+                  {record.overview}
                 </Typography>
               )}
-              <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
-                <Tooltip title="Play">
-                  <IconButton size="small" onClick={goPlay} sx={{ bgcolor: '#fff', color: '#000', p: 0.7, '&:hover': { bgcolor: 'rgba(255,255,255,.85)' } }}>
-                    <PlayArrow sx={{ fontSize: 18 }} />
-                  </IconButton>
-                </Tooltip>
-                {!interaction?.watched && iconBtn(interaction.watchlisted ? 'In My List' : 'Add to My List',
+
+              {/* Actions — prominent Play, then the secondary icons */}
+              <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center' }}>
+                <Button
+                  onClick={goPlay}
+                  variant="contained"
+                  startIcon={<PlayArrow sx={{ fontSize: 21 }} />}
+                  sx={{
+                    bgcolor: '#fff', color: '#000', fontWeight: 800, textTransform: 'none',
+                    fontSize: '0.86rem', borderRadius: 1, py: 0.5, px: 2.2, boxShadow: 'none',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,.85)', boxShadow: 'none' },
+                  }}
+                >
+                  Play
+                </Button>
+                {iconBtn(interaction.watchlisted ? 'In My List' : 'Add to My List',
                   (e) => { e.stopPropagation(); onWatchlist?.(record); },
                   interaction.watchlisted ? <BookmarkAdded sx={{ fontSize: 16 }} /> : <BookmarkAdd sx={{ fontSize: 16 }} />,
                   { color: interaction.watchlisted ? '#46d369' : '#fff' })}
@@ -141,7 +174,9 @@ const PrimeDesktopCard = ({
                   iconSize={16}
                   pad={0.65}
                 />
-                {iconBtn('More details', goDetail, <ExpandMore sx={{ fontSize: 18 }} />, { ml: 'auto' })}
+                <Box sx={{ ml: 'auto' }}>
+                  {iconBtn('More details', goDetail, <ExpandMore sx={{ fontSize: 18 }} />)}
+                </Box>
               </Box>
             </Box>
           </Box>

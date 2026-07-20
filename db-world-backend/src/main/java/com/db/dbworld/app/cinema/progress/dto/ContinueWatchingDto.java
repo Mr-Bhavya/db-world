@@ -18,6 +18,7 @@ public class ContinueWatchingDto {
     String  type;          // MOVIE | TV_SERIES
     String  posterPath;
     String  backdropPath;
+    String  logoPath;      // title logo (null → UI falls back to the text title)
 
     /** The media file the player should open on click. */
     String  resumeFileId;

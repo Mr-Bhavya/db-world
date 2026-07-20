@@ -115,13 +115,13 @@ const HeroSkeletonMobile = ({ isXs }) => {
 
 const HeroSkeletonDesktop = ({ isMonitor, isTv }) => {
   const heroHeight = isTv
-    ? 'clamp(760px, 86vh, 1100px)'
+    ? 'clamp(760px, 90vh, 1120px)'
     : isMonitor
-      ? 'clamp(680px, 82vh, 980px)'
-      : 'clamp(560px, 78vh, 860px)';
+      ? 'clamp(680px, 88vh, 1040px)'
+      : 'clamp(600px, 86vh, 940px)';
 
   const contentLeft = isTv ? 56 : isMonitor ? 72 : 56;
-  const contentBottom = isTv ? 160 : isMonitor ? 140 : 120;
+  const contentBottom = isTv ? 240 : isMonitor ? 206 : 176;
 
   return (
     <Box
@@ -280,12 +280,17 @@ const HeroBanner = ({
 
   const startCycle = useCallback(() => {
     clearInterval(timerRef.current);
-    if (featured.length <= 1 || reducedMotion) return;
+    // Auto-advance on desktop only; mobile stays on the tapped/swiped slide.
+    if (featured.length <= 1 || reducedMotion || isMobileLike) return;
     timerRef.current = setInterval(() => {
       setDir(1);
       setIdx((i) => (i + 1) % featured.length);
     }, CYCLE_MS);
-  }, [featured.length, reducedMotion]);
+  }, [featured.length, reducedMotion, isMobileLike]);
+
+  // Pause the auto-advance while the pointer is over the hero, resume on leave.
+  const pauseCycle = useCallback(() => clearInterval(timerRef.current), []);
+  const resumeCycle = useCallback(() => startCycle(), [startCycle]);
 
   useEffect(() => {
     startCycle();
@@ -402,6 +407,8 @@ const HeroBanner = ({
       {...commonProps}
       isMonitor={isMonitor}
       isTv={isTv}
+      onHoverPause={pauseCycle}
+      onHoverResume={resumeCycle}
     />
   );
 };

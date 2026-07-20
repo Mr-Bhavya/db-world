@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, Skeleton } from '@mui/material';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../../RailRow/railTypeConfig';
+import useDeviceTier from '../../../hooks/useDeviceTier';
+import { useViewportWidth, fluidDesktopHeight } from '../../../hooks/useFluidCardSize';
 
 // Loading placeholder sized to match each display type's card footprint.
 const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) => {
@@ -10,7 +12,9 @@ const RecordCardSkeleton = ({ type = 'standard', wide, top10, prime }) => {
     : prime ? 'prime' : top10 ? 'top10' : wide ? 'wide' : 'standard';
 
   const cfg = RAIL_TYPE_CONFIG[resolvedType] ?? RAIL_TYPE_CONFIG[RAIL_TYPE_DEFAULT];
-  const deskH = cfg.tiers.desktop;
+  const tier = useDeviceTier();
+  const vw = useViewportWidth();
+  const deskH = fluidDesktopHeight(cfg.tiers.desktop, tier, vw);
   const mobH = cfg.tiers.mobile;
   const tabH = cfg.tiers.tablet;
   const isCirc = resolvedType === 'person';

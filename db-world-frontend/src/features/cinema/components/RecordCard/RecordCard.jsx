@@ -4,6 +4,7 @@ import { Box, Typography, Skeleton } from '@mui/material';
 import { tmdbImg } from '../../api/cinemaApi';
 import { RAIL_TYPE_CONFIG, RAIL_TYPE_DEFAULT } from '../RailRow/railTypeConfig';
 import useCardInteraction from './parts/useCardInteraction';
+import { useViewportWidth, fluidDesktopHeight } from '../../hooks/useFluidCardSize';
 import { resolveCardImage } from './parts/cardImage';
 import RecordCardSkeleton from './parts/RecordCardSkeleton';
 import HoverPopup from './parts/HoverPopup';
@@ -26,7 +27,7 @@ export { RecordCardSkeleton };
 const RecordCard = ({
   record, rank, expandOnHover = false, type: typeProp, wide = false, interaction = {},
   index, onHoverExpand, expandDir = 'left', imageVariant = null,
-  forceExpanded = false, onWatchlist, onLike, onLove, onWatched
+  forceExpanded = false, onWatchlist, onLike, onLove, onWatched, edgeArrowRef = null,
 }) => {
 
   // Resolve type: explicit prop wins, then infer from legacy boolean props
@@ -44,8 +45,13 @@ const RecordCard = ({
     isMobile, tier, isTv,
     hovered, anchorRect, cardRef,
     imgError, imgLoaded, setImgError, setImgLoaded,
-    onMouseEnter, onMouseLeave, goDetail, goPlay,
+    onMouseEnter, onMouseLeave, closeNow, goDetail, goPlay,
   } = useCardInteraction({ expandOnHover: isPrime, useInlineWideHover, index, onHoverExpand, record });
+
+  // Fluid desktop card height — scales smoothly with the viewport so a small
+  // laptop and a large monitor get proportional cards (see useFluidCardSize).
+  const vw = useViewportWidth();
+  const deskH = fluidDesktopHeight(cfg.tiers.desktop, tier, vw);
 
   // Standard cards use poster (2:3) on mobile/tablet, backdrop (16:9) on desktop/tv
   const isMobileTier = tier === 'mobile' || tier === 'tablet';
@@ -66,11 +72,20 @@ const RecordCard = ({
   });
   const imgSrc = imgError ? null : tmdbImg(imgPath, isExpanded || isLandscape || isTopTen ? 'w780' : 'w342');
 
+  // Still shown behind the hover popup's trailer. A LANDSCAPE card already shows a
+  // backdrop, so the popup must reuse that exact same image — otherwise the artwork
+  // visibly swaps on hover (e.g. text backdrop → clean backdrop). A PORTRAIT card
+  // (poster/top10/jumbo) keeps the landscape backdrop still, which is the intended
+  // look. Either way the trailer then fades in on top.
+  const popupStillSrc = isLandscape
+    ? imgSrc
+    : tmdbImg(record.backdropPath ?? record.posterPath, 'w780');
+
   // ── Desktop prime: distinct fixed-slot / expand-on-hover layout ────────────
   if (isPrime && !isMobile) {
     return (
       <PrimeDesktopCard
-        record={record} interaction={interaction} cfg={cfg}
+        record={record} interaction={interaction} cfg={cfg} primeHeight={deskH}
         expandDir={expandDir} isExpanded={isExpanded}
         cardRef={cardRef} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
         goDetail={goDetail} goPlay={goPlay}
@@ -81,25 +96,27 @@ const RecordCard = ({
   }
 
   // ── dimensions — driven by RAIL_TYPE_CONFIG ─────────────────────────────
-  const PRIME_HEIGHT = { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop };
+  // Prime uses the SAME portrait size on mobile/tablet as desktop (deskH), so the
+  // featured rail is equally prominent everywhere; mobile just has no hover-expand
+  // (tap opens the detail via the standard-render onClick below).
+  const PRIME_HEIGHT = { xs: deskH, sm: deskH, md: deskH };
 
   const cardWidth = (type === 'prime')
     ? {
-      // Mobile/tablet prime is a portrait poster (matches the desktop idle slot).
-      xs: `calc(${cfg.tiers.mobile}px * ${9 / 16})`,
-      sm: `calc(${cfg.tiers.tablet}px * ${9 / 16})`,
+      xs: `calc(${deskH}px * ${9 / 16})`,
+      sm: `calc(${deskH}px * ${9 / 16})`,
       md: isExpanded
-        ? `calc(${cfg.tiers.desktop}px * ${16 / 9})`
-        : `calc(${cfg.tiers.desktop}px * ${9 / 16})`,
+        ? `calc(${deskH}px * ${16 / 9})`
+        : `calc(${deskH}px * ${9 / 16})`,
     }
     : (type === 'top10')
-      ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(cfg.tiers.desktop * 2 / 3) }
+      ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(deskH * 2 / 3) }
       : (type === 'wide' || type === 'continue')
-        ? { xs: Math.round(cfg.tiers.mobile * 16 / 9), sm: Math.round(cfg.tiers.tablet * 16 / 9), md: Math.round(cfg.tiers.desktop * 16 / 9) }
+        ? { xs: Math.round(cfg.tiers.mobile * 16 / 9), sm: Math.round(cfg.tiers.tablet * 16 / 9), md: Math.round(deskH * 16 / 9) }
         : (type === 'person')
-          ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: cfg.tiers.desktop }
+          ? { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: deskH }
           : (type === 'jumbo')
-            ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(cfg.tiers.desktop * 2 / 3) }
+            ? { xs: Math.round(cfg.tiers.mobile * 2 / 3), sm: Math.round(cfg.tiers.tablet * 2 / 3), md: Math.round(deskH * 2 / 3) }
             : // standard/billboard: xs/sm use mobileAspect (poster), md+ use cardAspect (backdrop)
             (() => {
               const [daw, dah] = cfg.cardAspect.split('/').map(Number);
@@ -110,7 +127,7 @@ const RecordCard = ({
               return {
                 xs: Math.round(cfg.tiers.mobile * mr),
                 sm: Math.round(cfg.tiers.tablet * mr),
-                md: Math.round(cfg.tiers.desktop * dr),
+                md: Math.round(deskH * dr),
               };
             })();
 
@@ -121,7 +138,10 @@ const RecordCard = ({
     ? { zIndex: isExpanded ? 10 : 1 }
     : useInlineWideHover
       ? (hovered ? { scale: 1.02, y: -4, zIndex: 10 } : { scale: 1, y: 0, zIndex: 1 })
-      : (hovered ? { scale: 1.03, zIndex: 10 } : { scale: 1, zIndex: 1 });
+      // Popup cards: the portal popup fully covers the card on hover, so a scale
+      // bump here would only flash a faint double-image behind it — keep it still
+      // and let the popup do the "grow" so the morph reads as one entity.
+      : (hovered ? { scale: 1, zIndex: 10 } : { scale: 1, zIndex: 1 });
 
   const motionTransition = isPrime
     ? { duration: 0 }
@@ -136,7 +156,6 @@ const RecordCard = ({
 
   return (
     <motion.div
-      ref={cardRef}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={isMobile ? goDetail : undefined}
@@ -145,36 +164,55 @@ const RecordCard = ({
       tabIndex={isTv ? 0 : undefined}
       style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'flex-end' }}
     >
-      {/* ── Top 10 rank numeral — metallic gradient fill + crisp edge ── */}
+      {/* ── Top 10 rank numeral (Netflix) — metallic gradient fill + crisp edge, held
+             in a fixed-height, clipped wrapper so the oversized glyph can NEVER make
+             the row taller than the poster (which was creating a vertical scroll: with
+             overflowX:auto the container's overflowY:visible computes to auto, so any
+             vertical overflow becomes scrollable). ── */}
       {rank != null && (
-        <Typography sx={{
-          fontSize: { xs: '8.5rem', sm: '11.5rem', md: '15rem' },
-          fontWeight: 900,
-          fontFamily: '"Bebas Neue", "Helvetica Neue", Arial, sans-serif',
-          lineHeight: 0.72,
-          letterSpacing: { xs: '-0.05em', md: '-0.07em' },
-          // Brushed-metal gradient fill with a dark edge so it reads on any poster.
-          background: 'linear-gradient(180deg, #ffffff 0%, #d6dce2 44%, #8b95a1 72%, #5b646f 100%)',
-          WebkitBackgroundClip: 'text',
-          backgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          color: 'transparent',
-          WebkitTextStroke: { xs: '1.5px rgba(0,0,0,0.42)', md: '2px rgba(0,0,0,0.5)' },
-          mr: { xs: -2, sm: -3, md: -4.5 },
-          mb: 0, zIndex: 0, userSelect: 'none', flexShrink: 0,
-          filter: 'drop-shadow(2px 7px 16px rgba(0,0,0,0.85))',
-          animation: 'topTenIn 0.5s cubic-bezier(0.22,1,0.36,1) both',
+        <Box sx={{
+          // Full card height, but the numeral is sized to ~half of it and bottom-aligned,
+          // so it reads as a rank badge in the poster's bottom-left (overflow:hidden still
+          // guarantees the row can't grow taller than the card → no vertical scroll).
+          height: { xs: cfg.tiers.mobile, sm: cfg.tiers.tablet, md: deskH },
+          display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
+          flexShrink: 0, zIndex: 0, pointerEvents: 'none',
+          mr: { xs: -1, sm: -1.5, md: -2 },   // poster tucks over the numeral's right edge
+          animation: 'topTenIn 0.45s cubic-bezier(0.22,1,0.36,1) both',
           '@keyframes topTenIn': {
-            from: { opacity: 0, transform: 'translateY(14px) scale(0.92)' },
-            to: { opacity: 1, transform: 'translateY(0) scale(1)' },
+            from: { opacity: 0, transform: 'scale(0.94)' },
+            to: { opacity: 1, transform: 'scale(1)' },
           },
         }}>
-          {rank}
-        </Typography>
+          <Typography sx={{
+            // ~0.7 × card height → glyph (cap height) lands at roughly half the card.
+            fontSize: {
+              xs: Math.round(cfg.tiers.mobile * 0.7),
+              sm: Math.round(cfg.tiers.tablet * 0.7),
+              md: Math.round(deskH * 0.7),
+            },
+            fontWeight: 900,
+            fontFamily: '"Bebas Neue", "Helvetica Neue", Arial, sans-serif',
+            lineHeight: 0.72,
+            letterSpacing: { xs: '-0.08em', md: '-0.1em' },   // pull "10" together
+            // Teal (app theme) gradient with a light gloss top + dark edge for legibility.
+            background: 'linear-gradient(180deg, #5eead4 0%, #2dd4bf 42%, #14b8a6 72%, #0f766e 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            WebkitTextStroke: { xs: '1px rgba(0,0,0,0.4)', md: '1.5px rgba(0,0,0,0.45)' },
+            userSelect: 'none',
+            filter: 'drop-shadow(1px 3px 9px rgba(0,0,0,0.8))',
+          }}>
+            {rank}
+          </Typography>
+        </Box>
       )}
 
       {/* ── Card box ── */}
       <Box
+        ref={cardRef}
         sx={{
           width: cardWidth,
           height: isPrime ? PRIME_HEIGHT : undefined,
@@ -266,7 +304,11 @@ const RecordCard = ({
             onLove={onLove}
             onWatched={onWatched}
             anchorRect={anchorRect}
+            anchorRef={cardRef}
+            edgeArrowRef={edgeArrowRef}
+            stillSrc={popupStillSrc}
             onClose={onMouseLeave}
+            onDismiss={closeNow}
             onHoverEnter={onMouseEnter}
           />
         )}

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Avatar, Box, Chip, CircularProgress, IconButton, Typography,
 } from '@mui/material';
@@ -38,16 +38,19 @@ const yearsBetween = (start, end) => {
 const getInitials = (name) =>
   (name ?? '?').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
+// How many filmography cards to reveal per infinite-scroll batch.
+const FILMO_BATCH = 24;
+
 /* ═══════════════════════════════════════════════════════════
    FILMO CARD — memoized, receives stable onClick via id
 ═══════════════════════════════════════════════════════════ */
 
-const FilmoCard = memo(function FilmoCard({ item, onClickRecord }) {
+const FilmoCard = memo(function FilmoCard({ item, onClickRecord, subtitle: subtitleProp }) {
   const T = useT();
   // FIX #3: w154 is plenty for 104-124px display width
   const poster = tmdbImg(item.posterPath, 'w154');
   const initials = (item.title ?? '?').slice(0, 2).toUpperCase();
-  const subtitle = item.creditType === 'CAST' ? item.character : item.job;
+  const subtitle = subtitleProp ?? (item.creditType === 'CAST' ? item.character : item.job);
   const hasLink = Boolean(item.recordId);
 
   // FIX #2: Single stable handler — calls parent with item
@@ -253,16 +256,65 @@ export default function PersonDetailView({ personId, onBack, surface }) {
     [data?.alsoKnownAs],
   );
 
-  // FIX #6: Sort by cast/crew first, then by popularity (descending)
-  const { knownFor, otherWork } = useMemo(() => {
+  // Cast credits first, keeping the backend's popularity order within each group.
+  const filmographySorted = useMemo(() => {
     const film = data?.filmography ?? [];
-    const sorted = [...film].sort((a, b) => {
-      const typeDiff = (a.creditType === 'CAST' ? 0 : 1) - (b.creditType === 'CAST' ? 0 : 1);
-      if (typeDiff !== 0) return typeDiff;
-      return (b.popularity ?? 0) - (a.popularity ?? 0);
-    });
-    return { knownFor: sorted.slice(0, 12), otherWork: sorted.slice(12) };
+    return [...film].sort((a, b) => (a.creditType === 'CAST' ? 0 : 1) - (b.creditType === 'CAST' ? 0 : 1));
   }, [data?.filmography]);
+
+  const knownFor = useMemo(() => filmographySorted.slice(0, 12), [filmographySorted]);
+
+  // Full, DEDUPED filmography for the browsable section — a person can appear on a
+  // title as both cast and crew (e.g. actor + producer); merge those into one card
+  // with combined roles, adopting a recordId if any of the credits has one.
+  const filmographyAll = useMemo(() => {
+    const map = new Map();
+    for (const it of filmographySorted) {
+      const key = it.tmdbId ?? it.recordId ?? it.title;
+      const role = it.creditType === 'CAST' ? it.character : it.job;
+      const cur = map.get(key);
+      if (!cur) {
+        map.set(key, { ...it, roles: role ? [role] : [] });
+      } else {
+        if (!cur.recordId && it.recordId) { cur.recordId = it.recordId; cur.mediaType = it.mediaType; }
+        if (role && !cur.roles.includes(role)) cur.roles.push(role);
+      }
+    }
+    return [...map.values()];
+  }, [filmographySorted]);
+
+  const filmoCounts = useMemo(() => ({
+    all: filmographyAll.length,
+    MOVIE: filmographyAll.filter((i) => i.mediaType === 'MOVIE').length,
+    TV_SERIES: filmographyAll.filter((i) => i.mediaType === 'TV_SERIES').length,
+  }), [filmographyAll]);
+
+  const [filmoTab, setFilmoTab] = useState('all');
+  const [visibleCount, setVisibleCount] = useState(FILMO_BATCH);
+
+  const filmoFiltered = useMemo(() => (
+    filmoTab === 'all' ? filmographyAll : filmographyAll.filter((i) => i.mediaType === filmoTab)
+  ), [filmographyAll, filmoTab]);
+
+  const visibleFilmo = useMemo(() => filmoFiltered.slice(0, visibleCount), [filmoFiltered, visibleCount]);
+  const hasMoreFilmo = visibleCount < filmoFiltered.length;
+
+  const changeFilmoTab = useCallback((t) => { setFilmoTab(t); setVisibleCount(FILMO_BATCH); }, []);
+
+  // Client-side infinite scroll: the full list is already loaded, so just reveal it
+  // in batches as a sentinel scrolls into view. root:null observes the viewport and
+  // still clips correctly inside the modal/sheet scroller.
+  const sentinelRef = useRef(null);
+  useEffect(() => {
+    if (!hasMoreFilmo) return undefined;
+    const el = sentinelRef.current;
+    if (!el) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) setVisibleCount((c) => c + FILMO_BATCH);
+    }, { rootMargin: '400px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMoreFilmo, visibleCount, filmoTab]);
 
   // FIX #2: Stable callback — no inline arrow per item
   const openRecord = useCallback((item) => {
@@ -271,12 +323,13 @@ export default function PersonDetailView({ personId, onBack, surface }) {
     const base = isMovie ? Constants.DB_MOVIE_DETIALS_ROUTE : Constants.DB_SERIES_DETIALS_ROUTE;
     const slug = (item.title ?? '').replace(/\s+/g, '-').toLowerCase();
     const path = base.replace(':title', `${item.recordId}-${slug}`);
-    const { person, ...restState } = location.state ?? {};
+    // Drop `person` so navigating to a record doesn't re-open the person view.
+    const { person: _person, ...restState } = location.state ?? {};
     navigate(path, { state: { ...restState, background: restState.background || location } });
   }, [navigate, location]);
 
   const bg = surface ?? T.bg;
-  const hasContent = Boolean(data?.biography) || knownFor.length > 0 || otherWork.length > 0;
+  const hasContent = Boolean(data?.biography) || filmographyAll.length > 0;
 
   return (
     <Box
@@ -382,28 +435,57 @@ export default function PersonDetailView({ personId, onBack, surface }) {
             </Box>
           )}
 
-          {/* More Work */}
-          {otherWork.length > 0 && (
+          {/* Filmography — every title, filterable by type, revealed on scroll */}
+          {filmographyAll.length > 0 && (
             <Box sx={{ px: { xs: 2.5, sm: 3 }, py: 2.5, borderTop: `1px solid ${alpha(T.text, 0.06)}` }}>
               <Typography variant="overline" sx={{
-                color: T.textFaint, fontWeight: 700, letterSpacing: 1,
-                display: 'block', mb: 1.5,
+                color: T.textFaint, fontWeight: 700, letterSpacing: 1, display: 'block', mb: 1.5,
               }}>
-                More Work ({otherWork.length})
+                Filmography
               </Typography>
+
+              {/* Type filter tabs (hidden when a type has no titles) */}
+              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                {[['all', 'All'], ['MOVIE', 'Movies'], ['TV_SERIES', 'TV']].map(([key, label]) => (
+                  filmoCounts[key] > 0 ? (
+                    <Chip
+                      key={key}
+                      label={`${label} · ${filmoCounts[key]}`}
+                      onClick={() => changeFilmoTab(key)}
+                      variant={filmoTab === key ? 'filled' : 'outlined'}
+                      sx={{
+                        fontWeight: 700,
+                        color: filmoTab === key ? '#fff' : T.textMuted,
+                        bgcolor: filmoTab === key ? T.teal : 'transparent',
+                        borderColor: alpha(T.text, 0.18),
+                        '&:hover': { bgcolor: filmoTab === key ? T.teal : alpha(T.text, 0.08) },
+                      }}
+                    />
+                  ) : null
+                ))}
+              </Box>
+
               <Box sx={{
                 display: 'grid',
                 gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' },
                 gap: 1.5,
               }}>
-                {otherWork.map((item, i) => (
+                {visibleFilmo.map((item, i) => (
                   <FilmoCard
-                    key={`${item.tmdbId}-${item.creditId ?? i}`}
+                    key={`${item.tmdbId ?? item.recordId ?? item.title}-${i}`}
                     item={item}
+                    subtitle={item.roles?.slice(0, 2).join(', ')}
                     onClickRecord={openRecord}
                   />
                 ))}
               </Box>
+
+              {/* Infinite-scroll sentinel */}
+              {hasMoreFilmo && (
+                <Box ref={sentinelRef} sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                  <CircularProgress size={22} sx={{ color: T.teal }} />
+                </Box>
+              )}
             </Box>
           )}
 
