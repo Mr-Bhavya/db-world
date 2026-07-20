@@ -29,10 +29,6 @@ function trimTrailingSlash(value = '') {
   return value.replace(/\/+$/, '');
 }
 
-function trimLeadingSlash(value = '') {
-  return value.replace(/^\/+/, '');
-}
-
 function normalizePath(path = '') {
   if (!path) return '/';
   return path.startsWith('/') ? path : `/${path}`;
@@ -48,14 +44,6 @@ function isNativePlatform() {
 
 function isLocalhostHost(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1';
-}
-
-function safeOrigin(candidate) {
-  try {
-    return trimTrailingSlash(new URL(candidate).origin);
-  } catch {
-    return '';
-  }
 }
 
 function toWsOrigin(httpOrigin) {

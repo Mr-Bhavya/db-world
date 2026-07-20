@@ -260,7 +260,7 @@ const Login = () => {
       await axiosInstance.put(`/api/user/dob=${dob}`);
       setDobOpen(false);
       navigate(destination, { replace: true });
-    } catch (err) {
+    } catch {
       setDobError(true);
     } finally {
       setDobLoading(false);

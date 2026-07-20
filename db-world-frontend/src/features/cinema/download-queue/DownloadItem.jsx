@@ -7,9 +7,6 @@ import PlayArrowIcon    from '@mui/icons-material/PlayArrow';
 import CancelIcon       from '@mui/icons-material/Close';
 import DeleteIcon       from '@mui/icons-material/Delete';
 import ReplayIcon       from '@mui/icons-material/Replay';
-import CheckCircleIcon  from '@mui/icons-material/CheckCircle';
-import ErrorIcon        from '@mui/icons-material/Error';
-import HourglassTopIcon from '@mui/icons-material/HourglassTop';
 import { useT }         from '@shared/theme/ThemeContext';
 
 export const STATUS_COLOR = {
@@ -20,12 +17,6 @@ export const STATUS_COLOR = {
   failed:    '#f44336',
   cancelled: '#757575',
   unknown:   '#757575',
-};
-
-const STATUS_ICON = {
-  success:  <CheckCircleIcon  sx={{ fontSize: 13 }} />,
-  failed:   <ErrorIcon        sx={{ fontSize: 13 }} />,
-  pending:  <HourglassTopIcon sx={{ fontSize: 13 }} />,
 };
 
 export function fmtBytes(b) {
